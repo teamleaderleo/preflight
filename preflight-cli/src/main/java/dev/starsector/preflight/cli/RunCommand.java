@@ -194,7 +194,8 @@ final class RunCommand {
     /**
      * Prints a compact decoded-texture (VRAM) working-set summary for the selected install. This is
      * a health-check view of {@link ProfileCensus}: the override-resolved decoded floor, the loudest
-     * mods, and a pointer to the budget verdict. Fail-soft — a scan problem must never fail doctor.
+     * mods, and the grade/plan/cut chain that acts on it. Fail-soft — a scan problem must never fail
+     * doctor.
      */
     private static void printProfileVramSummary(LaunchTarget target) {
         try {
@@ -222,7 +223,9 @@ final class RunCommand {
                     System.out.println("    " + humanBytes(asLong(mod.get("decodedImageBytes"))) + "  " + mod.get("id"));
                 });
             }
-            System.out.println("  budget verdict: run `preflight scan --vram-budget <size>` (e.g. 4G) to grade it");
+            System.out.println("  grade it:       preflight scan --vram-budget <size>          (e.g. 4G)");
+            System.out.println("  plan a cut:     preflight scan --vram-budget <size> --max-texture-size <pixels>");
+            System.out.println("  take the cut:   preflight assets shrink --max-texture-size <pixels> --out-dir <mod-dir>");
         } catch (IOException | RuntimeException error) {
             System.err.println("Preflight profile scan skipped: " + message(error));
         }
