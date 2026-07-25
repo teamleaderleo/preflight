@@ -136,6 +136,33 @@ To check the same vector on rented hardware:
 The job is a compile and a few texture uploads, so it costs a fraction of a cent. It has
 been run on a Tesla T4 and works.
 
+Checking a real baked cache instead of a test pattern
+-----------------------------------------------------
+The vector above is a fixed synthetic image, which is the right input for asking a
+question about a *driver*: it is deterministic, so two machines' results are directly
+comparable and a difference is a fact about the driver rather than about the input.
+
+It is the wrong input for asking whether the *cache* is correct. For that:
+
+    preflight assets bake-blocks --out-dir /tmp/blocks
+    preflight assets cache-conformance --cache-dir /tmp/blocks --out /tmp/cache-vector.bin
+    ./run-block-conformance.sh /tmp/cache-vector.bin
+
+Same format, same probe, real art. The export decodes each texture in the current build
+rather than copying the baker's opinion of its own output, so the vector states what this
+code believes and the driver arbitrates it.
+
+The vector is dominated by uncompressed expected images -- one 2048px texture contributes
+16 MiB -- so `cache-conformance` samples evenly and stops at a byte budget (24 MiB by
+default, `--max-bytes` to change it). A big vector is fine locally and is not something to
+ship to a rented GPU as a function argument.
+
+Why this exists: it is the only part of the block cache a synthetic harness cannot reach.
+The encoder is checked against its decoder, the blobs against their manifest, and the agent
+against a synthetic `com.fs.graphics.TextureLoader` in a child JVM -- none of which involves
+a GPU. A wrong internal-format constant, a wrong mip-level order or a wrong row order would
+pass every one of those and fail only on a player's machine.
+
 What it found, and why it was worth running
 -------------------------------------------
 Three implementations round the interpolated colours three different ways:

@@ -820,6 +820,43 @@ and blue. Real photographic art varies more within a block, so the endpoints lan
 having, which is why the real-profile measurements come in near ΔE 0.80 while a synthetic ramp measures
 4.
 
+## What can be tested without launching Starsector (2026-07-26)
+
+Worth stating plainly, because the answer changed when the block cache landed and the boundary is not
+where it looks.
+
+**Already automated, no game involved.** There is a synthetic Starsector in the test tree —
+`com.fs.graphics.TextureLoader` carrying the real obfuscated method names (`Ô00000`, `o00000`), plus
+`com.fs.graphics.L` and `com.fs.starfarer.loading.A`, driven by `SyntheticTextureLauncher` **in a child
+JVM** so the agent is genuinely injected. `preflight-synthetic-startup` is a further module of
+cross-process startup workloads. Agent injection, bytecode transformation, cache hit/miss and fail-open
+fallback are all covered.
+
+**The gap the block cache opened.** Every one of those harnesses stops at the byte level — the stub
+loader counts calls and returns arrays, and never calls `glCompressedTexImage2D`. For the prepared-pixel
+cache that was the whole contract. For blocks it is not: a wrong internal-format constant, a wrong
+mip-level order or a wrong row order passes every existing test and fails only on a player's machine.
+
+**How it was closed.** `preflight assets cache-conformance` exports a sample of a baked cache in the
+same `SPFV` format the driver probe already reads, so `block-conformance-probe` — unchanged, and already
+verified on two vendors — arbitrates the real cache. Confirmed end to end on this machine:
+
+```
+graphics/ships/hull.png  pixels=65536  exact=100.00%  mean dev=0.000  worst dev=0
+VERDICT: this driver reads the blocks preflight writes.     [Apple M5, hardware]
+```
+
+The synthetic vector keeps its own job: it is deterministic, so it answers questions *about a driver*
+where two machines' results must be comparable. The cache vector answers whether *this cache* survives
+*a real driver*. Different questions, same probe.
+
+**What stays out of reach.** `starfarer_obf.jar` is not redistributable, so the synthetic is a model of
+the engine rather than the engine. Two known risks it structurally cannot catch: the real
+`TextureLoader` has two independent power-of-two implementations (already the blocker on padding
+removal), and Starsector's asynchronous image-preloader handoff has timing the stub does not reproduce.
+Both need the real installation — though not necessarily a launched game, since the offline
+installed-class contract checker pattern from PR #119 reads real class bytes without starting anything.
+
 ## Where this leaves the footprint program
 
 Ordered by ratio of effect to risk, with everything now measured rather than assumed:

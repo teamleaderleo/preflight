@@ -1,9 +1,10 @@
 import dev.starsector.preflight.core.BlockCompressor;
-import java.io.DataOutputStream;
+import dev.starsector.preflight.core.BlockConformanceVectorIO;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -21,10 +22,14 @@ import java.util.Random;
  *
  * <p>The vector is deterministic — fixed seed, fixed content — so results from different machines
  * are directly comparable, and a difference is a fact about the driver rather than about the input.
+ * That is what makes this the right vector for asking a question <em>about a driver</em>. To ask
+ * whether a real baked cache survives a real driver, {@code preflight assets cache-conformance}
+ * writes the same format from the profile's own art.
+ *
+ * <p>The layout itself lives in {@link BlockConformanceVectorIO}, so the two producers cannot drift
+ * apart from each other or from the C reader.
  */
 public final class BlockConformanceVector {
-    private static final byte[] MAGIC = {'S', 'P', 'F', 'V'};
-    private static final int VERSION = 1;
     private static final int SIZE = 256;
 
     private static final int GL_COMPRESSED_RGB_S3TC_DXT1 = 0x83F0;
@@ -33,57 +38,25 @@ public final class BlockConformanceVector {
     public static void main(String[] args) throws IOException {
         Path target = Path.of(args.length > 0 ? args[0] : "block-conformance-vector.bin");
         int[] image = testImage();
-        try (OutputStream stream = Files.newOutputStream(target);
-                DataOutputStream out = new DataOutputStream(stream)) {
-            out.write(MAGIC);
-            writeInt(out, VERSION);
-            writeInt(out, 2);
-            writeCase(out, "BC1 (DXT1, opaque)", GL_COMPRESSED_RGB_S3TC_DXT1, image, false);
-            writeCase(out, "BC3 (DXT5, with alpha)", GL_COMPRESSED_RGBA_S3TC_DXT5, image, true);
+        try (OutputStream stream = Files.newOutputStream(target)) {
+            BlockConformanceVectorIO.write(stream, List.of(
+                    testCase("BC1 (DXT1, opaque)", GL_COMPRESSED_RGB_S3TC_DXT1, image, false),
+                    testCase("BC3 (DXT5, with alpha)", GL_COMPRESSED_RGBA_S3TC_DXT5, image, true)));
         }
         System.out.println("Wrote " + target.toAbsolutePath() + " (" + Files.size(target) + " bytes)");
         System.out.println("Check it against a driver with block-conformance-probe.");
+        System.out.println("For a vector made of this profile's own art instead, see "
+                + "`preflight assets cache-conformance`.");
     }
 
-    private static void writeCase(DataOutputStream out, String name, int format, int[] image,
-            boolean withAlpha) throws IOException {
+    private static BlockConformanceVectorIO.Case testCase(
+            String name, int format, int[] image, boolean withAlpha) {
         byte[] blocks = BlockCompressor.encode(image, SIZE, SIZE, withAlpha);
-        int[] expected = BlockCompressor.decode(blocks, SIZE, SIZE, withAlpha);
-        byte[] nameBytes = name.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        writeInt(out, nameBytes.length);
-        out.write(nameBytes);
-        writeInt(out, format);
-        writeInt(out, SIZE);
-        writeInt(out, SIZE);
-        writeInt(out, blocks.length);
-        out.write(blocks);
-        writeInt(out, expected.length * 4);
-        // RGBA byte order, matching what glGetTexImage(GL_RGBA, GL_UNSIGNED_BYTE) returns.
-        byte[] rgba = new byte[expected.length * 4];
-        for (int i = 0; i < expected.length; i++) {
-            int pixel = expected[i];
-            rgba[i * 4] = (byte) (pixel >> 16);
-            rgba[i * 4 + 1] = (byte) (pixel >> 8);
-            rgba[i * 4 + 2] = (byte) pixel;
-            rgba[i * 4 + 3] = (byte) (pixel >>> 24);
-        }
-        out.write(rgba);
+        return new BlockConformanceVectorIO.Case(
+                name, format, SIZE, SIZE, blocks,
+                BlockCompressor.decode(blocks, SIZE, SIZE, withAlpha));
     }
 
-    /** Little-endian, so the C side can read it with a plain fread on every platform that matters. */
-    private static void writeInt(DataOutputStream out, int value) throws IOException {
-        out.write(value & 0xFF);
-        out.write((value >>> 8) & 0xFF);
-        out.write((value >>> 16) & 0xFF);
-        out.write((value >>> 24) & 0xFF);
-    }
-
-    /**
-     * Identical content to {@code BlockUploadProbe}, so the hosted result and the local one are
-     * comparable: a gradient, per-pixel noise forcing distinct indices within a block, hard edges
-     * pinning pixels to the endpoints, and an alpha ramp for BC3's separate alpha block. Flat blocks
-     * survive almost any misreading, so none of it is flat.
-     */
     private static int[] testImage() {
         Random random = new Random(20260726L);
         int[] image = new int[SIZE * SIZE];
