@@ -41,16 +41,28 @@ so it works the same on every version.
 Cost is a fraction of a cent: the whole job is a compile and a few texture uploads, well under a
 minute of the cheapest GPU on offer.
 
-Status: UNTESTED. Written on a machine with no NVIDIA hardware and no Modal account, so the code
-below is reasoned from the documented behaviour of EGL_EXT_platform_device rather than observed. The
-two likely failure points are called out in comments where they occur.
+Status: works. Confirmed on a Tesla T4 (NVIDIA 580.95.05, OpenGL 4.6) reporting
+preflight-renderer-class: hardware. Getting there took two fixes worth remembering, both recorded in
+docs/evidence/2026-07-26-encoder-driver-byte-agreement.md: NVIDIA_DRIVER_CAPABILITIES=all is not
+sufficient without the ICD manifest written below, and a harness must check the renderer rather than
+the exit status, or it will cheerfully report a software rasteriser as a GPU.
 """
 
 import os
 import pathlib
 import sys
 
-import modal
+# Both of these are read by Modal at import time, so they have to be set before it is imported.
+#
+# The image builder is pinned rather than left to the workspace default because the container's
+# contents are part of the measurement: which EGL and GL libraries are present decides which driver
+# libglvnd loads, and that is exactly what went wrong on the first hosted run. A probe whose result
+# depends on a workspace setting somebody changed last month is not reproducible. Override with
+# MODAL_IMAGE_BUILDER_VERSION if a newer builder is needed; valid values in Modal 1.2.6 are
+# 2023.12, 2024.04, 2024.10, 2025.06 and PREVIEW.
+os.environ.setdefault("MODAL_IMAGE_BUILDER_VERSION", "2025.06")
+
+import modal  # noqa: E402  -- must follow the environment setup above
 
 # Read before the decorator below runs, since that is the only point at which the GPU can be chosen.
 GPU = os.environ.get("PREFLIGHT_GPU", "T4")

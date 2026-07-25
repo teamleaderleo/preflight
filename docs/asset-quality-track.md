@@ -682,6 +682,27 @@ on exactly 50% of pixels — truncation against rounding. On the same driver, in
 colour blends truncate and the alpha blends round.** No principle predicts that; applying rounding to
 both, the tidy thing to do, would have broken the BC1 agreement that was already exact.
 
+**Then the same vector was run on rented NVIDIA hardware**, and the picture completed awkwardly:
+
+| implementation | exact | worst deviation |
+|---|---|---|
+| Apple M5 (Metal) | 100.00% | 0 |
+| Mesa llvmpipe (CPU) | 91.37% | 1 |
+| NVIDIA Tesla T4 | 45.31% | 1 |
+
+Three implementations, three different colour-blend roundings, all differing by exactly 1, with the
+alpha blends agreeing everywhere. There is no portable level table, and preflight matches the vendor
+with the smallest share of players.
+
+That is not the problem it looks like, because it was priced rather than argued about: the
+disagreement is **mean ΔE 0.206, max 0.439** against a just-noticeable threshold of 1.00, and it moves
+measured fidelity by 0.4% with the maximum unchanged. **Decision: keep one level table and do
+nothing.** Both tempting shortcuts — assuming portability, or shipping per-driver tables — would have
+been wrong, in opposite directions.
+
+The layout claim that the block cache actually rests on is now confirmed by three independent decoders
+across two vendors' silicon plus a CPU implementation.
+
 Full result and method: [2026-07-26-encoder-driver-byte-agreement.md](evidence/2026-07-26-encoder-driver-byte-agreement.md).
 
 ## Where this leaves the footprint program

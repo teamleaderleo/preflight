@@ -151,6 +151,55 @@ of this is judged against, and the layout is confirmed correct by a second indep
 it does is settle that a level table cannot be assumed portable — which is exactly what the NVIDIA run
 was meant to test, and still has not.
 
+## NVIDIA, measured: three implementations, three roundings
+
+With the ICD manifest in place, the second hosted run reached the GPU — `Tesla T4/PCIe/SSE2`, NVIDIA
+580.95.05, OpenGL 4.6, `preflight-renderer-class: hardware`.
+
+| implementation | exact | mean dev | worst dev |
+|---|---|---|---|
+| Apple M5 (Metal) | 100.00% | 0.000 | 0 |
+| Mesa llvmpipe 23.2.1 (CPU) | 91.37% | 0.086 | 1 |
+| **NVIDIA Tesla T4 (580.95.05)** | **45.31%** | **0.547** | **1** |
+
+Every deviation is exactly 1, and in all three cases BC1 and BC3 disagree *identically* — which
+pins the cause to the colour block, the component the two formats share. The alpha blends agree
+everywhere. So the picture is now complete and it is the awkward one: **three independent
+implementations round the colour blends three different ways**, and Apple — the one preflight
+matched exactly — is not the majority.
+
+This settles the portability question rather than leaving it open. There is no level table that
+matches every driver, so chasing per-driver tables would mean shipping a different encoder per
+machine to fix a disagreement of one part in 255.
+
+### So price it, rather than arguing about it
+
+The right response depends entirely on how big 1/255 is perceptually, which is a measurable
+question. Decoding the same blocks with the interpolated entries one level lower — a faithful model
+of the NVIDIA disagreement, and it reproduces the observed rate closely at 53.60% of pixels against
+NVIDIA's 54.69%:
+
+| quantity | value |
+|---|---|
+| the disagreement itself | mean ΔE **0.206**, max ΔE **0.439** |
+| fidelity under preflight's rules | mean ΔE 3.1291 |
+| fidelity under the shifted rules | mean ΔE 3.1428 |
+| just-noticeable threshold | 1.00 |
+
+**The worst pixel of the worst case is less than half the just-noticeable threshold**, and the effect
+on measured fidelity is +0.4% of the mean with the maximum unchanged. The disagreement is real,
+reproducible, and perceptually irrelevant.
+
+**Decision: do nothing.** Keep the single level table matched to Apple. It is bit-exact on one
+driver and within half a JND on the others, and the published ΔE figures are accurate to within 0.4%
+of themselves on NVIDIA hardware. What would have been wrong is either of the two tempting
+alternatives — assuming portability without checking, or building per-driver tables to chase an
+invisible difference.
+
+The layout claim, which is what actually matters for the block cache, is now confirmed by **three
+independent decoders on two vendors' silicon plus a CPU implementation**. That is a much stronger
+position than the single-driver result this document started with.
+
 ## Caveats
 
 - **One driver.** Apple M5 via Metal. The rounding behaviour is explicitly permitted to vary, so
@@ -158,13 +207,16 @@ was meant to test, and still has not.
   NVIDIA results are wanted, and a *mismatch* would be the more useful outcome: it would mean the
   level tables are Apple-specific and the block cache needs a per-driver decision rather than a
   constant.
-- **NVIDIA remains unmeasured.** The Modal path now builds, runs, compiles the probe and produces a
-  correct comparison — but so far only against a software rasteriser. The ICD manifest fix is
-  reasoned from how libglvnd resolves drivers, not yet confirmed by a run that reports
-  `preflight-renderer-class: hardware` on a rented GPU. Until one does, treat every NVIDIA statement
-  here as open.
-- **Mesa's result is a CPU result.** It is a genuine third implementation and useful as one, but
-  llvmpipe is not a GPU and its rounding is not evidence about what NVIDIA silicon does.
+- **AMD is still unmeasured**, and is the remaining vendor with meaningful Starsector share. The
+  probe kit runs there unchanged; nobody has run it.
+- **One NVIDIA GPU, one driver branch.** A Tesla T4 is Turing silicon on a datacentre driver. The
+  fixed-function block decoder is not something NVIDIA varies across a driver branch, but a GeForce
+  result would still be worth having, and is now something a player can produce in one command.
+- **Mesa's result is a CPU result.** A genuine third implementation, but llvmpipe is not a GPU, and
+  it is recorded as a software data point rather than as evidence about anyone's silicon.
+- The perceptual pricing above models the NVIDIA disagreement as "both interpolated entries one
+  level lower". That reproduces the observed rate closely (53.60% against 54.69%) but is a model of
+  the effect, not a transcription of NVIDIA's actual arithmetic, which is not documented.
 - Bit-exactness is checked on one 256×256 image. It is a deliberately adversarial one, but it is not
   the full corpus; the claim is that the layout is right, not that every possible block has been
   enumerated.
