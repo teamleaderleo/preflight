@@ -31,7 +31,12 @@ Usage
         probe-kits/gpu-capability/block-conformance-vector.bin
 
     modal run probe-kits/gpu-capability/modal-block-conformance.py
-    modal run probe-kits/gpu-capability/modal-block-conformance.py --gpu L4
+    PREFLIGHT_GPU=L4 modal run probe-kits/gpu-capability/modal-block-conformance.py
+
+The GPU is chosen by environment variable rather than a command-line flag because @app.function
+binds it at import time, and Modal's API for overriding it at call time has moved between versions
+(with_options does not exist in 1.2.6). An environment variable is read before the decorator runs,
+so it works the same on every version.
 
 Cost is a fraction of a cent: the whole job is a compile and a few texture uploads, well under a
 minute of the cheapest GPU on offer.
@@ -41,10 +46,14 @@ below is reasoned from the documented behaviour of EGL_EXT_platform_device rathe
 two likely failure points are called out in comments where they occur.
 """
 
+import os
 import pathlib
 import sys
 
 import modal
+
+# Read before the decorator below runs, since that is the only point at which the GPU can be chosen.
+GPU = os.environ.get("PREFLIGHT_GPU", "T4")
 
 HERE = pathlib.Path(__file__).parent
 PROBE_SOURCE = HERE / "block-conformance-probe.c"
@@ -64,7 +73,7 @@ image = (
 app = modal.App("preflight-block-conformance", image=image)
 
 
-@app.function(gpu="T4", timeout=300)
+@app.function(gpu=GPU, timeout=300)
 def check(probe_source: str, vector: bytes, gpu_label: str) -> int:
     """Compiles the probe against this container's driver and runs it on the vector."""
     import subprocess
@@ -99,16 +108,14 @@ def check(probe_source: str, vector: bytes, gpu_label: str) -> int:
 
 
 @app.local_entrypoint()
-def main(gpu: str = "T4"):
+def main():
     if not VECTOR.exists():
         print(f"Missing {VECTOR}.")
         print("Generate it first -- see the usage block at the top of this file.")
         sys.exit(2)
     vector = VECTOR.read_bytes()
-    print(f"Sending {len(vector)} bytes of conformance vector to a {gpu}.\n")
-    # The decorator's gpu= is fixed at import, so overriding it needs with_options; passing --gpu
-    # without this would silently keep running on a T4 and quietly make the flag a lie.
-    status = check.with_options(gpu=gpu).remote(PROBE_SOURCE.read_text(), vector, gpu)
+    print(f"Sending {len(vector)} bytes of conformance vector to a {GPU}.\n")
+    status = check.remote(PROBE_SOURCE.read_text(), vector, GPU)
     if status == 0:
         print("\nNVIDIA agrees with the encoder. Record the output in docs/evidence/.")
     elif status == 1:

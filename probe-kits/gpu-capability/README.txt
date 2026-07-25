@@ -131,7 +131,7 @@ To check the same vector on rented hardware:
 
     pip install modal && modal setup
     ./run-block-conformance.sh                 # generates the vector
-    modal run modal-block-conformance.py       # --gpu L4 for something newer than a T4
+    modal run modal-block-conformance.py       # PREFLIGHT_GPU=L4 for something newer
 
 The job is a compile and a few texture uploads, so it costs a fraction of a cent. The
 Modal script is UNTESTED — written without NVIDIA hardware to hand — and names its two
