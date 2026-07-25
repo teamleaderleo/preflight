@@ -857,6 +857,13 @@ removal), and Starsector's asynchronous image-preloader handoff has timing the s
 Both need the real installation — though not necessarily a launched game, since the offline
 installed-class contract checker pattern from PR #119 reads real class bytes without starting anything.
 
+**Where the rest of the reasoning lives.** [verification-strategy.md](verification-strategy.md) carries
+the full tier map, why the VPS and the Lima VM cannot host the driver check while Modal can, what was
+found when the neighbouring `renderprove` and `smolrunner` repositories were surveyed for reusable
+parts, and the 2026 survey of visual-regression and agent-harness tooling. Its main conclusion for this
+track: the shader-map classifier is a filename heuristic whose misfires are invisible to ΔE in both
+directions, which is the strongest case for building `assets contact-sheet`.
+
 ## Where this leaves the footprint program
 
 Ordered by ratio of effect to risk, with everything now measured rather than assumed:
