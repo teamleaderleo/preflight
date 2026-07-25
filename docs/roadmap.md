@@ -119,11 +119,16 @@ Separate from the speed-first milestone program above:
    (whole-UI bring-your-own-font mod generator). Remaining: polish the readable-font mod
    (font picker / packaging), optional kerning, and a fits-in-layout larger-text option.
 7. Build the texture Asset Lab as an offline, opt-in overlay generator with a budget gate.
-   *(In progress, gate first: `scan --max-texture-size <pixels>` is the budget gate applied to the
-   profile that already exists — it projects the override-resolved floor after capping oversized
-   textures, ranks the largest individual savings, and re-grades the VRAM budget against the
-   projection, all as pure arithmetic over image headers. It rewrites nothing. Remaining: actually
-   emitting the reduced/enhanced assets into a separate cache namespace, which is #8.)*
+   *(Landed, gate first then generator. The gate: `scan --max-texture-size <pixels>` projects the
+   override-resolved floor after capping oversized textures, ranks the largest individual savings,
+   and re-grades the VRAM budget against the projection — pure arithmetic over image headers,
+   rewriting nothing. The generator: `preflight assets shrink --max-texture-size <pixels> --out-dir
+   <mod-dir>` writes the capped textures as a drop-in override mod, so the projection can actually
+   be taken. It never touches the installation; undoing it is disabling one mod. On the real
+   ~70-mod profile a 1024 cap wrote all 211 oversized textures in 30 s (44 MB on disk) and the
+   written pack re-measures to **exactly** the projected 521.85 MiB — 1.60 GiB saved, projection
+   and delivery byte-identical. The overlay direction is reduction, not super-resolution: see
+   [asset-quality-track.md](asset-quality-track.md) for why that is the honest win.)*
 8. Keep enhanced assets in a separate cache namespace and manifest.
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.

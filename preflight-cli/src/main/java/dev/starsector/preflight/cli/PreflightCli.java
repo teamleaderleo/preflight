@@ -63,6 +63,7 @@ public final class PreflightCli {
             case "index" -> IndexCommand.execute(args, 1);
             case "texture" -> textureCommand(args);
             case "font" -> FontCommand.execute(args, 1);
+            case "assets" -> AssetLabCommand.execute(args, 1);
             case "audio" -> audioCommand(args);
             case "classpath" -> ClasspathCommand.execute(args, 1);
             case "benchmark" -> BenchmarkCommand.execute(args, 1);
@@ -184,6 +185,12 @@ public final class PreflightCli {
                 "preflight font generate-pack --ttf <font.ttf> --fonts-dir <graphics/fonts> --out-dir <mod-dir> "
                         + "[--scale <n>] [--atlas-width <n>] [--padding <n>] [--mod-id <id>] [--mod-name <name>] "
                         + "[--game-version <version>]"));
+        usage.put("assets", List.of(
+                "preflight assets shrink --max-texture-size <pixels> --out-dir <mod-dir> [--game <path>] "
+                        + "[--launcher <path>] [--limit <n>] [--dry-run] [--force] [--mod-id <id>] "
+                        + "[--mod-name <name>] [--game-version <version>]",
+                "  writes capped copies of the enabled profile's oversized textures as a drop-in override mod;",
+                "  size the cap first with `preflight scan --vram-budget <size> --max-texture-size <pixels>`"));
         usage.put("audio", List.of(
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
                 "preflight audio sound-wrapper-observe --game <Starsector directory> --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--java <game-java>] [--output <report.json>]"));

@@ -122,10 +122,24 @@ final class ProfileCensus {
         return byId;
     }
 
-    record Result(Map<String, Object> values) {
+    /**
+     * The report, plus the winners as data rather than prose. {@code measuredWinners} is what the
+     * report's decoded working set is computed from — the override-winning image at each logical
+     * path whose header could be read — so a tool that wants to <em>act</em> on the census (see
+     * {@link AssetLabCommand}) works from exactly the same set the numbers describe.
+     */
+    record Result(Map<String, Object> values, List<TextureWinner> measuredWinners) {
         String toJson() {
             return Json.object(values);
         }
+    }
+
+    /** An override-winning image: which mod provides it, where it lives, and its exact header facts. */
+    record TextureWinner(
+            String modId,
+            String logicalPath,
+            Path file,
+            ImageHeaderReader.ImageDimensions dimensions) {
     }
 
     private record ResolvedMod(String id, Path directory, int order) {
@@ -149,6 +163,7 @@ final class ProfileCensus {
             int order,
             String modId,
             String logicalPath,
+            Path file,
             Optional<ImageHeaderReader.ImageDimensions> dimensions) {
 
         long decodedBytes() {
@@ -369,7 +384,7 @@ final class ProfileCensus {
             } catch (IOException error) {
                 dimensions = Optional.empty();
             }
-            recordWinner(mod, logicalPath, dimensions);
+            recordWinner(mod, logicalPath, file, dimensions);
             if (dimensions.isPresent()) {
                 long decoded = dimensions.get().decodedBytes();
                 stats.decodedImageBytes += decoded;
@@ -390,11 +405,12 @@ final class ProfileCensus {
         private void recordWinner(
                 ResolvedMod mod,
                 String logicalPath,
+                Path file,
                 Optional<ImageHeaderReader.ImageDimensions> dims) {
             String key = logicalPath.toLowerCase(Locale.ROOT);
             WinnerImage existing = winnerByPath.get(key);
             if (existing == null || mod.order() >= existing.order()) {
-                winnerByPath.put(key, new WinnerImage(mod.order(), mod.id(), logicalPath, dims));
+                winnerByPath.put(key, new WinnerImage(mod.order(), mod.id(), logicalPath, file, dims));
             }
         }
 
@@ -484,16 +500,23 @@ final class ProfileCensus {
             values.put("largestMods", largestMods);
             values.put("largestDecodedMods", largestDecodedMods);
             long winnerDecodedImageBytes = 0;
-            long winnerMeasuredImageFiles = 0;
             long winnerUnmeasuredImageFiles = 0;
+            List<TextureWinner> measuredWinners = new ArrayList<>();
             for (WinnerImage winner : winnerByPath.values()) {
                 if (winner.measured()) {
                     winnerDecodedImageBytes += winner.decodedBytes();
-                    winnerMeasuredImageFiles++;
+                    measuredWinners.add(new TextureWinner(
+                            winner.modId(),
+                            winner.logicalPath(),
+                            winner.file(),
+                            winner.dimensions().orElseThrow()));
                 } else {
                     winnerUnmeasuredImageFiles++;
                 }
             }
+            // Stable order so a shrink pack and its report are reproducible run to run.
+            measuredWinners.sort(Comparator.comparing(TextureWinner::logicalPath));
+            long winnerMeasuredImageFiles = measuredWinners.size();
 
             Map<String, Object> decodedWorkingSet = new LinkedHashMap<>();
             decodedWorkingSet.put("decodedImageBytes", decodedImageBytes);
@@ -520,7 +543,7 @@ final class ProfileCensus {
             values.put("duplicateProviderEntries", duplicateProviderEntries);
             values.put("duplicateSamples", duplicateSamples);
             values.put("diagnostics", List.copyOf(new LinkedHashSet<>(diagnostics)));
-            return new Result(values);
+            return new Result(values, List.copyOf(measuredWinners));
         }
 
         /**
@@ -674,7 +697,7 @@ final class ProfileCensus {
      * How many exact halvings bring the long edge to {@code maxTextureSize} or below. Terminates for
      * any positive cap because the shifted edge reaches zero within 31 steps.
      */
-    private static int halvingsToFit(int width, int height, int maxTextureSize) {
+    static int halvingsToFit(int width, int height, int maxTextureSize) {
         int longEdge = Math.max(width, height);
         int halvings = 0;
         while ((longEdge >> halvings) > maxTextureSize) {
