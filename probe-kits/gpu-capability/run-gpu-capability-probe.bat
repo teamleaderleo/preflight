@@ -43,8 +43,10 @@ if errorlevel 1 (
     exit /b 2
 )
 
-for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set "LDT=%%I"
-set "STAMP=%LDT:~0,8%-%LDT:~8,6%"
+REM Not wmic: it was removed in recent Windows 11 builds. PowerShell has shipped since Windows 7.
+set "STAMP="
+for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss" 2^>nul') do set "STAMP=%%I"
+if not defined STAMP set "STAMP=latest"
 set "BUILD=%HERE%\.probe-build"
 set "REPORT=%HERE%\gpu-capability-report-%STAMP%.txt"
 if not exist "%BUILD%" mkdir "%BUILD%"
