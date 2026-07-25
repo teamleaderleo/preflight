@@ -177,9 +177,10 @@ Separate from the speed-first milestone program above:
    been measured. The baker picks BC1 for opaque art and BC3 for anything with alpha, and can bake a
    full mip chain. Writing that chain exposed a defect in the shipped `assets shrink` downsampler: a
    2x2 box filter is only correct on even dimensions, so a 5-pixel row halving to 2 never reads the
-   fifth pixel at all. The baker area-averages instead — identical to the 2x2 box on power-of-two art,
-   correct off it — and `assets shrink` should be moved onto the same filter. Still missing before any
-   of this is reachable at runtime: a manifest and cache namespace, a bake command, and a consumer.)*
+   fifth pixel at all. Both now area-average through a shared `ImageResampler` — identical to the 2x2
+   box on power-of-two art, so nothing a released `assets shrink` has written changes, and correct off
+   it. Still missing before any of this is reachable at runtime: a manifest and cache namespace, a bake
+   command, and a consumer.)*
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.
 

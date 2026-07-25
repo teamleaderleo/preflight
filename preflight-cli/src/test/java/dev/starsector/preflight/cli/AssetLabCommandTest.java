@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.ImageResampler;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -102,7 +103,7 @@ class AssetLabCommandTest {
     }
 
     @Test
-    void halvesWithAnExactBoxFilter() {
+    void halvesEvenDimensionsExactlyAsAPlainBoxFilterWould() {
         BufferedImage source = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
         source.setRGB(0, 0, 0x000000);
         source.setRGB(1, 0, 0x646464);
@@ -112,7 +113,9 @@ class AssetLabCommandTest {
         BufferedImage halved = AssetLabCommand.halve(source, false);
         assertEquals(1, halved.getWidth());
         assertEquals(1, halved.getHeight());
-        // (0 + 100 + 200 + 255) / 4 = 138.75, rounded to nearest = 139.
+        // (0 + 100 + 200 + 255) / 4 = 138.75, rounded to nearest = 139. The area average reduces to
+        // the plain 2x2 box whenever the dimension is even, so power-of-two art -- most of
+        // Starsector's, and everything already written by a released `assets shrink` -- is untouched.
         assertEquals(139, halved.getRGB(0, 0) & 0xFF);
     }
 
@@ -135,12 +138,10 @@ class AssetLabCommandTest {
     }
 
     @Test
-    void dropsTheTrailingRowAndColumnOfAnOddSizedImage() {
+    void readsTheWholeSourceWhenTheDimensionIsOdd() {
         BufferedImage source = new BufferedImage(3, 3, BufferedImage.TYPE_INT_RGB);
         for (int y = 0; y < 3; y++) {
             for (int x = 0; x < 3; x++) {
-                // The 2x2 block that survives is all 0x40; everything else is white and must not
-                // reach the output.
                 source.setRGB(x, y, x < 2 && y < 2 ? 0x404040 : 0xFFFFFF);
             }
         }
@@ -148,7 +149,44 @@ class AssetLabCommandTest {
         BufferedImage halved = AssetLabCommand.halve(source, false);
         assertEquals(1, halved.getWidth(), "3 >> 1 == 1, matching the census projection");
         assertEquals(1, halved.getHeight());
-        assertEquals(0x40, halved.getRGB(0, 0) & 0xFF);
+        // Four pixels at 0x40 and five at 0xFF: (4*64 + 5*255) / 9 = 170. This filter used to be a
+        // plain 2x2 box, which read only the leading 2x2 block and answered 0x40 -- the trailing row
+        // and column were not blended away, they were never read. The output dimensions are the same
+        // either way, so the census projection this has to match never required dropping them.
+        assertEquals(170, halved.getRGB(0, 0) & 0xFF);
+    }
+
+    @Test
+    void halvesIdenticallyToTheCoreResamplerTheBlockCacheUses() {
+        // assets shrink writes a smaller override pack and BlockTextureBaker bakes a mip chain; both
+        // are "the same image, half the size". If they drifted apart, a projection made by one and
+        // delivered by the other would differ silently and only on some art. They share the filter
+        // definition in ImageResampler and differ only in how they traverse memory, which this pins.
+        int width = 7;
+        int height = 5;
+        BufferedImage source = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        int[] pixels = new int[width * height];
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = ((x * 37 + y * 11) % 256) << 24
+                        | ((x * 53) % 256) << 16
+                        | ((y * 71) % 256) << 8
+                        | ((x + y) * 29) % 256;
+                source.setRGB(x, y, argb);
+                pixels[y * width + x] = argb;
+            }
+        }
+
+        BufferedImage viaCommand = AssetLabCommand.halve(source, true);
+        int[] viaCore = ImageResampler.halve(pixels, width, height);
+
+        assertEquals(ImageResampler.halved(width), viaCommand.getWidth());
+        for (int y = 0; y < viaCommand.getHeight(); y++) {
+            for (int x = 0; x < viaCommand.getWidth(); x++) {
+                assertEquals(viaCore[y * viaCommand.getWidth() + x], viaCommand.getRGB(x, y),
+                        "pixel " + x + "," + y);
+            }
+        }
     }
 
     private Path fakeInstall() throws Exception {

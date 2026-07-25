@@ -746,14 +746,26 @@ dimension is even. OpenGL's next level is `max(1, size >> 1)`, so a 5-pixel row 
 box reads source pixels 0–1 and 2–3 while **the fifth is never read at all.** Content silently deleted,
 and worse at every subsequent level.
 
-The baker uses an area average instead: each destination pixel averages exactly the source interval it
-covers, with fractional weights at the ends. It reduces to the plain 2×2 box whenever the dimension is
-even, so nothing changes for power-of-two art, and stays correct when it is not. The existing test
-`keepsAnOddDimensionsLastColumnInsteadOfDroppingIt` fails against the old filter.
+Both now use an area average: each destination pixel averages exactly the source interval it covers,
+with fractional weights at the ends. It reduces to the plain 2×2 box whenever the dimension is even, so
+**nothing changes for power-of-two art** — including everything a released `assets shrink` has already
+written — and it stays correct when the dimension is odd. The filter definition lives once, in
+`ImageResampler`; `assets shrink` keeps its own row-streaming traversal (it runs over hundreds of
+textures and the largest are tens of megabytes as a `BufferedImage`) but takes the weights from core,
+and a test pins the two to identical output so they cannot drift.
 
-`assets shrink` still has the old behaviour and should be moved onto the same filter; its docstring
-justifies the drop as "matching the census projection", but the area average produces the same
-`max(1, dim >> 1)` output dimensions, so the projection never required losing the column.
+The old behaviour had been pinned by a test named `dropsTheTrailingRowAndColumnOfAnOddSizedImage`,
+which justified the drop as "matching the census projection". That reasoning was wrong in a specific
+way worth naming: the projection constrains the output *dimensions*, and the area average produces the
+same `max(1, dim >> 1)` — so it was never the projection that required discarding the column.
+
+There is a second cost beyond the lost pixels, smaller but in the same direction. The output no longer
+represents the whole source extent — a 1023-wide row halved by a 2×2 box represents 1022 of its
+columns — so the surviving image is very slightly stretched and offset relative to the original
+framing, and `assets shrink` halves repeatedly. Three halvings of 1023 misrepresent about 0.3% of the
+extent. That is small enough that nobody would have found it by looking, which is the argument for
+fixing it while the filter is already open rather than deciding whether 0.3% matters to the
+gameplay-coordinate mapping this document flags elsewhere for hull sprites.
 
 Both filters do get the more important thing right: colour is averaged **premultiplied by alpha**. A
 straight RGB average weights a fully transparent pixel's colour as heavily as an opaque one, and since
