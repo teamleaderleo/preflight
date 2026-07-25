@@ -110,12 +110,13 @@ class ProfileCensusTest {
         Path heavy = mods.resolve("Heavy");
         Files.createDirectories(heavy.resolve("graphics"));
         Files.writeString(heavy.resolve("mod_info.json"), "{\"id\":\"heavy\"}");
-        // 512x256 RGBA = 524288 bytes. A 128 cap needs two halvings -> 128x64 = 32768 bytes.
+        // 512x256 is already power-of-two: resident at 512*256*4 = 524288. A 128 cap needs two
+        // halvings -> 128x64, resident 32768.
         writeRgba(heavy.resolve("graphics/huge.png"), 512, 256);
-        // 300x100 RGBA = 120000 bytes. Halving is conservative: 300 -> 150 -> 75, not a resample
-        // to exactly 128. So 75x25 = 7500 bytes.
+        // 300x100 pads to 512x128, so it is resident at 262144 despite only 120000 bytes of pixels.
+        // Halving is conservative: 300 -> 150 -> 75 and 100 -> 50 -> 25, which pads to 128x32 = 16384.
         writeRgba(heavy.resolve("graphics/odd.png"), 300, 100);
-        // 64x64 RGBA = 16384 bytes, already under the cap and left alone.
+        // 64x64 is under the cap and already power-of-two: 16384, left alone.
         writeRgba(heavy.resolve("graphics/small.png"), 64, 64);
         Files.writeString(mods.resolve("enabled_mods.json"), "{\"enabledMods\":[\"heavy\"]}");
 
@@ -126,17 +127,23 @@ class ProfileCensusTest {
         Map<String, Object> workingSet = (Map<String, Object>) values.get("decodedWorkingSet");
         Map<String, Object> plan = (Map<String, Object>) workingSet.get("reductionPlan");
 
+        // Decoded pixel data is unchanged and still reported; resident is what the card holds.
+        assertEquals(524288L + 120000L + 16384L, workingSet.get("winnerDecodedImageBytes"));
+        assertEquals(524288L + 262144L + 16384L, workingSet.get("winnerResidentImageBytes"));
+        assertEquals(262144L - 120000L, workingSet.get("winnerPaddingImageBytes"),
+                "only the 300x100 texture wastes anything on padding");
+
         assertEquals(128, plan.get("maxTextureSizePixels"));
         assertEquals(2L, plan.get("oversizedTextures"), "the 64x64 texture already fits");
-        assertEquals(524288L + 120000L + 16384L, plan.get("currentFloorBytes"));
-        assertEquals(32768L + 7500L + 16384L, plan.get("projectedFloorBytes"));
-        assertEquals(524288L + 120000L - 32768L - 7500L, plan.get("savedBytes"));
+        assertEquals(524288L + 262144L + 16384L, plan.get("currentFloorBytes"));
+        assertEquals(32768L + 16384L + 16384L, plan.get("projectedFloorBytes"));
+        assertEquals(524288L + 262144L - 32768L - 16384L, plan.get("savedBytes"));
 
         // The point of the plan: it says whether the cut is enough to clear the budget.
         assertEquals("over", ((Map<String, Object>) workingSet.get("budgetVerdict")).get("verdict"));
         Map<String, Object> projected = (Map<String, Object>) plan.get("projectedBudgetVerdict");
         assertEquals("under", projected.get("verdict"));
-        assertEquals(56652L, projected.get("floorBytes"));
+        assertEquals(65536L, projected.get("floorBytes"));
 
         List<Map<String, Object>> largest = (List<Map<String, Object>>) plan.get("largestReductions");
         assertEquals("graphics/huge.png", largest.get(0).get("path"));
@@ -195,25 +202,28 @@ class ProfileCensusTest {
         Path only = mods.resolve("Only");
         Files.createDirectories(only.resolve("graphics"));
         Files.writeString(only.resolve("mod_info.json"), "{\"id\":\"only\"}");
-        // One 100x100 RGBA image: floor = 40000 bytes; full-mip upper bound = 40000 + ceil(40000/3) = 53334.
+        // One 100x100 RGBA image. The engine pads both edges to 128 and uploads GL_RGBA, so it is
+        // resident at 128*128*4 = 65536 bytes -- not the 40000 bytes of decoded pixel data. A full
+        // mip chain would add a third: 65536 + ceil(65536/3) = 87382.
         ImageIO.write(new BufferedImage(100, 100, BufferedImage.TYPE_INT_ARGB), "png",
                 only.resolve("graphics/hull.png").toFile());
         Files.writeString(mods.resolve("enabled_mods.json"), "{\"enabledMods\":[\"only\"]}");
 
-        // Budget below the floor -> the base levels alone already exceed it.
+        // Budget below the resident size -> the base levels alone already exceed it.
         Map<String, Object> over = verdict(ProfileCensus.scan(temporaryDirectory, ProfileCensus.Options.vramBudget(30_000)));
         assertEquals("over", over.get("verdict"));
-        assertEquals(30_000L - 40_000L, over.get("headroomBytes"));
+        assertEquals(65_536L, over.get("floorBytes"), "graded on resident bytes, not decoded bytes");
+        assertEquals(30_000L - 65_536L, over.get("headroomBytes"));
 
-        // Budget above the floor but below the full-mip upper bound -> at risk.
-        Map<String, Object> atRisk = verdict(ProfileCensus.scan(temporaryDirectory, ProfileCensus.Options.vramBudget(50_000)));
+        // Budget above the resident size but below the full-mip upper bound -> at risk.
+        Map<String, Object> atRisk = verdict(ProfileCensus.scan(temporaryDirectory, ProfileCensus.Options.vramBudget(70_000)));
         assertEquals("at-risk", atRisk.get("verdict"));
-        assertEquals(53_334L, atRisk.get("fullMipChainUpperBoundBytes"));
+        assertEquals(87_382L, atRisk.get("fullMipChainUpperBoundBytes"));
 
         // Budget above even the upper bound -> comfortably under.
-        Map<String, Object> under = verdict(ProfileCensus.scan(temporaryDirectory, ProfileCensus.Options.vramBudget(60_000)));
+        Map<String, Object> under = verdict(ProfileCensus.scan(temporaryDirectory, ProfileCensus.Options.vramBudget(90_000)));
         assertEquals("under", under.get("verdict"));
-        assertEquals(60_000L - 40_000L, under.get("headroomBytes"));
+        assertEquals(90_000L - 65_536L, under.get("headroomBytes"));
     }
 
     @Test
@@ -235,18 +245,21 @@ class ProfileCensusTest {
                 high.resolve("graphics/shared.png").toFile());
         Files.writeString(mods.resolve("enabled_mods.json"), "{\"enabledMods\":[\"low\",\"high\"]}");
 
-        Map<String, Object> values = ProfileCensus.scan(temporaryDirectory, ProfileCensus.Options.vramBudget(1_000)).values();
+        Map<String, Object> values = ProfileCensus.scan(temporaryDirectory, ProfileCensus.Options.vramBudget(4_096)).values();
         Map<String, Object> workingSet = (Map<String, Object>) values.get("decodedWorkingSet");
 
         // All-providers counts both copies; winner-only counts just the loaded (high-order) one.
         assertEquals(40_000L + 400L, workingSet.get("decodedImageBytes"));
         assertEquals(400L, workingSet.get("winnerDecodedImageBytes"));
         assertEquals(1L, workingSet.get("winnerMeasuredImageFiles"));
+        // The 10x10 winner pads to 16x16 at 4 bytes/px, so it is resident at 1024 -- more than
+        // twice its 400 bytes of pixel data.
+        assertEquals(1_024L, workingSet.get("winnerResidentImageBytes"));
 
-        // The verdict grades the winner floor: 400 fits a 1000 budget even though all-providers is over.
+        // The verdict grades the winner: it fits, even though counting every provider would not.
         Map<String, Object> budgetVerdict = (Map<String, Object>) workingSet.get("budgetVerdict");
         assertEquals("under", budgetVerdict.get("verdict"));
-        assertEquals(400L, budgetVerdict.get("floorBytes"));
+        assertEquals(1_024L, budgetVerdict.get("floorBytes"));
     }
 
     @SuppressWarnings("unchecked")

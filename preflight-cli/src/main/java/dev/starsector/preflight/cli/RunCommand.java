@@ -205,16 +205,20 @@ final class RunCommand {
             Map<String, Object> totals = asMap(values.get("totals"));
             Map<String, Object> workingSet = asMap(values.get("decodedWorkingSet"));
             List<?> enabled = values.get("enabledModIds") instanceof List<?> list ? list : List.of();
-            long winnerFloor = asLong(workingSet.get("winnerDecodedImageBytes"));
-            long allFloor = asLong(workingSet.get("decodedImageBytes"));
+            long resident = asLong(workingSet.get("winnerResidentImageBytes"));
+            long padding = asLong(workingSet.get("winnerPaddingImageBytes"));
+            long decoded = asLong(workingSet.get("winnerDecodedImageBytes"));
             long unmeasured = asLong(workingSet.get("unmeasuredImageFiles"));
 
-            System.out.println("Decoded working set (enabled profile):");
+            System.out.println("Texture working set (enabled profile):");
             System.out.println("  enabled mods:   " + enabled.size());
             System.out.println("  image files:    " + asLong(totals.get("imageFiles"))
                     + (unmeasured > 0 ? " (" + unmeasured + " unmeasured)" : ""));
-            System.out.println("  decoded floor:  " + humanBytes(winnerFloor) + " override-resolved"
-                    + "  (" + humanBytes(allFloor) + " counting all providers)");
+            System.out.println("  resident VRAM:  " + humanBytes(resident) + " override-resolved"
+                    + "  (power-of-two padded, 4 bytes/px)");
+            System.out.println("  of which pad:   " + humanBytes(padding)
+                    + " allocated but never sampled");
+            System.out.println("  decoded pixels: " + humanBytes(decoded) + " before padding/widening");
             List<?> largestDecoded = values.get("largestDecodedMods") instanceof List<?> list ? list : List.of();
             if (!largestDecoded.isEmpty()) {
                 System.out.println("  largest decoded mods:");
