@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.ImageResampler;
 import dev.starsector.preflight.core.Json;
+import dev.starsector.preflight.core.TextureFidelity;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,8 @@ import javax.imageio.stream.ImageOutputStream;
  * pack is a new directory, and un-taking the change is disabling one mod.
  */
 final class AssetLabCommand {
+    /** Name of the block cache manifest, which is also how a directory is recognised as one. */
+    static final String BLOCK_CACHE_MANIFEST = "blocks.spfc";
     private static final int CHANNELS_RGB = 3;
     private static final int CHANNELS_RGBA = 4;
     /**
@@ -52,8 +55,87 @@ final class AssetLabCommand {
         return switch (args[offset]) {
             case "shrink" -> shrink(ShrinkOptions.parse(args, offset + 1));
             case "compression-probe" -> compressionProbe(args, offset + 1);
+            case "bake-blocks" -> bakeBlocks(args, offset + 1);
             default -> throw new IllegalArgumentException("Unknown assets command: " + args[offset]);
         };
+    }
+
+    /**
+     * Bakes this profile's art into a block cache: GPU-ready S3TC blocks on disk, so the game never
+     * decodes those PNGs again.
+     *
+     * <p>Unlike {@code shrink} this writes nothing the game can see on its own — the cache is inert
+     * until a runtime consumer reads it — so it is safe to run and inspect before committing to
+     * anything. The report is the point in the meantime: it says how much of a profile clears the
+     * fidelity gate, what the cache costs, and what it saves.
+     */
+    private static int bakeBlocks(String[] args, int offset) throws IOException {
+        Path game = null;
+        Path launcher = null;
+        Path outDir = null;
+        double maxP99DeltaE = TextureFidelity.JUST_NOTICEABLE;
+        int limit = 0;
+        boolean mips = false;
+        boolean dryRun = false;
+        boolean force = false;
+        for (int i = offset; i < args.length; i++) {
+            switch (args[i]) {
+                case "--game" -> game = Path.of(requireArg(args, ++i, "--game"));
+                case "--launcher" -> launcher = Path.of(requireArg(args, ++i, "--launcher"));
+                case "--out-dir" -> outDir = Path.of(requireArg(args, ++i, "--out-dir"));
+                case "--max-delta-e" -> maxP99DeltaE = Double.parseDouble(requireArg(args, ++i, "--max-delta-e"));
+                case "--limit" -> limit = Integer.parseInt(requireArg(args, ++i, "--limit"));
+                case "--mips" -> mips = true;
+                case "--dry-run" -> dryRun = true;
+                case "--force" -> force = true;
+                default -> throw new IllegalArgumentException("Unknown assets bake-blocks option: " + args[i]);
+            }
+        }
+        if (outDir == null) {
+            throw new IllegalArgumentException("assets bake-blocks requires --out-dir");
+        }
+        if (maxP99DeltaE <= 0 || Double.isNaN(maxP99DeltaE)) {
+            throw new IllegalArgumentException("--max-delta-e must be a positive number");
+        }
+        DiscoveryResult discovery = StarsectorDiscovery.discover(
+                Platform.current(),
+                Path.of(System.getProperty("user.home")),
+                Path.of(System.getProperty("user.dir")),
+                System.getenv(),
+                game,
+                launcher);
+        LaunchTarget target = discovery.selected();
+        if (target == null) {
+            System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
+            return 3;
+        }
+
+        Path cacheDir = outDir.toAbsolutePath().normalize();
+        if (!dryRun) {
+            // Re-baking a cache over itself is routine, so a directory this command already wrote is
+            // recognised by its manifest and overwritten without ceremony. Any other non-empty
+            // directory needs --force, because --out-dir takes whatever path was typed.
+            if (Files.isRegularFile(cacheDir.resolve(BLOCK_CACHE_MANIFEST))) {
+                Files.createDirectories(cacheDir);
+            } else {
+                requireWritablePackDirectory(cacheDir, force);
+            }
+        }
+        ProfileCensus.Result census = ProfileCensus.scan(target.installRoot());
+        String fingerprint = ResourceIndexBuilder.build(target.installRoot()).index().profileFingerprint();
+
+        Map<String, Object> report = new LinkedHashMap<>(BlockCacheBaker.run(
+                census.measuredWinners(),
+                fingerprint,
+                cacheDir,
+                new BlockCacheBaker.Options(maxP99DeltaE, limit, mips, dryRun)));
+        report.put("installRoot", target.installRoot());
+        report.put("profileFingerprint", fingerprint);
+        report.put("cacheDir", cacheDir);
+        report.put("consumer", "none yet -- this cache is inert until a runtime adapter reads it, so "
+                + "baking it changes nothing about how the game loads today");
+        System.out.println(Json.object(report));
+        return 0;
     }
 
     /**
