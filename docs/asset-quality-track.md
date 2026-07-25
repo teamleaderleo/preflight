@@ -300,8 +300,31 @@ saves 74 MiB** — the profile stays over a 4 GiB budget. The decoded cost is a 
 mid-sized art, not a handful of giants. A **1024 cap touches 211 textures and takes 4.36 GiB to
 2.76 GiB**, comfortably under. Any future overlay generator inherits this gate.
 
-Still to do: feed the census UI/campaign/combat/GraphicsLib-map breakdowns, and emit reduced or
-enhanced assets into the separate cache namespace of roadmap #8.
+**Implemented (the Asset Lab itself).** `preflight assets shrink --max-texture-size <pixels>
+--out-dir <mod-dir>` turns the projection into an artifact: it writes capped copies of the
+override-winning oversized textures as a **drop-in override mod**. The command is deliberately
+separate from the speed-track `texture` cache commands, so a footprint overlay can never wander
+into a speed measurement.
+
+- **Never read-modify-write.** The installation is only read; the pack is a new directory. Undoing
+  the change is disabling one mod. `--dry-run` reports without writing, and a non-empty output
+  directory is refused without `--force`.
+- **Exact and container-preserving.** Iterated 2×2 box halving, colour averaged *premultiplied by
+  alpha* — a straight RGBA average pulls the colour of fully transparent pixels into the visible
+  edge and haloes every sprite. Each file is written back in its own container (PNG, or JPEG
+  re-encoded at quality 0.95) because the game resolves a texture by its exact logical path.
+  Anything that would not round-trip at the same channel count is skipped and reported, not
+  silently re-containered.
+- **The projection is the delivery.** On the real ~70-mod profile a 1024 cap wrote all 211
+  oversized textures in 30 s (44 MB on disk); re-measuring the written pack with the same header
+  reader gives **exactly** the projected 521.85 MiB, against 1.60 GiB saved. Projection and
+  delivered result are byte-identical, not approximately equal.
+- **The caveat is the override order.** The pack only takes effect where it wins, so it must be
+  enabled after every mod it replaces a texture for — the same enabled-order rule the census models
+  as `probable-enabled-order-only`. Failing to win is visible as "no change", never as damage.
+
+Still to do: feed the census UI/campaign/combat/GraphicsLib-map breakdowns, give the pack its own
+cache namespace and manifest (roadmap #8), and judge the visual cost of a 1024 cap in-game.
 
 ## Explicitly out of scope: in-game FPS
 
