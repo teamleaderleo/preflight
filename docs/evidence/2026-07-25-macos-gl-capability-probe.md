@@ -124,11 +124,40 @@ pre-encoded block texture is read and uploaded — **no decode stage at all**, a
 bytes. That collapses the speed track and the footprint track into one change rather than trading
 them off, which is not how this looked before the probe.
 
+## Portability of this result
+
+None of it is portable, which is the reason the probe was made portable.
+
+Apple's OpenGL is capped at 4.1. BPTC is core in OpenGL **4.2**, and ASTC arrived through
+`GL_KHR_texture_compression_astc_ldr`; neither is exposed here, and both fail with `GL_INVALID_ENUM`.
+Windows and Linux drivers are not capped that way, so on any GPU from roughly 2012 onward BC7 is
+expected to be available there — meaning the best format available **differs by platform**, and a
+shipped asset pipeline has to select per machine rather than choose one format globally. That
+expectation is reasoning, not measurement, and is flagged as unverified until someone runs the probe
+on those platforms.
+
+Starsector supports all three platforms officially (Windows, macOS, Linux — the Linux build unzips
+and runs `./starsector.sh`), so this is not a hypothetical audience.
+
 ## Reproducing
+
+Portable, and the one to use — runs on the game's own LWJGL and bundled JVM, so it measures the
+context the game actually gets:
+
+```bash
+./probe-kits/gpu-capability/run-gpu-capability-probe.sh
+```
+
+The macOS-only CGL probe is retained because it can be built for a chosen architecture, which is how
+the arm64 and Rosetta paths were confirmed to see the same driver — see
+[2026-07-25-macos-rosetta-runtime.md](2026-07-25-macos-rosetta-runtime.md):
 
 ```bash
 ./probe-kits/gpu-capability/run-gpu-capability-probe-macos.command
 ```
+
+All three paths — native arm64 CGL, x86_64 CGL under Rosetta, and LWJGL 2 inside the game's own
+x86_64 JVM — return identical answers.
 
 The fidelity comparison in finding 4 is not packaged; it was a scratch harness pairing
 `glGetTexImage` readback with `TextureFidelity` and `BlockCompressor`. Promoting it to

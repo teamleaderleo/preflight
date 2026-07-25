@@ -9,3 +9,4 @@ preflight-cache/
 benchmark-results/
 probe-kits/gpu-capability/gl-capability-probe
 probe-kits/gpu-capability/gpu-capability-report-*.txt
+probe-kits/gpu-capability/.probe-build/

@@ -508,6 +508,15 @@ On the reviewed machine (Apple M5, macOS 26.5.1, driver `2.1 Metal - 90.5`):
   `planets/aurorae2.png` the driver lands at mean ΔE 1.27 and ours at 0.84 — straddling the
   perceptibility threshold.
 
+**None of this is portable, and that is now a design constraint rather than a footnote.** Apple's GL
+is capped at 4.1; BPTC is core in 4.2. Windows and Linux drivers are not capped, so BC7 is expected
+to be available there on any GPU from roughly 2012 onward — unverified, which is why the probe was
+rewritten to run on Windows and Linux too, on the game's own LWJGL and bundled JVM. Starsector ships
+for all three platforms. The consequence is that **the best available format differs by machine**, so
+any shipped pipeline has to select per machine rather than pick one format globally — which is
+precisely the problem Basis Universal/KTX2 exists to solve, and moves it from "overkill" to
+"probably the right architecture" the moment this targets more than macOS.
+
 The last two together define the trade. The one-constant change is global and therefore applies the
 driver's quality to the small detailed sprites that measure worst — precisely the ones the community
 objection is about. A selective policy needs per-texture control, which needs the offline path.
@@ -557,9 +566,18 @@ re-covered.
 
 - **Starsector 0.98a (2025-03-27) moved the game to Java 17**, which is why this project targets JDK
   17 and why AppCDS is available at all. 0.98.5a is in development as of April 2026.
-- **A community thread reports performance gains from swapping in the OpenJ9 JRE** on 0.98a. This is
-  adjacent to preflight's whole premise and worth reading before any claim about JVM-level startup
-  wins — it may already cover ground the project assumes is open.
+- **The OpenJ9 JRE thread (May 2025) turns out not to overlap this project**, and to contain a lever
+  rejected on the wrong benchmark. Its numbers are steady-state frame rate and resident memory
+  (42.5 vs 32.5 fps; 1205 vs 1313 MB) — nothing in it measures startup. Its install notes disable
+  OpenJ9's **shared class cache**, the counterpart to preflight's AppCDS archive, on the grounds of
+  "questionable performance improvements" and 300 MB of disk. A class cache does its work during
+  class loading, before the first frame, so an FPS benchmark cannot detect it by construction. Read
+  in full at [2026-07-25-macos-rosetta-runtime.md](evidence/2026-07-25-macos-rosetta-runtime.md).
+- **On Apple Silicon the game runs under Rosetta 2.** The macOS build ships an x86_64 JVM and x86_64
+  LWJGL 2 natives with no arm64 slice. Every CPU-side measurement this project has taken on macOS was
+  taken through binary translation, and a native arm64 runtime — blocked only by LWJGL 2 predating
+  Apple Silicon — is likely a larger lever on that hardware than anything preflight does. Same
+  evidence document.
 
 Sources for this survey, in case anyone needs to check the reasoning:
 
