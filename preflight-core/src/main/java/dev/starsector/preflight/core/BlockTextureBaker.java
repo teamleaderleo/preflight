@@ -60,11 +60,12 @@ public final class BlockTextureBaker {
                         pixels, BlockCompressor.decode(blocks, levelWidth, levelHeight, format.withAlpha()));
             }
             if (level + 1 < levelCount) {
-                int nextWidth = BlockTexture.levelWidth(width, level + 1);
-                int nextHeight = BlockTexture.levelHeight(height, level + 1);
-                pixels = halve(pixels, levelWidth, levelHeight, nextWidth, nextHeight);
-                levelWidth = nextWidth;
-                levelHeight = nextHeight;
+                // Repeated halving and BlockTexture's per-level size have to agree; if they ever
+                // stopped, the constructor below would reject the level lengths rather than write a
+                // blob whose header disagrees with its contents.
+                pixels = ImageResampler.halve(pixels, levelWidth, levelHeight);
+                levelWidth = ImageResampler.halved(levelWidth);
+                levelHeight = ImageResampler.halved(levelHeight);
             }
         }
         return new BlockTexture(
@@ -99,91 +100,6 @@ public final class BlockTextureBaker {
             }
         }
         return BlockTexture.Format.BC1;
-    }
-
-    /**
-     * Area-averages an image down to the next mip level.
-     *
-     * <p>Averaging happens in premultiplied alpha and the result is unpremultiplied afterwards. This
-     * matters more than it looks: a straight average of RGB weights the colour of a fully transparent
-     * pixel equally with a fully opaque one, and since transparent pixels in real art are usually
-     * black, the classic symptom is a dark halo creeping around every sprite edge as the mips get
-     * smaller. Weighting each pixel's colour by its own alpha is the fix, and it costs nothing.
-     *
-     * <p>The filter is an area average rather than the obvious 2x2 box, because a 2x2 box is only
-     * correct when the dimension is even. OpenGL's next level is {@code max(1, size >> 1)}, so a
-     * 5-pixel row becomes 2, and a 2x2 box reads source pixels 0-1 and 2-3 while the fifth is never
-     * read at all — content silently deleted, worse at every subsequent level. Letting each
-     * destination pixel average exactly the source interval it covers, with fractional weights at the
-     * ends, reduces to the plain 2x2 box whenever the dimension is even and stays correct when it is
-     * not.
-     */
-    private static int[] halve(int[] source, int width, int height, int targetWidth, int targetHeight) {
-        int[] out = new int[Math.multiplyExact(targetWidth, targetHeight)];
-        Taps horizontal = taps(width, targetWidth);
-        Taps vertical = taps(height, targetHeight);
-        for (int y = 0; y < targetHeight; y++) {
-            double[] rowWeights = vertical.weights[y];
-            for (int x = 0; x < targetWidth; x++) {
-                double[] columnWeights = horizontal.weights[x];
-                double alphaSum = 0;
-                double redSum = 0;
-                double greenSum = 0;
-                double blueSum = 0;
-                for (int dy = 0; dy < rowWeights.length; dy++) {
-                    int row = (vertical.first[y] + dy) * width;
-                    for (int dx = 0; dx < columnWeights.length; dx++) {
-                        double weight = rowWeights[dy] * columnWeights[dx];
-                        int pixel = source[row + horizontal.first[x] + dx];
-                        double alpha = weight * (pixel >>> 24);
-                        alphaSum += alpha;
-                        redSum += alpha * ((pixel >>> 16) & 0xff);
-                        greenSum += alpha * ((pixel >>> 8) & 0xff);
-                        blueSum += alpha * (pixel & 0xff);
-                    }
-                }
-                // Weights sum to one, so alphaSum is already the average; the colour sums are
-                // premultiplied and divide back out by it.
-                int alpha = clampByte(Math.round(alphaSum));
-                int red = alphaSum == 0 ? 0 : clampByte(Math.round(redSum / alphaSum));
-                int green = alphaSum == 0 ? 0 : clampByte(Math.round(greenSum / alphaSum));
-                int blue = alphaSum == 0 ? 0 : clampByte(Math.round(blueSum / alphaSum));
-                out[y * targetWidth + x] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-            }
-        }
-        return out;
-    }
-
-    /**
-     * Source pixels and normalised weights for each destination pixel along one axis.
-     *
-     * <p>Destination pixel {@code i} covers the source interval {@code [i*source/target,
-     * (i+1)*source/target)}; each overlapping source pixel is weighted by how much of it falls
-     * inside, and the weights are normalised to sum to one so the two axes compose by multiplication.
-     */
-    private static Taps taps(int source, int target) {
-        int[] first = new int[target];
-        double[][] weights = new double[target][];
-        for (int i = 0; i < target; i++) {
-            double start = (double) i * source / target;
-            double end = (double) (i + 1) * source / target;
-            int from = (int) Math.floor(start);
-            int to = Math.min(source - 1, (int) Math.ceil(end) - 1);
-            first[i] = from;
-            double[] row = new double[to - from + 1];
-            for (int s = from; s <= to; s++) {
-                row[s - from] = (Math.min(end, s + 1) - Math.max(start, s)) / (end - start);
-            }
-            weights[i] = row;
-        }
-        return new Taps(first, weights);
-    }
-
-    private static int clampByte(long value) {
-        return (int) Math.max(0, Math.min(255, value));
-    }
-
-    private record Taps(int[] first, double[][] weights) {
     }
 
     /** Whether to bake a full mip chain or level 0 alone. */

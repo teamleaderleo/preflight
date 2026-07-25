@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.ImageResampler;
 import dev.starsector.preflight.core.Json;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -177,9 +178,11 @@ final class AssetLabCommand {
         report.put("modDirectory", outDir);
         report.put("dryRun", options.dryRun);
         report.put("maxTextureSizePixels", options.maxTextureSize);
-        report.put("method", "iterated exact 2x2 box halving of the long edge, alpha-premultiplied; "
-                + "written back in the source container (PNG, or JPEG re-encoded at quality "
-                + JPEG_QUALITY + ") so the logical path and decoded channel count are preserved");
+        report.put("method", "iterated halving to max(1, size >> 1), alpha-premultiplied area average "
+                + "(identical to a 2x2 box on even dimensions, and unlike one it reads the whole "
+                + "source on odd ones); written back in the source container (PNG, or JPEG re-encoded "
+                + "at quality " + JPEG_QUALITY + ") so the logical path and decoded channel count are "
+                + "preserved");
         report.put("oversizedTextures", (long) candidates.size());
         report.put("texturesWritten", (long) written.size());
         report.put("texturesSkipped", (long) skipped.size());
@@ -281,52 +284,51 @@ final class AssetLabCommand {
     }
 
     /**
-     * Halves an image with an exact 2x2 box filter: each output pixel is the mean of the four
-     * inputs beneath it. Colour is averaged <em>premultiplied</em> by alpha, so a transparent
-     * neighbour contributes no colour — averaging straight RGBA instead pulls the colour of fully
-     * transparent pixels into the visible edge and haloes every sprite.
+     * Halves an image using {@link ImageResampler}'s area average: each output pixel averages exactly
+     * the source interval it covers, premultiplied by alpha.
      *
-     * <p>An odd dimension drops its final row or column rather than weighting a partial block, so
-     * the result is exactly {@code max(1, dimension >> 1)} — matching the census projection.
+     * <p>The filter definition lives in core so this and {@code BlockTextureBaker}'s mip chain cannot
+     * drift apart — a projection made by one and delivered by the other has to agree. See
+     * {@link ImageResampler} for why the obvious 2x2 box is wrong on odd dimensions, which is what
+     * this method used to do.
+     *
+     * <p>Rows are read two or three at a time rather than converting the whole image, because
+     * {@code assets shrink} runs over hundreds of textures and the largest are already tens of
+     * megabytes as a {@code BufferedImage}. The weights come from core; only the traversal is local.
      */
     static BufferedImage halve(BufferedImage source, boolean alpha) {
-        int outWidth = Math.max(1, source.getWidth() >> 1);
-        int outHeight = Math.max(1, source.getHeight() >> 1);
-        int sampledWidth = Math.min(source.getWidth(), outWidth * 2);
-        int sampledHeight = Math.min(source.getHeight(), outHeight * 2);
+        int outWidth = ImageResampler.halved(source.getWidth());
+        int outHeight = ImageResampler.halved(source.getHeight());
+        ImageResampler.Taps horizontal = ImageResampler.taps(source.getWidth(), outWidth);
+        ImageResampler.Taps vertical = ImageResampler.taps(source.getHeight(), outHeight);
         BufferedImage target = new BufferedImage(
                 outWidth, outHeight, alpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
 
-        int[] rows = new int[sampledWidth * 2];
+        int sourceWidth = source.getWidth();
+        int[] rows = new int[sourceWidth * vertical.maxWeightCount()];
         int[] output = new int[outWidth];
         for (int y = 0; y < outHeight; y++) {
-            int sourceY = y * 2;
-            int rowCount = sourceY + 1 < sampledHeight ? 2 : 1;
-            source.getRGB(0, sourceY, sampledWidth, rowCount, rows, 0, sampledWidth);
+            int rowCount = vertical.weightCount(y);
+            source.getRGB(0, vertical.first(y), sourceWidth, rowCount, rows, 0, sourceWidth);
             for (int x = 0; x < outWidth; x++) {
-                int sourceX = x * 2;
-                int columnCount = sourceX + 1 < sampledWidth ? 2 : 1;
-                long sumAlpha = 0;
-                long sumRed = 0;
-                long sumGreen = 0;
-                long sumBlue = 0;
-                int samples = 0;
+                double alphaSum = 0;
+                double redSum = 0;
+                double greenSum = 0;
+                double blueSum = 0;
                 for (int row = 0; row < rowCount; row++) {
-                    for (int column = 0; column < columnCount; column++) {
-                        int pixel = rows[row * sampledWidth + sourceX + column];
-                        int pixelAlpha = alpha ? (pixel >>> 24) : 255;
-                        sumAlpha += pixelAlpha;
-                        sumRed += (long) ((pixel >> 16) & 0xFF) * pixelAlpha;
-                        sumGreen += (long) ((pixel >> 8) & 0xFF) * pixelAlpha;
-                        sumBlue += (long) (pixel & 0xFF) * pixelAlpha;
-                        samples++;
+                    int rowOffset = row * sourceWidth + horizontal.first(x);
+                    for (int column = 0; column < horizontal.weightCount(x); column++) {
+                        int pixel = rows[rowOffset + column];
+                        double weight = vertical.weight(y, row) * horizontal.weight(x, column);
+                        // An RGB source has no alpha plane to read; every pixel is fully covered.
+                        double pixelAlpha = weight * (alpha ? (pixel >>> 24) : 255);
+                        alphaSum += pixelAlpha;
+                        redSum += pixelAlpha * ((pixel >> 16) & 0xFF);
+                        greenSum += pixelAlpha * ((pixel >> 8) & 0xFF);
+                        blueSum += pixelAlpha * (pixel & 0xFF);
                     }
                 }
-                int outAlpha = (int) ((sumAlpha + samples / 2) / samples);
-                int red = sumAlpha == 0 ? 0 : (int) ((sumRed + sumAlpha / 2) / sumAlpha);
-                int green = sumAlpha == 0 ? 0 : (int) ((sumGreen + sumAlpha / 2) / sumAlpha);
-                int blue = sumAlpha == 0 ? 0 : (int) ((sumBlue + sumAlpha / 2) / sumAlpha);
-                output[x] = (outAlpha << 24) | (red << 16) | (green << 8) | blue;
+                output[x] = ImageResampler.pack(alphaSum, redSum, greenSum, blueSum);
             }
             target.setRGB(0, y, outWidth, 1, output, 0, outWidth);
         }
