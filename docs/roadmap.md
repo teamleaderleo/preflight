@@ -165,7 +165,21 @@ Separate from the speed-first milestone program above:
    from 1.69 to 18.44 on half of all blocks. Ordering costs nothing. `BlockUploadProbe` then had the
    driver arbitrate rather than trusting encoder-agrees-with-decoder: **BC1 and BC3 are now bit-exact
    against Apple's decoder over 65,536 pixels each**, after matching one measured quirk — the colour
-   blends truncate while the alpha blends round, in the same block.)*
+   blends truncate while the alpha blends round, in the same block.
+   **The blocks now have somewhere to live.** `BlockTexture` / `BlockTextureIO` (magic `SPFB`) and
+   `BlockTextureBaker` are the block cache's blob format and bake path. It is a separate type from
+   `PreparedTexture` on purpose: that cache promises pixels identical to the loader's, block data
+   breaks that promise by design, and collapsing both into one codec field would leave the difference
+   to a check any consumer could omit — with no exception and no log line when they do. The blob
+   carries the encoder's `CODEC_VERSION` (a blob from an older encoder is not corrupt and cannot be
+   recognised by inspection), the GL internal format, and the bake-time `TextureFidelity.Report`, which
+   is required rather than optional so a lossy texture cannot enter the cache without its loss having
+   been measured. The baker picks BC1 for opaque art and BC3 for anything with alpha, and can bake a
+   full mip chain. Writing that chain exposed a defect in the shipped `assets shrink` downsampler: a
+   2x2 box filter is only correct on even dimensions, so a 5-pixel row halving to 2 never reads the
+   fifth pixel at all. The baker area-averages instead — identical to the 2x2 box on power-of-two art,
+   correct off it — and `assets shrink` should be moved onto the same filter. Still missing before any
+   of this is reachable at runtime: a manifest and cache namespace, a bake command, and a consumer.)*
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.
 
