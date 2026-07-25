@@ -179,8 +179,19 @@ Separate from the speed-first milestone program above:
    2x2 box filter is only correct on even dimensions, so a 5-pixel row halving to 2 never reads the
    fifth pixel at all. Both now area-average through a shared `ImageResampler` — identical to the 2x2
    box on power-of-two art, so nothing a released `assets shrink` has written changes, and correct off
-   it. Still missing before any of this is reachable at runtime: a manifest and cache namespace, a bake
-   command, and a consumer.)*
+   it.
+   **A profile can now be baked.** `BlockCacheManifest` / `BlockCacheManifestIO` (magic `SPFC`) hold the
+   separate namespace this item asks for, and `preflight assets bake-blocks --out-dir <cache-dir>`
+   fills it. The interesting behaviour is the refusal to encode: every texture is baked, measured, and
+   kept only if p99 ΔE came in under a stated gate (default 1.0, the just-noticeable threshold), so a
+   texture with no entry simply keeps the ordinary decode path. That per-texture policy is the reason
+   an offline encoder beats flipping the engine's internal-format constant. Shader maps are excluded on
+   principle rather than on their number — ΔE does not describe a normal map. Blobs are
+   content-addressed, so duplicated art across mods is encoded once. The manifest holds the encoder
+   version once for the whole cache, so a stale cache is one integer compare at startup rather than ten
+   thousand. **Nothing reads it yet** — the cache is inert until a runtime adapter exists, which is
+   deliberate: it can be baked, inspected and argued about before anything touches a loading game. The
+   consumer is the remaining piece.)*
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.
 

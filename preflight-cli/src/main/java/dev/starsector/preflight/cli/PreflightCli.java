@@ -190,7 +190,12 @@ public final class PreflightCli {
                         + "[--launcher <path>] [--limit <n>] [--dry-run] [--force] [--mod-id <id>] "
                         + "[--mod-name <name>] [--game-version <version>]",
                 "  writes capped copies of the enabled profile's oversized textures as a drop-in override mod;",
-                "  size the cap first with `preflight scan --vram-budget <size> --max-texture-size <pixels>`"));
+                "  size the cap first with `preflight scan --vram-budget <size> --max-texture-size <pixels>`",
+                "preflight assets bake-blocks --out-dir <cache-dir> [--game <path>] [--launcher <path>] "
+                        + "[--max-delta-e <deltaE>] [--limit <n>] [--mips] [--dry-run] [--force]",
+                "  bakes the profile's art into a GPU-ready S3TC block cache, keeping only textures whose",
+                "  measured loss stays under the gate (default 1.0, the just-noticeable threshold);",
+                "  the cache is inert -- nothing reads it yet, so baking changes nothing about how the game loads"));
         usage.put("audio", List.of(
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
                 "preflight audio sound-wrapper-observe --game <Starsector directory> --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--java <game-java>] [--output <report.json>]"));

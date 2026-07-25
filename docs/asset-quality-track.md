@@ -772,6 +772,54 @@ straight RGB average weights a fully transparent pixel's colour as heavily as an
 transparent pixels in real art are stored as black, the symptom is a dark halo creeping around every
 sprite edge, a little worse at each level.
 
+## A profile can now be baked into a block cache (2026-07-26)
+
+`preflight assets bake-blocks --out-dir <cache-dir>` walks the override-resolved profile, encodes each
+texture, and writes `BlockTexture` blobs plus a `BlockCacheManifest`.
+
+**The interesting part is the refusal to encode.** Every texture is baked, measured, and then kept only
+if p99 ΔE came in under a stated gate — default `1.0`, the just-noticeable threshold. A texture with no
+manifest entry is not a failure; it keeps the ordinary decode path. This per-texture policy is the
+whole reason an offline encoder beats flipping the engine's internal-format constant, which would
+compress everything at whatever quality the driver felt like.
+
+Three outcomes, each reported with its reason:
+
+| outcome | why |
+|---|---|
+| cached | measured loss under the gate |
+| over the fidelity gate | keeps the ordinary decode path — a normal result, not an error |
+| shader map | a normal or material map stores vectors, not colour; ΔE does not describe it, and reconstructing a unit vector from two interpolated endpoints is the failure BC5 exists to fix |
+
+Blobs are content-addressed by source hash, so several mods shipping byte-identical art share one blob
+and it is encoded once — encoding is by far the slowest step and duplicated art is common in this
+ecosystem. On a four-texture fixture with one duplicate, the run reports `cachedTextures: 2,
+distinctBlobs: 1`.
+
+**Nothing reads this cache yet.** It is inert until a runtime adapter exists, which is deliberate — the
+cache can be baked, inspected and argued about before anything is wired into a loading game. In the
+meantime the report is the deliverable: how much of a profile clears the gate, what the cache costs,
+and what it saves.
+
+### A synthetic gradient is harder for BC1 than real art
+
+Worth recording because it inverts the obvious intuition and would mislead anyone testing with
+generated images. Measured on 64×64 tiles:
+
+| image | mean ΔE | p99 ΔE |
+|---|---|---|
+| flat fill | 0.000 | 0.000 |
+| soft low-contrast noise | 0.938 | 1.700 |
+| diagonal colour gradient | 1.015 | 3.100 |
+| grey ramp | 1.295 | 4.050 |
+
+A smooth gradient looks like the easy case — it *is* linear, which is exactly what a two-endpoint
+interpolation represents. But when a 4×4 block spans only a couple of levels, the error is no longer
+about the fit at all: it is the **RGB565 quantisation of the endpoints themselves**, 8/255 steps in red
+and blue. Real photographic art varies more within a block, so the endpoints land on colours worth
+having, which is why the real-profile measurements come in near ΔE 0.80 while a synthetic ramp measures
+4.
+
 ## Where this leaves the footprint program
 
 Ordered by ratio of effect to risk, with everything now measured rather than assumed:
