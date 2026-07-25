@@ -114,6 +114,43 @@ The secondary benefit may matter more than the rented-GPU one. Checking this use
 Maven build and a Starsector installation. It now requires 622 KB and one small binary, which is
 something a Windows player with a GeForce can actually be asked to run.
 
+## First hosted run: a third implementation, and a lesson about harnesses
+
+The first Modal run reached a healthy Tesla T4 — `nvidia-smi` reported it — and rendered on
+**`Mesa llvmpipe`**, the CPU rasteriser. `NVIDIA_DRIVER_CAPABILITIES=all` was not enough: libglvnd
+finds drivers by reading ICD manifests from `/usr/share/glvnd/egl_vendor.d/`, NVIDIA's manifest
+normally arrives with the driver installer, and Modal injects driver *libraries* into an image that
+never ran that installer. So the only device EGL could enumerate was Mesa's software one, and
+`eglQueryDevicesEXT` returned it as device 0 of 1.
+
+**The harness then reported it as an NVIDIA result**, because it treated exit status 0 as proof the
+GPU had been used. That is a worse defect than the configuration problem: a misconfiguration produces
+no data, whereas a harness that launders software output into a hardware claim produces *wrong* data
+that looks exactly like the real thing. Fixed in three places — the probe classifies the renderer and
+prints `preflight-renderer-class:`, returns a distinct status 3 for "ran, but on a CPU", and the
+harness distinguishes that outcome instead of collapsing it into success. The device search now also
+prefers a device advertising `EGL_NV_device_cuda` or `EGL_EXT_device_drm` rather than taking the first
+one enumerated.
+
+The result itself is worth keeping, correctly labelled. Mesa 23.2.1's software S3TC decoder is a third
+independent implementation, and it does **not** agree with Apple:
+
+| implementation | exact | mean dev | worst dev |
+|---|---|---|---|
+| Apple M5 (Metal) | 100.00% | 0.000 | 0 |
+| Mesa llvmpipe 23.2.1 (CPU) | 91.37% | 0.086 | 1 |
+
+Every difference is exactly 1, on 8.63% of pixels, and BC1 and BC3 differ *identically* — which
+locates it precisely. The shared component is the colour block, so **Mesa's colour blends round where
+Apple's truncate**, while its alpha blends agree with ours. The rounding question is therefore not
+hypothetical: two implementations already disagree, and they disagree in the half of the block where
+Apple looked like the odd one out.
+
+This does not change the encoder. A worst-case deviation of 1/255 is far below the ΔE thresholds any
+of this is judged against, and the layout is confirmed correct by a second independent decoder. What
+it does is settle that a level table cannot be assumed portable — which is exactly what the NVIDIA run
+was meant to test, and still has not.
+
 ## Caveats
 
 - **One driver.** Apple M5 via Metal. The rounding behaviour is explicitly permitted to vary, so
@@ -121,10 +158,13 @@ something a Windows player with a GeForce can actually be asked to run.
   NVIDIA results are wanted, and a *mismatch* would be the more useful outcome: it would mean the
   level tables are Apple-specific and the block cache needs a per-driver decision rather than a
   constant.
-- **The Modal path is untested.** It was written on a machine with no NVIDIA hardware and no Modal
-  account, reasoning from the documented behaviour of `EGL_EXT_platform_device`. Its two likely
-  failure points — driver capabilities not including `graphics`, and dev headers not matching the
-  injected driver — are named in comments at the places they would occur.
+- **NVIDIA remains unmeasured.** The Modal path now builds, runs, compiles the probe and produces a
+  correct comparison — but so far only against a software rasteriser. The ICD manifest fix is
+  reasoned from how libglvnd resolves drivers, not yet confirmed by a run that reports
+  `preflight-renderer-class: hardware` on a rented GPU. Until one does, treat every NVIDIA statement
+  here as open.
+- **Mesa's result is a CPU result.** It is a genuine third implementation and useful as one, but
+  llvmpipe is not a GPU and its rounding is not evidence about what NVIDIA silicon does.
 - Bit-exactness is checked on one 256×256 image. It is a deliberately adversarial one, but it is not
   the full corpus; the claim is that the layout is right, not that every possible block has been
   enumerated.

@@ -44,6 +44,25 @@ typedef void (*CompressedTexImage2DFn)(GLenum, GLint, GLenum, GLsizei, GLsizei, 
                                        const void *);
 static CompressedTexImage2DFn compressedTexImage2D = NULL;
 
+// A software rasteriser will happily answer every question here, and its answers are about
+// Mesa's C code rather than about any GPU. That distinction is invisible in the numbers -- the
+// first hosted run of this probe landed on llvmpipe and looked exactly like a successful NVIDIA
+// result -- so the renderer string is checked rather than assumed, and reported in a form the
+// calling harness can act on.
+static int isSoftwareRenderer(const char *renderer) {
+    if (!renderer) {
+        return 0;
+    }
+    static const char *MARKERS[] = {"llvmpipe", "softpipe", "swrast", "SWR", "Software Rasterizer",
+                                    "Microsoft Basic Render"};
+    for (size_t i = 0; i < sizeof(MARKERS) / sizeof(MARKERS[0]); i++) {
+        if (strstr(renderer, MARKERS[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 // ---------------------------------------------------------------------------
 // Context creation. Two backends, both headless, both giving a real desktop GL
 // context rather than GL ES -- glGetTexImage does not exist in ES, and reading a
@@ -82,25 +101,53 @@ static EGLContext eglContextHandle = EGL_NO_CONTEXT;
 
 // A headless GPU has no X display, so the usual eglGetDisplay(EGL_DEFAULT_DISPLAY) finds nothing.
 // EGL_EXT_platform_device enumerates the GPUs directly, which is how a container gets a context.
+//
+// Enumeration order is not preference order. A container with both Mesa and a vendor driver
+// installed will typically enumerate Mesa's software device too, and taking the first one lands on
+// llvmpipe -- which answers every question in this program without involving the GPU at all. So
+// each device is inspected before one is chosen, and a software device is only accepted if it is
+// the only thing on offer.
 static EGLDisplay openHeadlessDisplay(void) {
     PFNEGLQUERYDEVICESEXTPROC queryDevices =
             (PFNEGLQUERYDEVICESEXTPROC) eglGetProcAddress("eglQueryDevicesEXT");
     PFNEGLGETPLATFORMDISPLAYEXTPROC getPlatformDisplay =
             (PFNEGLGETPLATFORMDISPLAYEXTPROC) eglGetProcAddress("eglGetPlatformDisplayEXT");
+    PFNEGLQUERYDEVICESTRINGEXTPROC queryDeviceString =
+            (PFNEGLQUERYDEVICESTRINGEXTPROC) eglGetProcAddress("eglQueryDeviceStringEXT");
     if (queryDevices && getPlatformDisplay) {
         EGLDeviceEXT devices[16];
         EGLint deviceCount = 0;
         if (queryDevices(16, devices, &deviceCount) && deviceCount > 0) {
+            EGLDisplay fallback = EGL_NO_DISPLAY;
+            printf("EGL enumerated %d device(s):\n", deviceCount);
             for (EGLint i = 0; i < deviceCount; i++) {
                 EGLDisplay display =
                         getPlatformDisplay(EGL_PLATFORM_DEVICE_EXT, devices[i], NULL);
-                if (display != EGL_NO_DISPLAY) {
-                    EGLint major, minor;
-                    if (eglInitialize(display, &major, &minor)) {
-                        printf("EGL device %d of %d, EGL %d.%d\n", i, deviceCount, major, minor);
-                        return display;
-                    }
+                EGLint major, minor;
+                if (display == EGL_NO_DISPLAY || !eglInitialize(display, &major, &minor)) {
+                    printf("  device %d: would not initialise\n", i);
+                    continue;
                 }
+                // EGL_NV_device_cuda on the device's extension string is the reliable marker of an
+                // NVIDIA GPU; the vendor string is not queryable until a context exists.
+                const char *extensions = queryDeviceString
+                        ? queryDeviceString(devices[i], EGL_EXTENSIONS) : NULL;
+                const char *vendor = queryDeviceString
+                        ? queryDeviceString(devices[i], EGL_VENDOR) : NULL;
+                int looksLikeGpu = extensions && (strstr(extensions, "EGL_NV_device_cuda")
+                        || strstr(extensions, "EGL_EXT_device_drm"));
+                printf("  device %d: EGL %d.%d vendor=%s%s\n", i, major, minor,
+                       vendor ? vendor : "(unknown)", looksLikeGpu ? "  [hardware]" : "");
+                if (looksLikeGpu) {
+                    return display;
+                }
+                if (fallback == EGL_NO_DISPLAY) {
+                    fallback = display;
+                }
+            }
+            if (fallback != EGL_NO_DISPLAY) {
+                printf("  no hardware device found; falling back to the first that initialised.\n");
+                return fallback;
             }
         }
     }
@@ -340,9 +387,19 @@ int main(int argc, char **argv) {
     if (!createContext()) {
         return 2;
     }
+    const char *renderer = (const char *) glGetString(GL_RENDERER);
+    int software = isSoftwareRenderer(renderer);
     printf("vendor:   %s\n", glGetString(GL_VENDOR));
-    printf("renderer: %s\n", glGetString(GL_RENDERER));
-    printf("version:  %s\n\n", glGetString(GL_VERSION));
+    printf("renderer: %s\n", renderer ? renderer : "(unknown)");
+    printf("version:  %s\n", glGetString(GL_VERSION));
+    // Machine-readable, so a harness cannot report a software run as a hardware one by accident.
+    printf("preflight-renderer-class: %s\n\n", software ? "software" : "hardware");
+    if (software) {
+        printf("!! This is a SOFTWARE rasteriser. The comparison below is against a CPU\n");
+        printf("!! implementation of S3TC decoding, not against any GPU. It is a real third\n");
+        printf("!! opinion and worth recording as one, but it says nothing about the vendor\n");
+        printf("!! whose hardware you believe you are renting.\n\n");
+    }
 
     int failures = 0;
     for (int i = 0; i < caseCount; i++) {
@@ -356,10 +413,20 @@ int main(int argc, char **argv) {
             failures++;
         }
     }
-    printf("\n%s\n", failures == 0
-            ? "VERDICT: this driver reads the blocks preflight writes."
-            : "VERDICT: MISMATCH -- encoded blocks are not what this hardware reads.");
+    if (failures != 0) {
+        printf("\nVERDICT: MISMATCH -- encoded blocks are not what this implementation reads.\n");
+    } else if (software) {
+        printf("\nVERDICT: this SOFTWARE rasteriser reads the blocks preflight writes.\n");
+        printf("         No GPU was involved. Do not record this as a hardware result.\n");
+    } else {
+        printf("\nVERDICT: this driver reads the blocks preflight writes.\n");
+    }
     destroyContext();
     free(vectorBytes);
-    return failures == 0 ? 0 : 1;
+    // Distinct status for "worked, but on a CPU": a harness that treated 0 as proof of hardware
+    // would otherwise announce a GPU result that never happened, which is what it did the first time.
+    if (failures != 0) {
+        return 1;
+    }
+    return software ? 3 : 0;
 }
