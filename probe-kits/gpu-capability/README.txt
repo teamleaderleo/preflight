@@ -65,8 +65,29 @@ What the report tells you
                           behaviour that costs video memory for nothing. On a ~70-mod
                           profile that padding is about 1.86 GiB.
 
+  encoder vs driver       Whether the blocks preflight's encoder writes are the blocks
+                          your hardware reads. It uploads real encoded data, reads it back
+                          decompressed, and compares against preflight's own decoder.
+
 Error codes are OpenGL's own. 0x0000 is success; 0x0500 is GL_INVALID_ENUM, which is what
 a driver returns for a format it does not implement.
+
+The encoder-versus-driver section needs preflight-core built, and is skipped with a note
+if it is not:
+
+    mvn -q -pl preflight-core -am install -DskipTests
+
+It exists because every fidelity number preflight publishes is produced by decoding the
+encoder's output with preflight's own decoder, which on its own is circular — a byte
+layout can be wrong in a way both halves agree on, and look perfect until a GPU sees it.
+BC1 in particular reads the order of its two stored colours as a mode bit, and an encoder
+that ignores it writes blocks that are correct in software and garbage on hardware.
+
+A small disagreement is not a defect. The S3TC specification defines the interpolated
+palette entries as weighted averages without pinning the rounding, so drivers may
+legitimately differ by about a unit per channel. A layout error looks nothing like that:
+it produces wholly different colours, not off-by-one ones, which is why the probe reports
+the worst per-channel deviation rather than a pass/fail alone.
 
 What to expect, by platform
 ---------------------------
@@ -100,3 +121,4 @@ Results already recorded:
 
   docs/evidence/2026-07-25-macos-gl-capability-probe.md
   docs/evidence/2026-07-25-macos-rosetta-runtime.md
+  docs/evidence/2026-07-26-encoder-driver-byte-agreement.md
