@@ -130,6 +130,21 @@ Separate from the speed-first milestone program above:
    and delivery byte-identical. The overlay direction is reduction, not super-resolution: see
    [asset-quality-track.md](asset-quality-track.md) for why that is the honest win.)*
 8. Keep enhanced assets in a separate cache namespace and manifest.
+   *(Prerequisite measurement done. `assets compression-probe` scored real profile art through a real
+   BC1/BC3 encoder in CIELAB ΔE and inverted the standing 2019 objection: the large smooth textures
+   holding **55% of art VRAM** round-trip at median mean ΔE **0.80**, below human perceptibility,
+   while the small sprites that genuinely mangle are under 1% of VRAM. Then
+   [`probe-kits/gpu-capability`](../probe-kits/gpu-capability/README.txt) asked the driver what it
+   will accept — see
+   [2026-07-25-macos-gl-capability-probe.md](evidence/2026-07-25-macos-gl-capability-probe.md).
+   BC1–BC5 upload by both routes; **BC7 and ASTC return `GL_INVALID_ENUM`** on Apple's GL, so the
+   macOS choice is BC1/BC3 or nothing. Two further facts fell out: non-power-of-two textures upload
+   natively, so the loader's `get2Fold` padding — **1.86 GiB, 27% of resident VRAM** — is inherited
+   Slick2D behaviour rather than a hardware requirement; and the engine's hardcoded `GL_RGBA`
+   internal format could be swapped for a compressed one at the same call site, one constant for a
+   4× cut. The offline-encoder path is preferred anyway: `BlockCompressor` beats the driver's encoder
+   by 1.6–2.0×, it allows a per-texture selective policy, and a pre-encoded block texture removes the
+   PNG decode stage entirely — putting block compression on the speed track rather than opposite it.)*
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.
 
