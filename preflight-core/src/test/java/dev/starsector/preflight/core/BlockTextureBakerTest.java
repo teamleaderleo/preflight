@@ -106,6 +106,22 @@ class BlockTextureBakerTest {
     }
 
     @Test
+    void survivesTheDegenerateArtThatRealModsContain() {
+        // Blank and one-pixel sprites exist in real mods. A fully transparent image has no visible
+        // pixel to measure, and a 1x1 image is smaller than a block; neither should reach an
+        // arithmetic edge in the fidelity pass or the padding in the encoder.
+        BlockTexture blank = BlockTextureBaker.bake(HASH, flat(0x00000000, 4, 4), 4, 4,
+                BlockTextureBaker.Mips.FULL_CHAIN);
+        assertEquals(0, blank.fidelity().visiblePixels());
+        assertEquals(0.0, blank.fidelity().meanDeltaE(), 0.0, "no visible pixels must not mean NaN");
+
+        BlockTexture single = BlockTextureBaker.bake(HASH, flat(0xff123456, 1, 1), 1, 1,
+                BlockTextureBaker.Mips.FULL_CHAIN);
+        assertEquals(1, single.levelCount());
+        assertEquals(BlockCompressor.BC1_BLOCK_BYTES, single.blockBytes(), "a sub-block image still pays one block");
+    }
+
+    @Test
     void rejectsPixelsThatDoNotMatchTheDimensions() {
         assertThrows(IllegalArgumentException.class,
                 () -> BlockTextureBaker.bake(HASH, new int[15], 4, 4, BlockTextureBaker.Mips.NONE));
