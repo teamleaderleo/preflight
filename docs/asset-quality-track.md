@@ -459,9 +459,17 @@ Fidelity improves monotonically with size, and the conclusion inverts. Dark.Reve
 the textures he had in mind — small, detailed, hue-dense sprites are genuinely mangled — but those
 are **under 1% of video memory**. The textures that hold the memory are large, smooth and
 photographic, and they round-trip at a median mean Delta-E of **0.80, below the threshold of human
-perceptibility**, in the very format he was criticising. BC7, which the hardware supports (a player's
-posted context in that era already reported GLSL 4.60 and `GL_ARB_texture_compression_bptc`), has
-higher-precision endpoints and per-block partitioning and would do better still.
+perceptibility**, in the very format he was criticising.
+
+**Corrected the same day.** This section originally continued "BC7 … would do better still", citing a
+player's posted context from that era reporting `GL_ARB_texture_compression_bptc`. That is true of PC
+hardware and false on the reviewed machine: Apple's OpenGL stops at 4.1, BPTC is core in 4.2, and a
+BC7 upload returns `GL_INVALID_ENUM` in both the driver-compression and pre-encoded paths — see
+[the GPU capability probe](evidence/2026-07-25-macos-gl-capability-probe.md). The M5 supports BC7
+through Metal; nothing reachable from Starsector's GL context can use it. On macOS the choice is
+**BC1/BC3 or nothing**, which is exactly what was measured above, so the table stands — but the
+escape hatch of "BC7 will rescue the small sprites" is closed, and the selective policy below becomes
+load-bearing rather than merely tidy.
 
 That points at a **selective policy** rather than a global switch: compress large art, leave small
 sprites at full precision, and leave shader maps alone or move them to BC5. On the sample that keeps
@@ -471,6 +479,111 @@ roughly 90% of art VRAM at about 6x while touching nothing that measures badly.
 BC that is really evidence against the code. They pin its behaviour on flat blocks, gradients, sharp
 two-colour edges and alpha ramps. One residual is the format's and not the encoder's — RGB565
 endpoints put red and blue on a 5-bit grid, so neutral greys pick up a slight cast, worst near black
-where L* moves fastest. That is a BC1 property BC7 does not share.
+where L* moves fastest. That is a BC1 property BC7 does not share — and, per the correction above, one macOS cannot escape.
 
-Still unmeasured: BC7 itself, and whether any of this survives contact with the runtime.
+## What the driver actually allows (2026-07-25)
+
+The compression probe measured what a format *costs*. It did not establish that any of it can be
+uploaded. [`probe-kits/gpu-capability`](../probe-kits/gpu-capability/README.txt) asks the driver
+directly, by performing uploads and reading back what was stored; the full record is in
+[2026-07-25-macos-gl-capability-probe.md](evidence/2026-07-25-macos-gl-capability-probe.md).
+
+On the reviewed machine (Apple M5, macOS 26.5.1, driver `2.1 Metal - 90.5`):
+
+- **BC1/BC2/BC3/BC4/BC5 all upload**, by both routes — the driver compressing an ordinary RGBA
+  upload, and pre-encoded blocks via `glCompressedTexImage2D`. BC5 working confirms the shader-map
+  recommendation above is actionable and not just correct in principle.
+- **BC7 does not exist here.** `GL_INVALID_ENUM` on both routes.
+- **Non-power-of-two textures upload natively.** 597×373 is stored as 597×373. The loader's
+  `get2Fold` padding is inherited Slick2D behaviour, not a requirement of this hardware, and it costs
+  **1.86 GiB (27%)** of resident VRAM on the reviewed profile for nothing. Removal is still hard —
+  two independent power-of-two implementations in `TextureLoader`, and sprite texture coordinates
+  computed against the padded size — but the driver is not the obstacle.
+- **The engine's upload site could compress with one changed constant.** `TextureLoader` hardcodes
+  `GL_RGBA`; substituting a compressed internal format at that same call yields
+  `GL_TEXTURE_COMPRESSED = 1` and a quarter of the bytes, with no asset pipeline, no encoder and no
+  new file format.
+- **The driver's own encoder is 1.6–2.0× worse than `BlockCompressor`** on real core art, measured by
+  reading textures back with `glGetTexImage` and scoring them with `TextureFidelity`. On
+  `planets/aurorae2.png` the driver lands at mean ΔE 1.27 and ours at 0.84 — straddling the
+  perceptibility threshold.
+
+The last two together define the trade. The one-constant change is global and therefore applies the
+driver's quality to the small detailed sprites that measure worst — precisely the ones the community
+objection is about. A selective policy needs per-texture control, which needs the offline path.
+
+**And the offline path is not only a footprint lever.** Today a texture is read as PNG,
+zlib-inflated, decoded to RGBA, padded, and uploaded at 4 B/px. A pre-encoded block texture is read
+and uploaded — *no decode stage at all*, at an eighth of the bytes. That puts block compression on
+the speed track, not opposite it, which is a different proposition from the one this document opened
+with.
+
+## Research frontier: what changed between 2019 and 2026 (surveyed 2026-07-25)
+
+The 2019 forum discussion is the standing state of community knowledge. Surveying what has appeared
+since, most of it does not apply here, and the reasons are worth recording so the same ground is not
+re-covered.
+
+**Applies.**
+
+- **RDO block encoders.** `bc7enc_rdo` (Geldreich) is the current state of the art for BC1–7, and its
+  BC1 encoder is among the best available; it introduced "prioritised cluster fit", 3–4× faster than
+  traditional cluster fit at equal or better quality. Separately, its *rate-distortion* mode biases
+  block choices so the encoded texture compresses 10–50% better under a following LZ pass, at
+  slightly higher distortion. Both are directly relevant: the first is a quality ceiling to measure
+  `BlockCompressor` against, the second shrinks the on-disk cache, which is load time.
+  It is C++ under MIT/public domain — usable as reference for a Java port, not as a dependency.
+- **Basis Universal / KTX2.** Store once, transcode at load to whatever the machine supports. Its
+  2.5 transcoder reads and transcodes LDR `.DDS` in BC1–7. This is the principled answer to "which
+  format do I ship" when the answer differs per machine — and the probe just proved it *does* differ
+  per machine. Worth revisiting if this ever ships beyond one platform; overkill while the answer on
+  macOS is "BC1/BC3, always".
+
+**Raised and rejected.**
+
+- **BC7 / BPTC.** Rejected on this platform by direct measurement, not by reasoning. See above.
+- **ASTC.** `GL_KHR_texture_compression_astc_ldr` absent from every profile probed. The M5 supports
+  ASTC natively through Metal; Apple's OpenGL does not expose it. Same API ceiling as BC7.
+- **Neural texture compression.** NVIDIA's RTX NTC reaches far higher ratios by compressing a whole
+  PBR material set jointly and decoding through a small MLP in the pixel shader. It requires
+  cooperative-vector extensions (`VK_NV_cooperative_vector`, D3D12) for the matrix inference to be
+  fast enough, needs shader-side decode integration, and is not reachable from OpenGL 2.1 at all.
+  It also assumes multi-channel PBR material sets, which Starsector's 2D art largely is not. Not
+  applicable now and not applicable on this hardware; noted so it is not mistaken for an oversight.
+- **Runtime frame generation / upscaling (DLSS, FSR, MetalFX).** Out of scope by the same argument as
+  the FPS section: this project does not touch the render loop.
+
+**Changed underneath us, and relevant.**
+
+- **Starsector 0.98a (2025-03-27) moved the game to Java 17**, which is why this project targets JDK
+  17 and why AppCDS is available at all. 0.98.5a is in development as of April 2026.
+- **A community thread reports performance gains from swapping in the OpenJ9 JRE** on 0.98a. This is
+  adjacent to preflight's whole premise and worth reading before any claim about JVM-level startup
+  wins — it may already cover ground the project assumes is open.
+
+Sources for this survey, in case anyone needs to check the reasoning:
+
+- bc7enc_rdo: <https://github.com/richgel999/bc7enc_rdo>
+- bc7enc_rdo usage and RDO examples: <http://richg42.blogspot.com/2021/02/how-to-use-bc7encrdo.html>
+- Basis Universal: <https://github.com/BinomialLLC/basis_universal>
+- KTX2 support details: <https://github.com/BinomialLLC/basis_universal/wiki/KTX2-File-Format-Support-Technical-Details>
+- RTX Neural Texture Compression SDK: <https://github.com/NVIDIA-RTX/RTXNTC>
+- Variable-rate texture compression with JPEG (2025): <https://arxiv.org/pdf/2510.08166>
+- Starsector 0.98a release (Java 17): <https://fractalsoftworks.com/2025/03/27/starsector-0-98a-release/>
+- OpenJ9 JRE performance thread: <https://fractalsoftworks.com/forum/index.php?topic=32926.0>
+
+## Where this leaves the footprint program
+
+Ordered by ratio of effect to risk, with everything now measured rather than assumed:
+
+| lever | resident VRAM | load time | quality cost | status |
+|---|---|---|---|---|
+| today | 6.91 GiB | baseline | — | — |
+| `assets shrink` cap to 1024 | 4.56 GiB | unchanged | resolution loss, visible | shipped |
+| snap-to-POT in `assets shrink` | recovers part of 1.86 GiB | unchanged | resolution loss on near-boundary textures only | next |
+| stop padding in-engine | −1.86 GiB | unchanged | **none, lossless** | needs two coordinated bytecode edits |
+| one-constant BC3 at the upload site | ÷4 | slightly worse (decode *then* compress) | driver-encoder quality, global | probed, unbuilt |
+| offline BC + `glCompressedTexImage2D` | ÷4 to ÷8 | **better — no decode stage** | selectable per texture; ΔE 0.80 on the art that holds the memory | the real target |
+
+Still unmeasured: whether any of this survives contact with the runtime, and how
+`BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder as a quality ceiling.
