@@ -133,16 +133,42 @@ To check the same vector on rented hardware:
     ./run-block-conformance.sh                 # generates the vector
     modal run modal-block-conformance.py       # PREFLIGHT_GPU=L4 for something newer
 
-The job is a compile and a few texture uploads, so it costs a fraction of a cent. The
-Modal script is UNTESTED — written without NVIDIA hardware to hand — and names its two
-likely failure points in comments.
+The job is a compile and a few texture uploads, so it costs a fraction of a cent. It has
+been run on a Tesla T4 and works.
 
-Why bother, when Apple's driver already agrees bit for bit: because the agreement required
-matching a quirk nobody could have predicted. On Apple's driver the colour blends truncate
-and the alpha blends round, in the same block. The S3TC specification permits both. So the
-encoder is verified against exactly one driver, and NVIDIA is the one most Starsector
-players actually have. A mismatch would be the more useful result — it would mean the
-level tables are Apple-specific and the block cache needs a per-driver decision.
+What it found, and why it was worth running
+-------------------------------------------
+Three implementations round the interpolated colours three different ways:
+
+  Apple M5 (Metal)             100.00% identical to preflight's decoder
+  Mesa llvmpipe (CPU)           91.37%
+  NVIDIA Tesla T4               45.31%
+
+Every deviation is exactly 1, and BC1 and BC3 deviate identically in all three cases,
+which pins it to the colour block the two formats share. The alpha blends agree
+everywhere. The S3TC specification permits all of this: it defines the interpolated
+entries as weighted averages without pinning the rounding.
+
+So there is no level table that matches every driver, and the encoder matches the vendor
+with the smallest market share. That sounds alarming and is not: the disagreement was
+priced at mean deltaE 0.206 and max 0.439, against a just-noticeable threshold of 1.00,
+moving measured fidelity by 0.4%. The decision is to keep one table and do nothing.
+
+The point of running it was that none of that was predictable. Both tempting shortcuts --
+assuming portability, or building per-driver tables -- would have been wrong, and only
+in opposite directions.
+
+Read the renderer line, not the exit status
+-------------------------------------------
+The first hosted run reached a healthy T4 and rendered on Mesa llvmpipe, because libglvnd
+finds drivers through ICD manifests that the NVIDIA installer normally writes and a
+container never runs. The probe prints
+
+    preflight-renderer-class: hardware|software
+
+and exits 3 rather than 0 when it completed on a CPU. Anything automating this must read
+that line: a software run looks exactly like a successful hardware one in every other
+respect, which is how it got misreported the first time.
 
 Also here
 ---------
