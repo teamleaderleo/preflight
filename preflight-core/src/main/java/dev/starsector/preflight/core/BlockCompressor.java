@@ -28,6 +28,21 @@ package dev.starsector.preflight.core;
  * optimises what {@link TextureFidelity} independently measures rather than a proxy for it.
  */
 public final class BlockCompressor {
+    /**
+     * Identity of the bytes this encoder produces, for cache invalidation.
+     *
+     * <p>Encoded blocks are cached on disk and are expensive to regenerate, so something has to
+     * decide whether a blob written last month is still what this encoder would write today. Nothing
+     * else can answer that: the source image is unchanged, the format is unchanged, and the blob is
+     * internally consistent — a stale blob is indistinguishable from a fresh one by inspection. So
+     * the encoder states its own identity and the cache compares it.
+     *
+     * <p>Bump this whenever a change alters the emitted bytes for any input, including one that
+     * improves them. Two changes in this encoder's short history would each have required it — the
+     * endpoint ordering fix and the alpha rounding fix — and both produced better output, which is
+     * the case where forgetting is easiest and the resulting mixed cache hardest to notice.
+     */
+    public static final int CODEC_VERSION = 1;
     /** Bytes per 4x4 block in BC1/DXT1. */
     public static final int BC1_BLOCK_BYTES = 8;
     /** Bytes per 4x4 block in BC3/DXT5. */

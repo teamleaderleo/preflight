@@ -705,6 +705,61 @@ across two vendors' silicon plus a CPU implementation.
 
 Full result and method: [2026-07-26-encoder-driver-byte-agreement.md](evidence/2026-07-26-encoder-driver-byte-agreement.md).
 
+## The block cache has a format and a bake path (2026-07-26)
+
+With the encoder's bytes confirmed against two vendors' hardware, the blocks needed somewhere to live.
+`BlockTexture` / `BlockTextureIO` (magic `SPFB`) and `BlockTextureBaker` are that.
+
+**It is a separate type from `PreparedTexture`, deliberately.** The prepared-pixel cache is a promise:
+its pixels are exactly what the game's loader would have produced, so a consumer may substitute it
+without further thought. Block data breaks that promise by design. Sharing one type would reduce the
+difference to a codec field that any consumer could forget to check, and the failure mode — a silently
+degraded game — has no exception, no log line and no test that would catch it. Separate magic means the
+two caches cannot be read into each other even if a path is wrong.
+
+Three things ride along with the blocks, each because the alternative is a cache nobody can reason
+about after the fact:
+
+- **The encoder's identity** (`BlockCompressor.CODEC_VERSION`). A blob written by last month's encoder
+  is not corrupt, is internally consistent, and is indistinguishable from a current one by inspection.
+  Nothing but a declared version can tell them apart. This encoder has already changed its output twice
+  — endpoint ordering, alpha rounding — and *both changes were improvements*, which is exactly the case
+  where forgetting to invalidate is easiest and the resulting mixed cache hardest to notice.
+- **The GL internal format**, so the upload passes a constant decided when someone looked at the pixels
+  rather than re-derived from a channel count at load time.
+- **The fidelity report measured at bake time**, required rather than optional. It should not be
+  possible to have put a lossy texture into a cache without having measured the loss, and keeping the
+  number in the artifact means a complaint about one specific sprite can be answered without
+  re-encoding anything.
+
+Format choice is per texture: BC1 for fully opaque images, BC3 for anything with alpha, at twice the
+cost. That split is worth making because on this art the memory sits in large opaque backgrounds while
+the alpha lives in comparatively small sprites. BC1's punch-through mode would encode one-bit cutout
+alpha at BC1 prices, which would suit a lot of sprites — `BlockCompressor` never emits it, so that
+saving is named here and not claimed.
+
+### The mip filter found a defect in the shipped one
+
+Baking a mip chain needs a downsampler, and writing one surfaced a real bug in `AssetLabCommand.halve`,
+which `assets shrink` already ships. Both were a 2×2 box filter; a 2×2 box is only correct when the
+dimension is even. OpenGL's next level is `max(1, size >> 1)`, so a 5-pixel row becomes 2 — and a 2×2
+box reads source pixels 0–1 and 2–3 while **the fifth is never read at all.** Content silently deleted,
+and worse at every subsequent level.
+
+The baker uses an area average instead: each destination pixel averages exactly the source interval it
+covers, with fractional weights at the ends. It reduces to the plain 2×2 box whenever the dimension is
+even, so nothing changes for power-of-two art, and stays correct when it is not. The existing test
+`keepsAnOddDimensionsLastColumnInsteadOfDroppingIt` fails against the old filter.
+
+`assets shrink` still has the old behaviour and should be moved onto the same filter; its docstring
+justifies the drop as "matching the census projection", but the area average produces the same
+`max(1, dim >> 1)` output dimensions, so the projection never required losing the column.
+
+Both filters do get the more important thing right: colour is averaged **premultiplied by alpha**. A
+straight RGB average weights a fully transparent pixel's colour as heavily as an opaque one, and since
+transparent pixels in real art are stored as black, the symptom is a dark halo creeping around every
+sprite edge, a little worse at each level.
+
 ## Where this leaves the footprint program
 
 Ordered by ratio of effect to risk, with everything now measured rather than assumed:
@@ -716,7 +771,7 @@ Ordered by ratio of effect to risk, with everything now measured rather than ass
 | snap-to-POT in `assets shrink` | recovers part of 1.86 GiB | unchanged | resolution loss on near-boundary textures only | next |
 | stop padding in-engine | −1.86 GiB | unchanged | **none, lossless** | needs two coordinated bytecode edits |
 | one-constant BC3 at the upload site | ÷4 | slightly worse (decode *then* compress) | driver-encoder quality, global | probed, unbuilt |
-| offline BC + `glCompressedTexImage2D` | ÷4 to ÷8 | **better — no decode stage** | selectable per texture; ΔE 0.80 on the art that holds the memory | encoder verified against the driver; cache unbuilt |
+| offline BC + `glCompressedTexImage2D` | ÷4 to ÷8 | **better — no decode stage** | selectable per texture; ΔE 0.80 on the art that holds the memory | encoder driver-verified; blob format and baker landed; no manifest, no runtime consumer |
 
 Still unmeasured: whether any of this survives contact with the runtime, and how
 `BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder as a quality ceiling.
