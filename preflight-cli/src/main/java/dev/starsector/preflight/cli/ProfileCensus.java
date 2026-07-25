@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.GpuTextureFootprint;
 import dev.starsector.preflight.core.ImageHeaderReader;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
@@ -183,12 +184,16 @@ final class ProfileCensus {
             int projectedWidth,
             int projectedHeight) {
 
+        long currentBytes() {
+            return GpuTextureFootprint.residentBytes(current.width(), current.height());
+        }
+
         long projectedBytes() {
-            return (long) projectedWidth * (long) projectedHeight * (long) current.channels();
+            return GpuTextureFootprint.residentBytes(projectedWidth, projectedHeight);
         }
 
         long savedBytes() {
-            return current.decodedBytes() - projectedBytes();
+            return currentBytes() - projectedBytes();
         }
 
         Map<String, Object> toMap() {
@@ -199,9 +204,10 @@ final class ProfileCensus {
             values.put("width", current.width());
             values.put("height", current.height());
             values.put("decodedBytes", current.decodedBytes());
+            values.put("residentBytes", currentBytes());
             values.put("projectedWidth", projectedWidth);
             values.put("projectedHeight", projectedHeight);
-            values.put("projectedDecodedBytes", projectedBytes());
+            values.put("projectedResidentBytes", projectedBytes());
             values.put("savedBytes", savedBytes());
             return values;
         }
@@ -500,16 +506,22 @@ final class ProfileCensus {
             values.put("largestMods", largestMods);
             values.put("largestDecodedMods", largestDecodedMods);
             long winnerDecodedImageBytes = 0;
+            long winnerResidentImageBytes = 0;
+            long winnerPaddingImageBytes = 0;
             long winnerUnmeasuredImageFiles = 0;
             List<TextureWinner> measuredWinners = new ArrayList<>();
             for (WinnerImage winner : winnerByPath.values()) {
                 if (winner.measured()) {
+                    ImageHeaderReader.ImageDimensions dims = winner.dimensions().orElseThrow();
                     winnerDecodedImageBytes += winner.decodedBytes();
+                    long resident = GpuTextureFootprint.residentBytes(dims.width(), dims.height());
+                    if (resident > 0) {
+                        winnerResidentImageBytes = saturatedAdd(winnerResidentImageBytes, resident);
+                        winnerPaddingImageBytes = saturatedAdd(winnerPaddingImageBytes,
+                                GpuTextureFootprint.paddingBytes(dims.width(), dims.height()));
+                    }
                     measuredWinners.add(new TextureWinner(
-                            winner.modId(),
-                            winner.logicalPath(),
-                            winner.file(),
-                            winner.dimensions().orElseThrow()));
+                            winner.modId(), winner.logicalPath(), winner.file(), dims));
                 } else {
                     winnerUnmeasuredImageFiles++;
                 }
@@ -527,11 +539,18 @@ final class ProfileCensus {
             decodedWorkingSet.put("winnerDecodedImageBytes", winnerDecodedImageBytes);
             decodedWorkingSet.put("winnerMeasuredImageFiles", winnerMeasuredImageFiles);
             decodedWorkingSet.put("winnerUnmeasuredImageFiles", winnerUnmeasuredImageFiles);
+            // What the GPU actually allocates, which is larger than the decoded pixel data: the
+            // engine rounds both dimensions up to a power of two and uploads every texture as
+            // GL_RGBA regardless of source channels. See GpuTextureFootprint.
+            decodedWorkingSet.put("winnerResidentImageBytes", winnerResidentImageBytes);
+            decodedWorkingSet.put("winnerPaddingImageBytes", winnerPaddingImageBytes);
             decodedWorkingSet.put("basis",
-                    "exact width*height*channels from image headers; unmeasured formats excluded; "
-                            + "winner* fields resolve override collisions to the loaded provider");
-            // Grade against the override-resolved floor — the truthful "what loads" figure.
-            long winnerFloor = winnerDecodedImageBytes;
+                    "decoded* is exact width*height*channels from image headers; resident* is what the "
+                            + "engine allocates (power-of-two padded, 4 bytes/px GL_RGBA); unmeasured "
+                            + "formats excluded; winner* resolves override collisions to the loaded provider");
+            // Grade against resident bytes — the truthful "what the card holds" figure. Decoded
+            // bytes understate it by the padding and the RGB-to-RGBA widening.
+            long winnerFloor = winnerResidentImageBytes;
             options.vramBudgetBytes().ifPresent(budget ->
                     decodedWorkingSet.put("budgetVerdict", budgetVerdict(winnerFloor, budget)));
             options.maxTextureSizePixels().ifPresent(cap -> decodedWorkingSet.put(
@@ -571,10 +590,6 @@ final class ProfileCensus {
                 }
                 ImageHeaderReader.ImageDimensions current = dimensions.get();
                 int halvings = halvingsToFit(current.width(), current.height(), maxTextureSize);
-                if (halvings == 0) {
-                    projectedFloor = saturatedAdd(projectedFloor, current.decodedBytes());
-                    continue;
-                }
                 Reduction reduction = new Reduction(
                         winner.modId(),
                         winner.logicalPath(),
@@ -582,7 +597,12 @@ final class ProfileCensus {
                         Math.max(1, current.width() >> halvings),
                         Math.max(1, current.height() >> halvings));
                 projectedFloor = saturatedAdd(projectedFloor, reduction.projectedBytes());
-                reductions.add(reduction);
+                // A texture already inside the cap still contributes its resident cost, but there is
+                // nothing to cut. Halving can also be a no-op in VRAM terms when both the original
+                // and the reduction land in the same power-of-two box, so filter on the saving.
+                if (halvings > 0 && reduction.savedBytes() > 0) {
+                    reductions.add(reduction);
+                }
             }
 
             List<Map<String, Object>> largestReductions = reductions.stream()
@@ -688,8 +708,10 @@ final class ProfileCensus {
         values.put("floorBytes", floorBytes);
         values.put("fullMipChainUpperBoundBytes", fullMipUpperBound);
         values.put("headroomBytes", budgetBytes - floorBytes);
-        values.put("note", "advisory: override-resolved floor; excludes mips/NPOT padding, "
-                + "counts RGB as 3B/px (GPU may pad to 4), and counts every winner image whether or not loaded this session");
+        values.put("note", "advisory: override-resolved resident bytes (power-of-two padded, "
+                + "4 bytes/px GL_RGBA); the upper bound adds a full mip chain, which the engine "
+                + "applies only to an allowlisted subset of paths; counts every winner image whether "
+                + "or not it loads this session, and excludes shader buffers and render targets");
         return values;
     }
 

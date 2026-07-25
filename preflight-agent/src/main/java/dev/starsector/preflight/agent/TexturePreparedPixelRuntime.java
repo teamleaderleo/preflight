@@ -1,5 +1,6 @@
 package dev.starsector.preflight.agent;
 
+import dev.starsector.preflight.core.GpuTextureFootprint;
 import dev.starsector.preflight.core.PreparedTexture;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -310,15 +311,14 @@ public final class TexturePreparedPixelRuntime {
         }
     }
 
+    /**
+     * The padded dimension the engine will read. Delegates to {@link GpuTextureFootprint} so the
+     * upload buffer and the VRAM reports cannot drift apart. The previous local implementation
+     * returned 1 for a one-pixel edge, where the engine's {@code get2Fold} returns 2 — which would
+     * have sized the buffer at half what {@code glTexImage2D} reads.
+     */
     static int expectedUploadDimension(int sourceDimension) {
-        if (sourceDimension <= 0) {
-            return -1;
-        }
-        int highest = Integer.highestOneBit(sourceDimension);
-        if (highest == sourceDimension) {
-            return sourceDimension;
-        }
-        return highest > (1 << 30) ? -1 : highest << 1;
+        return GpuTextureFootprint.uploadDimension(sourceDimension);
     }
 
     private static UploadLayout uploadLayout(PreparedTexture texture) {

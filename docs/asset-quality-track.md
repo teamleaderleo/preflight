@@ -323,8 +323,46 @@ into a speed measurement.
   enabled after every mod it replaces a texture for — the same enabled-order rule the census models
   as `probable-enabled-order-only`. Failing to win is visible as "no change", never as damage.
 
-Still to do: feed the census UI/campaign/combat/GraphicsLib-map breakdowns, give the pack its own
-cache namespace and manifest (roadmap #8), and judge the visual cost of a 1024 cap in-game.
+**Corrected 2026-07-25: resident VRAM is not `width * height * channels`.** Reading the installed
+`com.fs.graphics.TextureLoader` (unobfuscated, a near-copy of Slick2D's loader) settled three facts,
+now encoded once in `GpuTextureFootprint`:
+
+1. **Both dimensions are rounded up to a power of two** by Slick's `get2Fold` before
+   `glTexImage2D`. A 288×384 sprite allocates 512×512; the sprite's texture coordinates address only
+   the used sub-rectangle and the rest is allocated and wasted. Preflight's agent already reproduced
+   this padding for its upload buffers (see
+   [2026-07-22-prepared-pixel-npot-padding.md](evidence/2026-07-22-prepared-pixel-npot-padding.md),
+   which observed 597×373 → 1024×512 against the real engine); the *reports* had never learned it.
+2. **The internal format is a hardcoded `GL_RGBA`**, so an opaque RGB source is resident at four
+   bytes per pixel regardless of what was uploaded.
+3. **Mip chains are opt-in per path** — the loader consults a static `Set<String>` of resource names
+   and only those get `GL_LINEAR_MIPMAP_LINEAR`. So a full chain is an upper bound, not a given.
+
+This is not new knowledge in the community, only new to preflight. Dark.Revenant published the same
+arithmetic in July 2019 — the 288×384 Onslaught as "512x512 pixels with 4 bytes per pixel and an
+overall 4/3 increase in size due to the mipmapping", 1365 KiB resident — and gave the estimate as
+width × height × **16/3** bytes. Our `residentBytes` and `residentBytesWithMipChain` are exactly the
+lower and upper ends of that. See
+<https://fractalsoftworks.com/forum/index.php?topic=15674.15> (replies #15 and #21).
+
+Consequences on the real ~70-mod profile:
+
+| | |
+|---|---|
+| decoded pixel data (what preflight used to report) | 4.36 GiB |
+| **resident VRAM** | **6.91 GiB** |
+| of which pure power-of-two padding | 1.86 GiB (27%) |
+
+Every budget verdict now grades resident bytes. This *reversed* earlier advice: a 1024 cap was
+reported as clearing a 4 GiB budget and in fact leaves the profile `over` (6.91 → 4.56 GiB); even a
+512 cap only reaches `at-risk`. The padding figure also confirms independently what xenoargh and
+Dark.Revenant identified in that same 2019 thread as recoverable by atlasing (~42% for an even
+sprite-size distribution) — reachable here without engine changes by snapping near-boundary textures
+down to the power of two below.
+
+Still to do: snap-to-POT in `assets shrink`, the census UI/campaign/combat/GraphicsLib-map
+breakdowns, a separate cache namespace and manifest (roadmap #8), and judging the visual cost of a
+cap in-game.
 
 ## Explicitly out of scope: in-game FPS
 
