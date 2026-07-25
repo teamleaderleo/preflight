@@ -144,7 +144,17 @@ Separate from the speed-first milestone program above:
    internal format could be swapped for a compressed one at the same call site, one constant for a
    4× cut. The offline-encoder path is preferred anyway: `BlockCompressor` beats the driver's encoder
    by 1.6–2.0×, it allows a per-texture selective policy, and a pre-encoded block texture removes the
-   PNG decode stage entirely — putting block compression on the speed track rather than opposite it.)*
+   PNG decode stage entirely — putting block compression on the speed track rather than opposite it.
+   **That last claim is now measured** — see
+   [2026-07-26-texture-load-pipeline-decomposition.md](evidence/2026-07-26-texture-load-pipeline-decomposition.md).
+   On the real profile, ImageIO decode is 67–70% of texture load and the raster walk plus power-of-two
+   padding another 25–28%, against **under 3% for the GPU upload** and about 3% for disk: CPU work is
+   **94.6%** of a texture load. A block cache is therefore **61–74× faster than vanilla and ~4× faster
+   than the existing prepared-pixels cache**, while reading a quarter of the bytes and leaving a
+   quarter of the VRAM resident — it dominates the incumbent on every axis simultaneously. This
+   reorders the program: decode elimination is worth 16–74×, every footprint lever is worth a few
+   percent of load time, and the block cache is the best available answer to both, so it should come
+   before further shrink work.)*
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.
 

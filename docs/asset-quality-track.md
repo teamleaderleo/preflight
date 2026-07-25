@@ -530,6 +530,18 @@ and uploaded — *no decode stage at all*, at an eighth of the bytes. That puts 
 the speed track, not opposite it, which is a different proposition from the one this document opened
 with.
 
+**Measured 2026-07-26, and the claim holds by a wider margin than expected.** Decomposing a real
+load on the 78-mod profile
+([evidence](evidence/2026-07-26-texture-load-pipeline-decomposition.md)): ImageIO decode is
+**67–70%** of texture load, the raster walk and power-of-two padding another **25–28%**, the GPU
+upload **under 3%**, and disk about **3%**. CPU work is **94.6%** of it. So a change that removes
+bytes uploaded is nearly irrelevant to load time, and a change that removes the decode is almost all
+of it. Priced against each other, a block cache runs **61–74× faster than vanilla** and **~4× faster
+than preflight's existing prepared-pixels cache**, while reading a quarter of the bytes and leaving a
+quarter of the VRAM resident — it dominates the incumbent on every axis at once, with no trade to
+weigh. The padding also turns out to cost load time and not only memory, since the raster stage
+allocates and fills the padded buffer.
+
 ## Research frontier: what changed between 2019 and 2026 (surveyed 2026-07-25)
 
 The 2019 forum discussion is the standing state of community knowledge. Surveying what has appeared
