@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -36,10 +37,10 @@ final class ProfileCensus {
     }
 
     static Result scan(Path installRoot) throws IOException {
-        return scan(installRoot, OptionalLong.empty());
+        return scan(installRoot, Options.none());
     }
 
-    static Result scan(Path installRoot, OptionalLong vramBudgetBytes) throws IOException {
+    static Result scan(Path installRoot, Options options) throws IOException {
         long scanStarted = System.nanoTime();
         GameLayout layout = GameLayout.locate(installRoot);
         List<String> diagnostics = new ArrayList<>(layout.diagnostics());
@@ -67,7 +68,33 @@ final class ProfileCensus {
         for (ResolvedMod mod : mods) {
             accumulator.scanMod(mod);
         }
-        return accumulator.finish(mods, missing, System.nanoTime() - scanStarted, vramBudgetBytes);
+        return accumulator.finish(mods, missing, System.nanoTime() - scanStarted, options);
+    }
+
+    /**
+     * Opt-in analyses layered on top of the plain inventory. All-empty is the default and leaves the
+     * report byte-identical to a bare scan, so adding a knob never perturbs an existing consumer.
+     *
+     * @param vramBudgetBytes grade the decoded working set against this budget
+     * @param maxTextureSizePixels project what capping every winning texture's long edge would save
+     */
+    record Options(OptionalLong vramBudgetBytes, OptionalInt maxTextureSizePixels) {
+        Options {
+            // A non-positive cap is meaningless and would make the halving search shift past 31,
+            // where Java masks the shift count and the loop never terminates.
+            if (maxTextureSizePixels.isPresent() && maxTextureSizePixels.getAsInt() < 1) {
+                throw new IllegalArgumentException(
+                        "maxTextureSizePixels must be at least 1: " + maxTextureSizePixels.getAsInt());
+            }
+        }
+
+        static Options none() {
+            return new Options(OptionalLong.empty(), OptionalInt.empty());
+        }
+
+        static Options vramBudget(long bytes) {
+            return new Options(OptionalLong.of(bytes), OptionalInt.empty());
+        }
     }
 
     private static Map<String, Path> discoverModDirectories(Path modsDirectory, List<String> diagnostics) throws IOException {
@@ -117,8 +144,52 @@ final class ProfileCensus {
     private record Provider(String modId, int order) {
     }
 
-    /** The override-winning image at one logical path: its enabled order and decoded footprint. */
-    private record WinnerImage(int order, long decodedBytes, boolean measured) {
+    /** The override-winning image at one logical path: the order that won it and its header facts. */
+    private record WinnerImage(
+            int order,
+            String modId,
+            String logicalPath,
+            Optional<ImageHeaderReader.ImageDimensions> dimensions) {
+
+        long decodedBytes() {
+            return dimensions.map(ImageHeaderReader.ImageDimensions::decodedBytes).orElse(0L);
+        }
+
+        boolean measured() {
+            return dimensions.isPresent();
+        }
+    }
+
+    /** One texture's projected cost if its long edge were capped. Reported largest saving first. */
+    private record Reduction(
+            String modId,
+            String logicalPath,
+            ImageHeaderReader.ImageDimensions current,
+            int projectedWidth,
+            int projectedHeight) {
+
+        long projectedBytes() {
+            return (long) projectedWidth * (long) projectedHeight * (long) current.channels();
+        }
+
+        long savedBytes() {
+            return current.decodedBytes() - projectedBytes();
+        }
+
+        Map<String, Object> toMap() {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("modId", modId);
+            values.put("path", logicalPath);
+            values.put("channels", current.channels());
+            values.put("width", current.width());
+            values.put("height", current.height());
+            values.put("decodedBytes", current.decodedBytes());
+            values.put("projectedWidth", projectedWidth);
+            values.put("projectedHeight", projectedHeight);
+            values.put("projectedDecodedBytes", projectedBytes());
+            values.put("savedBytes", savedBytes());
+            return values;
+        }
     }
 
     private static final class ModStats {
@@ -276,7 +347,7 @@ final class ProfileCensus {
             String extension = extension(logicalPath);
             classify(stats, extension, bytes);
             if (IMAGE_EXTENSIONS.contains(extension)) {
-                recordDecodedImage(stats, file, logicalPath, mod.order());
+                recordDecodedImage(mod, stats, file, logicalPath);
             }
         }
 
@@ -291,14 +362,14 @@ final class ProfileCensus {
          * path (highest enabled order) so {@link #finish} can also report the tighter
          * override-resolved working set — closer to what actually loads at each path.
          */
-        private void recordDecodedImage(ModStats stats, Path file, String logicalPath, int order) {
+        private void recordDecodedImage(ResolvedMod mod, ModStats stats, Path file, String logicalPath) {
             Optional<ImageHeaderReader.ImageDimensions> dimensions;
             try {
                 dimensions = ImageHeaderReader.read(file);
             } catch (IOException error) {
                 dimensions = Optional.empty();
             }
-            recordWinner(logicalPath, order, dimensions);
+            recordWinner(mod, logicalPath, dimensions);
             if (dimensions.isPresent()) {
                 long decoded = dimensions.get().decodedBytes();
                 stats.decodedImageBytes += decoded;
@@ -316,16 +387,18 @@ final class ProfileCensus {
          * the one the game actually loads. Mods are scanned in ascending enabled order, but this
          * guards on {@code order} explicitly so it does not depend on that.
          */
-        private void recordWinner(String logicalPath, int order, Optional<ImageHeaderReader.ImageDimensions> dims) {
+        private void recordWinner(
+                ResolvedMod mod,
+                String logicalPath,
+                Optional<ImageHeaderReader.ImageDimensions> dims) {
             String key = logicalPath.toLowerCase(Locale.ROOT);
             WinnerImage existing = winnerByPath.get(key);
-            if (existing == null || order >= existing.order()) {
-                long decoded = dims.map(ImageHeaderReader.ImageDimensions::decodedBytes).orElse(0L);
-                winnerByPath.put(key, new WinnerImage(order, decoded, dims.isPresent()));
+            if (existing == null || mod.order() >= existing.order()) {
+                winnerByPath.put(key, new WinnerImage(mod.order(), mod.id(), logicalPath, dims));
             }
         }
 
-        Result finish(List<ResolvedMod> mods, List<String> missing, long scanNanos, OptionalLong vramBudgetBytes) {
+        Result finish(List<ResolvedMod> mods, List<String> missing, long scanNanos, Options options) {
             List<Map.Entry<String, List<Provider>>> duplicateEntries = providersByLogicalPath.entrySet().stream()
                     .filter(entry -> entry.getValue().size() > 1)
                     .sorted(Map.Entry.comparingByKey())
@@ -436,8 +509,10 @@ final class ProfileCensus {
                             + "winner* fields resolve override collisions to the loaded provider");
             // Grade against the override-resolved floor — the truthful "what loads" figure.
             long winnerFloor = winnerDecodedImageBytes;
-            vramBudgetBytes.ifPresent(budget ->
+            options.vramBudgetBytes().ifPresent(budget ->
                     decodedWorkingSet.put("budgetVerdict", budgetVerdict(winnerFloor, budget)));
+            options.maxTextureSizePixels().ifPresent(cap -> decodedWorkingSet.put(
+                    "reductionPlan", reductionPlan(cap, winnerFloor, options.vramBudgetBytes())));
             values.put("decodedWorkingSet", decodedWorkingSet);
             values.put("largestAssets", largestAssets);
             values.put("overrideSemantics", "probable-enabled-order-only");
@@ -446,6 +521,67 @@ final class ProfileCensus {
             values.put("duplicateSamples", duplicateSamples);
             values.put("diagnostics", List.copyOf(new LinkedHashSet<>(diagnostics)));
             return new Result(values);
+        }
+
+        /**
+         * Projects what capping every override-winning texture's long edge at {@code maxTextureSize}
+         * would cost instead — the "what do I actually cut" half of a budget verdict, which on its own
+         * only says how far over you are.
+         *
+         * <p>The modelled reduction is repeated exact halving: the long edge is halved until it fits
+         * the cap. A 2x2 box reduction is the one resize that is exact (each output pixel is the mean
+         * of four inputs), preserves power-of-two dimensions, and matches how the GPU builds mip
+         * levels — so each step divides a texture's decoded cost by exactly four and the projection is
+         * arithmetic, not an estimate. It is deliberately conservative: with a 2048 cap a 3000-pixel
+         * edge halves once, to 1500, rather than resampling to exactly 2048.
+         *
+         * <p>This projects memory only. Whether shrinking a given texture is visually acceptable is a
+         * judgement the operator makes; nothing here rewrites an asset.
+         */
+        private Map<String, Object> reductionPlan(int maxTextureSize, long currentFloor, OptionalLong budget) {
+            long projectedFloor = 0;
+            List<Reduction> reductions = new ArrayList<>();
+            for (WinnerImage winner : winnerByPath.values()) {
+                Optional<ImageHeaderReader.ImageDimensions> dimensions = winner.dimensions();
+                if (dimensions.isEmpty()) {
+                    continue;
+                }
+                ImageHeaderReader.ImageDimensions current = dimensions.get();
+                int halvings = halvingsToFit(current.width(), current.height(), maxTextureSize);
+                if (halvings == 0) {
+                    projectedFloor = saturatedAdd(projectedFloor, current.decodedBytes());
+                    continue;
+                }
+                Reduction reduction = new Reduction(
+                        winner.modId(),
+                        winner.logicalPath(),
+                        current,
+                        Math.max(1, current.width() >> halvings),
+                        Math.max(1, current.height() >> halvings));
+                projectedFloor = saturatedAdd(projectedFloor, reduction.projectedBytes());
+                reductions.add(reduction);
+            }
+
+            List<Map<String, Object>> largestReductions = reductions.stream()
+                    .sorted(Comparator.comparingLong(Reduction::savedBytes).reversed()
+                            .thenComparing(Reduction::logicalPath))
+                    .limit(LARGEST_LIMIT)
+                    .map(Reduction::toMap)
+                    .toList();
+
+            long finalProjectedFloor = projectedFloor;
+            Map<String, Object> plan = new LinkedHashMap<>();
+            plan.put("maxTextureSizePixels", maxTextureSize);
+            plan.put("method", "halve the long edge until it fits the cap; exact 2x2 box reduction, "
+                    + "so each step divides decoded cost by 4 and power-of-two sizes stay power-of-two");
+            plan.put("oversizedTextures", (long) reductions.size());
+            plan.put("currentFloorBytes", currentFloor);
+            plan.put("projectedFloorBytes", finalProjectedFloor);
+            plan.put("savedBytes", currentFloor - finalProjectedFloor);
+            budget.ifPresent(bytes ->
+                    plan.put("projectedBudgetVerdict", budgetVerdict(finalProjectedFloor, bytes)));
+            plan.put("largestReductions", largestReductions);
+            return plan;
         }
 
         private void classify(ModStats stats, String extension, long bytes) {
@@ -532,6 +668,19 @@ final class ProfileCensus {
         values.put("note", "advisory: override-resolved floor; excludes mips/NPOT padding, "
                 + "counts RGB as 3B/px (GPU may pad to 4), and counts every winner image whether or not loaded this session");
         return values;
+    }
+
+    /**
+     * How many exact halvings bring the long edge to {@code maxTextureSize} or below. Terminates for
+     * any positive cap because the shifted edge reaches zero within 31 steps.
+     */
+    private static int halvingsToFit(int width, int height, int maxTextureSize) {
+        int longEdge = Math.max(width, height);
+        int halvings = 0;
+        while ((longEdge >> halvings) > maxTextureSize) {
+            halvings++;
+        }
+        return halvings;
     }
 
     private static long ceilDiv(long value, long divisor) {

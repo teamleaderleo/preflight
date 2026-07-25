@@ -104,7 +104,13 @@ Separate from the speed-first milestone program above:
    into a false `over` — on the real profile a 4G budget reads `over` by 388 MB. `doctor` now
    prints a compact decoded-working-set summary (override-resolved floor, loudest decoded mods,
    pointer to the budget verdict) so the estimate is visible from the command users actually run,
-   not just `scan --json`. That closes roadmap #4.)*
+   not just `scan --json`. That closes roadmap #4. `scan --max-texture-size <pixels>` then answers
+   the follow-up question a verdict alone cannot — *what would I actually cut* — by projecting the
+   floor after capping every override-winning texture's long edge, using exact repeated halving
+   (a 2x2 box reduction divides decoded cost by exactly 4 and keeps power-of-two sizes), and
+   re-grading the budget against that projection. On the real profile this refuted the obvious
+   guess: a 2048 cap touches only 5 textures and saves 74 MiB, still `over`; the cost is a long
+   tail, and a 1024 cap (211 textures) takes 4.36 GiB to 2.76 GiB and clears 4G. See roadmap #7.)*
 5. Add save/load and clean-exit outcomes to launcher-compatibility campaigns.
 6. Font quality: **mechanism confirmed in-game** — mod override of core fonts works, and the
    core UI renders at declared `.fnt` metrics (so an `N×` pack is *bigger* text, not
@@ -113,6 +119,11 @@ Separate from the speed-first milestone program above:
    (whole-UI bring-your-own-font mod generator). Remaining: polish the readable-font mod
    (font picker / packaging), optional kerning, and a fits-in-layout larger-text option.
 7. Build the texture Asset Lab as an offline, opt-in overlay generator with a budget gate.
+   *(In progress, gate first: `scan --max-texture-size <pixels>` is the budget gate applied to the
+   profile that already exists — it projects the override-resolved floor after capping oversized
+   textures, ranks the largest individual savings, and re-grades the VRAM budget against the
+   projection, all as pure arithmetic over image headers. It rewrites nothing. Remaining: actually
+   emitting the reduced/enhanced assets into a separate cache namespace, which is #8.)*
 8. Keep enhanced assets in a separate cache namespace and manifest.
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.

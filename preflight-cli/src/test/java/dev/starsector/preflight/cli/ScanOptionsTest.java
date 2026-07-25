@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.Test;
 
@@ -24,9 +25,24 @@ class ScanOptionsTest {
     }
 
     @Test
-    void carriesTheBudgetThroughParsing() {
-        ScanOptions options = ScanOptions.parse(new String[] {"scan", "--vram-budget", "4G"}, 1);
+    void rejectsGarbageTextureSizes() {
+        assertEquals(2048, ScanOptions.parseTextureSize(" 2048 "));
+        assertThrows(IllegalArgumentException.class, () -> ScanOptions.parseTextureSize("0"));
+        assertThrows(IllegalArgumentException.class, () -> ScanOptions.parseTextureSize("-4"));
+        assertThrows(IllegalArgumentException.class, () -> ScanOptions.parseTextureSize("2K"));
+    }
+
+    @Test
+    void carriesTheBudgetAndSizeCapThroughParsing() {
+        ScanOptions options = ScanOptions.parse(
+                new String[] {"scan", "--vram-budget", "4G", "--max-texture-size", "2048"}, 1);
         assertEquals(OptionalLong.of(4L * 1024L * 1024L * 1024L), options.vramBudgetBytes());
-        assertEquals(OptionalLong.empty(), ScanOptions.parse(new String[] {"scan"}, 1).vramBudgetBytes());
+        assertEquals(OptionalInt.of(2048), options.maxTextureSizePixels());
+        assertEquals(options.vramBudgetBytes(), options.censusOptions().vramBudgetBytes());
+        assertEquals(options.maxTextureSizePixels(), options.censusOptions().maxTextureSizePixels());
+
+        ScanOptions bare = ScanOptions.parse(new String[] {"scan"}, 1);
+        assertEquals(OptionalLong.empty(), bare.vramBudgetBytes());
+        assertEquals(OptionalInt.empty(), bare.maxTextureSizePixels());
     }
 }
