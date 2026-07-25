@@ -56,8 +56,41 @@ final class AssetLabCommand {
             case "shrink" -> shrink(ShrinkOptions.parse(args, offset + 1));
             case "compression-probe" -> compressionProbe(args, offset + 1);
             case "bake-blocks" -> bakeBlocks(args, offset + 1);
+            case "cache-conformance" -> cacheConformance(args, offset + 1);
             default -> throw new IllegalArgumentException("Unknown assets command: " + args[offset]);
         };
+    }
+
+    /**
+     * Exports a sample of a baked block cache as a conformance vector, so a real driver can arbitrate
+     * the bytes preflight actually intends to upload rather than a synthetic test pattern.
+     *
+     * <p>Needs no Starsector and no GPU: it reads a cache directory and writes a file. The GPU half is
+     * {@code block-conformance-probe}, which runs on this machine or on a rented one.
+     */
+    private static int cacheConformance(String[] args, int offset) throws IOException {
+        Path cacheDir = null;
+        Path out = null;
+        int samples = 8;
+        long maxBytes = CacheConformanceVector.DEFAULT_MAX_BYTES;
+        for (int i = offset; i < args.length; i++) {
+            switch (args[i]) {
+                case "--cache-dir" -> cacheDir = Path.of(requireArg(args, ++i, "--cache-dir"));
+                case "--out" -> out = Path.of(requireArg(args, ++i, "--out"));
+                case "--samples" -> samples = Integer.parseInt(requireArg(args, ++i, "--samples"));
+                case "--max-bytes" -> maxBytes = Long.parseLong(requireArg(args, ++i, "--max-bytes"));
+                default -> throw new IllegalArgumentException("Unknown assets cache-conformance option: " + args[i]);
+            }
+        }
+        if (cacheDir == null || out == null) {
+            throw new IllegalArgumentException("assets cache-conformance requires --cache-dir and --out");
+        }
+        if (maxBytes <= 0) {
+            throw new IllegalArgumentException("--max-bytes must be positive");
+        }
+        System.out.println(Json.object(CacheConformanceVector.write(
+                cacheDir.toAbsolutePath().normalize(), out, samples, maxBytes)));
+        return 0;
     }
 
     /**

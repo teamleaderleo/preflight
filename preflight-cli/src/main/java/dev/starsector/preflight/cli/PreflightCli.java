@@ -195,7 +195,11 @@ public final class PreflightCli {
                         + "[--max-delta-e <deltaE>] [--limit <n>] [--mips] [--dry-run] [--force]",
                 "  bakes the profile's art into a GPU-ready S3TC block cache, keeping only textures whose",
                 "  measured loss stays under the gate (default 1.0, the just-noticeable threshold);",
-                "  the cache is inert -- nothing reads it yet, so baking changes nothing about how the game loads"));
+                "  the cache is inert -- nothing reads it yet, so baking changes nothing about how the game loads",
+                "preflight assets cache-conformance --cache-dir <cache-dir> --out <vector.bin> "
+                        + "[--samples <n>] [--max-bytes <n>]",
+                "  exports a sample of a baked cache as a conformance vector, so a real driver can check the",
+                "  bytes preflight intends to upload; run it with probe-kits/gpu-capability/block-conformance-probe"));
         usage.put("audio", List.of(
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
                 "preflight audio sound-wrapper-observe --game <Starsector directory> --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--java <game-java>] [--output <report.json>]"));

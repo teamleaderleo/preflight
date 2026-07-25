@@ -190,7 +190,12 @@ Separate from the speed-first milestone program above:
    content-addressed, so duplicated art across mods is encoded once. The manifest holds the encoder
    version once for the whole cache, so a stale cache is one integer compare at startup rather than ten
    thousand. **Nothing reads it yet** — the cache is inert until a runtime adapter exists, which is
-   deliberate: it can be baked, inspected and argued about before anything touches a loading game. The
+   deliberate: it can be baked, inspected and argued about before anything touches a loading game.
+   **The cache is now driver-checked, not just self-checked.** `preflight assets cache-conformance`
+   exports a sample of a baked cache in the same `SPFV` format `block-conformance-probe` already reads,
+   so the real driver arbitrates the real cache — the one part of this a synthetic harness structurally
+   cannot reach, since every existing harness stops at the byte level and a wrong internal-format
+   constant or mip-level order would pass all of them. Confirmed bit-exact on Apple M5 hardware. The
    consumer is the remaining piece.)*
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.
