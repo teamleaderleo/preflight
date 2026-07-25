@@ -39,6 +39,15 @@ class BlockCompressorTest {
         // L* changes fastest per unit of linear light, so a full-range grey ramp is close to the
         // worst case that exists. BC7's higher-precision endpoints are the fix for this, not a
         // better BC1 encoder.
+        //
+        // This case is also the one place where cluster fit plus the perceptual objective trades
+        // rather than simply wins, and the bound below records the trade instead of hiding it. The
+        // mean improved from 1.144 to 1.071 and the imperceptible share from 56.3% to 57.8%, while
+        // the single worst pixel went from 3.66 to 4.09: at level 28 the encoder now errs upward
+        // (to 33) where it used to err downward (to 24), which is better for its block and worse
+        // for that pixel. On real art there is no trade -- both mean and p99 improved across the
+        // measured corpus -- so the bound here is deliberately loose enough to permit it while
+        // still failing loudly if the endpoint fit breaks.
         int width = 64;
         int height = 64;
         int[] ramp = new int[width * height];
@@ -50,9 +59,9 @@ class BlockCompressorTest {
         }
         TextureFidelity.Report report =
                 TextureFidelity.compare(ramp, BlockCompressor.roundTrip(ramp, width, height, false));
-        assertTrue(report.meanDeltaE() < TextureFidelity.JUST_NOTICEABLE * 1.25,
+        assertTrue(report.meanDeltaE() < TextureFidelity.JUST_NOTICEABLE * 1.15,
                 "mean must stay near imperceptible, was " + report.meanDeltaE());
-        assertTrue(report.maxDeltaE() < 4.0, "even the worst pixel stays modest, was " + report.maxDeltaE());
+        assertTrue(report.maxDeltaE() < 4.5, "even the worst pixel stays modest, was " + report.maxDeltaE());
     }
 
     @Test
