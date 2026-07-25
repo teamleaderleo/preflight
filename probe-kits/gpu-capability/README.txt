@@ -110,6 +110,40 @@ differ:
 If you run this on Windows or Linux, the JSON line at the end of the report is the useful
 part to share.
 
+Checking a driver you are not sitting at
+---------------------------------------
+The probe above needs LWJGL, LWJGL needs a window system, and the drivers most worth
+checking are on machines nobody is sitting at — a headless rented NVIDIA GPU, or someone
+else's Windows box. So the block check also exists in a split form:
+
+    ./run-block-conformance.sh
+
+BlockConformanceVector.java writes a deterministic vector — encoded blocks, plus the
+pixels preflight's decoder says those blocks mean — using no GPU at all.
+block-conformance-probe.c reads that vector on a GPU using no JVM at all, through CGL on
+macOS and EGL's device platform on Linux, neither of which needs a display.
+
+That split has two payoffs. It runs where LWJGL cannot, and it is something a stranger can
+run: about 600 KB and one small binary, rather than a JDK, a Maven build and a game
+installation.
+
+To check the same vector on rented hardware:
+
+    pip install modal && modal setup
+    ./run-block-conformance.sh                 # generates the vector
+    modal run modal-block-conformance.py       # --gpu L4 for something newer than a T4
+
+The job is a compile and a few texture uploads, so it costs a fraction of a cent. The
+Modal script is UNTESTED — written without NVIDIA hardware to hand — and names its two
+likely failure points in comments.
+
+Why bother, when Apple's driver already agrees bit for bit: because the agreement required
+matching a quirk nobody could have predicted. On Apple's driver the colour blends truncate
+and the alpha blends round, in the same block. The S3TC specification permits both. So the
+encoder is verified against exactly one driver, and NVIDIA is the one most Starsector
+players actually have. A mismatch would be the more useful result — it would mean the
+level tables are Apple-specific and the block cache needs a per-driver decision.
+
 Also here
 ---------
 gl-capability-probe.c is a macOS-only CGL version that predates the portable one. It is

@@ -57,12 +57,33 @@ if errorlevel 1 (
     exit /b 2
 )
 
+REM The block-upload probe additionally needs preflight's own encoder, since the point is to compare
+REM its output against the driver's decoder. Skipped rather than fatal when the module is unbuilt,
+REM so the capability probe still runs on a machine with only a JDK and the game.
+set "CORE_CLASSES=%HERE%\..\..\preflight-core\target\classes"
+set "BLOCK_PROBE=no"
+if exist "%CORE_CLASSES%\" (
+    javac --release 17 -nowarn -cp "%LWJGL%;%CORE_CLASSES%" -d "%BUILD%" "%HERE%\BlockUploadProbe.java"
+    if errorlevel 1 (
+        echo Block-upload probe failed to build; continuing with the capability probe only.
+    ) else (
+        set "BLOCK_PROBE=yes"
+    )
+)
+
 (
     echo Starsector Preflight - GPU texture capability probe
     echo installation: %INSTALL%
     echo probe JVM:    %BUNDLED_JAVA%
     echo.
     "%BUNDLED_JAVA%" -cp "%LWJGL%;%BUILD%" "-Djava.library.path=%NATIVES%" GpuCapabilityProbe
+    echo.
+    echo == encoder vs driver: does the hardware read the blocks we write?
+    if "%BLOCK_PROBE%"=="yes" (
+        "%BUNDLED_JAVA%" -cp "%LWJGL%;%CORE_CLASSES%;%BUILD%" "-Djava.library.path=%NATIVES%" BlockUploadProbe
+    ) else (
+        echo skipped ^(build preflight-core first: mvn -q -pl preflight-core -am install -DskipTests^)
+    )
 ) > "%REPORT%" 2>&1
 
 type "%REPORT%"

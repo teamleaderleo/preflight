@@ -90,11 +90,41 @@ means the encoder is optimising against a reconstruction that will not happen.
   [the load decomposition](2026-07-26-texture-load-pipeline-decomposition.md) now has a verified
   encoder underneath it. That was the largest piece of unverified machinery in the 61–74× estimate.
 
+## Checking drivers nobody is sitting at
+
+The result above is one driver, and the rounding quirk is exactly the kind of thing that varies by
+vendor. The obvious next move — check NVIDIA — runs into a practical wall: `BlockUploadProbe` needs
+LWJGL, LWJGL's `Pbuffer` needs a window system, and a rented GPU is headless.
+
+So the check now also exists in a split form, which removes the constraint rather than working around
+it:
+
+- `BlockConformanceVector.java` writes a deterministic vector — the encoded blocks, plus the pixels
+  preflight's decoder claims they mean — using **no GPU**.
+- `block-conformance-probe.c` reads that vector on a GPU using **no JVM**, through CGL on macOS and
+  EGL's device platform on Linux. Neither needs a display.
+- `modal-block-conformance.py` runs the second half on rented NVIDIA hardware for a fraction of a
+  cent.
+
+Validated end to end on macOS before any of it is pointed at rented hardware: the C probe reaches the
+same bit-exact verdict as the in-process Java probe, by an entirely independent route. Two
+implementations, one conclusion, which is a stronger statement than either alone.
+
+The secondary benefit may matter more than the rented-GPU one. Checking this used to require a JDK, a
+Maven build and a Starsector installation. It now requires 622 KB and one small binary, which is
+something a Windows player with a GeForce can actually be asked to run.
+
 ## Caveats
 
 - **One driver.** Apple M5 via Metal. The rounding behaviour is explicitly permitted to vary, so
-  another vendor may need a different level table — the probe is how to find out, and the JSON line
-  in its report is the thing to share. AMD and NVIDIA results are wanted.
+  another vendor may need a different level table — the probes above are how to find out. AMD and
+  NVIDIA results are wanted, and a *mismatch* would be the more useful outcome: it would mean the
+  level tables are Apple-specific and the block cache needs a per-driver decision rather than a
+  constant.
+- **The Modal path is untested.** It was written on a machine with no NVIDIA hardware and no Modal
+  account, reasoning from the documented behaviour of `EGL_EXT_platform_device`. Its two likely
+  failure points — driver capabilities not including `graphics`, and dev headers not matching the
+  injected driver — are named in comments at the places they would occur.
 - Bit-exactness is checked on one 256×256 image. It is a deliberately adversarial one, but it is not
   the full corpus; the claim is that the layout is right, not that every possible block has been
   enumerated.
