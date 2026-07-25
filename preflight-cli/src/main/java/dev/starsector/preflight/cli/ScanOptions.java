@@ -2,14 +2,22 @@ package dev.starsector.preflight.cli;
 
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 
-record ScanOptions(Path game, Path launcher, Path output, OptionalLong vramBudgetBytes) {
+record ScanOptions(
+        Path game,
+        Path launcher,
+        Path output,
+        OptionalLong vramBudgetBytes,
+        OptionalInt maxTextureSizePixels) {
+
     static ScanOptions parse(String[] args, int offset) {
         Path game = null;
         Path launcher = null;
         Path output = null;
         OptionalLong vramBudgetBytes = OptionalLong.empty();
+        OptionalInt maxTextureSizePixels = OptionalInt.empty();
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
@@ -17,10 +25,30 @@ record ScanOptions(Path game, Path launcher, Path output, OptionalLong vramBudge
                 case "--json" -> output = Path.of(requireValue(args, ++i, "--json"));
                 case "--vram-budget" -> vramBudgetBytes =
                         OptionalLong.of(parseByteSize(requireValue(args, ++i, "--vram-budget")));
+                case "--max-texture-size" -> maxTextureSizePixels =
+                        OptionalInt.of(parseTextureSize(requireValue(args, ++i, "--max-texture-size")));
                 default -> throw new IllegalArgumentException("Unknown scan option: " + args[i]);
             }
         }
-        return new ScanOptions(game, launcher, output, vramBudgetBytes);
+        return new ScanOptions(game, launcher, output, vramBudgetBytes, maxTextureSizePixels);
+    }
+
+    ProfileCensus.Options censusOptions() {
+        return new ProfileCensus.Options(vramBudgetBytes, maxTextureSizePixels);
+    }
+
+    /** Parses a texture edge cap in pixels. Must be a positive whole number of pixels. */
+    static int parseTextureSize(String raw) {
+        int pixels;
+        try {
+            pixels = Integer.parseInt(raw.trim());
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException("Not a valid texture size in pixels: " + raw);
+        }
+        if (pixels < 1) {
+            throw new IllegalArgumentException("Texture size must be at least 1 pixel: " + raw);
+        }
+        return pixels;
     }
 
     /**

@@ -283,9 +283,25 @@ counts, largest allocations, the full-mip-chain upper bound, the 2×/4× enhance
 projections (overlay-only and combined-if-both-resident), and a `exceedsBudget(long)` check —
 pure arithmetic over the texture manifest, no game launch. `prepare` emits this under
 `.stages.textures.details.memoryEstimate`, and `texture manifest inspect <manifest.spfm>`
-prints it for any existing manifest without re-running preparation. Still to do: feed the
-census image/working-set breakdowns (UI/campaign/combat/GraphicsLib maps) and wire the
-budget verdict into the future Asset Lab.
+prints it for any existing manifest without re-running preparation.
+
+**Implemented (census budget gate).** `preflight scan --vram-budget <size>` grades the
+override-resolved decoded floor `over` / `at-risk` / `under`, and `--max-texture-size <pixels>`
+projects the floor after capping every override-winning texture's long edge — reporting the
+oversized count, the projected floor, the largest individual savings, and the budget verdict
+*after* the cut. The modelled reduction is repeated exact halving, because a 2x2 box reduction is
+the one resize that is exact, preserves power-of-two dimensions, and matches GPU mip generation;
+each step divides decoded cost by exactly four, so the projection is arithmetic rather than an
+estimate. It projects memory only and rewrites no asset.
+
+This is the "opposite of upscaling" lever from the FPS section below, and the first real-install
+run corrected the intuitive plan: on a ~70-mod profile a **2048 cap touches only 5 textures and
+saves 74 MiB** — the profile stays over a 4 GiB budget. The decoded cost is a long tail of
+mid-sized art, not a handful of giants. A **1024 cap touches 211 textures and takes 4.36 GiB to
+2.76 GiB**, comfortably under. Any future overlay generator inherits this gate.
+
+Still to do: feed the census UI/campaign/combat/GraphicsLib-map breakdowns, and emit reduced or
+enhanced assets into the separate cache namespace of roadmap #8.
 
 ## Explicitly out of scope: in-game FPS
 

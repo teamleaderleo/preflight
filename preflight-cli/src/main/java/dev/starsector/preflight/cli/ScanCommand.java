@@ -22,7 +22,7 @@ final class ScanCommand {
             return 3;
         }
 
-        ProfileCensus.Result result = ProfileCensus.scan(target.installRoot(), options.vramBudgetBytes());
+        ProfileCensus.Result result = ProfileCensus.scan(target.installRoot(), options.censusOptions());
         String json = result.toJson();
         if (options.output() == null) {
             System.out.println(json);
