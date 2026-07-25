@@ -50,8 +50,55 @@ final class AssetLabCommand {
         }
         return switch (args[offset]) {
             case "shrink" -> shrink(ShrinkOptions.parse(args, offset + 1));
+            case "compression-probe" -> compressionProbe(args, offset + 1);
             default -> throw new IllegalArgumentException("Unknown assets command: " + args[offset]);
         };
+    }
+
+    /**
+     * Measures the perceptual cost of block compression on this profile's own art. Writes nothing:
+     * the output is evidence about whether the runtime work is worth attempting.
+     */
+    private static int compressionProbe(String[] args, int offset) throws IOException {
+        Path game = null;
+        Path launcher = null;
+        int samples = 400;
+        boolean opaqueAsBc1 = true;
+        for (int i = offset; i < args.length; i++) {
+            switch (args[i]) {
+                case "--game" -> game = Path.of(requireArg(args, ++i, "--game"));
+                case "--launcher" -> launcher = Path.of(requireArg(args, ++i, "--launcher"));
+                case "--samples" -> samples = Integer.parseInt(requireArg(args, ++i, "--samples"));
+                case "--all-bc3" -> opaqueAsBc1 = false;
+                default -> throw new IllegalArgumentException("Unknown assets compression-probe option: " + args[i]);
+            }
+        }
+        DiscoveryResult discovery = StarsectorDiscovery.discover(
+                Platform.current(),
+                Path.of(System.getProperty("user.home")),
+                Path.of(System.getProperty("user.dir")),
+                System.getenv(),
+                game,
+                launcher);
+        LaunchTarget target = discovery.selected();
+        if (target == null) {
+            System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
+            return 3;
+        }
+        ProfileCensus.Result census = ProfileCensus.scan(target.installRoot());
+        Map<String, Object> report = new LinkedHashMap<>(
+                CompressionProbe.run(census.measuredWinners(), new CompressionProbe.Options(samples, opaqueAsBc1)));
+        report.put("installRoot", target.installRoot());
+        report.put("profileTextures", (long) census.measuredWinners().size());
+        System.out.println(Json.object(report));
+        return 0;
+    }
+
+    private static String requireArg(String[] args, int index, String option) {
+        if (index >= args.length) {
+            throw new IllegalArgumentException("Missing value for " + option);
+        }
+        return args[index];
     }
 
     private static int shrink(ShrinkOptions options) throws IOException {

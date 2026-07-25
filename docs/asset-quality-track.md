@@ -422,3 +422,55 @@ Search terms to run where the crawler is blocked (Reddit/forum behind Cloudflare
 - `AngelCode BMFont regenerate atlas 2x metrics supersample`
 - `Real-ESRGAN faithful game sprite upscale round-trip validation`
 - `GraphicsLib LunaLib MagicLib load time performance`
+
+## Measured: what block compression actually costs on this art (2026-07-25)
+
+The standing objection to compressing Starsector's textures is Dark.Revenant's, from the 2019 thread
+above: S3TC "will have significant visual artifacts when we're talking about the detailed, 1:1 2D
+textures that Starsector uses". That is an empirical claim about an art style, and in seven years
+nobody appears to have measured it. `preflight assets compression-probe` measures it.
+
+Method: every sampled override-winning texture is round-tripped through a real BC1/BC3 encoder
+(`BlockCompressor`) and compared to its original in **CIELAB Delta-E** (`TextureFidelity`), where the
+threshold for human perceptibility is a published number — under 1.0 is imperceptible, over 2.0 is
+visible at a glance — rather than a matter of opinion. Errors are scaled by alpha coverage, since a
+wrong colour under a near-transparent pixel is not seen. Nothing is written or uploaded.
+
+Two corrections were needed before the numbers meant anything, both found by the measurement
+disagreeing with itself:
+
+- **Shader maps are not art.** Normal, material and surface maps store vectors and scalars in RGB
+  channels. They are sampled by shaders, never viewed; Delta-E on one is not a perceptual quantity,
+  and BC1/BC3 is the wrong codec for reconstructed vectors regardless (BC5 exists for this). They are
+  reported separately and score far worse — median mean Delta-E **10.8**.
+- **Texture count is not the question; bytes are.** A per-texture average is dominated by hundreds of
+  tiny detailed sprites that together occupy almost no memory.
+
+Sampled 2000 textures from the real ~70-mod profile, art only, bucketed by longest edge:
+
+| bucket | textures | resident | compressed | median mean ΔE | median p99 ΔE | share of art VRAM |
+|---|---|---|---|---|---|---|
+| ≤64 px | 513 | 4.2 MiB | 0.9 MiB | 6.25 | 20.55 | 0.9% |
+| ≤256 px | 382 | 39.7 MiB | 8.8 MiB | 4.26 | 15.25 | 8.9% |
+| ≤1024 px | 158 | 156.3 MiB | 31.7 MiB | 2.47 | 10.50 | 34.9% |
+| **>1024 px** | 17 | 248.0 MiB | 36.0 MiB | **0.80** | 2.50 | **55.3%** |
+
+Fidelity improves monotonically with size, and the conclusion inverts. Dark.Revenant is right about
+the textures he had in mind — small, detailed, hue-dense sprites are genuinely mangled — but those
+are **under 1% of video memory**. The textures that hold the memory are large, smooth and
+photographic, and they round-trip at a median mean Delta-E of **0.80, below the threshold of human
+perceptibility**, in the very format he was criticising. BC7, which the hardware supports (a player's
+posted context in that era already reported GLSL 4.60 and `GL_ARB_texture_compression_bptc`), has
+higher-precision endpoints and per-block partitioning and would do better still.
+
+That points at a **selective policy** rather than a global switch: compress large art, leave small
+sprites at full precision, and leave shader maps alone or move them to BC5. On the sample that keeps
+roughly 90% of art VRAM at about 6x while touching nothing that measures badly.
+
+`BlockCompressor`'s own tests exist to keep this honest: a weak encoder would produce evidence against
+BC that is really evidence against the code. They pin its behaviour on flat blocks, gradients, sharp
+two-colour edges and alpha ramps. One residual is the format's and not the encoder's — RGB565
+endpoints put red and blue on a 5-bit grid, so neutral greys pick up a slight cast, worst near black
+where L* moves fastest. That is a BC1 property BC7 does not share.
+
+Still unmeasured: BC7 itself, and whether any of this survives contact with the runtime.
