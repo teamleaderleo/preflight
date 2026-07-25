@@ -68,6 +68,16 @@ image = (
     modal.Image.from_registry("nvidia/cuda:12.4.1-devel-ubuntu22.04", add_python="3.11")
     .apt_install("libegl1", "libegl-dev", "libgl1", "libglvnd-dev", "libglx-dev", "mesa-utils")
     .env({"NVIDIA_DRIVER_CAPABILITIES": "all", "NVIDIA_VISIBLE_DEVICES": "all"})
+    # libglvnd dispatches EGL by reading ICD manifests from this directory. Installing the Ubuntu
+    # EGL packages drops Mesa's manifest in; NVIDIA's normally arrives with the driver install,
+    # which does not happen here because Modal injects driver libraries into an image that never
+    # ran the installer. Without this file the only device libglvnd can see is Mesa's software one,
+    # and the probe silently measures llvmpipe on a machine with a perfectly good GPU in it.
+    .run_commands(
+        "mkdir -p /usr/share/glvnd/egl_vendor.d",
+        'printf \'{"file_format_version":"1.0.0","ICD":{"library_path":"libEGL_nvidia.so.0"}}\''
+        " > /usr/share/glvnd/egl_vendor.d/10_nvidia.json",
+    )
 )
 
 app = modal.App("preflight-block-conformance", image=image)
@@ -83,6 +93,18 @@ def check(probe_source: str, vector: bytes, gpu_label: str) -> int:
 
     print(f"=== rented GPU: {gpu_label}")
     subprocess.run(["nvidia-smi", "--query-gpu=name,driver_version", "--format=csv"], check=False)
+
+    # nvidia-smi succeeding proves CUDA reached the GPU, which is not the same as OpenGL reaching
+    # it. The first hosted run had a healthy T4 here and still rendered on llvmpipe, so print the
+    # things that actually determine which driver libglvnd will load.
+    print("\n=== EGL vendor manifests (libglvnd reads these to find drivers)")
+    subprocess.run("ls -l /usr/share/glvnd/egl_vendor.d/ 2>&1", shell=True, check=False)
+    print("=== injected NVIDIA GL/EGL libraries")
+    subprocess.run(
+        "ldconfig -p | grep -Ei 'EGL_nvidia|GLX_nvidia|libnvidia-glcore' | head -10 "
+        "|| echo '(none found -- OpenGL will fall back to Mesa software)'",
+        shell=True, check=False,
+    )
     print()
 
     build = subprocess.run(
@@ -116,8 +138,16 @@ def main():
     vector = VECTOR.read_bytes()
     print(f"Sending {len(vector)} bytes of conformance vector to a {GPU}.\n")
     status = check.remote(PROBE_SOURCE.read_text(), vector, GPU)
+    # Status 3 means the probe ran to completion on a software rasteriser. Reporting that as a GPU
+    # result is precisely the mistake this harness made on its first run, so the outcomes are
+    # distinguished here rather than collapsed into "exit code 0 means it worked".
     if status == 0:
-        print("\nNVIDIA agrees with the encoder. Record the output in docs/evidence/.")
+        print(f"\n{GPU}'s driver agrees with the encoder. Record the output in docs/evidence/.")
+    elif status == 3:
+        print("\nThe probe ran on a SOFTWARE rasteriser, not on the rented GPU.")
+        print("The comparison is still a real third opinion, but it is not an NVIDIA result and")
+        print("must not be recorded as one. Check the two diagnostic sections above: an empty")
+        print("egl_vendor.d listing or no libEGL_nvidia means libglvnd never saw the GPU.")
     elif status == 1:
         print("\nMISMATCH. This is the interesting outcome: it means the encoder's level tables")
         print("are Apple-specific and the block cache needs a per-driver decision. Record it.")
