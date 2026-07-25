@@ -18,6 +18,14 @@ package dev.starsector.preflight.core;
  * reference encoders. It is deliberately not the fastest possible implementation; it runs offline,
  * once, and being a poor encoder would understate the format's real quality and bias the very
  * measurement this exists to make.
+ *
+ * <p>Where it departs from the reference encoders is the objective. They minimise squared error in
+ * gamma-space RGB, usually with fixed per-channel weights standing in for luminance sensitivity. That
+ * is a proxy for visibility, and a poor one in dark regions: lightness goes roughly as the cube root
+ * of luminance, so a fixed RGB step is far more visible near black than near white, and a
+ * uniformly-weighted encoder spends its endpoint precision in the wrong places. This encoder instead
+ * chooses endpoints and indices by distance in {@link Oklab} — a perceptually uniform space — so it
+ * optimises what {@link TextureFidelity} independently measures rather than a proxy for it.
  */
 public final class BlockCompressor {
     /** Bytes per 4x4 block in BC1/DXT1. */
@@ -26,8 +34,6 @@ public final class BlockCompressor {
     public static final int BC3_BLOCK_BYTES = 16;
     private static final int BLOCK_EDGE = 4;
     private static final int BLOCK_PIXELS = BLOCK_EDGE * BLOCK_EDGE;
-    /** Endpoint refinement passes. Two is where quality stops improving measurably. */
-    private static final int REFINEMENT_PASSES = 2;
 
     private BlockCompressor() {
     }
@@ -138,9 +144,11 @@ public final class BlockCompressor {
      *
      * <p>Endpoints start from the block's colour bounding box inset slightly towards the mean — the
      * standard trick that stops outliers from stretching the palette and blurring everything else —
-     * then are refit by least squares against the chosen indices.
+     * and are then replaced by the best pair {@link #clusterFit} can find. {@link #polish} finally
+     * nudges them on the quantised grid they are actually stored on.
      */
     private static void encodeAndDecodeColour(int[] block, int[] decoded) {
+        double[] scratch = new double[3];
         int minR = 255;
         int minG = 255;
         int minB = 255;
@@ -164,25 +172,214 @@ public final class BlockCompressor {
         int insetB = (maxB - minB) >> 4;
         double[] endpoint0 = {clamp(maxR - insetR), clamp(maxG - insetG), clamp(maxB - insetB)};
         double[] endpoint1 = {clamp(minR + insetR), clamp(minG + insetG), clamp(minB + insetB)};
+        clusterFit(block, endpoint0, endpoint1);
+
+        // The block's pixels in perceptual space, computed once and reused by every candidate
+        // palette below. Converting them per candidate would dominate the encode.
+        double[] blockLab = new double[BLOCK_PIXELS * 3];
+        for (int i = 0; i < BLOCK_PIXELS; i++) {
+            int pixel = block[i];
+            Oklab.fromSrgb((pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF, pixel & 0xFF, scratch);
+            blockLab[i * 3] = scratch[0];
+            blockLab[i * 3 + 1] = scratch[1];
+            blockLab[i * 3 + 2] = scratch[2];
+        }
 
         int[] indices = new int[BLOCK_PIXELS];
         int[][] palette = new int[4][3];
-        for (int pass = 0; pass <= REFINEMENT_PASSES; pass++) {
-            buildPalette(endpoint0, endpoint1, palette);
-            assign(block, palette, indices);
-            if (pass < REFINEMENT_PASSES) {
-                refit(block, indices, endpoint0, endpoint1);
-            }
-        }
-
+        double[] paletteLab = new double[4 * 3];
+        // No refit pass here. Cluster fit already returns the least-squares optimum for the best
+        // index assignment it found; running the greedy assign-then-refit loop on top would walk
+        // the endpoints straight back to the local optimum cluster fit exists to escape, which is
+        // exactly what it did when this was first measured.
         int[] codes = {code565(endpoint0), code565(endpoint1)};
-        polish(block, codes);
+        polish(blockLab, codes, paletteLab);
         buildPaletteFromCodes(codes, palette);
-        assign(block, palette, indices);
+        assign(blockLab, palette, paletteLab, indices);
         for (int i = 0; i < BLOCK_PIXELS; i++) {
             int[] colour = palette[indices[i]];
             decoded[i] = (colour[0] << 16) | (colour[1] << 8) | colour[2];
         }
+    }
+
+    /**
+     * Replaces the endpoints with the best pair found by <b>cluster fit</b>, the technique that
+     * separates a reference-quality BC1 encoder from a merely correct one.
+     *
+     * <p>Bounding-box-plus-refit, which produced the incoming endpoints, alternates between choosing
+     * each pixel's palette entry and refitting the endpoints to that choice. It converges, but only
+     * to a local optimum: it can never reach a solution whose index assignment differs from the one
+     * greedy nearest-entry selection produces. Measurement showed that to be the binding constraint
+     * here — deepening the endpoint search barely moved the result, because the endpoints were not
+     * what was stuck.
+     *
+     * <p>Cluster fit searches the index assignments directly. Because the palette is four points
+     * evenly spaced along a line, an optimal assignment is always <em>contiguous</em> once the
+     * pixels are sorted along that line: some prefix takes the first endpoint, the next run takes
+     * the 2/3 blend, and so on. So the whole space of sensible assignments is the ways of splitting
+     * sixteen sorted pixels into four ordered runs — 969 of them — and each can be scored exactly,
+     * in constant time, from prefix sums. The best one wins.
+     *
+     * <p>The search runs in gamma RGB rather than perceptual space on purpose: the hardware blends
+     * the stored endpoints linearly in exactly that space, so it is where the "palette is a line"
+     * premise this relies on is actually true. Perceptual distance then decides the quantised
+     * endpoints and the final indices, where no such linearity is assumed.
+     */
+    private static void clusterFit(int[] block, double[] endpoint0, double[] endpoint1) {
+        double[] axis = principalAxis(block);
+        // Sort pixel indices by position along the axis. Sixteen elements: insertion sort wins.
+        int[] order = new int[BLOCK_PIXELS];
+        double[] projection = new double[BLOCK_PIXELS];
+        for (int i = 0; i < BLOCK_PIXELS; i++) {
+            order[i] = i;
+            projection[i] = ((block[i] >> 16) & 0xFF) * axis[0] + ((block[i] >> 8) & 0xFF) * axis[1]
+                    + (block[i] & 0xFF) * axis[2];
+        }
+        for (int i = 1; i < BLOCK_PIXELS; i++) {
+            int index = order[i];
+            double value = projection[index];
+            int j = i - 1;
+            while (j >= 0 && projection[order[j]] > value) {
+                order[j + 1] = order[j];
+                j--;
+            }
+            order[j + 1] = index;
+        }
+
+        // Prefix sums over the sorted colours, so any run's colour sum is one subtraction.
+        double[][] prefix = new double[BLOCK_PIXELS + 1][3];
+        double sumSquares = 0;
+        for (int i = 0; i < BLOCK_PIXELS; i++) {
+            int pixel = block[order[i]];
+            double r = (pixel >> 16) & 0xFF;
+            double g = (pixel >> 8) & 0xFF;
+            double b = pixel & 0xFF;
+            prefix[i + 1][0] = prefix[i][0] + r;
+            prefix[i + 1][1] = prefix[i][1] + g;
+            prefix[i + 1][2] = prefix[i][2] + b;
+            sumSquares += r * r + g * g + b * b;
+        }
+
+        double bestError = Double.MAX_VALUE;
+        boolean found = false;
+        // Hoisted: the loop below runs 969 times per block, and allocating inside it dominated the
+        // encode when it did.
+        double[] bestA = new double[3];
+        double[] bestB = new double[3];
+        double[] a = new double[3];
+        double[] b = new double[3];
+        double[] alphaSum = new double[3];
+        double[] betaSum = new double[3];
+        // Runs of sizes (first, second, third, rest) taking weights 1, 2/3, 1/3, 0.
+        for (int first = 0; first <= BLOCK_PIXELS; first++) {
+            for (int second = 0; second + first <= BLOCK_PIXELS; second++) {
+                for (int third = 0; third + second + first <= BLOCK_PIXELS; third++) {
+                    int fourth = BLOCK_PIXELS - first - second - third;
+                    int endOfSecond = first + second;
+                    int endOfThird = endOfSecond + third;
+                    for (int c = 0; c < 3; c++) {
+                        double run0 = prefix[first][c];
+                        double run1 = prefix[endOfSecond][c] - prefix[first][c];
+                        double run2 = prefix[endOfThird][c] - prefix[endOfSecond][c];
+                        double run3 = prefix[BLOCK_PIXELS][c] - prefix[endOfThird][c];
+                        alphaSum[c] = run0 + run1 * (2.0 / 3.0) + run2 * (1.0 / 3.0);
+                        betaSum[c] = run1 * (1.0 / 3.0) + run2 * (2.0 / 3.0) + run3;
+                    }
+                    // The normal-equation coefficients depend only on the run lengths.
+                    double aa = first + second * (4.0 / 9.0) + third * (1.0 / 9.0);
+                    double ab = second * (2.0 / 9.0) + third * (2.0 / 9.0);
+                    double bb = second * (1.0 / 9.0) + third * (4.0 / 9.0) + fourth;
+                    double determinant = aa * bb - ab * ab;
+                    if (Math.abs(determinant) < 1e-9) {
+                        continue;
+                    }
+                    double crossAB = 0;
+                    double lengthA = 0;
+                    double lengthB = 0;
+                    double projected = 0;
+                    for (int c = 0; c < 3; c++) {
+                        // The unconstrained solution can land outside the representable cube, and a
+                        // colour that cannot be stored is not a solution — so clamp first and score
+                        // what would actually be encoded.
+                        a[c] = clamp((bb * alphaSum[c] - ab * betaSum[c]) / determinant);
+                        b[c] = clamp((aa * betaSum[c] - ab * alphaSum[c]) / determinant);
+                        projected += a[c] * alphaSum[c] + b[c] * betaSum[c];
+                        lengthA += a[c] * a[c];
+                        lengthB += b[c] * b[c];
+                        crossAB += a[c] * b[c];
+                    }
+                    // General residual, valid for any endpoints rather than only the optimum:
+                    // S|c|^2 - 2(A.Sac + B.Sbc) + (aa|A|^2 + 2ab(A.B) + bb|B|^2).
+                    double error = sumSquares - 2 * projected
+                            + aa * lengthA + 2 * ab * crossAB + bb * lengthB;
+                    if (error < bestError) {
+                        bestError = error;
+                        found = true;
+                        System.arraycopy(a, 0, bestA, 0, 3);
+                        System.arraycopy(b, 0, bestB, 0, 3);
+                    }
+                }
+            }
+        }
+        if (!found) {
+            return;
+        }
+        for (int c = 0; c < 3; c++) {
+            endpoint0[c] = clamp(bestA[c]);
+            endpoint1[c] = clamp(bestB[c]);
+        }
+    }
+
+    /**
+     * The direction of greatest colour variation in the block, by power iteration on the covariance
+     * matrix. This is the line the palette will lie along, so sorting by position on it is what makes
+     * the optimal index assignment contiguous.
+     */
+    private static double[] principalAxis(int[] block) {
+        double meanR = 0;
+        double meanG = 0;
+        double meanB = 0;
+        for (int pixel : block) {
+            meanR += (pixel >> 16) & 0xFF;
+            meanG += (pixel >> 8) & 0xFF;
+            meanB += pixel & 0xFF;
+        }
+        meanR /= BLOCK_PIXELS;
+        meanG /= BLOCK_PIXELS;
+        meanB /= BLOCK_PIXELS;
+
+        double xx = 0;
+        double xy = 0;
+        double xz = 0;
+        double yy = 0;
+        double yz = 0;
+        double zz = 0;
+        for (int pixel : block) {
+            double r = ((pixel >> 16) & 0xFF) - meanR;
+            double g = ((pixel >> 8) & 0xFF) - meanG;
+            double b = (pixel & 0xFF) - meanB;
+            xx += r * r;
+            xy += r * g;
+            xz += r * b;
+            yy += g * g;
+            yz += g * b;
+            zz += b * b;
+        }
+        double[] vector = {1, 1, 1};
+        for (int iteration = 0; iteration < 8; iteration++) {
+            double r = xx * vector[0] + xy * vector[1] + xz * vector[2];
+            double g = xy * vector[0] + yy * vector[1] + yz * vector[2];
+            double b = xz * vector[0] + yz * vector[1] + zz * vector[2];
+            double length = Math.sqrt(r * r + g * g + b * b);
+            if (length < 1e-9) {
+                // A flat block has no principal direction; any axis orders it identically.
+                return new double[] {1, 0, 0};
+            }
+            vector[0] = r / length;
+            vector[1] = g / length;
+            vector[2] = b / length;
+        }
+        return vector;
     }
 
     /**
@@ -196,10 +393,10 @@ public final class BlockCompressor {
      * endpoints either side of the target so an interpolated entry lands on it — recovers most of
      * that. Least squares cannot find it because the improvement only exists after quantisation.
      */
-    private static void polish(int[] block, int[] codes) {
+    private static void polish(double[] blockLab, int[] codes, double[] paletteLab) {
         int[][] palette = new int[4][3];
         buildPaletteFromCodes(codes, palette);
-        long best = blockError(block, palette);
+        double best = blockError(blockLab, palette, paletteLab);
         int[] shifts = {5, 0, 11};       // bit offsets of blue, green, red within an RGB565 code
         int[] widths = {31, 63, 31};
         for (int round = 0; round < 2; round++) {
@@ -217,7 +414,7 @@ public final class BlockCompressor {
                         int original = codes[endpoint];
                         codes[endpoint] = (original & ~(mask << shift)) | (candidate << shift);
                         buildPaletteFromCodes(codes, palette);
-                        long error = blockError(block, palette);
+                        double error = blockError(blockLab, palette, paletteLab);
                         if (error < best) {
                             best = error;
                             current = candidate;
@@ -234,22 +431,28 @@ public final class BlockCompressor {
         }
     }
 
-    private static long blockError(int[] block, int[][] palette) {
-        long total = 0;
-        for (int pixel : block) {
-            int r = (pixel >> 16) & 0xFF;
-            int g = (pixel >> 8) & 0xFF;
-            int b = pixel & 0xFF;
-            long best = Long.MAX_VALUE;
+    /** Total perceptual error if this block were encoded with this palette, each pixel taking its best entry. */
+    private static double blockError(double[] blockLab, int[][] palette, double[] paletteLab) {
+        toLab(palette, paletteLab);
+        double total = 0;
+        for (int i = 0; i < BLOCK_PIXELS; i++) {
+            double best = Double.MAX_VALUE;
             for (int entry = 0; entry < 4; entry++) {
-                long dr = r - palette[entry][0];
-                long dg = g - palette[entry][1];
-                long db = b - palette[entry][2];
-                best = Math.min(best, 2 * dr * dr + 4 * dg * dg + db * db);
+                best = Math.min(best, Oklab.squaredDistance(blockLab, i * 3, paletteLab, entry * 3));
             }
             total += best;
         }
         return total;
+    }
+
+    private static void toLab(int[][] palette, double[] paletteLab) {
+        double[] converted = new double[3];
+        for (int entry = 0; entry < 4; entry++) {
+            Oklab.fromSrgb(palette[entry][0], palette[entry][1], palette[entry][2], converted);
+            paletteLab[entry * 3] = converted[0];
+            paletteLab[entry * 3 + 1] = converted[1];
+            paletteLab[entry * 3 + 2] = converted[2];
+        }
     }
 
     private static int code565(double[] colour) {
@@ -275,31 +478,14 @@ public final class BlockCompressor {
         return new int[] {(r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2)};
     }
 
-    /** Quantises the endpoints to RGB565 as the hardware stores them, then interpolates 1/3 and 2/3. */
-    private static void buildPalette(double[] endpoint0, double[] endpoint1, int[][] palette) {
-        int[] first = quantise565(endpoint0);
-        int[] second = quantise565(endpoint1);
-        palette[0] = first;
-        palette[1] = second;
-        for (int channel = 0; channel < 3; channel++) {
-            palette[2][channel] = (2 * first[channel] + second[channel]) / 3;
-            palette[3][channel] = (first[channel] + 2 * second[channel]) / 3;
-        }
-    }
-
-    private static void assign(int[] block, int[][] palette, int[] indices) {
+    /** Picks each pixel's palette entry by perceptual distance rather than by RGB distance. */
+    private static void assign(double[] blockLab, int[][] palette, double[] paletteLab, int[] indices) {
+        toLab(palette, paletteLab);
         for (int i = 0; i < BLOCK_PIXELS; i++) {
-            int r = (block[i] >> 16) & 0xFF;
-            int g = (block[i] >> 8) & 0xFF;
-            int b = block[i] & 0xFF;
             int best = 0;
-            long bestError = Long.MAX_VALUE;
+            double bestError = Double.MAX_VALUE;
             for (int entry = 0; entry < 4; entry++) {
-                long dr = r - palette[entry][0];
-                long dg = g - palette[entry][1];
-                long db = b - palette[entry][2];
-                // Green weighted higher, matching luminance sensitivity.
-                long error = 2 * dr * dr + 4 * dg * dg + db * db;
+                double error = Oklab.squaredDistance(blockLab, i * 3, paletteLab, entry * 3);
                 if (error < bestError) {
                     bestError = error;
                     best = entry;
@@ -307,53 +493,6 @@ public final class BlockCompressor {
             }
             indices[i] = best;
         }
-    }
-
-    /**
-     * Least-squares refit: with indices fixed, each pixel is endpoint0*w + endpoint1*(1-w) for a known
-     * weight w, so the endpoints minimising squared error are the solution of a 2x2 normal system.
-     */
-    private static void refit(int[] block, int[] indices, double[] endpoint0, double[] endpoint1) {
-        double[] weights = {1.0, 0.0, 2.0 / 3.0, 1.0 / 3.0};
-        double sumWW = 0;
-        double sumWV = 0;
-        double sumVV = 0;
-        double[] sumWC = new double[3];
-        double[] sumVC = new double[3];
-        for (int i = 0; i < BLOCK_PIXELS; i++) {
-            double w = weights[indices[i]];
-            double v = 1.0 - w;
-            sumWW += w * w;
-            sumWV += w * v;
-            sumVV += v * v;
-            int pixel = block[i];
-            int[] channels = {(pixel >> 16) & 0xFF, (pixel >> 8) & 0xFF, pixel & 0xFF};
-            for (int c = 0; c < 3; c++) {
-                sumWC[c] += w * channels[c];
-                sumVC[c] += v * channels[c];
-            }
-        }
-        double determinant = sumWW * sumVV - sumWV * sumWV;
-        if (Math.abs(determinant) < 1e-6) {
-            return;
-        }
-        for (int c = 0; c < 3; c++) {
-            double a = (sumVV * sumWC[c] - sumWV * sumVC[c]) / determinant;
-            double b = (sumWW * sumVC[c] - sumWV * sumWC[c]) / determinant;
-            endpoint0[c] = clamp(a);
-            endpoint1[c] = clamp(b);
-        }
-    }
-
-    /** Rounds to the 5:6:5 grid the format stores, then expands back to 8 bits as hardware does. */
-    private static int[] quantise565(double[] colour) {
-        int r5 = (int) Math.round(clamp(colour[0]) * 31.0 / 255.0);
-        int g6 = (int) Math.round(clamp(colour[1]) * 63.0 / 255.0);
-        int b5 = (int) Math.round(clamp(colour[2]) * 31.0 / 255.0);
-        return new int[] {
-                (r5 << 3) | (r5 >> 2),
-                (g6 << 2) | (g6 >> 4),
-                (b5 << 3) | (b5 >> 2)};
     }
 
     private static double clamp(double value) {
