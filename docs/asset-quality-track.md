@@ -864,6 +864,54 @@ parts, and the 2026 survey of visual-regression and agent-harness tooling. Its m
 track: the shader-map classifier is a filename heuristic whose misfires are invisible to ΔE in both
 directions, which is the strongest case for building `assets contact-sheet`.
 
+## The classifier is now visible (2026-07-26)
+
+The baker decides what is too precision-sensitive to compress by matching filenames:
+
+```java
+path.contains("/shaders/") || path.contains("_normal") || path.contains("_material")
+        || path.contains("_surface") || path.contains("_glow") || path.contains("/maps/")
+```
+
+Across roughly seventy mods that agree on no convention, that misfires in both directions — and the
+important part is that **neither misfire appears in any number this track has published**:
+
+- a normal map that slips past the filter gets encoded, and scores *well*, because normal maps are
+  smooth and Delta-E is not measuring the property that matters;
+- ordinary art whose filename happens to contain `_glow` is skipped, costs video memory for nothing, and
+  produces no number at all, because skipped textures are never measured.
+
+"Is this a normal map or is it art?" has no predicate form. So:
+
+```
+preflight assets contact-sheet --out sheet.png [--samples 24] [--panel 128] [--columns 4]
+```
+
+Each sampled texture is drawn as `source | reconstruction | difference`, captioned with its path, size,
+format, p99 and mean Delta-E, and the baker's disposition. The classification is rendered next to the
+art it applies to, which is the only place the two can be compared.
+
+On a synthetic fixture built to contain one planted false positive, the sheet named it immediately: a
+ship hull called `engine_glow.png`, skipped on its name alone, sitting under a `shader map` label
+looking nothing like a shader map.
+
+Three properties of the rendering are deliberate, and each has a plausible opposite:
+
+- the difference panel reduces by **maximum**, not average — everything else here averages, because
+  averaging preserves an image, and this panel is hunting a defect rather than preserving one;
+- nothing is **ever enlarged** — invented pixels in a defect-spotting artifact would be the wrong kind
+  of help;
+- shader maps are **hatched, not rendered** — drawing what one would have looked like encoded would
+  imply the number beside it meant something, and the whole reason they are excluded is that it does not.
+
+The difference panel uses `TextureFidelity.deltaEMap`, added for this, so the picture and the gate are
+the same measurement rather than two similar-looking ones. `TextureKind` moved out of `BlockCacheBaker`
+for the same reason: one classifier, two consumers, no way for the sheet to certify a decision the baker
+never made.
+
+It needs no GPU, no display and no Starsector, so it runs anywhere the suite does — which also makes it
+the first part of the "no visible corruption" check that does not require launching the game.
+
 ## Where this leaves the footprint program
 
 Ordered by ratio of effect to risk, with everything now measured rather than assumed:
