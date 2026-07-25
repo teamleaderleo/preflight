@@ -46,23 +46,85 @@ public final class BlockCompressor {
 
     /**
      * Round-trips an ARGB image through BC1 or BC3 and returns the decoded result, which is what the
-     * GPU would actually sample. Dimensions need not be multiples of four; partial edge blocks repeat
-     * their last row and column, as the reference encoders do.
+     * GPU would actually sample.
+     *
+     * <p>This is {@link #encode} followed by {@link #decode}, deliberately rather than a direct
+     * calculation of the decoded colours. Those are not the same thing: the encoder can hold a
+     * palette in mind that the byte format cannot express, and a measurement taken before
+     * serialisation would score the palette it wanted rather than the one the texture unit will
+     * reconstruct. Going through the bytes means the fidelity numbers describe the file.
      *
      * @param argb packed ARGB pixels, row major, {@code width * height} long
      * @param withAlpha encode as BC3 (keeps an alpha channel) rather than BC1
      */
     public static int[] roundTrip(int[] argb, int width, int height, boolean withAlpha) {
+        return decode(encode(argb, width, height, withAlpha), width, height, withAlpha);
+    }
+
+    /**
+     * Encodes an ARGB image to the exact byte layout {@code glCompressedTexImage2D} expects for
+     * {@code GL_COMPRESSED_RGB_S3TC_DXT1_EXT} or {@code GL_COMPRESSED_RGBA_S3TC_DXT5_EXT}: 4x4 blocks
+     * in raster order, each little-endian internally.
+     *
+     * <p>Dimensions need not be multiples of four; partial edge blocks repeat their last row and
+     * column, as the reference encoders do, and the returned length is the whole-block size the GL
+     * call requires.
+     */
+    public static byte[] encode(int[] argb, int width, int height, boolean withAlpha) {
         if (argb == null || width <= 0 || height <= 0 || argb.length != Math.multiplyExact(width, height)) {
             throw new IllegalArgumentException("argb must hold exactly width*height pixels");
         }
-        int[] out = new int[argb.length];
+        byte[] out = new byte[Math.toIntExact(compressedBytes(width, height, withAlpha))];
         int[] block = new int[BLOCK_PIXELS];
-        int[] decoded = new int[BLOCK_PIXELS];
+        int offset = 0;
         for (int blockY = 0; blockY < height; blockY += BLOCK_EDGE) {
             for (int blockX = 0; blockX < width; blockX += BLOCK_EDGE) {
                 gather(argb, width, height, blockX, blockY, block);
-                encodeAndDecodeBlock(block, decoded, withAlpha);
+                if (withAlpha) {
+                    encodeAlphaBlock(block, out, offset);
+                    offset += 8;
+                }
+                encodeColourBlock(block, out, offset);
+                offset += 8;
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Decodes S3TC blocks exactly as the texture unit does, including BC1's punch-through mode, and
+     * returns packed ARGB.
+     *
+     * <p>Faithfulness to the hardware rules matters more here than it would in a utility decoder:
+     * this is the model against which the encoder's output is judged, so a decoder that quietly
+     * ignored a mode would hide precisely the encoding mistakes worth catching.
+     */
+    public static int[] decode(byte[] blocks, int width, int height, boolean withAlpha) {
+        if (blocks == null || width <= 0 || height <= 0) {
+            throw new IllegalArgumentException("blocks, width and height are required");
+        }
+        long expected = compressedBytes(width, height, withAlpha);
+        if (blocks.length != expected) {
+            throw new IllegalArgumentException(
+                    "block payload is " + blocks.length + " bytes; expected " + expected);
+        }
+        int[] out = new int[Math.multiplyExact(width, height)];
+        int[] decoded = new int[BLOCK_PIXELS];
+        int[] alpha = new int[BLOCK_PIXELS];
+        int offset = 0;
+        for (int blockY = 0; blockY < height; blockY += BLOCK_EDGE) {
+            for (int blockX = 0; blockX < width; blockX += BLOCK_EDGE) {
+                if (withAlpha) {
+                    decodeAlphaBlock(blocks, offset, alpha);
+                    offset += 8;
+                } else {
+                    java.util.Arrays.fill(alpha, 255);
+                }
+                decodeColourBlock(blocks, offset, withAlpha, decoded, alpha);
+                offset += 8;
+                for (int i = 0; i < BLOCK_PIXELS; i++) {
+                    decoded[i] = (alpha[i] << 24) | (decoded[i] & 0x00FFFFFF);
+                }
                 scatter(out, width, height, blockX, blockY, decoded);
             }
         }
@@ -87,25 +149,17 @@ public final class BlockCompressor {
         }
     }
 
-    private static void encodeAndDecodeBlock(int[] block, int[] decoded, boolean withAlpha) {
-        int[] alpha = new int[BLOCK_PIXELS];
-        if (withAlpha) {
-            encodeAndDecodeAlpha(block, alpha);
-        } else {
-            java.util.Arrays.fill(alpha, 255);
-        }
-        encodeAndDecodeColour(block, decoded);
-        for (int i = 0; i < BLOCK_PIXELS; i++) {
-            decoded[i] = (alpha[i] << 24) | (decoded[i] & 0x00FFFFFF);
-        }
-    }
-
     /**
      * BC3's alpha block: two 8-bit endpoints and a three-bit index per pixel selecting one of eight
      * interpolated levels. Endpoints are the block's alpha extremes, which is optimal for the common
      * cases here — a flat interior, or a single soft edge ramp.
+     *
+     * <p>Writing {@code alpha0 > alpha1} selects the eight-level mode. The other ordering means six
+     * interpolated levels plus a hard 0 and 255, which is the mode for blocks that want fully
+     * transparent and fully opaque pixels exactly; the extremes-as-endpoints fit never wants it,
+     * since it already places endpoints on whatever those extremes are.
      */
-    private static void encodeAndDecodeAlpha(int[] block, int[] alphaOut) {
+    private static void encodeAlphaBlock(int[] block, byte[] out, int offset) {
         int high = 0;
         int low = 255;
         for (int pixel : block) {
@@ -113,16 +167,16 @@ public final class BlockCompressor {
             high = Math.max(high, a);
             low = Math.min(low, a);
         }
+        out[offset] = (byte) high;
+        out[offset + 1] = (byte) low;
         if (high == low) {
-            java.util.Arrays.fill(alphaOut, high);
+            // alpha0 == alpha1 forces the six-level mode, where level 0 is still alpha0. Index 0
+            // everywhere is therefore exact, and no other index would be.
+            java.util.Arrays.fill(out, offset + 2, offset + 8, (byte) 0);
             return;
         }
-        int[] levels = new int[8];
-        levels[0] = high;
-        levels[1] = low;
-        for (int i = 0; i < 6; i++) {
-            levels[i + 2] = ((6 - i) * high + (i + 1) * low) / 7;
-        }
+        int[] levels = alphaLevels(high, low);
+        long packed = 0;
         for (int i = 0; i < BLOCK_PIXELS; i++) {
             int a = block[i] >>> 24;
             int best = 0;
@@ -134,8 +188,53 @@ public final class BlockCompressor {
                     best = level;
                 }
             }
-            alphaOut[i] = levels[best];
+            packed |= (long) best << (3 * i);
         }
+        for (int byteIndex = 0; byteIndex < 6; byteIndex++) {
+            out[offset + 2 + byteIndex] = (byte) (packed >>> (8 * byteIndex));
+        }
+    }
+
+    private static void decodeAlphaBlock(byte[] blocks, int offset, int[] alphaOut) {
+        int high = blocks[offset] & 0xFF;
+        int low = blocks[offset + 1] & 0xFF;
+        int[] levels = alphaLevels(high, low);
+        long packed = 0;
+        for (int byteIndex = 0; byteIndex < 6; byteIndex++) {
+            packed |= (long) (blocks[offset + 2 + byteIndex] & 0xFF) << (8 * byteIndex);
+        }
+        for (int i = 0; i < BLOCK_PIXELS; i++) {
+            alphaOut[i] = levels[(int) ((packed >>> (3 * i)) & 7)];
+        }
+    }
+
+    /**
+     * The eight selectable alpha values, in both of BC3's modes.
+     *
+     * <p>The interpolated levels round rather than truncate. That is not a stylistic choice: measured
+     * against Apple's driver, truncating put every interpolated alpha one below the hardware's value
+     * on half the pixels, while rounding reproduces it exactly. The colour blends in
+     * {@link #buildPaletteFromCodes} truncate on the same hardware, so the two halves of a BC3 block
+     * genuinely disagree — which is why this was measured rather than assumed. The specification
+     * pins neither, so other drivers may differ; {@code probe-kits/gpu-capability} is how to find out
+     * on a given machine.
+     */
+    private static int[] alphaLevels(int alpha0, int alpha1) {
+        int[] levels = new int[8];
+        levels[0] = alpha0;
+        levels[1] = alpha1;
+        if (alpha0 > alpha1) {
+            for (int i = 0; i < 6; i++) {
+                levels[i + 2] = ((6 - i) * alpha0 + (i + 1) * alpha1 + 3) / 7;
+            }
+        } else {
+            for (int i = 0; i < 4; i++) {
+                levels[i + 2] = ((4 - i) * alpha0 + (i + 1) * alpha1 + 2) / 5;
+            }
+            levels[6] = 0;
+            levels[7] = 255;
+        }
+        return levels;
     }
 
     /**
@@ -146,8 +245,16 @@ public final class BlockCompressor {
      * standard trick that stops outliers from stretching the palette and blurring everything else —
      * and are then replaced by the best pair {@link #clusterFit} can find. {@link #polish} finally
      * nudges them on the quantised grid they are actually stored on.
+     *
+     * <p>The stored order of the two codes is not free. In BC1 it <em>is</em> the mode bit:
+     * {@code code0 > code1} means the four-colour palette assumed everywhere above, and the other
+     * ordering means a three-colour palette whose fourth entry is transparent black. Nothing in the
+     * fitting cares which endpoint ends up first — the principal axis has an arbitrary sign, so the
+     * answer is close to a coin flip per block — so the codes are ordered here, at the point where
+     * the ordering acquires meaning. Swapping them exchanges palette entries 2 and 3, which is why
+     * doing it before indices are assigned costs nothing.
      */
-    private static void encodeAndDecodeColour(int[] block, int[] decoded) {
+    private static void encodeColourBlock(int[] block, byte[] out, int offset) {
         double[] scratch = new double[3];
         int minR = 255;
         int minG = 255;
@@ -194,11 +301,59 @@ public final class BlockCompressor {
         // exactly what it did when this was first measured.
         int[] codes = {code565(endpoint0), code565(endpoint1)};
         polish(blockLab, codes, paletteLab);
+        if (codes[0] < codes[1]) {
+            int swap = codes[0];
+            codes[0] = codes[1];
+            codes[1] = swap;
+        }
+        out[offset] = (byte) codes[0];
+        out[offset + 1] = (byte) (codes[0] >>> 8);
+        out[offset + 2] = (byte) codes[1];
+        out[offset + 3] = (byte) (codes[1] >>> 8);
+        if (codes[0] == codes[1]) {
+            // Equal codes cannot express four colours in either mode, and entry 3 would be
+            // transparent. Entry 0 is the colour both endpoints agree on, so index it everywhere.
+            java.util.Arrays.fill(out, offset + 4, offset + 8, (byte) 0);
+            return;
+        }
         buildPaletteFromCodes(codes, palette);
         assign(blockLab, palette, paletteLab, indices);
+        for (int byteIndex = 0; byteIndex < 4; byteIndex++) {
+            int packed = 0;
+            for (int i = 0; i < 4; i++) {
+                packed |= indices[byteIndex * 4 + i] << (2 * i);
+            }
+            out[offset + 4 + byteIndex] = (byte) packed;
+        }
+    }
+
+    /**
+     * The texture unit's side of the colour block. BC1 reads the endpoint ordering as a mode bit;
+     * BC3 does not, and always takes the four-colour interpretation regardless of order.
+     */
+    private static void decodeColourBlock(
+            byte[] blocks, int offset, boolean withAlpha, int[] decoded, int[] alpha) {
+        int code0 = (blocks[offset] & 0xFF) | ((blocks[offset + 1] & 0xFF) << 8);
+        int code1 = (blocks[offset + 2] & 0xFF) | ((blocks[offset + 3] & 0xFF) << 8);
+        int[][] palette = new int[4][3];
+        boolean punchThrough = !withAlpha && code0 <= code1;
+        if (punchThrough) {
+            palette[0] = expand565(code0);
+            palette[1] = expand565(code1);
+            for (int channel = 0; channel < 3; channel++) {
+                palette[2][channel] = (palette[0][channel] + palette[1][channel]) / 2;
+                palette[3][channel] = 0;
+            }
+        } else {
+            buildPaletteFromCodes(new int[] {code0, code1}, palette);
+        }
         for (int i = 0; i < BLOCK_PIXELS; i++) {
-            int[] colour = palette[indices[i]];
+            int index = (blocks[offset + 4 + (i / 4)] >>> (2 * (i % 4))) & 3;
+            int[] colour = palette[index];
             decoded[i] = (colour[0] << 16) | (colour[1] << 8) | colour[2];
+            if (punchThrough && index == 3) {
+                alpha[i] = 0;
+            }
         }
     }
 

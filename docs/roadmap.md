@@ -154,7 +154,18 @@ Separate from the speed-first milestone program above:
    quarter of the VRAM resident — it dominates the incumbent on every axis simultaneously. This
    reorders the program: decode elimination is worth 16–74×, every footprint lever is worth a few
    percent of load time, and the block cache is the best available answer to both, so it should come
-   before further shrink work.)*
+   before further shrink work.
+   **The encoder underneath that estimate is now verified against real hardware** — see
+   [2026-07-26-encoder-driver-byte-agreement.md](evidence/2026-07-26-encoder-driver-byte-agreement.md).
+   `BlockCompressor` previously round-tripped pixels without ever forming a block; it now emits the
+   exact byte layout `glCompressedTexImage2D` expects, and `roundTrip` is defined as encode-then-decode
+   so published fidelity numbers describe the file rather than the palette the encoder had in mind.
+   Serialising surfaced a defect that could not have been seen before: **BC1 reads its endpoint order
+   as a mode bit**, nothing upstream constrained it, and leaving it unordered would have taken mean ΔE
+   from 1.69 to 18.44 on half of all blocks. Ordering costs nothing. `BlockUploadProbe` then had the
+   driver arbitrate rather than trusting encoder-agrees-with-decoder: **BC1 and BC3 are now bit-exact
+   against Apple's decoder over 65,536 pixels each**, after matching one measured quirk — the colour
+   blends truncate while the alpha blends round, in the same block.)*
 9. Turn community reports into regression cases.
 10. Reserve performance claims for repeatable runs with exact identities.
 

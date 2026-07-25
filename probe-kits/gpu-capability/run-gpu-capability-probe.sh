@@ -92,6 +92,19 @@ if ! javac --release 17 -nowarn -cp "$LWJGL" -d "$BUILD" "$HERE/GpuCapabilityPro
     exit 2
 fi
 
+# The block-upload probe additionally needs preflight's own encoder, since the whole point is to
+# compare its output against the driver's decoder. It is skipped rather than fatal when the module
+# has not been built, so the capability probe still runs on a machine with only a JDK and the game.
+CORE_CLASSES="$HERE/../../preflight-core/target/classes"
+BLOCK_PROBE="no"
+if [ -d "$CORE_CLASSES" ]; then
+    if javac --release 17 -nowarn -cp "$LWJGL:$CORE_CLASSES" -d "$BUILD" "$HERE/BlockUploadProbe.java"; then
+        BLOCK_PROBE="yes"
+    else
+        printf '%s\n' "Block-upload probe failed to build; continuing with the capability probe only."
+    fi
+fi
+
 {
     printf '%s\n' "Starsector Preflight — GPU texture capability probe"
     printf '%s\n' "captured:     $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -99,6 +112,12 @@ fi
     printf '%s\n' "probe JVM:    $BUNDLED_JAVA"
     printf '\n'
     "$BUNDLED_JAVA" -cp "$LWJGL:$BUILD" -Djava.library.path="$NATIVES" GpuCapabilityProbe
+    if [ "$BLOCK_PROBE" = "yes" ]; then
+        printf '\n%s\n' "== encoder vs driver: does the hardware read the blocks we write?"
+        "$BUNDLED_JAVA" -cp "$LWJGL:$CORE_CLASSES:$BUILD" -Djava.library.path="$NATIVES" BlockUploadProbe
+    else
+        printf '\n%s\n' "== encoder vs driver: skipped (build preflight-core first: mvn -q -pl preflight-core -am install -DskipTests)"
+    fi
 } | tee "$REPORT"
 
 printf '\n%s\n' "Report written to: $REPORT"

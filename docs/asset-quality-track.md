@@ -657,6 +657,33 @@ that case documents the trade rather than hiding it.
 Still not measured: how `BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder, which remains
 the external reference for "how good can this get".
 
+## The encoder now writes bytes, and the driver agrees with them (2026-07-26)
+
+Everything above was measured with an encoder that never produced a block. `roundTrip` took pixels and
+returned pixels; the eight bytes a GPU reads did not exist. A block cache needs them, and writing them
+exposed a real defect and then confirmed the rest.
+
+**BC1 reads its endpoint order as a mode bit.** `code0 > code1` gives the four-colour palette every
+fidelity number above assumes; `code0 <= code1` gives a three-colour palette whose fourth entry is
+transparent black. Nothing upstream constrained the order — cluster fit orients endpoints along a
+principal axis whose sign is arbitrary — so it was a coin flip per block. Left unordered, mean ΔE on a
+smooth 256×256 field goes **1.69 → 18.44** and the worst pixel **7.2 → 154.9**, on roughly half the
+blocks. Ordering the codes before indices are assigned costs nothing: it swaps palette entries 2 and 3,
+and every fidelity test above passes with identical numbers. The measurements were never wrong; the
+serialisation they had not yet reached was.
+
+**The driver was then asked to arbitrate**, since `encode` agreeing with `decode` proves nothing about
+a shared misreading. `BlockUploadProbe` uploads real blocks, reads them back decompressed, and compares
+against the software decoder. On Apple M5: **BC1 and BC3 both bit-exact, 65,536 pixels each, zero
+deviation.**
+
+That took one fix, and the fix is the interesting part. BC3 alpha initially came back low by exactly 1
+on exactly 50% of pixels — truncation against rounding. On the same driver, in the same block, **the
+colour blends truncate and the alpha blends round.** No principle predicts that; applying rounding to
+both, the tidy thing to do, would have broken the BC1 agreement that was already exact.
+
+Full result and method: [2026-07-26-encoder-driver-byte-agreement.md](evidence/2026-07-26-encoder-driver-byte-agreement.md).
+
 ## Where this leaves the footprint program
 
 Ordered by ratio of effect to risk, with everything now measured rather than assumed:
@@ -668,7 +695,7 @@ Ordered by ratio of effect to risk, with everything now measured rather than ass
 | snap-to-POT in `assets shrink` | recovers part of 1.86 GiB | unchanged | resolution loss on near-boundary textures only | next |
 | stop padding in-engine | −1.86 GiB | unchanged | **none, lossless** | needs two coordinated bytecode edits |
 | one-constant BC3 at the upload site | ÷4 | slightly worse (decode *then* compress) | driver-encoder quality, global | probed, unbuilt |
-| offline BC + `glCompressedTexImage2D` | ÷4 to ÷8 | **better — no decode stage** | selectable per texture; ΔE 0.80 on the art that holds the memory | the real target |
+| offline BC + `glCompressedTexImage2D` | ÷4 to ÷8 | **better — no decode stage** | selectable per texture; ΔE 0.80 on the art that holds the memory | encoder verified against the driver; cache unbuilt |
 
 Still unmeasured: whether any of this survives contact with the runtime, and how
 `BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder as a quality ceiling.

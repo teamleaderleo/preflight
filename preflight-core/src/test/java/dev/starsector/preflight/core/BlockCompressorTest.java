@@ -1,5 +1,6 @@
 package dev.starsector.preflight.core;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -150,5 +151,133 @@ class BlockCompressorTest {
                 () -> BlockCompressor.roundTrip(new int[3], 2, 2, false));
         assertThrows(IllegalArgumentException.class,
                 () -> BlockCompressor.roundTrip(null, 2, 2, false));
+        assertThrows(IllegalArgumentException.class,
+                () -> BlockCompressor.decode(new byte[7], 4, 4, false), "a short payload is not a block");
+    }
+
+    @Test
+    void encodesToTheExactSizeTheGlCallRequires() {
+        // glCompressedTexImage2D takes the image size and reads exactly this many bytes; a mismatch
+        // is not a quality problem but a memory-safety one on the driver's side.
+        assertEquals(64L * 64L / 2, BlockCompressor.encode(new int[64 * 64], 64, 64, false).length);
+        assertEquals(64L * 64L, BlockCompressor.encode(new int[64 * 64], 64, 64, true).length);
+        assertEquals(2 * 2 * 8, BlockCompressor.encode(new int[5 * 5], 5, 5, false).length);
+    }
+
+    @Test
+    void alwaysWritesBc1BlocksInFourColourMode() {
+        // BC1 reads the endpoint ordering as a mode bit: code0 <= code1 means a three-colour palette
+        // whose fourth entry is transparent black, not the four-colour palette the fit assumed.
+        // Nothing upstream constrains the order -- the principal axis sign is arbitrary -- so this is
+        // the guard that the ordering is applied at serialisation. Measured cost of losing it on a
+        // smooth 256x256 field: mean deltaE 1.69 becomes 18.44, worst pixel 7.2 becomes 154.9.
+        Random random = new Random(4242L);
+        int width = 128;
+        int height = 128;
+        int[] art = new int[width * height];
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int r = clampByte(60 + x / 3 + random.nextInt(9) - 4);
+                int g = clampByte(90 + y / 4 + random.nextInt(9) - 4);
+                int b = clampByte(140 + (x + y) / 8 + random.nextInt(9) - 4);
+                art[y * width + x] = 0xFF000000 | (r << 16) | (g << 8) | b;
+            }
+        }
+        byte[] blocks = BlockCompressor.encode(art, width, height, false);
+        for (int offset = 0; offset < blocks.length; offset += 8) {
+            int code0 = (blocks[offset] & 0xFF) | ((blocks[offset + 1] & 0xFF) << 8);
+            int code1 = (blocks[offset + 2] & 0xFF) | ((blocks[offset + 3] & 0xFF) << 8);
+            assertTrue(code0 >= code1,
+                    "block at " + offset + " selects punch-through mode: " + code0 + " <= " + code1);
+        }
+    }
+
+    @Test
+    void decodesBc1PunchThroughBlocksAsTheHardwareDoes() {
+        // The encoder never emits this mode, but the decoder must model it, or it would be a model of
+        // this encoder rather than of the texture unit -- and would silently pass the very mistake
+        // the test above exists to catch.
+        byte[] block = new byte[8];
+        int low = 0x0841;                      // deliberately code0 < code1
+        int high = 0xF7DE;
+        block[0] = (byte) low;
+        block[1] = (byte) (low >>> 8);
+        block[2] = (byte) high;
+        block[3] = (byte) (high >>> 8);
+        block[4] = (byte) 0b11_10_01_00;       // pixels 0..3 take entries 0,1,2,3
+        int[] decoded = BlockCompressor.decode(block, 4, 4, false);
+        assertEquals(0, decoded[3] >>> 24, "entry 3 is transparent in punch-through mode");
+        assertEquals(0x00000000, decoded[3], "and its colour is black");
+        assertEquals(255, decoded[0] >>> 24, "the other entries stay opaque");
+
+        // Entry 2 is the midpoint here, not the 2/3 blend it would be in four-colour mode.
+        int red0 = (decoded[0] >> 16) & 0xFF;
+        int red1 = (decoded[1] >> 16) & 0xFF;
+        assertEquals((red0 + red1) / 2, (decoded[2] >> 16) & 0xFF);
+    }
+
+    @Test
+    void ignoresTheModeBitInBc3() {
+        // BC3's colour block is always four-colour, whatever the endpoint order -- the punch-through
+        // mechanism is BC1-only, because BC3 already carries a real alpha channel.
+        byte[] block = new byte[16];
+        block[0] = (byte) 255;                 // alpha0 > alpha1 selects the eight-level mode
+        block[1] = (byte) 0;
+        int low = 0x0841;
+        int high = 0xF7DE;
+        block[8] = (byte) low;
+        block[9] = (byte) (low >>> 8);
+        block[10] = (byte) high;
+        block[11] = (byte) (high >>> 8);
+        block[12] = (byte) 0b11_10_01_00;
+        int[] decoded = BlockCompressor.decode(block, 4, 4, true);
+        int red0 = (decoded[0] >> 16) & 0xFF;
+        int red1 = (decoded[1] >> 16) & 0xFF;
+        assertEquals((red0 + 2 * red1) / 3, (decoded[3] >> 16) & 0xFF,
+                "entry 3 is the 1/3 blend, not transparent");
+    }
+
+    @Test
+    void interpolatesTheTwoHalvesOfABc3BlockTheWayTheHardwareDoes() {
+        // Measured against Apple's driver, not derived: the colour blends truncate and the alpha
+        // blends round, in the same block. Matching both exactly is what takes the software decoder
+        // from an approximation of the texture unit to a model of it, and the numbers preflight
+        // publishes come from that decoder. Verified bit-exact over 131,072 pixels -- see
+        // docs/evidence/2026-07-26-encoder-driver-byte-agreement.md.
+        byte[] block = new byte[16];
+        block[0] = (byte) 255;                 // alpha0 > alpha1 selects the eight-level mode
+        block[1] = (byte) 0;
+        block[2] = (byte) 0b00_000_010;        // pixel 0 takes alpha entry 2
+        int code0 = 31 << 11;                  // red 5-bit 31, expanding to 255
+        int code1 = 1 << 11;                   // red 5-bit 1, expanding to 8
+        block[8] = (byte) code0;
+        block[9] = (byte) (code0 >>> 8);
+        block[10] = (byte) code1;
+        block[11] = (byte) (code1 >>> 8);
+        block[12] = (byte) 0b00_00_00_10;      // pixel 0 takes colour entry 2
+        int[] decoded = BlockCompressor.decode(block, 4, 4, true);
+
+        // Alpha entry 2 is (6*255 + 1*0)/7 = 218.571: truncating gives 218, rounding 219.
+        assertEquals(219, decoded[0] >>> 24, "alpha blends round");
+        // Colour entry 2 is (2*255 + 8)/3 = 172.667: truncating gives 172, rounding 173.
+        assertEquals(172, (decoded[0] >> 16) & 0xFF, "colour blends truncate");
+    }
+
+    @Test
+    void roundTripIsExactlyEncodeThenDecode() {
+        Random random = new Random(99L);
+        int[] art = new int[32 * 32];
+        for (int i = 0; i < art.length; i++) {
+            art[i] = random.nextInt();
+        }
+        for (boolean withAlpha : new boolean[] {false, true}) {
+            int[] viaBytes = BlockCompressor.decode(
+                    BlockCompressor.encode(art, 32, 32, withAlpha), 32, 32, withAlpha);
+            assertArrayEquals(BlockCompressor.roundTrip(art, 32, 32, withAlpha), viaBytes);
+        }
+    }
+
+    private static int clampByte(int value) {
+        return value < 0 ? 0 : Math.min(value, 255);
     }
 }
