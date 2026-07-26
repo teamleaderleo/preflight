@@ -1,5 +1,13 @@
 # 2026-07-18 real Starsector sound-wrapper observation
 
+> **Superseded on 2026-07-26.** The comparison PCM in this run was decoded through
+> `com.jcraft.jorbis.VorbisFile`, which no JAR in the installation references. Re-run against the
+> decode path the game actually uses, four of the five wrapper payloads match byte for byte, and
+> the fifth is explained by the wrapper storing a one-byte sentinel for fully silent streams. The
+> negative payload result below is an artifact of the comparison, not a property of the wrapper.
+> See [the follow-up](2026-07-26-the-wrapper-payload-was-never-the-problem.md). Identity, metadata
+> candidates, and malformed-input stability are unaffected.
+
 Related: #75, #94.
 
 ## Evidence identity

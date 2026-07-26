@@ -64,19 +64,21 @@ public final class SoundWrapperObservationChild {
         Class<?> soundJClass = Class.forName("sound.J");
         Class<?> soundFClass = Class.forName("sound.F");
         Class<?> joggClass = Class.forName("com.jcraft.jogg.SyncState");
-        Class<?> vorbisFileClass = Class.forName("com.jcraft.jorbis.VorbisFile");
         Class<?> infoClass = Class.forName("com.jcraft.jorbis.Info");
+        Class<?> dspStateClass = Class.forName("com.jcraft.jorbis.DspState");
+        Class<?> blockClass = Class.forName("com.jcraft.jorbis.Block");
 
         Identity soundJ = identity(soundJClass, options.expectedSoundSha256());
         Identity soundF = identity(soundFClass, options.expectedSoundSha256());
         Identity jogg = identity(joggClass, options.expectedJoggSha256());
-        Identity jorbis = identity(vorbisFileClass, options.expectedJorbisSha256());
         Identity info = identity(infoClass, options.expectedJorbisSha256());
-        boolean identityExact = List.of(soundJ, soundF, jogg, jorbis, info).stream()
+        Identity dspState = identity(dspStateClass, options.expectedJorbisSha256());
+        Identity block = identity(blockClass, options.expectedJorbisSha256());
+        boolean identityExact = List.of(soundJ, soundF, jogg, info, dspState, block).stream()
                 .allMatch(identity -> identity.exact() && appLoader(identity));
 
         Wrapper wrapper = new Wrapper(soundJClass, soundFClass);
-        Decoder decoder = new Decoder(vorbisFileClass, infoClass);
+        Decoder decoder = new Decoder();
         List<Fixture> fixtures = "ci".equals(options.fixtureProfile()) ? FIXTURES.subList(0, 2) : FIXTURES;
 
         List<Map<String, Object>> validCases = new ArrayList<>();
@@ -117,7 +119,8 @@ public final class SoundWrapperObservationChild {
         root.put("soundJ", soundJ.toMap());
         root.put("soundF", soundF.toMap());
         root.put("jogg", jogg.toMap());
-        root.put("jorbis", jorbis.toMap());
+        root.put("dspState", dspState.toMap());
+        root.put("block", block.toMap());
         root.put("info", info.toMap());
         root.put("primarySeam", "sound/J.o00000(Ljava/io/InputStream;)Lsound/F;");
         root.put("wrapperMethodStatic", wrapper.methodStatic());
@@ -505,54 +508,26 @@ public final class SoundWrapperObservationChild {
         }
     }
 
+    /**
+     * Produces the PCM that {@code sound/J}'s output is compared against.
+     *
+     * <p>This used to drive {@code com.jcraft.jorbis.VorbisFile}, which no shipped JAR references. The
+     * comparison was therefore between the real wrapper and a decoder the game never runs, and it is
+     * what produced the negative `wrapperPayloadMatchesDirectJorbis` on 2026-07-18 — four buffers of
+     * the right length whose contents did not match, which is exactly what comparing real audio against
+     * a near-silent decode looks like.
+     */
     private static final class Decoder {
-        private final Constructor<?> constructor;
-        private final Method read;
-        private final Method getInfo;
-        private final Field channels;
-        private final Field rate;
+        private final LowLevelVorbisDecoder delegate;
 
-        private Decoder(Class<?> vorbisFile, Class<?> info) throws Exception {
-            constructor = vorbisFile.getConstructor(InputStream.class, byte[].class, int.class);
-            read = vorbisFile.getDeclaredMethod(
-                    "read", byte[].class, int.class, int.class, int.class, int.class, int[].class);
-            read.setAccessible(true);
-            getInfo = vorbisFile.getMethod("getInfo", int.class);
-            channels = info.getField("channels");
-            rate = info.getField("rate");
+        private Decoder() throws Exception {
+            delegate = new LowLevelVorbisDecoder();
         }
 
         private Decoded decode(InputStream input) throws Exception {
-            Object decoder = constructor.newInstance(input, null, 0);
-            Object info = getInfo.invoke(decoder, 0);
-            if (info == null) info = getInfo.invoke(decoder, -1);
-            if (info == null) throw new IOException("JOrbis returned no stream info");
-            int channelCount = channels.getInt(info);
-            int sampleRate = rate.getInt(info);
-            if (channelCount < 1 || channelCount > PreparedAudio.MAX_CHANNELS
-                    || sampleRate < 1 || sampleRate > PreparedAudio.MAX_SAMPLE_RATE_HZ) {
-                throw new IOException("JOrbis metadata is outside supported bounds");
-            }
-
-            ByteArrayOutputStream pcm = new ByteArrayOutputStream();
-            byte[] buffer = new byte[READ_BUFFER_BYTES];
-            int[] bitstream = new int[1];
-            int readCalls = 0;
-            while (true) {
-                int count = (Integer) read.invoke(decoder, buffer, buffer.length, 0, 2, 1, bitstream);
-                readCalls++;
-                if (count == 0) break;
-                if (count < 0) throw new IOException("JOrbis read returned " + count);
-                if (count > buffer.length || pcm.size() > MAX_PCM_BYTES - count) {
-                    throw new IOException("Decoded PCM exceeds the safety limit");
-                }
-                pcm.write(buffer, 0, count);
-            }
-            byte[] bytes = pcm.toByteArray();
-            if (bytes.length % Math.multiplyExact(channelCount, 2) != 0) {
-                throw new IOException("Decoded PCM is not frame aligned");
-            }
-            return new Decoded(bytes, channelCount, sampleRate, readCalls, bitstream[0]);
+            LowLevelVorbisDecoder.Decoded decoded = delegate.decode(input);
+            return new Decoded(
+                    decoded.pcm(), decoded.channels(), decoded.sampleRate(), decoded.packets(), 0);
         }
     }
 
