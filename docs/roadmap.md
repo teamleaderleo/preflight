@@ -70,12 +70,12 @@ Exit condition: representative source-heavy profiles compile once and safely reu
 
 Exit condition: prepared audio is byte-for-byte and metadata-equivalent, bounded, fail-open, and measurably reduces repeat-launch decoding work.
 
-**Equivalence is owed to the installed decoder, not to a reference decoder.** The gate built for the
-first bullet decodes through `com.jcraft.jorbis.VorbisFile`, which no shipped Starsector code path
-calls, and compares against libvorbis output; run against the reviewed installation on 2026-07-26 it
-fails all five valid fixtures, and the real path disagrees with libvorbis by up to 2 LSB plus one
-untrimmed final block regardless. Byte-for-byte is reachable only against JOrbis driven through
-`sound/void`'s own call sequence. Correcting the harness to that oracle is the prerequisite for M5.
+**Equivalence is owed to the installed decoder, not to a reference decoder.** The first version of the
+gate decoded through `com.jcraft.jorbis.VorbisFile`, which no shipped Starsector code path calls, and
+compared against libvorbis output. Rebuilt in #207 and #208 onto the low-level sequence `sound/void`
+drives, it **passes against the reviewed installation** (2026-07-26). The first bullet is met for the
+PCM half; the wrapper-contract half is not, because `SoundWrapperObservationChild` still decodes with
+`VorbisFile` and carries the same defect.
 See [the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md).
 
 ## Exploratory tracks (not yet evidence-gated)

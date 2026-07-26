@@ -130,6 +130,25 @@ sequence, not to libvorbis. Against that oracle byte-for-byte is genuinely reach
 same implementation on both sides. Against libvorbis it never was: a prepared-audio cache keyed on
 ffmpeg output would hand the game audio two LSBs and one block different from what it decoded itself.
 
+## Rebuilt the same day
+
+The decoder landed in #207 and the gate was rewired onto it in #208. Against the reviewed installation
+it now reports `equivalent: true`, with the disagreement exactly as predicted above: max sample delta
+2 on both tone fixtures, 0 on silence, and 256 mono / 128 stereo untrimmed frames.
+
+The rebuilt gate asserts in two directions, because neither is sufficient alone. Exactly against the
+installed decoder — determinism and `PreparedAudio` round trip — for the properties a cache depends on.
+Within tolerance against libvorbis, plus a rule that any fixture declared to contain audio must not
+decode to silence, for the property that catches a decoder wired to the wrong thing.
+
+That second direction is the whole lesson here. Making the decoder emit zeros leaves determinism and
+round-trip both passing — silence is perfectly reproducible — and only the external checks fail. The
+superseded gate had no external check that could tell audio from silence, which is why it reported a
+completely silent decode as an ordinary hash mismatch.
+
+**`SoundWrapperObservationChild` has the same defect and is not yet fixed.** It decodes fixtures with
+`VorbisFile` and compares the result against what `sound/J` produces.
+
 ## What is not yet established
 
 The low-level reconstruction here matches `sound/void`'s **API sequence**, verified against its

@@ -1,17 +1,47 @@
 # Installed JOrbis equivalence
 
-> **Superseded on 2026-07-26. This gate decodes through an API the game never calls.**
-> It drives `com.jcraft.jorbis.VorbisFile`; the shipped `sound/void` uses the low-level
-> `SyncState`/`StreamState`/`DspState`/`Block` sequence, and no JAR in the installation references
-> `VorbisFile` at all. On the same bytes the two paths produce different audio — the clipping-stress
-> fixture decodes to complete silence through `VorbisFile` and to full-scale audio through the real
-> path. **The expected-PCM table below is not a description of anything Starsector produces**: it was
-> derived from libvorbis and compared against a third implementation. See
-> [the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md). The
-> pinned archive identities, the loader-identity checks, and the malformed-input cases are unaffected
-> and all still pass.
+> **Rebuilt on 2026-07-26.** The first version of this gate decoded through
+> `com.jcraft.jorbis.VorbisFile`, which no JAR in the installation references, and compared the result
+> against libvorbis output. It failed all five fixtures for reasons that were entirely its own. See
+> [the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md). The gate
+> now decodes through the low-level sequence `sound/void` actually drives and **passes against the
+> reviewed installation**. Report format is `…-v2`; the expected-PCM table is gone, replaced by the
+> checks described below.
 
 This gate decodes committed deterministic Ogg/Vorbis fixtures through the exact Jogg and JOrbis JARs shipped with the reviewed Starsector installation. It produces an evidence report only. Prepared-audio writes, cache reads, and live sound-loader transformations remain disabled.
+
+## What it asserts, and why in two ways
+
+Each valid fixture is checked **exactly, against the installed decoder itself**:
+
+- the same bytes decode to the same PCM twice;
+- a `PreparedAudio` built from that decode survives a serialisation round trip unchanged;
+- channel count, sample rate, frame count and sample count agree with the fixture;
+- the stream is fully consumed, closed exactly once, and never closed during the decode;
+- the decode reaches end of stream.
+
+These are the properties a cache depends on, and byte-for-byte is reachable here because the same
+implementation is on both sides.
+
+They are not sufficient on their own. **Silence passes every one of them** — it is perfectly
+deterministic and round trips perfectly — which is exactly how the superseded gate could decode a
+clipping-stress fixture to digital silence and report only a hash mismatch. So each fixture is also
+checked **against an external oracle**:
+
+- where a libvorbis reference exists, no sample may differ by more than `2` of 65,536, and the decode
+  may not be shorter than the reference;
+- every fixture declared to contain audio must decode to something other than silence.
+
+The second rule exists because two fixtures have no reference. Without it they could go silent
+unnoticed — verified by making the decoder emit zeros, which the reference check catches for three
+fixtures and this check catches for all four that carry audio.
+
+### Tolerances
+
+| Bound | Value | Why |
+| --- | ---: | --- |
+| `maxReferenceSampleDelta` | 2 | Vorbis does not require bit-exact decoding. Measured disagreement with libvorbis is at most two steps, symmetric about zero. |
+| `maxUntrimmedTailFrames` | 8,192 | libvorbis trims the final block against the last granule position; JOrbis does not. Measured excess is 256 mono / 128 stereo frames. The bound is the Vorbis maximum block size. |
 
 ## Pinned decoder identity
 
@@ -59,17 +89,38 @@ Exit code `0` means the complete equivalence gate passed. Exit code `6` means th
 
 The full profile contains five fully decoded effect cases:
 
-| Fixture | Encoded bytes | Encoded SHA-256 | Expected PCM bytes | Expected PCM SHA-256 | Format |
-| --- | ---: | --- | ---: | --- | --- |
-| `mono-22050.ogg` | 4,285 | `2743d710c5df780d381664097a747bd4baf949f9721fbfa8a6e6c14477658b07` | 3,584 | `bbe3d4cb25eb77c157a77091202dd0f4458aa18e50a4b59be018f22be8dc62e5` | mono, 22,050 Hz |
-| `stereo-44100.ogg` | 6,843 | `83c01b0343243bbff24d9b6de9619a476ccdf4b8993db13805f9a86f191031c0` | 15,872 | `ada77fe8b369053d7dd1b1ec9430bfec15886ece0be5768dcc4c8e2b17f9fbf8` | stereo, 44,100 Hz |
-| `silence-mono-8000.ogg` | 2,671 | `fe0202cd86957a1c6af4eb37d7dc540e266f1a9d81aff9a56274dd36cd8bbab3` | 3,584 | `6cf1b57d59e7111bc218dfb01dda93ac0f776715599a1c69f89035bd20c16a10` | mono silence, 8,000 Hz |
-| `clipping-stereo-48000.ogg` | 8,139 | `2ad023bf52f6cc160cec003bdb63c93e2c82065efe9bd29b8e8019400c6ac41a` | 15,872 | `f5eba24d0166fadf4ac02cc423810afb596564615984b063c11e7740f4258e3d` | stereo clipping stress, 48,000 Hz |
-| `packet-boundary-mono-44100.ogg` | 5,840 | `3718112dc664b61bf6467eaf68d5c30a7b5884ee1540ce3e1866f59c7a35d70c` | 16,640 | `d4f78542dcdbe1774072343805516076f38fe6ba9edb8f1c36a60dfbbdb26d43` | mono uneven final packet, 44,100 Hz |
+| Fixture | Encoded bytes | Encoded SHA-256 | libvorbis reference | Format |
+| --- | ---: | --- | --- | --- |
+| `mono-22050.ogg` | 4,285 | `2743d710c5df780d381664097a747bd4baf949f9721fbfa8a6e6c14477658b07` | yes | mono, 22,050 Hz |
+| `stereo-44100.ogg` | 6,843 | `83c01b0343243bbff24d9b6de9619a476ccdf4b8993db13805f9a86f191031c0` | yes | stereo, 44,100 Hz |
+| `silence-mono-8000.ogg` | 2,671 | `fe0202cd86957a1c6af4eb37d7dc540e266f1a9d81aff9a56274dd36cd8bbab3` | yes | mono silence, 8,000 Hz |
+| `clipping-stereo-48000.ogg` | 8,139 | `2ad023bf52f6cc160cec003bdb63c93e2c82065efe9bd29b8e8019400c6ac41a` | no | stereo clipping stress, 48,000 Hz |
+| `packet-boundary-mono-44100.ogg` | 5,840 | `3718112dc664b61bf6467eaf68d5c30a7b5884ee1540ce3e1866f59c7a35d70c` | no | mono uneven final packet, 44,100 Hz |
 
-The output contract is signed 16-bit little-endian PCM. Each case compares PCM length and SHA-256, channels, sample rate, frame count, sample count, complete source consumption, and stream close ownership. A successful case constructs an in-memory `PreparedAudio` value as an additional arithmetic and metadata check. It writes no `SPAU` file.
+The output contract is signed 16-bit little-endian PCM. A successful case constructs an in-memory
+`PreparedAudio` value and round-trips it. It writes no `SPAU` file.
 
-The PCM reference identities come from the documented FFmpeg 7.1.3/libvorbis fixture path. A mismatch against installed JOrbis is evidence that the prepared-audio oracle or normalization policy needs revision before any live reuse work.
+**No expected PCM hash is pinned here.** The installed decoder is the oracle, and pinning a hash taken
+from one run of it would record a fact about this machine rather than a property of the decoder. What
+the fixtures pin is their *encoded* identity; what the gate checks is behaviour.
+
+## Measured against the reviewed installation (2026-07-26)
+
+| Fixture | PCM bytes | packets | max reference delta | untrimmed frames |
+| --- | ---: | ---: | ---: | ---: |
+| `mono-22050` | 4,096 | 7 | 2 | 256 |
+| `stereo-44100` | 16,384 | 19 | 2 | 128 |
+| `silence-mono-8000` | 4,096 | 9 | 0 | 256 |
+| `clipping-stereo-48000` | 16,384 | 33 | — | — |
+| `packet-boundary-mono-44100` | 16,640 | 24 | — | — |
+
+`equivalent: true`, all four checked class identities exact and loaded by the application loader, all
+five malformed-input cases stable.
+
+## Known remaining site
+
+`SoundWrapperObservationChild` still decodes with `VorbisFile` and compares that against `sound/J`'s
+output. It has the same defect this gate was rebuilt to remove and has not yet been corrected.
 
 ## Malformed and unsupported inputs
 
