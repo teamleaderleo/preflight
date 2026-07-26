@@ -24,7 +24,7 @@ final class AudioCensusCommand {
             }
         }
 
-        Path installRoot = resolveInstallRoot(game);
+        Path installRoot = InstallRoot.resolve(game);
         if (installRoot == null) {
             System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
             return 3;
@@ -40,30 +40,6 @@ final class AudioCensusCommand {
         }
         System.out.println(json);
         return 0;
-    }
-
-    /**
-     * An explicit {@code --game} is taken as the install root without further discovery. The census
-     * reads a resource tree and never launches anything, so requiring a launcher next to it — as the
-     * launching commands rightly do — would only refuse profiles this can measure perfectly well.
-     */
-    private static Path resolveInstallRoot(Path game) throws Exception {
-        if (game != null) {
-            Path root = game.toAbsolutePath().normalize();
-            if (!Files.isDirectory(root)) {
-                throw new IllegalArgumentException("--game is not a directory: " + root);
-            }
-            return root;
-        }
-        DiscoveryResult discovery = StarsectorDiscovery.discover(
-                Platform.current(),
-                Path.of(System.getProperty("user.home")),
-                Path.of(System.getProperty("user.dir")),
-                System.getenv(),
-                null,
-                null);
-        LaunchTarget target = discovery.selected();
-        return target == null ? null : target.installRoot();
     }
 
     /** Per-file rows, for slicing a policy question the aggregate report did not anticipate. */
