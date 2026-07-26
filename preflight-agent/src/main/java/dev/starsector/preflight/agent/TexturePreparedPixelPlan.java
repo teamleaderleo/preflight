@@ -132,9 +132,14 @@ final class TexturePreparedPixelPlan {
         wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 3));
         wrapper.instructions.add(new JumpInsnNode(Opcodes.IFNULL, preparedFallback));
 
-        // The installed converter writes the computed power-of-two backing dimensions into
-        // the texture object before returning its buffer. Replay that exact reviewed side
-        // effect only for the explicit coherent-direct diagnostic.
+        // The installed converter writes the computed backing dimensions into the texture object
+        // before returning its buffer, and those setters are not plain setters: each recomputes a
+        // texture-coordinate ratio as source/stored. Replay that exact reviewed side effect for the
+        // coherent-direct diagnostic, and also whenever padding removal is on -- there the stored
+        // dimension becomes the source dimension, so the ratio has to be recomputed to 1.0. Skipping
+        // it would leave a ratio scaled for an allocation that is no longer being made, which is the
+        // one way this change corrupts rendering while every reported number looks right.
+        LabelNode replayDimensions = new LabelNode();
         wrapper.instructions.add(new LdcInsnNode(TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY));
         wrapper.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC,
@@ -142,7 +147,15 @@ final class TexturePreparedPixelPlan {
                 "getBoolean",
                 "(Ljava/lang/String;)Z",
                 false));
+        wrapper.instructions.add(new JumpInsnNode(Opcodes.IFNE, replayDimensions));
+        wrapper.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC,
+                "dev/starsector/preflight/agent/TexturePaddingRuntime",
+                "enabled",
+                "()Z",
+                false));
         wrapper.instructions.add(new JumpInsnNode(Opcodes.IFEQ, skipDimensionReplay));
+        wrapper.instructions.add(replayDimensions);
         addDimensionSetter(wrapper, dimensions.widthMethod(), "width");
         addDimensionSetter(wrapper, dimensions.heightMethod(), "height");
         wrapper.instructions.add(skipDimensionReplay);

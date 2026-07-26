@@ -135,9 +135,15 @@ public final class TexturePreparedPixelRuntime {
         PreparedTexture texture = carrier.texture;
         UploadLayout layout = carrier.layout;
 
+        // Padding removal serves the texture at its true size instead of declining it. This is the
+        // other half of the invariant TexturePaddingRuntime governs: the buffer below is unpadded
+        // only while the installed fold is also bypassed, so the glTexImage2D allocation agrees with
+        // it. Neither half is safe alone, and both read the same gate for that reason.
+        boolean unpadded = layout.paddingBytes() > 0 && TexturePaddingRuntime.enabled();
+
         // The safe default keeps NPOT textures on Starsector's original path. The explicit
         // coherent-direct diagnostic is the only path allowed to supply a direct NPOT buffer.
-        if (layout.paddingBytes() > 0 && !carrier.coherentDirect) {
+        if (layout.paddingBytes() > 0 && !carrier.coherentDirect && !unpadded) {
             TELEMETRY.npotProbeFallback();
             if (carrier.coherentOriginalConvert) {
                 TELEMETRY.coherentOriginalConvertFallback();
@@ -147,7 +153,7 @@ public final class TexturePreparedPixelRuntime {
             return null;
         }
 
-        int bytes = layout.uploadBytes();
+        int bytes = unpadded ? texture.pixelBytes() : layout.uploadBytes();
         if (!reserve(bytes)) {
             TELEMETRY.fallback();
             TextureCompatibilityRuntime.declined(TextureCompatibilityRuntime.FallbackReason.DIRECT_MEMORY_LIMIT);
@@ -158,9 +164,11 @@ public final class TexturePreparedPixelRuntime {
         boolean registered = false;
         try {
             buffer = ByteBuffer.allocateDirect(bytes);
-            if (layout.paddingBytes() > 0) {
+            if (layout.paddingBytes() > 0 && !unpadded) {
                 writeUploadPixels(buffer, texture, layout);
             } else {
+                // Unpadded and already-power-of-two textures are the same case here: the stored
+                // pixels are exactly what the driver reads, with no rows or columns to invent.
                 buffer.put(texture.pixels());
             }
             buffer.flip();
@@ -170,19 +178,26 @@ public final class TexturePreparedPixelRuntime {
                 IN_FLIGHT.computeIfAbsent(Thread.currentThread(), ignored -> new ArrayDeque<>()).addLast(buffer);
                 registered = true;
             }
+            // The dimensions travel with the buffer because the wrapper writes them onto the texture
+            // object, whose setters recompute the texture-coordinate ratio as source/stored. Serving
+            // unpadded pixels while reporting padded dimensions would leave that ratio scaled for an
+            // allocation that no longer exists -- correct-looking numbers, wrong pixels on screen.
             PreparedPixel result = new PreparedPixel(
                     buffer,
                     color(texture.color0Rgba()),
                     color(texture.color1Rgba()),
                     color(texture.color2Rgba()),
-                    layout.uploadWidth(),
-                    layout.uploadHeight(),
+                    unpadded ? texture.originalWidth() : layout.uploadWidth(),
+                    unpadded ? texture.originalHeight() : layout.uploadHeight(),
                     texture.channels(),
                     bytes);
+            if (unpadded) {
+                TexturePaddingRuntime.served(layout.paddingBytes());
+            }
             TELEMETRY.hit(
                     texture.pixelBytes(),
                     bytes,
-                    layout.paddingBytes(),
+                    unpadded ? 0 : layout.paddingBytes(),
                     carrier.coherentDirect);
             if (carrier.creditSharedHit()) {
                 TextureCompatibilityRuntime.hit(texture.pixelBytes());

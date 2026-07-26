@@ -31,8 +31,89 @@ class TexturePreparedPixelRuntimeTest {
 
     @AfterEach
     void resetRuntime() {
+        System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
+        TexturePaddingRuntime.reset();
         TexturePreparedPixelRuntime.beginSession();
         TextureCompatibilityRuntime.beginSession();
+    }
+
+    @Test
+    void servesANonPowerOfTwoTextureAtItsTrueSizeWhenPaddingRemovalIsOn() throws Exception {
+        int width = 3;
+        int height = 3;
+        int channels = 3;
+        byte[] source = sequential(width * height * channels);
+        configure(fixture(width, height, channels, source));
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+
+        TexturePreparedPixelRuntime.PreparedPixel prepared = TexturePreparedPixelRuntime.prepare(
+                TexturePreparedPixelRuntime.load("graphics/test.png"));
+
+        // Without the gate this exact texture is declined; that is asserted separately below.
+        assertNotNull(prepared, "padding removal must serve what the padded path refuses");
+        assertEquals(source.length, prepared.buffer().remaining());
+        assertArrayEquals(source, bytes(prepared.buffer()),
+                "an unpadded buffer is the stored pixels verbatim, with no rows or columns invented");
+
+        // The dimensions must be the source ones. The wrapper writes them onto the texture object,
+        // whose setters recompute the texture-coordinate ratio as source/stored -- reporting 4x4 here
+        // would leave every UV scaled for an allocation that is no longer being made.
+        assertEquals(width, prepared.width());
+        assertEquals(height, prepared.height());
+        assertEquals(width * height * channels, prepared.pixelBytes());
+    }
+
+    @Test
+    void declinesTheSameTextureWhileThePaddingGateIsOff() throws Exception {
+        int width = 3;
+        int height = 3;
+        int channels = 3;
+        configure(fixture(width, height, channels, sequential(width * height * channels)));
+
+        // The default has to stay a decline, because a host that has not observed non-power-of-two
+        // support on its own context must keep Starsector's original padded path.
+        assertNull(TexturePreparedPixelRuntime.prepare(
+                TexturePreparedPixelRuntime.load("graphics/test.png")));
+        assertEquals(0L, TexturePaddingRuntime.report().get("texturesServedUnpadded"));
+    }
+
+    @Test
+    void accountsForThePaddingItDidNotAllocate() throws Exception {
+        int width = 3;
+        int height = 3;
+        int channels = 3;
+        configure(fixture(width, height, channels, sequential(width * height * channels)));
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+
+        TexturePreparedPixelRuntime.prepare(TexturePreparedPixelRuntime.load("graphics/test.png"));
+
+        // 3x3 pads to 4x4, so seven pixels of three channels are what this texture stops allocating.
+        // Summed over a profile this is the number the roadmap states as 1.86 GiB.
+        assertEquals(1L, TexturePaddingRuntime.report().get("texturesServedUnpadded"));
+        assertEquals((long) (4 * 4 - 3 * 3) * channels,
+                TexturePaddingRuntime.report().get("paddingBytesAvoided"));
+
+        // The padded-upload telemetry must not also claim the padding, or the two reports would
+        // disagree about whether those bytes were written.
+        assertEquals(0L, TexturePreparedPixelRuntime.telemetry().get("paddingBytes"));
+    }
+
+    @Test
+    void leavesPowerOfTwoTexturesCompletelyAloneWhenPaddingRemovalIsOn() throws Exception {
+        Fixture fixture = fixture();
+        configure(fixture);
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+
+        TexturePreparedPixelRuntime.PreparedPixel prepared = TexturePreparedPixelRuntime.prepare(
+                TexturePreparedPixelRuntime.load("graphics/test.png"));
+
+        // A texture that never needed padding must be byte-identical with the gate on or off, so
+        // that turning the lever on cannot be blamed for a change it did not make.
+        assertNotNull(prepared);
+        assertArrayEquals(fixture.pixels(), bytes(prepared.buffer()));
+        assertEquals(2, prepared.width());
+        assertEquals(2, prepared.height());
+        assertEquals(0L, TexturePaddingRuntime.report().get("texturesServedUnpadded"));
     }
 
     @Test
