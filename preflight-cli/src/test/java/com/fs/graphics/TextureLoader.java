@@ -26,8 +26,20 @@ public final class TextureLoader {
 
     private ByteBuffer o00000(BufferedImage image, Object texture) {
         originalConversionCalls++;
-        texture.Ô00000(nextPowerOfTwo(image.getHeight()));
-        texture.Ó00000(nextPowerOfTwo(image.getWidth()));
+        // The installed loader does not call o00000(int) here. It writes the same doubling loop out
+        // by hand, once per axis, and that inlined copy is what sizes the upload buffer. Keeping the
+        // duplication is the point: the two implementations must agree about every texture, and a
+        // model that shared one of them could not show a padding change breaking that agreement.
+        int uploadWidth = 2;
+        while (uploadWidth < image.getWidth()) {
+            uploadWidth *= 2;
+        }
+        int uploadHeight = 2;
+        while (uploadHeight < image.getHeight()) {
+            uploadHeight *= 2;
+        }
+        texture.Ô00000(uploadHeight);
+        texture.Ó00000(uploadWidth);
         Raster raster = image.getData();
         int[] pixel = raster.getPixel(0, 0, (int[]) null);
         int red = pixel.length > 0 ? pixel[0] : 0;
@@ -42,20 +54,13 @@ public final class TextureLoader {
             buffer.put(configured).flip();
             return buffer;
         }
-        if (image.getWidth() > 1 || image.getHeight() > 1) {
-            return convertPowerOfTwoUpload(image);
-        }
-        ByteBuffer buffer = ByteBuffer.allocateDirect(3);
-        buffer.put((byte) red).put((byte) green).put((byte) blue).flip();
-        return buffer;
+        return convertPowerOfTwoUpload(image, uploadWidth, uploadHeight);
     }
 
-    private static ByteBuffer convertPowerOfTwoUpload(BufferedImage image) {
+    private static ByteBuffer convertPowerOfTwoUpload(BufferedImage image, int uploadWidth, int uploadHeight) {
         int width = image.getWidth();
         int height = image.getHeight();
         int channels = image.getColorModel().hasAlpha() ? 4 : 3;
-        int uploadWidth = nextPowerOfTwo(width);
-        int uploadHeight = nextPowerOfTwo(height);
         int uploadStride = uploadWidth * channels;
         byte[] upload = new byte[uploadStride * uploadHeight];
         for (int uploadRow = 0; uploadRow < height; uploadRow++) {
@@ -89,16 +94,17 @@ public final class TextureLoader {
         BufferedImage image = Ô00000(logicalPath);
         Object texture = new Object();
         ByteBuffer buffer = o00000(image, texture);
-        if (image.getWidth() > 1 || image.getHeight() > 1) {
-            int channels = image.getColorModel().hasAlpha() ? 4 : 3;
-            int required = Math.multiplyExact(
-                    Math.multiplyExact(nextPowerOfTwo(image.getWidth()), nextPowerOfTwo(image.getHeight())),
-                    channels);
-            if (buffer.remaining() < required) {
-                throw new IllegalArgumentException(
-                        "Number of remaining buffer elements is " + buffer.remaining()
-                                + ", must be at least " + required);
-            }
+        // The installed loader sizes its glTexImage2D allocation through the *extracted* o00000(int),
+        // while the buffer above was sized by the inlined copy. This check is where the two meet, so
+        // it is the model of the invariant that any padding change has to preserve.
+        int channels = image.getColorModel().hasAlpha() ? 4 : 3;
+        int required = Math.multiplyExact(
+                Math.multiplyExact(o00000(image.getWidth()), o00000(image.getHeight())),
+                channels);
+        if (buffer.remaining() < required) {
+            throw new IllegalArgumentException(
+                    "Number of remaining buffer elements is " + buffer.remaining()
+                            + ", must be at least " + required);
         }
         if (failAfterConversion) {
             throw new IllegalStateException("synthetic upload failure");
@@ -143,9 +149,20 @@ public final class TextureLoader {
         originalUpload = null;
     }
 
-    private static int nextPowerOfTwo(int value) {
-        int highest = Integer.highestOneBit(value);
-        return highest == value ? value : highest << 1;
+    /**
+     * Slick's {@code get2Fold}, as the installed loader extracts it: seed at two, double while short.
+     * It cannot return less than two, which is why a one-pixel edge allocates a two-pixel one.
+     *
+     * <p>Written out here rather than delegated to {@code GpuTextureFootprint}. The value of this
+     * fixture is being an independent model of the engine; sharing the production implementation
+     * would make the two agree by construction and stop the tests from being able to disagree.
+     */
+    private int o00000(int value) {
+        int fold = 2;
+        while (fold < value) {
+            fold *= 2;
+        }
+        return fold;
     }
 
     public record Result(
