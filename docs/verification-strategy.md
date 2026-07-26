@@ -335,8 +335,12 @@ what the agent was objecting to. Reverted.
   fixed.** It is now `weightedSum / visible`, putting it on the same coverage-scaled footing as p99,
   max and both fractions. A no-op for fully opaque images, and cache membership is unchanged in every
   figure, because the gate reads p99. Gate tuning is unblocked.
-- Whether the synthetic `TextureLoader` stub should be corrected to Slick's `get2Fold`. It is harmless
-  today and the change is not free: the stub's value is being an *independent* model, and borrowing
-  `GpuTextureFootprint` would make it agree with the agent by construction.
+- ~~Whether the synthetic `TextureLoader` stub should be corrected to Slick's `get2Fold`.~~
+  **Answered 2026-07-26: corrected, and the independence kept.** The stub now models both of the
+  installed loader's power-of-two implementations separately — an extracted `get2Fold` sizing the
+  allocation, and an inlined copy sizing the upload buffer — with the arithmetic written out rather
+  than delegated to `GpuTextureFootprint`, so the fixture is still able to disagree with production.
+  Two integration expectations changed, because they encoded the old fixture's belief that a
+  one-pixel edge uploads as one pixel.
 - Whether any runtime consumer of the block cache should assert on cache *use* rather than only on
   output correctness, given that fail-open makes a broken fast path indistinguishable from a slow one.

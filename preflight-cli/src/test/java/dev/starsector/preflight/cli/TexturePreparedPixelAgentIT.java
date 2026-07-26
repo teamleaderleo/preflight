@@ -181,8 +181,12 @@ class TexturePreparedPixelAgentIT {
                 fixture, "graphics/test.png", false, true, false, false);
 
         assertSuccess(result);
+        // The preloaded image is one pixel, and get2Fold floors at two, so the original path uploads
+        // a 2x2 RGBA buffer with the single source pixel in the bottom-left and the rest zero. The
+        // three-byte expectation this replaced came from the fixture's own power-of-two arithmetic,
+        // which returned 1 for a one-pixel edge and so modelled a padding rule the engine does not have.
         assertTrue(result.output().contains(
-                "synthetic-pixels:abcdef:colors=ffabcdef,ff00ff00,ff0000ff"
+                "synthetic-pixels:abcdefff000000000000000000000000:colors=ffabcdef,ff00ff00,ff0000ff"
                         + ":decode=0:convert=1:cleanup=1:preloaderCalls=1"),
                 result.output());
         String report = Files.readString(fixture.adapterReport());
@@ -199,7 +203,8 @@ class TexturePreparedPixelAgentIT {
 
         assertSuccess(result);
         assertTrue(result.output().contains(
-                "synthetic-pixels:cc00cc:colors=ffcc00cc,ff00ff00,ff0000ff:decode=1:convert=1:cleanup=1"),
+                "synthetic-pixels:cc00ccff000000000000000000000000"
+                        + ":colors=ffcc00cc,ff00ff00,ff0000ff:decode=1:convert=1:cleanup=1"),
                 result.output());
         String report = Files.readString(fixture.adapterReport());
         assertTrue(report.contains("\"misses\":1"), report);
