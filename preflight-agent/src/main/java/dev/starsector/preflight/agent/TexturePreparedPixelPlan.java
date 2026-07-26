@@ -534,14 +534,4 @@ final class TexturePreparedPixelPlan {
         }
     }
 
-    private static final class SafeClassWriter extends ClassWriter {
-        private SafeClassWriter(int flags) {
-            super(flags);
-        }
-
-        @Override
-        protected String getCommonSuperClass(String type1, String type2) {
-            return type1.equals(type2) ? type1 : "java/lang/Object";
-        }
-    }
 }
