@@ -1,5 +1,16 @@
 # Installed JOrbis equivalence
 
+> **Superseded on 2026-07-26. This gate decodes through an API the game never calls.**
+> It drives `com.jcraft.jorbis.VorbisFile`; the shipped `sound/void` uses the low-level
+> `SyncState`/`StreamState`/`DspState`/`Block` sequence, and no JAR in the installation references
+> `VorbisFile` at all. On the same bytes the two paths produce different audio — the clipping-stress
+> fixture decodes to complete silence through `VorbisFile` and to full-scale audio through the real
+> path. **The expected-PCM table below is not a description of anything Starsector produces**: it was
+> derived from libvorbis and compared against a third implementation. See
+> [the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md). The
+> pinned archive identities, the loader-identity checks, and the malformed-input cases are unaffected
+> and all still pass.
+
 This gate decodes committed deterministic Ogg/Vorbis fixtures through the exact Jogg and JOrbis JARs shipped with the reviewed Starsector installation. It produces an evidence report only. Prepared-audio writes, cache reads, and live sound-loader transformations remain disabled.
 
 ## Pinned decoder identity
