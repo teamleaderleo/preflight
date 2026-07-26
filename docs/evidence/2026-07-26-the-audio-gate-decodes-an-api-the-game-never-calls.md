@@ -104,10 +104,17 @@ Two least-significant bits out of 65,536, distributed symmetrically around zero 
 0: 250, 1: 657, 2: 112` for the mono case). That is ordinary rounding between two implementations of a
 lossy codec whose specification does not require bit-exact decoding.
 
-The remaining structural difference is the one the byte counts showed all along: JOrbis emits a final
-block that libvorbis trims against the last page's granule position — 256 mono frames or 128 stereo
-frames, 512 bytes either way. Through the real path that tail carries audio, not the silence the
-`VorbisFile` path produced.
+The remaining structural difference is the one the byte counts showed all along: 256 mono frames or
+128 stereo frames, 512 bytes either way. Through the real path that tail carries audio, not the
+silence the `VorbisFile` path produced.
+
+> **Corrected 2026-07-26.** This section originally explained that difference as "JOrbis emits a final
+> block that libvorbis trims against the last page's granule position." That is not what happens. The
+> containers declare 2,048 and 4,096 frames, and the installed decoder produces exactly 2,048 and
+> 4,096 — it is the committed reference files that are short, at 1,792 and 3,968. Trimming to the
+> granule position is what JOrbis already does on these fixtures. Why the references are short is
+> open. The tolerance below is unaffected, because it bounds the difference rather than explaining it.
+> See [the audio census](2026-07-26-what-prepared-audio-would-have-to-hold.md).
 
 So the ffmpeg references are sound, the game's decoder is sound, and they disagree only in the ways two
 Vorbis decoders are permitted to.

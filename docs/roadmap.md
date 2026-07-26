@@ -79,6 +79,20 @@ fifth is the wrapper's one-byte sentinel for silent streams, which prepared audi
 exclude ([follow-up](evidence/2026-07-26-the-wrapper-payload-was-never-the-problem.md)).
 See [the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md).
 
+**"Short fully decoded effects" now has numbers behind it.** The
+[audio census](audio-census.md) sizes the reviewed profile without decoding it: 1,803 declared
+effects hold **1.17 GB** of PCM, declared music holds another 2.86 GB, and 197 files are declared
+nowhere. Three facts shape the policy the second bullet still needs
+([evidence](evidence/2026-07-26-what-prepared-audio-would-have-to-hold.md)):
+
+- 17 effects over a minute long hold 313 MB — 27% of the eligible bytes in under 1% of the files —
+  so a duration bound is worth more than any other knob. The 1,511 effects under five seconds total
+  403 MB.
+- 195 effects recorded at 96 kHz or above hold 33% of the eligible bytes, and cost proportionally
+  more MDCT work to decode. Resampling them is a transformation, not a cache, and stays out of scope.
+- Effect versus music is decided by `sounds.json`, never by directory naming, which is wrong in both
+  directions in this profile.
+
 ## Exploratory tracks (not yet evidence-gated)
 
 Separate from the speed-first milestone program above:

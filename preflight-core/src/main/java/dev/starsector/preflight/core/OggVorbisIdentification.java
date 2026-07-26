@@ -216,7 +216,8 @@ public final class OggVorbisIdentification {
         return stored == oggChecksum(page);
     }
 
-    private static int oggChecksum(byte[] page) {
+    /** Package-private so {@link OggVorbisStreamLength} can validate a page it found by scanning. */
+    static int oggChecksum(byte[] page) {
         int checksum = 0;
         for (byte value : page) {
             checksum ^= Byte.toUnsignedInt(value) << 24;
