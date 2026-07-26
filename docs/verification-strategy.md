@@ -325,8 +325,18 @@ what the agent was objecting to. Reverted.
   materially if it does.
 - Whether the PR #119 offline installed-class contract checker pattern extends to the block upload path,
   which would move part of Tier C into Tier A.
-- Whether the shader-map classifier should stay a filename heuristic at all, or become content-based
-  once the contact sheet shows how often it misfires.
+- ~~Whether the shader-map classifier should stay a filename heuristic at all, or become content-based
+  once the contact sheet shows how often it misfires.~~ **Answered 2026-07-26: it stays.** On 24
+  textures sampled from the real 72-mod profile the filename heuristic was correct every time. The
+  convention holds because it is machine-enforced — 4,926 of the 11,000 shader maps are generated into
+  GraphicsLib's `cache/` directory by GraphicsLib itself. Revisit only if a sheet ever shows a misfire.
+  See [2026-07-26-first-real-profile-run.md](evidence/2026-07-26-first-real-profile-run.md).
+- **How `meanDeltaE` and `p99DeltaE` should be reconciled.** They are currently computed on different
+  scales — the histogram behind p99 holds coverage-attenuated ΔE, the mean does not — so textures pass
+  the gate reporting a mean above it. Either the mean becomes attenuated (`weightedSum / visible`,
+  smaller change, matches the documented intent) or the histogram becomes raw (stricter gate, changes
+  cache membership). This blocks gate tuning and it moves the gate, so it is a decision to take
+  deliberately rather than a bug to quietly patch.
 - Whether the synthetic `TextureLoader` stub should be corrected to Slick's `get2Fold`. It is harmless
   today and the change is not free: the stub's value is being an *independent* model, and borrowing
   `GpuTextureFootprint` would make it agree with the agent by construction.

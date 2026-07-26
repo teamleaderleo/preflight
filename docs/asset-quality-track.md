@@ -912,6 +912,37 @@ never made.
 It needs no GPU, no display and no Starsector, so it runs anywhere the suite does — which also makes it
 the first part of the "no visible corruption" check that does not require launching the game.
 
+## The real profile answers the question the fixtures could not (2026-07-26)
+
+The block-cache pipeline ran against the installed game for the first time: 72 mods, 23,738 textures.
+Full result at [2026-07-26-first-real-profile-run.md](evidence/2026-07-26-first-real-profile-run.md).
+
+**The gate admits 4.0% of the profile.** 11,000 textures skip as shader maps, 11,786 fall over the
+fidelity gate, 952 cache. Those 952 compress 315.6 MB into 70.0 MB — a real 4.51× ratio, and a
+**245 MB** saving against a 6.91 GB working set. The median cached texture has ΔE exactly 0.0,
+because half of what clears the gate is flat art that block compression reproduces perfectly. What
+survives is `graphics/fx/`: soft glows, auras, shockwaves. What does not is every ship hull, portrait,
+icon and weapon — small, hard-edged, high-contrast sprite work with alpha fringes, which is the worst
+input for a codec storing two endpoints per 4×4 block.
+
+This corrects a finding recorded from synthetic runs. The note that *synthetic gradients are harder
+for BC1 than real art* is backwards for this profile: the gradients are the part that passes.
+
+**It also reorders the program.** Padding removal saves 1.86 GB losslessly — 7.6× the block cache's
+245 MB, at no fidelity cost — and it is the lever that has not been built. The table below is
+reordered accordingly.
+
+**And it exposed a measurement bug.** `meanDeltaE` and `p99DeltaE` are computed on different scales:
+the histogram behind p99, max and both fractions holds coverage-attenuated ΔE, while the mean divides
+by `Σw` and returns to the raw scale. Textures pass the gate reporting a mean above it. The gate runs
+on p99, so it runs on the attenuated scale. **Gate tuning is blocked until this is resolved**, since
+a threshold cannot be tuned against an incoherent pair of statistics.
+
+One thing came back clean: on 24 real textures the filename classifier was **right every time**. The
+convention holds because GraphicsLib enforces it — 4,926 of the shader maps are machine-generated
+into its `cache/` directory. Content-based classification would solve a problem this profile does not
+have.
+
 ## Where this leaves the footprint program
 
 Ordered by ratio of effect to risk, with everything now measured rather than assumed:
@@ -920,10 +951,16 @@ Ordered by ratio of effect to risk, with everything now measured rather than ass
 |---|---|---|---|---|
 | today | 6.91 GiB | baseline | — | — |
 | `assets shrink` cap to 1024 | 4.56 GiB | unchanged | resolution loss, visible | shipped |
+| stop padding in-engine | **−1.86 GiB** | unchanged | **none, lossless** | needs two coordinated bytecode edits — **now the top lever** |
 | snap-to-POT in `assets shrink` | recovers part of 1.86 GiB | unchanged | resolution loss on near-boundary textures only | next |
-| stop padding in-engine | −1.86 GiB | unchanged | **none, lossless** | needs two coordinated bytecode edits |
 | one-constant BC3 at the upload site | ÷4 | slightly worse (decode *then* compress) | driver-encoder quality, global | probed, unbuilt |
-| offline BC + `glCompressedTexImage2D` | ÷4 to ÷8 | **better — no decode stage** | selectable per texture; ΔE 0.80 on the art that holds the memory | encoder driver-verified; blob format and baker landed; no manifest, no runtime consumer |
+| offline BC + `glCompressedTexImage2D` | **−245 MB measured** (÷4.51 over 4.0% of the profile) | **better — no decode stage** | gated; the admitted 4% is mostly already lossless | encoder driver-verified; blob format and baker landed; no manifest, no runtime consumer |
+
+The last row is the one the real profile changed. Its ceiling was quoted as "÷4 to ÷8" on the
+assumption the cache would cover most of the profile; measured, it covers 4.0% of it, and the whole
+lever is worth 3.6% of the working set. It is still worth finishing — the bytes are driver-verified
+and the load-time win is real — but it is no longer the headline.
 
 Still unmeasured: whether any of this survives contact with the runtime, and how
-`BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder as a quality ceiling.
+`BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder as a quality ceiling. Blocked rather
+than unmeasured: gate tuning, until `meanDeltaE` and `p99DeltaE` agree on a scale.
