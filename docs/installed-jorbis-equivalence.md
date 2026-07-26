@@ -41,7 +41,7 @@ fixtures and this check catches for all four that carry audio.
 | Bound | Value | Why |
 | --- | ---: | --- |
 | `maxReferenceSampleDelta` | 2 | Vorbis does not require bit-exact decoding. Measured disagreement with libvorbis is at most two steps, symmetric about zero. |
-| `maxUntrimmedTailFrames` | 8,192 | libvorbis trims the final block against the last granule position; JOrbis does not. Measured excess is 256 mono / 128 stereo frames. The bound is the Vorbis maximum block size. |
+| `maxUntrimmedTailFrames` | 8,192 | The committed references are shorter than their containers declare — 1,792 and 3,968 against granule positions of 2,048 and 4,096 — so the decode legitimately exceeds them by 256 mono / 128 stereo frames. The bound is the Vorbis maximum block size, which is also the most JOrbis can overshoot a granule position by, since it never trims its final block. |
 
 ## Pinned decoder identity
 

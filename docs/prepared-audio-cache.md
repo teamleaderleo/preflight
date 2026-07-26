@@ -81,3 +81,26 @@ Every result except `HIT` means the future adapter executes the untouched origin
 The [installed JOrbis equivalence gate](installed-jorbis-equivalence.md) now verifies exact shipped decoder archives, application-classloader identity, PCM and metadata identity, malformed-input behavior, and stream ownership in a packaged child JVM. It remains an evidence command: it writes no `SPAU` files and installs no live sound-loader hook.
 
 A real run against the reviewed installation must pass before a target-specific prepared-audio wrapper is considered. Packaged cold/warm/corrupt adapter proofs and real OFF-versus-ENABLED launches remain later gates before any startup improvement claim.
+
+## What this cache would be sized against
+
+The [audio census](audio-census.md) measures the reviewed profile without decoding it: **1,803
+declared effects holding 1.17 GB of PCM**, against 2.86 GB of declared music that stays ineligible and
+197 files declared nowhere at all. Vorbis expands 9.4-fold across the effects, so "cache the decoded
+effects" is a gigabyte-scale commitment unless it is bounded.
+
+Three constraints the cache design has to answer, all recorded in
+[the evidence](evidence/2026-07-26-what-prepared-audio-would-have-to-hold.md):
+
+- **Eligibility comes from `sounds.json`, not from paths.** Effects and music are distinguished only
+  by the top-level `"music"` object; directory naming is wrong in both directions in this profile.
+  Files declared nowhere must never be prepared.
+- **A duration bound carries most of the benefit.** 17 effects over a minute hold 27% of the eligible
+  bytes; the 1,511 under five seconds total 403 MB.
+- **Undecodable inputs are ordinary.** The profile ships a declared effect that is FLAC in an Ogg
+  container and a zero-byte `.ogg`. These must classify as `INELIGIBLE`, not `ERROR`, and must not
+  block a launch.
+
+Also still open from the [wrapper observation](evidence/2026-07-26-the-wrapper-payload-was-never-the-problem.md):
+the installed wrapper stores a one-byte `0xff` sentinel for fully silent streams instead of PCM, so
+silent effects need either the same sentinel or exclusion from the cache.

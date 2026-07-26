@@ -94,8 +94,11 @@ public final class PreflightCli {
         if (args.length > 1 && "sound-wrapper-observe".equals(args[1])) {
             return SoundWrapperObservationCommand.execute(args, 2);
         }
+        if (args.length > 1 && "census".equals(args[1])) {
+            return AudioCensusCommand.execute(args, 2);
+        }
         throw new IllegalArgumentException(
-                "Expected: audio <jorbis-equivalence|sound-wrapper-observe> ...");
+                "Expected: audio <census|jorbis-equivalence|sound-wrapper-observe> ...");
     }
 
     private static int requirePathCommand(String[] args, String name, PathCommand command) throws Exception {
@@ -206,6 +209,7 @@ public final class PreflightCli {
                 "  the decision is made from filenames, so this is how you check that what it calls a shader",
                 "  map is one -- a question no fidelity number can answer. No GPU, display or game needed"));
         usage.put("audio", List.of(
+                "preflight audio census [--game <Starsector directory>] [--output <report.json>] [--csv <sounds.csv>]",
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
                 "preflight audio sound-wrapper-observe --game <Starsector directory> --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--java <game-java>] [--output <report.json>]"));
         usage.put("classpath", List.of(
