@@ -197,6 +197,13 @@ sound/J.o00000(InputStream) -> sound/F
 
 The next gate is installed-decoder equivalence. Decode deterministic fixtures through the exact installed identities and compare:
 
+**Through the call sequence `sound/void` actually uses.** Its disassembly shows only the low-level
+`SyncState`/`StreamState`/`Page`/`Packet` and `Info`/`DspState`/`Block`/`Comment` API; no JAR in the
+installation references `com.jcraft.jorbis.VorbisFile`, which is what the existing harness decodes
+through. The two paths do not agree on the same bytes, so the choice of API decides the answer before
+any comparison happens. Details in
+[the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md).
+
 - PCM bytes;
 - byte order and encoding;
 - channel count and sample rate;

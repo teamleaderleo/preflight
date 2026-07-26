@@ -4,6 +4,13 @@ This fixture set establishes a bounded, reproducible gate for future
 prepared-audio decoder work. It does not claim equivalence with Starsector's
 shipped decoder and it does not wire a live decoder adapter.
 
+That disclaimer turned out to matter. The installed-JOrbis equivalence gate treated these libvorbis
+references as expected output for the shipped decoder, which they were never generated to be; measured
+on 2026-07-26 the game's real decode path differs from them by up to 2 LSB plus one untrimmed final
+block. The fixtures and their `.ogg` containers remain valid and are reused unchanged — only the
+expectations built on top of them were wrong. See
+[the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md).
+
 ## Fixture set
 
 | Fixture | Bytes | SHA-256 | Expected result |
