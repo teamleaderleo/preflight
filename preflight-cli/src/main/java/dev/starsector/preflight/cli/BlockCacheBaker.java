@@ -16,7 +16,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -61,32 +60,6 @@ final class BlockCacheBaker {
      * @param dryRun measure everything and write nothing
      */
     record Options(double maxP99DeltaE, int limit, boolean mips, boolean dryRun) {
-    }
-
-    /**
-     * What a texture is <em>for</em>, which decides whether a perceptual colour metric means anything
-     * about it.
-     *
-     * <p>A normal or material map stores vectors and scalars in RGB channels. It is never looked at;
-     * it is sampled by a shader. Delta-E on one is not a perceptual measurement, so the gate below
-     * would be admitting these on the strength of a number that does not describe them —
-     * reconstructing a unit vector from two interpolated endpoints is exactly the failure BC5 exists
-     * to fix. They are excluded rather than measured and admitted.
-     */
-    private enum Kind {
-        ART,
-        SHADER_MAP;
-
-        static Kind of(String logicalPath) {
-            String path = logicalPath.toLowerCase(Locale.ROOT);
-            boolean shaderMap = path.contains("/shaders/")
-                    || path.contains("_normal")
-                    || path.contains("_material")
-                    || path.contains("_surface")
-                    || path.contains("_glow")
-                    || path.contains("/maps/");
-            return shaderMap ? SHADER_MAP : ART;
-        }
     }
 
     static Map<String, Object> run(
@@ -152,7 +125,7 @@ final class BlockCacheBaker {
             Options options,
             Map<String, Baked> bySourceHash,
             ConcurrentLinkedQueue<Skipped> skipped) {
-        if (Kind.of(winner.logicalPath()) == Kind.SHADER_MAP) {
+        if (TextureKind.of(winner.logicalPath()) == TextureKind.SHADER_MAP) {
             skipped.add(new Skipped(winner.logicalPath(), Reason.SHADER_MAP, 0));
             return Optional.empty();
         }

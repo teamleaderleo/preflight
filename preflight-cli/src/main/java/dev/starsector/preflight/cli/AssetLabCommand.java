@@ -57,6 +57,7 @@ final class AssetLabCommand {
             case "compression-probe" -> compressionProbe(args, offset + 1);
             case "bake-blocks" -> bakeBlocks(args, offset + 1);
             case "cache-conformance" -> cacheConformance(args, offset + 1);
+            case "contact-sheet" -> contactSheet(args, offset + 1);
             default -> throw new IllegalArgumentException("Unknown assets command: " + args[offset]);
         };
     }
@@ -167,6 +168,67 @@ final class AssetLabCommand {
         report.put("cacheDir", cacheDir);
         report.put("consumer", "none yet -- this cache is inert until a runtime adapter reads it, so "
                 + "baking it changes nothing about how the game loads today");
+        System.out.println(Json.object(report));
+        return 0;
+    }
+
+    /**
+     * Draws this profile's art beside what block compression does to it, and beside the decision the
+     * baker made about it.
+     *
+     * <p>The reason to render an image when every texture already has a number is that the numbers
+     * cannot see the classifier. {@link TextureKind} decides what is too precision-sensitive to encode
+     * by matching filenames, and both of its misfires are invisible to Delta-E: a normal map that slips
+     * through scores well because normal maps are smooth, and art wrongly skipped is never measured at
+     * all. Checking that requires looking at the art beside its label.
+     *
+     * <p>It reads the installation and writes one PNG. No cache is baked, nothing in the installation
+     * is touched, and no GPU, display or running game is involved.
+     */
+    private static int contactSheet(String[] args, int offset) throws IOException {
+        Path game = null;
+        Path launcher = null;
+        Path out = null;
+        ContactSheet.Options defaults = ContactSheet.Options.defaults();
+        int samples = defaults.samples();
+        double maxP99DeltaE = defaults.maxP99DeltaE();
+        int panel = defaults.panel();
+        int columns = defaults.columns();
+        for (int i = offset; i < args.length; i++) {
+            switch (args[i]) {
+                case "--game" -> game = Path.of(requireArg(args, ++i, "--game"));
+                case "--launcher" -> launcher = Path.of(requireArg(args, ++i, "--launcher"));
+                case "--out" -> out = Path.of(requireArg(args, ++i, "--out"));
+                case "--samples" -> samples = Integer.parseInt(requireArg(args, ++i, "--samples"));
+                case "--max-delta-e" -> maxP99DeltaE = Double.parseDouble(requireArg(args, ++i, "--max-delta-e"));
+                case "--panel" -> panel = Integer.parseInt(requireArg(args, ++i, "--panel"));
+                case "--columns" -> columns = Integer.parseInt(requireArg(args, ++i, "--columns"));
+                default -> throw new IllegalArgumentException("Unknown assets contact-sheet option: " + args[i]);
+            }
+        }
+        if (out == null) {
+            throw new IllegalArgumentException("assets contact-sheet requires --out");
+        }
+        ContactSheet.Options options = new ContactSheet.Options(samples, maxP99DeltaE, panel, columns);
+
+        DiscoveryResult discovery = StarsectorDiscovery.discover(
+                Platform.current(),
+                Path.of(System.getProperty("user.home")),
+                Path.of(System.getProperty("user.dir")),
+                System.getenv(),
+                game,
+                launcher);
+        LaunchTarget target = discovery.selected();
+        if (target == null) {
+            System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
+            return 3;
+        }
+        ProfileCensus.Result census = ProfileCensus.scan(target.installRoot());
+        String fingerprint = ResourceIndexBuilder.build(target.installRoot()).index().profileFingerprint();
+
+        Map<String, Object> report = new LinkedHashMap<>(
+                ContactSheet.write(census.measuredWinners(), out, fingerprint, options));
+        report.put("installRoot", target.installRoot());
         System.out.println(Json.object(report));
         return 0;
     }

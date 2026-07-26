@@ -174,16 +174,41 @@ Neither appears in anything the baker currently prints. The only way to catch th
 image alongside its classification — and "is this a normal map or is it art?" is a question a
 vision-language model answers well and a metric answers not at all.
 
-This motivates `assets contact-sheet`: decode the baked cache, emit a labeled grid of
-`original | decoded | amplified difference` captioned with logical path, chosen format, ΔE p99 and the
-classifier's verdict. Three payoffs from one artifact:
+This motivated `assets contact-sheet`, which is now built: it renders each sampled texture as
+`source | reconstruction | difference`, captioned with logical path, dimensions, chosen format, ΔE p99
+and mean, and the baker's disposition (`cached`, `over gate`, `shader map`, `unreadable`). Three payoffs
+from one artifact:
 
 1. The Tier-C "no visible corruption" check becomes glancing at one image rather than launching a game.
-2. The PNG is byte-stable, so its SHA-256 pins in CI — RenderProve's convergence trick applied to a
+   A swapped channel or a wrong row order is obvious in the reconstruction column.
+2. The report carries a `panelsSha256` that pins in CI — RenderProve's convergence trick applied to a
    cache instead of a page.
 3. It is the input a VLM can audit for classifier misfires.
 
 It needs no GPU, no display and no game, so it runs on the VPS.
+
+Four decisions inside it are worth recording, because each had a plausible opposite:
+
+- **The difference column reduces by maximum, not average.** Everything else in this project averages
+  when it shrinks an image, because averaging is what preserves an image. This panel is not preserving
+  an image, it is hunting a defect, and a four-pixel artifact on a 2048-square texture survives an
+  average at roughly a 256th of its strength — invisible — and survives a maximum intact.
+- **Nothing is ever enlarged.** Textures smaller than a panel are centred at 1:1. Invented pixels in an
+  artifact whose purpose is spotting artifacts would be the wrong kind of help.
+- **Shader maps are hatched rather than rendered.** Showing what one *would* have looked like encoded
+  costs nothing and would quietly imply the number beside it meant something. The policy says it does
+  not, so the panel says so too.
+- **The digest covers panel data, not the PNG.** Captions are drawn with a platform font, so two
+  machines can produce different file bytes from identical findings. The digest covers exactly what the
+  sheet is evidence about.
+
+The difference panel is drawn from `TextureFidelity.deltaEMap`, added for this purpose, so the picture
+and the gate are the same measurement. A difference image drawn from a second, similar-looking metric
+would disagree with the number printed beside it, and the disagreement would be invisible.
+
+Likewise `TextureKind` was lifted out of `BlockCacheBaker` so both consumers share one classifier. Two
+copies of that rule would let the sheet certify a decision the baker never made — which is the specific
+way this kind of artifact goes wrong.
 
 ## Tooling survey
 
@@ -246,7 +271,8 @@ that the GPU requirement decides it and nothing else is close.
   leave the code where it is.
 - Do not extract a shared ΔE library. Revisit as a forty-line copy into RenderProve when that project
   reaches perceptual comparison.
-- Build `assets contact-sheet` as the next verification artifact.
+- Build `assets contact-sheet` as the next verification artifact. **Done**; see
+  [asset-quality-track.md](asset-quality-track.md) §"The classifier is now visible".
 
 ## Open questions
 

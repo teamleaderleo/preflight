@@ -199,7 +199,12 @@ public final class PreflightCli {
                 "preflight assets cache-conformance --cache-dir <cache-dir> --out <vector.bin> "
                         + "[--samples <n>] [--max-bytes <n>]",
                 "  exports a sample of a baked cache as a conformance vector, so a real driver can check the",
-                "  bytes preflight intends to upload; run it with probe-kits/gpu-capability/block-conformance-probe"));
+                "  bytes preflight intends to upload; run it with probe-kits/gpu-capability/block-conformance-probe",
+                "preflight assets contact-sheet --out <sheet.png> [--game <path>] [--launcher <path>] "
+                        + "[--samples <n>] [--max-delta-e <deltaE>] [--panel <pixels>] [--columns <n>]",
+                "  draws the profile's art beside its reconstruction, its error map and the baker's decision;",
+                "  the decision is made from filenames, so this is how you check that what it calls a shader",
+                "  map is one -- a question no fidelity number can answer. No GPU, display or game needed"));
         usage.put("audio", List.of(
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
                 "preflight audio sound-wrapper-observe --game <Starsector directory> --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--java <game-java>] [--output <report.json>]"));

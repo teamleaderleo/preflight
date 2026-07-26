@@ -110,17 +110,8 @@ public final class TextureFidelity {
                 continue;
             }
             visible++;
-            toLab(left, originalLab);
-            toLab(right, candidateLab);
-            double dl = originalLab[0] - candidateLab[0];
-            double da = originalLab[1] - candidateLab[1];
-            double db = originalLab[2] - candidateLab[2];
-            // Scale by coverage. A colour error under alpha 10 contributes about 4% of itself to
-            // what is composited on screen; counting it at full strength would let the invisible
-            // fringe of every sprite dominate the tail statistics, which is a measurement artefact
-            // and not something anyone can see.
             double weight = leftAlpha / 255.0;
-            double deltaE = Math.sqrt(dl * dl + da * da + db * db) * weight;
+            double deltaE = weightedDeltaE(left, right, originalLab, candidateLab);
             weightedSum += deltaE;
             weightTotal += weight;
             max = Math.max(max, deltaE);
@@ -138,6 +129,52 @@ public final class TextureFidelity {
                 fractionBelow(histogram, visible, JUST_NOTICEABLE),
                 1.0 - fractionBelow(histogram, visible, OBVIOUS),
                 maxAlphaError);
+    }
+
+    /**
+     * The same error {@link #compare} aggregates, kept per pixel.
+     *
+     * <p>This exists so that anything wanting to <em>show</em> where a texture lost fidelity uses the
+     * measurement the gate is stated in, rather than a second opinion that happens to look similar. A
+     * difference image drawn from an unrelated metric would disagree with the number beside it, and the
+     * disagreement would be invisible.
+     *
+     * @return one alpha-weighted Delta-E per pixel; fully transparent pixels are 0, matching their
+     *     exclusion from the aggregates
+     * @throws IllegalArgumentException if the images differ in length
+     */
+    public static double[] deltaEMap(int[] original, int[] candidate) {
+        if (original == null || candidate == null || original.length != candidate.length) {
+            throw new IllegalArgumentException("images must be non-null and the same length");
+        }
+        double[] map = new double[original.length];
+        double[] originalLab = new double[3];
+        double[] candidateLab = new double[3];
+        for (int i = 0; i < original.length; i++) {
+            map[i] = weightedDeltaE(original[i], candidate[i], originalLab, candidateLab);
+        }
+        return map;
+    }
+
+    /**
+     * Scaled by coverage. A colour error under alpha 10 contributes about 4% of itself to what is
+     * composited on screen; counting it at full strength would let the invisible fringe of every sprite
+     * dominate the tail statistics, which is a measurement artefact and not something anyone can see.
+     *
+     * <p>The scratch arrays are arguments so the per-pixel loops above do not allocate two objects per
+     * pixel of a 2048-square texture.
+     */
+    private static double weightedDeltaE(int left, int right, double[] leftLab, double[] rightLab) {
+        int alpha = left >>> 24;
+        if (alpha == 0) {
+            return 0;
+        }
+        toLab(left, leftLab);
+        toLab(right, rightLab);
+        double dl = leftLab[0] - rightLab[0];
+        double da = leftLab[1] - rightLab[1];
+        double db = leftLab[2] - rightLab[2];
+        return Math.sqrt(dl * dl + da * da + db * db) * (alpha / 255.0);
     }
 
     private static double percentile(long[] histogram, long total, double quantile) {
