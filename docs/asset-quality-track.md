@@ -962,10 +962,14 @@ lever is worth 3.6% of the working set. It is still worth finishing — the byte
 and the load-time win is real — but it is no longer the headline.
 
 The padding row's blocker is now mapped rather than guessed. The installed
-`com/fs/graphics/TextureLoader` computes power-of-two dimensions in **four methods** through **two
-implementations** — an extracted `get2Fold` with three call sites, and the same algorithm inlined
-twice inside the raster conversion method — across two decode paths that share no code. Inventory and
-the consequences for any edit:
+`com/fs/graphics/TextureLoader` computes power-of-two dimensions through **two implementations** — an
+extracted `get2Fold`, and the same algorithm inlined twice inside the raster conversion method — and
+the route an ordinary texture takes has been traced statically from the public entry point. **Both
+implementations run on the same texture inside the same call**: the inlined pair sizes the upload
+`ByteBuffer`, the extracted method sizes the `glTexImage2D` allocation. They are two halves of one
+invariant rather than two independent sites, so neither can move alone. A third apparent site, a TWL
+`PNGDecoder` path, turns out to be private with no caller — dead code. Inventory, call route and the
+consequences for any edit:
 [2026-07-26-padding-sites-in-the-installed-loader.md](evidence/2026-07-26-padding-sites-in-the-installed-loader.md).
 
 Still unmeasured: whether any of this survives contact with the runtime, and how
