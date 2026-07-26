@@ -42,7 +42,7 @@ class TexturePreparedPixelAgentIT {
 
         assertSuccess(result);
         assertTrue(result.output().contains(
-                "synthetic-pixels:123456:colors=ff0a141e,ff28323c,ff46505a:decode=0:convert=0:cleanup=1"),
+                "synthetic-pixels:123456789abcdef011223344:colors=ff0a141e,ff28323c,ff46505a:decode=0:convert=0:cleanup=1"),
                 result.output());
         String report = Files.readString(fixture.adapterReport());
         assertTrue(report.contains("\"transformationsApplied\":1"), report);
@@ -170,7 +170,7 @@ class TexturePreparedPixelAgentIT {
         assertTrue(report.contains("\"activeBuffers\":0"), report);
         assertTrue(report.contains("\"activeDirectBytes\":0"), report);
         assertTrue(report.contains("\"releases\":1"), report);
-        assertTrue(report.contains("\"releasedBytes\":3"), report);
+        assertTrue(report.contains("\"releasedBytes\":12"), report);
     }
 
     @Test
@@ -247,8 +247,21 @@ class TexturePreparedPixelAgentIT {
         assertTrue(report.contains("\"transformationsApplied\":0"), report);
     }
 
+    /**
+     * The default texture is power-of-two on both edges, because only a texture needing no padding is
+     * served directly — {@link dev.starsector.preflight.agent.TexturePreparedPixelRuntime} keeps every
+     * NPOT texture on Starsector's original path unless the coherent-direct diagnostic is on.
+     *
+     * <p>It used to be one pixel square, which satisfied that rule only by accident: the agent's local
+     * next-power-of-two returned 1 for a one-pixel edge. PR #179 replaced it with Slick's
+     * {@code get2Fold}, which floors at two, so a one-pixel texture became a 2x2 upload with nine bytes
+     * of padding and the agent began declining it — correctly, and silently, since falling open is what
+     * it is designed to do. The warm-hit tests below went on asserting a bypass that no longer happened.
+     */
     private Fixture fixture(boolean corruptBlob, boolean wrongClassHash) throws Exception {
-        return fixture(corruptBlob, wrongClassHash, 1, 1, 3, new byte[] {0x12, 0x34, 0x56});
+        return fixture(corruptBlob, wrongClassHash, 2, 2, 3, new byte[] {
+                0x12, 0x34, 0x56, 0x78, (byte) 0x9a, (byte) 0xbc,
+                (byte) 0xde, (byte) 0xf0, 0x11, 0x22, 0x33, 0x44});
     }
 
     private Fixture fixture(
