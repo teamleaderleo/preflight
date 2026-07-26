@@ -274,6 +274,51 @@ that the GPU requirement decides it and nothing else is close.
 - Build `assets contact-sheet` as the next verification artifact. **Done**; see
   [asset-quality-track.md](asset-quality-track.md) §"The classifier is now visible".
 
+## The verification gap this document did not have, found the day it was written
+
+Worth recording in full, because it is an instance of exactly what the tier map is about, and because
+the tier map did not catch it.
+
+`main` had been failing CI since PR #179 — **seventeen commits**, including the four that this document
+was written to summarise, all of which were reported at the time as "green on the full suite." They were
+not. The reports were based on `mvn test`, which runs surefire and **not** failsafe, so the entire
+integration-test tier was never executed locally. The correct command is `mvn verify`.
+
+The failure itself is a small, precise thing. `TexturePreparedPixelRuntime` serves a prepared texture
+directly only when it needs no padding — every NPOT texture stays on Starsector's original path unless
+the coherent-direct diagnostic is on. The default integration fixture was one pixel square, which
+satisfied that rule *only by accident*: the agent's own next-power-of-two returned 1 for a one-pixel
+edge. PR #179 replaced that with Slick's `get2Fold`, which floors at two — the arithmetic the installed
+loader actually uses — so the fixture became a 2×2 upload with nine bytes of padding and the agent began
+declining it.
+
+Correctly. And **silently**, because falling open is precisely what it is designed to do. Two tests went
+on asserting a bypass that had stopped happening.
+
+Three things follow, and all three are about this document's subject rather than about one bug:
+
+1. **Fail-open is a verification hazard, not only a safety property.** The project's central design
+   commitment — never break the game, always fall back — means a defect in the fast path degrades into
+   correct-but-slow behaviour. Nothing throws. Nothing logs an error. The only signal is a counter
+   (`hits: 0`, `npotProbeFallbacks: 1`) that no test was reading. Any future consumer of the block cache
+   will have exactly this property, so the block cache needs an assertion on *the cache being used*,
+   not merely on the output being right.
+2. **A test can pass for a reason that is not the reason it was written.** The 1×1 fixture exercised the
+   warm-hit path because of an off-by-one, not because 1×1 is power-of-two-shaped. When the off-by-one
+   was fixed the test told the truth and looked like a regression.
+3. **The synthetic harness models the engine, and models drift.** The stub `com.fs.graphics.TextureLoader`
+   still carries the pre-#179 padding rule in three places. It is harmless today, and it is the concrete
+   version of the caveat in the tier map above: the synthetic is a model of the engine, not the engine.
+
+The diagnosis took a `git bisect run` over the seventeen commits with the single failing IT as the
+predicate, then reading the adapter report the agent already writes — which named the cause outright
+(`"status": "insufficient-original-buffer"`, `sourceBytes: 3`, `uploadBytes: 12`). The instrumentation
+was adequate; nothing was looking at it.
+
+One wrong turn, recorded because it was tempting and plausible: the first attempt fixed the *stub's*
+padding rule instead. That took the failures from two to four, because the stub's arithmetic was never
+what the agent was objecting to. Reverted.
+
 ## Open questions
 
 - Whether FLIP should replace CIE76 in `TextureFidelity`, and whether any published number changes
@@ -282,3 +327,8 @@ that the GPU requirement decides it and nothing else is close.
   which would move part of Tier C into Tier A.
 - Whether the shader-map classifier should stay a filename heuristic at all, or become content-based
   once the contact sheet shows how often it misfires.
+- Whether the synthetic `TextureLoader` stub should be corrected to Slick's `get2Fold`. It is harmless
+  today and the change is not free: the stub's value is being an *independent* model, and borrowing
+  `GpuTextureFootprint` would make it agree with the agent by construction.
+- Whether any runtime consumer of the block cache should assert on cache *use* rather than only on
+  output correctness, given that fail-open makes a broken fast path indistinguishable from a slow one.
