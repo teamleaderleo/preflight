@@ -951,7 +951,7 @@ Ordered by ratio of effect to risk, with everything now measured rather than ass
 |---|---|---|---|---|
 | today | 6.91 GiB | baseline | — | — |
 | `assets shrink` cap to 1024 | 4.56 GiB | unchanged | resolution loss, visible | shipped |
-| stop padding in-engine | **−1.86 GiB** | unchanged | **none, lossless** | **top lever**; one wrapper plus a runtime decline rule, no instruction surgery ([why](evidence/2026-07-26-padding-removal-needs-no-instruction-surgery.md)) |
+| stop padding in-engine | **−1.86 GiB** | unchanged | **none, lossless** | **built, inert** — both halves land in #203/#204; gate defaults off and no target declares the plan ([design](evidence/2026-07-26-padding-removal-needs-no-instruction-surgery.md)) |
 | snap-to-POT in `assets shrink` | recovers part of 1.86 GiB | unchanged | resolution loss on near-boundary textures only | next |
 | one-constant BC3 at the upload site | ÷4 | slightly worse (decode *then* compress) | driver-encoder quality, global | probed, unbuilt |
 | offline BC + `glCompressedTexImage2D` | **−245 MB measured** (÷4.51 over 4.0% of the profile) | **better — no decode stage** | gated; the admitted 4% is mostly already lossless | encoder driver-verified; blob format and baker landed; no manifest, no runtime consumer |
