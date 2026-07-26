@@ -331,12 +331,10 @@ what the agent was objecting to. Reverted.
   convention holds because it is machine-enforced — 4,926 of the 11,000 shader maps are generated into
   GraphicsLib's `cache/` directory by GraphicsLib itself. Revisit only if a sheet ever shows a misfire.
   See [2026-07-26-first-real-profile-run.md](evidence/2026-07-26-first-real-profile-run.md).
-- **How `meanDeltaE` and `p99DeltaE` should be reconciled.** They are currently computed on different
-  scales — the histogram behind p99 holds coverage-attenuated ΔE, the mean does not — so textures pass
-  the gate reporting a mean above it. Either the mean becomes attenuated (`weightedSum / visible`,
-  smaller change, matches the documented intent) or the histogram becomes raw (stricter gate, changes
-  cache membership). This blocks gate tuning and it moves the gate, so it is a decision to take
-  deliberately rather than a bug to quietly patch.
+- ~~How `meanDeltaE` and `p99DeltaE` should be reconciled.~~ **Answered 2026-07-26: the mean was
+  fixed.** It is now `weightedSum / visible`, putting it on the same coverage-scaled footing as p99,
+  max and both fractions. A no-op for fully opaque images, and cache membership is unchanged in every
+  figure, because the gate reads p99. Gate tuning is unblocked.
 - Whether the synthetic `TextureLoader` stub should be corrected to Slick's `get2Fold`. It is harmless
   today and the change is not free: the stub's value is being an *independent* model, and borrowing
   `GpuTextureFootprint` would make it agree with the agent by construction.

@@ -63,6 +63,50 @@ class TextureFidelityTest {
     }
 
     @Test
+    void keepsTheMeanOnTheSameScaleAsTheTail() {
+        // Every pixel identical, so the distribution is a single point and mean, p99 and max must all
+        // land on it. The mean used to divide by the total alpha weight rather than the pixel count,
+        // which cancelled the coverage scaling and left it alone on the raw scale -- roughly ten times
+        // the tail here. On a real profile that produced textures reporting a 99th percentile below
+        // their own mean, which is impossible, and let them pass a gate their mean exceeded.
+        int[] original = new int[400];
+        int[] candidate = new int[400];
+        java.util.Arrays.fill(original, (26 << 24) | 0x000000);
+        java.util.Arrays.fill(candidate, (26 << 24) | 0x8080FF);
+
+        TextureFidelity.Report report = TextureFidelity.compare(original, candidate);
+
+        assertEquals(400, report.visiblePixels());
+        assertEquals(report.maxDeltaE(), report.meanDeltaE(), 0.001,
+                "a uniform error must give the same mean and max; a mismatch means one of them is "
+                        + "not coverage-scaled");
+        assertTrue(report.meanDeltaE() <= report.p99DeltaE() + BIN_WIDTH,
+                "the mean cannot exceed the 99th percentile of the same distribution, was mean "
+                        + report.meanDeltaE() + " against p99 " + report.p99DeltaE());
+    }
+
+    @Test
+    void scalesTheMeanByCoverageSoInvisibleErrorStaysInvisible() {
+        // The same colour error, once at full opacity and once at 10%. The faint copy barely reaches
+        // the screen, so it must measure far lower -- this is the property that makes the gate a claim
+        // about the composited result rather than about stored bytes.
+        int[] original = new int[64];
+        int[] candidate = new int[64];
+        java.util.Arrays.fill(original, 0xFF000000);
+        java.util.Arrays.fill(candidate, 0xFF8080FF);
+        double opaque = TextureFidelity.compare(original, candidate).meanDeltaE();
+
+        java.util.Arrays.fill(original, (26 << 24));
+        java.util.Arrays.fill(candidate, (26 << 24) | 0x8080FF);
+        double faint = TextureFidelity.compare(original, candidate).meanDeltaE();
+
+        assertEquals(opaque * (26 / 255.0), faint, 0.001,
+                "coverage scaling must be exactly linear in alpha");
+    }
+
+    private static final double BIN_WIDTH = 0.05;
+
+    @Test
     void rejectsMismatchedImages() {
         assertThrows(IllegalArgumentException.class,
                 () -> TextureFidelity.compare(new int[4], new int[5]));

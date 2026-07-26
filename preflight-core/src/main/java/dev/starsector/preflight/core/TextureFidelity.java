@@ -26,6 +26,19 @@ import java.util.Map;
  * pixel contributes none — so the measurement tracks what reaches the screen rather than what is
  * stored. And the report leads with <b>tail</b> statistics, because a texture is judged by its worst
  * visible block, not by its average one.
+ *
+ * <p><b>Every statistic here is on the coverage-scaled scale</b>, and they are comparable to each
+ * other because of it. This was not always true: the mean used to divide the coverage-scaled sum by
+ * the total weight rather than the visible-pixel count, which cancelled the scaling and returned the
+ * mean alone to the raw scale. The two were then reported side by side in the same units. It showed
+ * up on a real profile as textures passing a p99 gate of 1.0 while reporting a mean of 1.97 — a 99th
+ * percentile below the mean, which a non-negative distribution cannot produce. Recorded in
+ * {@code docs/evidence/2026-07-26-first-real-profile-run.md}.
+ *
+ * <p>The consequence worth knowing: a mostly-transparent texture measures low here even when its
+ * colours are badly wrong, because those colours barely reach the screen. That is the intent, not an
+ * oversight. What it means in practice is that these numbers describe a texture <em>as composited</em>,
+ * and cannot be read as a statement about the stored pixels.
  */
 public final class TextureFidelity {
     /** Below this Delta-E, a difference is held to be imperceptible. */
@@ -44,7 +57,8 @@ public final class TextureFidelity {
      * Per-texture fidelity.
      *
      * @param visiblePixels pixels with any opacity; fully transparent pixels are excluded throughout
-     * @param meanDeltaE alpha-weighted mean perceptual error
+     * @param meanDeltaE mean coverage-scaled perceptual error over the visible pixels; on the same
+     *     scale as {@link #p99DeltaE} and {@link #maxDeltaE}, so the three can be compared
      * @param p99DeltaE the error the worst 1% of visible pixels exceed
      * @param maxDeltaE the single worst visible pixel
      * @param imperceptibleFraction share of visible pixels under {@link #JUST_NOTICEABLE}
@@ -95,7 +109,6 @@ public final class TextureFidelity {
         long[] histogram = new long[HISTOGRAM_BINS + 1];
         long visible = 0;
         double weightedSum = 0;
-        double weightTotal = 0;
         double max = 0;
         int maxAlphaError = 0;
 
@@ -110,10 +123,8 @@ public final class TextureFidelity {
                 continue;
             }
             visible++;
-            double weight = leftAlpha / 255.0;
             double deltaE = weightedDeltaE(left, right, originalLab, candidateLab);
             weightedSum += deltaE;
-            weightTotal += weight;
             max = Math.max(max, deltaE);
             histogram[Math.min(HISTOGRAM_BINS, (int) (deltaE / BIN_WIDTH))]++;
         }
@@ -123,7 +134,7 @@ public final class TextureFidelity {
         }
         return new Report(
                 visible,
-                weightTotal == 0 ? 0 : weightedSum / weightTotal,
+                weightedSum / visible,
                 percentile(histogram, visible, 0.99),
                 max,
                 fractionBelow(histogram, visible, JUST_NOTICEABLE),

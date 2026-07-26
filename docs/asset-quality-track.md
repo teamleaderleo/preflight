@@ -932,11 +932,11 @@ for BC1 than real art* is backwards for this profile: the gradients are the part
 245 MB, at no fidelity cost — and it is the lever that has not been built. The table below is
 reordered accordingly.
 
-**And it exposed a measurement bug.** `meanDeltaE` and `p99DeltaE` are computed on different scales:
-the histogram behind p99, max and both fractions holds coverage-attenuated ΔE, while the mean divides
-by `Σw` and returns to the raw scale. Textures pass the gate reporting a mean above it. The gate runs
-on p99, so it runs on the attenuated scale. **Gate tuning is blocked until this is resolved**, since
-a threshold cannot be tuned against an incoherent pair of statistics.
+**And it exposed a measurement bug, since fixed.** `meanDeltaE` and `p99DeltaE` were computed on
+different scales: the histogram behind p99, max and both fractions holds coverage-attenuated ΔE,
+while the mean divided by `Σw` and returned to the raw scale. Textures passed the gate reporting a
+mean above it. The mean is now `weightedSum / visible` — a no-op for opaque art, and cache membership
+is byte-identical afterwards because the gate reads p99. Gate tuning is unblocked.
 
 One thing came back clean: on 24 real textures the filename classifier was **right every time**. The
 convention holds because GraphicsLib enforces it — 4,926 of the shader maps are machine-generated
@@ -961,6 +961,12 @@ assumption the cache would cover most of the profile; measured, it covers 4.0% o
 lever is worth 3.6% of the working set. It is still worth finishing — the bytes are driver-verified
 and the load-time win is real — but it is no longer the headline.
 
+The padding row's blocker is now mapped rather than guessed. The installed
+`com/fs/graphics/TextureLoader` computes power-of-two dimensions in **four methods** through **two
+implementations** — an extracted `get2Fold` with three call sites, and the same algorithm inlined
+twice inside the raster conversion method — across two decode paths that share no code. Inventory and
+the consequences for any edit:
+[2026-07-26-padding-sites-in-the-installed-loader.md](evidence/2026-07-26-padding-sites-in-the-installed-loader.md).
+
 Still unmeasured: whether any of this survives contact with the runtime, and how
-`BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder as a quality ceiling. Blocked rather
-than unmeasured: gate tuning, until `meanDeltaE` and `p99DeltaE` agree on a scale.
+`BlockCompressor` compares against `bc7enc_rdo`'s BC1 encoder as a quality ceiling.
