@@ -92,11 +92,13 @@ final class AudioCensus {
     }
 
     static Result scan(Path installRoot) throws IOException {
-        long started = System.nanoTime();
         ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(installRoot);
-        ResourceIndex index = built.index();
-        List<String> diagnostics = new ArrayList<>(built.diagnostics());
+        return scan(installRoot, built.index(), new ArrayList<>(built.diagnostics()));
+    }
 
+    /** Shares an already-built index, so a caller measuring several asset kinds walks the profile once. */
+    static Result scan(Path installRoot, ResourceIndex index, List<String> diagnostics) {
+        long started = System.nanoTime();
         Declarations declarations = readDeclarations(index, diagnostics);
         List<Sound> sounds = new ArrayList<>();
         for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {

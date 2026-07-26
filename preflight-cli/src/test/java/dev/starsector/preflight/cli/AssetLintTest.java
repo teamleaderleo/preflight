@@ -1,0 +1,253 @@
+package dev.starsector.preflight.cli;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.zip.CRC32;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class AssetLintTest {
+    @TempDir
+    Path temporaryDirectory;
+
+    @Test
+    void reportsAnUndecodableDeclaredEffectAsAnError() throws Exception {
+        Path core = profile();
+        Files.write(core.resolve("sounds/broken.ogg"), new byte[0]);
+        declare("""
+                {"a":[{"file":"sounds/broken.ogg","volume":1}]}
+                """);
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "audio-undecodable");
+
+        assertEquals(AssetLint.Severity.ERROR, finding.severity());
+        assertEquals(AssetLint.Cost.NONE, finding.cost());
+        assertEquals(0, finding.bytes());
+    }
+
+    /** An undeclared broken file is a leftover, not a bug the author has shipped into the game. */
+    @Test
+    void anUndecodableFileNothingDeclaresIsOnlyInformational() throws Exception {
+        Path core = profile();
+        Files.write(core.resolve("sounds/broken.ogg"), new byte[0]);
+        declare("{}");
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "audio-undecodable");
+
+        assertEquals(AssetLint.Severity.INFO, finding.severity());
+    }
+
+    @Test
+    void reportsOversampledAudioWithTheCostOfTheSampleRate() throws Exception {
+        Path core = profile();
+        put(core, "sounds/quiet.ogg", "mono-22050.ogg");
+        declare("""
+                {"a":[{"file":"sounds/quiet.ogg","volume":1}]}
+                """);
+
+        // 22,050 Hz is ordinary and must not be flagged.
+        assertTrue(AssetLint.scan(temporaryDirectory, null).findings().stream()
+                .noneMatch(finding -> finding.rule().equals("audio-oversampled")));
+    }
+
+    @Test
+    void reportsNonPowerOfTwoTexturePaddingAsVideoMemory() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/wide.png"), png(1_200, 1_200));
+        declare("{}");
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "texture-npot-padding");
+
+        assertEquals(AssetLint.Cost.VRAM, finding.cost());
+        // 2048*2048 - 1200*1200 pixels at four bytes each.
+        assertEquals((2_048L * 2_048L - 1_200L * 1_200L) * 4, finding.bytes());
+        assertTrue(finding.detail().contains("1200x1200 uploaded as 2048x2048"), finding.detail());
+    }
+
+    /** A power-of-two texture pays nothing, and reporting one would be a false positive. */
+    @Test
+    void leavesPowerOfTwoTexturesAlone() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/exact.png"), png(1_024, 512));
+        declare("{}");
+
+        assertTrue(AssetLint.scan(temporaryDirectory, null).findings().isEmpty());
+    }
+
+    /**
+     * Disk, decoded memory, and video memory are different resources. Adding them would produce a
+     * headline number that overstates every finding it contains, so the report keeps them apart.
+     */
+    @Test
+    void neverCombinesDifferentCostKindsIntoOneTotal() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/wide.png"), png(1_200, 1_200));
+        put(core, "sounds/orphan.ogg", "stereo-44100.ogg");
+        declare("{}");
+
+        AssetLint.Result result = AssetLint.scan(temporaryDirectory, null);
+        Map<AssetLint.Cost, Long> costs = AssetLint.byCost(result.findings());
+
+        assertEquals(2, result.findings().size());
+        assertTrue(costs.containsKey(AssetLint.Cost.VRAM));
+        assertTrue(costs.containsKey(AssetLint.Cost.DISK));
+        assertEquals(6_843L, costs.get(AssetLint.Cost.DISK));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> reported = (Map<String, Object>) result.report().get("bytesByCost");
+        assertEquals(2, reported.size(), "each cost kind is reported separately");
+        assertFalse(result.report().containsKey("avoidableBytes"),
+                "no single combined byte figure may exist");
+
+        String rendered = AssetLintCommand.render(result, null);
+        assertTrue(rendered.contains("on disk"), rendered);
+        assertTrue(rendered.contains("in video memory"), rendered);
+    }
+
+    @Test
+    void filtersToASingleMod() throws Exception {
+        Path core = profile();
+        Path alpha = temporaryDirectory.resolve("mods/Alpha");
+        Files.createDirectories(alpha.resolve("graphics"));
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/core.png"), png(1_200, 1_200));
+        Files.write(alpha.resolve("graphics/alpha.png"), png(1_200, 1_200));
+        Files.writeString(alpha.resolve("mod_info.json"), "{\"id\":\"alpha\"}");
+        Files.writeString(temporaryDirectory.resolve("mods/enabled_mods.json"),
+                "{\"enabledMods\":[\"alpha\"]}");
+        declare("{}");
+
+        AssetLint.Result all = AssetLint.scan(temporaryDirectory, null);
+        AssetLint.Result filtered = AssetLint.scan(temporaryDirectory, "alpha");
+
+        assertEquals(2, all.findings().size());
+        assertEquals(1, filtered.findings().size());
+        assertEquals("alpha", filtered.findings().get(0).provider());
+    }
+
+    /** Every rule must explain itself; a finding with no reason is one an author cannot act on. */
+    @Test
+    void everyEmittedRuleCarriesAnExplanation() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/wide.png"), png(1_200, 1_200));
+        Files.write(core.resolve("sounds/broken.ogg"), new byte[0]);
+        put(core, "sounds/orphan.ogg", "stereo-44100.ogg");
+        declare("{\"a\":[{\"file\":\"sounds/broken.ogg\",\"volume\":1}]}");
+
+        AssetLint.Result result = AssetLint.scan(temporaryDirectory, null);
+
+        assertFalse(result.findings().isEmpty());
+        for (AssetLint.Finding finding : result.findings()) {
+            assertFalse(AssetLint.explain(finding.rule()).isBlank(),
+                    "rule without an explanation: " + finding.rule());
+        }
+    }
+
+    @Test
+    void aCleanProfileSaysSoRatherThanPrintingAnEmptyReport() throws Exception {
+        profile();
+        declare("{}");
+
+        AssetLint.Result result = AssetLint.scan(temporaryDirectory, null);
+
+        assertTrue(result.findings().isEmpty());
+        assertEquals("No findings.\n", AssetLintCommand.render(result, null));
+        assertEquals("No findings for alpha.\n", AssetLintCommand.render(result, "alpha"));
+    }
+
+    private AssetLint.Finding only(AssetLint.Result result, String rule) {
+        List<AssetLint.Finding> matching = result.findings().stream()
+                .filter(finding -> finding.rule().equals(rule))
+                .toList();
+        assertEquals(1, matching.size(), "expected one " + rule + ", got " + result.findings());
+        return matching.get(0);
+    }
+
+    private Path profile() throws IOException {
+        Path core = temporaryDirectory.resolve("starsector-core");
+        Files.createDirectories(core.resolve("data/config"));
+        Files.createDirectories(core.resolve("sounds"));
+        Files.createDirectories(temporaryDirectory.resolve("mods"));
+        Files.writeString(temporaryDirectory.resolve("mods/enabled_mods.json"), "{\"enabledMods\":[]}");
+        return core;
+    }
+
+    private void declare(String soundsJson) throws IOException {
+        Files.writeString(
+                temporaryDirectory.resolve("starsector-core/data/config/sounds.json"), soundsJson);
+    }
+
+    private void put(Path root, String logicalPath, String fixtureName) throws IOException {
+        Path file = root.resolve(logicalPath);
+        Files.createDirectories(file.getParent());
+        Files.write(file, fixture(fixtureName));
+    }
+
+    /** A PNG with a valid header and no image data; the reader needs only IHDR. */
+    private static byte[] png(int width, int height) {
+        byte[] signature = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
+        byte[] ihdr = new byte[25];
+        write32(ihdr, 0, 13);
+        ihdr[4] = 'I';
+        ihdr[5] = 'H';
+        ihdr[6] = 'D';
+        ihdr[7] = 'R';
+        write32(ihdr, 8, width);
+        write32(ihdr, 12, height);
+        ihdr[16] = 8;
+        ihdr[17] = 6;
+        CRC32 crc = new CRC32();
+        crc.update(ihdr, 4, 17);
+        write32(ihdr, 21, (int) crc.getValue());
+        byte[] out = new byte[signature.length + ihdr.length];
+        System.arraycopy(signature, 0, out, 0, signature.length);
+        System.arraycopy(ihdr, 0, out, signature.length, ihdr.length);
+        return out;
+    }
+
+    private static void write32(byte[] target, int offset, int value) {
+        target[offset] = (byte) (value >>> 24);
+        target[offset + 1] = (byte) (value >>> 16);
+        target[offset + 2] = (byte) (value >>> 8);
+        target[offset + 3] = (byte) value;
+    }
+
+    private static byte[] fixture(String name) throws IOException {
+        String base = "/audio/ogg-v1/" + name + ".b64";
+        InputStream single = AssetLintTest.class.getResourceAsStream(base);
+        if (single != null) {
+            try (single) {
+                return Base64.getMimeDecoder().decode(single.readAllBytes());
+            }
+        }
+        ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+        for (int i = 0; i < 100; i++) {
+            InputStream part = AssetLintTest.class.getResourceAsStream(
+                    base + ".part" + String.format("%02d", i));
+            if (part == null) {
+                break;
+            }
+            try (part) {
+                encoded.writeBytes(part.readAllBytes());
+            }
+        }
+        if (encoded.size() == 0) {
+            throw new IOException("Missing fixture resource: " + base);
+        }
+        return Base64.getMimeDecoder().decode(encoded.toByteArray());
+    }
+}

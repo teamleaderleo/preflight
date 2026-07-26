@@ -65,6 +65,7 @@ public final class PreflightCli {
             case "font" -> FontCommand.execute(args, 1);
             case "assets" -> AssetLabCommand.execute(args, 1);
             case "audio" -> audioCommand(args);
+            case "lint" -> AssetLintCommand.execute(args, 1);
             case "classpath" -> ClasspathCommand.execute(args, 1);
             case "benchmark" -> BenchmarkCommand.execute(args, 1);
             case "analyze" -> AnalysisCommand.execute(args, 1);
@@ -208,6 +209,8 @@ public final class PreflightCli {
                 "  draws the profile's art beside its reconstruction, its error map and the baker's decision;",
                 "  the decision is made from filenames, so this is how you check that what it calls a shader",
                 "  map is one -- a question no fidelity number can answer. No GPU, display or game needed"));
+        usage.put("lint", List.of(
+                "preflight lint [--game <Starsector directory>] [--mod <mod id>] [--json] [--output <report.json>]"));
         usage.put("audio", List.of(
                 "preflight audio census [--game <Starsector directory>] [--output <report.json>] [--csv <sounds.csv>]",
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
