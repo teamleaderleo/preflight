@@ -319,6 +319,21 @@ A domain moves from experiment to enabled only when all of the following pass:
 9. Add bounded preparation scheduling.
 10. Run the stable-profile A/B campaign and publish results.
 
+## The launch cost that precedes all of this
+
+The launcher sets `-Xms6144m -Xmx6144m -XX:+AlwaysPreTouch`, so the JVM writes every heap page before
+`main()` runs. Measured on the reviewed installation that is **~950 ms**, scaling at roughly
+**150 ms per GB** of heap — spent before any resource preparation starts, and not something preflight
+can cache away. It belongs in any baseline this project publishes, because a repeat-launch
+improvement measured without accounting for it is measuring a smaller denominator than the operator
+experiences.
+
+The same pass established that the heap setting has **nothing to do** with the 6.91 GB texture
+working set, which is driver-side memory outside the heap; and that Java 17 is held in place by the
+launcher's architecture-specific and vendor-specific flags rather than by anything about the version.
+Full method and numbers:
+[2026-07-26-jvm-configuration-of-the-installed-game.md](evidence/2026-07-26-jvm-configuration-of-the-installed-game.md).
+
 ## Performance target
 
 Initial engineering gate:
