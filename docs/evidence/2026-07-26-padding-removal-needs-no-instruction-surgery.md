@@ -111,6 +111,25 @@ already has `addDimensionSetter` for exactly this; the requirement is that it st
 on the diagnostic property. That is now a stated precondition rather than something to discover in a
 launched game.
 
+## Built (2026-07-26)
+
+Both halves landed the same day this was written, and both are inert.
+
+- **#203** — `TexturePaddingPlan` renames the extracted fold and wraps it. The shape gate establishes
+  purity rather than identity, for the reason argued there: a method that folded differently would
+  still be safe to bypass, one that mutated state would not.
+- **#204** — `prepare()` serves NPOT textures at true size and reports source dimensions, and the
+  plan's dimension replay widened to cover the unpadded path. The stale-ratio failure predicted below
+  is now a test that fails under mutation with `expected: <3> but was: <4>`.
+
+Three independent things keep it from affecting a launch: the gate defaults off, no target declares
+the plan, and neither half does anything useful without the other.
+
+**What is still unproven** is everything this document could not settle by reading: that a real
+driver accepts the unpadded upload, that nothing in the rendering path depended on padded allocations
+in a way static analysis missed, and that the capability holds on hardware other than one M5. Those
+need a launch and a second GPU, in that order.
+
 ## What this changes about the plan
 
 | was | is |
