@@ -43,6 +43,8 @@ public final class TexturePaddingRuntime {
 
     private static final AtomicLong BYPASSED = new AtomicLong();
     private static final AtomicLong FOLDED = new AtomicLong();
+    private static final AtomicLong TEXTURES = new AtomicLong();
+    private static final AtomicLong BYTES_AVOIDED = new AtomicLong();
 
     private TexturePaddingRuntime() {
     }
@@ -52,18 +54,36 @@ public final class TexturePaddingRuntime {
     }
 
     /**
+     * The gate itself, without recording anything. Used by callers that ask more than once about the
+     * same texture, so that {@link #unpadded()}'s counters keep meaning "dimension folds".
+     */
+    public static boolean enabled() {
+        return Boolean.getBoolean(UNPADDED_PROPERTY);
+    }
+
+    /**
      * Called from the installed loader on every dimension fold, so it stays a property read rather
      * than anything that could allocate or block.
      *
      * @return true when the caller should use the dimension it was given
      */
     public static boolean unpadded() {
-        if (Boolean.getBoolean(UNPADDED_PROPERTY)) {
+        if (enabled()) {
             BYPASSED.incrementAndGet();
             return true;
         }
         FOLDED.incrementAndGet();
         return false;
+    }
+
+    /**
+     * Records one texture served at its true size. The byte count is the padding that would have
+     * been allocated and never sampled, so summed across a profile it is the whole point of the
+     * lever stated in the units the roadmap uses.
+     */
+    static void served(long paddingBytesAvoided) {
+        TEXTURES.incrementAndGet();
+        BYTES_AVOIDED.addAndGet(paddingBytesAvoided);
     }
 
     static Map<String, Object> report() {
@@ -73,11 +93,15 @@ public final class TexturePaddingRuntime {
         values.put("unpaddedEnabled", Boolean.getBoolean(UNPADDED_PROPERTY));
         values.put("dimensionsBypassed", BYPASSED.get());
         values.put("dimensionsFolded", FOLDED.get());
+        values.put("texturesServedUnpadded", TEXTURES.get());
+        values.put("paddingBytesAvoided", BYTES_AVOIDED.get());
         return values;
     }
 
     static void reset() {
         BYPASSED.set(0);
         FOLDED.set(0);
+        TEXTURES.set(0);
+        BYTES_AVOIDED.set(0);
     }
 }
