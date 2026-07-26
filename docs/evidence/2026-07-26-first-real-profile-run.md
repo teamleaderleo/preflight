@@ -96,6 +96,30 @@ Option 1 is the smaller change and matches the documented intent ("the measureme
 reaches the screen"). It is not obviously correct, and it is not mine to take unilaterally, because
 it moves the gate.
 
+### Resolved: option 1, same day
+
+`meanDeltaE` is now `weightedSum / visible`. Two properties made this safe to verify rather than
+argue about:
+
+- **For fully opaque images it is a no-op.** At alpha 255 the weight is 1, so `Σ(ΔE·w)/Σw` and
+  `Σ(ΔE·w)/N` are the same number. Only partial-alpha content moves at all.
+- **Cache membership is unchanged.** Re-running the full dry run gives 952 cached, 11,000 shader
+  maps, 11,786 over gate and 70,012,680 block bytes — identical in every figure, because the gate
+  reads p99 and p99 did not change.
+
+The near-gate table afterwards:
+
+| texture | mean before | mean after | p99 |
+|---|---|---|---|
+| `blinker_amber_01.png` | 1.9698 | 0.9888 | 0.95 |
+| `bt_vortex_swirl.png` | 1.5695 | 0.2366 | 1.00 |
+| `tahlan_shellshield.png` | 1.7925 | 0.2005 | 1.00 |
+
+Two rows still report a mean fractionally above p99, both by **0.0388**. That is smaller than one
+histogram bin (`BIN_WIDTH = 0.05`) and it is not the old defect: `percentile()` returns the *lower
+edge* of the bin it lands in, so p99 is systematically under-reported by up to 0.05. The regression
+test allows exactly one bin of slack for this reason.
+
 ## The classifier survives contact with real art
 
 The synthetic fixture's headline failure was a planted false positive: a ship hull named
