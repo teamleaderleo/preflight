@@ -73,9 +73,10 @@ Exit condition: prepared audio is byte-for-byte and metadata-equivalent, bounded
 **Equivalence is owed to the installed decoder, not to a reference decoder.** The first version of the
 gate decoded through `com.jcraft.jorbis.VorbisFile`, which no shipped Starsector code path calls, and
 compared against libvorbis output. Rebuilt in #207 and #208 onto the low-level sequence `sound/void`
-drives, it **passes against the reviewed installation** (2026-07-26). The first bullet is met for the
-PCM half; the wrapper-contract half is not, because `SoundWrapperObservationChild` still decodes with
-`VorbisFile` and carries the same defect.
+drives, it **passes against the reviewed installation** (2026-07-26). The wrapper observation carried the same defect and was
+corrected the same day: four of five wrapper payloads match the installed decode byte for byte, and the
+fifth is the wrapper's one-byte sentinel for silent streams, which prepared audio must reproduce or
+exclude ([follow-up](evidence/2026-07-26-the-wrapper-payload-was-never-the-problem.md)).
 See [the evidence](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md).
 
 ## Exploratory tracks (not yet evidence-gated)

@@ -117,10 +117,12 @@ the fixtures pin is their *encoded* identity; what the gate checks is behaviour.
 `equivalent: true`, all four checked class identities exact and loaded by the application loader, all
 five malformed-input cases stable.
 
-## Known remaining site
+## The wrapper observation was corrected too
 
-`SoundWrapperObservationChild` still decodes with `VorbisFile` and compares that against `sound/J`'s
-output. It has the same defect this gate was rebuilt to remove and has not yet been corrected.
+`SoundWrapperObservationChild` had the same defect and now decodes through the same path. Re-run
+against the installation, four of five wrapper payloads match the decode byte for byte; the fifth is
+the wrapper's one-byte sentinel for fully silent streams. See
+[the follow-up](evidence/2026-07-26-the-wrapper-payload-was-never-the-problem.md).
 
 ## Malformed and unsupported inputs
 
