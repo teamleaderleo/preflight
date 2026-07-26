@@ -33,16 +33,23 @@ and its `MINIMUM_UPLOAD_DIMENSION = 2` are confirmed correct against the shipped
 
 It has **three** call sites, not one:
 
-| method | calls |
-|---|---|
-| `public Object o00000(BufferedImage, int, int, int, int)` | 2 |
-| `public Object o00000(Object, String, int, int, int, int, boolean)` | 4 |
-| `private ByteBuffer Ò00000(String)` | 2 |
+| method | calls | live? |
+|---|---|---|
+| `public Object o00000(Object, String, int, int, int, int, boolean)` | 4 | **yes — the main path** |
+| `public Object o00000(BufferedImage, int, int, int, int)` | 2 | public entry, reachable |
+| `private ByteBuffer Ò00000(String)` | 2 | **no — dead code** |
 
-`Ò00000(String)` is a separate loading path entirely — it constructs a
+`Ò00000(String)` is a separate loading path entirely: it constructs a
 `de.matthiasmann.twl.utils.PNGDecoder` over a `BufferedInputStream` and decodes straight to a
-`ByteBuffer`, bypassing `BufferedImage`. Any padding change has to cover it, and it is not the path
-the synthetic stub models.
+`ByteBuffer`, bypassing `BufferedImage`. It looked like a third thing any padding change would have
+to cover.
+
+**It is unreachable.** The method is `private`, and no instruction in the class references
+`Ò00000:(Ljava/lang/String;)Ljava/nio/ByteBuffer;` — the only `Ò00000` call sites in the class carry
+the descriptors `([FF)F`, `()I` and `(String,BufferedImage)Object`, which are different methods that
+share an obfuscated name. A private method with no in-class caller cannot be invoked. Two of the
+eight `get2Fold` calls are therefore in dead code, and the PNGDecoder path is not a concern for this
+work at all.
 
 ## Implementation two: inlined, twice, in the conversion method
 
@@ -67,31 +74,49 @@ Incidentally this confirms the synthetic stub models the right *shape* — it al
 width through the same two setters — while differing in the arithmetic, which is the drift already
 recorded as an open question.
 
+## The route an ordinary texture takes
+
+Traced statically from the public load-by-path entry point, so no launched game was needed:
+
+```
+public Object o00000(String)                     load by logical path
+  ├─ HashMap lookup, return on hit
+  ├─ if void.Õ00000() -> construct a deferred Object(3553, -1, path) and return
+  └─ o00000(null, path, 3553, 6408, 9729, 9729, false)
+         GL_TEXTURE_2D, GL_RGBA, GL_LINEAR, GL_LINEAR
+         │
+         ├─ Ô00000(String) -> BufferedImage                    the ImageIO decode
+         ├─ o00000(BufferedImage, Object)  ← INLINED get2Fold ×2, sizes the upload ByteBuffer
+         ├─ o00000(int) ×2  ← EXTRACTED get2Fold, sizes glTexSubImage2D
+         └─ o00000(int) ×2  ← EXTRACTED get2Fold, sizes glTexImage2D
+```
+
+**Both implementations run on the same texture, inside the same call.** The inlined pair decides how
+big the pixel buffer is; the extracted method decides how big the GL allocation is. They agree today
+only because they implement identical arithmetic.
+
+That is the coordination requirement, and it is sharper than "two edits": they are not two
+independent sites that happen to both pad, they are two halves of one invariant. Change either alone
+and the buffer and the allocation disagree about the same texture in the same frame.
+
 ## What this means for the edit
 
-The blocker was described as "two coordinated bytecode edits". The call graph is wider than that:
-padding is computed in **four methods** through **two implementations**, across **two decode paths**
-(`BufferedImage` and `PNGDecoder`) that share no code.
-
-Consequences for any attempt:
-
-- **Neutering `o00000(int)` alone is not enough** and would be actively dangerous. It would stop the
-  three call sites padding while the inlined pair in the conversion method kept sizing the upload
-  buffer to padded dimensions. The two would disagree about the same texture, which is exactly the
-  `insufficient-original-buffer` failure the prepared-pixel work already hit once
-  ([evidence](2026-07-22-prepared-pixel-npot-padding.md)).
-- **The inlined edit is the load-bearing one**, and it is the harder one: replacing each loop with a
-  direct `getWidth()`/`getHeight()` shrinks the code, so the branch offsets around it move.
-- **`Ò00000(String)` must be checked separately**, because the PNGDecoder path is not modelled by the
-  synthetic stub at all. Whether it is reached for ordinary mod art is not yet established.
+- **Neutering `o00000(int)` alone is not enough** and would be actively dangerous — the GL allocation
+  would shrink to the true dimensions while the inlined pair kept handing it a padded buffer. That is
+  exactly the `insufficient-original-buffer` failure the prepared-pixel work already hit once
+  ([evidence](2026-07-22-prepared-pixel-npot-padding.md)), reached from the opposite direction.
+- **The inlined edit is the load-bearing one and the harder one.** Replacing each loop with a direct
+  `getWidth()`/`getHeight()` shrinks the code, so every branch offset after it moves.
+- **The PNGDecoder path can be ignored**, which is one fewer thing than this document originally
+  claimed. See above.
+- **The synthetic stub models the right route.** It also calls a power-of-two function and feeds the
+  two setters in the same order, so the drift recorded against it is arithmetic only, not structural.
 
 None of this is attempted here. The purpose of this pass was to replace "two implementations
-somewhere in the real jar" with an exact inventory, and that is now done.
+somewhere in the real jar" with an exact inventory and a traced call route, and that is now done.
 
 ## Still unestablished
 
-- Which of the four methods actually carries the profile's 23,738 textures. The 1.86 GB figure comes
-  from `GpuTextureFootprint`, which models the *rule*, not from observing which code path applied it.
 - Whether the hardware needs any of it. The GPU capability probe already found
   `GL_ARB_texture_non_power_of_two` present on the M5
   ([evidence](2026-07-25-macos-gl-capability-probe.md)); `get2Fold` is inherited Slick2D behaviour
