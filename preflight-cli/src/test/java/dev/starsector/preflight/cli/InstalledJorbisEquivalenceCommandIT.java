@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,12 +35,25 @@ class InstalledJorbisEquivalenceCommandIT {
 
         String json = Files.readString(report);
         assertEquals(0, exit, json);
-        assertTrue(json.contains("\"format\":\"starsector-preflight-installed-jorbis-equivalence-v1\""), json);
+        assertTrue(json.contains("\"format\":\"starsector-preflight-installed-jorbis-equivalence-v2\""), json);
         assertTrue(json.contains("\"fixtureProfile\":\"ci\""), json);
         assertTrue(json.contains("\"identityExact\":true"), json);
         assertTrue(json.contains("\"validPcmEquivalent\":true"), json);
         assertTrue(json.contains("\"invalidBehaviorStable\":true"), json);
         assertTrue(json.contains("\"equivalent\":true"), json);
+        // The decode path is named in the report because it decides the answer. The superseded gate
+        // drove com.jcraft.jorbis.VorbisFile, which no shipped JAR references.
+        assertTrue(json.contains("\"decoderApi\":\"jogg-jorbis-low-level-synthesis\""), json);
+        assertFalse(json.contains("VorbisFile"), json);
+        assertTrue(json.contains("\"className\":\"com.jcraft.jogg.SyncState\""), json);
+        assertTrue(json.contains("\"className\":\"com.jcraft.jorbis.DspState\""), json);
+        assertTrue(json.contains("\"className\":\"com.jcraft.jorbis.Block\""), json);
+        // What the gate now asserts per case, rather than a hash baked from a reference decoder.
+        assertTrue(json.contains("\"deterministic\":true"), json);
+        assertTrue(json.contains("\"preparedRoundTripExact\":true"), json);
+        assertTrue(json.contains("\"audiblyCorrect\":true"), json);
+        assertTrue(json.contains("\"referenceWithinTolerance\":true"), json);
+        assertTrue(json.contains("\"sawEndOfStream\":true"), json);
         assertTrue(json.contains("\"validCaseCount\":3"), json);
         assertTrue(json.contains("\"invalidCaseCount\":5"), json);
         assertTrue(json.contains("\"caseCount\":8"), json);

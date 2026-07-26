@@ -3,14 +3,12 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.Json;
 import dev.starsector.preflight.core.PreparedAudio;
+import dev.starsector.preflight.core.PreparedAudioIO;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -26,48 +24,38 @@ import java.util.Map;
 
 /** Runs fixture decoding inside a child JVM whose application classpath contains the installed decoder jars. */
 public final class InstalledJorbisEquivalenceChild {
-    private static final int MAX_PCM_BYTES = PreparedAudio.MAX_PCM_BYTES;
-    private static final int READ_BUFFER_BYTES = 4_096;
     private static final int MAX_FAILURE_DETAIL_CHARS = 1_024;
     private static final String LOADER_CLASS = "jdk.internal.loader.ClassLoaders$AppClassLoader";
     private static final String LOADER_NAME = "app";
 
+    /**
+     * Largest per-sample difference tolerated against the libvorbis reference.
+     *
+     * <p>Vorbis does not require bit-exact decoding, so two conformant decoders disagree in the low
+     * bits of the inverse transform. Measured against the reviewed installation the disagreement is at
+     * most two steps of a 16-bit sample, symmetrically distributed around zero. This is deliberately
+     * not zero and deliberately not loose: it is tight enough that a decoder producing silence, or
+     * producing audio through a different API, fails immediately.
+     */
+    private static final int MAX_REFERENCE_SAMPLE_DELTA = 2;
+
+    /**
+     * Largest untrimmed tail tolerated beyond the reference, in frames.
+     *
+     * <p>libvorbis trims the final block against the last page's granule position and JOrbis does not,
+     * so the installed decoder returns slightly more audio than the reference — 256 mono or 128 stereo
+     * frames on these fixtures. The bound is the Vorbis maximum block size, which is the most a single
+     * untrimmed block can contribute.
+     */
+    private static final int MAX_UNTRIMMED_TAIL_FRAMES = 8_192;
+
     private static final List<Fixture> FULL_FIXTURES = List.of(
-            new Fixture(
-                    "mono-22050",
-                    "mono-22050.ogg",
-                    "bbe3d4cb25eb77c157a77091202dd0f4458aa18e50a4b59be018f22be8dc62e5",
-                    3_584,
-                    1,
-                    22_050),
-            new Fixture(
-                    "stereo-44100",
-                    "stereo-44100.ogg",
-                    "ada77fe8b369053d7dd1b1ec9430bfec15886ece0be5768dcc4c8e2b17f9fbf8",
-                    15_872,
-                    2,
-                    44_100),
-            new Fixture(
-                    "silence-mono-8000",
-                    "silence-mono-8000.ogg",
-                    "6cf1b57d59e7111bc218dfb01dda93ac0f776715599a1c69f89035bd20c16a10",
-                    3_584,
-                    1,
-                    8_000),
-            new Fixture(
-                    "clipping-stereo-48000",
-                    "clipping-stereo-48000.ogg",
-                    "f5eba24d0166fadf4ac02cc423810afb596564615984b063c11e7740f4258e3d",
-                    15_872,
-                    2,
-                    48_000),
-            new Fixture(
-                    "packet-boundary-mono-44100",
-                    "packet-boundary-mono-44100.ogg",
-                    "d4f78542dcdbe1774072343805516076f38fe6ba9edb8f1c36a60dfbbdb26d43",
-                    16_640,
-                    1,
-                    44_100));
+            new Fixture("mono-22050", "mono-22050.ogg", "mono-22050-reference.s16le", 1, 22_050, true),
+            new Fixture("stereo-44100", "stereo-44100.ogg", "stereo-44100-reference.s16le", 2, 44_100, true),
+            new Fixture("silence-mono-8000", "silence-mono-8000.ogg",
+                    "silence-mono-8000-reference.s16le", 1, 8_000, false),
+            new Fixture("clipping-stereo-48000", "clipping-stereo-48000.ogg", null, 2, 48_000, true),
+            new Fixture("packet-boundary-mono-44100", "packet-boundary-mono-44100.ogg", null, 1, 44_100, true));
 
     private InstalledJorbisEquivalenceChild() {
     }
@@ -86,29 +74,37 @@ public final class InstalledJorbisEquivalenceChild {
     }
 
     static Map<String, Object> run(Options options) throws Exception {
-        Class<?> joggClass = Class.forName("com.jcraft.jogg.SyncState");
-        Class<?> vorbisFileClass = Class.forName("com.jcraft.jorbis.VorbisFile");
+        // The classes checked here are the ones sound/void actually drives. An earlier version of this
+        // gate pinned com.jcraft.jorbis.VorbisFile, which no JAR in the installation references, and so
+        // it proved the identity of a class the game never loads.
+        Class<?> syncStateClass = Class.forName("com.jcraft.jogg.SyncState");
         Class<?> infoClass = Class.forName("com.jcraft.jorbis.Info");
-        Identity jogg = identity(joggClass, options.expectedJoggSha256());
-        Identity jorbis = identity(vorbisFileClass, options.expectedJorbisSha256());
+        Class<?> dspStateClass = Class.forName("com.jcraft.jorbis.DspState");
+        Class<?> blockClass = Class.forName("com.jcraft.jorbis.Block");
+        Identity jogg = identity(syncStateClass, options.expectedJoggSha256());
         Identity info = identity(infoClass, options.expectedJorbisSha256());
-        boolean identityExact = jogg.exact() && jorbis.exact() && info.exact()
-                && appLoader(jogg) && appLoader(jorbis) && appLoader(info);
+        Identity dspState = identity(dspStateClass, options.expectedJorbisSha256());
+        Identity block = identity(blockClass, options.expectedJorbisSha256());
+        List<Identity> identities = List.of(jogg, info, dspState, block);
+        boolean identityExact = identities.stream().allMatch(it -> it.exact() && appLoader(it));
 
+        // The decode path is part of what this identity names. It has to change when the path changes,
+        // or a cache written by one decoder could be read back as though the other had produced it.
         String decoderPolicyIdentity = Hashes.sha256((
-                "installed-jorbis-equivalence-v1\n"
+                "installed-jorbis-equivalence-v2\n"
                         + options.expectedJoggSha256() + "\n"
                         + options.expectedJorbisSha256() + "\n"
                         + LOADER_CLASS + "\n"
                         + LOADER_NAME + "\n"
                         + "pcm-signed-16-little-endian\n"
+                        + "jogg-jorbis-low-level-synthesis\n"
                         + "sound/J.o00000(Ljava/io/InputStream;)Lsound/F;\n"
                         + "fully-decoded-effect-only").getBytes(StandardCharsets.UTF_8));
 
         List<Fixture> fixtures = "ci".equals(options.fixtureProfile())
                 ? FULL_FIXTURES.subList(0, 3)
                 : FULL_FIXTURES;
-        Decoder decoder = new Decoder(vorbisFileClass, infoClass);
+        LowLevelVorbisDecoder decoder = new LowLevelVorbisDecoder();
         List<Map<String, Object>> cases = new ArrayList<>();
         boolean validEquivalent = true;
         for (Fixture fixture : fixtures) {
@@ -135,17 +131,21 @@ public final class InstalledJorbisEquivalenceChild {
 
         boolean equivalent = identityExact && validEquivalent && invalidStable;
         Map<String, Object> root = new LinkedHashMap<>();
-        root.put("format", "starsector-preflight-installed-jorbis-equivalence-v1");
+        root.put("format", "starsector-preflight-installed-jorbis-equivalence-v2");
         root.put("generatedAt", Instant.now());
         root.put("fixtureProfile", options.fixtureProfile());
         root.put("equivalent", equivalent);
         root.put("identityExact", identityExact);
         root.put("validPcmEquivalent", validEquivalent);
         root.put("invalidBehaviorStable", invalidStable);
+        root.put("decoderApi", "jogg-jorbis-low-level-synthesis");
         root.put("jogg", jogg.toMap());
-        root.put("jorbis", jorbis.toMap());
         root.put("info", info.toMap());
+        root.put("dspState", dspState.toMap());
+        root.put("block", block.toMap());
         root.put("decoderPolicyIdentitySha256", decoderPolicyIdentity);
+        root.put("maxReferenceSampleDelta", MAX_REFERENCE_SAMPLE_DELTA);
+        root.put("maxUntrimmedTailFrames", MAX_UNTRIMMED_TAIL_FRAMES);
         root.put("pcmEncoding", "PCM_SIGNED");
         root.put("bitsPerSample", 16);
         root.put("byteOrder", "LITTLE_ENDIAN");
@@ -178,7 +178,21 @@ public final class InstalledJorbisEquivalenceChild {
         return LOADER_CLASS.equals(identity.loaderClass()) && LOADER_NAME.equals(identity.loaderName());
     }
 
-    private static ValidResult decodeValid(Decoder decoder, Fixture fixture, String decoderPolicyIdentity) {
+    /**
+     * Checks one fixture two ways.
+     *
+     * <p>Exactly, against the installed decoder itself: the same bytes must decode to the same PCM
+     * twice, and a {@link PreparedAudio} built from that decode must survive a serialisation round trip
+     * unchanged. Those are the properties a cache actually depends on, and they are reachable exactly
+     * because the same implementation is on both sides.
+     *
+     * <p>Within tolerance, against the committed libvorbis reference. This is the part that catches a
+     * decoder wired to the wrong thing. Self-consistency cannot: decoding silence twice is perfectly
+     * deterministic and round trips perfectly, which is why the superseded gate could report a decode
+     * that was entirely silent and flag only a hash mismatch.
+     */
+    private static ValidResult decodeValid(
+            LowLevelVorbisDecoder decoder, Fixture fixture, String decoderPolicyIdentity) {
         byte[] source;
         try {
             source = fixture(fixture.sourceResource());
@@ -187,7 +201,7 @@ public final class InstalledJorbisEquivalenceChild {
         }
         TrackingInputStream input = new TrackingInputStream(source);
         try {
-            Decoded decoded = decoder.decode(input);
+            LowLevelVorbisDecoder.Decoded decoded = decoder.decode(input);
             boolean closedDuringDecode = input.closeCount() != 0;
             input.close();
             boolean ownershipExact = !closedDuringDecode && input.closeCount() == 1;
@@ -204,19 +218,37 @@ public final class InstalledJorbisEquivalenceChild {
                     decoded.channels(),
                     frames,
                     decoded.pcm());
-            long expectedFrames = fixture.expectedPcmBytes() / Math.multiplyExact(fixture.channels(), 2);
-            String actualPcmSha256 = prepared.pcmSha256();
-            boolean exact = decoded.channels() == fixture.channels()
+
+            LowLevelVorbisDecoder.Decoded repeat = decoder.decode(new TrackingInputStream(source));
+            boolean deterministic = Arrays.equals(decoded.pcm(), repeat.pcm())
+                    && decoded.channels() == repeat.channels()
+                    && decoded.sampleRate() == repeat.sampleRate();
+
+            PreparedAudio restored = PreparedAudioIO.fromBytes(PreparedAudioIO.toBytes(prepared));
+            boolean roundTripExact = restored.equals(prepared);
+
+            Reference reference = compareToReference(fixture, decoded);
+            boolean metadataExact = decoded.channels() == fixture.channels()
                     && decoded.sampleRate() == fixture.sampleRate()
-                    && decoded.pcm().length == fixture.expectedPcmBytes()
-                    && fixture.expectedPcmSha256().equals(actualPcmSha256)
-                    && prepared.frameCount() == expectedFrames
-                    && prepared.sampleCount() == expectedFrames * fixture.channels()
+                    && prepared.frameCount() == frames
+                    && prepared.sampleCount() == frames * decoded.channels();
+            // Two fixtures have no libvorbis reference, so the tolerance check cannot speak for them.
+            // Silence is the one failure that survives every self-consistency check — it is perfectly
+            // deterministic and round trips perfectly — so it is worth asserting on its own, for every
+            // fixture, whether or not a reference exists to catch it.
+            boolean audiblyCorrect = !fixture.containsAudio() || !allZero(decoded.pcm());
+            boolean exact = metadataExact
+                    && deterministic
+                    && roundTripExact
+                    && audiblyCorrect
+                    && reference.withinTolerance()
                     && ownershipExact
+                    && decoded.sawEndOfStream()
                     && input.bytesRead() == source.length;
             return ValidResult.success(
-                    fixture, source, decoded, prepared, actualPcmSha256,
-                    closedDuringDecode, input, ownershipExact, exact);
+                    fixture, source, decoded, prepared, prepared.pcmSha256(), deterministic,
+                    roundTripExact, audiblyCorrect, reference, closedDuringDecode, input,
+                    ownershipExact, exact);
         } catch (Throwable failure) {
             boolean closedDuringDecode = input.closeCount() != 0;
             try {
@@ -229,10 +261,54 @@ public final class InstalledJorbisEquivalenceChild {
         }
     }
 
-    private static Observation observe(Decoder decoder, byte[] source) {
+    /**
+     * Compares a decode against the committed libvorbis reference, where one exists.
+     *
+     * <p>The reference is expected to be a shorter prefix of the same audio: the installed decoder
+     * leaves the final block untrimmed. A decode shorter than the reference is always a failure, since
+     * nothing legitimate removes audio.
+     */
+    private static Reference compareToReference(Fixture fixture, LowLevelVorbisDecoder.Decoded decoded)
+            throws IOException {
+        if (fixture.referenceResource() == null) {
+            return Reference.absent();
+        }
+        byte[] reference = fixture(fixture.referenceResource());
+        byte[] actual = decoded.pcm();
+        if (actual.length < reference.length) {
+            return Reference.shorterThanReference(reference.length, actual.length);
+        }
+        int shared = reference.length / 2;
+        int maxDelta = 0;
+        for (int index = 0; index < shared; index++) {
+            int left = sample(actual, index);
+            int right = sample(reference, index);
+            maxDelta = Math.max(maxDelta, Math.abs(left - right));
+        }
+        int excessFrames = (actual.length - reference.length)
+                / Math.multiplyExact(decoded.channels(), 2);
+        boolean within = maxDelta <= MAX_REFERENCE_SAMPLE_DELTA
+                && excessFrames <= MAX_UNTRIMMED_TAIL_FRAMES;
+        return new Reference(true, reference.length, maxDelta, excessFrames, within);
+    }
+
+    private static boolean allZero(byte[] pcm) {
+        for (byte value : pcm) {
+            if (value != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int sample(byte[] pcm, int index) {
+        return (short) ((pcm[index * 2] & 0xff) | (pcm[index * 2 + 1] << 8));
+    }
+
+    private static Observation observe(LowLevelVorbisDecoder decoder, byte[] source) {
         TrackingInputStream input = new TrackingInputStream(source);
         try {
-            Decoded decoded = decoder.decode(input);
+            LowLevelVorbisDecoder.Decoded decoded = decoder.decode(input);
             boolean closedDuringDecode = input.closeCount() != 0;
             input.close();
             return Observation.decoded(decoded, input, closedDuringDecode);
@@ -345,56 +421,6 @@ public final class InstalledJorbisEquivalenceChild {
         }
     }
 
-    private static final class Decoder {
-        private final Constructor<?> constructor;
-        private final Method read;
-        private final Method getInfo;
-        private final Field channels;
-        private final Field rate;
-
-        private Decoder(Class<?> vorbisFile, Class<?> info) throws Exception {
-            constructor = vorbisFile.getConstructor(InputStream.class, byte[].class, int.class);
-            read = vorbisFile.getDeclaredMethod(
-                    "read", byte[].class, int.class, int.class, int.class, int.class, int[].class);
-            read.setAccessible(true);
-            getInfo = vorbisFile.getMethod("getInfo", int.class);
-            channels = info.getField("channels");
-            rate = info.getField("rate");
-        }
-
-        private Decoded decode(InputStream input) throws Exception {
-            Object decoder = constructor.newInstance(input, null, 0);
-            Object info = getInfo.invoke(decoder, 0);
-            if (info == null) info = getInfo.invoke(decoder, -1);
-            if (info == null) throw new IOException("JOrbis returned no stream info");
-            int channelCount = channels.getInt(info);
-            int sampleRate = rate.getInt(info);
-            if (channelCount < 1 || channelCount > PreparedAudio.MAX_CHANNELS
-                    || sampleRate < 1 || sampleRate > PreparedAudio.MAX_SAMPLE_RATE_HZ) {
-                throw new IOException("JOrbis metadata is outside supported bounds");
-            }
-
-            ByteArrayOutputStream pcm = new ByteArrayOutputStream();
-            byte[] buffer = new byte[READ_BUFFER_BYTES];
-            int[] bitstream = new int[1];
-            int readCalls = 0;
-            while (true) {
-                int count = (Integer) read.invoke(decoder, buffer, buffer.length, 0, 2, 1, bitstream);
-                readCalls++;
-                if (count == 0) break;
-                if (count < 0) throw new IOException("JOrbis read returned " + count);
-                if (count > buffer.length || pcm.size() > MAX_PCM_BYTES - count) {
-                    throw new IOException("Decoded PCM exceeds the safety limit");
-                }
-                pcm.write(buffer, 0, count);
-            }
-            byte[] bytes = pcm.toByteArray();
-            int frameBytes = Math.multiplyExact(channelCount, 2);
-            if (bytes.length % frameBytes != 0) throw new IOException("Decoded PCM is not frame aligned");
-            return new Decoded(bytes, channelCount, sampleRate, readCalls, bitstream[0]);
-        }
-    }
-
     private static final class TrackingInputStream extends ByteArrayInputStream {
         private long bytesRead;
         private long readCalls;
@@ -433,29 +459,59 @@ public final class InstalledJorbisEquivalenceChild {
         private int closeCount() { return closeCount; }
     }
 
+    /**
+     * A fixture and, where one has been generated, the libvorbis PCM to sanity-check the decode against.
+     *
+     * <p>{@code referenceResource} is null for fixtures that never had a reference produced. Those are
+     * still checked exactly against the installed decoder; they simply cannot contribute the external
+     * check, and the report says so per case rather than implying a comparison happened.
+     */
     private record Fixture(
             String id,
             String sourceResource,
-            String expectedPcmSha256,
-            int expectedPcmBytes,
+            String referenceResource,
             int channels,
-            int sampleRate) {
+            int sampleRate,
+            boolean containsAudio) {
         private Fixture {
-            Hashes.decodeSha256(expectedPcmSha256);
-            if (expectedPcmBytes < 0 || expectedPcmBytes % Math.multiplyExact(channels, 2) != 0) {
-                throw new IllegalArgumentException("Fixture PCM size is invalid: " + id);
+            if (channels < 1 || sampleRate < 1) {
+                throw new IllegalArgumentException("Fixture format is invalid: " + id);
             }
+        }
+    }
+
+    /** Outcome of comparing a decode against the committed libvorbis reference. */
+    private record Reference(
+            boolean compared,
+            int referencePcmBytes,
+            int maxSampleDelta,
+            int excessFrames,
+            boolean withinTolerance) {
+
+        private static Reference absent() {
+            // Nothing to compare against, so nothing to fail on.
+            return new Reference(false, 0, 0, 0, true);
+        }
+
+        private static Reference shorterThanReference(int referenceBytes, int actualBytes) {
+            return new Reference(true, referenceBytes, Integer.MAX_VALUE,
+                    actualBytes - referenceBytes, false);
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("referenceCompared", compared);
+            values.put("referencePcmBytes", referencePcmBytes);
+            values.put("referenceMaxSampleDelta", maxSampleDelta);
+            values.put("referenceExcessFrames", excessFrames);
+            values.put("referenceWithinTolerance", withinTolerance);
+            return values;
         }
     }
 
     private record InvalidFixture(String id, byte[] source) {
         private InvalidFixture { source = source.clone(); }
         @Override public byte[] source() { return source.clone(); }
-    }
-
-    private record Decoded(byte[] pcm, int channels, int sampleRate, int readCalls, int bitstream) {
-        private Decoded { pcm = pcm.clone(); }
-        @Override public byte[] pcm() { return pcm.clone(); }
     }
 
     private record Identity(
@@ -485,9 +541,7 @@ public final class InstalledJorbisEquivalenceChild {
             boolean decoded,
             String sourceSha256,
             int sourceBytes,
-            String expectedPcmSha256,
             String actualPcmSha256,
-            int expectedPcmBytes,
             int actualPcmBytes,
             int expectedChannels,
             int actualChannels,
@@ -495,8 +549,12 @@ public final class InstalledJorbisEquivalenceChild {
             int actualSampleRate,
             long frameCount,
             long sampleCount,
-            int decoderReadCalls,
-            int bitstream,
+            int audioPackets,
+            boolean sawEndOfStream,
+            boolean deterministic,
+            boolean preparedRoundTripExact,
+            boolean audiblyCorrect,
+            Reference reference,
             long sourceBytesRead,
             long sourceReadCalls,
             boolean streamClosedDuringDecode,
@@ -508,19 +566,23 @@ public final class InstalledJorbisEquivalenceChild {
         private static ValidResult success(
                 Fixture fixture,
                 byte[] source,
-                Decoded decoded,
+                LowLevelVorbisDecoder.Decoded decoded,
                 PreparedAudio prepared,
                 String actualPcmSha256,
+                boolean deterministic,
+                boolean roundTripExact,
+                boolean audiblyCorrect,
+                Reference reference,
                 boolean closedDuring,
                 TrackingInputStream input,
                 boolean ownership,
                 boolean exact) {
             return new ValidResult(
                     fixture.id(), exact, true, Hashes.sha256(source), source.length,
-                    fixture.expectedPcmSha256(), actualPcmSha256,
-                    fixture.expectedPcmBytes(), decoded.pcm().length,
+                    actualPcmSha256, decoded.pcm().length,
                     fixture.channels(), decoded.channels(), fixture.sampleRate(), decoded.sampleRate(),
-                    prepared.frameCount(), prepared.sampleCount(), decoded.readCalls(), decoded.bitstream(),
+                    prepared.frameCount(), prepared.sampleCount(), decoded.packets(),
+                    decoded.sawEndOfStream(), deterministic, roundTripExact, audiblyCorrect, reference,
                     input.bytesRead(), input.readCalls(), closedDuring, input.closeCount(), ownership, "", "");
         }
 
@@ -534,9 +596,9 @@ public final class InstalledJorbisEquivalenceChild {
                 long readCalls) {
             return new ValidResult(
                     fixture.id(), false, false, source.length == 0 ? "" : Hashes.sha256(source), source.length,
-                    fixture.expectedPcmSha256(), "", fixture.expectedPcmBytes(), 0,
-                    fixture.channels(), 0, fixture.sampleRate(), 0, 0, 0, 0, 0,
-                    bytesRead, readCalls, closedDuring, closeCount, !closedDuring && closeCount == 1,
+                    "", 0, fixture.channels(), 0, fixture.sampleRate(), 0, 0, 0, 0, false, false, false,
+                    false, Reference.absent(), bytesRead, readCalls, closedDuring, closeCount,
+                    !closedDuring && closeCount == 1,
                     failure.getClass().getName(), bounded(failure.getMessage()));
         }
 
@@ -549,9 +611,7 @@ public final class InstalledJorbisEquivalenceChild {
             values.put("preparedAudioEligible", equivalent);
             values.put("sourceSha256", sourceSha256);
             values.put("sourceBytes", sourceBytes);
-            values.put("expectedPcmSha256", expectedPcmSha256);
             values.put("actualPcmSha256", actualPcmSha256);
-            values.put("expectedPcmBytes", expectedPcmBytes);
             values.put("actualPcmBytes", actualPcmBytes);
             values.put("expectedChannels", expectedChannels);
             values.put("actualChannels", actualChannels);
@@ -559,8 +619,12 @@ public final class InstalledJorbisEquivalenceChild {
             values.put("actualSampleRate", actualSampleRate);
             values.put("frameCount", frameCount);
             values.put("sampleCount", sampleCount);
-            values.put("decoderReadCalls", decoderReadCalls);
-            values.put("bitstream", bitstream);
+            values.put("audioPackets", audioPackets);
+            values.put("sawEndOfStream", sawEndOfStream);
+            values.put("deterministic", deterministic);
+            values.put("preparedRoundTripExact", preparedRoundTripExact);
+            values.put("audiblyCorrect", audiblyCorrect);
+            values.putAll(reference.toMap());
             values.put("sourceBytesRead", sourceBytesRead);
             values.put("sourceReadCalls", sourceReadCalls);
             values.put("streamClosedDuringDecode", streamClosedDuringDecode);
@@ -578,7 +642,7 @@ public final class InstalledJorbisEquivalenceChild {
             int pcmBytes,
             int channels,
             int sampleRate,
-            int decoderReadCalls,
+            int audioPackets,
             long sourceBytesRead,
             long sourceReadCalls,
             long sourceEofReads,
@@ -587,10 +651,11 @@ public final class InstalledJorbisEquivalenceChild {
             String failureClass,
             String failureDetail) {
 
-        private static Observation decoded(Decoded decoded, TrackingInputStream input, boolean closedDuring) {
+        private static Observation decoded(
+                LowLevelVorbisDecoder.Decoded decoded, TrackingInputStream input, boolean closedDuring) {
             return new Observation(
                     true, Hashes.sha256(decoded.pcm()), decoded.pcm().length,
-                    decoded.channels(), decoded.sampleRate(), decoded.readCalls(), input.bytesRead(),
+                    decoded.channels(), decoded.sampleRate(), decoded.packets(), input.bytesRead(),
                     input.readCalls(), input.eofReads(), closedDuring, input.closeCount(), "", "");
         }
 
@@ -615,7 +680,7 @@ public final class InstalledJorbisEquivalenceChild {
             values.put("actualPcmBytes", pcmBytes);
             values.put("actualChannels", channels);
             values.put("actualSampleRate", sampleRate);
-            values.put("decoderReadCalls", decoderReadCalls);
+            values.put("audioPackets", audioPackets);
             values.put("sourceBytesRead", sourceBytesRead);
             values.put("sourceReadCalls", sourceReadCalls);
             values.put("sourceEofReads", sourceEofReads);
