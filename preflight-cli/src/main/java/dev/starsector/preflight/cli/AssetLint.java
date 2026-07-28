@@ -39,7 +39,12 @@ final class AssetLint {
     private static final int OVERSAMPLED_HZ = 96_000;
     /** A "fully decoded effect" this long is almost certainly music declared in the wrong section. */
     private static final double LONG_EFFECT_SECONDS = 60;
-    /** Below this, padding waste is real but too small to be worth an author's attention. */
+    /**
+     * Below this, padding waste is real but too small to be worth an author's attention. The floor is
+     * doing heavy lifting: 84% of mod images are not powers of two, so without it this rule would
+     * describe normal practice back at almost every author. Above it, the finding is about a handful
+     * of large textures where rounding up costs megabytes.
+     */
     private static final long TEXTURE_PADDING_FLOOR_BYTES = 1L << 20;
     /**
      * Duplicate detection hashes only files at least this large. Small identical files are common and
@@ -114,7 +119,10 @@ final class AssetLint {
                             + "the normal path. They may be played from code, or they may be leftovers.";
             case "texture-npot-padding" ->
                     "Dimensions are not powers of two, so the stock loader uploads them into the next "
-                            + "power-of-two buffer and the remainder holds nothing.";
+                            + "power-of-two buffer and the remainder holds nothing. This is normal and "
+                            + "usually right — 84% of mod art is not a power of two, and padding a "
+                            + "sprite would be worse. Only textures large enough to waste a megabyte "
+                            + "are listed, where choosing dimensions that round up less is worth it.";
             case "sound-declared-missing" ->
                     "Named by a sounds.json but supplied by no mod in the profile, so the game has "
                             + "nothing to play when the sound is triggered.";

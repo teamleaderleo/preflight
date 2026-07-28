@@ -98,10 +98,20 @@ rules in `rulesRequiringAProfile`, so a clean result does not read as a stronger
 
 ## Calibration
 
-Every threshold here was tuned against one profile. Running `--path` over all 74 installed mod
-directories gives 74 independent samples: **median 0 findings, 40 of 74 completely clean**, and no
-rule firing on more than a third of mods. Most mods are fine, which is the result to want from a tool
-that reports on other people's work.
+Every threshold here was tuned against one profile, so `--path` was run over 86 installed mod
+directories as 86 independent samples: **median 0 findings, 44 of 86 completely clean**, and no rule
+firing on more than a third of mods. Firing rates on the 13 mods installed *after* the thresholds
+were set sit within a few points of the overall rates. Most mods are fine, which is the result to
+want from a tool that reports on other people's work.
+[The evidence](evidence/2026-07-28-what-eighty-six-mods-ship.md) also records two ecosystem rates:
+41% of mod JPEGs are stored progressively, carrying 26% of all mod image pixels, and 83.9% of mod
+images are not powers of two.
+
+That second figure is why `texture-npot-padding` has a 1 MB floor and says out loud that
+non-power-of-two is normal. Sprite art is whatever size the sprite is; padding it would be worse.
+The floor admits 288 findings out of 23,571 NPOT files, the smallest 176 px on its shorter edge, so
+what survives is large art where rounding up costs megabytes. The remaining 2.2 GB is a runtime
+problem for padding removal to solve, not something to ask four fifths of authors to redraw.
 
 ## Byte totals are never combined
 
@@ -117,26 +127,27 @@ A megabyte of video memory and a megabyte of disk are different problems. Summin
 a headline that overstates every finding it contains, so no combined figure exists anywhere in the
 report or the prose output — enforced by a test.
 
-## Measured against the reviewed profile (2026-07-26)
+## Measured against the reviewed profile (2026-07-28, 84 roots)
 
-1,266 findings across 73 resource roots: **740.7 MB in video memory, 687.2 MB decoded at load, 88.0 MB
-on disk.**
+1,387 findings across 84 resource roots: **771.9 MB in video memory, 687.9 MB decoded at load,
+100.8 MB on disk.**
 
 | Rule | Findings | Bytes |
 | --- | ---: | ---: |
-| `texture-progressive` | 279 | — (389.4 Mpixel, ~8.75× decode) |
-| `texture-npot-padding` | 274 | 740.7 MB VRAM |
-| `audio-oversampled` | 250 | 374.2 MB decoded |
-| `audio-unreferenced` | 196 | 19.7 MB disk |
+| `texture-npot-padding` | 288 | 771.9 MB VRAM |
+| `texture-progressive` | 285 | — (386 Mpixel, ~8.75× decode) |
+| `audio-oversampled` | 256 | 374.9 MB decoded |
+| `audio-unreferenced` | 219 | 20.6 MB disk |
+| `asset-duplicate-content` | 113 | 11.4 MB disk |
 | `asset-editor-source` | 94 | 41.2 MB disk |
-| `asset-duplicate-content` | 87 | 9.5 MB disk |
-| `asset-shadowed` | 63 | 17.6 MB disk |
+| `asset-shadowed` | 85 | 27.7 MB disk |
+| `asset-extension-mismatch` | 28 | — |
 | `audio-long-effect` | 17 | 313.0 MB decoded |
-| `asset-extension-mismatch` | 4 | — |
 | `audio-undecodable` | 2 | — |
 
-`sound-declared-missing` finds nothing here, which is the result to want: every one of the 1,823
-declared sound files is supplied by some mod. It is exercised synthetically instead.
+`sound-declared-missing` finds nothing here, and has now seen 83 enabled mods across two profile
+sizes without firing once. That is the result to want — every declared sound file is supplied by some
+mod — and it is exercised synthetically instead.
 
 The editor-source total is 94 files a user downloads and stores that the game never opens — 77 of
 them `.pdn` files in a single mod, including one pair named `orbital.pdn` and `orbital - copy.pdn`.
