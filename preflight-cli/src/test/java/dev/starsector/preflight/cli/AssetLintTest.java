@@ -379,6 +379,87 @@ class AssetLintTest {
         return directory;
     }
 
+    // --- config syntax --------------------------------------------------------------------------
+
+    @Test
+    void reportsConfigurationStrandedOutsideTheTopLevelValue() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("data/weapons/proj"));
+        Files.writeString(core.resolve("data/weapons/proj/msl.proj"), """
+                {"id":"msl"}
+                	"behaviorSpec":{"behavior":"PROXIMITY_FUSE"}
+                """);
+
+        AssetLint.Finding finding =
+                only(AssetLint.scan(temporaryDirectory, null), "config-unread-content");
+
+        assertEquals(AssetLint.Severity.ERROR, finding.severity());
+        assertEquals(AssetLint.Cost.NONE, finding.cost());
+        assertTrue(finding.detail().contains("behaviorSpec"), finding.detail());
+    }
+
+    @Test
+    void reportsAConfigFileNoReaderCouldFinish() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("data/hulls"));
+        Files.writeString(core.resolve("data/hulls/ship.ship"), "{\"id\":\"x\",\"slots\":[\n");
+
+        AssetLint.Finding finding =
+                only(AssetLint.scan(temporaryDirectory, null), "config-unparseable");
+
+        assertEquals(AssetLint.Severity.ERROR, finding.severity());
+    }
+
+    /**
+     * The dialect check that matters most in practice. These four shapes are all normal in shipping
+     * mods, and a rule that fires on any of them would be reporting working files as broken.
+     */
+    @Test
+    void staysSilentOnConfigTheGameAccepts() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("data/strings"));
+        Files.writeString(core.resolve("data/strings/tips.json"), """
+                {
+                	tips:["a tip", # a comment
+                	      "another",],
+                }
+                }
+                """);
+
+        List<AssetLint.Finding> findings = AssetLint.scan(temporaryDirectory, null).findings().stream()
+                .filter(finding -> finding.rule().startsWith("config-"))
+                .toList();
+
+        assertTrue(findings.isEmpty(), "expected no config findings, got " + findings);
+    }
+
+    /**
+     * A broken file belongs to the author who wrote it even when a later mod covers the path. Other
+     * rules here are about bytes, where only the loaded copy costs anything; this one is about the
+     * file being wrong.
+     */
+    @Test
+    void reportsABrokenConfigAgainstEveryModThatShipsIt() throws Exception {
+        Path core = profile();
+        Path mod = temporaryDirectory.resolve("mods/alpha");
+        Files.createDirectories(mod.resolve("data/hulls"));
+        Files.writeString(mod.resolve("mod_info.json"), "{\"id\":\"alpha\",\"name\":\"Alpha\"}");
+        Files.writeString(temporaryDirectory.resolve("mods/enabled_mods.json"),
+                "{\"enabledMods\":[\"alpha\"]}");
+        String broken = "{\"id\":\"x\"}\n\"stranded\":1\n";
+        Files.createDirectories(core.resolve("data/hulls"));
+        Files.writeString(core.resolve("data/hulls/ship.ship"), broken);
+        Files.writeString(mod.resolve("data/hulls/ship.ship"), broken);
+
+        List<String> providers = AssetLint.scan(temporaryDirectory, null).findings().stream()
+                .filter(finding -> finding.rule().equals("config-unread-content"))
+                .map(AssetLint.Finding::provider)
+                .sorted()
+                .toList();
+
+        assertEquals(List.of("alpha", "core"), providers);
+    }
+
     private AssetLint.Finding only(AssetLint.Result result, String rule) {
         List<AssetLint.Finding> matching = result.findings().stream()
                 .filter(finding -> finding.rule().equals(rule))

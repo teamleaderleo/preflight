@@ -54,6 +54,21 @@ The audience did not ask for this and is entitled to disagree with it. So:
 | `asset-editor-source` | info | disk | An editor project file (`.pdn`, `.psd`, `.xcf`, `.kra`, `.aseprite`, `.blend`, …). The game reads none of them. |
 | `asset-duplicate-content` | info | disk | Byte-for-byte identical to a file at a different path. Reported above 64 KB. |
 | `asset-shadowed` | info | disk | A later mod provides the same path, so this copy never loads. Reported above 64 KB. |
+| `config-unparseable` | error | — | A bracket, string or comment that never closes, or a file that never opens an object or array. No reader can finish it. |
+| `config-unread-content` | error | — | Configuration sitting *after* the top-level value has closed, so a reader that takes one value never applies it. |
+
+The two config rules read `.json`, `.variant`, `.wpn`, `.ship`, `.proj`, `.system`, `.skin`,
+`.faction` and `.skill` — 15,353 files in the reviewed profile. They check structure only. The
+dialect accepts `#` and `//` comments, trailing commas, unquoted keys and numeric suffixes like
+`0.1f`, all of which shipping mods rely on, and a strict JSON reader pointed at this ecosystem
+reports almost all of it as broken.
+
+Trailing brackets are ignored: 27 files across MagicLib, Nexerelin and Arma Armatura end with one
+brace too many and all of them work, because a reader consumes one value and stops.
+`config-unread-content` needs an actual key out there, not punctuation. These are also the only rules
+reported against *every* mod that ships the file rather than only the override winner — the other
+rules are about bytes, where only the loaded copy costs anything, while this one is about an author's
+file being wrong. See [the evidence](evidence/2026-07-28-config-the-game-silently-never-reads.md).
 
 Classification of sound comes from `sounds.json`, never from directory naming — see
 [the audio census](audio-census.md). Texture padding uses `GpuTextureFootprint.paddingBytes`, the same
@@ -129,8 +144,9 @@ report or the prose output — enforced by a test.
 
 ## Measured against the reviewed profile (2026-07-28, 84 roots)
 
-1,387 findings across 84 resource roots: **771.9 MB in video memory, 687.9 MB decoded at load,
-100.8 MB on disk.**
+1,392 findings across 84 resource roots: **771.9 MB in video memory, 687.9 MB decoded at load,
+100.8 MB on disk** — and 6 findings at `error` severity, which cost no bytes at all and matter more
+than any of those totals.
 
 | Rule | Findings | Bytes |
 | --- | ---: | ---: |
@@ -143,7 +159,16 @@ report or the prose output — enforced by a test.
 | `asset-shadowed` | 85 | 27.7 MB disk |
 | `asset-extension-mismatch` | 28 | — |
 | `audio-long-effect` | 17 | 313.0 MB decoded |
+| `config-unread-content` | 3 | — |
 | `audio-undecodable` | 2 | — |
+| `config-unparseable` | 2 | — |
+
+The five config findings are the only ones here that describe something *broken* rather than
+something expensive, and four of the five are real defects in released mods: a missile whose
+`PROXIMITY_FUSE` block sits outside the top-level object and therefore does nothing, a weapon whose
+`fireSoundTwo` never plays, a faction file that closes early and drops everything from
+`priorityWeapons` onward, and a config that begins `0{`. Five findings in 15,353 config files is the
+signal-to-noise these rules were calibrated for.
 
 `sound-declared-missing` finds nothing here, and has now seen 83 enabled mods across two profile
 sizes without firing once. That is the result to want — every declared sound file is supplied by some
@@ -152,7 +177,7 @@ mod — and it is exercised synthetically instead.
 The editor-source total is 94 files a user downloads and stores that the game never opens — 77 of
 them `.pdn` files in a single mod, including one pair named `orbital.pdn` and `orbital - copy.pdn`.
 
-`texture-progressive` is the most actionable of the nine. 41% of the profile's JPEGs are stored
+`texture-progressive` is the most actionable of the cost rules. 41% of the profile's JPEGs are stored
 progressively, carrying more pixels than all the baseline ones combined, and decode is two thirds of
 what loading a texture costs. The fix changes no pixels.
 
