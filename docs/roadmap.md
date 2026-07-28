@@ -111,6 +111,18 @@ Separate from the speed-first milestone program above:
   samples: median 0 findings, 44 of 86 completely clean. Applies no fixes; a transform mode would touch other
   people's assets and has no safety story yet.
 
+- **Desktop GUI (unreviewed exploration).** `preflight-desktop/` is a Vite/React shell, and
+  `preflight desktop` is a read-only bridge command that discovers the installation and prints one
+  JSON snapshot. It is hidden from CLI help, `preflight-desktop` is not a Maven module, and its build
+  output is gitignored, so neither affects the Java build. Notes in
+  [desktop app research](desktop-app-research.md).
+
+  This arrived on main inside #216, a commit about asset-lint calibration, because that commit staged
+  every modified file rather than the ones it touched. The code was exploration in progress and was
+  never reviewed as part of that PR. It is recorded here rather than reverted — it is inert and
+  works — but nothing here endorses it as a direction, and it needs its own review before anything
+  depends on it.
+
 - [Asset Quality Track](asset-quality-track.md) — proposed opt-in visual-fidelity track
   (crisper BMFont atlases as a candidate standalone mod; offline texture super-resolution
   behind a faithfulness gate). Records concrete font-asset facts, the bigger-vs-sharper
