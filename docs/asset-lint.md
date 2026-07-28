@@ -44,6 +44,8 @@ The audience did not ask for this and is entitled to disagree with it. So:
 | `audio-long-effect` | warning | decoded | Declared outside the music section and over 60 seconds, so it is decoded in full at load rather than streamed. |
 | `audio-unreferenced` | info | disk | Shipped but named by no `sounds.json` in the profile. |
 | `texture-npot-padding` | warning | VRAM | Dimensions are not powers of two, so the stock loader uploads into the next power-of-two buffer and the remainder holds nothing. Reported above 1 MB of padding. |
+| `texture-progressive` | warning | — | Stored for progressive display (progressive JPEG, Adam7 PNG). ImageIO decodes these about 8.75× slower than the same image stored normally, [measured](evidence/2026-07-28-progressive-jpeg-costs-nine-times-the-decode.md). |
+| `asset-extension-mismatch` | info | — | Contents are a different image format from the one the name claims. |
 | `sound-declared-missing` | error | — | Named by a `sounds.json` but supplied by no mod, so the game has nothing to play. Covers every declared extension, not just `.ogg`. |
 | `asset-editor-source` | info | disk | An editor project file (`.pdn`, `.psd`, `.xcf`, `.kra`, `.aseprite`, `.blend`, …). The game reads none of them. |
 | `asset-duplicate-content` | info | disk | Byte-for-byte identical to a file at a different path. Reported above 64 KB. |
@@ -91,11 +93,12 @@ report or the prose output — enforced by a test.
 
 ## Measured against the reviewed profile (2026-07-26)
 
-983 findings across 73 resource roots: **740.7 MB in video memory, 687.2 MB decoded at load, 88.0 MB
+1,266 findings across 73 resource roots: **740.7 MB in video memory, 687.2 MB decoded at load, 88.0 MB
 on disk.**
 
 | Rule | Findings | Bytes |
 | --- | ---: | ---: |
+| `texture-progressive` | 279 | — (389.4 Mpixel, ~8.75× decode) |
 | `texture-npot-padding` | 274 | 740.7 MB VRAM |
 | `audio-oversampled` | 250 | 374.2 MB decoded |
 | `audio-unreferenced` | 196 | 19.7 MB disk |
@@ -103,6 +106,7 @@ on disk.**
 | `asset-duplicate-content` | 87 | 9.5 MB disk |
 | `asset-shadowed` | 63 | 17.6 MB disk |
 | `audio-long-effect` | 17 | 313.0 MB decoded |
+| `asset-extension-mismatch` | 4 | — |
 | `audio-undecodable` | 2 | — |
 
 `sound-declared-missing` finds nothing here, which is the result to want: every one of the 1,823
@@ -110,6 +114,10 @@ declared sound files is supplied by some mod. It is exercised synthetically inst
 
 The editor-source total is 94 files a user downloads and stores that the game never opens — 77 of
 them `.pdn` files in a single mod, including one pair named `orbital.pdn` and `orbital - copy.pdn`.
+
+`texture-progressive` is the most actionable of the nine. 41% of the profile's JPEGs are stored
+progressively, carrying more pixels than all the baseline ones combined, and decode is two thirds of
+what loading a texture costs. The fix changes no pixels.
 
 The video-memory figure is the same waste the
 [NPOT padding removal](evidence/2026-07-26-padding-removal-needs-no-instruction-surgery.md) targets

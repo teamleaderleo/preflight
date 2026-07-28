@@ -7,14 +7,9 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -31,35 +26,7 @@ public final class PreparedAudioIO {
     }
 
     public static void write(Path target, PreparedAudio audio) throws IOException {
-        Path absolute = target.toAbsolutePath().normalize();
-        Path parent = absolute.getParent();
-        if (parent != null) Files.createDirectories(parent);
-        byte[] bytes = toBytes(audio);
-        Path temporary = absolute.resolveSibling(
-                absolute.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
-        boolean moved = false;
-        try {
-            try (FileChannel channel = FileChannel.open(
-                    temporary,
-                    StandardOpenOption.CREATE_NEW,
-                    StandardOpenOption.WRITE)) {
-                ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                while (buffer.hasRemaining()) channel.write(buffer);
-                channel.force(true);
-            }
-            try {
-                Files.move(
-                        temporary,
-                        absolute,
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException ignored) {
-                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
-            }
-            moved = true;
-        } finally {
-            if (!moved) Files.deleteIfExists(temporary);
-        }
+        AtomicBlobs.write(target, toBytes(audio));
     }
 
     public static PreparedAudio read(Path source) throws IOException {

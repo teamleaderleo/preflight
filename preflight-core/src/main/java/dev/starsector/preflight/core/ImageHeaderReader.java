@@ -48,6 +48,99 @@ public final class ImageHeaderReader {
         }
     }
 
+    /** The container an image is actually stored in, as distinct from what its name claims. */
+    public enum Format {
+        PNG,
+        JPEG
+    }
+
+    /**
+     * Encoding properties that cost decode time without changing the decoded result.
+     *
+     * @param progressive PNG Adam7 interlacing or JPEG progressive mode. Both store the image as
+     *     successive refinement passes so a partial download can be displayed early. A game reads its
+     *     art from local disk and shows nothing until the decode finishes, so the passes buy nothing
+     *     and the decoder does materially more work than for the same image stored normally.
+     */
+    public record ImageEncoding(Format format, int bitDepth, boolean progressive) {
+        public ImageEncoding {
+            if (format == null) {
+                throw new IllegalArgumentException("format is required");
+            }
+            if (bitDepth <= 0) {
+                throw new IllegalArgumentException("bitDepth must be positive: " + bitDepth);
+            }
+        }
+    }
+
+    /** Reads the container format and encoding flags, header only. */
+    public static Optional<ImageEncoding> encoding(Path file) throws IOException {
+        try (InputStream in = Files.newInputStream(file)) {
+            byte[] head = readAtMost(in, 33);
+            if (isPng(head)) {
+                return parsePngEncoding(head);
+            }
+            if (isJpeg(head)) {
+                byte[] rest = readAtMost(in, MAX_SCAN - head.length);
+                byte[] buffer = new byte[head.length + rest.length];
+                System.arraycopy(head, 0, buffer, 0, head.length);
+                System.arraycopy(rest, 0, buffer, head.length, rest.length);
+                return parseJpegEncoding(buffer);
+            }
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<ImageEncoding> parsePngEncoding(byte[] data) {
+        // IHDR: [sig(8)][len(4)]["IHDR"(4)][width(4)][height(4)][bitDepth(1)][colorType(1)]
+        // [compression(1)][filter(1)][interlace(1)] — interlace is offset 28, 1 means Adam7.
+        if (data.length < 29) {
+            return Optional.empty();
+        }
+        int bitDepth = data[24] & 0xFF;
+        if (bitDepth <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new ImageEncoding(Format.PNG, bitDepth, (data[28] & 0xFF) != 0));
+    }
+
+    private static Optional<ImageEncoding> parseJpegEncoding(byte[] data) {
+        int pos = 2;
+        while (pos + 1 < data.length) {
+            if ((data[pos] & 0xFF) != 0xFF) {
+                pos++;
+                continue;
+            }
+            int marker = data[pos + 1] & 0xFF;
+            pos += 2;
+            if (marker == 0xFF || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9)) {
+                continue;
+            }
+            if (pos + 1 >= data.length) {
+                break;
+            }
+            int segmentLength = int16BE(data, pos);
+            if (segmentLength < 2) {
+                break;
+            }
+            boolean startOfFrame = marker >= 0xC0 && marker <= 0xCF
+                    && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
+            if (startOfFrame) {
+                if (pos + 2 >= data.length) {
+                    break;
+                }
+                int precision = data[pos + 2] & 0xFF;
+                // SOF2 is progressive; SOF0/SOF1 and the arithmetic-coded variants are sequential.
+                boolean progressive = marker == 0xC2 || marker == 0xC6 || marker == 0xCA || marker == 0xCE;
+                return precision <= 0
+                        ? Optional.empty()
+                        : Optional.of(new ImageEncoding(Format.JPEG, precision, progressive));
+            }
+            pos += segmentLength;
+        }
+        return Optional.empty();
+    }
+
     /** Reads dimensions from a file, reading only as many header bytes as the format needs. */
     public static Optional<ImageDimensions> read(Path file) throws IOException {
         try (InputStream in = Files.newInputStream(file)) {

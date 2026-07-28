@@ -92,6 +92,37 @@ class PreparedAudioCacheTest {
     }
 
     @Test
+    void blobAndManifestWritesUseTheSharedAtomicPersistencePath() throws Exception {
+        Path directory = temporaryDirectory.resolve("nested/audio-cache");
+        Path blob = directory.resolve("effect.spau");
+        Path manifestFile = directory.resolve("profile.spam");
+        PreparedAudio audio = audio("1", "2", pcm(16, 3));
+        PreparedAudioManifest.Entry entry = PreparedAudioManifest.Entry.prepared(
+                "sounds/effect.ogg",
+                123,
+                456,
+                audio);
+        PreparedAudioManifest manifest = manifest(
+                "3",
+                "4",
+                audio.decoderPolicyIdentitySha256(),
+                Map.of(entry.logicalPath(), entry));
+
+        PreparedAudioIO.write(blob, audio);
+        PreparedAudioManifestIO.write(manifestFile, manifest);
+
+        assertEquals(audio, PreparedAudioIO.read(blob));
+        PreparedAudioManifest restoredManifest = PreparedAudioManifestIO.read(manifestFile);
+        assertEquals(manifest.manifestSha256(), restoredManifest.manifestSha256());
+        assertEquals(manifest.entries(), restoredManifest.entries());
+        try (var files = Files.list(directory)) {
+            assertEquals(
+                    List.of("effect.spau", "profile.spam"),
+                    files.map(path -> path.getFileName().toString()).sorted().toList());
+        }
+    }
+
+    @Test
     void blobRejectsCorruptionTruncationAndMetadataMutation() throws Exception {
         PreparedAudio audio = audio("c", "d", pcm(16, 9));
         byte[] encoded = PreparedAudioIO.toBytes(audio);
