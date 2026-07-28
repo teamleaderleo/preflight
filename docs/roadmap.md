@@ -100,16 +100,25 @@ Separate from the speed-first milestone program above:
 - [Asset Lint](asset-lint.md) — `preflight lint`, a read-only report of asset problems attributed to
   the mod that ships them. Same analysis as the speed work, pointed at the source instead of routed
   around it: a mod author who fixes an asset helps every user of that mod with no cache, no adapter,
-  and no equivalence gate. Ten rules over sound, textures, and shipped files, runnable against a whole
-  profile or a single mod directory. Against the reviewed 84-root profile it finds 1,387 issues — 285
-  progressively-encoded images that ImageIO decodes
+  and no equivalence gate. Twelve rules over sound, textures, config and shipped files, runnable
+  against a whole profile or a single mod directory. Against the reviewed 84-root profile it finds
+  1,392 issues — 285 progressively-encoded images that ImageIO decodes
   [about 8.75x slower](evidence/2026-07-28-progressive-jpeg-costs-nine-times-the-decode.md) than the
   identical image stored normally, 771.9 MB of video memory lost to non-power-of-two padding,
   687.9 MB of avoidable audio decode, 100.8 MB of disk in shadowed copies, duplicates and editor
   project files, and two files the game cannot decode at all.
   [Calibrated across 86 mods](evidence/2026-07-28-what-eighty-six-mods-ship.md) as independent
-  samples: median 0 findings, 44 of 86 completely clean. Applies no fixes; a transform mode would touch other
-  people's assets and has no safety story yet.
+  samples: median 0 findings, 44 of 86 completely clean.
+
+  The two config rules are the only ones that report something *broken* rather than something
+  expensive. They read the 15,353 JSON-shaped files the profile ships and find
+  [five](evidence/2026-07-28-config-the-game-silently-never-reads.md), four of them real defects in
+  released mods — including a missile whose `PROXIMITY_FUSE` block sits outside the top-level object
+  and so does nothing in game. Getting there required discarding a first version that flagged 27
+  working files, because the dialect accepts far more than JSON does and a stray trailing brace is
+  invisible to the game.
+
+  Applies no fixes; a transform mode would touch other people's assets and has no safety story yet.
 
 - **Desktop GUI (unreviewed exploration).** `preflight-desktop/` is a Vite/React shell, and
   `preflight desktop` is a read-only bridge command that discovers the installation and prints one

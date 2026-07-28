@@ -63,6 +63,15 @@ final class AssetLint {
             ".pdn", ".psd", ".psb", ".xcf", ".kra", ".aseprite", ".ase", ".clip", ".sai",
             ".afphoto", ".afdesign", ".blend", ".blend1");
 
+    /**
+     * The JSON-shaped config a mod's behaviour lives in. Every one of these is read by the game as a
+     * single value, so {@link ConfigSyntax} can say whether the file delivers what it appears to.
+     * Taken from what the reviewed profile actually ships rather than from documentation: these nine
+     * extensions cover 15,353 files across 91 mods.
+     */
+    private static final Set<String> CONFIG_EXTENSIONS = Set.of(
+            ".json", ".variant", ".wpn", ".ship", ".proj", ".system", ".skin", ".faction", ".skill");
+
     private AssetLint() {
     }
 
@@ -123,6 +132,14 @@ final class AssetLint {
                             + "usually right — 84% of mod art is not a power of two, and padding a "
                             + "sprite would be worse. Only textures large enough to waste a megabyte "
                             + "are listed, where choosing dimensions that round up less is worth it.";
+            case "config-unparseable" ->
+                    "A bracket, string or comment in these never closes, so no reader can finish them. "
+                            + "Whatever they configure does not take effect.";
+            case "config-unread-content" ->
+                    "These carry configuration after the top-level object has already closed, usually "
+                            + "one closing brace too many earlier in the file. A reader takes a single "
+                            + "value and stops, so the rest is never applied. Stray brackets and "
+                            + "comments at the end of a file are ignored here; this is content.";
             case "sound-declared-missing" ->
                     "Named by a sounds.json but supplied by no mod in the profile, so the game has "
                             + "nothing to play when the sound is triggered.";
@@ -231,6 +248,7 @@ final class AssetLint {
         findings.addAll(audioFindings(AudioCensus.scan(root, index, diagnostics), profileWide));
         findings.addAll(textureFindings(index, diagnostics));
         findings.addAll(editorSourceFindings(index));
+        findings.addAll(configFindings(index, diagnostics));
         findings.addAll(duplicateFindings(index, diagnostics));
         if (profileWide) {
             findings.addAll(shadowedFindings(index));
@@ -373,6 +391,48 @@ final class AssetLint {
                 findings.add(new Finding("asset-shadowed", Severity.INFO, Cost.DISK,
                         index.roots().get(shadowed.rootIndex()).id(), entry.getKey(), shadowed.size(),
                         AssetLint.megabytes(shadowed.size()) + " shipped; " + winner + " provides this path"));
+            }
+        }
+        return findings;
+    }
+
+    /**
+     * Structural findings in the JSON-shaped config a mod's behaviour lives in.
+     *
+     * <p>Reported against every provider of a path rather than only the one that wins the load order.
+     * The other rules here are about bytes, where only the loaded copy costs anything; this one is
+     * about an author's file being wrong, and that is worth knowing whether or not someone else's mod
+     * happens to be covering it.</p>
+     */
+    private static List<Finding> configFindings(ResourceIndex index, List<String> diagnostics) {
+        List<Finding> findings = new ArrayList<>();
+        for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {
+            String logicalPath = entry.getKey();
+            int dot = logicalPath.lastIndexOf('.');
+            if (dot < 0 || !CONFIG_EXTENSIONS.contains(logicalPath.substring(dot))) {
+                continue;
+            }
+            for (ResourceIndex.Provider provider : entry.getValue()) {
+                String text;
+                try {
+                    text = java.nio.file.Files.readString(
+                            index.resolveExisting(provider), java.nio.charset.StandardCharsets.UTF_8);
+                } catch (IOException | RuntimeException error) {
+                    // Config in an encoding this cannot decode is a separate question from syntax, and
+                    // guessing at one while reporting the other would be worse than staying quiet.
+                    diagnostics.add("Could not read " + logicalPath + ": " + error.getMessage());
+                    continue;
+                }
+                ConfigSyntax.Reading reading = ConfigSyntax.read(text);
+                String rootId = index.roots().get(provider.rootIndex()).id();
+                switch (reading.verdict()) {
+                    case UNPARSEABLE -> findings.add(new Finding("config-unparseable", Severity.ERROR,
+                            Cost.NONE, rootId, logicalPath, 0, reading.detail()));
+                    case TRAILING_CONTENT -> findings.add(new Finding("config-unread-content",
+                            Severity.ERROR, Cost.NONE, rootId, logicalPath, 0, reading.detail()));
+                    case WELL_FORMED -> {
+                    }
+                }
             }
         }
         return findings;
