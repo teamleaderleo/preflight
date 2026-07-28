@@ -266,6 +266,70 @@ class AssetLintTest {
         assertEquals("asset-shadowed", findings.get(0).rule());
     }
 
+    @Test
+    void reportsAnInterlacedPngAsProgressive() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/adam7.png"), png(64, 64, true));
+        declare("{}");
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "texture-progressive");
+
+        assertEquals(AssetLint.Severity.WARNING, finding.severity());
+        assertEquals("Adam7 interlaced", finding.detail());
+    }
+
+    @Test
+    void reportsAProgressiveJpegAndLeavesABaselineOneAlone() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/progressive.jpg"), jpeg(0xC2));
+        Files.write(core.resolve("graphics/baseline.jpg"), jpeg(0xC0));
+        declare("{}");
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "texture-progressive");
+
+        assertEquals("graphics/progressive.jpg", finding.path());
+        assertEquals("progressive JPEG", finding.detail());
+    }
+
+    /** A non-interlaced PNG must not be flagged; 26,251 of the reviewed profile's images are these. */
+    @Test
+    void leavesOrdinaryImagesAlone() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/plain.png"), png(64, 64, false));
+        declare("{}");
+
+        assertTrue(AssetLint.scan(temporaryDirectory, null).findings().isEmpty());
+    }
+
+    @Test
+    void reportsAFileWhoseContentsAreNotTheFormatItsNameClaims() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/actually_a_jpeg.png"), jpeg(0xC0));
+        declare("{}");
+
+        AssetLint.Finding finding =
+                only(AssetLint.scan(temporaryDirectory, null), "asset-extension-mismatch");
+
+        assertEquals(AssetLint.Severity.INFO, finding.severity());
+        assertTrue(finding.detail().contains("contents are JPEG, name says PNG"), finding.detail());
+    }
+
+    /** A minimal JPEG: SOI, then a start-of-frame carrying the dimensions. */
+    private static byte[] jpeg(int startOfFrameMarker) {
+        return new byte[] {
+                (byte) 0xFF, (byte) 0xD8,
+                (byte) 0xFF, (byte) startOfFrameMarker,
+                0, 17,                     // segment length
+                8,                         // sample precision
+                0, 64, 0, 64,              // height, width
+                3,                         // components
+                1, 0x11, 0, 2, 0x11, 0, 3, 0x11, 0};
+    }
+
     private Path mod(String id) throws IOException {
         Path directory = temporaryDirectory.resolve("mods").resolve(id);
         Files.createDirectories(directory.resolve("graphics"));
@@ -303,8 +367,12 @@ class AssetLintTest {
         Files.write(file, fixture(fixtureName));
     }
 
-    /** A PNG with a valid header and no image data; the reader needs only IHDR. */
     private static byte[] png(int width, int height) {
+        return png(width, height, false);
+    }
+
+    /** A PNG with a valid header and no image data; the reader needs only IHDR. */
+    private static byte[] png(int width, int height, boolean interlaced) {
         byte[] signature = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
         byte[] ihdr = new byte[25];
         write32(ihdr, 0, 13);
@@ -316,6 +384,7 @@ class AssetLintTest {
         write32(ihdr, 12, height);
         ihdr[16] = 8;
         ihdr[17] = 6;
+        ihdr[20] = (byte) (interlaced ? 1 : 0);
         CRC32 crc = new CRC32();
         crc.update(ihdr, 4, 17);
         write32(ihdr, 21, (int) crc.getValue());
