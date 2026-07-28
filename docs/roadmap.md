@@ -70,6 +70,14 @@ Exit condition: representative source-heavy profiles compile once and safely reu
 
 Exit condition: prepared audio is byte-for-byte and metadata-equivalent, bounded, fail-open, and measurably reduces repeat-launch decoding work.
 
+**The premise of this milestone is still unmeasured, and there is now a probe for it.** Everything
+below sizes what prepared audio would hold; none of it establishes that the game builds that PCM
+during load rather than on first play. If loading is lazy, prepared audio moves work out of moments
+nobody is timing and M5 should not be built. [`audio decode-probe`](audio-decode-probe.md) settles it
+from a single launch, and refuses any recording that cannot — the default startup trace drops file
+reads under a millisecond, which is most sound reads from a warm page cache, and would have answered
+`LAZY` no matter what the game did. **Awaiting a run; the launch is the maintainer's to authorize.**
+
 **Equivalence is owed to the installed decoder, not to a reference decoder.** The first version of the
 gate decoded through `com.jcraft.jorbis.VorbisFile`, which no shipped Starsector code path calls, and
 compared against libvorbis output. Rebuilt in #207 and #208 onto the low-level sequence `sound/void`
