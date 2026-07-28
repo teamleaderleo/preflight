@@ -100,10 +100,11 @@ Separate from the speed-first milestone program above:
 - [Asset Lint](asset-lint.md) — `preflight lint`, a read-only report of asset problems attributed to
   the mod that ships them. Same analysis as the speed work, pointed at the source instead of routed
   around it: a mod author who fixes an asset helps every user of that mod with no cache, no adapter,
-  and no equivalence gate. Against the reviewed profile it finds 739 issues — 740.7 MB of video
-  memory lost to non-power-of-two padding, 687.2 MB of avoidable decode, and two files the game
-  cannot decode at all. Applies no fixes; a transform mode would touch other people's assets and has
-  no safety story yet.
+  and no equivalence gate. Nine rules over sound, textures, and shipped files. Against the reviewed
+  profile it finds 983 issues — 740.7 MB of video memory lost to non-power-of-two padding, 687.2 MB
+  of avoidable decode, 88.0 MB of disk in shadowed copies, duplicates and editor project files, and
+  two files the game cannot decode at all. Applies no fixes; a transform mode would touch other
+  people's assets and has no safety story yet.
 
 - [Asset Quality Track](asset-quality-track.md) — proposed opt-in visual-fidelity track
   (crisper BMFont atlases as a candidate standalone mod; offline texture super-resolution
