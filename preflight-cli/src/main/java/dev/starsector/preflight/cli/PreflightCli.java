@@ -83,6 +83,7 @@ public final class PreflightCli {
             case "analyze" -> AnalysisCommand.execute(args, 1);
             case "fingerprint" -> requirePathCommand(args, "fingerprint", PreflightCli::fingerprint);
             case "summarize" -> summarizeCommand(args);
+            case "desktop" -> DesktopBridgeCommand.execute(args, 1);
             default -> unknownCommand(args[0]);
         };
     }

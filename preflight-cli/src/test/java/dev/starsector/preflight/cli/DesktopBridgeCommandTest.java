@@ -1,0 +1,52 @@
+package dev.starsector.preflight.cli;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class DesktopBridgeCommandTest {
+    @TempDir
+    Path temporaryDirectory;
+
+    @Test
+    void snapshotExposesOnlyTheDesktopContract() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("Starsector"));
+        Path launcher = Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+
+        assertEquals(1, snapshot.get("protocol"));
+        assertEquals("mac", snapshot.get("platform"));
+        assertEquals(true, snapshot.get("ready"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> selected = (Map<String, Object>) snapshot.get("selected");
+        assertNotNull(selected);
+        assertEquals(game.toAbsolutePath().normalize(), selected.get("installRoot"));
+        assertEquals(launcher.toAbsolutePath().normalize(), selected.get("launcher"));
+        assertFalse(selected.containsKey("command"), selected.toString());
+        assertNull(snapshot.get("lastRun"));
+    }
+
+    @Test
+    void snapshotWithoutAnInstallIsAValidSetupState() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("empty-home"));
+        Path current = Files.createDirectories(temporaryDirectory.resolve("empty-current"));
+
+        Map<String, Object> snapshot =
+                DesktopBridgeCommand.snapshot(Platform.LINUX, home, current, Map.of(), null, null);
+
+        assertEquals(false, snapshot.get("ready"));
+        assertNull(snapshot.get("selected"));
+        assertTrue(snapshot.get("diagnostics").toString().contains("No launcher found"));
+    }
+}

@@ -19,6 +19,7 @@ class PreflightCliHelpTest {
         assertTrue(captured.standardOutput().contains("doctor       Check installation"), captured.standardOutput());
         assertTrue(captured.standardOutput().contains("lint         Report actionable asset problems"), captured.standardOutput());
         assertFalse(captured.standardOutput().contains("--adapter-targets"), captured.standardOutput());
+        assertFalse(captured.standardOutput().contains("desktop"), captured.standardOutput());
         assertEquals("", captured.standardError());
     }
 
