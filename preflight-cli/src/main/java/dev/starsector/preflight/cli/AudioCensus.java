@@ -88,7 +88,10 @@ final class AudioCensus {
         }
     }
 
-    record Result(Map<String, Object> report, List<Sound> sounds) {
+    /**
+     * @param missingDeclarations sound files named by a {@code sounds.json} that no provider supplies
+     */
+    record Result(Map<String, Object> report, List<Sound> sounds, List<String> missingDeclarations) {
     }
 
     static Result scan(Path installRoot) throws IOException {
@@ -110,10 +113,13 @@ final class AudioCensus {
             sounds.add(inspect(index, logicalPath, winner, declarations));
         }
         sounds.sort(Comparator.comparing(Sound::logicalPath));
+        List<String> missing = missingDeclarations(index, declarations);
 
         return new Result(
-                report(installRoot, index, sounds, declarations, diagnostics, System.nanoTime() - started),
-                List.copyOf(sounds));
+                report(installRoot, index, sounds, declarations, missing, diagnostics,
+                        System.nanoTime() - started),
+                List.copyOf(sounds),
+                missing);
     }
 
     private record Declarations(Set<String> effectFiles, Set<String> musicFiles, Set<String> musicSources, int configs) {
@@ -195,11 +201,33 @@ final class AudioCensus {
                 length.decodedBytes(identification.channels()), true, identification.detail());
     }
 
+    /**
+     * Declared sound files that no provider supplies. The game cannot play these at all, and unlike
+     * the size measurements this covers every declared extension rather than only {@code .ogg} —
+     * a missing {@code .wav} is just as broken as a missing Vorbis file.
+     */
+    private static List<String> missingDeclarations(ResourceIndex index, Declarations declarations) {
+        List<String> missing = new ArrayList<>();
+        for (String declared : declarations.effectFiles()) {
+            if (index.providers(declared).isEmpty()) {
+                missing.add(declared);
+            }
+        }
+        for (String declared : declarations.musicFiles()) {
+            if (index.providers(declared).isEmpty()) {
+                missing.add(declared);
+            }
+        }
+        missing.sort(Comparator.naturalOrder());
+        return List.copyOf(missing);
+    }
+
     private static Map<String, Object> report(
             Path installRoot,
             ResourceIndex index,
             List<Sound> sounds,
             Declarations declarations,
+            List<String> missingDeclarations,
             List<String> diagnostics,
             long elapsedNanos) {
         List<Sound> effects = sounds.stream().filter(s -> s.kind() == Kind.EFFECT).toList();
@@ -240,6 +268,11 @@ final class AudioCensus {
         undecodableReport.put("count", undecodable.size());
         undecodableReport.put("files", undecodable.stream().map(Sound::toMap).toList());
         values.put("undecodable", undecodableReport);
+
+        Map<String, Object> missingReport = new LinkedHashMap<>();
+        missingReport.put("count", missingDeclarations.size());
+        missingReport.put("files", missingDeclarations);
+        values.put("missingDeclarations", missingReport);
 
         values.put("diagnostics", diagnostics);
         return values;

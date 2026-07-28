@@ -169,6 +169,112 @@ class AssetLintTest {
         assertEquals("No findings for alpha.\n", AssetLintCommand.render(result, "alpha"));
     }
 
+    @Test
+    void reportsASoundDeclaredButSuppliedByNobody() throws Exception {
+        profile();
+        declare("""
+                {"a":[{"file":"sounds/absent.ogg","volume":1}]}
+                """);
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "sound-declared-missing");
+
+        assertEquals(AssetLint.Severity.ERROR, finding.severity());
+        assertEquals("sounds/absent.ogg", finding.path());
+    }
+
+    /**
+     * A .wav is not an editor intermediate — Starsector plays it, and twenty effects in the reviewed
+     * profile are declared as .wav. Flagging it would tell authors to delete working sound.
+     */
+    @Test
+    void doesNotTreatPlayableFormatsAsEditorSource() throws Exception {
+        Path core = profile();
+        Files.write(core.resolve("sounds/effect.wav"), new byte[70_000]);
+        Files.write(core.resolve("sounds/artwork.pdn"), new byte[70_000]);
+        declare("{}");
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "asset-editor-source");
+
+        assertEquals("sounds/artwork.pdn", finding.path());
+        assertEquals(AssetLint.Cost.DISK, finding.cost());
+        assertEquals(70_000, finding.bytes());
+    }
+
+    @Test
+    void reportsAShadowedCopyAgainstTheModThatShipsIt() throws Exception {
+        Path core = profile();
+        Path alpha = mod("alpha");
+        Files.createDirectories(core.resolve("graphics"));
+        Files.write(core.resolve("graphics/shared.png"), new byte[200_000]);
+        Files.write(alpha.resolve("graphics/shared.png"), new byte[200_000]);
+        declare("{}");
+
+        AssetLint.Finding finding = only(AssetLint.scan(temporaryDirectory, null), "asset-shadowed");
+
+        assertEquals("core", finding.provider(), "the shadowed copy is the one that never loads");
+        assertTrue(finding.detail().contains("alpha provides this path"), finding.detail());
+    }
+
+    /** Most shadowing is deliberate and tiny; without a floor it buries every other rule. */
+    @Test
+    void ignoresShadowedFilesTooSmallToMatter() throws Exception {
+        Path core = profile();
+        Path alpha = mod("alpha");
+        Files.createDirectories(core.resolve("data"));
+        Files.createDirectories(alpha.resolve("data"));
+        Files.write(core.resolve("data/tiny.csv"), new byte[1_024]);
+        Files.write(alpha.resolve("data/tiny.csv"), new byte[1_024]);
+        declare("{}");
+
+        assertTrue(AssetLint.scan(temporaryDirectory, null).findings().stream()
+                .noneMatch(finding -> finding.rule().equals("asset-shadowed")));
+    }
+
+    @Test
+    void reportsIdenticalContentAtDifferentPaths() throws Exception {
+        Path core = profile();
+        Files.createDirectories(core.resolve("graphics"));
+        byte[] content = new byte[200_000];
+        content[7] = 42;
+        Files.write(core.resolve("graphics/one.png"), content);
+        Files.write(core.resolve("graphics/copy of one.png"), content);
+        declare("{}");
+
+        List<AssetLint.Finding> duplicates = AssetLint.scan(temporaryDirectory, null).findings().stream()
+                .filter(finding -> finding.rule().equals("asset-duplicate-content"))
+                .toList();
+
+        assertEquals(2, duplicates.size(), "both copies are named, since either could be the one to drop");
+        // Only the redundant copy is avoidable, so the pair must not each claim the full size.
+        assertEquals(200_000, duplicates.stream().mapToLong(AssetLint.Finding::bytes).sum());
+    }
+
+    /** The same path in two mods is {@code asset-shadowed}; counting it twice would double the bytes. */
+    @Test
+    void doesNotAlsoReportShadowedPathsAsDuplicateContent() throws Exception {
+        Path core = profile();
+        Path alpha = mod("alpha");
+        Files.createDirectories(core.resolve("graphics"));
+        byte[] content = new byte[200_000];
+        Files.write(core.resolve("graphics/shared.png"), content);
+        Files.write(alpha.resolve("graphics/shared.png"), content);
+        declare("{}");
+
+        List<AssetLint.Finding> findings = AssetLint.scan(temporaryDirectory, null).findings();
+
+        assertEquals(1, findings.size(), findings.toString());
+        assertEquals("asset-shadowed", findings.get(0).rule());
+    }
+
+    private Path mod(String id) throws IOException {
+        Path directory = temporaryDirectory.resolve("mods").resolve(id);
+        Files.createDirectories(directory.resolve("graphics"));
+        Files.writeString(directory.resolve("mod_info.json"), "{\"id\":\"" + id + "\"}");
+        Files.writeString(temporaryDirectory.resolve("mods/enabled_mods.json"),
+                "{\"enabledMods\":[\"" + id + "\"]}");
+        return directory;
+    }
+
     private AssetLint.Finding only(AssetLint.Result result, String rule) {
         List<AssetLint.Finding> matching = result.findings().stream()
                 .filter(finding -> finding.rule().equals(rule))

@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.GpuTextureFootprint;
+import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ImageHeaderReader;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Reports asset problems in a profile, attributed to the mod that ships them.
@@ -39,7 +41,22 @@ final class AssetLint {
     private static final double LONG_EFFECT_SECONDS = 60;
     /** Below this, padding waste is real but too small to be worth an author's attention. */
     private static final long TEXTURE_PADDING_FLOOR_BYTES = 1L << 20;
+    /**
+     * Duplicate detection hashes only files at least this large. Small identical files are common and
+     * uninteresting — a rule that reports five hundred repeated 2 KB icons is noise, not a finding.
+     */
+    private static final long DUPLICATE_FLOOR_BYTES = 64L << 10;
     private static final int FINDINGS_PER_RULE_LIMIT = 25;
+
+    /**
+     * Editor project formats. The game reads none of them, so shipping one costs a user download and
+     * disk for a file that never loads. Deliberately excludes {@code .wav}, which looks like an
+     * intermediate but is a format Starsector plays — twenty effects in the reviewed profile are
+     * declared as {@code .wav}.
+     */
+    private static final Set<String> EDITOR_SOURCE_EXTENSIONS = Set.of(
+            ".pdn", ".psd", ".psb", ".xcf", ".kra", ".aseprite", ".ase", ".clip", ".sai",
+            ".afphoto", ".afdesign", ".blend", ".blend1");
 
     private AssetLint() {
     }
@@ -98,6 +115,19 @@ final class AssetLint {
             case "texture-npot-padding" ->
                     "Dimensions are not powers of two, so the stock loader uploads them into the next "
                             + "power-of-two buffer and the remainder holds nothing.";
+            case "sound-declared-missing" ->
+                    "Named by a sounds.json but supplied by no mod in the profile, so the game has "
+                            + "nothing to play when the sound is triggered.";
+            case "asset-shadowed" ->
+                    "Another mod later in the load order provides the same path, so this copy is "
+                            + "never loaded. Intentional when the override is the point; otherwise one "
+                            + "of the two is not having the effect its author expected.";
+            case "asset-duplicate-content" ->
+                    "Byte-for-byte identical to another file at a different path in the profile. "
+                            + "Both are shipped and both occupy memory if both are loaded.";
+            case "asset-editor-source" ->
+                    "An editor project file. The game does not read these formats, so they cost "
+                            + "download size and disk without ever loading.";
             default -> "";
         };
     }
@@ -135,6 +165,9 @@ final class AssetLint {
         List<Finding> findings = new ArrayList<>();
         findings.addAll(audioFindings(AudioCensus.scan(installRoot, index, diagnostics)));
         findings.addAll(textureFindings(index, diagnostics));
+        findings.addAll(shadowedFindings(index));
+        findings.addAll(editorSourceFindings(index));
+        findings.addAll(duplicateFindings(index, diagnostics));
 
         if (modFilter != null) {
             String wanted = modFilter;
@@ -152,6 +185,12 @@ final class AssetLint {
 
     private static List<Finding> audioFindings(AudioCensus.Result census) {
         List<Finding> findings = new ArrayList<>();
+        for (String missing : census.missingDeclarations()) {
+            // Attributed to the profile rather than a mod: the declaration and the absence can live
+            // in different mods, and naming one of them would be a guess.
+            findings.add(new Finding("sound-declared-missing", Severity.ERROR, Cost.NONE,
+                    "(profile)", missing, 0, "declared but supplied by no mod"));
+        }
         for (AudioCensus.Sound sound : census.sounds()) {
             if (!sound.decodable()) {
                 // Only a declared file is one the game will actually try to open.
@@ -219,6 +258,108 @@ final class AssetLint {
                     width + "x" + height + " uploaded as " + GpuTextureFootprint.uploadDimension(width)
                             + "x" + GpuTextureFootprint.uploadDimension(height) + ", "
                             + megabytes(padding) + " wasted"));
+        }
+        return findings;
+    }
+
+    /**
+     * A copy of a path that a later mod also provides. Attributed to the shadowed provider, since
+     * that is the author shipping bytes the game never reads.
+     */
+    private static List<Finding> shadowedFindings(ResourceIndex index) {
+        List<Finding> findings = new ArrayList<>();
+        for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {
+            List<ResourceIndex.Provider> providers = entry.getValue();
+            if (providers.size() < 2) {
+                continue;
+            }
+            String winner = index.roots().get(providers.get(providers.size() - 1).rootIndex()).id();
+            for (ResourceIndex.Provider shadowed : providers.subList(0, providers.size() - 1)) {
+                // Most shadowing is deliberate, and the profile has 1,841 shadowed copies averaging
+                // 15 KB. Reporting all of them would bury every other rule under findings whose cost
+                // is negligible and whose intent this cannot read. Only sizeable content survives.
+                if (shadowed.size() < DUPLICATE_FLOOR_BYTES) {
+                    continue;
+                }
+                findings.add(new Finding("asset-shadowed", Severity.INFO, Cost.DISK,
+                        index.roots().get(shadowed.rootIndex()).id(), entry.getKey(), shadowed.size(),
+                        AssetLint.megabytes(shadowed.size()) + " shipped; " + winner + " provides this path"));
+            }
+        }
+        return findings;
+    }
+
+    private static List<Finding> editorSourceFindings(ResourceIndex index) {
+        List<Finding> findings = new ArrayList<>();
+        for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {
+            String logicalPath = entry.getKey();
+            int dot = logicalPath.lastIndexOf('.');
+            if (dot < 0 || !EDITOR_SOURCE_EXTENSIONS.contains(logicalPath.substring(dot))) {
+                continue;
+            }
+            for (ResourceIndex.Provider provider : entry.getValue()) {
+                findings.add(new Finding("asset-editor-source", Severity.INFO, Cost.DISK,
+                        index.roots().get(provider.rootIndex()).id(), logicalPath, provider.size(),
+                        AssetLint.megabytes(provider.size()) + " never loaded"));
+            }
+        }
+        return findings;
+    }
+
+    /**
+     * Files with identical content at different paths. Hashing every file in a large profile would
+     * cost more than the whole rest of the run, so only files that share an exact byte length are
+     * candidates — two files cannot be identical at different sizes, and equal sizes are rare enough
+     * that the surviving set is small.
+     *
+     * <p>Paths a later mod shadows are excluded; those are {@code asset-shadowed}, and reporting both
+     * would count the same bytes twice under two rules.
+     */
+    private static List<Finding> duplicateFindings(ResourceIndex index, List<String> diagnostics) {
+        Map<Long, List<Map.Entry<String, ResourceIndex.Provider>>> bySize = new LinkedHashMap<>();
+        for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {
+            for (ResourceIndex.Provider provider : entry.getValue()) {
+                if (provider.size() >= DUPLICATE_FLOOR_BYTES) {
+                    bySize.computeIfAbsent(provider.size(), ignored -> new ArrayList<>())
+                            .add(Map.entry(entry.getKey(), provider));
+                }
+            }
+        }
+
+        Map<String, List<Map.Entry<String, ResourceIndex.Provider>>> byContent = new LinkedHashMap<>();
+        for (List<Map.Entry<String, ResourceIndex.Provider>> candidates : bySize.values()) {
+            if (candidates.size() < 2) {
+                continue;
+            }
+            for (Map.Entry<String, ResourceIndex.Provider> candidate : candidates) {
+                try {
+                    String digest = Hashes.sha256(index.resolveExisting(candidate.getValue()));
+                    byContent.computeIfAbsent(candidate.getValue().size() + ":" + digest,
+                            ignored -> new ArrayList<>()).add(candidate);
+                } catch (IOException | RuntimeException error) {
+                    diagnostics.add("Could not hash " + candidate.getKey() + ": " + error.getMessage());
+                }
+            }
+        }
+
+        List<Finding> findings = new ArrayList<>();
+        for (List<Map.Entry<String, ResourceIndex.Provider>> group : byContent.values()) {
+            List<String> distinctPaths = group.stream().map(Map.Entry::getKey).distinct().sorted().toList();
+            if (distinctPaths.size() < 2) {
+                continue;
+            }
+            for (Map.Entry<String, ResourceIndex.Provider> copy : group) {
+                String others = distinctPaths.stream()
+                        .filter(path -> !path.equals(copy.getKey()))
+                        .findFirst()
+                        .orElse("");
+                findings.add(new Finding("asset-duplicate-content", Severity.INFO, Cost.DISK,
+                        index.roots().get(copy.getValue().rootIndex()).id(), copy.getKey(),
+                        // Only the redundant copies are avoidable, so the group's cost is spread
+                        // across its members rather than charged in full to each of them.
+                        copy.getValue().size() * (group.size() - 1) / group.size(),
+                        AssetLint.megabytes(copy.getValue().size()) + ", identical to " + others));
+            }
         }
         return findings;
     }
