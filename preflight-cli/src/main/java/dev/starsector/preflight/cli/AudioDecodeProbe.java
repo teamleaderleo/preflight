@@ -58,6 +58,13 @@ final class AudioDecodeProbe {
      */
     private static final double BURST_SHARE_OF_RUN = 0.05;
     /**
+     * An absolute ceiling, because session length is an artifact of how long the player stayed rather
+     * than of how the game loads. A ratio alone lets someone who quits ten seconds after the menu
+     * appears flip the verdict on a load that behaved identically to a two-hour session's. Twenty or
+     * more files inside three seconds is a bulk load however briefly the session then ran.
+     */
+    private static final long BURST_CEILING_MILLIS = 3_000;
+    /**
      * A burst needs enough files to be one. Without this, a session that opened a single effect would
      * have a zero-length window and read as a perfect bulk load.
      */
@@ -327,12 +334,22 @@ final class AudioDecodeProbe {
      * <p>Counting files was always a proxy. "Lazy" means <em>at the time of use</em>, so when the
      * opens happen is the direct evidence and how many happen is not. A burst answers the question the
      * fraction only gestures at.</p>
+     *
+     * <p>A window is a burst if it is short in absolute terms <em>or</em> small against the session.
+     * The ratio alone was wrong for the same reason the fraction was: it made the verdict depend on
+     * how long the player happened to stay, which is nothing to do with how the game loads. CI found
+     * that, on a runner slow enough that a test's forty reads were a large share of its short
+     * recording.</p>
      */
     private static boolean isBurst(Tally effects, long runSpanMillis) {
-        if (effects.read() < BURST_MINIMUM_FILES || runSpanMillis <= 0) {
+        if (effects.read() < BURST_MINIMUM_FILES) {
             return false;
         }
-        return (double) burstMillis(effects) / runSpanMillis <= BURST_SHARE_OF_RUN;
+        long window = burstMillis(effects);
+        if (window <= BURST_CEILING_MILLIS) {
+            return true;
+        }
+        return runSpanMillis > 0 && (double) window / runSpanMillis <= BURST_SHARE_OF_RUN;
     }
 
     /** The window between the first and last first-open, in milliseconds. */

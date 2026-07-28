@@ -74,6 +74,23 @@ class AudioDecodeProbeTest {
         assertTrue(result.detail().contains("only part of what the profile declares"), result.detail());
     }
 
+    /**
+     * A player who quits moments after the menu appears has not changed how the game loaded, so a
+     * session barely longer than the load itself must still read as a burst. Verdict logic that only
+     * compared the window against the session length got this wrong, and CI caught it on a runner
+     * where a test's reads were a large share of its short recording.
+     */
+    @Test
+    void aShortSessionDoesNotTurnABulkLoadIntoSomethingElse() throws Exception {
+        Path core = profile();
+        List<Path> declared = declareEffects(core, 40);
+
+        Path recording = record(true, declared, false);
+        AudioDecodeProbe.Result result = AudioDecodeProbe.run(recording, temporaryDirectory);
+
+        assertEquals(AudioDecodeProbe.Verdict.EAGER, result.verdict(), result.detail());
+    }
+
     /** One open has a zero-length window, which must not read as a perfect bulk load. */
     @Test
     void doesNotCallASingleOpenABurst() throws Exception {
@@ -200,6 +217,10 @@ class AudioDecodeProbeTest {
      * only when {@code exhaustive} is set, mirroring what the agent does.
      */
     private Path record(boolean exhaustive, List<Path> files) throws Exception {
+        return record(exhaustive, files, true);
+    }
+
+    private Path record(boolean exhaustive, List<Path> files, boolean pauseAfterwards) throws Exception {
         Path destination = temporaryDirectory.resolve("probe-" + System.nanoTime() + ".jfr");
         try (Recording recording = new Recording()) {
             recording.enable("jdk.FileRead")
@@ -215,11 +236,12 @@ class AudioDecodeProbeTest {
                 drain(file);
             }
 
-            // The burst test compares the first-open window against the whole session, so the session
-            // has to be measurably longer than the window. A pause and one more read past it stand in
-            // for the minutes a real run spends after loading.
-            Thread.sleep(300);
-            drain(temporaryDirectory.resolve("mods/enabled_mods.json"));
+            if (pauseAfterwards) {
+                // Stands in for the minutes a real session spends after loading, so the window is a
+                // small share of the recording as well as short in absolute terms.
+                Thread.sleep(300);
+                drain(temporaryDirectory.resolve("mods/enabled_mods.json"));
+            }
 
             recording.stop();
             recording.dump(destination);

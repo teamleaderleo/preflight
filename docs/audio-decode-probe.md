@@ -57,7 +57,7 @@ threshold was lifted, and **a recording made without the flag is refused rather 
 
 | Verdict | Basis |
 | --- | --- |
-| `EAGER` | the opened effects were opened in a burst — a first-open window under 5% of the session, across at least 20 files |
+| `EAGER` | the opened effects were opened in a burst — at least 20 files, in a first-open window under 3 seconds or under 5% of the session |
 | `LAZY` | none were opened, or they were opened spread across the session |
 | `INCONCLUSIVE` | neither shape; the numbers are reported without a conclusion |
 | `UNUSABLE` | the recording cannot answer the question |
@@ -69,6 +69,12 @@ opened fraction against thresholds of 90% and 10%, and the first real run landed
 the direct evidence and how many happen is a proxy. A partial fraction with a burst shape means the
 session did not reach a later loading phase, and the detail text says so rather than claiming full
 coverage.
+
+The window is judged both absolutely and against the session, because session length is an artifact
+of how long the player stayed rather than of how the game loads. Comparing only against the session
+lets someone who quits ten seconds after the menu appears flip the verdict on a load that behaved
+exactly like a two-hour session's. CI found that one, on a runner slow enough that a test's forty
+reads were a large share of its short recording.
 
 The two directions are not equally strong, and the tool says so rather than flattening them:
 
