@@ -20,15 +20,20 @@ pays it. Both answers are useful and only one of them is a project:
 Two steps. The first needs a real launch; the second does not.
 
 ```bash
-preflight run --trace-all-file-reads
+java -jar preflight-cli/target/preflight.jar run --trace-all-file-reads
 ```
 
 Play until the main menu is up, then quit normally. The recording lands in
-`~/.starsector-preflight/runs/<timestamp>/startup.jfr`.
+`~/.starsector-preflight/runs/<timestamp>/startup.jfr`, and the run prints that directory when it
+starts.
 
 ```bash
-preflight audio decode-probe ~/.starsector-preflight/runs/<timestamp>/startup.jfr
+java -jar preflight-cli/target/preflight.jar audio decode-probe \
+  "$(command ls -td ~/.starsector-preflight/runs/*/ | head -1)startup.jfr"
 ```
+
+A campaign run measures more than a menus-only run: the effects a menus-only session never opens are
+campaign sounds. Both are useful, and the report says which kind it read.
 
 ## Why the ordinary recording will not do
 
@@ -52,10 +57,18 @@ threshold was lifted, and **a recording made without the flag is refused rather 
 
 | Verdict | Basis |
 | --- | --- |
-| `EAGER` | ≥90% of declared effects were opened during the run |
-| `LAZY` | ≤10% were opened |
-| `INCONCLUSIVE` | neither; the numbers are reported without a conclusion |
+| `EAGER` | the opened effects were opened in a burst — a first-open window under 5% of the session, across at least 20 files |
+| `LAZY` | none were opened, or they were opened spread across the session |
+| `INCONCLUSIVE` | neither shape; the numbers are reported without a conclusion |
 | `UNUSABLE` | the recording cannot answer the question |
+
+**The verdict keys on timing, not on how many files were opened.** The first version compared the
+opened fraction against thresholds of 90% and 10%, and the first real run landed at 62% — reported
+`INCONCLUSIVE` about data that was not remotely ambiguous, since all 1,278 files were opened inside
+1.5 seconds of a six-minute session. *Lazy* means **at the time of use**, so when the opens happen is
+the direct evidence and how many happen is a proxy. A partial fraction with a burst shape means the
+session did not reach a later loading phase, and the detail text says so rather than claiming full
+coverage.
 
 The two directions are not equally strong, and the tool says so rather than flattening them:
 
