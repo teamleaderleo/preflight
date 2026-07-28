@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -10,21 +11,81 @@ import org.junit.jupiter.api.Test;
 
 class PreflightCliHelpTest {
     @Test
-    void benchmarkHelpIncludesScenarioRecorderCollectorAndComparisons() throws Exception {
-        PrintStream original = System.out;
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (PrintStream capture = new PrintStream(bytes, true, StandardCharsets.UTF_8)) {
-            System.setOut(capture);
-            assertEquals(0, PreflightCli.run(new String[] {"benchmark", "--help"}));
-        } finally {
-            System.setOut(original);
-        }
+    void globalHelpIsConciseAndGoesToStandardOutput() throws Exception {
+        Captured captured = capture(new String[] {"--help"});
 
-        String output = bytes.toString(StandardCharsets.UTF_8);
+        assertEquals(0, captured.status());
+        assertTrue(captured.standardOutput().contains("preflight <command> [options]"), captured.standardOutput());
+        assertTrue(captured.standardOutput().contains("doctor       Check installation"), captured.standardOutput());
+        assertTrue(captured.standardOutput().contains("lint         Report actionable asset problems"), captured.standardOutput());
+        assertFalse(captured.standardOutput().contains("--adapter-targets"), captured.standardOutput());
+        assertEquals("", captured.standardError());
+    }
+
+    @Test
+    void unknownCommandIsExplicitAndSuggestsLikelyTypo() throws Exception {
+        Captured captured = capture(new String[] {"scna"});
+
+        assertEquals(2, captured.status());
+        assertEquals("", captured.standardOutput());
+        assertTrue(captured.standardError().contains("unknown command `scna`"), captured.standardError());
+        assertTrue(captured.standardError().contains("Did you mean `scan`?"), captured.standardError());
+        assertTrue(captured.standardError().contains("preflight <command> [options]"), captured.standardError());
+    }
+
+    @Test
+    void helpRejectsUnknownOrExtraCommandNames() throws Exception {
+        Captured unknown = capture(new String[] {"help", "scna"});
+        Captured extra = capture(new String[] {"help", "scan", "extra"});
+
+        assertEquals(2, unknown.status());
+        assertTrue(unknown.standardError().contains("Did you mean `scan`?"), unknown.standardError());
+        assertEquals(2, extra.status());
+        assertTrue(extra.standardError().contains("expected `preflight help [command]`"), extra.standardError());
+    }
+
+    @Test
+    void detailedHelpIncludesPreviouslyHiddenSubcommands() throws Exception {
+        Captured fonts = capture(new String[] {"font", "--help"});
+        Captured assets = capture(new String[] {"assets", "--help"});
+
+        assertEquals(0, fonts.status());
+        assertTrue(fonts.standardOutput().contains("preflight font list-families"), fonts.standardOutput());
+        assertTrue(fonts.standardOutput().contains("--family <installed-family>"), fonts.standardOutput());
+        assertEquals(0, assets.status());
+        assertTrue(assets.standardOutput().contains("preflight assets compression-probe"), assets.standardOutput());
+    }
+
+    @Test
+    void benchmarkHelpIncludesScenarioRecorderCollectorAndComparisons() throws Exception {
+        String output = capture(new String[] {"benchmark", "--help"}).standardOutput();
         assertTrue(output.contains("preflight benchmark lookups"), output);
         assertTrue(output.contains("preflight benchmark scenario"), output);
         assertTrue(output.contains("preflight benchmark collect"), output);
         assertTrue(output.contains("preflight benchmark compare"), output);
         assertTrue(output.contains("preflight benchmark compare-runs"), output);
+    }
+
+    private static Captured capture(String[] args) throws Exception {
+        PrintStream originalOutput = System.out;
+        PrintStream originalError = System.err;
+        ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
+        ByteArrayOutputStream errorBytes = new ByteArrayOutputStream();
+        try (PrintStream output = new PrintStream(outputBytes, true, StandardCharsets.UTF_8);
+                PrintStream error = new PrintStream(errorBytes, true, StandardCharsets.UTF_8)) {
+            System.setOut(output);
+            System.setErr(error);
+            int status = PreflightCli.run(args);
+            return new Captured(
+                    status,
+                    outputBytes.toString(StandardCharsets.UTF_8),
+                    errorBytes.toString(StandardCharsets.UTF_8));
+        } finally {
+            System.setOut(originalOutput);
+            System.setErr(originalError);
+        }
+    }
+
+    private record Captured(int status, String standardOutput, String standardError) {
     }
 }

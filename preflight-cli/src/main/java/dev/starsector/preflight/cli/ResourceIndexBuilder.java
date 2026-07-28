@@ -79,6 +79,36 @@ final class ResourceIndexBuilder {
         return new BuildResult(index, List.copyOf(new LinkedHashSet<>(diagnostics)), System.nanoTime() - started);
     }
 
+    /**
+     * Indexes one directory as a lone resource root, with no profile around it.
+     *
+     * <p>A mod author has their work in a directory, not installed into somebody's seventy-mod
+     * profile. Analysis that can only run against a resolved profile is analysis they cannot run at
+     * all, so this exists to let a single mod be read on its own terms.</p>
+     *
+     * <p>The result deliberately has one root, which means no path has a second provider and any
+     * check that depends on comparing providers has nothing to say. Callers must suppress those
+     * rather than report their empty answers as findings.</p>
+     */
+    static BuildResult buildStandalone(Path directory, String id) throws IOException {
+        long started = System.nanoTime();
+        List<String> diagnostics = new ArrayList<>();
+        Path root = PathContainment.realDirectory(directory);
+        SourceRoot source = new SourceRoot(id, root, false);
+
+        TreeMap<String, List<ResourceIndex.Provider>> entries = new TreeMap<>();
+        MessageDigest fingerprint = sha256();
+        update(fingerprint, "preflight-standalone-index-v1");
+        update(fingerprint, id);
+        scanRoot(source, 0, entries, fingerprint, diagnostics);
+
+        ResourceIndex index = new ResourceIndex(
+                HexFormat.of().formatHex(fingerprint.digest()),
+                List.of(new ResourceIndex.Root(id, root, false)),
+                entries);
+        return new BuildResult(index, List.copyOf(new LinkedHashSet<>(diagnostics)), System.nanoTime() - started);
+    }
+
     private static Map<String, Path> discoverModDirectories(Path modsDirectory, List<String> diagnostics) throws IOException {
         Map<String, Path> byId = new LinkedHashMap<>();
         try (Stream<Path> entries = Files.list(modsDirectory)) {
