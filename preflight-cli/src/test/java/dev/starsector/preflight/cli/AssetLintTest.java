@@ -330,6 +330,46 @@ class AssetLintTest {
                 1, 0x11, 0, 2, 0x11, 0, 3, 0x11, 0};
     }
 
+    /**
+     * A mod directory linted alone is missing the rest of the profile, and three rules need it.
+     * Found by cross-checking: {@code knights_of_ludd} reports sixteen unreferenced sounds standalone
+     * and none in the profile, because a companion mod declares them.
+     */
+    @Test
+    void standaloneSuppressesTheRulesThatNeedAWholeProfile() throws Exception {
+        Path directory = temporaryDirectory.resolve("MyMod");
+        Files.createDirectories(directory.resolve("data/config"));
+        Files.createDirectories(directory.resolve("graphics"));
+        Files.writeString(directory.resolve("mod_info.json"), "{\"id\":\"mymod\"}");
+        // Declared by nobody here, and declaring a file this directory does not ship.
+        Files.createDirectories(directory.resolve("sounds"));
+        Files.write(directory.resolve("sounds/orphan.ogg"), fixture("stereo-44100.ogg"));
+        Files.writeString(directory.resolve("data/config/sounds.json"),
+                "{\"a\":[{\"file\":\"sounds/sfx_ui/core_click.ogg\",\"volume\":1}]}");
+        Files.write(directory.resolve("graphics/wide.png"), png(1_200, 1_200));
+
+        AssetLint.Result result = AssetLint.scanStandalone(directory);
+
+        assertEquals(List.of("texture-npot-padding"),
+                result.findings().stream().map(AssetLint.Finding::rule).distinct().toList(),
+                result.findings().toString());
+        assertEquals("standalone", result.report().get("scope"));
+        assertEquals(List.of("asset-shadowed", "sound-declared-missing", "audio-unreferenced"),
+                result.report().get("rulesRequiringAProfile"));
+    }
+
+    @Test
+    void standaloneNamesTheModByItsDeclaredIdRatherThanItsDirectory() throws Exception {
+        Path directory = temporaryDirectory.resolve("SomeMod-1.2.3");
+        Files.createDirectories(directory.resolve("graphics"));
+        Files.writeString(directory.resolve("mod_info.json"), "{\"id\":\"somemod\"}");
+        Files.write(directory.resolve("graphics/wide.png"), png(1_200, 1_200));
+
+        AssetLint.Result result = AssetLint.scanStandalone(directory);
+
+        assertEquals("somemod", result.findings().get(0).provider());
+    }
+
     private Path mod(String id) throws IOException {
         Path directory = temporaryDirectory.resolve("mods").resolve(id);
         Files.createDirectories(directory.resolve("graphics"));

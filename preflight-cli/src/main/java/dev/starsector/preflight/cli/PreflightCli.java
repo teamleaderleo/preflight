@@ -36,16 +36,28 @@ public final class PreflightCli {
     }
 
     static int run(String[] args) throws Exception {
-        if (args.length == 0
-                || "help".equals(args[0])
-                || "--help".equals(args[0])
-                || "-h".equals(args[0])) {
-            if (args.length >= 2 && "help".equals(args[0]) && USAGE.containsKey(args[1])) {
+        if (args.length == 0) {
+            globalUsage(System.err);
+            return 2;
+        }
+        if ("--help".equals(args[0]) || "-h".equals(args[0])) {
+            globalUsage(System.out);
+            return 0;
+        }
+        if ("help".equals(args[0])) {
+            if (args.length == 1) {
+                globalUsage(System.out);
+                return 0;
+            }
+            if (args.length == 2 && USAGE.containsKey(args[1])) {
                 commandUsage(args[1], System.out);
                 return 0;
             }
-            usage();
-            return args.length == 0 ? 2 : 0;
+            if (args.length == 2) {
+                return unknownCommand(args[1]);
+            }
+            System.err.println("preflight: expected `preflight help [command]`");
+            return 2;
         }
         if (args.length == 2
                 && ("--help".equals(args[1]) || "-h".equals(args[1]))
@@ -71,10 +83,7 @@ public final class PreflightCli {
             case "analyze" -> AnalysisCommand.execute(args, 1);
             case "fingerprint" -> requirePathCommand(args, "fingerprint", PreflightCli::fingerprint);
             case "summarize" -> summarizeCommand(args);
-            default -> {
-                usage();
-                yield 2;
-            }
+            default -> unknownCommand(args[0]);
         };
     }
 
@@ -183,10 +192,13 @@ public final class PreflightCli {
                 "preflight texture manifest query <manifest.spfm> <logical-path> [--cache-dir <path>]",
                 "preflight texture manifest validate <manifest.spfm> [--cache-dir <path>]"));
         usage.put("font", List.of(
-                "preflight font generate (--ttf <font.ttf> | --logical sans-serif|serif|monospaced) "
+                "preflight font list-families",
+                "preflight font generate (--ttf <font.ttf> | --logical sans-serif|serif|monospaced "
+                        + "| --family <installed-family>) "
                         + "--size <px> --name <basename> --out-dir <dir> [--atlas-width <n>] [--padding <n>] "
                         + "[--charset-from <font.fnt> | --ascii | --latin1]",
-                "preflight font generate-pack --ttf <font.ttf> --fonts-dir <graphics/fonts> --out-dir <mod-dir> "
+                "preflight font generate-pack (--ttf <font.ttf> | --logical sans-serif|serif|monospaced "
+                        + "| --family <installed-family>) --fonts-dir <graphics/fonts> --out-dir <mod-dir> "
                         + "[--scale <n>] [--atlas-width <n>] [--padding <n>] [--mod-id <id>] [--mod-name <name>] "
                         + "[--game-version <version>]"));
         usage.put("assets", List.of(
@@ -208,9 +220,13 @@ public final class PreflightCli {
                         + "[--samples <n>] [--max-delta-e <deltaE>] [--panel <pixels>] [--columns <n>]",
                 "  draws the profile's art beside its reconstruction, its error map and the baker's decision;",
                 "  the decision is made from filenames, so this is how you check that what it calls a shader",
-                "  map is one -- a question no fidelity number can answer. No GPU, display or game needed"));
+                "  map is one -- a question no fidelity number can answer. No GPU, display or game needed",
+                "preflight assets compression-probe [--game <path>] [--launcher <path>] "
+                        + "[--samples <n>] [--all-bc3]",
+                "  measures block-compression error on profile art without writing a cache"));
         usage.put("lint", List.of(
-                "preflight lint [--game <Starsector directory>] [--mod <mod id>] [--json] [--output <report.json>]"));
+                "preflight lint [--game <Starsector directory>] [--mod <mod id>] [--json] [--output <report.json>]",
+                "preflight lint --path <mod directory> [--json] [--output <report.json>]"));
         usage.put("audio", List.of(
                 "preflight audio census [--game <Starsector directory>] [--output <report.json>] [--csv <sounds.csv>]",
                 "preflight audio jorbis-equivalence --jogg <jogg-0.0.7.jar> --jorbis <jorbis-0.0.15.jar> [--output <report.json>]",
@@ -241,15 +257,87 @@ public final class PreflightCli {
         }
     }
 
-    private static void usage() {
-        System.err.println("Usage:");
-        for (List<String> lines : USAGE.values()) {
-            for (String line : lines) {
-                System.err.println("  " + line);
-            }
+    private static int unknownCommand(String command) {
+        System.err.println("preflight: unknown command `" + command + "`");
+        String suggestion = closestCommand(command);
+        if (suggestion != null) {
+            System.err.println("Did you mean `" + suggestion + "`?");
         }
         System.err.println();
-        System.err.println("Run `preflight <command> --help` for one command's usage.");
+        globalUsage(System.err);
+        return 2;
+    }
+
+    private static void globalUsage(java.io.PrintStream output) {
+        output.println("Usage:");
+        output.println("  preflight <command> [options]");
+        output.println("  preflight help <command>");
+        output.println();
+        output.println("Commands:");
+        for (String command : USAGE.keySet()) {
+            output.printf("  %-12s %s%n", command, commandSummary(command));
+        }
+        output.println();
+        output.println("Run `preflight <command> --help` for detailed usage.");
+        output.println("Set PREFLIGHT_DEBUG=1 to include stack traces for unexpected failures.");
+    }
+
+    private static String commandSummary(String command) {
+        return switch (command) {
+            case "run" -> "Launch Starsector with bounded profiling and optional adapters.";
+            case "prepare" -> "Build reusable artifacts for the current enabled profile.";
+            case "doctor" -> "Check installation discovery and launch readiness.";
+            case "install" -> "Write the local Preflight launcher integration.";
+            case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
+            case "index" -> "Build, inspect, query, or validate a resource-provider index.";
+            case "texture" -> "Prepare and inspect texture cache artifacts.";
+            case "font" -> "List fonts or generate a drop-in bitmap-font pack.";
+            case "assets" -> "Measure or generate opt-in asset overlays and block caches.";
+            case "lint" -> "Report actionable asset problems without modifying mods.";
+            case "audio" -> "Measure audio or run installed-decoder evidence checks.";
+            case "classpath" -> "Audit and index enabled mod JARs and classes.";
+            case "benchmark" -> "Record, collect, and compare controlled startup runs.";
+            case "analyze" -> "Join adapter probes with trace evidence.";
+            case "fingerprint" -> "Hash a file or directory deterministically.";
+            case "summarize" -> "Convert a startup JFR recording into bounded JSON.";
+            default -> "";
+        };
+    }
+
+    private static String closestCommand(String requested) {
+        String closest = null;
+        int closestDistance = Integer.MAX_VALUE;
+        for (String command : USAGE.keySet()) {
+            int distance = editDistance(requested, command);
+            if (distance < closestDistance) {
+                closest = command;
+                closestDistance = distance;
+            }
+        }
+        int threshold = Math.max(1, Math.min(3, requested.length() / 2));
+        return closestDistance <= threshold ? closest : null;
+    }
+
+    private static int editDistance(String left, String right) {
+        int[] prior = new int[right.length() + 1];
+        int[] current = new int[right.length() + 1];
+        for (int j = 0; j <= right.length(); j++) {
+            prior[j] = j;
+        }
+        for (int i = 1; i <= left.length(); i++) {
+            current[0] = i;
+            for (int j = 1; j <= right.length(); j++) {
+                int substitution = prior[j - 1]
+                        + (left.charAt(i - 1) == right.charAt(j - 1) ? 0 : 1);
+                current[j] = Math.min(
+                        Math.min(prior[j] + 1, current[j - 1] + 1),
+                        substitution);
+            }
+            int[] swap = prior;
+            prior = current;
+            current = swap;
+        }
+        return prior[right.length()];
     }
 
     @FunctionalInterface

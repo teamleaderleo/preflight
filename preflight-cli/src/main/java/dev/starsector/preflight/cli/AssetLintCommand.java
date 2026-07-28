@@ -25,26 +25,38 @@ final class AssetLintCommand {
 
     static int execute(String[] args, int offset) throws Exception {
         Path game = null;
+        Path standalone = null;
         Path output = null;
         String mod = null;
         boolean json = false;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
+                case "--path" -> standalone = Path.of(requireValue(args, ++i, "--path"));
                 case "--output" -> output = Path.of(requireValue(args, ++i, "--output"));
                 case "--mod" -> mod = requireValue(args, ++i, "--mod");
                 case "--json" -> json = true;
                 default -> throw new IllegalArgumentException("Unknown lint option: " + args[i]);
             }
         }
-
-        Path installRoot = InstallRoot.resolve(game);
-        if (installRoot == null) {
-            System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
-            return 3;
+        if (standalone != null && (game != null || mod != null)) {
+            throw new IllegalArgumentException("--path lints one directory alone; it takes no --game or --mod");
         }
 
-        AssetLint.Result result = AssetLint.scan(installRoot, mod);
+        AssetLint.Result result;
+        if (standalone != null) {
+            if (!Files.isDirectory(standalone)) {
+                throw new IllegalArgumentException("--path is not a directory: " + standalone);
+            }
+            result = AssetLint.scanStandalone(standalone);
+        } else {
+            Path installRoot = InstallRoot.resolve(game);
+            if (installRoot == null) {
+                System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
+                return 3;
+            }
+            result = AssetLint.scan(installRoot, mod);
+        }
         String text = Json.object(result.report());
         if (output != null) {
             Path resolved = output.toAbsolutePath().normalize();

@@ -169,15 +169,64 @@ final class AssetLint {
 
     static Result scan(Path installRoot, String modFilter) throws IOException {
         ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(installRoot);
+        return analyse(installRoot, built, modFilter, true);
+    }
+
+    /**
+     * Lints one mod directory on its own, with no profile around it.
+     *
+     * <p>Three rules are suppressed rather than answered, because a lone directory cannot answer them
+     * honestly. {@code asset-shadowed} compares providers and there is only one. {@code
+     * sound-declared-missing} would fire on every core sound a mod legitimately reuses — a mod
+     * declaring {@code sounds/sfx_ui/click.ogg} is not shipping a broken reference, it is relying on
+     * the base game.</p>
+     *
+     * <p>{@code audio-unreferenced} is suppressed for the mirror-image reason, found by cross-checking
+     * both modes against the reviewed profile: {@code knights_of_ludd} reports sixteen unreferenced
+     * sounds alone and <em>none</em> in the profile, because a companion mod's {@code sounds.json}
+     * declares them. Declarations are merged across the whole profile, so one directory cannot see
+     * who declares its files, and every one of those sixteen would be a false positive shown to an
+     * author who did nothing wrong.</p>
+     */
+    static Result scanStandalone(Path directory) throws IOException {
+        Path root = directory.toAbsolutePath().normalize();
+        ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.buildStandalone(root, modId(root));
+        return analyse(root, built, null, false);
+    }
+
+    private static String modId(Path directory) {
+        Path info = directory.resolve("mod_info.json");
+        if (java.nio.file.Files.isRegularFile(info)) {
+            try {
+                String id = JsonText.string(
+                        java.nio.file.Files.readString(info, java.nio.charset.StandardCharsets.UTF_8), "id");
+                if (id != null && !id.isBlank()) {
+                    return id;
+                }
+            } catch (IOException | RuntimeException ignored) {
+                // Fall through to the directory name; a missing id is not worth failing the run over.
+            }
+        }
+        Path name = directory.getFileName();
+        return name == null ? "(directory)" : name.toString();
+    }
+
+    private static Result analyse(
+            Path root,
+            ResourceIndexBuilder.BuildResult built,
+            String modFilter,
+            boolean profileWide) throws IOException {
         ResourceIndex index = built.index();
         List<String> diagnostics = new ArrayList<>(built.diagnostics());
 
         List<Finding> findings = new ArrayList<>();
-        findings.addAll(audioFindings(AudioCensus.scan(installRoot, index, diagnostics)));
+        findings.addAll(audioFindings(AudioCensus.scan(root, index, diagnostics), profileWide));
         findings.addAll(textureFindings(index, diagnostics));
-        findings.addAll(shadowedFindings(index));
         findings.addAll(editorSourceFindings(index));
         findings.addAll(duplicateFindings(index, diagnostics));
+        if (profileWide) {
+            findings.addAll(shadowedFindings(index));
+        }
 
         if (modFilter != null) {
             String wanted = modFilter;
@@ -189,13 +238,13 @@ final class AssetLint {
                 .thenComparing(Finding::rule)
                 .thenComparing(Finding::path));
         return new Result(
-                report(installRoot, index, findings, modFilter, diagnostics),
+                report(root, index, findings, modFilter, profileWide, diagnostics),
                 List.copyOf(findings));
     }
 
-    private static List<Finding> audioFindings(AudioCensus.Result census) {
+    private static List<Finding> audioFindings(AudioCensus.Result census, boolean profileWide) {
         List<Finding> findings = new ArrayList<>();
-        for (String missing : census.missingDeclarations()) {
+        for (String missing : profileWide ? census.missingDeclarations() : List.<String>of()) {
             // Attributed to the profile rather than a mod: the declaration and the absence can live
             // in different mods, and naming one of them would be a guess.
             findings.add(new Finding("sound-declared-missing", Severity.ERROR, Cost.NONE,
@@ -223,7 +272,7 @@ final class AssetLint {
                         sound.rootId(), sound.logicalPath(), sound.decodedBytes(),
                         Math.round(sound.seconds()) + " s, " + megabytes(sound.decodedBytes()) + " decoded"));
             }
-            if (sound.kind() == AudioCensus.Kind.UNREFERENCED) {
+            if (profileWide && sound.kind() == AudioCensus.Kind.UNREFERENCED) {
                 findings.add(new Finding("audio-unreferenced", Severity.INFO, Cost.DISK,
                         sound.rootId(), sound.logicalPath(), sound.encodedBytes(),
                         megabytes(sound.encodedBytes()) + " on disk"));
@@ -408,16 +457,24 @@ final class AssetLint {
     }
 
     private static Map<String, Object> report(
-            Path installRoot,
+            Path root,
             ResourceIndex index,
             List<Finding> findings,
             String modFilter,
+            boolean profileWide,
             List<String> diagnostics) {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("reportFormat", "starsector-preflight-asset-lint-v1");
         values.put("generatedAt", java.time.Instant.now().toString());
-        values.put("installRoot", installRoot.toAbsolutePath().normalize().toString());
+        values.put("scope", profileWide ? "profile" : "standalone");
+        values.put("root", root.toAbsolutePath().normalize().toString());
         values.put("profileFingerprint", index.profileFingerprint());
+        if (!profileWide) {
+            // Naming what was not checked keeps a clean standalone report from reading as a stronger
+            // result than it is.
+            values.put("rulesRequiringAProfile",
+                    List.of("asset-shadowed", "sound-declared-missing", "audio-unreferenced"));
+        }
         if (modFilter != null) {
             values.put("modFilter", modFilter);
         }

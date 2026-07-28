@@ -3,10 +3,14 @@
 `preflight lint` reports asset problems in a profile, attributed to the mod that ships them.
 
 ```bash
-java -jar preflight.jar lint --game "/path/to/Starsector"
+java -jar preflight.jar lint --path ./MyMod                        # one mod, on its own
+java -jar preflight.jar lint --game "/path/to/Starsector"          # a whole profile
 java -jar preflight.jar lint --game "/path/to/Starsector" --mod uaf
 java -jar preflight.jar lint --game "/path/to/Starsector" --json --output lint.json
 ```
+
+`--path` lints a single mod directory with no profile around it — the shape a mod author actually
+works in. `--game` resolves a full profile, with override resolution and cross-mod rules.
 
 It reads file headers. It never edits, moves, or rewrites anything, and it always exits `0` — these
 are findings offered to someone, not a build gate imposed on them.
@@ -76,6 +80,28 @@ not `asset-duplicate-content`, and a test enforces that a shadowed path produces
 reports 1,841 shadowed copies averaging 15 KB — 67% of all findings, for 27.6 MB of disk whose intent
 the linter cannot read. Most shadowing is deliberate. The floor keeps the cases where real content is
 being replaced and drops the ones that would bury every other rule.
+
+## Three rules need a whole profile
+
+`--path` suppresses these rather than answering them from a directory that cannot know:
+
+| rule | why |
+| --- | --- |
+| `asset-shadowed` | compares providers, and there is only one |
+| `sound-declared-missing` | would fire on every core sound a mod legitimately reuses |
+| `audio-unreferenced` | another mod's `sounds.json` may declare these files |
+
+The third was found by cross-checking both modes: `knights_of_ludd` reports sixteen unreferenced
+sounds alone and none in the profile, because a companion mod declares them. See
+[the evidence](evidence/2026-07-28-linting-one-mod-alone.md). Standalone reports name the suppressed
+rules in `rulesRequiringAProfile`, so a clean result does not read as a stronger claim than it is.
+
+## Calibration
+
+Every threshold here was tuned against one profile. Running `--path` over all 74 installed mod
+directories gives 74 independent samples: **median 0 findings, 40 of 74 completely clean**, and no
+rule firing on more than a third of mods. Most mods are fine, which is the result to want from a tool
+that reports on other people's work.
 
 ## Byte totals are never combined
 
