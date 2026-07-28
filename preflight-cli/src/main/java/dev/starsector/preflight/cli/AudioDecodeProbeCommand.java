@@ -100,6 +100,9 @@ final class AudioDecodeProbeCommand {
             int opened = ((Number) kind.get("opened")).intValue();
             out.append(String.format("  %-14s %5d declared   %5d opened   %5d never opened%n",
                     kind.get("kind"), declared, opened, declared - opened));
+            out.append(String.format("                 %s of PCM behind what was opened, %s behind what was not%n",
+                    megabytes(kind.get("openedDecodedBytes")),
+                    megabytes(kind.get("neverOpenedDecodedBytes"))));
             @SuppressWarnings("unchecked")
             Map<String, Object> percentiles = (Map<String, Object>) kind.get("firstOpenPercentilesMillis");
             if (!percentiles.isEmpty()) {
@@ -127,6 +130,10 @@ final class AudioDecodeProbeCommand {
 
     private static String seconds(Object millis) {
         return String.format("%.1f s", ((Number) millis).doubleValue() / 1000.0);
+    }
+
+    private static String megabytes(Object bytes) {
+        return String.format("%.1f MB", ((Number) bytes).doubleValue() / (1024.0 * 1024.0));
     }
 
     private static String wrap(String text, String indent) {
