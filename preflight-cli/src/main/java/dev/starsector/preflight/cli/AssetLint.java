@@ -133,8 +133,8 @@ final class AssetLint {
                             + "sprite would be worse. Only textures large enough to waste a megabyte "
                             + "are listed, where choosing dimensions that round up less is worth it.";
             case "config-unparseable" ->
-                    "A bracket, string or comment in these never closes, so no reader can finish them. "
-                            + "Whatever they configure does not take effect.";
+                    "A bracket, string or comment inside the top-level value never closes, so no "
+                            + "reader can finish it. Whatever it configures does not take effect.";
             case "config-unread-content" ->
                     "These carry configuration after the top-level object has already closed, usually "
                             + "one closing brace too many earlier in the file. A reader takes a single "

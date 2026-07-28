@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -12,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Stream;
 
 /**
@@ -109,6 +111,19 @@ final class DesktopBridgeCommand {
 
     private static String engineVersion() {
         String version = PreflightCli.class.getPackage().getImplementationVersion();
+        if (version != null && !version.isBlank()) {
+            return version;
+        }
+        try (InputStream metadata = PreflightCli.class.getResourceAsStream(
+                "/META-INF/maven/dev.starsector.preflight/preflight-cli/pom.properties")) {
+            if (metadata != null) {
+                Properties properties = new Properties();
+                properties.load(metadata);
+                version = properties.getProperty("version");
+            }
+        } catch (IOException ignored) {
+            // Development classpaths do not necessarily contain Maven package metadata.
+        }
         return version == null || version.isBlank() ? "development" : version;
     }
 

@@ -54,7 +54,7 @@ The audience did not ask for this and is entitled to disagree with it. So:
 | `asset-editor-source` | info | disk | An editor project file (`.pdn`, `.psd`, `.xcf`, `.kra`, `.aseprite`, `.blend`, …). The game reads none of them. |
 | `asset-duplicate-content` | info | disk | Byte-for-byte identical to a file at a different path. Reported above 64 KB. |
 | `asset-shadowed` | info | disk | A later mod provides the same path, so this copy never loads. Reported above 64 KB. |
-| `config-unparseable` | error | — | A bracket, string or comment that never closes, or a file that never opens an object or array. No reader can finish it. |
+| `config-unparseable` | error | — | A bracket, string or comment inside the top-level value never closes, or the file never opens an object or array. No reader can finish it. |
 | `config-unread-content` | error | — | Configuration sitting *after* the top-level value has closed, so a reader that takes one value never applies it. |
 
 The two config rules read `.json`, `.variant`, `.wpn`, `.ship`, `.proj`, `.system`, `.skin`,

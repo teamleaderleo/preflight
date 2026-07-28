@@ -229,6 +229,7 @@ Run `preflight <command> --help` (or `preflight help <command>`) for a single co
 
 - [Roadmap](docs/roadmap.md)
 - [Architecture](docs/architecture.md)
+- [Desktop app: run and package](preflight-desktop/README.md)
 - [Desktop app and distribution research](docs/desktop-app-research.md)
 - [Optimization North Star](docs/optimization-north-star.md)
 - [Benchmarking](docs/benchmarking.md)

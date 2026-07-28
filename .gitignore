@@ -8,6 +8,13 @@ target/
 node_modules/
 preflight-desktop/dist/
 preflight-desktop/src-tauri/target/
+preflight-desktop/src-tauri/gen/schemas/
+preflight-desktop/src-tauri/icons/android/
+preflight-desktop/src-tauri/icons/ios/
+preflight-desktop/src-tauri/icons/64x64.png
+preflight-desktop/src-tauri/icons/Square*Logo.png
+preflight-desktop/src-tauri/icons/StoreLogo.png
+preflight-desktop/src-tauri/icons/icon.png
 preflight-cache/
 benchmark-results/
 probe-kits/gpu-capability/gl-capability-probe

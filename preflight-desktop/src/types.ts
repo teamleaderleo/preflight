@@ -32,6 +32,7 @@ export interface RunStateEvent {
   state: "started" | "finished";
   pid: number;
   success?: boolean;
+  detail?: string;
 }
 
-export type AppStatus = "loading" | "ready" | "setup" | "running" | "error";
+export type AppStatus = "loading" | "ready" | "setup" | "error";

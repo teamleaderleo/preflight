@@ -38,8 +38,8 @@ Trailing punctuation is ignored.
 
 Two rules, both `error`, both costing nothing in bytes:
 
-- **`config-unparseable`** — a bracket, string or comment that never closes, or a file that does not
-  open an object or array at all. No reader can finish these.
+- **`config-unparseable`** — a bracket, string or comment inside the top-level value that never
+  closes, or a file that does not open an object or array at all. No reader can finish these.
 - **`config-unread-content`** — real configuration *after* the top-level value has closed. Not a
   stray bracket: a key.
 

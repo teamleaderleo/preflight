@@ -40,7 +40,7 @@ final class StarsectorDiscovery {
             }
             Path root = explicitGame == null ? launcher.getParent() : explicitGame.toAbsolutePath().normalize();
             LaunchTarget target = targetForLauncher(platform, root, launcher, 10_000, "--launcher");
-            targets.put(target.launcher(), target);
+            targets.put(targetIdentity(target), target);
         }
 
         LinkedHashSet<Path> roots = new LinkedHashSet<>();
@@ -109,7 +109,9 @@ final class StarsectorDiscovery {
             return;
         }
         try (Stream<Path> entries = Files.list(macos)) {
-            entries.filter(Files::isRegularFile).forEach(path -> {
+            entries.filter(Files::isRegularFile)
+                    .filter(path -> Files.isExecutable(path) || looksLikeLauncher(path))
+                    .forEach(path -> {
                 int bonus = app.getFileName().toString().toLowerCase(Locale.ROOT).contains("fast") ? 70 : 40;
                 addTarget(targets, targetForLauncher(platform, app, path, bonus, "macOS app bundle"));
             });
@@ -216,7 +218,18 @@ final class StarsectorDiscovery {
     }
 
     private static void addTarget(Map<Path, LaunchTarget> targets, LaunchTarget target) {
-        targets.merge(target.launcher(), target, (left, right) -> left.score() >= right.score() ? left : right);
+        Path identity = targetIdentity(target);
+        targets.merge(identity, target, (left, right) -> left.score() >= right.score() ? left : right);
+    }
+
+    private static Path targetIdentity(LaunchTarget target) {
+        Path identity;
+        try {
+            identity = target.launcher().toRealPath();
+        } catch (IOException ignored) {
+            identity = target.launcher();
+        }
+        return identity;
     }
 
     private static void addStandardRoots(

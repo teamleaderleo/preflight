@@ -3,7 +3,9 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -20,6 +22,7 @@ class StarsectorDiscoveryTest {
         Path executable = app.resolve("Contents/MacOS/JavaApplicationStub");
         Files.createDirectories(executable.getParent());
         Files.writeString(executable, "stub");
+        Files.writeString(executable.resolveSibling("compiler_directives.txt"), "not a launcher");
         executable.toFile().setExecutable(true);
 
         DiscoveryResult result = StarsectorDiscovery.discover(
@@ -32,6 +35,7 @@ class StarsectorDiscoveryTest {
 
         assertNotNull(result.selected());
         assertEquals(executable.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals(1, result.candidates().size());
     }
 
     @Test
@@ -95,5 +99,31 @@ class StarsectorDiscoveryTest {
         assertEquals("call", result.selected().command().get(4));
         assertEquals("\"" + launcher.toAbsolutePath().normalize() + "\"", result.selected().command().get(5));
         assertEquals(launcher.toAbsolutePath().normalize(), result.selected().launcher());
+    }
+
+    @Test
+    void explicitSymlinkWinsWithoutDuplicatingItsDiscoveredTarget() throws Exception {
+        Path game = temporaryDirectory.resolve("game");
+        Files.createDirectories(game);
+        Path discovered = Files.writeString(game.resolve("starsector.sh"), "#!/bin/sh\n");
+        discovered.toFile().setExecutable(true);
+        Path explicit = game.resolve("starsector-explicit.sh");
+        try {
+            Files.createSymbolicLink(explicit, discovered.getFileName());
+        } catch (IOException | UnsupportedOperationException error) {
+            assumeTrue(false, "Symbolic links are unavailable: " + error.getMessage());
+        }
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.LINUX,
+                temporaryDirectory,
+                temporaryDirectory.resolve("elsewhere"),
+                Map.of(),
+                game,
+                explicit);
+
+        assertEquals(explicit.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals("--launcher", result.selected().source());
+        assertEquals(1, result.candidates().size());
     }
 }
