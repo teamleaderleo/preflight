@@ -90,12 +90,14 @@ public final class PreflightAgent {
             // whose chunks had already been deleted, leaving an empty file behind.
             recording.setDumpOnExit(true);
             recording.setDestination(destination);
-            configureStartupEvents(recording);
+            configureStartupEvents(recording, options);
             recording.start();
 
             AgentStarted started = new AgentStarted();
             started.destination = destination.toString();
             started.adapterMode = options.adapterMode().name();
+            // Recorded so a reader can tell "no file read event" from "file reads were filtered".
+            started.exhaustiveFileReads = options.exhaustiveFileReads();
             started.commit();
             log("Recording startup to " + destination);
             if (options.adapterMode() != AdapterMode.OFF) {
@@ -111,12 +113,20 @@ public final class PreflightAgent {
         }
     }
 
-    private static void configureStartupEvents(Recording recording) {
+    private static void configureStartupEvents(Recording recording, AgentOptions options) {
         recording.enable("jdk.InitialSystemProperty");
         recording.enable("jdk.JVMInformation");
         recording.enable("jdk.OSInformation");
         recording.enable("jdk.CPUInformation");
-        recording.enable("jdk.FileRead").withThreshold(Duration.ofMillis(1)).withStackTrace();
+        if (options.exhaustiveFileReads()) {
+            // Every read, however fast. The millisecond threshold below is right for "what cost time"
+            // and wrong for "what was opened": a warm page-cache read of a small file finishes far
+            // inside it, so a file the game genuinely loads can leave no event at all. Costs a larger
+            // recording and some overhead, neither of which changes which files get opened.
+            recording.enable("jdk.FileRead").withThreshold(Duration.ZERO).withStackTrace();
+        } else {
+            recording.enable("jdk.FileRead").withThreshold(Duration.ofMillis(1)).withStackTrace();
+        }
         recording.enable("jdk.FileWrite").withThreshold(Duration.ofMillis(1)).withStackTrace();
         recording.enable("jdk.ClassLoad").withStackTrace();
         recording.enable("jdk.ClassDefine").withStackTrace();
@@ -196,6 +206,9 @@ public final class PreflightAgent {
 
         @Label("Adapter Mode")
         String adapterMode;
+
+        @Label("Exhaustive File Reads")
+        boolean exhaustiveFileReads;
     }
 
     @Name("preflight.AgentStopping")

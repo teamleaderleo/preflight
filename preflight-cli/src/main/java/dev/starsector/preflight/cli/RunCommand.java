@@ -59,7 +59,8 @@ final class RunCommand {
                 textureContext == null ? null : textureContext.cacheDirectory(),
                 textureContext == null ? null : textureContext.manifest(),
                 textureContext == null ? null : textureContext.index(),
-                options.textureAdapterMode());
+                options.textureAdapterMode(),
+                options.exhaustiveFileReads());
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());

@@ -19,6 +19,7 @@ record AgentOptions(
         Path textureManifest,
         Path textureIndex,
         TextureAdapterMode textureAdapterMode,
+        boolean exhaustiveFileReads,
         List<String> candidatePrefixes) {
     private static final List<String> DEFAULT_CANDIDATE_PREFIXES = List.of(
             "com/fs/starfarer/",
@@ -64,6 +65,10 @@ record AgentOptions(
         Path textureManifest = decodedPath(values, "textureManifest64");
         Path textureIndex = decodedPath(values, "textureIndex64");
         TextureAdapterMode textureAdapterMode = TextureAdapterMode.parse(values.get("textureMode"));
+        // The default recording drops file reads under a millisecond, which is most of them once the
+        // page cache is warm. A question of the form "was this file opened at all" cannot be answered
+        // from a threshold, so it gets its own opt-in.
+        boolean exhaustiveFileReads = "all".equalsIgnoreCase(values.get("fileReads"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -74,6 +79,7 @@ record AgentOptions(
                 textureManifest,
                 textureIndex,
                 textureAdapterMode,
+                exhaustiveFileReads,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 
