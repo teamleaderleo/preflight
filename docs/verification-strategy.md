@@ -59,7 +59,9 @@ Three machines are available and they are not interchangeable.
 - **Linode VPS** — no GPU. Tier A only. Already wired: [vps-verify.yml](../.github/workflows/vps-verify.yml)
   registers a self-hosted runner (`runs-on: [self-hosted, linux, starsector-preflight]`), runs the suite
   in rootless Podman under 768 MiB / 0.85 CPU / 512 PIDs, and is triggered by a `/vps verify` PR comment
-  gated to repo-owner comments on same-repository heads. Setup lives in
+  gated to repo-owner comments on same-repository heads. A root-owned, digest-pinned host launcher
+  archives the exact commit without executing repository files; Maven begins in the disposable
+  container with a per-run cache. Setup lives in
   [bootstrap-vps-runner.sh](../scripts/bootstrap-vps-runner.sh) and
   [configure-vps-runner-service.sh](../scripts/configure-vps-runner-service.sh).
 - **Lima VM** — no real GPU. A GL context there resolves to Mesa llvmpipe, which the conformance probe

@@ -15,7 +15,7 @@ on:
           - coverage
           - package
       offline:
-        description: Disable network access inside the build container
+        description: Verify with no container network using the operator-owned dependency seed
         required: true
         default: false
         type: boolean
@@ -41,11 +41,6 @@ jobs:
         startsWith(github.event.comment.body, '/vps verify ')))
     runs-on: [self-hosted, linux, starsector-preflight]
     timeout-minutes: 60
-    env:
-      PREFLIGHT_CONTAINER_MEMORY: 768m
-      PREFLIGHT_CONTAINER_CPUS: '0.85'
-      PREFLIGHT_CONTAINER_PIDS: '512'
-      PREFLIGHT_PODMAN_CGROUP_MANAGER: cgroupfs
 
     steps:
       - name: Resolve trusted ref and suite
@@ -89,7 +84,28 @@ jobs:
             offline=1
           fi
 
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "Resolved ref is not an exact 40-character commit SHA: $ref" >&2
+            exit 65
+          }
           printf 'ref=%s\nsuite=%s\noffline=%s\n' "$ref" "$suite" "$offline" >> "$GITHUB_OUTPUT"
+
+      - name: Verify host-owned launcher
+        shell: bash
+        env:
+          EXPECTED_LAUNCHER_SHA256: d4f47e7190235107ef84c4cb03e23419c014b624b420369be00f9e8ae02cf7f1
+        run: |
+          set -Eeuo pipefail
+          launcher=/usr/local/libexec/starsector-preflight-ci-v1
+          test -x "$launcher"
+          test "$(stat -c '%u' "$launcher")" = 0
+          mode="$(stat -c '%a' "$launcher")"
+          (( (8#$mode & 8#022) == 0 ))
+          actual="$(sha256sum "$launcher" | cut -d' ' -f1)"
+          if [[ "$actual" != "$EXPECTED_LAUNCHER_SHA256" ]]; then
+            echo "Host launcher digest mismatch: expected $EXPECTED_LAUNCHER_SHA256, got $actual" >&2
+            exit 78
+          fi
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -97,25 +113,15 @@ jobs:
           clean: true
           persist-credentials: false
 
-      - name: Check isolated runner prerequisites
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          test "$(id -u)" -ne 0
-          export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-          export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
-          test -d "$XDG_RUNTIME_DIR"
-          podman_info="$(podman info --format json)"
-          printf 'rootless=%s cgroupVersion=%s defaultCgroupManager=%s selectedCgroupManager=%s\n' \
-            "$(jq -r '.host.security.rootless // "unknown"' <<<"$podman_info")" \
-            "$(jq -r '.host.cgroupVersion // "unknown"' <<<"$podman_info")" \
-            "$(jq -r '.host.cgroupManager // "unknown"' <<<"$podman_info")" \
-            "$PREFLIGHT_PODMAN_CGROUP_MANAGER"
-          podman image exists localhost/starsector-preflight-build:1
-
       - name: Run disposable verification container
         shell: bash
         env:
-          PREFLIGHT_OFFLINE: ${{ steps.request.outputs.offline }}
+          REQUESTED_OFFLINE: ${{ steps.request.outputs.offline }}
+          REQUESTED_SHA: ${{ steps.request.outputs.ref }}
           REQUESTED_SUITE: ${{ steps.request.outputs.suite }}
-        run: bash ./scripts/verify-in-container.sh "$REQUESTED_SUITE"
+        run: |
+          set -Eeuo pipefail
+          mode=online-verify
+          [[ "$REQUESTED_OFFLINE" == 1 ]] && mode=offline-verify
+          exec /usr/local/libexec/starsector-preflight-ci-v1 \
+            "$REQUESTED_SHA" "$REQUESTED_SUITE" "$mode"

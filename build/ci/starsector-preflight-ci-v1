@@ -1,0 +1,277 @@
+#!/bin/bash
+set -Eeuo pipefail
+umask 077
+
+readonly launcher_version="starsector-preflight-ci-v1"
+readonly installed_launcher="/usr/local/libexec/starsector-preflight-ci-v1"
+readonly image="localhost/starsector-preflight-build:1"
+readonly memory="768m"
+readonly cpus="0.85"
+readonly pids="512"
+readonly cgroup_manager="cgroupfs"
+readonly maven_opts="-Xmx320m -XX:MaxMetaspaceSize=160m -Djava.io.tmpdir=/tmp"
+
+usage() {
+  cat <<'USAGE'
+Usage: starsector-preflight-ci-v1 COMMIT_SHA SUITE MODE
+
+COMMIT_SHA must be an exact 40-character lowercase Git commit SHA.
+SUITE must be one of: full, focused, analysis, coverage, package.
+MODE must be one of: online-verify, offline-verify.
+
+The launcher reads the Git repository in its current working directory. It
+archives the requested commit without executing repository files, then starts
+Maven inside a disposable rootless Podman container.
+USAGE
+}
+
+fail() {
+  local message="$1"
+  local status="${2:-1}"
+  echo "starsector-preflight-ci-v1: $message" >&2
+  exit "$status"
+}
+
+[[ $# -eq 3 ]] || {
+  usage >&2
+  exit 64
+}
+
+source_sha="$1"
+suite="$2"
+mode="$3"
+
+[[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] ||
+  fail "commit SHA must contain exactly 40 lowercase hexadecimal characters" 64
+case "$suite" in
+  full|focused|analysis|coverage|package) ;;
+  *) fail "unsupported verification suite: $suite" 64 ;;
+esac
+case "$mode" in
+  online-verify|offline-verify) ;;
+  *) fail "unsupported verification mode: $mode" 64 ;;
+esac
+
+testing=0
+if [[ "${PREFLIGHT_CI_TESTING:-0}" == "1" ]]; then
+  [[ "$0" != "$installed_launcher" ]] ||
+    fail "test overrides are disabled for the installed launcher"
+  [[ -n "${PREFLIGHT_CI_TEST_ROOT:-}" ]] ||
+    fail "PREFLIGHT_CI_TEST_ROOT is required in test mode"
+  testing=1
+  state_root="$PREFLIGHT_CI_TEST_ROOT/state"
+  podman_bin="$PREFLIGHT_CI_TEST_ROOT/bin/podman"
+  flock_bin="$PREFLIGHT_CI_TEST_ROOT/bin/flock"
+  git_bin="$(command -v git)"
+  id_bin="$(command -v id)"
+  stat_bin="$(command -v stat)"
+  sha256_bin="$(command -v shasum)"
+  mkdir_bin="$(command -v mkdir)"
+  mktemp_bin="$(command -v mktemp)"
+  cp_bin="$(command -v cp)"
+  rm_bin="$(command -v rm)"
+  find_bin="$(command -v find)"
+  grep_bin="$(command -v grep)"
+  cut_bin="$(command -v cut)"
+else
+  state_root="/var/lib/starsector-preflight-ci"
+  podman_bin="/usr/bin/podman"
+  flock_bin="/usr/bin/flock"
+  git_bin="/usr/bin/git"
+  id_bin="/usr/bin/id"
+  stat_bin="/usr/bin/stat"
+  sha256_bin="/usr/bin/sha256sum"
+  mkdir_bin="/usr/bin/mkdir"
+  mktemp_bin="/usr/bin/mktemp"
+  cp_bin="/usr/bin/cp"
+  rm_bin="/usr/bin/rm"
+  find_bin="/usr/bin/find"
+  grep_bin="/usr/bin/grep"
+  cut_bin="/usr/bin/cut"
+fi
+
+readonly state_root podman_bin flock_bin git_bin id_bin stat_bin sha256_bin
+readonly mkdir_bin mktemp_bin cp_bin rm_bin find_bin grep_bin cut_bin
+
+jobs_root="$state_root/jobs"
+seed_root="$state_root/maven-seed-v1"
+seed_lock="$state_root/maven-seed-v1.lock"
+
+if (( testing == 0 )); then
+  [[ "${EUID:-$("$id_bin" -u)}" -ne 0 ]] ||
+    fail "the verification launcher must run as an unprivileged account"
+  [[ "$("$id_bin" -un)" == "$("$id_bin" -gn)" ]] ||
+    fail "runner account must use a dedicated same-name primary group"
+
+  primary_gid="$("$id_bin" -g)"
+  for group_id in $("$id_bin" -G); do
+    [[ "$group_id" == "$primary_gid" ]] ||
+      fail "runner account has supplementary group $group_id; isolate the account before retrying"
+  done
+
+  [[ "$("$stat_bin" -c '%u' "$installed_launcher")" == "0" ]] ||
+    fail "installed launcher is not owned by root"
+  launcher_mode="$("$stat_bin" -c '%a' "$installed_launcher")"
+  (( (8#$launcher_mode & 8#022) == 0 )) ||
+    fail "installed launcher is writable by group or other"
+
+  [[ "$("$stat_bin" -c '%u' "$state_root")" == "0" ]] ||
+    fail "state root is not owned by root"
+  state_mode="$("$stat_bin" -c '%a' "$state_root")"
+  (( (8#$state_mode & 8#022) == 0 )) ||
+    fail "state root is writable by group or other"
+
+  runner_uid="$("$id_bin" -u)"
+  runtime_dir="/run/user/$runner_uid"
+  [[ -d "$runtime_dir" && ! -L "$runtime_dir" ]] ||
+    fail "rootless Podman runtime directory is missing: $runtime_dir" 69
+  [[ "$("$stat_bin" -c '%u' "$runtime_dir")" == "$runner_uid" ]] ||
+    fail "rootless Podman runtime directory has the wrong owner"
+  export XDG_RUNTIME_DIR="$runtime_dir"
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus"
+
+  [[ "$("$stat_bin" -c '%u' "$jobs_root")" == "$runner_uid" ]] ||
+    fail "jobs directory is not owned by the runner account"
+  [[ "$("$stat_bin" -c '%a' "$jobs_root")" == "700" ]] ||
+    fail "jobs directory must have mode 0700"
+
+  [[ "$("$stat_bin" -c '%u' "$seed_root")" == "0" ]] ||
+    fail "Maven seed cache is not owned by root"
+  seed_mode="$("$stat_bin" -c '%a' "$seed_root")"
+  (( (8#$seed_mode & 8#022) == 0 )) ||
+    fail "Maven seed cache is writable by group or other"
+
+  [[ "$("$stat_bin" -c '%u' "$seed_lock")" == "0" ]] ||
+    fail "Maven seed lock is not owned by root"
+  lock_mode="$("$stat_bin" -c '%a' "$seed_lock")"
+  (( (8#$lock_mode & 8#022) == 0 )) ||
+    fail "Maven seed lock is writable by group or other"
+fi
+
+for required in "$git_bin" "$podman_bin" "$flock_bin" "$mkdir_bin" \
+  "$mktemp_bin" "$cp_bin" "$rm_bin" "$find_bin" "$grep_bin" "$cut_bin"; do
+  [[ -x "$required" ]] || fail "required executable is unavailable: $required" 69
+done
+[[ -d "$jobs_root" && ! -L "$jobs_root" ]] ||
+  fail "jobs directory is missing or is a symbolic link: $jobs_root" 69
+[[ -d "$seed_root" && ! -L "$seed_root" ]] ||
+  fail "operator-owned Maven seed cache is missing: $seed_root" 69
+[[ -r "$seed_lock" && ! -L "$seed_lock" ]] ||
+  fail "Maven seed lock is missing: $seed_lock" 69
+
+repo_root="$(pwd -P)"
+actual_sha="$("$git_bin" -C "$repo_root" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)" ||
+  fail "current directory is not a readable Git checkout" 66
+[[ "$actual_sha" == "$source_sha" ]] ||
+  fail "checkout HEAD $actual_sha does not match requested SHA $source_sha" 65
+"$git_bin" -C "$repo_root" cat-file -e "${source_sha}^{commit}" ||
+  fail "requested commit is unavailable in the checkout" 66
+
+rootless="$("$podman_bin" --cgroup-manager="$cgroup_manager" info \
+  --format '{{.Host.Security.Rootless}}' 2>/dev/null)" ||
+  fail "Podman host information is unavailable" 69
+[[ "$rootless" == "true" ]] ||
+  fail "Podman is not running rootless"
+"$podman_bin" --cgroup-manager="$cgroup_manager" image exists "$image" ||
+  fail "build image is not installed: $image" 69
+image_digest="$("$podman_bin" --cgroup-manager="$cgroup_manager" image inspect \
+  --format '{{.Id}}' "$image" 2>/dev/null)" ||
+  fail "cannot inspect build image: $image" 69
+
+job_dir="$("$mktemp_bin" -d "$jobs_root/run.${source_sha:0:12}.${suite}.XXXXXX")"
+case "$job_dir" in
+  "$jobs_root"/run."${source_sha:0:12}"."$suite".*) ;;
+  *) fail "temporary job directory escaped the configured jobs root" ;;
+esac
+source_archive="$job_dir/source.tar"
+workspace="$job_dir/workspace"
+cache="$job_dir/maven-cache"
+container_name="starsector-preflight-${source_sha:0:12}-${suite}-$$"
+
+cleanup() {
+  "$podman_bin" --cgroup-manager="$cgroup_manager" rm --force \
+    "$container_name" >/dev/null 2>&1 || true
+  case "$job_dir" in
+    "$jobs_root"/run."${source_sha:0:12}"."$suite".*)
+      "$rm_bin" -rf -- "$job_dir"
+      ;;
+  esac
+}
+trap cleanup EXIT INT TERM
+
+"$mkdir_bin" -m 0700 "$workspace" "$cache"
+"$git_bin" -C "$repo_root" archive \
+  --format=tar \
+  --output="$source_archive" \
+  "$source_sha"
+
+exec 9<"$seed_lock"
+"$flock_bin" --shared 9
+if "$find_bin" "$seed_root" -mindepth 1 -print -quit | "$grep_bin" -q .; then
+  "$cp_bin" -a --no-preserve=ownership -- "$seed_root/." "$cache/"
+fi
+"$flock_bin" --unlock 9
+exec 9<&-
+
+maven=(mvn --batch-mode --no-transfer-progress)
+if [[ "$mode" == "offline-verify" ]]; then
+  maven+=(--offline)
+  network=(--network=none)
+  network_receipt="none"
+else
+  network=(--network=slirp4netns)
+  network_receipt="slirp4netns"
+fi
+case "$suite" in
+  full) maven+=(verify) ;;
+  focused) maven+=(-pl preflight-agent,preflight-cli -am verify) ;;
+  analysis) maven+=(-Panalysis verify) ;;
+  coverage) maven+=(-Pcoverage verify) ;;
+  package) maven+=(-DskipTests package) ;;
+esac
+
+if (( testing == 0 )); then
+  launcher_digest="$("$sha256_bin" "$installed_launcher" | "$cut_bin" -d' ' -f1)"
+else
+  launcher_digest="test"
+fi
+printf '%s\n' \
+  "receiptVersion=starsector-preflight-vps-verification-v1" \
+  "launcherVersion=$launcher_version" \
+  "launcherSha256=$launcher_digest" \
+  "sourceSha=$source_sha" \
+  "suite=$suite" \
+  "mode=$mode" \
+  "network=$network_receipt" \
+  "image=$image" \
+  "imageDigest=$image_digest" \
+  "limits=memory:$memory cpus:$cpus pids:$pids" \
+  "sourceTransfer=git-archive-read-only" \
+  "cache=operator-seed-copy-plus-disposable-per-run"
+
+"$podman_bin" --cgroup-manager="$cgroup_manager" run --rm \
+  --name "$container_name" \
+  --pull=never \
+  --userns=keep-id \
+  --cap-drop=all \
+  --security-opt=no-new-privileges \
+  --read-only \
+  --memory="$memory" \
+  --cpus="$cpus" \
+  --pids-limit="$pids" \
+  --ipc=private \
+  --uts=private \
+  --tmpfs /tmp:rw,nosuid,nodev,size=192m \
+  "${network[@]}" \
+  --env HOME=/tmp/home \
+  --env MAVEN_CONFIG=/maven-cache \
+  --env "MAVEN_OPTS=$maven_opts" \
+  --volume "$source_archive:/input/source.tar:ro,nosuid,nodev,noexec" \
+  --volume "$workspace:/workspace:rw,nosuid,nodev" \
+  --volume "$cache:/maven-cache:rw,nosuid,nodev" \
+  --workdir /workspace \
+  "$image" \
+  /bin/bash -Eeuo pipefail -c \
+  'mkdir -p "$HOME"; tar -xf /input/source.tar -C /workspace; exec "$@"' \
+  starsector-preflight-container \
+  "${maven[@]}"
