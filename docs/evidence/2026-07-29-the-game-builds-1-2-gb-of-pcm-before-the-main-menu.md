@@ -1,5 +1,11 @@
 # The game builds 1.2 GB of PCM before the main menu
 
+> **Read with [the loading thread never waits for the audio](2026-07-30-the-loading-thread-never-waits-for-the-audio.md) (2026-07-30).**
+> Everything on this page stands. But this work runs on a pool the loading thread never waits for, so
+> it is not on the path that determines when the menu appears, and nothing here should be read as
+> "startup is 1.2 GB slower". *Does this work happen at load* and *does this work delay load* are
+> different questions, and this page only answers the first.
+
 *2026-07-29* — **Corrected twice; this page has been wrong twice.**
 
 *Corrected 2026-07-30, and renamed — it was published as "940 MB".* The probe resolved the paths in
