@@ -51,6 +51,66 @@ class IoTraceAttributionTest {
         assertEquals("/same/path-24.json", paths.get(24).get("path"));
     }
 
+    /**
+     * One file reaches a recording under up to three spellings, and each one on its own understates
+     * it. Starsector opens its own resources relative to the directory its launcher changed into, and
+     * builds absolute paths by resolving against that same directory without collapsing the traversal
+     * it used — so `data/hulls/afflictor.ship` and `<core>/../../..<install>/...` and a clean absolute
+     * path can all name one file in a single run. 526 files on the reviewed profile do.
+     */
+    @Test
+    void mergesTheSpellingsOfOneFile() {
+        IoTraceAttribution attribution = new IoTraceAttribution();
+        attribution.resolveAgainst("/Games/Starsector.app/Contents/Resources/Java");
+        attribution.recordRead("data/hulls/afflictor.ship", 100, 1_000_000);
+        attribution.recordRead(
+                "/Games/Starsector.app/Contents/Resources/Java/data/hulls/afflictor.ship",
+                150, 2_000_000);
+        attribution.recordRead(
+                "/Games/Starsector.app/Contents/Resources/Java/../../../mods/Foo/sounds/bar.ogg",
+                40, 500_000);
+        attribution.recordRead("/Games/Starsector.app/mods/Foo/sounds/bar.ogg", 60, 500_000);
+
+        Map<String, Object> values = attribution.toMap();
+        Map<String, Object> hull = find(values, "topReadPaths", "path",
+                "/Games/Starsector.app/Contents/Resources/Java/data/hulls/afflictor.ship");
+        assertEquals(2L, hull.get("operations"));
+        assertEquals(250L, hull.get("bytes"));
+        assertEquals(3.0, hull.get("durationMs"));
+
+        Map<String, Object> sound = find(values, "topReadPaths", "path", "/Games/Starsector.app/mods/Foo/sounds/bar.ogg");
+        assertEquals(2L, sound.get("operations"));
+        assertEquals(100L, sound.get("bytes"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> paths = (List<Map<String, Object>>) values.get("topReadPaths");
+        assertEquals(2, paths.size(), "four spellings name two files: " + paths);
+    }
+
+    /**
+     * A recording is worth reading on a machine that never had the game installed, and possibly on a
+     * different platform from the one that made it. So a path with no stated base is left exactly as
+     * recorded rather than resolved against whatever directory the analysis happens to run in.
+     */
+    @Test
+    void leavesRelativePathsAloneWhenTheRecordingStatesNoDirectory() {
+        IoTraceAttribution attribution = new IoTraceAttribution();
+        attribution.recordRead("data/hulls/afflictor.ship", 100, 1_000_000);
+
+        find(attribution.toMap(), "topReadPaths", "path", "data/hulls/afflictor.ship");
+    }
+
+    /** A Windows recording read on a Unix host must not have its absolute paths taken as relative. */
+    @Test
+    void treatsWindowsPathsAsAbsoluteWhereverTheAnalysisRuns() {
+        IoTraceAttribution attribution = new IoTraceAttribution();
+        attribution.resolveAgainst("C:/Games/Starsector/starsector-core");
+        attribution.recordRead("C:\\Games\\Starsector\\starsector-core\\data\\x.ship", 10, 100);
+
+        find(attribution.toMap(), "topReadPaths", "path",
+                "C:/Games/Starsector/starsector-core/data/x.ship");
+    }
+
     @Test
     void classifiesCommonStarsectorAndCacheExtensions() {
         assertEquals("image", IoTraceAttribution.category("png"));

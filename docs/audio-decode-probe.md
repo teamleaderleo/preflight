@@ -99,13 +99,22 @@ non-zero.
 
 **Relative reads are resolved against the directory the game ran in.** Flight Recorder stores the path
 the JVM passed to the OS, and Starsector opens its own resources by relative path —
-`sounds/sfx_impacts/shield_hit_heavy_01.ogg` — because it runs with the core resource directory as its
-working directory. Resolving those against Preflight's working directory instead made every core
-resource look unopened: 7,309 audio reads on the reviewed profile, a third of the recording's audio,
-and a published figure 20% too low. The base is the core resource root, reported as
-`gameWorkingDirectory`, and the count of relative reads is reported as `relativeFileReadEvents`. A
-relative path that does not resolve to an indexed file stays unmatched and is counted, so a layout
-where this base is wrong shows up as unmatched reads rather than as silence.
+`sounds/sfx_impacts/shield_hit_heavy_01.ogg` — because its launcher changes into the core resource
+directory before starting the JVM. Resolving those against Preflight's working directory instead made
+every core resource look unopened: 7,309 audio reads on the reviewed profile, a third of the
+recording's audio, and a published figure 20% too low.
+
+The agent records the game's own `user.dir`, so the base is a fact the recording carries rather than
+something the analysis reconstructs. The report states both the directory and where it came from:
+
+| `gameWorkingDirectorySource` | meaning |
+| --- | --- |
+| `recording` | the agent stated it; nothing was inferred |
+| `core-root` | the recording predates the field, so the core resource root was used |
+
+`relativeFileReadEvents` reports how many reads needed it. A relative path that does not resolve to an
+indexed file stays unmatched and is counted, so a base that is wrong shows up as unmatched reads
+rather than as silence.
 
 ## Output
 

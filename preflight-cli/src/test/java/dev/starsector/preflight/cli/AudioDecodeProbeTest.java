@@ -41,6 +41,9 @@ class AudioDecodeProbeTest {
     static final class AgentStarted extends Event {
         @Label("Exhaustive File Reads")
         boolean exhaustiveFileReads;
+
+        @Label("Working Directory")
+        String workingDirectory;
     }
 
     @Test
@@ -160,12 +163,31 @@ class AudioDecodeProbeTest {
     }
 
     /**
-     * Relative reads are rebased against the core resource root, because that is where the game runs.
-     * Pinned separately from the join above: the join test supplies the directory, so only this one
-     * fails if the default is ever changed to something else.
+     * A recording that states where the game ran is believed over any reconstruction from the install
+     * layout. The layout only ever supported a good guess; the recorded value is the fact.
      */
     @Test
-    void resolvesRelativeReadsAgainstTheCoreResourceRoot() throws Exception {
+    void believesTheWorkingDirectoryTheRecordingStates() throws Exception {
+        Path core = profile();
+        Path elsewhere = Files.createDirectories(temporaryDirectory.resolve("somewhere-else"));
+        declareEffects(core, 40);
+
+        AudioDecodeProbe.Result result = AudioDecodeProbe.run(
+                record(true, List.of(core.resolve("data/config/sounds.json")), true,
+                        elsewhere.toString()),
+                temporaryDirectory);
+
+        assertEquals(elsewhere.toString(), result.report().get("gameWorkingDirectory"));
+        assertEquals("recording", result.report().get("gameWorkingDirectorySource"));
+    }
+
+    /**
+     * Recordings predate the field, so the core resource root stays as the fallback — that is where
+     * the launcher {@code cd}s before starting the JVM. Pinned separately so that changing the
+     * fallback cannot pass unnoticed just because current recordings state their own directory.
+     */
+    @Test
+    void fallsBackToTheCoreResourceRootWhenTheRecordingSaysNothing() throws Exception {
         Path core = profile();
         declareEffects(core, 40);
 
@@ -173,6 +195,7 @@ class AudioDecodeProbeTest {
                 record(true, List.of(core.resolve("data/config/sounds.json"))), temporaryDirectory);
 
         assertEquals(core.toRealPath().toString(), result.report().get("gameWorkingDirectory"));
+        assertEquals("core-root", result.report().get("gameWorkingDirectorySource"));
     }
 
     /** One open has a zero-length window, which must not read as a perfect bulk load. */
@@ -301,10 +324,20 @@ class AudioDecodeProbeTest {
      * only when {@code exhaustive} is set, mirroring what the agent does.
      */
     private Path record(boolean exhaustive, List<Path> files) throws Exception {
-        return record(exhaustive, files, true);
+        return record(exhaustive, files, true, null);
     }
 
     private Path record(boolean exhaustive, List<Path> files, boolean pauseAfterwards) throws Exception {
+        return record(exhaustive, files, pauseAfterwards, null);
+    }
+
+    /**
+     * @param workingDirectory what the marker event states the recorded process ran in, or
+     *     {@code null} to leave it unset the way a recording from an older agent has it
+     */
+    private Path record(
+            boolean exhaustive, List<Path> files, boolean pauseAfterwards, String workingDirectory)
+            throws Exception {
         Path destination = temporaryDirectory.resolve("probe-" + System.nanoTime() + ".jfr");
         try (Recording recording = new Recording()) {
             recording.enable("jdk.FileRead")
@@ -314,6 +347,7 @@ class AudioDecodeProbeTest {
 
             AgentStarted started = new AgentStarted();
             started.exhaustiveFileReads = exhaustive;
+            started.workingDirectory = workingDirectory;
             started.commit();
 
             for (Path file : files) {

@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.concurrent.TimeUnit;
+import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,12 +30,19 @@ class SelfAgentIT {
                 .resolve(Platform.current() == Platform.WINDOWS ? "java.exe" : "java");
         Path testClasses = Path.of("target", "test-classes").toAbsolutePath().normalize();
 
+        // Deliberately not the directory this test runs in. The agent records where the recorded
+        // process was, and a test that launched the child here could not tell that apart from a
+        // field that reports the analyser's own directory -- which is the mistake the field exists
+        // to stop being possible.
+        Path launchedFrom = Files.createDirectories(temporaryDirectory.resolve("game home"));
+
         Process process = new ProcessBuilder(
                 java.toString(),
                 "-javaagent:" + jar + "=dest64=" + encoded,
                 "-cp",
                 testClasses.toString(),
                 "com.fs.starfarer.SyntheticLauncher")
+                .directory(launchedFrom.toFile())
                 .redirectErrorStream(true)
                 .start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -45,17 +53,27 @@ class SelfAgentIT {
         assertTrue(Files.size(recording) > 0, output);
         try (RecordingFile file = new RecordingFile(recording)) {
             assertTrue(file.hasMoreEvents(), output);
-            assertTrue(startedTheAgent(file), output);
+            RecordedEvent started = agentStarted(file);
+            assertTrue(started != null, output);
+            assertTrue(started.hasField("workingDirectory"), "no workingDirectory field: " + output);
+            String recorded = started.getString("workingDirectory");
+            assertTrue(recorded != null && !recorded.isBlank(),
+                    "the agent declared workingDirectory but never set it: " + output);
+            assertEquals(
+                    launchedFrom.toRealPath(),
+                    Path.of(recorded).toRealPath(),
+                    "the agent should record where the recorded process ran: " + output);
         }
     }
 
-    /** Reports whether the dump preserved the event the agent commits as it starts recording. */
-    private static boolean startedTheAgent(RecordingFile file) throws Exception {
+    /** The event the agent commits as it starts recording, or {@code null} if the dump lost it. */
+    private static RecordedEvent agentStarted(RecordingFile file) throws Exception {
         while (file.hasMoreEvents()) {
-            if ("preflight.AgentStarted".equals(file.readEvent().getEventType().getName())) {
-                return true;
+            RecordedEvent event = file.readEvent();
+            if ("preflight.AgentStarted".equals(event.getEventType().getName())) {
+                return event;
             }
         }
-        return false;
+        return null;
     }
 }
