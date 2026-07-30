@@ -195,3 +195,24 @@ exist yet.
 
 It also cannot see references made from mod code. `audio-unreferenced` means "no `sounds.json` names
 this", not "this is dead".
+
+## What one launch said about `audio-unreferenced`
+
+The rule was argued entirely from config until a recording checked it against the game. In a
+six-minute session that reached the campaign map, Starsector opened **every one of the 2,050 sound
+effects a `sounds.json` declares, and none of the 220 it does not** —
+[evidence](evidence/2026-07-29-the-game-builds-1-2-gb-of-pcm-before-the-main-menu.md).
+
+(220 there against 219 in the table above is not a disagreement. `sounds/sfx_wpn_energy/bt_holy_aura_charge.ogg`
+in `ORK` is a zero-byte file, so the audio census counts it as an unreferenced sound while the lint
+reports it under `audio-undecodable` instead. It contributes no bytes, which is why both totals are
+20.6 MB exactly.)
+
+That is a clean split along exactly the line this rule draws, and it is worth being precise about what
+it settles. It confirms the premise: the loader is driven by `sounds.json`, so a file no `sounds.json`
+names is not part of what the game bulk-loads at startup. It does **not** upgrade the rule to "this is
+dead" — the caveat above stands unchanged, because a mod can still play one of these from code at a
+moment this session never reached, and that would open the file then rather than at load.
+
+So the severity stays `info`. The finding is now "the loader will not touch this", which is a stronger
+and narrower claim than the config alone supported, and still not a claim that the file is unused.
