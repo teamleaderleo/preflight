@@ -236,6 +236,8 @@ Run `preflight <command> --help` (or `preflight help <command>`) for a single co
 - [Vanilla runtime adapter](docs/vanilla-adapter.md)
 - [Resource provider index](docs/resource-index.md)
 - [Prepared texture blobs](docs/prepared-textures.md)
+- [What generalizes](docs/what-generalizes.md) — what this project is an instance of, and what does
+  not port
 - [ADR 0001: measurement first](docs/adr/0001-measurement-first.md)
 
 ## Status
