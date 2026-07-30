@@ -396,6 +396,14 @@ public final class PreflightCli {
                     compilationNanos += duration;
                     code.recordCompilation(event, duration);
                 }
+                case "preflight.AgentStarted" -> {
+                    // The directory the recorded process ran in, which is the only thing that gives
+                    // its relative read paths a meaning. It can arrive after reads it applies to, so
+                    // the attribution folds paths at report time rather than as they come in.
+                    if (event.hasField("workingDirectory")) {
+                        io.resolveAgainst(event.getString("workingDirectory"));
+                    }
+                }
                 case "jdk.ClassDefine" -> code.recordClassDefine(event);
                 case "jdk.ExecutionSample" -> cpu.record(event);
                 case "jdk.GCPhasePause" -> gcPauseNanos += duration;

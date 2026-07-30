@@ -103,6 +103,10 @@ final class AudioDecodeProbe {
      * <p>The byte columns are the point of the exercise. Counting files says whether loading is eager;
      * only the PCM behind the files that were actually opened says whether that is worth caching.</p>
      */
+    /** One audio read, held until the directory to resolve its path against is known. */
+    private record AudioRead(String path, long nanos, String caller) {
+    }
+
     private record Tally(
             String kind,
             int declared,
@@ -117,20 +121,9 @@ final class AudioDecodeProbe {
     }
 
     static Result run(Path recording, Path installRoot) throws IOException {
-        return run(recording, installRoot, null);
-    }
-
-    /**
-     * @param gameWorkingDirectory what relative recorded paths are resolved against, or {@code null}
-     *     to use the core resource root. Only tests pass this; see
-     *     {@link #gameWorkingDirectory(ResourceIndex)} for why the core root is the right default.
-     */
-    static Result run(Path recording, Path installRoot, Path gameWorkingDirectory) throws IOException {
         AudioCensus.Result census = AudioCensus.scan(installRoot);
         ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(installRoot);
-        Path workingDirectory = gameWorkingDirectory == null
-                ? gameWorkingDirectory(built.index())
-                : gameWorkingDirectory.toAbsolutePath().normalize();
+        Path workingDirectory = gameWorkingDirectory(built.index());
 
         // Winning absolute path -> logical path, so a JFR path is an exact map hit rather than a
         // suffix search across two thousand candidates for every read event in the recording. A
@@ -166,6 +159,13 @@ final class AudioDecodeProbe {
         Instant runStart = null;
         Instant runEnd = null;
         Boolean exhaustive = null;
+        String recordedWorkingDirectory = null;
+        // Audio reads are held rather than resolved in place, because the directory they have to be
+        // resolved against arrives in an event of its own and Flight Recorder gives no ordering
+        // guarantee that it arrives first. Only audio needs holding: nothing else is matched against
+        // anything. That also stops the scan doing a filesystem round trip per event -- the previous
+        // version called toRealPath on all 418,588 reads to answer a question about 22,000 of them.
+        List<AudioRead> audioReads = new ArrayList<>();
 
         try (RecordingFile file = new RecordingFile(recording)) {
             while (file.hasMoreEvents()) {
@@ -178,6 +178,10 @@ final class AudioDecodeProbe {
                 if ("preflight.AgentStarted".equals(name)) {
                     exhaustive = event.hasField("exhaustiveFileReads")
                             && event.getBoolean("exhaustiveFileReads");
+                    if (event.hasField("workingDirectory")) {
+                        String value = event.getString("workingDirectory");
+                        recordedWorkingDirectory = value == null || value.isBlank() ? null : value;
+                    }
                     continue;
                 }
                 if (!"jdk.FileRead".equals(name)) {
@@ -188,35 +192,42 @@ final class AudioDecodeProbe {
                 if (path == null) {
                     continue;
                 }
-                Path recorded = Path.of(path);
-                if (!recorded.isAbsolute()) {
+                if (!Path.of(path).isAbsolute()) {
                     relativeReadEvents++;
-                    if (workingDirectory != null) {
-                        recorded = workingDirectory.resolve(recorded);
-                    }
                 }
-                String logical = byAbsolutePath.get(key(recorded));
-                if (logical == null) {
-                    // Audio the census cannot account for. Counting it is not optional: the first
-                    // version dropped these silently, and a run of this probe reported "no music was
-                    // opened" while the recording held 1,806 reads of sounds/music/music.bin and
-                    // thousands of reads of .ogg files that did not resolve to a declared path.
-                    if (isAudioPath(path)) {
-                        unmatchedAudioReadEvents++;
-                        if (unmatchedAudioPaths.size() < UNMATCHED_SAMPLE) {
-                            unmatchedAudioPaths.add(shortenPath(path));
-                        }
-                    }
-                    continue;
+                if (isAudioPath(path)) {
+                    audioReads.add(new AudioRead(path, nanosSinceEpoch(start), caller(event)));
                 }
-                audioReadEvents++;
-                firstReadNanos.merge(logical, nanosSinceEpoch(start), Math::min);
-                readsByCaller.merge(caller(event), 1L, Long::sum);
             }
         }
 
         if (exhaustive == null || !exhaustive) {
             return unusable(recording, exhaustive != null, census);
+        }
+
+        if (recordedWorkingDirectory != null) {
+            workingDirectory = Path.of(recordedWorkingDirectory).toAbsolutePath().normalize();
+        }
+        for (AudioRead read : audioReads) {
+            Path recorded = Path.of(read.path());
+            if (!recorded.isAbsolute() && workingDirectory != null) {
+                recorded = workingDirectory.resolve(recorded);
+            }
+            String logical = byAbsolutePath.get(key(recorded));
+            if (logical == null) {
+                // Audio the census cannot account for. Counting it is not optional: the first
+                // version dropped these silently, and a run of this probe reported "no music was
+                // opened" while the recording held 1,806 reads of sounds/music/music.bin and
+                // thousands of reads of .ogg files that did not resolve to a declared path.
+                unmatchedAudioReadEvents++;
+                if (unmatchedAudioPaths.size() < UNMATCHED_SAMPLE) {
+                    unmatchedAudioPaths.add(shortenPath(read.path()));
+                }
+                continue;
+            }
+            audioReadEvents++;
+            firstReadNanos.merge(logical, read.nanos(), Math::min);
+            readsByCaller.merge(read.caller(), 1L, Long::sum);
         }
 
         long zero = runStart == null ? 0 : nanosSinceEpoch(runStart);
@@ -307,6 +318,7 @@ final class AudioDecodeProbe {
         report.put("fileReadEvents", totalReadEvents);
         report.put("relativeFileReadEvents", relativeReadEvents);
         report.put("gameWorkingDirectory", workingDirectory == null ? null : workingDirectory.toString());
+        report.put("gameWorkingDirectorySource", recordedWorkingDirectory != null ? "recording" : "core-root");
         report.put("audioFileReadEvents", audioReadEvents);
         report.put("unmatchedAudioFileReadEvents", unmatchedAudioReadEvents);
         report.put("unmatchedAudioSample", List.copyOf(unmatchedAudioPaths));
@@ -468,20 +480,23 @@ final class AudioDecodeProbe {
     }
 
     /**
-     * The directory the game was running in, which is what its relative reads are relative to.
+     * The fallback base for relative reads, used only when the recording does not state one.
      *
      * <p>Flight Recorder stores the path the JVM passed to the OS, not a resolved one. Starsector
      * opens its own resources by relative path — {@code sounds/sfx_impacts/shield_hit_heavy_01.ogg},
-     * with no install prefix — because it runs with the core resource directory as its working
-     * directory. Resolving those against <em>Preflight's</em> working directory, which is what
+     * with no install prefix — because its launcher changes into the core resource directory before
+     * starting the JVM. Resolving those against <em>Preflight's</em> working directory, which is what
      * {@link #key} did on its own, made every core resource look unopened: 7,309 audio reads, a third
      * of the recording's audio, matched nothing at all.</p>
      *
-     * <p>The core root is the right base rather than a guess. The same recording's mod reads arrive
-     * absolute and spelled {@code .../Contents/Resources/Java/../../../mods/...} — the game resolving
-     * a relative path against exactly this directory and keeping the traversal in the result. On the
-     * reviewed profile 4,284 of the 4,288 distinct relative paths exist under it; the four that do not
-     * are {@code .inprogress} save files renamed between the read and the analysis.</p>
+     * <p>Recordings made by a current agent carry the game's own {@code user.dir} and this is not
+     * consulted. It remains for recordings made before that field existed, where the core root is a
+     * well-supported reconstruction rather than a guess: the macOS launcher script runs
+     * {@code cd "../Resources/Java"}, the same recording's mod reads arrive absolute and spelled
+     * {@code .../Contents/Resources/Java/../../../mods/...} — the game resolving a relative path
+     * against exactly this directory and keeping the traversal in the result — and on the reviewed
+     * profile 4,284 of the 4,288 distinct relative paths exist under it, the four that do not being
+     * {@code .inprogress} save files renamed between the read and the analysis.</p>
      *
      * <p>A relative path that does not resolve to an indexed file stays unmatched and is counted, so a
      * layout where this base is wrong shows up as unmatched reads rather than as silence.</p>

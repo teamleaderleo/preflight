@@ -98,6 +98,13 @@ public final class PreflightAgent {
             started.adapterMode = options.adapterMode().name();
             // Recorded so a reader can tell "no file read event" from "file reads were filtered".
             started.exhaustiveFileReads = options.exhaustiveFileReads();
+            // Flight Recorder stores the path the JVM passed to the OS, so a game that opens its own
+            // resources by relative path -- which Starsector does, its launcher having changed into
+            // the core resource directory first -- leaves paths that mean nothing without this. An
+            // analyser that guesses the base gets it wrong on any layout that does not match the
+            // guess, and wrong quietly: every resource simply looks unopened. The process that holds
+            // the answer is this one, so it records it rather than leaving it to be inferred.
+            started.workingDirectory = System.getProperty("user.dir", "");
             started.commit();
             log("Recording startup to " + destination);
             if (options.adapterMode() != AdapterMode.OFF) {
@@ -209,6 +216,9 @@ public final class PreflightAgent {
 
         @Label("Exhaustive File Reads")
         boolean exhaustiveFileReads;
+
+        @Label("Working Directory")
+        String workingDirectory;
     }
 
     @Name("preflight.AgentStopping")
