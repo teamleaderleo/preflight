@@ -70,16 +70,21 @@ Exit condition: representative source-heavy profiles compile once and safely reu
 
 Exit condition: prepared audio is byte-for-byte and metadata-equivalent, bounded, fail-open, and measurably reduces repeat-launch decoding work.
 
-**The premise of this milestone is measured, and it holds.** A menus-only run on 2026-07-29 through
+**The premise of this milestone is measured, and it holds.** A run on 2026-07-29 through
 [`audio decode-probe`](audio-decode-probe.md) found the game opening **1,278 declared effects inside a
 1.5-second window**, 23 seconds into a 360-second session, from a single caller — **940.3 MB of PCM
-built before the player sees the main menu**, on every launch. That is a floor, not a total: the 772
-effects it did not open are campaign sounds, in a session that never entered a campaign.
+built before the player sees the main menu**, on every launch. The session reached the campaign map
+and flew on it, and **no sound file was opened after the 24.7-second mark**, so entering the campaign
+added nothing to that set. The 772 effects never opened are ability sounds for actions the player did
+not take.
 
-Two results narrow the milestone rather than widen it. **Music is never opened at load** — zero of 156
-files, holding 2,890 MB — so "preserve streaming music until its policy is proven safe" was right for
-a reason nobody had measured. **Nothing opens the 220 unreferenced files**, which independently
+940.3 MB is a floor twice over: combat was never entered, and a third of the run's audio reads
+resolved to no declared file. **Nothing opens the 220 unreferenced files**, which independently
 confirms the `audio-unreferenced` lint rule from the game's own behaviour rather than from config.
+
+Music remains out of scope on the same caution as before, not on this evidence. None of the 156
+declared music files were opened, but vanilla music is one container — `sounds/music/music.bin`, read
+1,806 times in this run — that the census has no entry for, so the probe says nothing about it.
 
 Reads are still not decodes; the equivalence work remains what proves what the decoder does with
 them. [Evidence](evidence/2026-07-29-the-game-builds-940-mb-of-pcm-before-the-main-menu.md).

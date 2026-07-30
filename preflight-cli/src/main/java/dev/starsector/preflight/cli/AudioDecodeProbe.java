@@ -72,6 +72,8 @@ final class AudioDecodeProbe {
     private static final int TOP_READERS = 8;
     /** Enough never-opened paths to see what they have in common, without listing hundreds. */
     private static final int NEVER_OPENED_SAMPLE = 20;
+    /** Enough unmatched audio paths to recognise what the census is missing. */
+    private static final int UNMATCHED_SAMPLE = 12;
 
     private AudioDecodeProbe() {
     }
@@ -145,6 +147,8 @@ final class AudioDecodeProbe {
         Map<String, Long> firstReadNanos = new LinkedHashMap<>();
         Map<String, Long> readsByCaller = new TreeMap<>();
         long audioReadEvents = 0;
+        long unmatchedAudioReadEvents = 0;
+        java.util.Set<String> unmatchedAudioPaths = new java.util.LinkedHashSet<>();
         long totalReadEvents = 0;
         Instant runStart = null;
         Instant runEnd = null;
@@ -173,6 +177,16 @@ final class AudioDecodeProbe {
                 }
                 String logical = byAbsolutePath.get(key(Path.of(path)));
                 if (logical == null) {
+                    // Audio the census cannot account for. Counting it is not optional: the first
+                    // version dropped these silently, and a run of this probe reported "no music was
+                    // opened" while the recording held 1,806 reads of sounds/music/music.bin and
+                    // thousands of reads of .ogg files that did not resolve to a declared path.
+                    if (isAudioPath(path)) {
+                        unmatchedAudioReadEvents++;
+                        if (unmatchedAudioPaths.size() < UNMATCHED_SAMPLE) {
+                            unmatchedAudioPaths.add(shortenPath(path));
+                        }
+                    }
                     continue;
                 }
                 audioReadEvents++;
@@ -272,6 +286,8 @@ final class AudioDecodeProbe {
                 : Duration.between(runStart, runEnd).toMillis());
         report.put("fileReadEvents", totalReadEvents);
         report.put("audioFileReadEvents", audioReadEvents);
+        report.put("unmatchedAudioFileReadEvents", unmatchedAudioReadEvents);
+        report.put("unmatchedAudioSample", List.copyOf(unmatchedAudioPaths));
         List<Map<String, Object>> kinds = new ArrayList<>();
         for (Tally tally : tallies) {
             Map<String, Object> entry = new LinkedHashMap<>();
@@ -398,6 +414,29 @@ final class AudioDecodeProbe {
         return logicalPath.endsWith(".ogg") || logicalPath.endsWith(".wav")
                 || logicalPath.endsWith(".mp3") || logicalPath.endsWith(".aif")
                 || logicalPath.endsWith(".aiff");
+    }
+
+    /**
+     * Audio as it appears in a recording, which is not the same set the census knows about.
+     *
+     * <p>{@code music.bin} is here because vanilla music is not shipped as individual files at all —
+     * it is one container the census has no entry for, and a run that reads it 1,806 times must not
+     * be summarised as having opened no music.</p>
+     */
+    private static boolean isAudioPath(String path) {
+        String lower = path.toLowerCase(Locale.ROOT);
+        return isAudio(lower) || lower.endsWith("music.bin");
+    }
+
+    /** The tail of a path, which is what identifies a sound; the install prefix is noise. */
+    private static String shortenPath(String path) {
+        String normalized = path.replace('\\', '/');
+        int mods = normalized.lastIndexOf("/mods/");
+        if (mods >= 0) {
+            return normalized.substring(mods + "/mods/".length());
+        }
+        int sounds = normalized.lastIndexOf("/sounds/");
+        return sounds >= 0 ? normalized.substring(sounds + 1) : normalized;
     }
 
     /**

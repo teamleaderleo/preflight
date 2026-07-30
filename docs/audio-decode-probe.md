@@ -87,6 +87,13 @@ explain otherwise — but it remains a statement about reads.
 The report includes the calling frame for every audio read, which is most of what separates "the game
 loaded these" from "something walked the directory".
 
+**Audio the census cannot account for is counted and shown.** A recording holds reads the census has
+no entry for — vanilla music is a single `sounds/music/music.bin` container rather than separate
+files, and some core effect paths do not resolve. Those reads are not evidence about declared files,
+but discarding them silently is how a report comes to say "no music was opened" about a run that read
+a music container 1,806 times. The count, its share of all audio reads, and a sample of the paths are
+printed above the findings whenever it is non-zero.
+
 ## Output
 
 ```

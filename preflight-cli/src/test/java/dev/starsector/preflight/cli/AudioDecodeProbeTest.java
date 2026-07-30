@@ -91,6 +91,36 @@ class AudioDecodeProbeTest {
         assertEquals(AudioDecodeProbe.Verdict.EAGER, result.verdict(), result.detail());
     }
 
+    /**
+     * Audio the census cannot account for has to be counted and shown, not dropped.
+     *
+     * <p>The first version discarded it silently, and a real run was summarised as having opened no
+     * music while the recording held 1,806 reads of {@code sounds/music/music.bin} — vanilla music is
+     * one container, not files the census has entries for. A third of that run's audio reads matched
+     * nothing, and the report said so nowhere.</p>
+     */
+    @Test
+    void countsAudioReadsTheCensusCannotAccountFor() throws Exception {
+        Path core = profile();
+        List<Path> declared = declareEffects(core, 40);
+        Path container = temporaryDirectory.resolve("outside/sounds/music/music.bin");
+        Files.createDirectories(container.getParent());
+        Files.write(container, new byte[4096]);
+
+        List<Path> read = new ArrayList<>(declared);
+        read.add(container);
+        AudioDecodeProbe.Result result =
+                AudioDecodeProbe.run(record(true, read), temporaryDirectory);
+
+        long unmatched =
+                ((Number) result.report().get("unmatchedAudioFileReadEvents")).longValue();
+        assertTrue(unmatched > 0, "expected the container read to be counted, report " + result.report());
+        @SuppressWarnings("unchecked")
+        List<String> sample = (List<String>) result.report().get("unmatchedAudioSample");
+        assertTrue(sample.stream().anyMatch(path -> path.endsWith("music.bin")),
+                "expected music.bin named in " + sample);
+    }
+
     /** One open has a zero-length window, which must not read as a perfect bulk load. */
     @Test
     void doesNotCallASingleOpenABurst() throws Exception {
