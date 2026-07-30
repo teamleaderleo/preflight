@@ -88,7 +88,21 @@ final class AudioDecodeProbeCommand {
                 .append(report.get("fileReadEvents"))
                 .append(" file reads, ")
                 .append(report.get("audioFileReadEvents"))
-                .append(" of them audio\n\n");
+                .append(" of them audio the census accounts for\n\n");
+
+        long unmatched = ((Number) report.get("unmatchedAudioFileReadEvents")).longValue();
+        if (unmatched > 0) {
+            long matched = ((Number) report.get("audioFileReadEvents")).longValue();
+            out.append("  ").append(unmatched).append(" further audio reads matched no declared file (")
+                    .append(String.format("%.0f%%", 100.0 * unmatched / Math.max(1, unmatched + matched)))
+                    .append(" of audio reads). Nothing below describes them.\n");
+            @SuppressWarnings("unchecked")
+            List<String> sample = (List<String>) report.get("unmatchedAudioSample");
+            for (String path : sample) {
+                out.append("    ").append(path).append('\n');
+            }
+            out.append('\n');
+        }
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> kinds = (List<Map<String, Object>>) report.get("byKind");
