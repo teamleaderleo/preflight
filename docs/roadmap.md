@@ -70,7 +70,18 @@ Exit condition: representative source-heavy profiles compile once and safely reu
 
 Exit condition: prepared audio is byte-for-byte and metadata-equivalent, bounded, fail-open, and measurably reduces repeat-launch decoding work.
 
-**The premise of this milestone is measured, and it holds.** A run on 2026-07-29 through
+**Deprioritised on 2026-07-30, on evidence, and not on the evidence below.** The work described here
+is real and happens before the menu, but it runs on a worker pool the loading thread never waits for:
+**one audio sample out of 4,423 on the loading thread**, which blocks 67 ms in 90 seconds while the
+two decode workers sit parked for 22 seconds each. Removing it would remove CPU and energy from a
+thread nobody is waiting on, which on a 10-core machine is close to invisible in wall-clock startup.
+It may still matter on a core-starved machine or a far larger audio profile, neither measured. See
+[the loading thread never waits for the audio](evidence/2026-07-30-the-loading-thread-never-waits-for-the-audio.md);
+texture preparation, at 40–53% of the loading thread, is the one of the three domains that is on the
+critical path.
+
+**The premise below is measured and holds — as a statement about work performed, not about wall
+clock.** A run on 2026-07-29 through
 [`audio decode-probe`](audio-decode-probe.md) found the game opening **all 2,050 declared effects
 inside a 1.5-second window**, 23 seconds into a 360-second session, from a single caller — **1,169.4
 MB of PCM built before the player sees the main menu**, on every launch. The session reached the
