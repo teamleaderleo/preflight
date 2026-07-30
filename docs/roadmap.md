@@ -71,23 +71,27 @@ Exit condition: representative source-heavy profiles compile once and safely reu
 Exit condition: prepared audio is byte-for-byte and metadata-equivalent, bounded, fail-open, and measurably reduces repeat-launch decoding work.
 
 **The premise of this milestone is measured, and it holds.** A run on 2026-07-29 through
-[`audio decode-probe`](audio-decode-probe.md) found the game opening **1,278 declared effects inside a
-1.5-second window**, 23 seconds into a 360-second session, from a single caller — **940.3 MB of PCM
-built before the player sees the main menu**, on every launch. The session reached the campaign map
-and flew on it, and **no sound file was opened after the 24.7-second mark**, so entering the campaign
-added nothing to that set. The 772 effects never opened are ability sounds for actions the player did
-not take.
+[`audio decode-probe`](audio-decode-probe.md) found the game opening **all 2,050 declared effects
+inside a 1.5-second window**, 23 seconds into a 360-second session, from a single caller — **1,169.4
+MB of PCM built before the player sees the main menu**, on every launch. The session reached the
+campaign map and flew on it, and **no sound file was opened for the first time after the 24.7-second
+mark**, so entering the campaign added nothing to that set.
 
-940.3 MB is a floor twice over: combat was never entered, and a third of the run's audio reads
-resolved to no declared file. **Nothing opens the 220 unreferenced files**, which independently
-confirms the `audio-unreferenced` lint rule from the game's own behaviour rather than from config.
+This is the whole declared effect set rather than a floor: combat cannot add to a set the game has
+already opened completely, and a sound loaded from outside the census would show as an unmatched read.
+**Nothing opens the 220 unreferenced files**, which independently confirms the `audio-unreferenced`
+lint rule from the game's own behaviour rather than from config.
 
 Music remains out of scope on the same caution as before, not on this evidence. None of the 156
 declared music files were opened, but vanilla music is one container — `sounds/music/music.bin`, read
 1,806 times in this run — that the census has no entry for, so the probe says nothing about it.
 
+The first published version of this said 1,278 effects and 940.3 MB. The probe was resolving the
+recording's relative paths against its own working directory instead of the game's, so every resource
+the game opened by relative path looked unopened ([#232](https://github.com/teamleaderleo/starsector-preflight/issues/232)).
+
 Reads are still not decodes; the equivalence work remains what proves what the decoder does with
-them. [Evidence](evidence/2026-07-29-the-game-builds-940-mb-of-pcm-before-the-main-menu.md).
+them. [Evidence](evidence/2026-07-29-the-game-builds-1-2-gb-of-pcm-before-the-main-menu.md).
 
 **Equivalence is owed to the installed decoder, not to a reference decoder.** The first version of the
 gate decoded through `com.jcraft.jorbis.VorbisFile`, which no shipped Starsector code path calls, and

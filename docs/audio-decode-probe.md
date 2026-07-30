@@ -63,12 +63,15 @@ threshold was lifted, and **a recording made without the flag is refused rather 
 | `UNUSABLE` | the recording cannot answer the question |
 
 **The verdict keys on timing, not on how many files were opened.** The first version compared the
-opened fraction against thresholds of 90% and 10%, and the first real run landed at 62% — reported
-`INCONCLUSIVE` about data that was not remotely ambiguous, since all 1,278 files were opened inside
-1.5 seconds of a six-minute session. *Lazy* means **at the time of use**, so when the opens happen is
-the direct evidence and how many happen is a proxy. A partial fraction with a burst shape means the
-session did not reach a later loading phase, and the detail text says so rather than claiming full
-coverage.
+opened fraction against thresholds of 90% and 10%, and the first real run appeared to land at 62% —
+reported `INCONCLUSIVE` about data that was not remotely ambiguous, since every one of those files was
+opened inside 1.5 seconds of a six-minute session. *Lazy* means **at the time of use**, so when the
+opens happen is the direct evidence and how many happen is a proxy. A partial fraction with a burst
+shape means the session did not reach a later loading phase, and the detail text says so rather than
+claiming full coverage.
+
+That 62% was itself a measurement error — see the path resolution note below — and the same run reads
+100% now. The timing test stands on its own reasoning rather than on that example.
 
 The window is judged both absolutely and against the session, because session length is an artifact
 of how long the player stayed rather than of how the game loads. Comparing only against the session
@@ -89,28 +92,47 @@ loaded these" from "something walked the directory".
 
 **Audio the census cannot account for is counted and shown.** A recording holds reads the census has
 no entry for — vanilla music is a single `sounds/music/music.bin` container rather than separate
-files, and some core effect paths do not resolve. Those reads are not evidence about declared files,
-but discarding them silently is how a report comes to say "no music was opened" about a run that read
-a music container 1,806 times. The count, its share of all audio reads, and a sample of the paths are
-printed above the findings whenever it is non-zero.
+files. Those reads are not evidence about declared files, but discarding them silently is how a report
+comes to say "no music was opened" about a run that read a music container 1,806 times. The count, its
+share of all audio reads, and a sample of the paths are printed above the findings whenever it is
+non-zero.
+
+**Relative reads are resolved against the directory the game ran in.** Flight Recorder stores the path
+the JVM passed to the OS, and Starsector opens its own resources by relative path —
+`sounds/sfx_impacts/shield_hit_heavy_01.ogg` — because it runs with the core resource directory as its
+working directory. Resolving those against Preflight's working directory instead made every core
+resource look unopened: 7,309 audio reads on the reviewed profile, a third of the recording's audio,
+and a published figure 20% too low. The base is the core resource root, reported as
+`gameWorkingDirectory`, and the count of relative reads is reported as `relativeFileReadEvents`. A
+relative path that does not resolve to an indexed file stays unmatched and is counted, so a layout
+where this base is wrong shows up as unmatched reads rather than as silence.
 
 ## Output
+
+The reviewed profile, 2026-07-29:
 
 ```
 Audio decode probe
 
-  recording spans 61.2 s, 48219 file reads, 4747 of them audio
+  recording spans 359.6 s, 418588 file reads, 20182 of them audio the census accounts for
+
+  1806 further audio reads matched no declared file (8% of audio reads). Nothing below describes them.
+    sounds/music/music.bin
 
   effect          2050 declared    2050 opened       0 never opened
-                 first opened at p0 8.1 s, p50 14.2 s, p90 19.8 s, p100 21.0 s
-  music            156 declared       3 opened     153 never opened
+                 1169.4 MB of PCM behind what was opened, 0.0 MB behind what was not
+                 first opened at p0 23.2 s, p50 23.9 s, p90 24.6 s, p100 24.7 s
+  music            156 declared       0 opened     156 never opened
+                 0.0 MB of PCM behind what was opened, 2890.1 MB behind what was not
   unreferenced     220 declared       0 opened     220 never opened
+                 0.0 MB of PCM behind what was opened, 220.2 MB behind what was not
 
   read by
-        4747  com.fs.starfarer.<...>
+       20182  com.fs.graphics.L.Ô00000
 
   EAGER
-  ...
+  The run opened 2050 of 2050 declared effects, and opened them inside 1.5 s of a 359.6
+  s session. ...
 ```
 
 `--json` prints the machine-readable report; `--output <path>` writes it. The exit code is 0 for any
