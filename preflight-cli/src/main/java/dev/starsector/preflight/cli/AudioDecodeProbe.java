@@ -52,7 +52,7 @@ final class AudioDecodeProbe {
     private static final double LAZY_FRACTION = 0.10;
     /**
      * A first-open window this small, relative to the whole session, is a bulk load rather than
-     * playback. Deliberately generous: the observed load put 1,278 files inside 1.5 seconds of a 360
+     * playback. Deliberately generous: the observed load put 2,050 files inside 1.5 seconds of a 360
      * second session, which is 0.4%, and anything an order of magnitude looser is still nothing like
      * sounds being opened as they are played.
      */
@@ -117,8 +117,20 @@ final class AudioDecodeProbe {
     }
 
     static Result run(Path recording, Path installRoot) throws IOException {
+        return run(recording, installRoot, null);
+    }
+
+    /**
+     * @param gameWorkingDirectory what relative recorded paths are resolved against, or {@code null}
+     *     to use the core resource root. Only tests pass this; see
+     *     {@link #gameWorkingDirectory(ResourceIndex)} for why the core root is the right default.
+     */
+    static Result run(Path recording, Path installRoot, Path gameWorkingDirectory) throws IOException {
         AudioCensus.Result census = AudioCensus.scan(installRoot);
         ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(installRoot);
+        Path workingDirectory = gameWorkingDirectory == null
+                ? gameWorkingDirectory(built.index())
+                : gameWorkingDirectory.toAbsolutePath().normalize();
 
         // Winning absolute path -> logical path, so a JFR path is an exact map hit rather than a
         // suffix search across two thousand candidates for every read event in the recording. A
@@ -147,6 +159,7 @@ final class AudioDecodeProbe {
         Map<String, Long> firstReadNanos = new LinkedHashMap<>();
         Map<String, Long> readsByCaller = new TreeMap<>();
         long audioReadEvents = 0;
+        long relativeReadEvents = 0;
         long unmatchedAudioReadEvents = 0;
         java.util.Set<String> unmatchedAudioPaths = new java.util.LinkedHashSet<>();
         long totalReadEvents = 0;
@@ -175,7 +188,14 @@ final class AudioDecodeProbe {
                 if (path == null) {
                     continue;
                 }
-                String logical = byAbsolutePath.get(key(Path.of(path)));
+                Path recorded = Path.of(path);
+                if (!recorded.isAbsolute()) {
+                    relativeReadEvents++;
+                    if (workingDirectory != null) {
+                        recorded = workingDirectory.resolve(recorded);
+                    }
+                }
+                String logical = byAbsolutePath.get(key(recorded));
                 if (logical == null) {
                     // Audio the census cannot account for. Counting it is not optional: the first
                     // version dropped these silently, and a run of this probe reported "no music was
@@ -285,6 +305,8 @@ final class AudioDecodeProbe {
                 ? 0
                 : Duration.between(runStart, runEnd).toMillis());
         report.put("fileReadEvents", totalReadEvents);
+        report.put("relativeFileReadEvents", relativeReadEvents);
+        report.put("gameWorkingDirectory", workingDirectory == null ? null : workingDirectory.toString());
         report.put("audioFileReadEvents", audioReadEvents);
         report.put("unmatchedAudioFileReadEvents", unmatchedAudioReadEvents);
         report.put("unmatchedAudioSample", List.copyOf(unmatchedAudioPaths));
@@ -341,11 +363,17 @@ final class AudioDecodeProbe {
      * Whether the effects that were opened were opened all at once.
      *
      * <p>This is the signal the first version of this class lacked, and the first real run is what
-     * exposed the gap. That run opened 62% of declared effects — between an eager threshold of 90% and
-     * a lazy one of 10%, so it reported {@code INCONCLUSIVE} about data that is not remotely
-     * ambiguous: every one of those 1,278 files was opened inside 1.5 seconds, 23 seconds into a six
-     * minute session, by a single caller. The missing 38% turned out to be campaign sounds in a
-     * session that never left the menus.</p>
+     * exposed the gap. That run appeared to open 62% of declared effects — between an eager threshold
+     * of 90% and a lazy one of 10%, so it reported {@code INCONCLUSIVE} about data that is not
+     * remotely ambiguous: every one of those files was opened inside 1.5 seconds, 23 seconds into a
+     * six minute session, by a single caller.</p>
+     *
+     * <p>The missing 38% was not a loading phase the session never reached. It was
+     * {@link #gameWorkingDirectory this class failing to resolve the paths the game recorded}, and the
+     * same run reads 100% once that is fixed. The burst signal survives its own motivating example
+     * being a measurement error, because the reasoning below never depended on the fraction being
+     * wrong — but the example is worth keeping as a reminder that a fraction can be wrong for reasons
+     * that have nothing to do with the game.</p>
      *
      * <p>Counting files was always a proxy. "Lazy" means <em>at the time of use</em>, so when the
      * opens happen is the direct evidence and how many happen is not. A burst answers the question the
@@ -437,6 +465,34 @@ final class AudioDecodeProbe {
         }
         int sounds = normalized.lastIndexOf("/sounds/");
         return sounds >= 0 ? normalized.substring(sounds + 1) : normalized;
+    }
+
+    /**
+     * The directory the game was running in, which is what its relative reads are relative to.
+     *
+     * <p>Flight Recorder stores the path the JVM passed to the OS, not a resolved one. Starsector
+     * opens its own resources by relative path — {@code sounds/sfx_impacts/shield_hit_heavy_01.ogg},
+     * with no install prefix — because it runs with the core resource directory as its working
+     * directory. Resolving those against <em>Preflight's</em> working directory, which is what
+     * {@link #key} did on its own, made every core resource look unopened: 7,309 audio reads, a third
+     * of the recording's audio, matched nothing at all.</p>
+     *
+     * <p>The core root is the right base rather than a guess. The same recording's mod reads arrive
+     * absolute and spelled {@code .../Contents/Resources/Java/../../../mods/...} — the game resolving
+     * a relative path against exactly this directory and keeping the traversal in the result. On the
+     * reviewed profile 4,284 of the 4,288 distinct relative paths exist under it; the four that do not
+     * are {@code .inprogress} save files renamed between the read and the analysis.</p>
+     *
+     * <p>A relative path that does not resolve to an indexed file stays unmatched and is counted, so a
+     * layout where this base is wrong shows up as unmatched reads rather than as silence.</p>
+     */
+    private static Path gameWorkingDirectory(ResourceIndex index) {
+        for (ResourceIndex.Root root : index.roots()) {
+            if (root.core()) {
+                return root.path().toAbsolutePath().normalize();
+            }
+        }
+        return null;
     }
 
     /**

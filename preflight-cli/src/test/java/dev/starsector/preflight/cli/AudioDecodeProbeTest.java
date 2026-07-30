@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import jdk.jfr.Event;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
@@ -56,10 +57,14 @@ class AudioDecodeProbeTest {
     }
 
     /**
-     * The case the first real run produced and the first version of the verdict got wrong: 1,278 of
-     * 2,050 effects, all inside 1.5 seconds of a six-minute session. A fraction between the eager and
-     * lazy thresholds is not ambiguity when the opens are a burst — it means the session never reached
-     * a later loading phase. The detail has to say that rather than claim full coverage.
+     * Partial coverage opened all at once. A fraction between the eager and lazy thresholds is not
+     * ambiguity when the opens are a burst — the session reached one loading phase and not a later
+     * one — and the detail has to say so rather than claim full coverage.
+     *
+     * <p>This is kept synthetic on purpose. The real run that motivated it looked like this case and
+     * was not: its missing 38% was
+     * {@link AudioDecodeProbeTest#matchesResourcesTheGameOpenedByRelativePath a path-resolution bug in
+     * the probe}, not a phase the player never reached.
      */
     @Test
     void reportsEagerWhenOnlySomeAreOpenedButAllAtOnce() throws Exception {
@@ -119,6 +124,55 @@ class AudioDecodeProbeTest {
         List<String> sample = (List<String>) result.report().get("unmatchedAudioSample");
         assertTrue(sample.stream().anyMatch(path -> path.endsWith("music.bin")),
                 "expected music.bin named in " + sample);
+    }
+
+    /**
+     * The join the probe got wrong for two releases: Starsector opens its own resources by relative
+     * path, and a relative path means nothing without the directory it is relative to.
+     *
+     * <p>Flight Recorder stores what the JVM passed to the OS, so a core sound arrives as
+     * {@code sounds/sfx_impacts/shield_hit_heavy_01.ogg}. Resolving that against Preflight's own
+     * working directory silently missed every core resource in the reviewed profile — 7,309 audio
+     * reads, a third of the recording's audio, and the whole of issue #232.</p>
+     *
+     * <p>The recording has to come from a separate process for this to test anything. {@code
+     * toRealPath} resolves a relative path against the <em>reading</em> process's working directory,
+     * so a recording made in this JVM would match with or without the fix — which is exactly why the
+     * bug survived: it only appears when the recorder and the analyser disagree about where "here"
+     * is, and in production they always do. So a child JVM is started in the core directory and reads
+     * the sound the way the game does.</p>
+     */
+    @Test
+    void matchesResourcesTheGameOpenedByRelativePath() throws Exception {
+        Path core = profile();
+        sound(core, "sounds/one.ogg");
+        declare("""
+                {"one":[{"file":"sounds/one.ogg"}]}
+                """);
+
+        Path recording = recordInAnotherWorkingDirectory(core, "sounds/one.ogg");
+        AudioDecodeProbe.Result result = AudioDecodeProbe.run(recording, temporaryDirectory);
+
+        assertEquals(1, opened(result, "effect"), result.detail());
+        assertEquals(0, neverOpened(result, "effect"));
+        assertTrue(((Number) result.report().get("relativeFileReadEvents")).longValue() > 0,
+                "the relative read should be counted, report " + result.report());
+    }
+
+    /**
+     * Relative reads are rebased against the core resource root, because that is where the game runs.
+     * Pinned separately from the join above: the join test supplies the directory, so only this one
+     * fails if the default is ever changed to something else.
+     */
+    @Test
+    void resolvesRelativeReadsAgainstTheCoreResourceRoot() throws Exception {
+        Path core = profile();
+        declareEffects(core, 40);
+
+        AudioDecodeProbe.Result result = AudioDecodeProbe.run(
+                record(true, List.of(core.resolve("data/config/sounds.json"))), temporaryDirectory);
+
+        assertEquals(core.toRealPath().toString(), result.report().get("gameWorkingDirectory"));
     }
 
     /** One open has a zero-length window, which must not read as a perfect bulk load. */
@@ -276,6 +330,71 @@ class AudioDecodeProbeTest {
             recording.stop();
             recording.dump(destination);
         }
+        return destination;
+    }
+
+    /**
+     * Records reads of {@code relativePaths} from a JVM whose working directory is {@code directory},
+     * so the recorded paths are relative to somewhere this process is not. Source-launched rather
+     * than given a classpath, because the child needs nothing but the JDK.
+     */
+    private Path recordInAnotherWorkingDirectory(Path directory, String... relativePaths)
+            throws Exception {
+        Path source = temporaryDirectory.resolve("RelativeReader.java");
+        Files.writeString(source, """
+                import java.io.InputStream;
+                import java.nio.file.Files;
+                import java.nio.file.Path;
+                import java.time.Duration;
+                import jdk.jfr.Event;
+                import jdk.jfr.Name;
+                import jdk.jfr.Recording;
+
+                public class RelativeReader {
+                    @Name("preflight.AgentStarted")
+                    static final class AgentStarted extends Event {
+                        boolean exhaustiveFileReads;
+                    }
+
+                    public static void main(String[] args) throws Exception {
+                        try (Recording recording = new Recording()) {
+                            recording.enable("jdk.FileRead")
+                                    .withThreshold(Duration.ZERO)
+                                    .withStackTrace();
+                            recording.start();
+                            AgentStarted started = new AgentStarted();
+                            started.exhaustiveFileReads = true;
+                            started.commit();
+                            for (int i = 1; i < args.length; i++) {
+                                byte[] buffer = new byte[64];
+                                try (InputStream in = Files.newInputStream(Path.of(args[i]))) {
+                                    while (in.read(buffer) > 0) {
+                                        // Read it all, the way something decoding the file would.
+                                    }
+                                }
+                            }
+                            recording.stop();
+                            recording.dump(Path.of(args[0]));
+                        }
+                    }
+                }
+                """);
+
+        Path destination = temporaryDirectory.resolve("relative-" + System.nanoTime() + ".jfr");
+        List<String> command = new ArrayList<>(List.of(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                source.toAbsolutePath().toString(),
+                destination.toAbsolutePath().toString()));
+        command.addAll(List.of(relativePaths));
+
+        Path log = temporaryDirectory.resolve("relative-reader.log");
+        Process process = new ProcessBuilder(command)
+                .directory(directory.toFile())
+                .redirectErrorStream(true)
+                .redirectOutput(log.toFile())
+                .start();
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "the child JVM did not finish");
+        assertEquals(0, process.exitValue(), "child JVM failed: " + Files.readString(log));
         return destination;
     }
 
