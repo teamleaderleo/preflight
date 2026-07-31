@@ -391,6 +391,32 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertNotIn("agent", condition)
 
 
+class AutoPlayTest(unittest.TestCase):
+    """Driving the launcher removes the operator from the loop, and the two ways that can go
+    wrong quietly are driving the run that must not be driven, and reading our own SIGTERM as
+    a failed run."""
+
+    def test_vanilla_is_never_driven(self):
+        # vanilla launches with JAVA_TOOL_OPTIONS cleared, so no agent is attached and nothing
+        # in the process can press the button. Attaching one to drive it would stop it being
+        # the baseline, which is the only thing that condition exists to be.
+        block = re.search(r"local auto=false\n(?P<body>.*?)\n    fi", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(block, "auto-play condition gate not found")
+        self.assertIn('"$condition" != vanilla', block.group("body"))
+
+    def test_a_deliberate_stop_is_not_counted_as_a_failed_run(self):
+        # The harness signals the game once the menu marker lands, and `wait` then reports a
+        # signalled exit. Without this the acceptance check excludes every automated run as
+        # nonzero-exit, which looks like the whole campaign failed.
+        self.assertRegex(
+            SCRIPT_TEXT, r'if \[\[ "\$deliberate_stop" == true \]\]; then\n\s*exit_code=0'
+        )
+        # A crash must still be caught, so the fatal flag has to be tested before the exit code.
+        fatal = SCRIPT_TEXT.index('if [[ -s "$fatal_flag" ]]; then\n        report_fatal_jvm_error')
+        nonzero = SCRIPT_TEXT.index('reason="nonzero-exit-$exit_code"')
+        self.assertLess(fatal, nonzero, "exit code is judged before the crash flag")
+
+
 class SettlingLaunchTest(unittest.TestCase):
     """The settling launch is discarded, so every cost it carries is pure downside."""
 

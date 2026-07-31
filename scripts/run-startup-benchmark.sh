@@ -10,6 +10,7 @@ GAME="${GAME:-/Applications/Starsector.app}"
 CACHE="${CACHE:-$HOME/.starsector-preflight/cache}"
 ROUNDS=5
 CONDITIONS="vanilla,agent,enabled,fast"
+AUTO_PLAY=false
 SESSION=""
 SKIP_WARMUP=false
 SEED="${SEED:-$RANDOM}"
@@ -33,6 +34,10 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       three per condition the smallest possible p-value is 0.1.
   --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast,profile,prepared
                       (default vanilla,agent,enabled,fast; the last two are opt-in).
+  --auto-play         Press the launcher's Play button and stop the game once the main
+                      menu is up, so a run needs no clicks. Does not apply to `vanilla`,
+                      which launches with no agent attached and so cannot be driven --
+                      those runs still prompt.
   --resume DIR        Continue an interrupted session, keeping its completed runs.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
   --game PATH         Starsector installation (default /Applications/Starsector.app).
@@ -71,6 +76,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --rounds) ROUNDS="$2"; shift 2 ;;
         --conditions) CONDITIONS="$2"; shift 2 ;;
+        --auto-play) AUTO_PLAY=true; shift ;;
         --resume) SESSION="$2"; shift 2 ;;
         --skip-warmup) SKIP_WARMUP=true; shift ;;
         --game) GAME="$2"; shift 2 ;;
@@ -312,6 +318,13 @@ watch_for_fatal_jvm_error() {
 # the campaign keeps its remaining runs.
 launch_once() {
     local condition="$1" iteration="$2" label="$3"
+    # vanilla runs with JAVA_TOOL_OPTIONS cleared, so no agent is attached and there is
+    # nothing in the process to press the button. Attaching one to drive it would stop it
+    # being the baseline, which is the only thing that condition is for.
+    local auto=false
+    if [[ "$AUTO_PLAY" == true && "$condition" != vanilla ]]; then
+        auto=true
+    fi
     local run_dir="$ROOT/runs/${condition}-${iteration}"
     local before_logs="$run_dir/log-snapshot-before.json"
     local play_logs="$run_dir/log-snapshot-before-play.json"
@@ -351,6 +364,10 @@ launch_once() {
                      --texture-mode prepared-pixels --prepared-unpadded --no-record) ;;
     esac
 
+    if [[ "$auto" == true ]]; then
+        command+=(--auto-play)
+    fi
+
     banner "$label"
     note "${command[*]}"
     python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$before_logs"
@@ -384,8 +401,12 @@ launch_once() {
     fi
 
     python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$play_logs"
-    act "CLICK  Play Starsector  NOW"
-    note "Timing starts on the first game log line, not on this prompt. Do not press Enter."
+    if [[ "$auto" == true ]]; then
+        note "Auto-play armed; the agent presses Play once the button is real and enabled."
+    else
+        act "CLICK  Play Starsector  NOW"
+        note "Timing starts on the first game log line, not on this prompt. Do not press Enter."
+    fi
 
     if ! python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$play_logs" \
             --output "$menu_detection" --pid "$pid" \
@@ -407,12 +428,26 @@ launch_once() {
     # after preload ranged 0.0-9.3s across otherwise identical runs on 2026-07-31.
     menu_ms="$(jq -er '.gameLogStartToGraphicsPreloadMs' "$menu_detection")"
     good "$(awk -v ms="$menu_ms" 'BEGIN { printf "Main menu ready in %.1fs", ms / 1000 }')"
-    act "QUIT from the main menu now  (close the launcher if it reappears)"
+    local deliberate_stop=false
+    if [[ "$auto" == true ]]; then
+        # The measurement ended at the marker above, so there is nothing left to observe.
+        # SIGTERM first, which runs the JVM shutdown hooks that dump any recording.
+        note "Main menu reached; stopping the game."
+        deliberate_stop=true
+        terminate "$pid"
+    else
+        act "QUIT from the main menu now  (close the launcher if it reappears)"
+    fi
 
     set +e
     wait "$pid"
     local exit_code=$?
     set -e
+    # A signalled exit is the expected outcome when we did the signalling, and must not be read
+    # as a failed run. A crash before that still reports, because the fatal flag is checked first.
+    if [[ "$deliberate_stop" == true ]]; then
+        exit_code=0
+    fi
     kill "$watchdog" >/dev/null 2>&1 || true
     # The game outlives the wrapper, so a crash can still be sitting on the message-box
     # prompt after the wrapper returns. Clear the tree before the next run starts.

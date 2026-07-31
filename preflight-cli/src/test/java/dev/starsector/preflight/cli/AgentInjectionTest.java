@@ -33,13 +33,13 @@ class AgentInjectionTest {
         String recording = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL, false, false);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL, false, false, 0L);
         assertFalse(recording.contains("record="));
 
         String silent = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF, false, false);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF, false, false, 0L);
         assertTrue(silent.contains(",record=off"));
         // The adapter still has to be configured; turning the profile off is not turning
         // Preflight off, and the caches are the whole point of the mode.
@@ -53,7 +53,7 @@ class AgentInjectionTest {
         String sampled = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.SAMPLE, false, false);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.SAMPLE, false, false, 0L);
         assertTrue(sampled.contains(",record=sample"), sampled);
         assertFalse(sampled.contains("record=off"), sampled);
 
@@ -65,14 +65,14 @@ class AgentInjectionTest {
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
                 Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
-                RecordingMode.OFF, true, false);
+                RecordingMode.OFF, true, false, 0L);
         assertTrue(npot.contains(" -Dpreflight.preparedPixels.coherentDirect=true"), npot);
 
         String withoutNpot = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
                 Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
-                RecordingMode.OFF, false, false);
+                RecordingMode.OFF, false, false, 0L);
         assertFalse(withoutNpot.contains("coherentDirect"), withoutNpot);
 
         // Padding removal is the other way to carry a padded texture, and it has to reach the
@@ -82,9 +82,20 @@ class AgentInjectionTest {
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
                 Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
-                RecordingMode.OFF, false, true);
+                RecordingMode.OFF, false, true, 0L);
         assertTrue(unpadded.contains(" -Dpreflight.padding.unpadded=true"), unpadded);
         assertFalse(unpadded.contains("coherentDirect"), unpadded);
+
+        // Auto-play is an agent option rather than a system property because the agent reads it
+        // once at startup, and absent has to mean off: pressing a button in someone's game is not
+        // something to do because a field defaulted.
+        String driven = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false,
+                RecordingMode.OFF, false, false, 120_000L);
+        assertTrue(driven.contains(",autoPlayMs=120000"), driven);
+        assertFalse(unpadded.contains("autoPlayMs"), unpadded);
     }
 
     @Test
