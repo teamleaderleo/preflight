@@ -33,13 +33,13 @@ class AgentInjectionTest {
         String recording = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL, false);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL, false, false);
         assertFalse(recording.contains("record="));
 
         String silent = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF, false);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF, false, false);
         assertTrue(silent.contains(",record=off"));
         // The adapter still has to be configured; turning the profile off is not turning
         // Preflight off, and the caches are the whole point of the mode.
@@ -53,7 +53,7 @@ class AgentInjectionTest {
         String sampled = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.SAMPLE, false);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.SAMPLE, false, false);
         assertTrue(sampled.contains(",record=sample"), sampled);
         assertFalse(sampled.contains("record=off"), sampled);
 
@@ -65,15 +65,26 @@ class AgentInjectionTest {
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
                 Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
-                RecordingMode.OFF, true);
+                RecordingMode.OFF, true, false);
         assertTrue(npot.contains(" -Dpreflight.preparedPixels.coherentDirect=true"), npot);
 
         String withoutNpot = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
                 Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
-                RecordingMode.OFF, false);
+                RecordingMode.OFF, false, false);
         assertFalse(withoutNpot.contains("coherentDirect"), withoutNpot);
+
+        // Padding removal is the other way to carry a padded texture, and it has to reach the
+        // JVM the same way. It is what makes the prepared path serve true-size bytes while the
+        // allocation shrinks to match; the two halves read this one property.
+        String unpadded = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
+                Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
+                RecordingMode.OFF, false, true);
+        assertTrue(unpadded.contains(" -Dpreflight.padding.unpadded=true"), unpadded);
+        assertFalse(unpadded.contains("coherentDirect"), unpadded);
     }
 
     @Test

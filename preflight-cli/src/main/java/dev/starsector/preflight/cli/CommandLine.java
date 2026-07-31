@@ -24,6 +24,7 @@ record CommandLine(
         boolean exhaustiveFileReads,
         RecordingMode recordingMode,
         boolean npotDirect,
+        boolean unpadded,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -35,6 +36,7 @@ record CommandLine(
         boolean exhaustiveFileReads = false;
         RecordingMode recordingMode = RecordingMode.FULL;
         boolean npotDirect = false;
+        boolean unpadded = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -75,6 +77,7 @@ record CommandLine(
                 case "--no-record" -> recordingMode = RecordingMode.OFF;
                 case "--profile" -> recordingMode = RecordingMode.SAMPLE;
                 case "--prepared-npot" -> npotDirect = true;
+                case "--prepared-unpadded" -> unpadded = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -114,9 +117,17 @@ record CommandLine(
         // Only the prepared-pixel bridge reads this, and silently accepting it elsewhere would
         // produce a launch that looks configured for non-power-of-two and is not -- which is
         // indistinguishable from the bridge simply declining, the failure this flag exists to fix.
-        if (npotDirect && textureAdapterMode != TextureAdapterMode.PREPARED_PIXELS) {
+        if ((npotDirect || unpadded) && textureAdapterMode != TextureAdapterMode.PREPARED_PIXELS) {
             throw new IllegalArgumentException(
-                    "--prepared-npot requires --texture-mode prepared-pixels");
+                    "--prepared-npot and --prepared-unpadded require --texture-mode prepared-pixels");
+        }
+        // Both carry non-power-of-two textures, and they disagree about how. Together they build a
+        // coherent-direct carrier sized for the padded allocation and then supply the true-size
+        // buffer -- a shrunken allocation handed a padded buffer, or its inverse, which is the
+        // documented insufficient-original-buffer failure.
+        if (npotDirect && unpadded) {
+            throw new IllegalArgumentException(
+                    "--prepared-npot and --prepared-unpadded are alternatives; pass only one");
         }
         // --texture-auto and --texture-mode are independent: auto resolves which manifest and
         // index to use, the mode decides which TextureLoader target reads them. Both modes are
@@ -141,6 +152,7 @@ record CommandLine(
                 exhaustiveFileReads,
                 recordingMode,
                 npotDirect,
+                unpadded,
                 List.copyOf(forwarded));
     }
 

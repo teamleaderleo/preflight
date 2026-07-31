@@ -39,7 +39,7 @@ public final class TexturePaddingRuntime {
      * Set only by a host that has observed non-power-of-two support on the live context. Absent or
      * false means the fold behaves exactly as shipped.
      */
-    static final String UNPADDED_PROPERTY = "preflight.padding.unpadded";
+    public static final String UNPADDED_PROPERTY = "preflight.padding.unpadded";
 
     private static final AtomicLong BYPASSED = new AtomicLong();
     private static final AtomicLong FOLDED = new AtomicLong();

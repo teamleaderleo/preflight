@@ -43,11 +43,17 @@ Conditions:
   agent     preflight run --no-adapter -- isolates what the JFR recorder itself costs
   enabled   preflight run --adapter --texture-auto -- the prepared texture path, recorded
   fast      the same, plus --no-record -- the caches without paying for the profile
-  prepared  --texture-mode prepared-pixels --prepared-npot --no-record -- hands the game
-            upload-ready bytes instead of a BufferedImage it has to unpack a pixel at a
-            time. --prepared-npot is not optional here: without it the bridge declines
-            every texture needing power-of-two padding, which was 6,165 of 6,706 on the
-            reviewed profile. Compare against `fast`, the same launch in compatibility mode.
+  prepared  --texture-mode prepared-pixels --prepared-unpadded --no-record -- hands the
+            game upload-ready bytes instead of a BufferedImage it has to unpack a pixel at
+            a time, and serves them at true size instead of padded to a power of two. The
+            flag is not optional: without it the bridge declines every texture needing
+            padding, which was 6,165 of 6,706 on the reviewed profile. It needs a driver
+            that accepts non-power-of-two uploads -- observed on this machine, see
+            docs/evidence/2026-07-25-macos-gl-capability-probe.md. Compare against `fast`.
+  prepared-padded
+            the same but --prepared-npot: carries the same textures while keeping the
+            power-of-two padding. Use it if `prepared` shears sprites, to separate "the
+            conversion bypass is wrong" from "removing the padding is wrong".
   profile   the same, plus --profile -- sampling only, for asking where the time goes.
             Not a timing condition: it records, so it is slower than fast. Analyse its
             recordings with `preflight analyze`; do not read its wall clock as a result.
@@ -102,7 +108,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled|fast|profile|prepared) ;;
+        vanilla|agent|enabled|fast|profile|prepared|prepared-padded) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -338,6 +344,10 @@ launch_once() {
         prepared)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
+                     --texture-mode prepared-pixels --prepared-unpadded --no-record) ;;
+        prepared-padded)
+            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --texture-mode prepared-pixels --prepared-npot --no-record) ;;
     esac
 
@@ -419,7 +429,7 @@ launch_once() {
         status=excluded; reason="nonzero-exit-$exit_code"
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
-    elif [[ "$condition" == prepared ]] \
+    elif [[ "$condition" == prepared || "$condition" == prepared-padded ]] \
             && { ! served_prepared_textures "$run_dir" || ! bypassed_pixel_conversions "$run_dir"; }; then
         status=excluded; reason="prepared-pixels-served-nothing"
     elif [[ "$condition" == enabled || "$condition" == fast || "$condition" == profile ]] \

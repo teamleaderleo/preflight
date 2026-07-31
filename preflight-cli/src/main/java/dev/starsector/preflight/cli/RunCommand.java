@@ -62,7 +62,8 @@ final class RunCommand {
                 options.textureAdapterMode(),
                 options.exhaustiveFileReads(),
                 options.recordingMode(),
-                options.npotDirect());
+                options.npotDirect(),
+                options.unpadded());
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());

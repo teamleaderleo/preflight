@@ -362,11 +362,19 @@ class AdapterEvidenceTest(unittest.TestCase):
         # prepared condition rests on both. Checking only the first is how a run that never
         # exercised the bridge would be counted as evidence that the bridge does nothing.
         guard = re.search(
-            r'elif \[\[ "\$condition" == prepared \]\][^\n]*\n[^\n]*bypassed_pixel_conversions',
+            r'elif \[\[ (?P<test>[^\]]*prepared[^\]]*) \]\] \\?\s*\n\s*&& \{(?P<body>[^}]*)\}',
             SCRIPT_TEXT,
         )
         self.assertIsNotNone(guard, "prepared guard does not check the pixel bridge")
-        self.assertIn("served_prepared_textures", guard.group(0))
+        self.assertIn("bypassed_pixel_conversions", guard.group("body"))
+        self.assertIn("served_prepared_textures", guard.group("body"))
+        # Every condition that claims the bridge has to prove it, not just the first one
+        # added. A variant guarded only by the cache check would report the padded and
+        # unpadded paths as identical when one of them never ran.
+        conditions = re.findall(r'^\s{8}(prepared[a-z-]*)\)', SCRIPT_TEXT, re.MULTILINE)
+        self.assertTrue(conditions, "no prepared conditions found in the launch dispatch")
+        for condition in conditions:
+            self.assertIn(condition, guard.group("test"), f"{condition} is not guarded")
 
     def test_both_cache_serving_conditions_are_checked_and_no_others(self):
         # vanilla and agent legitimately have no adapter evidence; enabled and fast both

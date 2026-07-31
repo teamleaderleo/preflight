@@ -172,13 +172,19 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-npot]] [--no-record | --profile] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [-- <launcher args>]",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",
-                "    --prepared-npot lets the prepared-pixel bridge carry non-power-of-two textures."
-                        + " Without it the bridge declines every texture that needs padding, which on"
-                        + " a normal profile is most of them, and the mode does almost nothing.",
+                "    --prepared-unpadded serves textures at their true size instead of padded up to a"
+                        + " power of two, which both lets the bridge carry them and drops the padding"
+                        + " entirely -- 1.86 GiB allocated and never sampled on the reviewed profile."
+                        + " Needs a driver that accepts non-power-of-two uploads.",
+                "    --prepared-npot is the conservative alternative: it carries the same textures while"
+                        + " keeping the power-of-two padding, so it needs nothing of the driver. Use it"
+                        + " to separate a broken conversion bypass from broken padding removal. Without"
+                        + " one of these two the bridge declines every texture that needs padding, which"
+                        + " on a normal profile is most of them, and the mode does almost nothing.",
                 "    --profile records execution sampling and blocking only, dropping the stack-traced"
                         + " class loads and file reads that make up most of that cost. Use it to ask"
                         + " where startup time goes: the full recording lands hardest on class loading,"
