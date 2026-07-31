@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ record CommandLine(
         boolean textureAuto,
         TextureAdapterMode textureAdapterMode,
         boolean exhaustiveFileReads,
-        boolean recordStartup,
+        RecordingMode recordingMode,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -31,7 +32,7 @@ record CommandLine(
         boolean summarize = true;
         boolean scan = true;
         boolean exhaustiveFileReads = false;
-        boolean recordStartup = true;
+        RecordingMode recordingMode = RecordingMode.FULL;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -69,7 +70,8 @@ record CommandLine(
                 case "--texture-index" -> textureIndex = Path.of(requireValue(args, ++i, arg));
                 case "--texture-auto" -> textureAuto = true;
                 case "--trace-all-file-reads" -> exhaustiveFileReads = true;
-                case "--no-record" -> recordStartup = false;
+                case "--no-record" -> recordingMode = RecordingMode.OFF;
+                case "--profile" -> recordingMode = RecordingMode.SAMPLE;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -124,7 +126,7 @@ record CommandLine(
                 textureAuto,
                 textureAdapterMode,
                 exhaustiveFileReads,
-                recordStartup,
+                recordingMode,
                 List.copyOf(forwarded));
     }
 

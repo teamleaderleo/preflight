@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -80,7 +81,8 @@ final class AgentInjection {
             Path textureIndex,
             TextureAdapterMode textureAdapterMode) {
         return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
-                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode, false, true);
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode, false,
+                RecordingMode.FULL);
     }
 
     static String append(
@@ -95,7 +97,7 @@ final class AgentInjection {
             Path textureIndex,
             TextureAdapterMode textureAdapterMode,
             boolean exhaustiveFileReads,
-            boolean recordStartup) {
+            RecordingMode recordingMode) {
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
         if (lower.contains("-javaagent:") && lower.contains("preflight")) {
@@ -116,8 +118,8 @@ final class AgentInjection {
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
         }
-        if (!recordStartup) {
-            arguments.append(",record=off");
+        if (recordingMode != RecordingMode.FULL) {
+            arguments.append(",record=").append(recordingMode.optionValue());
         }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())

@@ -20,6 +20,16 @@ Starsector**, then quit from the main menu once it is up. Everything else is aut
 | `agent` | `preflight run --no-adapter` | what the JFR recorder itself costs |
 | `enabled` | `preflight run --adapter --texture-auto` | the prepared texture path, recorded |
 | `fast` | the same plus `--no-record` | the caches without paying for the profile |
+| `profile` | the same plus `--profile` | **not a timing condition** — see below |
+
+`profile` is opt-in and is not part of the default set, because reading its wall clock as
+a result would be a mistake: it records, so it is slower than `fast` by construction. It
+exists to answer *where* the time goes rather than *how much* there is. What it changes is
+which events the agent enables — periodic execution sampling and threshold-gated blocking
+events, without the stack-traced class loads, class definitions and file reads that make up
+most of the recorder's ~24%. That distinction matters for one specific reason: the expensive
+part of the full recording falls hardest on **class loading**, so a full profile inflates the
+very thing it is most often consulted about. Analyse these runs with `preflight analyze`.
 
 The middle condition is the one that is easy to leave out and expensive to lose. Preflight
 attaches a recording agent in **both** of its modes, so a bare `enabled` minus `vanilla`

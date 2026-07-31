@@ -31,7 +31,8 @@ Usage: scripts/run-startup-benchmark.sh [options]
   --rounds N          Rounds of every condition (default 5, the campaign threshold for
                       a reportable claim). Fewer rounds cannot reach significance: with
                       three per condition the smallest possible p-value is 0.1.
-  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast (default all).
+  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast,profile
+                      (default vanilla,agent,enabled,fast; profile is opt-in).
   --resume DIR        Continue an interrupted session, keeping its completed runs.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
   --game PATH         Starsector installation (default /Applications/Starsector.app).
@@ -42,6 +43,9 @@ Conditions:
   agent     preflight run --no-adapter -- isolates what the JFR recorder itself costs
   enabled   preflight run --adapter --texture-auto -- the prepared texture path, recorded
   fast      the same, plus --no-record -- the caches without paying for the profile
+  profile   the same, plus --profile -- sampling only, for asking where the time goes.
+            Not a timing condition: it records, so it is slower than fast. Analyse its
+            recordings with `preflight analyze`; do not read its wall clock as a result.
 
 Each launch costs about 90 seconds plus your two clicks, so the default 5 rounds across
 four conditions is roughly 45 minutes. Ctrl-C is safe at any point: completed runs are
@@ -93,7 +97,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled|fast) ;;
+        vanilla|agent|enabled|fast|profile) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -295,6 +299,10 @@ launch_once() {
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --no-record) ;;
+        profile)
+            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
+                     --profile) ;;
     esac
 
     banner "$label"
