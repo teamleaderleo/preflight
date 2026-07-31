@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
 import dev.starsector.preflight.agent.RecordingMode;
+import dev.starsector.preflight.agent.TexturePreparedPixelRuntime;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -82,7 +83,7 @@ final class AgentInjection {
             TextureAdapterMode textureAdapterMode) {
         return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
                 textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode, false,
-                RecordingMode.FULL);
+                RecordingMode.FULL, false);
     }
 
     static String append(
@@ -97,7 +98,8 @@ final class AgentInjection {
             Path textureIndex,
             TextureAdapterMode textureAdapterMode,
             boolean exhaustiveFileReads,
-            RecordingMode recordingMode) {
+            RecordingMode recordingMode,
+            boolean npotDirect) {
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
         if (lower.contains("-javaagent:") && lower.contains("preflight")) {
@@ -125,6 +127,11 @@ final class AgentInjection {
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())
                 + "="
                 + arguments;
+        // A system property rather than an agent option because the runtime reads it on every
+        // texture through Boolean.getBoolean, which is a property read by construction.
+        if (npotDirect) {
+            option = option + " -D" + TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY + "=true";
+        }
         return current.isEmpty() ? option : current + " " + option;
     }
 

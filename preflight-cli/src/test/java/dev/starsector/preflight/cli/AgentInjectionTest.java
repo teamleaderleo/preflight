@@ -33,13 +33,13 @@ class AgentInjectionTest {
         String recording = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL, false);
         assertFalse(recording.contains("record="));
 
         String silent = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF, false);
         assertTrue(silent.contains(",record=off"));
         // The adapter still has to be configured; turning the profile off is not turning
         // Preflight off, and the caches are the whole point of the mode.
@@ -53,9 +53,27 @@ class AgentInjectionTest {
         String sampled = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.SAMPLE);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.SAMPLE, false);
         assertTrue(sampled.contains(",record=sample"), sampled);
         assertFalse(sampled.contains("record=off"), sampled);
+
+        // The non-power-of-two escape hatch is a system property, not an agent option: the
+        // runtime reads it per texture through Boolean.getBoolean. It has to land on the JVM
+        // command line, so a test that only checked the agent argument string would pass while
+        // the bridge went on declining every padded texture.
+        String npot = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
+                Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
+                RecordingMode.OFF, true);
+        assertTrue(npot.contains(" -Dpreflight.preparedPixels.coherentDirect=true"), npot);
+
+        String withoutNpot = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
+                Path.of("i.spfi"), TextureAdapterMode.PREPARED_PIXELS, false,
+                RecordingMode.OFF, false);
+        assertFalse(withoutNpot.contains("coherentDirect"), withoutNpot);
     }
 
     @Test

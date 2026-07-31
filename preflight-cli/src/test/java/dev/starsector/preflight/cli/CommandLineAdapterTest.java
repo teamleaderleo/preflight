@@ -73,6 +73,22 @@ class CommandLineAdapterTest {
         assertEquals(TextureAdapterMode.PREPARED_PIXELS, prepared.textureAdapterMode());
         assertEquals(true, prepared.textureAuto());
         assertEquals(Path.of("cache"), prepared.textureCacheDirectory());
+        assertEquals(false, prepared.npotDirect());
+
+        CommandLine npot = CommandLine.parse(new String[] {
+                "run", "--adapter", "--texture-auto", "--texture-cache-dir", "cache",
+                "--texture-mode", "prepared-pixels", "--prepared-npot"
+        }, 1);
+        assertEquals(true, npot.npotDirect());
+        // Setting it anywhere the bridge will not read it is rejected rather than ignored: a
+        // launch that looks configured for non-power-of-two and is not looks exactly like the
+        // bridge declining, which is the failure the flag exists to fix.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {
+                        "run", "--adapter", "--texture-auto", "--texture-cache-dir", "cache",
+                        "--prepared-npot"
+                }, 1));
         // Auto still refuses to be handed artifacts it is supposed to resolve itself.
         assertThrows(
                 IllegalArgumentException.class,
