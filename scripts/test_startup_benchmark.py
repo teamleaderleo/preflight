@@ -169,6 +169,35 @@ class ReportTest(unittest.TestCase):
         ))
         self.assertFalse(summary["benchmarkAccepted"])
 
+    def test_an_unknown_condition_is_reported_rather_than_silently_dropped(self):
+        # This one really happened. A `profile` condition was added to the runner and not to
+        # ORDER, so conditions_present filtered it out: three launches ran, recorded, and were
+        # accepted, and the campaign then printed an empty table and "no pair of conditions",
+        # which reads exactly like "your runs failed" when every run had succeeded. Losing a
+        # condition has to be loud, because the operator has already spent the launches.
+        summary = report.summarize(runs(
+            *[("someday", i, 90.0 + i, "accepted") for i in range(1, 4)],
+        ))
+        self.assertIn("someday", summary["conditions"])
+        self.assertEqual(3, summary["conditions"]["someday"]["successfulRuns"])
+        self.assertIn("someday", report.render(summary, verbose=True))
+
+    def test_a_diagnostic_condition_does_not_hold_back_a_finished_campaign(self):
+        # The sampling profile is slower than an ordinary run by construction, so it is never
+        # compared and never gates acceptance -- otherwise adding three diagnostic launches to
+        # a complete campaign would retroactively make it unreportable.
+        summary = report.summarize(runs(
+            *[("vanilla", i, 100.0 + i, "accepted") for i in range(1, 6)],
+            *[("fast", i, 80.0 + i, "accepted") for i in range(1, 6)],
+            *[("profile", i, 120.0 + i, "accepted") for i in range(1, 4)],
+        ))
+        self.assertTrue(summary["benchmarkAccepted"])
+        self.assertIn("profile", summary["conditions"])
+        self.assertFalse(
+            any("profile" in name for name in summary["comparisons"]),
+            summary["comparisons"],
+        )
+
     def test_no_baseline_means_no_comparison_rather_than_a_crash(self):
         summary = report.summarize(runs(("enabled", 1, 80.0, "accepted")))
         self.assertEqual({}, summary["comparisons"])

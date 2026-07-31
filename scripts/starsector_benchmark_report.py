@@ -18,13 +18,19 @@ from pathlib import Path
 
 BASELINE = "vanilla"
 CAMPAIGN_MINIMUM = 5
-ORDER = ["vanilla", "agent", "enabled", "fast"]
+ORDER = ["vanilla", "agent", "enabled", "fast", "profile"]
 LABELS = {
     "vanilla": "vanilla (no preflight)",
     "agent": "agent only (recorder)",
     "enabled": "preflight + recorder",
     "fast": "preflight, no recorder",
+    "profile": "sampling (diagnostic)",
 }
+# Conditions that exist to be analysed, not timed. They are reported so their runs are
+# visible, but they never enter a comparison and never hold back the campaign gate: a
+# sampling run is slower than an ordinary one by construction, so reading its median as a
+# result would be a mistake, and requiring five of them would block a finished campaign.
+DIAGNOSTIC = {"profile"}
 # Comparisons worth naming, because the interesting ones are not against the baseline.
 # The 2026-07-31 campaign reported only "enabled vs vanilla" and so reported -2.4%, hiding
 # a texture cache worth -15% behind a recorder worth +24%. A comparison is only clean when
@@ -60,8 +66,16 @@ def accepted(runs: list[dict], condition: str) -> list[float]:
 
 
 def conditions_present(runs: list[dict]) -> list[str]:
+    """Every condition with a recorded run, known ones first in ORDER.
+
+    Unknown conditions are appended rather than dropped. Filtering to ORDER alone was a
+    silent failure: adding a condition to the runner and not to this list produced a
+    campaign that ran, recorded, and accepted every launch, then printed an empty table
+    and "no pair of conditions" -- which reads as "the runs failed" when the data is fine.
+    """
     seen = {run["condition"] for run in runs}
-    return [condition for condition in ORDER if condition in seen]
+    known = [condition for condition in ORDER if condition in seen]
+    return known + sorted(seen - set(ORDER))
 
 
 def permutation_p(baseline: list[float], candidate: list[float]) -> float | None:
@@ -133,7 +147,9 @@ def summarize(runs: list[dict]) -> dict:
         "conditions": stats,
         "comparisons": comparisons,
         "benchmarkAccepted": bool(comparisons) and all(
-            values["successfulRuns"] >= CAMPAIGN_MINIMUM for values in stats.values()
+            values["successfulRuns"] >= CAMPAIGN_MINIMUM
+            for condition, values in stats.items()
+            if condition not in DIAGNOSTIC
         ),
     }
 
