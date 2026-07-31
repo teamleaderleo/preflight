@@ -72,18 +72,32 @@ class AgentOptionsTest {
         // Recording costs about 24% of startup on the reviewed installation, which is more
         // than the texture cache saves, so it has to be separable from the adapter. It stays
         // on by default: every analysis command in this repository reads what it produces.
-        assertTrue(AgentOptions.parse("adapter=enabled").recordStartup());
-        assertTrue(AgentOptions.parse("").recordStartup());
-        assertFalse(AgentOptions.parse("adapter=enabled,record=off").recordStartup());
-        assertFalse(AgentOptions.parse("record=OFF").recordStartup());
+        assertEquals(RecordingMode.FULL, AgentOptions.parse("adapter=enabled").recordingMode());
+        assertEquals(RecordingMode.FULL, AgentOptions.parse("").recordingMode());
+        assertEquals(RecordingMode.OFF, AgentOptions.parse("adapter=enabled,record=off").recordingMode());
+        assertEquals(RecordingMode.OFF, AgentOptions.parse("record=OFF").recordingMode());
+        assertTrue(AgentOptions.parse("").recordingMode().records());
+        assertFalse(AgentOptions.parse("record=off").recordingMode().records());
+    }
+
+    @Test
+    void samplingModeIsSelectableAndStillCountsAsRecording() {
+        // The sampling profile exists because the full recording stack-traces every class load,
+        // which inflates class loading -- the thing a profile is most often asked about.
+        assertEquals(RecordingMode.SAMPLE, AgentOptions.parse("record=sample").recordingMode());
+        assertEquals(RecordingMode.SAMPLE, AgentOptions.parse("record=SAMPLING").recordingMode());
+        assertTrue(AgentOptions.parse("record=sample").recordingMode().records());
     }
 
     @Test
     void anUnrecognisedRecordValueKeepsRecordingRatherThanSilentlyLosingTheProfile() {
         // Failing open here means an extra recording; failing closed means a run whose
         // profile silently never existed, which is the more expensive mistake.
-        assertTrue(AgentOptions.parse("record=on").recordStartup());
-        assertTrue(AgentOptions.parse("record=yes").recordStartup());
+        assertEquals(RecordingMode.FULL, AgentOptions.parse("record=on").recordingMode());
+        assertEquals(RecordingMode.FULL, AgentOptions.parse("record=yes").recordingMode());
+        // Notably not SAMPLE: a typo must not quietly drop the class-load events an analysis
+        // command may be relying on.
+        assertEquals(RecordingMode.FULL, AgentOptions.parse("record=samp").recordingMode());
     }
 
     @Test

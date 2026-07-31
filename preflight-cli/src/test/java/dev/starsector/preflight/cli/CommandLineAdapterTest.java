@@ -4,11 +4,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class CommandLineAdapterTest {
+    @Test
+    void recordingFlagsSelectTheThreeModesAndDefaultToFull() {
+        assertEquals(RecordingMode.FULL, CommandLine.parse(new String[] {"run"}, 1).recordingMode());
+        assertEquals(RecordingMode.OFF,
+                CommandLine.parse(new String[] {"run", "--no-record"}, 1).recordingMode());
+        assertEquals(RecordingMode.SAMPLE,
+                CommandLine.parse(new String[] {"run", "--profile"}, 1).recordingMode());
+        // The two flags are opposites in effect but not mutually exclusive on the command line;
+        // last one wins, so a script appending a flag cannot be defeated by an earlier one.
+        assertEquals(RecordingMode.SAMPLE,
+                CommandLine.parse(new String[] {"run", "--no-record", "--profile"}, 1).recordingMode());
+        assertEquals(RecordingMode.OFF,
+                CommandLine.parse(new String[] {"run", "--profile", "--no-record"}, 1).recordingMode());
+    }
+
     @Test
     void defaultsOffAndParsesProbeOrEnabledModes() {
         CommandLine defaults = CommandLine.parse(new String[] {"run"}, 1);

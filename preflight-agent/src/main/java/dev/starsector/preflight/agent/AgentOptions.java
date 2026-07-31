@@ -20,7 +20,7 @@ record AgentOptions(
         Path textureIndex,
         TextureAdapterMode textureAdapterMode,
         boolean exhaustiveFileReads,
-        boolean recordStartup,
+        RecordingMode recordingMode,
         List<String> candidatePrefixes) {
     private static final List<String> DEFAULT_CANDIDATE_PREFIXES = List.of(
             "com/fs/starfarer/",
@@ -74,8 +74,10 @@ record AgentOptions(
         // file reads plus 10ms execution sampling cost about 24% of startup on the reviewed
         // installation, which is more than the texture cache saves. Someone who wants the caches
         // and not the profile can turn the recording off; it stays on by default, because every
-        // analysis command in this repository reads what it produces.
-        boolean recordStartup = !"off".equalsIgnoreCase(values.get("record"));
+        // analysis command in this repository reads what it produces. The middle setting keeps the
+        // sampling and drops the stack-traced per-event records, so a profile can ask where the
+        // time goes without the measurement landing on class loading hardest.
+        RecordingMode recordingMode = RecordingMode.parse(values.get("record"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -87,7 +89,7 @@ record AgentOptions(
                 textureIndex,
                 textureAdapterMode,
                 exhaustiveFileReads,
-                recordStartup,
+                recordingMode,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

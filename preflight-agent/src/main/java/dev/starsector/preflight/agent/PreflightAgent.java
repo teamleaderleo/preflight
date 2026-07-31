@@ -73,7 +73,7 @@ public final class PreflightAgent {
     }
 
     private static Recording startRecording(AgentOptions options) {
-        if (!options.recordStartup()) {
+        if (!options.recordingMode().records()) {
             // The adapter still runs and still writes its report; only the profile is skipped.
             if (options.adapterMode() != AdapterMode.OFF) {
                 log("Recording off; adapter mode " + options.adapterMode() + ", report "
@@ -108,6 +108,9 @@ public final class PreflightAgent {
             started.adapterMode = options.adapterMode().name();
             // Recorded so a reader can tell "no file read event" from "file reads were filtered".
             started.exhaustiveFileReads = options.exhaustiveFileReads();
+            // Sampling mode deliberately omits whole event types. Without this an analyst comparing
+            // two recordings could read "no class loads" as a finding rather than as a setting.
+            started.recordingMode = options.recordingMode().name();
             // Flight Recorder stores the path the JVM passed to the OS, so a game that opens its own
             // resources by relative path -- which Starsector does, its launcher having changed into
             // the core resource directory first -- leaves paths that mean nothing without this. An
@@ -116,7 +119,8 @@ public final class PreflightAgent {
             // the answer is this one, so it records it rather than leaving it to be inferred.
             started.workingDirectory = System.getProperty("user.dir", "");
             started.commit();
-            log("Recording startup to " + destination);
+            log("Recording startup (" + options.recordingMode().name().toLowerCase(java.util.Locale.ROOT)
+                    + ") to " + destination);
             if (options.adapterMode() != AdapterMode.OFF) {
                 log("Adapter mode " + options.adapterMode() + "; report "
                         + options.adapterReport().toAbsolutePath().normalize());
@@ -135,6 +139,25 @@ public final class PreflightAgent {
         recording.enable("jdk.JVMInformation");
         recording.enable("jdk.OSInformation");
         recording.enable("jdk.CPUInformation");
+
+        // Where each thread actually is, and whether it was waiting on another thread rather than
+        // working. Both modes need these: they are what "where does the time go" is answered from,
+        // and the blocking events are threshold-gated, so they cost nothing on a thread that is busy.
+        recording.enable("jdk.ExecutionSample").withPeriod(Duration.ofMillis(10)).withStackTrace();
+        recording.enable("jdk.ThreadPark").withThreshold(Duration.ofMillis(1)).withStackTrace();
+        recording.enable("jdk.ThreadSleep").withThreshold(Duration.ofMillis(1)).withStackTrace();
+        recording.enable("jdk.JavaMonitorWait").withThreshold(Duration.ofMillis(1)).withStackTrace();
+        recording.enable("jdk.JavaMonitorEnter").withThreshold(Duration.ofMillis(1)).withStackTrace();
+        recording.enable("jdk.GCPhasePause").withStackTrace();
+
+        if (options.recordingMode() == RecordingMode.SAMPLE) {
+            // Everything below stack-traces a per-event record rather than a periodic sample, which
+            // is what made the recording cost about 24% of startup. Most of that falls on class
+            // loading, so leaving it on while asking whether class loading is expensive would be
+            // measuring the instrument.
+            return;
+        }
+
         if (options.exhaustiveFileReads()) {
             // Every read, however fast. The millisecond threshold below is right for "what cost time"
             // and wrong for "what was opened": a warm page-cache read of a small file finishes far
@@ -148,10 +171,6 @@ public final class PreflightAgent {
         recording.enable("jdk.ClassLoad").withStackTrace();
         recording.enable("jdk.ClassDefine").withStackTrace();
         recording.enable("jdk.Compilation").withThreshold(Duration.ofMillis(1)).withStackTrace();
-        recording.enable("jdk.GCPhasePause").withStackTrace();
-        recording.enable("jdk.ThreadPark").withThreshold(Duration.ofMillis(1)).withStackTrace();
-        recording.enable("jdk.ThreadSleep").withThreshold(Duration.ofMillis(1)).withStackTrace();
-        recording.enable("jdk.ExecutionSample").withPeriod(Duration.ofMillis(10)).withStackTrace();
     }
 
     /**
@@ -226,6 +245,9 @@ public final class PreflightAgent {
 
         @Label("Exhaustive File Reads")
         boolean exhaustiveFileReads;
+
+        @Label("Recording Mode")
+        String recordingMode;
 
         @Label("Working Directory")
         String workingDirectory;

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -32,19 +33,29 @@ class AgentInjectionTest {
         String recording = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, true);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL);
         assertFalse(recording.contains("record="));
 
         String silent = AgentInjection.append(
                 "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
                 Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
-                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, false);
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF);
         assertTrue(silent.contains(",record=off"));
         // The adapter still has to be configured; turning the profile off is not turning
         // Preflight off, and the caches are the whole point of the mode.
         assertTrue(silent.contains("adapter=enabled"));
         assertTrue(silent.contains("textureCache64="));
         assertTrue(silent.contains("textureManifest64="));
+
+        // Sampling has to reach the agent as its own value. Falling back to either neighbour
+        // would be quiet and wrong in opposite directions: "full" restores the 24% the profile
+        // was meant to avoid, "off" produces a run with no recording to analyse at all.
+        String sampled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, RecordingMode.SAMPLE);
+        assertTrue(sampled.contains(",record=sample"), sampled);
+        assertFalse(sampled.contains("record=off"), sampled);
     }
 
     @Test
