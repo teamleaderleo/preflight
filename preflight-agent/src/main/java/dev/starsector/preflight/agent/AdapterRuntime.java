@@ -21,6 +21,7 @@ final class AdapterRuntime {
         Objects.requireNonNull(instrumentation, "instrumentation");
         TextureCompatibilityRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
+        TexturePaddingRuntime.beginSession();
         AdapterReport report = new AdapterReport(
                 options.adapterMode(),
                 options.adapterReport(),

@@ -41,6 +41,8 @@ public final class TexturePaddingRuntime {
      */
     public static final String UNPADDED_PROPERTY = "preflight.padding.unpadded";
 
+    private static volatile boolean FOLD_BYPASS_INSTALLED;
+
     private static final AtomicLong BYPASSED = new AtomicLong();
     private static final AtomicLong FOLDED = new AtomicLong();
     private static final AtomicLong TEXTURES = new AtomicLong();
@@ -58,7 +60,35 @@ public final class TexturePaddingRuntime {
      * same texture, so that {@link #unpadded()}'s counters keep meaning "dimension folds".
      */
     public static boolean enabled() {
-        return Boolean.getBoolean(UNPADDED_PROPERTY);
+        return FOLD_BYPASS_INSTALLED && Boolean.getBoolean(UNPADDED_PROPERTY);
+    }
+
+    /**
+     * Records that the fold bypass was actually woven into the installed loader.
+     *
+     * <p>This is the invariant above turned into something the code enforces rather than
+     * something a comment asks for. The property alone only ever controlled one half: it makes
+     * the prepared path supply a true-size buffer. If the fold was never bypassed the allocation
+     * is still padded, and the very first non-power-of-two texture kills the process with
+     * {@code Number of remaining buffer elements is 668043, must be at least 1572864} -- observed
+     * on 2026-07-31 against graphics/ui/launcher_bg.jpg, which the launcher loads before a human
+     * can click anything. Failing closed here costs a padded upload; failing open costs the run.
+     */
+    static void foldBypassInstalled() {
+        FOLD_BYPASS_INSTALLED = true;
+    }
+
+    /**
+     * Clears the latch, alongside the other runtimes a session resets. The latch describes one
+     * JVM's installed loader, so it must not outlive the session that wove it.
+     */
+    static void beginSession() {
+        FOLD_BYPASS_INSTALLED = false;
+    }
+
+    /** Whether the half of the invariant this class does not control is in place. */
+    public static boolean foldBypassReady() {
+        return FOLD_BYPASS_INSTALLED;
     }
 
     /**
@@ -91,6 +121,8 @@ public final class TexturePaddingRuntime {
         values.put("planId", PLAN_ID);
         values.put("unpaddedProperty", UNPADDED_PROPERTY);
         values.put("unpaddedEnabled", Boolean.getBoolean(UNPADDED_PROPERTY));
+        values.put("foldBypassInstalled", FOLD_BYPASS_INSTALLED);
+        values.put("unpaddedEffective", enabled());
         values.put("dimensionsBypassed", BYPASSED.get());
         values.put("dimensionsFolded", FOLDED.get());
         values.put("texturesServedUnpadded", TEXTURES.get());

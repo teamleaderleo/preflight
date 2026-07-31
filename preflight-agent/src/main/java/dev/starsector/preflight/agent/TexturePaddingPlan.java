@@ -65,6 +65,10 @@ final class TexturePaddingPlan {
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
+        // The gate stays shut until this line runs. Everything above can decline -- a class that
+        // is not the loader, a fold that is not a pure integer fold, a class already rewritten --
+        // and each of those leaves the allocation padded, which makes an unpadded buffer fatal.
+        TexturePaddingRuntime.foldBypassInstalled();
         return writer.toByteArray();
     }
 
