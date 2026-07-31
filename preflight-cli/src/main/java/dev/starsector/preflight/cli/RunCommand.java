@@ -61,7 +61,8 @@ final class RunCommand {
                 textureContext == null ? null : textureContext.index(),
                 options.textureAdapterMode(),
                 options.exhaustiveFileReads(),
-                options.recordingMode());
+                options.recordingMode(),
+                options.npotDirect());
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());

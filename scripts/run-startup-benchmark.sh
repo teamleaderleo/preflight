@@ -43,9 +43,11 @@ Conditions:
   agent     preflight run --no-adapter -- isolates what the JFR recorder itself costs
   enabled   preflight run --adapter --texture-auto -- the prepared texture path, recorded
   fast      the same, plus --no-record -- the caches without paying for the profile
-  prepared  --texture-mode prepared-pixels --no-record -- hands the game upload-ready
-            bytes instead of a BufferedImage it has to unpack a pixel at a time. Compare
-            against `fast`, which is the same launch in compatibility mode.
+  prepared  --texture-mode prepared-pixels --prepared-npot --no-record -- hands the game
+            upload-ready bytes instead of a BufferedImage it has to unpack a pixel at a
+            time. --prepared-npot is not optional here: without it the bridge declines
+            every texture needing power-of-two padding, which was 6,165 of 6,706 on the
+            reviewed profile. Compare against `fast`, the same launch in compatibility mode.
   profile   the same, plus --profile -- sampling only, for asking where the time goes.
             Not a timing condition: it records, so it is slower than fast. Analyse its
             recordings with `preflight analyze`; do not read its wall clock as a result.
@@ -336,7 +338,7 @@ launch_once() {
         prepared)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
-                     --texture-mode prepared-pixels --no-record) ;;
+                     --texture-mode prepared-pixels --prepared-npot --no-record) ;;
     esac
 
     banner "$label"

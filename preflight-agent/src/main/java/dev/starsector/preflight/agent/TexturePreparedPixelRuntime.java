@@ -20,7 +20,7 @@ public final class TexturePreparedPixelRuntime {
     static final String PLAN_ID = "texture-prepared-pixels-v2";
     static final String COHERENT_ORIGINAL_CONVERT_PROPERTY =
             "preflight.preparedPixels.coherentOriginalConvert";
-    static final String COHERENT_DIRECT_PROPERTY =
+    public static final String COHERENT_DIRECT_PROPERTY =
             "preflight.preparedPixels.coherentDirect";
     static final int MAX_TEXTURE_BYTES = 32 * 1024 * 1024;
     static final long MAX_ACTIVE_DIRECT_BYTES = 64L * 1024 * 1024;

@@ -23,6 +23,7 @@ record CommandLine(
         TextureAdapterMode textureAdapterMode,
         boolean exhaustiveFileReads,
         RecordingMode recordingMode,
+        boolean npotDirect,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -33,6 +34,7 @@ record CommandLine(
         boolean scan = true;
         boolean exhaustiveFileReads = false;
         RecordingMode recordingMode = RecordingMode.FULL;
+        boolean npotDirect = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -72,6 +74,7 @@ record CommandLine(
                 case "--trace-all-file-reads" -> exhaustiveFileReads = true;
                 case "--no-record" -> recordingMode = RecordingMode.OFF;
                 case "--profile" -> recordingMode = RecordingMode.SAMPLE;
+                case "--prepared-npot" -> npotDirect = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -108,6 +111,13 @@ record CommandLine(
         if (textureModeSpecified && !manualTextureContext && !textureAuto) {
             throw new IllegalArgumentException("--texture-mode requires the complete texture cache context");
         }
+        // Only the prepared-pixel bridge reads this, and silently accepting it elsewhere would
+        // produce a launch that looks configured for non-power-of-two and is not -- which is
+        // indistinguishable from the bridge simply declining, the failure this flag exists to fix.
+        if (npotDirect && textureAdapterMode != TextureAdapterMode.PREPARED_PIXELS) {
+            throw new IllegalArgumentException(
+                    "--prepared-npot requires --texture-mode prepared-pixels");
+        }
         // --texture-auto and --texture-mode are independent: auto resolves which manifest and
         // index to use, the mode decides which TextureLoader target reads them. Both modes are
         // configured from the same TextureCompatibilityRuntime.configure call and the same SPFT
@@ -130,6 +140,7 @@ record CommandLine(
                 textureAdapterMode,
                 exhaustiveFileReads,
                 recordingMode,
+                npotDirect,
                 List.copyOf(forwarded));
     }
 
