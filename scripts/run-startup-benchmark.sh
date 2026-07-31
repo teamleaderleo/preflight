@@ -161,9 +161,9 @@ cat > "$ROOT/identity.json" <<IDENTITY
   "profileFingerprint": "$EXPECTED_FINGERPRINT",
   "scenarioId": "$SCENARIO_ID",
   "seed": $SEED,
-  "hardware": $(jq -Rs . <<< "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || uname -m)"),
-  "os": $(jq -Rs . <<< "$(sw_vers -productVersion 2>/dev/null || uname -sr)"),
-  "java": $(jq -Rs . <<< "$(java -version 2>&1 | head -1)"),
+  "hardware": $(jq -Rs 'rtrimstr("\n")' <<< "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || uname -m)"),
+  "os": $(jq -Rs 'rtrimstr("\n")' <<< "$(sw_vers -productVersion 2>/dev/null || uname -sr)"),
+  "java": $(jq -Rs 'rtrimstr("\n")' <<< "$(java -version 2>&1 | head -1)"),
   "preparationMillis": ${PREPARE_MS:-0}
 }
 IDENTITY
