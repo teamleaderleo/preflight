@@ -200,14 +200,70 @@ served_prepared_textures() {
     return 1
 }
 
+# Deepest descendant first, so a parent is never signalled before its children.
+descendants() {
+    local pid="$1" child
+    for child in $(pgrep -P "$pid" 2>/dev/null); do
+        descendants "$child"
+        printf '%s\n' "$child"
+    done
+}
+
+# The game is a GRANDCHILD: this script starts the Preflight wrapper, the wrapper starts
+# starsector_mac.sh, and that shell starts the JVM. Signalling only the wrapper leaves a
+# hung or crashed game running, holding the screen and the next run's page cache -- which
+# is exactly what happened on 2026-07-31, where a crashed JVM outlived its own timeout.
 terminate() {
-    local pid="$1"
-    kill "$pid" >/dev/null 2>&1 || true
+    local pid="$1" target
+    local tree
+    tree="$(descendants "$pid"; printf '%s\n' "$pid")"
+    for target in $tree; do
+        kill "$target" >/dev/null 2>&1 || true
+    done
     for _ in $(seq 1 40); do
-        kill -0 "$pid" >/dev/null 2>&1 || return 0
+        kill -0 "$pid" >/dev/null 2>&1 || break
         sleep 0.25
     done
-    kill -9 "$pid" >/dev/null 2>&1 || true
+    for target in $tree; do
+        kill -0 "$target" >/dev/null 2>&1 && kill -9 "$target" >/dev/null 2>&1 || true
+    done
+}
+
+# A fatal JVM error does not end the process. Starsector's launcher passes
+# -XX:+ShowMessageBoxOnError, so HotSpot prints its report and then waits on stdin for a
+# RETURN that never comes. The result looks exactly like a slow load: process alive, low
+# CPU, no new log lines. On 2026-07-31 that cost a full 600-second timeout to discover
+# something the wrapper output had said within seconds.
+#
+# The patterns must be specific. The game's own log is interleaved into this file and
+# contains arbitrary mod text -- a mod literally named "Guarantee Rare Items" matches a
+# naive search for the word in HotSpot's guarantee() failures.
+FATAL_JVM_PATTERNS='A fatal error has been detected by the Java Runtime Environment|Internal Error at [a-zA-Z_]+\.cpp:[0-9]+|Do you want to debug the problem\?'
+
+report_fatal_jvm_error() {
+    local flag="$1"
+    bad "The game's JVM crashed. Excluding this run."
+    while IFS= read -r line; do
+        bad "  $line"
+    done < "$flag"
+    note "This is a HotSpot failure, not a mod or a Preflight logic error. It hangs rather"
+    note "than exits because Starsector's launcher passes -XX:+ShowMessageBoxOnError."
+    note "If it recurs, try --conditions vanilla,fast: --no-record removes the execution"
+    note "sampling that is the most likely contributor. See docs/startup-benchmark.md."
+}
+
+watch_for_fatal_jvm_error() {
+    local output="$1" pid="$2" flag="$3"
+    while kill -0 "$pid" >/dev/null 2>&1; do
+        if [[ -s "$output" ]] && grep -qaE "$FATAL_JVM_PATTERNS" "$output" 2>/dev/null; then
+            grep -aE "$FATAL_JVM_PATTERNS" "$output" 2>/dev/null | head -3 > "$flag"
+            # Killing the tree makes the readiness watcher's own liveness check fire, so
+            # the run fails in seconds through the ordinary path instead of timing out.
+            terminate "$pid"
+            return 0
+        fi
+        sleep 1
+    done
 }
 
 # One launch. Never exits the script: a failure records an excluded run and returns 1 so
@@ -221,6 +277,7 @@ launch_once() {
     local menu_detection="$run_dir/main-menu-ready.json"
     local profile_after="$run_dir/profile-after.json"
     local wrapper_output="$run_dir/wrapper-output.txt"
+    local fatal_flag="$run_dir/fatal-jvm-error.txt"
     rm -rf "$run_dir"
     mkdir -p "$run_dir"
 
@@ -248,10 +305,18 @@ launch_once() {
     start_ns="$(python3 -c 'import time; print(time.monotonic_ns())')"
     "${command[@]}" >"$wrapper_output" 2>&1 &
     local pid=$!
+    watch_for_fatal_jvm_error "$wrapper_output" "$pid" "$fatal_flag" &
+    local watchdog=$!
 
     if ! python3 "$DETECTOR" watch-launcher --log-dir "$LOG_DIR" --snapshot "$before_logs" \
             --output "$launcher_detection" --pid "$pid" --process-start-ns "$start_ns" \
             --timeout-seconds "$LAUNCHER_TIMEOUT_SECONDS" --quiet-seconds "$LAUNCHER_QUIET_SECONDS"; then
+        kill "$watchdog" >/dev/null 2>&1 || true
+        if [[ -s "$fatal_flag" ]]; then
+            report_fatal_jvm_error "$fatal_flag"
+            record_run "$condition" "$iteration" "excluded" "jvm-crash" "null" "null" "null"
+            return 1
+        fi
         bad "The launcher never became ready. Excluding this run."
         # Usually the wrapper refused to start at all -- a stale prepared texture index is
         # the common cause -- so show what it actually said instead of just a timeout.
@@ -271,8 +336,14 @@ launch_once() {
     if ! python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$play_logs" \
             --output "$menu_detection" --pid "$pid" \
             --timeout-seconds "$MAIN_MENU_TIMEOUT_SECONDS" --quiet-seconds "$MAIN_MENU_QUIET_SECONDS"; then
-        bad "The main menu was never detected. Excluding this run."
+        kill "$watchdog" >/dev/null 2>&1 || true
         terminate "$pid"
+        if [[ -s "$fatal_flag" ]]; then
+            report_fatal_jvm_error "$fatal_flag"
+            record_run "$condition" "$iteration" "excluded" "jvm-crash" "null" "null" "null"
+            return 1
+        fi
+        bad "The main menu was never detected. Excluding this run."
         record_run "$condition" "$iteration" "excluded" "main-menu-not-detected" "null" "null" "null"
         return 1
     fi
@@ -288,12 +359,19 @@ launch_once() {
     wait "$pid"
     local exit_code=$?
     set -e
+    kill "$watchdog" >/dev/null 2>&1 || true
+    # The game outlives the wrapper, so a crash can still be sitting on the message-box
+    # prompt after the wrapper returns. Clear the tree before the next run starts.
+    terminate "$pid"
 
     local fingerprint status reason
     fingerprint="$(scan_fingerprint "$profile_after" || echo unknown)"
     status=accepted
     reason=""
-    if (( exit_code != 0 )); then
+    if [[ -s "$fatal_flag" ]]; then
+        report_fatal_jvm_error "$fatal_flag"
+        status=excluded; reason="jvm-crash"
+    elif (( exit_code != 0 )); then
         status=excluded; reason="nonzero-exit-$exit_code"
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"

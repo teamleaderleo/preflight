@@ -300,6 +300,91 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertNotIn("agent", condition)
 
 
+class FatalJvmErrorTest(unittest.TestCase):
+    """A fatal JVM error does not end the process: Starsector passes
+    -XX:+ShowMessageBoxOnError, so HotSpot prints its report and waits on stdin forever.
+    That is indistinguishable from a slow load by every signal the harness watches."""
+
+    def patterns(self) -> str:
+        match = re.search(r"FATAL_JVM_PATTERNS='(?P<value>[^']*)'", SCRIPT_TEXT)
+        self.assertIsNotNone(match, "FATAL_JVM_PATTERNS not found")
+        return match.group("value")
+
+    def matches(self, text: str) -> bool:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "wrapper-output.txt"
+            output.write_text(text, encoding="utf-8")
+            result = subprocess.run(
+                ["grep", "-qaE", self.patterns(), str(output)], capture_output=True
+            )
+            return result.returncode == 0
+
+    def test_the_real_crash_is_detected(self):
+        self.assertTrue(self.matches(
+            "Internal Error at sharedRuntime.cpp:561, pid=44307, tid=146947\n"
+            "guarantee(cb != NULL && cb->is_compiled()) failed: safepoint polling\n"
+        ))
+
+    def test_the_message_box_prompt_is_detected(self):
+        # This is the line that turns a crash into an indefinite hang.
+        self.assertTrue(self.matches("Do you want to debug the problem?\n"))
+
+    def test_the_standard_hotspot_banner_is_detected(self):
+        self.assertTrue(self.matches(
+            "# A fatal error has been detected by the Java Runtime Environment:\n"))
+
+    def test_ordinary_game_logging_is_not_mistaken_for_a_crash(self):
+        # The game's own log is interleaved into this file. A mod named "Guarantee Rare
+        # Items" matches a naive search for HotSpot's guarantee() failures, and the word
+        # "error" appears in normal mod output constantly.
+        self.assertFalse(self.matches(
+            "131 [main] INFO ModManager - Found mod: guarantee-rare-items\n"
+            "25139 [Thread-3] INFO SpecStore - Loaded spec [alpha_core_|_guaranteed_alpha]\n"
+            "84701 [Thread-3] WARN TextureData - Defined animation frames for incompatible\n"
+            "9000 [Thread-3] ERROR org.dark.shaders.util.ShaderLib - Error creating shader:\n"
+            "INFO VersionChecker - Error loading version info for some mod\n"
+        ))
+
+    def test_a_crash_is_recorded_as_its_own_reason_not_a_timeout(self):
+        self.assertIn('"excluded" "jvm-crash"', SCRIPT_TEXT)
+
+    def test_the_watchdog_runs_alongside_every_launch(self):
+        self.assertIn(
+            'watch_for_fatal_jvm_error "$wrapper_output" "$pid" "$fatal_flag" &', SCRIPT_TEXT)
+
+
+class ProcessTreeTest(unittest.TestCase):
+    def test_terminate_signals_descendants_not_only_the_wrapper(self):
+        # The game is a grandchild: this script -> wrapper -> starsector_mac.sh -> JVM.
+        # Signalling only the wrapper left a crashed JVM alive past its own timeout.
+        body = re.search(r"^terminate\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL | re.M)
+        self.assertIsNotNone(body, "terminate not found")
+        self.assertIn("descendants", body.group("body"))
+
+    def test_descendants_are_collected_deepest_first(self):
+        # A parent signalled first can reap or orphan its children before they are named.
+        body = re.search(r"^descendants\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL | re.M)
+        self.assertIsNotNone(body, "descendants not found")
+        recursion = body.group("body").index("descendants \"$child\"")
+        emit = body.group("body").index("printf '%s\\n' \"$child\"")
+        self.assertLess(recursion, emit, "recursion must precede emitting the child")
+
+    def test_descendants_finds_a_real_grandchild(self):
+        source = re.search(r"^descendants\(\) \{.*?\n\}", SCRIPT_TEXT, re.DOTALL | re.M)
+        script = (
+            "set -uo pipefail\n"
+            f"{source.group(0)}\n"
+            "bash -c 'bash -c \"sleep 5\" & sleep 5' & parent=$!\n"
+            "sleep 1\n"
+            "descendants $parent | wc -l\n"
+        )
+        # The descendants inherit stdout, so read the count rather than waiting on EOF.
+        result = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                                timeout=15)
+        self.assertGreaterEqual(int(result.stdout.strip().splitlines()[0]), 2,
+                                "expected to see the child and the grandchild")
+
+
 class RecordedShapeTest(unittest.TestCase):
     """The shell writes these records and the Python reads them. Nothing else checks
     that the two agree, so a renamed field would otherwise surface 35 minutes into a
