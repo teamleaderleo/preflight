@@ -345,8 +345,8 @@ class DetectorTest(unittest.TestCase):
         self.assertFalse(accepted)
         result = json.loads(output.read_text())
         self.assertFalse(result["detected"])
-        self.assertEqual(1, result["timestampedLogStreams"])
-        self.assertEqual(0, result["gameStartMarkerStreams"])
+        self.assertTrue(result["anyTimestampedLineSeen"])
+        self.assertFalse(result["gameStartMarkerSeen"])
 
     def test_an_install_with_no_mods_still_anchors(self):
         # Starsector logs a different sentence when nothing is enabled. It comes from the same
@@ -377,6 +377,67 @@ class DetectorTest(unittest.TestCase):
         self.assertTrue(accepted)
         result = json.loads(output.read_text())
         self.assertEqual(9000, result["gameStartLogMillis"])
+
+    def test_a_launch_split_by_log_rotation_is_still_one_launch(self):
+        # log4j rotates starsector.log at 51 MB. A single launch writes more than that when the
+        # previous one left the file nearly full, so a launch routinely straddles the rotation --
+        # start marker in the archive, preload marker in the new file. Requiring all three markers
+        # on one inode meant the run timed out holding the measurement in two halves. On
+        # 2026-08-01 that stalled a campaign whose load had already finished at 92.4s.
+        output = self.root / "main-menu-rotated.json"
+
+        def writer():
+            time.sleep(0.02)
+            self.append("340 [main] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                        "Running with the following mods (in order of priority):")
+            time.sleep(0.03)
+            # log4j rotates: the live file becomes the archive, a fresh one takes its place.
+            self.log.rename(self.root / "starsector.log.1")
+            self.log.write_text("", encoding="utf-8")
+            time.sleep(0.03)
+            self.append(
+                "90748 [main] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                "Reading save data from [../../../saves/save_x/descriptor.xml]"
+            )
+            self.append(
+                "92404 [main] INFO org.dark.shaders.util.TextureData  - "
+                "VRAM after unload/preload: 450555 bytes"
+            )
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=3.0, quiet_seconds=0.05, sleep_seconds=0.01,
+        )
+        thread.join()
+        self.assertTrue(accepted, "rotation must not split one launch into two")
+        result = json.loads(output.read_text())
+        self.assertEqual(340, result["gameStartLogMillis"])
+        self.assertEqual(92404, result["mainMenuReadyLogMillis"])
+        self.assertEqual(92064, result["gameLogMillisDelta"])
+
+    def test_an_earlier_launchs_markers_cannot_close_this_one(self):
+        # A terminated game can still be flushing when the next snapshot is taken. Its lines
+        # precede this launch's start marker, and nothing before that marker may end the load.
+        output = self.root / "main-menu-straggler.json"
+        self.append(
+            "88000 [main] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+            "Reading save data from [../../../saves/save_old/descriptor.xml]"
+        )
+        self.append("89000 [main] INFO org.dark.shaders.util.TextureData  - "
+                    "VRAM after unload/preload: 1 bytes")
+        self.append("340 [main] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                    "Running with the following mods (in order of priority):")
+
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=0.3, quiet_seconds=0.05, sleep_seconds=0.01,
+        )
+        self.assertFalse(accepted, "the previous launch's markers must not complete this one")
+        result = json.loads(output.read_text())
+        self.assertTrue(result["gameStartMarkerSeen"])
+        self.assertFalse(result["graphicsPreloadSeen"])
 
     def test_rotated_file_is_matched_by_inode(self):
         before = self.root / "before.json"

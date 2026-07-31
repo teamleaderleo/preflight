@@ -216,38 +216,45 @@ def watch_main_menu(
     state = TailState(load_offsets(snapshot_file))
     clock = WallClock()
     deadline = time.monotonic() + timeout_seconds
-    starts: dict[int, LogLine] = {}
-    first_lines: dict[int, LogLine] = {}
-    descriptor_lines: dict[int, LogLine] = {}
-    preload_lines: dict[int, LogLine] = {}
-    candidate_inode: int | None = None
+    # One launch, not one file.
+    #
+    # These used to be keyed by inode, and completion required all three markers on the same
+    # one. log4j rotates starsector.log at 51 MB, and a single launch writes far more than that
+    # when the previous one left the file nearly full -- so a launch routinely straddles the
+    # rotation, putting its start marker in the archive and its preload marker in the new file.
+    # The intersection was then empty and the run timed out with the measurement sitting in two
+    # halves. That is what happened to the 2026-08-01 campaign's first prepared run, whose load
+    # had finished at 92.4s.
+    #
+    # The snapshot is what separates launches: everything read here was written after it, and
+    # the harness terminates the previous game before taking it. Within that, the first start
+    # marker opens the launch and the two end markers are only accepted at or after it, so a
+    # straggling line from an earlier game cannot close this one.
+    first_line: LogLine | None = None
+    start: LogLine | None = None
+    descriptor: LogLine | None = None
+    preload: LogLine | None = None
 
     while time.monotonic() < deadline:
         for line in _read_new_lines(log_dir, state):
-            if line.log_ms is not None:
-                first_lines.setdefault(line.inode, line)
+            if line.log_ms is not None and first_line is None:
+                first_line = line
+            if start is None:
                 if any(marker in line.text for marker in GAME_START_MARKERS):
-                    starts.setdefault(line.inode, line)
-            if _contains_all(line.text, SAVE_DESCRIPTOR_PARTS):
-                descriptor_lines.setdefault(line.inode, line)
-            if _contains_all(line.text, PRELOAD_PARTS):
-                # First, not last. GraphicsLib can report more than once, and
-                # scripts/starsector_log_load_times.py -- the independent check this has to
-                # agree with -- takes the first. Taking different ones would make the two
-                # disagree by construction and turn the cross-check into noise.
-                preload_lines.setdefault(line.inode, line)
-            if candidate_inode is None:
-                matching = set(descriptor_lines) & set(preload_lines) & set(starts)
-                if matching:
-                    candidate_inode = min(
-                        matching,
-                        key=lambda inode: preload_lines[inode].observed_ns,
-                    )
+                    start = line
+                # Nothing before the game starts can end it.
+                continue
+            if descriptor is None and _contains_all(line.text, SAVE_DESCRIPTOR_PARTS):
+                descriptor = line
+            # First, not last. GraphicsLib can report more than once, and
+            # scripts/starsector_log_load_times.py -- the independent check this has to agree
+            # with -- takes the first. Taking different ones would make the two disagree by
+            # construction and turn the cross-check into noise.
+            if preload is None and _contains_all(line.text, PRELOAD_PARTS):
+                preload = line
 
-        if candidate_inode is not None:
-            start = starts[candidate_inode]
-            descriptor = descriptor_lines[candidate_inode]
-            preload = preload_lines[candidate_inode]
+        if start is not None and descriptor is not None and preload is not None:
+            candidate_inode = start.inode
             # Complete on the marker, not on silence.
             #
             # The quiet window used to be what proved the phase had ended, back when the
@@ -297,9 +304,9 @@ def watch_main_menu(
                     # older ones and so the size of the artifact stays visible rather than
                     # becoming a claim in a document. On a contaminated run the two differ by
                     # the whole early-loading phase; on a clean one they are the same line.
-                    "firstObservedLogLine": first_lines[candidate_inode].text[:1000],
+                    "firstObservedLogLine": (first_line or start).text[:1000],
                     "firstObservedLogLineToGraphicsPreloadMs": round(
-                        (preload.observed_ns - first_lines[candidate_inode].observed_ns)
+                        (preload.observed_ns - (first_line or start).observed_ns)
                         / 1_000_000, 3),
                     # Null by construction now: the phase ends at the marker, so there is no
                     # window between it and completion to measure. It was never a property of the
@@ -321,13 +328,12 @@ def watch_main_menu(
     _write_result(output, {
         "phase": "main-menu",
         "detected": False,
-        "candidateLogStreamSeen": candidate_inode is not None,
-        # Distinguishing these two is what tells "the game never started" from "the game started
-        # and never finished loading": the first has streams but no start markers.
-        "timestampedLogStreams": len(first_lines),
-        "gameStartMarkerStreams": len(starts),
-        "saveDescriptorStreams": len(descriptor_lines),
-        "graphicsPreloadStreams": len(preload_lines),
+        # Which marker was missing is the whole diagnosis. No start marker means the game never
+        # began loading; a start with no preload means it began and did not finish.
+        "gameStartMarkerSeen": start is not None,
+        "saveDescriptorSeen": descriptor is not None,
+        "graphicsPreloadSeen": preload is not None,
+        "anyTimestampedLineSeen": first_line is not None,
         "observedLines": state.observed_lines,
         "timeoutSeconds": timeout_seconds,
         "processAlive": _pid_alive(pid),
