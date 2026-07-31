@@ -172,7 +172,7 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--auto-play] [-- <launcher args>]",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",
@@ -185,6 +185,12 @@ public final class PreflightCli {
                         + " to separate a broken conversion bypass from broken padding removal. Without"
                         + " one of these two the bridge declines every texture that needs padding, which"
                         + " on a normal profile is most of them, and the mode does almost nothing.",
+                "    --auto-play presses the launcher's own Play button once it exists, is showing and"
+                        + " is enabled, which is the condition a human is approximating when they wait"
+                        + " a few seconds. It goes through the button rather than the launcher's start"
+                        + " method so the resolution, fullscreen and sound settings are the ones the"
+                        + " launcher would have used. If the button never appears it gives up and you"
+                        + " click it yourself.",
                 "    --profile records execution sampling and blocking only, dropping the stack-traced"
                         + " class loads and file reads that make up most of that cost. Use it to ask"
                         + " where startup time goes: the full recording lands hardest on class loading,"
