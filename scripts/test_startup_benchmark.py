@@ -383,6 +383,38 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertNotIn("agent", condition)
 
 
+class SettlingLaunchTest(unittest.TestCase):
+    """The settling launch is discarded, so every cost it carries is pure downside."""
+
+    def test_the_settling_launch_does_not_attach_the_recorder(self):
+        # It runs `fast`, not `enabled`. Its output is thrown away, so a recording buys
+        # nothing -- and the recorder is the most likely contributor to the HotSpot
+        # safepoint crash this configuration keeps hitting. Attaching the heaviest
+        # profiler we own to the one launch nobody reads is all risk and no information.
+        block = re.search(
+            r"Discarded settling launch.*?touch \"\$ROOT/warmup-done\"",
+            SCRIPT_TEXT, re.DOTALL,
+        )
+        self.assertIsNotNone(block, "settling launch block not found")
+        body = block.group(0)
+        self.assertIn("launch_once fast 0", body)
+        self.assertNotIn("launch_once enabled 0", body)
+
+    def test_a_failed_settling_launch_is_not_recorded_as_settled(self):
+        # Marking it done regardless was the quiet failure: a settling launch that crashed
+        # before the main menu may not have finished GraphicsLib's normal-map cache, and
+        # the leftover write then lands on the first measured run -- exactly the
+        # contamination the settling launch exists to prevent.
+        block = re.search(
+            r"Discarded settling launch.*?\nfi\n", SCRIPT_TEXT, re.DOTALL
+        )
+        self.assertIsNotNone(block, "settling launch block not found")
+        body = block.group(0)
+        self.assertNotIn("launch_once fast 0 \"SETTLING LAUNCH  (discarded)\" || true", body)
+        self.assertRegex(body, r'if \[\[ "\$settled" == true \]\]')
+        self.assertIn("retry", body.lower())
+
+
 class FatalJvmErrorTest(unittest.TestCase):
     """A fatal JVM error does not end the process: Starsector passes
     -XX:+ShowMessageBoxOnError, so HotSpot prints its report and waits on stdin forever.
@@ -512,11 +544,14 @@ class RecordedShapeTest(unittest.TestCase):
             self.assertFalse((root / "results.jsonl").exists())
 
     def test_the_warmup_disables_recording_around_the_settling_launch(self):
+        # Checked as an ordering property rather than an exact layout: the settling launch
+        # gained a retry loop, and a test pinned to the old three-line shape would have
+        # failed for the reformatting while still passing if RECORDING had been dropped.
         block = re.search(
-            r"RECORDING=false\n\s*launch_once enabled 0 [^\n]*\n\s*RECORDING=true",
-            SCRIPT_TEXT,
+            r"RECORDING=false(?P<between>.*?)RECORDING=true", SCRIPT_TEXT, re.DOTALL
         )
         self.assertIsNotNone(block, "settling launch is not wrapped in RECORDING=false")
+        self.assertIn("launch_once fast 0", block.group("between"))
 
     def test_an_excluded_record_carries_its_reason_and_no_timing(self):
         with tempfile.TemporaryDirectory() as directory:
