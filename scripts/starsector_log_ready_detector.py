@@ -19,6 +19,21 @@ LAUNCHER_MARKER = "graphics/fonts/orbitron12_0.png"
 SAVE_DESCRIPTOR_PARTS = ("CampaignGameManager", "Reading save data from [")
 PRELOAD_PARTS = ("TextureData", "VRAM after unload/preload:")
 
+# The first thing Starsector's game-start method logs, and therefore the exact boundary between
+# "the launcher is up" and "the game is loading". Both spellings come from the same method: the
+# second is what an install with no mods enabled prints instead.
+#
+# This anchor replaced "the first timestamped line after the snapshot", which was a race rather
+# than a measurement. The snapshot is taken when the launcher looks ready; whether this line has
+# been flushed by then decides whether the ~18s of early loading lands inside the measured
+# interval or outside it. Across the 2026-07-31 campaigns the split was total: every run anchored
+# on this line measured 92-99s, every run anchored on a later line measured 74-78s, and nothing
+# else distinguished them. See docs/evidence/2026-08-01-the-bimodality-was-the-anchor.md.
+GAME_START_MARKERS = (
+    "Running with the following mods (in order of priority):",
+    "Running vanilla game with no mods.",
+)
+
 
 @dataclass(frozen=True)
 class LogLine:
@@ -202,6 +217,7 @@ def watch_main_menu(
     clock = WallClock()
     deadline = time.monotonic() + timeout_seconds
     starts: dict[int, LogLine] = {}
+    first_lines: dict[int, LogLine] = {}
     descriptor_lines: dict[int, LogLine] = {}
     preload_lines: dict[int, LogLine] = {}
     candidate_inode: int | None = None
@@ -209,7 +225,9 @@ def watch_main_menu(
     while time.monotonic() < deadline:
         for line in _read_new_lines(log_dir, state):
             if line.log_ms is not None:
-                starts.setdefault(line.inode, line)
+                first_lines.setdefault(line.inode, line)
+                if any(marker in line.text for marker in GAME_START_MARKERS):
+                    starts.setdefault(line.inode, line)
             if _contains_all(line.text, SAVE_DESCRIPTOR_PARTS):
                 descriptor_lines[line.inode] = line
             if _contains_all(line.text, PRELOAD_PARTS):
@@ -257,6 +275,15 @@ def watch_main_menu(
                     "gameLogStartToGraphicsPreloadMs": round(
                         (preload.observed_ns - start.observed_ns) / 1_000_000, 3),
                     "graphicsPreloadInstant": clock.iso(preload.observed_ns),
+                    "gameStartAnchor": "game-start-log-marker",
+                    # The anchor this replaced, kept so a session can be compared against the
+                    # older ones and so the size of the artifact stays visible rather than
+                    # becoming a claim in a document. On a contaminated run the two differ by
+                    # the whole early-loading phase; on a clean one they are the same line.
+                    "firstObservedLogLine": first_lines[candidate_inode].text[:1000],
+                    "firstObservedLogLineToGraphicsPreloadMs": round(
+                        (preload.observed_ns - first_lines[candidate_inode].observed_ns)
+                        / 1_000_000, 3),
                     "trailingLogActivityMs": round(
                         (last_activity_ns - preload.observed_ns) / 1_000_000, 3),
                     "gameLogMillisDelta": log_delta_ms,
@@ -276,7 +303,10 @@ def watch_main_menu(
         "phase": "main-menu",
         "detected": False,
         "candidateLogStreamSeen": candidate_inode is not None,
-        "timestampedLogStreams": len(starts),
+        # Distinguishing these two is what tells "the game never started" from "the game started
+        # and never finished loading": the first has streams but no start markers.
+        "timestampedLogStreams": len(first_lines),
+        "gameStartMarkerStreams": len(starts),
         "saveDescriptorStreams": len(descriptor_lines),
         "graphicsPreloadStreams": len(preload_lines),
         "observedLines": state.observed_lines,

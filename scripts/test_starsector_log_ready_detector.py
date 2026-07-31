@@ -70,7 +70,7 @@ class DetectorTest(unittest.TestCase):
 
         def writer():
             time.sleep(0.02)
-            self.append("7000 [Thread-3] INFO game - first post-click line")
+            self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - Running with the following mods (in order of priority):")
             time.sleep(0.02)
             self.append(
                 "9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
@@ -116,7 +116,7 @@ class DetectorTest(unittest.TestCase):
             # Separated in time: lines read in one poll share an observed stamp, and the
             # real game's boundary lines are seconds apart.
             time.sleep(0.02)
-            self.append("7000 [Thread-3] INFO game - first post-click line")
+            self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - Running with the following mods (in order of priority):")
             time.sleep(0.05)
             self.append(
                 "9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
@@ -161,7 +161,7 @@ class DetectorTest(unittest.TestCase):
 
         def writer():
             time.sleep(0.02)
-            self.append("7000 [Thread-3] INFO game - first post-click line")
+            self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - Running with the following mods (in order of priority):")
             time.sleep(0.05)
             self.append(
                 "9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
@@ -204,7 +204,7 @@ class DetectorTest(unittest.TestCase):
         def writer():
             time.sleep(0.02)
             self.append("50000 [launcher] INFO launcher - click noise", path=old_log)
-            self.append("100 [game] INFO game - first game line")
+            self.append("100 [game] INFO  com.fs.starfarer.StarfarerLauncher  - Running with the following mods (in order of priority):")
             time.sleep(0.02)
             self.append(
                 "200 [game] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
@@ -233,6 +233,103 @@ class DetectorTest(unittest.TestCase):
         self.assertEqual(100, result["gameStartLogMillis"])
         self.assertEqual(300, result["mainMenuReadyLogMillis"])
         self.assertEqual(200, result["gameLogMillisDelta"])
+
+    def test_the_measurement_starts_where_the_game_does_not_where_the_snapshot_fell(self):
+        # This is the 2026-07-31 artifact, reproduced. The launcher writes into the same log the
+        # game does, so whether its lines have been flushed when the harness takes its snapshot
+        # decides whether they land inside the measured interval. Anchoring on "first line after
+        # the snapshot" made that flush timing a term in the result: across four campaigns every
+        # run whose first line was the launcher's measured 92-99s and every run whose first line
+        # came later measured 74-78s, with nothing else separating them.
+        #
+        # Here the launcher's preamble is delivered late, so a first-line anchor would start the
+        # clock at 'launcher preamble' and swallow the whole early phase.
+        output = self.root / "main-menu-anchor.json"
+
+        def writer():
+            time.sleep(0.02)
+            self.append("1000 [Thread-3] INFO com.fs.starfarer.StarfarerLauncher  - "
+                        "Loading mod list, resolution 1440x932")
+            time.sleep(0.06)
+            self.append("9000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                        "Running with the following mods (in order of priority):")
+            time.sleep(0.05)
+            self.append(
+                "11000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                "Reading save data from [save/descriptor.xml]"
+            )
+            self.append(
+                "11500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
+                "VRAM after unload/preload: 450555 bytes"
+            )
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=3.0, quiet_seconds=0.10, sleep_seconds=0.01,
+        )
+        thread.join()
+        self.assertTrue(accepted)
+        result = json.loads(output.read_text())
+
+        self.assertEqual(9000, result["gameStartLogMillis"])
+        self.assertIn("Running with the following mods", result["gameStartLine"])
+        self.assertEqual("game-start-log-marker", result["gameStartAnchor"])
+        # The discarded anchor is still reported, and the gap between the two is the size of
+        # what used to leak into the measurement.
+        self.assertIn("Loading mod list", result["firstObservedLogLine"])
+        self.assertGreater(
+            result["firstObservedLogLineToGraphicsPreloadMs"]
+            - result["gameLogStartToGraphicsPreloadMs"],
+            40,
+            "the launcher preamble must be excluded from the measured interval",
+        )
+
+    def test_a_launch_that_never_reaches_the_game_is_not_a_slow_load(self):
+        # A stream with lines but no start marker means the launcher ran and the game never
+        # did. Reporting that as "no candidate stream" would send someone looking at the load.
+        output = self.root / "main-menu-never-started.json"
+        self.append("1000 [Thread-3] INFO com.fs.starfarer.StarfarerLauncher  - launcher only")
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=0.2, quiet_seconds=0.05, sleep_seconds=0.01,
+        )
+        self.assertFalse(accepted)
+        result = json.loads(output.read_text())
+        self.assertFalse(result["detected"])
+        self.assertEqual(1, result["timestampedLogStreams"])
+        self.assertEqual(0, result["gameStartMarkerStreams"])
+
+    def test_an_install_with_no_mods_still_anchors(self):
+        # Starsector logs a different sentence when nothing is enabled. It comes from the same
+        # method at the same point, and a vanilla install must not be unmeasurable.
+        output = self.root / "main-menu-vanilla.json"
+
+        def writer():
+            time.sleep(0.02)
+            self.append("9000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                        "Running vanilla game with no mods.")
+            time.sleep(0.03)
+            self.append(
+                "11000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                "Reading save data from [save/descriptor.xml]"
+            )
+            self.append(
+                "11500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
+                "VRAM after unload/preload: 450555 bytes"
+            )
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=2.0, quiet_seconds=0.08, sleep_seconds=0.01,
+        )
+        thread.join()
+        self.assertTrue(accepted)
+        result = json.loads(output.read_text())
+        self.assertEqual(9000, result["gameStartLogMillis"])
 
     def test_rotated_file_is_matched_by_inode(self):
         before = self.root / "before.json"
