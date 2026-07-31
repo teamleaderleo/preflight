@@ -18,14 +18,14 @@ from pathlib import Path
 
 BASELINE = "vanilla"
 CAMPAIGN_MINIMUM = 5
-ORDER = ["vanilla", "agent", "enabled", "fast", "prepared", "prepared-padded", "profile"]
+ORDER = ["vanilla", "agent", "enabled", "fast", "prepared", "prepared-unpadded", "profile"]
 LABELS = {
     "vanilla": "vanilla (no preflight)",
     "agent": "agent only (recorder)",
     "enabled": "preflight + recorder",
     "fast": "preflight, no recorder",
-    "prepared": "prepared pixels, unpadded",
-    "prepared-padded": "prepared pixels, padded",
+    "prepared": "prepared pixels",
+    "prepared-unpadded": "prepared pixels, unpadded",
     "profile": "sampling (diagnostic)",
 }
 # Conditions that exist to be analysed, not timed. They are reported so their runs are
@@ -38,9 +38,8 @@ DIAGNOSTIC = {"profile"}
 # a texture cache worth -15% behind a recorder worth +24%. A comparison is only clean when
 # the two conditions differ in one thing.
 INTERESTING = [
-    ("fast", "prepared", "the pixel conversion and the padding, recorder held constant"),
-    ("fast", "prepared-padded", "the pixel conversion alone, padding left in place"),
-    ("prepared-padded", "prepared", "removing the power-of-two padding"),
+    ("fast", "prepared", "the pixel conversion, cache and recorder held constant"),
+    ("prepared", "prepared-unpadded", "removing the power-of-two padding"),
     ("agent", "enabled", "the texture cache, recorder held constant"),
     ("vanilla", "prepared", "what a user would actually feel, best path"),
     ("vanilla", "fast", "what a user would actually feel"),
