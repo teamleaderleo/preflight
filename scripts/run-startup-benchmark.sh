@@ -513,15 +513,41 @@ afterwards. That one-time write is what invalidated the July comparison. This la
 thrown away; it exists so the installation stops changing before anything is counted.
 WARMUP
     read -r -p "Press Enter to run the settling launch (or type skip): " reply
+    settled=skipped
     if [[ "$reply" != skip ]]; then
         RECORDING=false
-        launch_once enabled 0 "SETTLING LAUNCH  (discarded)" || true
+        settled=false
+        while :; do
+            # `fast`, not `enabled`. This launch is thrown away, so it has no reason to carry
+            # the recorder -- and the recorder is the most likely contributor to the HotSpot
+            # safepoint crash this configuration keeps hitting: the two documented triggers for
+            # that assertion are binary translation and an attached profiler, and Rosetta 2 is
+            # the one of those we cannot remove. `fast` exercises the same cache path without it.
+            if launch_once fast 0 "SETTLING LAUNCH  (discarded)"; then
+                settled=true
+                break
+            fi
+            bad "The settling launch did not reach the main menu."
+            note "It exists so GraphicsLib finishes writing its normal-map cache before"
+            note "anything is counted. A launch that stopped early may not have finished,"
+            note "and whatever is left would be paid by the first measured run instead --"
+            note "which is the exact contamination that invalidated the July comparison."
+            read -r -p "Press Enter to retry it, or type skip to go on anyway: " retry
+            [[ "$retry" == skip ]] && break
+        done
         RECORDING=true
         EXPECTED_FINGERPRINT="$(scan_fingerprint "$ROOT/profile-settled.json")"
         echo "$EXPECTED_FINGERPRINT" > "$ROOT/expected-fingerprint.txt"
         note "settled profile: $EXPECTED_FINGERPRINT"
     fi
-    touch "$ROOT/warmup-done"
+    # Only a settled installation is recorded as settled. Leaving the marker off means a
+    # --resume tries again rather than inheriting an assumption that was never established.
+    if [[ "$settled" == true ]]; then
+        touch "$ROOT/warmup-done"
+    else
+        bad "Continuing without a confirmed settling launch; treat the first run of each"
+        bad "condition with suspicion, and prefer --resume once one has succeeded."
+    fi
 fi
 
 TOTAL=$(( ROUNDS * ${#CONDITION_LIST[@]} ))
