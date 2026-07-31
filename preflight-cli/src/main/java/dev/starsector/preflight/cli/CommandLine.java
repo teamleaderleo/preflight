@@ -108,9 +108,12 @@ record CommandLine(
         if (textureModeSpecified && !manualTextureContext && !textureAuto) {
             throw new IllegalArgumentException("--texture-mode requires the complete texture cache context");
         }
-        if (textureAuto && textureAdapterMode != TextureAdapterMode.COMPATIBILITY) {
-            throw new IllegalArgumentException("--texture-auto currently supports only compatibility mode");
-        }
+        // --texture-auto and --texture-mode are independent: auto resolves which manifest and
+        // index to use, the mode decides which TextureLoader target reads them. Both modes are
+        // configured from the same TextureCompatibilityRuntime.configure call and the same SPFT
+        // blobs, so there is nothing for auto to resolve differently. The restriction that used
+        // to sit here predated prepared-pixels being able to prove its contract against the
+        // installed class, and kept the mode unreachable from the only ergonomic way to launch.
         return new CommandLine(
                 game,
                 launcher,

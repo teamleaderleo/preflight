@@ -61,6 +61,29 @@ class CommandLineAdapterTest {
     }
 
     @Test
+    void textureAutoResolvesTheCacheForEitherTextureMode() {
+        // Auto decides *which* manifest and index to use; the mode decides which TextureLoader
+        // target reads them. They are independent -- both modes configure from the same call and
+        // the same blobs -- and coupling them left prepared-pixels unreachable from the only
+        // ergonomic launch path, which is why it never got a real-install pilot.
+        CommandLine prepared = CommandLine.parse(new String[] {
+                "run", "--adapter", "--texture-auto", "--texture-cache-dir", "cache",
+                "--texture-mode", "prepared-pixels"
+        }, 1);
+        assertEquals(TextureAdapterMode.PREPARED_PIXELS, prepared.textureAdapterMode());
+        assertEquals(true, prepared.textureAuto());
+        assertEquals(Path.of("cache"), prepared.textureCacheDirectory());
+        // Auto still refuses to be handed artifacts it is supposed to resolve itself.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {
+                        "run", "--adapter", "--texture-auto",
+                        "--texture-mode", "prepared-pixels",
+                        "--texture-manifest", "profile.spfm"
+                }, 1));
+    }
+
+    @Test
     void rejectsConflictingModesAndTargetsWhileOff() {
         assertThrows(
                 IllegalArgumentException.class,
@@ -95,11 +118,6 @@ class CommandLineAdapterTest {
                 IllegalArgumentException.class,
                 () -> CommandLine.parse(new String[] {
                         "run", "--texture-mode", "prepared-pixels"
-                }, 1));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> CommandLine.parse(new String[] {
-                        "run", "--adapter", "--texture-auto", "--texture-mode", "prepared-pixels"
                 }, 1));
         assertThrows(
                 IllegalArgumentException.class,
