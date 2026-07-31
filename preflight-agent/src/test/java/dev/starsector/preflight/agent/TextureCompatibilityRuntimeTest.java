@@ -53,6 +53,48 @@ class TextureCompatibilityRuntimeTest {
         assertEquals(12L, telemetry.get("bytesServed"));
     }
 
+    /**
+     * The served image shares its backing array with the caller instead of being copied through
+     * {@link BufferedImage#setRGB}. That is only safe while it stays indistinguishable from the
+     * copying form, and the part a refactor could quietly break is the reported type: a colour model
+     * whose masks drift lands on {@code TYPE_CUSTOM}, which the game may treat differently. This
+     * asserts against images built the old way rather than against literals, so the two cannot
+     * diverge without failing here.
+     */
+    @Test
+    void servedImageIsIndistinguishableFromTheCopyingConstruction() throws Exception {
+        for (int channels : new int[] {3, 4}) {
+            TextureCompatibilityRuntime.beginSession();
+            Fixture fixture = fixture(channels);
+            assertTrue(TextureCompatibilityRuntime.configure(
+                    fixture.cache(), fixture.manifest(), fixture.index()));
+
+            BufferedImage image = TextureCompatibilityRuntime.load("graphics/test.png");
+
+            // Derived from the fixture's bottom-up bytes, not from the image under test: the stored
+            // rows arrive flipped, so the row written last is the top one. The 4-channel case keeps
+            // a transparent and a half-transparent pixel, which is where a premultiplying colour
+            // model would part company with the copying form.
+            int[] expected = channels == 4
+                    ? new int[] {0xffff0000, 0x0000ff00, 0xff0000ff, 0x80ffffff}
+                    : new int[] {0xffff0000, 0xff00ff00, 0xff0000ff, 0xffffffff};
+            int expectedType = channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+
+            BufferedImage reference = new BufferedImage(2, 2, expectedType);
+            reference.setRGB(0, 0, 2, 2, expected, 0, 2);
+
+            assertEquals(expectedType, image.getType(), "channels=" + channels);
+            for (int y = 0; y < 2; y++) {
+                for (int x = 0; x < 2; x++) {
+                    assertEquals(expected[y * 2 + x], image.getRGB(x, y),
+                            "channels=" + channels + " at " + x + "," + y);
+                    assertEquals(reference.getRGB(x, y), image.getRGB(x, y),
+                            "channels=" + channels + " at " + x + "," + y);
+                }
+            }
+        }
+    }
+
     @Test
     void coldMissAndChangedSourceReturnNull() throws Exception {
         Fixture fixture = fixture();
@@ -154,6 +196,10 @@ class TextureCompatibilityRuntimeTest {
     }
 
     private Fixture fixture() throws Exception {
+        return fixture(3);
+    }
+
+    private Fixture fixture(int channels) throws Exception {
         Path cache = temporaryDirectory.resolve("cache");
         Path sourceRoot = temporaryDirectory.resolve("game");
         Path source = sourceRoot.resolve("graphics/test.png");
@@ -173,12 +219,19 @@ class TextureCompatibilityRuntimeTest {
         Path indexPath = cache.resolve("indexes").resolve(profile + ".spfi");
         ResourceIndexIO.write(indexPath, index);
 
-        byte[] bottomUpRgb = {
-                0, 0, (byte) 255,
-                (byte) 255, (byte) 255, (byte) 255,
-                (byte) 255, 0, 0,
-                0, (byte) 255, 0
-        };
+        byte[] bottomUpRgb = channels == 4
+                ? new byte[] {
+                        0, 0, (byte) 255, (byte) 255,
+                        (byte) 255, (byte) 255, (byte) 255, (byte) 128,
+                        (byte) 255, 0, 0, (byte) 255,
+                        0, (byte) 255, 0, 0
+                }
+                : new byte[] {
+                        0, 0, (byte) 255,
+                        (byte) 255, (byte) 255, (byte) 255,
+                        (byte) 255, 0, 0,
+                        0, (byte) 255, 0
+                };
         PreparedTexture texture = new PreparedTexture(
                 sourceHash,
                 PreparedTexture.Transformation.IDENTITY,
@@ -186,7 +239,7 @@ class TextureCompatibilityRuntimeTest {
                 2,
                 2,
                 2,
-                3,
+                channels,
                 0,
                 0,
                 0,
@@ -202,7 +255,7 @@ class TextureCompatibilityRuntimeTest {
                         blobRelative,
                         2,
                         2,
-                        3,
+                        channels,
                         bottomUpRgb.length)));
         Path manifestPath = cache.resolve("manifests").resolve(profile + ".spfm");
         TextureManifestIO.write(manifestPath, manifest);
