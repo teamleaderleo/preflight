@@ -81,6 +81,16 @@ the cache does nothing. Every `enabled` run is now checked against its own telem
 ready, hits above zero, no internal errors, no disable reasons — and excluded as
 `adapter-served-nothing` if the path did not actually run.
 
+**A crashed game that never exits.** Starsector passes `-XX:+ShowMessageBoxOnError`, so a
+fatal JVM error prints its report and then blocks on stdin forever — process alive, CPU
+above zero, loading bar at 100%, indistinguishable from a slow load. A watchdog now scans
+the wrapper output for HotSpot's fatal banner and kills the process tree, so the run is
+excluded as `jvm-crash` within seconds instead of consuming the full timeout. Termination
+covers the whole tree because the game is a *grandchild* of this script, via the wrapper
+and `starsector_mac.sh`. See
+[a JVM crash that looks exactly like a slow load](evidence/2026-07-31-a-jvm-crash-that-looks-exactly-like-a-slow-load.md);
+`--no-record` also removes the execution sampling that is the most likely contributor.
+
 GraphicsLib writes generated normal maps into its own cache on a first run and reuses them
 afterwards — that one-time write is what invalidated the July comparison. The harness opens
 with a discarded settling launch so the installation stops changing before anything counts.
