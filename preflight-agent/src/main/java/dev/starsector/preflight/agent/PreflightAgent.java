@@ -73,6 +73,16 @@ public final class PreflightAgent {
     }
 
     private static Recording startRecording(AgentOptions options) {
+        if (!options.recordStartup()) {
+            // The adapter still runs and still writes its report; only the profile is skipped.
+            if (options.adapterMode() != AdapterMode.OFF) {
+                log("Recording off; adapter mode " + options.adapterMode() + ", report "
+                        + options.adapterReport().toAbsolutePath().normalize());
+            } else {
+                log("Recording off and adapter off; this agent will do nothing.");
+            }
+            return null;
+        }
         try {
             Path destination = options.destination().toAbsolutePath().normalize();
             Path parent = destination.getParent();

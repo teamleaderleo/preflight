@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,6 +23,28 @@ class AgentInjectionTest {
         assertTrue(value.contains("dest64="));
         assertTrue(value.contains("adapter=off"));
         assertTrue(value.contains("textureMode=compatibility"));
+    }
+
+    @Test
+    void onlyStatesRecordOffWhenTheCallerAsksForIt() {
+        // The agent treats any value other than "off" as recording, so the absence of this
+        // token has to mean recording -- an accidental token would silently drop the profile.
+        String recording = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, true);
+        assertFalse(recording.contains("record="));
+
+        String silent = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, Path.of("cache"), Path.of("m.spfm"),
+                Path.of("i.spfi"), TextureAdapterMode.COMPATIBILITY, false, false);
+        assertTrue(silent.contains(",record=off"));
+        // The adapter still has to be configured; turning the profile off is not turning
+        // Preflight off, and the caches are the whole point of the mode.
+        assertTrue(silent.contains("adapter=enabled"));
+        assertTrue(silent.contains("textureCache64="));
+        assertTrue(silent.contains("textureManifest64="));
     }
 
     @Test

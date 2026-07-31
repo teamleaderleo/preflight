@@ -247,6 +247,18 @@ def watch_main_menu(
                     "gameStartInstant": clock.iso(start.observed_ns),
                     "mainMenuReadyInstant": clock.iso(last_activity_ns),
                     "gameLogStartToMainMenuMs": observed_delta_ms,
+                    # The measurement boundary. "Last line before the quiet window" turned out
+                    # to include whatever the game happened to log afterwards, which on the
+                    # 2026-07-31 campaign ranged from 0.0 to 9.3 seconds of pure noise across
+                    # otherwise identical runs. The preload marker is the actual end of the
+                    # load: it lands 0.5-0.7s after the save-descriptor read in every observed
+                    # run. The quiet window still has to pass -- it is what proves the phase
+                    # ended -- it just no longer sets the timestamp.
+                    "gameLogStartToGraphicsPreloadMs": round(
+                        (preload.observed_ns - start.observed_ns) / 1_000_000, 3),
+                    "graphicsPreloadInstant": clock.iso(preload.observed_ns),
+                    "trailingLogActivityMs": round(
+                        (last_activity_ns - preload.observed_ns) / 1_000_000, 3),
                     "gameLogMillisDelta": log_delta_ms,
                     "saveDescriptorSeen": True,
                     "saveDescriptorLine": descriptor.text[:1000],

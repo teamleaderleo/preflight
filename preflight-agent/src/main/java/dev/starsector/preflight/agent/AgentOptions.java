@@ -20,6 +20,7 @@ record AgentOptions(
         Path textureIndex,
         TextureAdapterMode textureAdapterMode,
         boolean exhaustiveFileReads,
+        boolean recordStartup,
         List<String> candidatePrefixes) {
     private static final List<String> DEFAULT_CANDIDATE_PREFIXES = List.of(
             "com/fs/starfarer/",
@@ -69,6 +70,12 @@ record AgentOptions(
         // page cache is warm. A question of the form "was this file opened at all" cannot be answered
         // from a threshold, so it gets its own opt-in.
         boolean exhaustiveFileReads = "all".equalsIgnoreCase(values.get("fileReads"));
+        // Measuring the recorder against itself put a number on it: stack-traced class loads and
+        // file reads plus 10ms execution sampling cost about 24% of startup on the reviewed
+        // installation, which is more than the texture cache saves. Someone who wants the caches
+        // and not the profile can turn the recording off; it stays on by default, because every
+        // analysis command in this repository reads what it produces.
+        boolean recordStartup = !"off".equalsIgnoreCase(values.get("record"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -80,6 +87,7 @@ record AgentOptions(
                 textureIndex,
                 textureAdapterMode,
                 exhaustiveFileReads,
+                recordStartup,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 
