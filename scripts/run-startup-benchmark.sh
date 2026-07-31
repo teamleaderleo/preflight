@@ -31,8 +31,8 @@ Usage: scripts/run-startup-benchmark.sh [options]
   --rounds N          Rounds of every condition (default 5, the campaign threshold for
                       a reportable claim). Fewer rounds cannot reach significance: with
                       three per condition the smallest possible p-value is 0.1.
-  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast,profile
-                      (default vanilla,agent,enabled,fast; profile is opt-in).
+  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast,profile,prepared
+                      (default vanilla,agent,enabled,fast; the last two are opt-in).
   --resume DIR        Continue an interrupted session, keeping its completed runs.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
   --game PATH         Starsector installation (default /Applications/Starsector.app).
@@ -43,6 +43,9 @@ Conditions:
   agent     preflight run --no-adapter -- isolates what the JFR recorder itself costs
   enabled   preflight run --adapter --texture-auto -- the prepared texture path, recorded
   fast      the same, plus --no-record -- the caches without paying for the profile
+  prepared  --texture-mode prepared-pixels --no-record -- hands the game upload-ready
+            bytes instead of a BufferedImage it has to unpack a pixel at a time. Compare
+            against `fast`, which is the same launch in compatibility mode.
   profile   the same, plus --profile -- sampling only, for asking where the time goes.
             Not a timing condition: it records, so it is slower than fast. Analyse its
             recordings with `preflight analyze`; do not read its wall clock as a result.
@@ -97,7 +100,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled|fast|profile) ;;
+        vanilla|agent|enabled|fast|profile|prepared) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -204,6 +207,33 @@ served_prepared_textures() {
     return 1
 }
 
+# Prepared-pixels needs a second, stricter check. Its bridge falls back to the ordinary
+# BufferedImage conversion per texture, so a run can serve every cache entry -- passing the
+# check above in full -- while bypassing no conversions at all. That run is compatibility
+# mode wearing the prepared label, and timing it would report "prepared-pixels changes
+# nothing" when what actually happened is that prepared-pixels never ran.
+bypassed_pixel_conversions() {
+    local run_dir="$1"
+    local report="$run_dir/adapter.json"
+    if [[ ! -f "$report" ]]; then
+        bad "The prepared run produced no adapter report; the texture path did not run."
+        return 1
+    fi
+    if jq -e '.textureCompatibility.preparedPixels
+            | .hits > 0
+            and .internalErrors == 0
+            and (.hits > .fallbacks)' "$report" >/dev/null 2>&1; then
+        note "pixel conversions bypassed: $(jq -r '.textureCompatibility.preparedPixels
+            | "\(.conversionCallsBypassed) conversions, \(.uploadBytesSupplied) bytes, \(.fallbacks) fallbacks"' \
+            "$report")"
+        return 0
+    fi
+    bad "The prepared-pixel bridge did not carry this run; it is a compatibility run in disguise:"
+    jq -c '.textureCompatibility.preparedPixels
+        | {hits, fallbacks, dimensionFallbacks, npotProbeFallbacks, internalErrors}' "$report" >&2 || true
+    return 1
+}
+
 # Deepest descendant first, so a parent is never signalled before its children.
 descendants() {
     local pid="$1" child
@@ -303,6 +333,10 @@ launch_once() {
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --profile) ;;
+        prepared)
+            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
+                     --texture-mode prepared-pixels --no-record) ;;
     esac
 
     banner "$label"
@@ -383,7 +417,10 @@ launch_once() {
         status=excluded; reason="nonzero-exit-$exit_code"
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
-    elif [[ "$condition" == enabled || "$condition" == fast ]] \
+    elif [[ "$condition" == prepared ]] \
+            && { ! served_prepared_textures "$run_dir" || ! bypassed_pixel_conversions "$run_dir"; }; then
+        status=excluded; reason="prepared-pixels-served-nothing"
+    elif [[ "$condition" == enabled || "$condition" == fast || "$condition" == profile ]] \
             && ! served_prepared_textures "$run_dir"; then
         # The adapter is fail-open by design, so a launch where it served nothing looks
         # exactly like a normal launch. Timing it would measure the baseline twice and

@@ -314,6 +314,60 @@ class AdapterEvidenceTest(unittest.TestCase):
     def test_a_missing_report_is_rejected_rather_than_assumed_healthy(self):
         self.assertFalse(self.served(None))
 
+    def bypassed(self, telemetry) -> bool:
+        body = re.search(
+            r"bypassed_pixel_conversions\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL
+        )
+        self.assertIsNotNone(body, "bypassed_pixel_conversions not found")
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            if telemetry is not None:
+                (run_dir / "adapter.json").write_text(
+                    json.dumps({"textureCompatibility": {"preparedPixels": telemetry}}),
+                    encoding="utf-8",
+                )
+            script = (
+                "set -uo pipefail\n"
+                "bad() { :; }\nnote() { :; }\n"
+                f'bypassed_pixel_conversions() {{{body.group("body")}\n}}\n'
+                f'bypassed_pixel_conversions "{run_dir}"\n'
+            )
+            result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+            return result.returncode == 0
+
+    def test_a_prepared_run_that_bypassed_conversions_is_accepted(self):
+        self.assertTrue(self.bypassed({
+            "hits": 6813, "fallbacks": 12, "internalErrors": 0,
+            "conversionCallsBypassed": 6813, "uploadBytesSupplied": 646243375,
+        }))
+
+    def test_a_prepared_run_that_bypassed_nothing_is_rejected(self):
+        # The dangerous case: the cache served every texture, so served_prepared_textures
+        # passes in full, but every one of them fell back to the ordinary BufferedImage
+        # conversion. That is a compatibility run labelled prepared, and timing it would
+        # report that prepared-pixels changes nothing.
+        self.assertFalse(self.bypassed({
+            "hits": 0, "fallbacks": 6813, "internalErrors": 0,
+            "conversionCallsBypassed": 0, "uploadBytesSupplied": 0,
+        }))
+        # Mostly falling back is the same failure, just quieter.
+        self.assertFalse(self.bypassed({
+            "hits": 100, "fallbacks": 6713, "internalErrors": 0,
+            "conversionCallsBypassed": 100, "uploadBytesSupplied": 1000,
+        }))
+        self.assertFalse(self.bypassed(None))
+
+    def test_the_prepared_condition_must_prove_both_cache_and_bridge(self):
+        # Serving from the cache and bypassing the conversion are separate claims, and the
+        # prepared condition rests on both. Checking only the first is how a run that never
+        # exercised the bridge would be counted as evidence that the bridge does nothing.
+        guard = re.search(
+            r'elif \[\[ "\$condition" == prepared \]\][^\n]*\n[^\n]*bypassed_pixel_conversions',
+            SCRIPT_TEXT,
+        )
+        self.assertIsNotNone(guard, "prepared guard does not check the pixel bridge")
+        self.assertIn("served_prepared_textures", guard.group(0))
+
     def test_both_cache_serving_conditions_are_checked_and_no_others(self):
         # vanilla and agent legitimately have no adapter evidence; enabled and fast both
         # serve from the cache, so both have to prove they did.
