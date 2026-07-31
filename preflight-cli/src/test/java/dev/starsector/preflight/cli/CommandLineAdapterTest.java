@@ -80,6 +80,24 @@ class CommandLineAdapterTest {
                 "--texture-mode", "prepared-pixels", "--prepared-npot"
         }, 1);
         assertEquals(true, npot.npotDirect());
+
+        CommandLine unpadded = CommandLine.parse(new String[] {
+                "run", "--adapter", "--texture-auto", "--texture-cache-dir", "cache",
+                "--texture-mode", "prepared-pixels", "--prepared-unpadded"
+        }, 1);
+        assertEquals(true, unpadded.unpadded());
+        assertEquals(false, unpadded.npotDirect());
+
+        // Alternatives, not a combination. Together they build a carrier sized for the padded
+        // allocation and then supply the true-size buffer -- the documented
+        // insufficient-original-buffer failure, which corrupts rendering while every reported
+        // number still looks right.
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {
+                        "run", "--adapter", "--texture-auto", "--texture-cache-dir", "cache",
+                        "--texture-mode", "prepared-pixels", "--prepared-npot", "--prepared-unpadded"
+                }, 1));
         // Setting it anywhere the bridge will not read it is rejected rather than ignored: a
         // launch that looks configured for non-power-of-two and is not looks exactly like the
         // bridge declining, which is the failure the flag exists to fix.

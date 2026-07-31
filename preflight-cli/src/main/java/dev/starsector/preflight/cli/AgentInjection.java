@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
 import dev.starsector.preflight.agent.RecordingMode;
+import dev.starsector.preflight.agent.TexturePaddingRuntime;
 import dev.starsector.preflight.agent.TexturePreparedPixelRuntime;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.charset.StandardCharsets;
@@ -83,7 +84,7 @@ final class AgentInjection {
             TextureAdapterMode textureAdapterMode) {
         return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
                 textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode, false,
-                RecordingMode.FULL, false);
+                RecordingMode.FULL, false, false);
     }
 
     static String append(
@@ -99,7 +100,8 @@ final class AgentInjection {
             TextureAdapterMode textureAdapterMode,
             boolean exhaustiveFileReads,
             RecordingMode recordingMode,
-            boolean npotDirect) {
+            boolean npotDirect,
+            boolean unpadded) {
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
         if (lower.contains("-javaagent:") && lower.contains("preflight")) {
@@ -131,6 +133,9 @@ final class AgentInjection {
         // texture through Boolean.getBoolean, which is a property read by construction.
         if (npotDirect) {
             option = option + " -D" + TexturePreparedPixelRuntime.COHERENT_DIRECT_PROPERTY + "=true";
+        }
+        if (unpadded) {
+            option = option + " -D" + TexturePaddingRuntime.UNPADDED_PROPERTY + "=true";
         }
         return current.isEmpty() ? option : current + " " + option;
     }
