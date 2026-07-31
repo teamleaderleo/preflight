@@ -70,6 +70,7 @@ public final class PreflightCli {
             case "run" -> RunCommand.execute(CommandLine.parse(args, 1));
             case "prepare" -> PrepareCommand.execute(args, 1);
             case "doctor" -> RunCommand.doctor(CommandLine.parse(args, 1));
+            case "launch-settings" -> LaunchSettingsCommand.execute(args, 1);
             case "install" -> InstallCommand.execute(CommandLine.parse(args, 1));
             case "scan" -> ScanCommand.execute(ScanOptions.parse(args, 1));
             case "index" -> IndexCommand.execute(args, 1);
@@ -172,7 +173,7 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--auto-play] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [-- <launcher args>]",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",
@@ -185,12 +186,6 @@ public final class PreflightCli {
                         + " to separate a broken conversion bypass from broken padding removal. Without"
                         + " one of these two the bridge declines every texture that needs padding, which"
                         + " on a normal profile is most of them, and the mode does almost nothing.",
-                "    --auto-play presses the launcher's own Play button once it exists, is showing and"
-                        + " is enabled, which is the condition a human is approximating when they wait"
-                        + " a few seconds. It goes through the button rather than the launcher's start"
-                        + " method so the resolution, fullscreen and sound settings are the ones the"
-                        + " launcher would have used. If the button never appears it gives up and you"
-                        + " click it yourself.",
                 "    --profile records execution sampling and blocking only, dropping the stack-traced"
                         + " class loads and file reads that make up most of that cost. Use it to ask"
                         + " where startup time goes: the full recording lands hardest on class loading,"
@@ -198,6 +193,14 @@ public final class PreflightCli {
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
+        usage.put("launch-settings", List.of(
+                "preflight launch-settings [--json]",
+                "  Reports whether Starsector can be started without showing its launcher, and with"
+                        + " which resolution, fullscreen and sound settings. The game supports this"
+                        + " itself through its launchDirect/startRes/startFS/startSound properties;"
+                        + " the settings are read from the launcher's own preferences so an unattended"
+                        + " launch matches a clicked one. Always exits zero -- unavailable is an"
+                        + " answer, with a reason saying what to do about it."));
         usage.put("install", List.of("preflight install [--game <path>] [--launcher <path>]"));
         usage.put("scan", List.of(
                 "preflight scan [--game <path>] [--launcher <path>] [--json <profile.json>] [--vram-budget <size>] [--max-texture-size <pixels>]",
@@ -313,6 +316,7 @@ public final class PreflightCli {
             case "run" -> "Launch Starsector with bounded profiling and optional adapters.";
             case "prepare" -> "Build reusable artifacts for the current enabled profile.";
             case "doctor" -> "Check installation discovery and launch readiness.";
+            case "launch-settings" -> "Report whether the game can start without showing its launcher.";
             case "install" -> "Write the local Preflight launcher integration.";
             case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
             case "index" -> "Build, inspect, query, or validate a resource-provider index.";

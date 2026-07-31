@@ -21,7 +21,6 @@ record AgentOptions(
         TextureAdapterMode textureAdapterMode,
         boolean exhaustiveFileReads,
         RecordingMode recordingMode,
-        long autoPlayTimeoutMillis,
         List<String> candidatePrefixes) {
     private static final List<String> DEFAULT_CANDIDATE_PREFIXES = List.of(
             "com/fs/starfarer/",
@@ -79,9 +78,6 @@ record AgentOptions(
         // sampling and drops the stack-traced per-event records, so a profile can ask where the
         // time goes without the measurement landing on class loading hardest.
         RecordingMode recordingMode = RecordingMode.parse(values.get("record"));
-        // Zero means no auto-play, which is the default: pressing a button in someone's game
-        // is not something to do because an option was left unset.
-        long autoPlayTimeoutMillis = parseTimeout(values.get("autoPlayMs"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -94,21 +90,9 @@ record AgentOptions(
                 textureAdapterMode,
                 exhaustiveFileReads,
                 recordingMode,
-                autoPlayTimeoutMillis,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 
-    private static long parseTimeout(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return 0L;
-        }
-        try {
-            long millis = Long.parseLong(raw.trim());
-            return millis > 0 ? millis : 0L;
-        } catch (NumberFormatException error) {
-            throw new IllegalArgumentException("Invalid autoPlayMs: " + raw, error);
-        }
-    }
 
     private static Path decodedPath(Map<String, String> values, String key) {
         String encoded = values.get(key);

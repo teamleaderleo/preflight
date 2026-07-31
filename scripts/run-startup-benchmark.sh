@@ -10,7 +10,8 @@ GAME="${GAME:-/Applications/Starsector.app}"
 CACHE="${CACHE:-$HOME/.starsector-preflight/cache}"
 ROUNDS=5
 CONDITIONS="vanilla,agent,enabled,fast"
-AUTO_PLAY=false
+UNATTENDED=false
+REPREPARE=false
 SESSION=""
 SKIP_WARMUP=false
 SEED="${SEED:-$RANDOM}"
@@ -34,10 +35,13 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       three per condition the smallest possible p-value is 0.1.
   --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast,profile,prepared
                       (default vanilla,agent,enabled,fast; the last two are opt-in).
-  --auto-play         Press the launcher's Play button and stop the game once the main
-                      menu is up, so a run needs no clicks. Does not apply to `vanilla`,
-                      which launches with no agent attached and so cannot be driven --
-                      those runs still prompt.
+  --unattended        Start the game without its launcher and stop it once the main menu is
+                      up, so the campaign needs no clicks at all. Uses Starsector's own
+                      launchDirect path with the resolution, fullscreen and sound settings
+                      the launcher itself would have used, and applies to every condition
+                      including vanilla. Refuses up front, with a reason, if the install
+                      cannot support it.
+  --reprepare         Rebuild the caches even when they already match this profile.
   --resume DIR        Continue an interrupted session, keeping its completed runs.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
   --game PATH         Starsector installation (default /Applications/Starsector.app).
@@ -72,11 +76,32 @@ To answer only "is Preflight worth it", drop the two diagnostic conditions:
 USAGE
 }
 
+BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'
+RED=$'\033[31m'; CYAN=$'\033[36m'; RESET=$'\033[0m'
+if [[ ! -t 1 ]]; then
+    BOLD=""; DIM=""; GREEN=""; YELLOW=""; RED=""; CYAN=""; RESET=""
+fi
+
+banner() { printf '\n%s%s%s\n' "$BOLD$CYAN" "$*" "$RESET"; }
+act()    { printf '\a\n%s  >>> %s  <<<%s\n\n' "$BOLD$YELLOW" "$*" "$RESET"; }
+good()   { printf '%s%s%s\n' "$GREEN" "$*" "$RESET"; }
+bad()    { printf '%s%s%s\n' "$RED" "$*" "$RESET" >&2; }
+note()   { printf '%s%s%s\n' "$DIM" "$*" "$RESET"; }
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --rounds) ROUNDS="$2"; shift 2 ;;
         --conditions) CONDITIONS="$2"; shift 2 ;;
-        --auto-play) AUTO_PLAY=true; shift ;;
+        --unattended) UNATTENDED=true; shift ;;
+        --reprepare) REPREPARE=true; shift ;;
+        # Removed rather than aliased. --auto-play searched the launcher for a Swing button to
+        # press, and current Starsector draws its launcher in OpenGL, so there was never a button
+        # to find. The replacement measures a different interval -- no launcher phase at all --
+        # and silently accepting the old name would mix two protocols in one results file.
+        --auto-play|--auto-play-timeout-ms)
+            bad "--auto-play is gone: it looked for a Swing button that this launcher does not have."
+            bad "Use --unattended, which starts the game without the launcher instead of driving it."
+            exit 2 ;;
         --resume) SESSION="$2"; shift 2 ;;
         --skip-warmup) SKIP_WARMUP=true; shift ;;
         --game) GAME="$2"; shift 2 ;;
@@ -89,18 +114,6 @@ if [[ ! "$ROUNDS" =~ ^[0-9]+$ ]] || (( ROUNDS < 1 )); then
     echo "--rounds must be a positive integer." >&2
     exit 2
 fi
-
-BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'
-RED=$'\033[31m'; CYAN=$'\033[36m'; RESET=$'\033[0m'
-if [[ ! -t 1 ]]; then
-    BOLD=""; DIM=""; GREEN=""; YELLOW=""; RED=""; CYAN=""; RESET=""
-fi
-
-banner() { printf '\n%s%s%s\n' "$BOLD$CYAN" "$*" "$RESET"; }
-act()    { printf '\a\n%s  >>> %s  <<<%s\n\n' "$BOLD$YELLOW" "$*" "$RESET"; }
-good()   { printf '%s%s%s\n' "$GREEN" "$*" "$RESET"; }
-bad()    { printf '%s%s%s\n' "$RED" "$*" "$RESET" >&2; }
-note()   { printf '%s%s%s\n' "$DIM" "$*" "$RESET"; }
 
 for command in git java mvn jq python3 shasum; do
     command -v "$command" >/dev/null 2>&1 || { bad "Missing required command: $command"; exit 1; }
@@ -145,22 +158,34 @@ LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null | awk '/^Selected
 [[ -n "$LAUNCHER" && -f "$LAUNCHER" ]] || { bad "Could not resolve the game launcher under $GAME"; exit 1; }
 note "launcher:        $LAUNCHER"
 
-# Preparation is an offline step: it builds the caches and exits well before any launch.
-# Its cost belongs in the report as setup, never inside a measured startup.
-PREPARE_REPORT="$ROOT/prepare.json"
-if [[ ! -f "$PREPARE_REPORT" ]]; then
-    banner "== Preparing the caches (offline, one time) =="
-    prepare_start="$(python3 -c 'import time; print(time.time_ns())')"
-    java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
-        --report "$PREPARE_REPORT" >/dev/null
-    prepare_end="$(python3 -c 'import time; print(time.time_ns())')"
-    PREPARE_MS=$(( (prepare_end - prepare_start) / 1000000 ))
-    echo "$PREPARE_MS" > "$ROOT/prepare-millis.txt"
-    good "Caches prepared in $(( PREPARE_MS / 1000 ))s."
-else
-    PREPARE_MS="$(cat "$ROOT/prepare-millis.txt" 2>/dev/null || echo 0)"
-    note "Reusing the preparation from this session ($(( PREPARE_MS / 1000 ))s)."
+# Two protocols, and a results file may only ever hold one. `clicked` waits for the launcher and
+# an operator; `direct` uses Starsector's own launchDirect path, where no launcher is built at
+# all. They do not measure the same thing -- the launcher's OpenGL context, font loading and
+# window creation exist in one and not the other -- so mixing them in a single comparison would
+# be reading two quantities as one.
+PROTOCOL=clicked
+if [[ "$UNATTENDED" == true ]]; then
+    LAUNCH_SETTINGS="$ROOT/launch-settings.json"
+    java -jar "$JAR" launch-settings > "$LAUNCH_SETTINGS"
+    if [[ "$(jq -r '.directLaunchAvailable' "$LAUNCH_SETTINGS")" != true ]]; then
+        # Failing here rather than falling back: someone who asked for an unattended campaign
+        # should learn it cannot be one now, not forty minutes in at the first unanswered prompt.
+        bad "This install cannot start without its launcher, so --unattended is not available:"
+        bad "  $(jq -r '.reason' "$LAUNCH_SETTINGS")"
+        note "Run without --unattended to use the clicked protocol."
+        exit 2
+    fi
+    PROTOCOL=direct
+    DIRECT_OPTIONS="$(jq -r '.settings.javaOptions | join(" ")' "$LAUNCH_SETTINGS")"
+    # Appended, not assigned: EXTRAARGS is the game's own hook and may already carry something
+    # the operator put there.
+    export EXTRAARGS="${EXTRAARGS:+$EXTRAARGS }$DIRECT_OPTIONS"
+    good "Unattended: the game will start itself at $(jq -r '.settings.resolution' "$LAUNCH_SETTINGS")," \
+         "fullscreen=$(jq -r '.settings.fullscreen' "$LAUNCH_SETTINGS")," \
+         "sound=$(jq -r '.settings.sound' "$LAUNCH_SETTINGS")."
+    note "Those are the launcher's own saved settings, so this is the launch you would have clicked."
 fi
+note "protocol:        $PROTOCOL"
 
 scan_fingerprint() {
     local output="$1"
@@ -176,6 +201,45 @@ else
     EXPECTED_FINGERPRINT="$(cat "$ROOT/expected-fingerprint.txt")"
 fi
 note "profile:         $EXPECTED_FINGERPRINT"
+
+# Preparation is an offline step: it builds the caches and exits well before any launch.
+# Its cost belongs in the report as setup, never inside a measured startup.
+#
+# Skipped when the cache already matches this profile. The guard used to be "did this session
+# already prepare", and a session is a fresh timestamped directory, so it could only ever hit on
+# --resume: every new campaign paid 16s to rebuild nothing. The stamp lives beside the cache
+# because that is what it describes -- the caches are keyed by profile fingerprint, so a matching
+# stamp means the artifacts on disk are the ones this profile needs.
+PREPARE_REPORT="$ROOT/prepare.json"
+PREPARE_STAMP="$CACHE/prepared-profile.txt"
+prepare_caches() {
+    local reason="$1"
+    banner "== Preparing the caches (offline, one time) =="
+    note "$reason"
+    local prepare_start prepare_end
+    prepare_start="$(python3 -c 'import time; print(time.time_ns())')"
+    java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
+        --report "$PREPARE_REPORT" >/dev/null
+    prepare_end="$(python3 -c 'import time; print(time.time_ns())')"
+    PREPARE_MS=$(( (prepare_end - prepare_start) / 1000000 ))
+    echo "$PREPARE_MS" > "$ROOT/prepare-millis.txt"
+    # Written only after prepare returns zero, so a failed or interrupted preparation leaves the
+    # stamp stale and the next campaign rebuilds rather than trusting a half-built cache.
+    printf '%s\n' "$EXPECTED_FINGERPRINT" > "$PREPARE_STAMP"
+    good "Caches prepared in $(( PREPARE_MS / 1000 ))s."
+}
+
+PREPARE_MS=0
+if [[ -f "$PREPARE_REPORT" ]]; then
+    PREPARE_MS="$(cat "$ROOT/prepare-millis.txt" 2>/dev/null || echo 0)"
+    note "Reusing the preparation from this session ($(( PREPARE_MS / 1000 ))s)."
+elif [[ "$REPREPARE" == true ]]; then
+    prepare_caches "Rebuilding because --reprepare was given."
+elif [[ -f "$PREPARE_STAMP" && "$(cat "$PREPARE_STAMP")" == "$EXPECTED_FINGERPRINT" ]]; then
+    note "Caches already prepared for this profile; skipping. Force with --reprepare."
+else
+    prepare_caches "No cache on disk matches this profile."
+fi
 
 cat > "$ROOT/identity.json" <<IDENTITY
 {
@@ -318,11 +382,11 @@ watch_for_fatal_jvm_error() {
 # the campaign keeps its remaining runs.
 launch_once() {
     local condition="$1" iteration="$2" label="$3"
-    # vanilla runs with JAVA_TOOL_OPTIONS cleared, so no agent is attached and there is
-    # nothing in the process to press the button. Attaching one to drive it would stop it
-    # being the baseline, which is the only thing that condition is for.
+    # The direct protocol needs nothing in the process, so it applies to vanilla too: the
+    # properties travel through the game's own EXTRAARGS hook, not through the agent. That is
+    # what makes the baseline unattended as well, which --auto-play could never manage.
     local auto=false
-    if [[ "$AUTO_PLAY" == true && "$condition" != vanilla ]]; then
+    if [[ "$PROTOCOL" == direct ]]; then
         auto=true
     fi
     local run_dir="$ROOT/runs/${condition}-${iteration}"
@@ -364,10 +428,6 @@ launch_once() {
                      --texture-mode prepared-pixels --prepared-unpadded --no-record) ;;
     esac
 
-    if [[ "$auto" == true ]]; then
-        command+=(--auto-play)
-    fi
-
     banner "$label"
     note "${command[*]}"
     python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$before_logs"
@@ -379,36 +439,40 @@ launch_once() {
     watch_for_fatal_jvm_error "$wrapper_output" "$pid" "$fatal_flag" &
     local watchdog=$!
 
-    if ! python3 "$DETECTOR" watch-launcher --log-dir "$LOG_DIR" --snapshot "$before_logs" \
-            --output "$launcher_detection" --pid "$pid" --process-start-ns "$start_ns" \
-            --timeout-seconds "$LAUNCHER_TIMEOUT_SECONDS" --quiet-seconds "$LAUNCHER_QUIET_SECONDS"; then
-        kill "$watchdog" >/dev/null 2>&1 || true
-        if [[ -s "$fatal_flag" ]]; then
-            report_fatal_jvm_error "$fatal_flag"
-            record_run "$condition" "$iteration" "excluded" "jvm-crash" "null" "null" "null"
+    # Under the direct protocol there is no launcher to become ready and nothing to click, so
+    # the pre-launch snapshot is also the measurement's snapshot. Waiting for a launcher marker
+    # that will never be logged would spend the whole launcher timeout before every run.
+    local menu_snapshot="$before_logs"
+    if [[ "$auto" != true ]]; then
+        menu_snapshot="$play_logs"
+        if ! python3 "$DETECTOR" watch-launcher --log-dir "$LOG_DIR" --snapshot "$before_logs" \
+                --output "$launcher_detection" --pid "$pid" --process-start-ns "$start_ns" \
+                --timeout-seconds "$LAUNCHER_TIMEOUT_SECONDS" --quiet-seconds "$LAUNCHER_QUIET_SECONDS"; then
+            kill "$watchdog" >/dev/null 2>&1 || true
+            if [[ -s "$fatal_flag" ]]; then
+                report_fatal_jvm_error "$fatal_flag"
+                record_run "$condition" "$iteration" "excluded" "jvm-crash" "null" "null" "null"
+                return 1
+            fi
+            bad "The launcher never became ready. Excluding this run."
+            # Usually the wrapper refused to start at all -- a stale prepared texture index is
+            # the common cause -- so show what it actually said instead of just a timeout.
+            if [[ -s "$wrapper_output" ]]; then
+                bad "Last output from the launch:"
+                tail -5 "$wrapper_output" >&2
+            fi
+            terminate "$pid"
+            record_run "$condition" "$iteration" "excluded" "launcher-not-ready" "null" "null" "null"
             return 1
         fi
-        bad "The launcher never became ready. Excluding this run."
-        # Usually the wrapper refused to start at all -- a stale prepared texture index is
-        # the common cause -- so show what it actually said instead of just a timeout.
-        if [[ -s "$wrapper_output" ]]; then
-            bad "Last output from the launch:"
-            tail -5 "$wrapper_output" >&2
-        fi
-        terminate "$pid"
-        record_run "$condition" "$iteration" "excluded" "launcher-not-ready" "null" "null" "null"
-        return 1
-    fi
-
-    python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$play_logs"
-    if [[ "$auto" == true ]]; then
-        note "Auto-play armed; the agent presses Play once the button is real and enabled."
-    else
+        python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$play_logs"
         act "CLICK  Play Starsector  NOW"
-        note "Timing starts on the first game log line, not on this prompt. Do not press Enter."
+        note "Timing starts where the game's own log says it started. Do not press Enter."
+    else
+        note "The game is starting itself; no launcher, nothing to click."
     fi
 
-    if ! python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$play_logs" \
+    if ! python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$menu_snapshot" \
             --output "$menu_detection" --pid "$pid" \
             --timeout-seconds "$MAIN_MENU_TIMEOUT_SECONDS" --quiet-seconds "$MAIN_MENU_QUIET_SECONDS"; then
         kill "$watchdog" >/dev/null 2>&1 || true
@@ -487,15 +551,24 @@ launch_once() {
             note "Rebuilding the caches for the settled profile so enabled runs still launch..."
             if java -jar "$JAR" prepare --game "$GAME" --cache-dir "$CACHE" --deep --verify-lookups \
                     --report "$ROOT/prepare-reprepared.json" >/dev/null 2>&1; then
+                printf '%s\n' "$EXPECTED_FINGERPRINT" > "$PREPARE_STAMP"
                 note "Rebuilt. The campaign continues from the settled profile."
             else
+                # The stamp still names the old profile, and it must stay that way: the next
+                # campaign has to rebuild rather than trust a cache that failed to build.
                 bad "Re-preparation failed. Enabled runs will not launch until 'preflight prepare' succeeds."
             fi
         fi
     fi
 
+    # The direct protocol has no launcher phase, so there is no launcher-ready duration to
+    # record. Null is the honest value; a zero would read as "the launcher was instantly ready".
+    local launcher_ms=null
+    if [[ -f "$launcher_detection" ]]; then
+        launcher_ms="$(jq -c '.launcherReadyMs // null' "$launcher_detection")"
+    fi
     record_run "$condition" "$iteration" "$status" "$reason" "$menu_ms" \
-        "$(jq -er '.launcherReadyMs' "$launcher_detection")" "$exit_code"
+        "$launcher_ms" "$exit_code"
     [[ "$status" == accepted ]]
 }
 
@@ -508,11 +581,13 @@ record_run() {
     [[ "$RECORDING" == true ]] || return 0
     local menu_detection="$ROOT/runs/${condition}-${iteration}/main-menu-ready.json"
     local start_instant="null" ready_instant="null" log_delta="null" trailing="null"
+    local first_line_ms="null"
     if [[ -f "$menu_detection" ]]; then
         start_instant="$(jq -c '.gameStartInstant // null' "$menu_detection")"
         ready_instant="$(jq -c '.mainMenuReadyInstant // null' "$menu_detection")"
         log_delta="$(jq -c '.gameLogMillisDelta // null' "$menu_detection")"
         trailing="$(jq -c '.trailingLogActivityMs // null' "$menu_detection")"
+        first_line_ms="$(jq -c '.firstObservedLogLineToGraphicsPreloadMs // null' "$menu_detection")"
     fi
     jq -nc \
         --arg condition "$condition" \
@@ -526,10 +601,14 @@ record_run() {
         --argjson mainMenuReadyInstant "$ready_instant" \
         --argjson gameLogMillisDelta "$log_delta" \
         --argjson trailing "$trailing" \
+        --argjson firstLineMs "$first_line_ms" \
+        --arg protocol "$PROTOCOL" \
         '{condition: $condition, iteration: $iteration, status: $status,
+          protocol: $protocol,
           reason: (if $reason == "" then null else $reason end),
           gameLogStartToMainMenuMs: $menuMs, launcherReadyMs: $launcherMs,
           trailingLogActivityMs: $trailing,
+          firstObservedLogLineToGraphicsPreloadMs: $firstLineMs,
           gameLogMillisDelta: $gameLogMillisDelta,
           gameStartInstant: $gameStartInstant, mainMenuReadyInstant: $mainMenuReadyInstant,
           exitCode: $exitCode}' >> "$RESULTS"
@@ -599,6 +678,15 @@ fi
 
 TOTAL=$(( ROUNDS * ${#CONDITION_LIST[@]} ))
 banner "== $TOTAL measured launches: ${#CONDITION_LIST[@]} conditions x $ROUNDS rounds =="
+if [[ "$PROTOCOL" == direct ]]; then
+cat <<'PROTOCOL'
+Nothing to do per launch. The game starts itself and is stopped once its own log says the
+load finished, so you can leave this running.
+
+The order of conditions is shuffled inside every round so that thermal drift and background
+load cannot line up with any one condition.
+PROTOCOL
+else
 cat <<'PROTOCOL'
 Per launch you do two things, each announced with a bell:
   1. click Play Starsector
@@ -607,6 +695,7 @@ Per launch you do two things, each announced with a bell:
 Do not load a save. The order of conditions is shuffled inside every round so that
 thermal drift and background load cannot line up with any one condition.
 PROTOCOL
+fi
 read -r -p "Press Enter to begin, or Ctrl-C to stop: "
 
 INDEX=0

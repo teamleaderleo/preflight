@@ -6,11 +6,38 @@ Until it produces one, the project has no measured acceleration, and
 [benchmarking.md](benchmarking.md) records why every earlier attempt failed.
 
 ```bash
-scripts/run-startup-benchmark.sh
+scripts/run-startup-benchmark.sh --unattended
 ```
 
-You do exactly two things per launch, each announced with a terminal bell: click **Play
-Starsector**, then quit from the main menu once it is up. Everything else is automatic.
+With `--unattended` you do nothing at all: the game starts itself and is stopped once its own
+log says the load finished. Without it, you do two things per launch, each announced with a
+terminal bell — click **Play Starsector**, then quit from the main menu once it is up.
+
+## The two protocols
+
+`--unattended` is not automation layered on top of the clicked protocol; it is a different
+launch, and a results file may hold only one of the two.
+
+| protocol | how the game starts | what it costs |
+| --- | --- | --- |
+| `clicked` | the launcher is built, shown, and an operator presses Play | your reaction time, and a launcher |
+| `direct` | Starsector's own `launchDirect` path starts the game with no launcher at all | nothing |
+
+`direct` is the game's, not ours. `StarfarerLauncher`'s constructor checks `launchDirect`
+*before* it decides between the legacy Swing UI and the OpenGL one, and when the property is
+present it reads `startRes`, `startFS` and `startSound`, calls the same static start method the
+Play button would have called, and returns without constructing a UI. `preflight
+launch-settings` reads those three values out of the launcher's own preferences, so an
+unattended launch is configured exactly like the one you would have clicked.
+
+It refuses rather than guesses. An unregistered copy makes the game take the direct branch and
+return without launching; a resolution that is not `WIDTHxHEIGHT` reaches `split("x")[1]` inside
+a try whose handler is a modal native dialog. Both would cost a full timeout, so both are
+checked before the first launch and reported with a reason.
+
+The reporter refuses to summarize a file that mixes the two. The launcher's OpenGL context, font
+loading and window creation exist in one and not the other, so a median across them is two
+quantities read as one.
 
 ## The three conditions
 
@@ -45,9 +72,24 @@ installation) and records it as `preparationMillis` setup cost.
 
 ## What is measured
 
-`gameLogStartToGraphicsPreloadMs` — the first game log line after you click Play, through
-to GraphicsLib reporting VRAM after preload. Six seconds of log silence still has to pass,
-because that is what proves the phase ended, but it no longer sets the timestamp.
+`gameLogStartToGraphicsPreloadMs` — from the first line Starsector's game-start method logs,
+`Running with the following mods (in order of priority):`, through to GraphicsLib reporting
+VRAM after preload. Six seconds of log silence still has to pass, because that is what proves
+the phase ended, but it no longer sets the timestamp.
+
+**That start anchor is load-bearing, and getting it wrong produced every startup number this
+project recorded before 2026-08-01.** The measurement used to begin at the first log line that
+appeared after the harness took its snapshot. Starsector's launcher writes into the same log
+the game does, so whether the launcher's lines had been flushed by then decided whether the
+early part of loading landed inside the measured interval. That is the entire "unexplained 18s
+bimodality": every run anchored on the launcher's line measured 92-99s, every run anchored on a
+later mid-load line measured 74-78s, and nothing else separated them. Reading the same launches
+straight out of the game's log says the high mode was correct — startup is ~92s, not ~75s. See
+[the evidence](evidence/2026-08-01-the-bimodality-was-the-anchor.md).
+
+`scripts/starsector_log_load_times.py` recovers load times from the game's logs with no harness
+involved, and is the independent check on all of this. Run it after a campaign: the harness and
+the detector agreed with each other the whole time this was wrong.
 
 That distinction is worth the paragraph. The first version measured to *the last line before
 the quiet window*, which meant whatever the game happened to log next landed in the result.
@@ -57,8 +99,8 @@ save-descriptor read to the preload marker was 0.5-0.7s in every one of sixteen 
 boundaries are still recorded, along with `trailingLogActivityMs`, so the excluded noise
 stays visible.
 
-It deliberately excludes the launcher wait, because that interval contains your reaction
-time. It also excludes world generation: do not load a save. The startup work Preflight
+It deliberately excludes the launcher phase, because under the clicked protocol that
+interval contains your reaction time and under the direct one it does not exist. It also excludes world generation: do not load a save. The startup work Preflight
 targets — mod init, texture load, audio decode — all completes before the main menu.
 
 Detection comes from [`starsector_log_ready_detector.py`](../scripts/starsector_log_ready_detector.py),

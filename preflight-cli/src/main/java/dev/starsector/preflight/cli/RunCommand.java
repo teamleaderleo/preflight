@@ -63,8 +63,7 @@ final class RunCommand {
                 options.exhaustiveFileReads(),
                 options.recordingMode(),
                 options.npotDirect(),
-                options.unpadded(),
-                options.autoPlayTimeoutMillis());
+                options.unpadded());
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());

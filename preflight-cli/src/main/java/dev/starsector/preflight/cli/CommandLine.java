@@ -25,7 +25,6 @@ record CommandLine(
         RecordingMode recordingMode,
         boolean npotDirect,
         boolean unpadded,
-        long autoPlayTimeoutMillis,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -38,7 +37,6 @@ record CommandLine(
         RecordingMode recordingMode = RecordingMode.FULL;
         boolean npotDirect = false;
         boolean unpadded = false;
-        long autoPlayTimeoutMillis = 0L;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -80,9 +78,6 @@ record CommandLine(
                 case "--profile" -> recordingMode = RecordingMode.SAMPLE;
                 case "--prepared-npot" -> npotDirect = true;
                 case "--prepared-unpadded" -> unpadded = true;
-                case "--auto-play" -> autoPlayTimeoutMillis = 120_000L;
-                case "--auto-play-timeout-ms" ->
-                        autoPlayTimeoutMillis = Long.parseLong(requireValue(args, ++i, arg).trim());
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -158,7 +153,6 @@ record CommandLine(
                 recordingMode,
                 npotDirect,
                 unpadded,
-                autoPlayTimeoutMillis,
                 List.copyOf(forwarded));
     }
 

@@ -198,6 +198,51 @@ class ReportTest(unittest.TestCase):
             summary["comparisons"],
         )
 
+    def test_two_launch_protocols_in_one_file_produce_no_comparison(self):
+        # `direct` never builds a launcher; `clicked` does. The launcher's OpenGL context, font
+        # loading and window creation are in one and not the other, so a median across them is
+        # two quantities read as one. A caveated delta would still get quoted, so there is none.
+        mixed = runs(
+            *[("vanilla", i, 100.0, "accepted") for i in range(1, 6)],
+            *[("fast", i, 80.0, "accepted") for i in range(1, 6)],
+        )
+        for index, run in enumerate(mixed):
+            run["protocol"] = "direct" if index % 2 else "clicked"
+
+        summary = report.summarize(mixed)
+        self.assertTrue(summary["protocolsMixed"])
+        self.assertEqual(["clicked", "direct"], summary["launchProtocols"])
+        self.assertEqual({}, summary["comparisons"])
+        self.assertFalse(summary["benchmarkAccepted"])
+        rendered = report.render(summary, verbose=True)
+        self.assertIn("NOT comparable", rendered)
+        # The per-condition table still prints: the runs happened and the operator paid for
+        # them, and knowing which protocol each fell under is how they get salvaged.
+        self.assertIn("vanilla", rendered)
+
+    def test_a_single_protocol_compares_normally(self):
+        single = runs(
+            *[("vanilla", i, 100.0, "accepted") for i in range(1, 6)],
+            *[("fast", i, 80.0, "accepted") for i in range(1, 6)],
+        )
+        for run in single:
+            run["protocol"] = "direct"
+
+        summary = report.summarize(single)
+        self.assertFalse(summary["protocolsMixed"])
+        self.assertEqual(["direct"], summary["launchProtocols"])
+        self.assertTrue(summary["benchmarkAccepted"])
+
+    def test_sessions_recorded_before_protocols_existed_read_as_clicked(self):
+        # Every run recorded before 2026-08-01 was a clicked one. Treating a missing field as
+        # its own protocol would make every older session look internally inconsistent.
+        summary = report.summarize(runs(
+            *[("vanilla", i, 100.0, "accepted") for i in range(1, 6)],
+            *[("fast", i, 80.0, "accepted") for i in range(1, 6)],
+        ))
+        self.assertEqual(["clicked"], summary["launchProtocols"])
+        self.assertFalse(summary["protocolsMixed"])
+
     def test_no_baseline_means_no_comparison_rather_than_a_crash(self):
         summary = report.summarize(runs(("enabled", 1, 80.0, "accepted")))
         self.assertEqual({}, summary["comparisons"])
@@ -391,18 +436,59 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertNotIn("agent", condition)
 
 
-class AutoPlayTest(unittest.TestCase):
-    """Driving the launcher removes the operator from the loop, and the two ways that can go
-    wrong quietly are driving the run that must not be driven, and reading our own SIGTERM as
-    a failed run."""
+class UnattendedTest(unittest.TestCase):
+    """Running without an operator removes the two things a human did. The ways it goes wrong
+    quietly are measuring two protocols as one, and reading our own SIGTERM as a failed run."""
 
-    def test_vanilla_is_never_driven(self):
-        # vanilla launches with JAVA_TOOL_OPTIONS cleared, so no agent is attached and nothing
-        # in the process can press the button. Attaching one to drive it would stop it being
-        # the baseline, which is the only thing that condition exists to be.
+    def test_every_condition_is_driven_including_vanilla(self):
+        # The properties travel through the game's own EXTRAARGS hook rather than through the
+        # agent, so vanilla is unattended too. That is the whole difference from the button
+        # driver this replaced, which needed something inside the process and so could never
+        # touch the baseline.
         block = re.search(r"local auto=false\n(?P<body>.*?)\n    fi", SCRIPT_TEXT, re.DOTALL)
-        self.assertIsNotNone(block, "auto-play condition gate not found")
-        self.assertIn('"$condition" != vanilla', block.group("body"))
+        self.assertIsNotNone(block, "unattended gate not found")
+        self.assertIn('"$PROTOCOL" == direct', block.group("body"))
+        self.assertNotIn("vanilla", block.group("body"))
+
+    def test_an_install_that_cannot_be_driven_is_refused_before_any_launch(self):
+        # Forty minutes into a campaign is the wrong time to find out that nothing is going to
+        # press anything. The check runs before the first launch and exits.
+        gate = re.search(
+            r"directLaunchAvailable.*?exit 2", SCRIPT_TEXT, re.DOTALL
+        )
+        self.assertIsNotNone(gate, "direct-launch availability gate not found")
+        self.assertIn("--unattended is not available", gate.group(0))
+        self.assertLess(
+            SCRIPT_TEXT.index("directLaunchAvailable"),
+            SCRIPT_TEXT.index("launch_once() {"),
+            "availability is decided before any launch can happen",
+        )
+
+    def test_the_settings_come_from_the_launcher_rather_than_from_the_script(self):
+        # A hard-coded resolution would launch fine and measure a configuration nobody chose.
+        self.assertIn("launch-settings", SCRIPT_TEXT)
+        self.assertIn(".settings.javaOptions", SCRIPT_TEXT)
+        self.assertNotRegex(SCRIPT_TEXT, r"startRes=\d+x\d+")
+
+    def test_the_old_button_driver_is_refused_rather_than_aliased(self):
+        # --auto-play measured a different interval. Quietly accepting the name would put two
+        # protocols in one results file.
+        self.assertIn("--auto-play|--auto-play-timeout-ms)", SCRIPT_TEXT)
+        self.assertNotIn("command+=(--auto-play)", SCRIPT_TEXT)
+
+    def test_the_protocol_is_recorded_with_every_run(self):
+        # The results file is the only place the two can be told apart afterwards.
+        body = re.search(r"record_run\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(body)
+        self.assertIn("protocol: $protocol", body.group("body"))
+
+    def test_the_direct_protocol_does_not_wait_for_a_launcher_that_never_appears(self):
+        # There is no launcher under launchDirect, so its readiness marker is never logged.
+        # Watching for it would spend the full launcher timeout before every single run.
+        self.assertRegex(
+            SCRIPT_TEXT,
+            r'if \[\[ "\$auto" != true \]\]; then\n(?:.*?\n)*?\s*if ! python3 "\$DETECTOR" watch-launcher',
+        )
 
     def test_a_deliberate_stop_is_not_counted_as_a_failed_run(self):
         # The harness signals the game once the menu marker lands, and `wait` then reports a
@@ -539,7 +625,8 @@ class RecordedShapeTest(unittest.TestCase):
     that the two agree, so a renamed field would otherwise surface 35 minutes into a
     session with the game already running."""
 
-    def record(self, directory: Path, *args: str, recording: str = "true") -> None:
+    def record(self, directory: Path, *args: str, recording: str = "true",
+               protocol: str = "clicked") -> None:
         body = re.search(
             r"record_run\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL
         )
@@ -548,6 +635,7 @@ class RecordedShapeTest(unittest.TestCase):
             'set -euo pipefail\n'
             f'ROOT="{directory}"\n'
             f'RECORDING={recording}\n'
+            f'PROTOCOL={protocol}\n'
             'RESULTS="$ROOT/results.jsonl"\n'
             f'record_run() {{{body.group("body")}\n}}\n'
             'record_run "$@"\n'

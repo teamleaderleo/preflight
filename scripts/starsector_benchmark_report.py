@@ -83,6 +83,19 @@ def conditions_present(runs: list[dict]) -> list[str]:
     return known + sorted(seen - set(ORDER))
 
 
+def protocols(runs: list[dict]) -> list[str]:
+    """Every launch protocol present, oldest sessions reporting none as 'clicked'.
+
+    A results file that holds both is not comparable and must not be summarized as if it
+    were. `clicked` waits for the launcher and an operator; `direct` uses Starsector's own
+    launchDirect path and never builds a launcher at all, so the launcher's OpenGL context,
+    font loading and window creation are in one and not the other. Reading a median across
+    the two would be reading two quantities as one -- the same mistake, in a different place,
+    as the anchor artifact of 2026-08-01.
+    """
+    return sorted({run.get("protocol") or "clicked" for run in runs})
+
+
 def permutation_p(baseline: list[float], candidate: list[float]) -> float | None:
     """Exact two-sided p-value for a difference in medians.
 
@@ -125,8 +138,15 @@ def summarize(runs: list[dict]) -> dict:
             "samplesSeconds": [round(value, 2) for value in samples],
         }
 
+    present_protocols = protocols(runs)
+    mixed = len(present_protocols) > 1
+
     comparisons: dict[str, dict] = {}
     for baseline, candidate, why in INTERESTING:
+        if mixed:
+            # No comparison at all rather than a caveated one. A delta between two protocols
+            # is not a small measurement error to note in passing; it is not a delta.
+            break
         if baseline not in present or candidate not in present:
             continue
         left, right = accepted(runs, baseline), accepted(runs, candidate)
@@ -147,11 +167,13 @@ def summarize(runs: list[dict]) -> dict:
 
     return {
         "scenarioId": "main-menu-v1",
-        "measured": "game log start to main menu ready",
+        "measured": "game start log marker to graphics preload",
         "campaignMinimumSuccessfulRunsPerCondition": CAMPAIGN_MINIMUM,
+        "launchProtocols": present_protocols,
+        "protocolsMixed": mixed,
         "conditions": stats,
         "comparisons": comparisons,
-        "benchmarkAccepted": bool(comparisons) and all(
+        "benchmarkAccepted": (not mixed) and bool(comparisons) and all(
             values["successfulRuns"] >= CAMPAIGN_MINIMUM
             for condition, values in stats.items()
             if condition not in DIAGNOSTIC
@@ -195,9 +217,22 @@ def render(summary: dict, verbose: bool) -> str:
         lines.append("A positive delta means the candidate was faster. Only a comparison whose two")
         lines.append("conditions differ in one thing isolates that thing.")
 
+    if summary.get("protocolsMixed"):
+        lines.append("")
+        lines.append(
+            "NOT comparable: this results file mixes the "
+            + " and ".join(summary["launchProtocols"])
+            + " launch protocols."
+        )
+        lines.append("They do not measure the same interval -- the direct protocol never builds")
+        lines.append("a launcher -- so no median across them means anything. Run each protocol")
+        lines.append("into its own session directory.")
+
     if verbose:
         lines.append("")
-        if not comparisons:
+        if summary.get("protocolsMixed"):
+            pass
+        elif not comparisons:
             lines.append("No comparison yet: no pair of conditions both have a successful run.")
         elif not summary["benchmarkAccepted"]:
             shortfall = [

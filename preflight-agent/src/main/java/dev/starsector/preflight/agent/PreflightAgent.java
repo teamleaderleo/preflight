@@ -34,12 +34,6 @@ public final class PreflightAgent {
         AdapterRuntime.Session adapterSession = contain(
                 "Adapter initialization",
                 () -> AdapterRuntime.start(options, instrumentation));
-        if (options.autoPlayTimeoutMillis() > 0) {
-            contain("Auto-play", () -> {
-                LauncherAutoPlay.arm(options.autoPlayTimeoutMillis());
-                return null;
-            });
-        }
         Recording recording = startRecording(options);
         try {
             Runtime.getRuntime().addShutdownHook(new Thread(
