@@ -112,6 +112,28 @@ def _write_result(output: Path, result: dict[str, object]) -> None:
     output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+class WallClock:
+    """Converts the monotonic stamps used for measurement into absolute instants.
+
+    Durations are measured on the monotonic clock so a system time adjustment mid-run
+    cannot distort them. The benchmark recorder needs absolute milestones, so one
+    reference pair taken at watch start maps the two clocks onto each other.
+    """
+
+    def __init__(self) -> None:
+        self.epoch_ns = time.time_ns()
+        self.monotonic_ns = time.monotonic_ns()
+
+    def epoch_millis(self, observed_ns: int) -> int:
+        return round((self.epoch_ns + (observed_ns - self.monotonic_ns)) / 1_000_000)
+
+    def iso(self, observed_ns: int) -> str:
+        millis = self.epoch_millis(observed_ns)
+        seconds, remainder = divmod(millis, 1000)
+        moment = time.gmtime(seconds)
+        return f"{time.strftime('%Y-%m-%dT%H:%M:%S', moment)}.{remainder:03d}Z"
+
+
 def watch_launcher(
     log_dir: Path,
     snapshot_file: Path,
@@ -177,6 +199,7 @@ def watch_main_menu(
     sleep_seconds: float = 0.05,
 ) -> bool:
     state = TailState(load_offsets(snapshot_file))
+    clock = WallClock()
     deadline = time.monotonic() + timeout_seconds
     starts: dict[int, LogLine] = {}
     descriptor_lines: dict[int, LogLine] = {}
@@ -221,6 +244,8 @@ def watch_main_menu(
                     "gameStartLine": start.text[:1000],
                     "gameStartLogMillis": start.log_ms,
                     "mainMenuReadyLogMillis": end_log_ms,
+                    "gameStartInstant": clock.iso(start.observed_ns),
+                    "mainMenuReadyInstant": clock.iso(last_activity_ns),
                     "gameLogStartToMainMenuMs": observed_delta_ms,
                     "gameLogMillisDelta": log_delta_ms,
                     "saveDescriptorSeen": True,

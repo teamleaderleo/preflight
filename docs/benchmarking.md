@@ -1,5 +1,11 @@
 # Benchmarking
 
+**To actually run one, see [the repeated startup benchmark](startup-benchmark.md).** That
+harness drives the protocol below against the reviewed installation: three conditions
+(vanilla, agent-only, enabled), shuffled inside every round, resumable, with the report
+refusing to accept a result below five successful runs per condition. This page remains the
+contract and the command reference.
+
 For the runtime/launcher campaign matrix (vanilla+bundled-Java, vanilla+alternate-Java, FR
 — each OFF and warm), the per-combination outcome list, the community launch-time envelope,
 and why identities must never be merged, see

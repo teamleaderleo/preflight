@@ -1,3 +1,4 @@
+import calendar
 import importlib.util
 import json
 import os
@@ -103,6 +104,54 @@ class DetectorTest(unittest.TestCase):
         self.assertEqual(9700, result["mainMenuReadyLogMillis"])
         self.assertEqual(2700, result["gameLogMillisDelta"])
         self.assertGreater(result["gameLogStartToMainMenuMs"], 0)
+
+    def test_main_menu_reports_absolute_instants_the_recorder_can_consume(self):
+        # The benchmark recorder needs absolute milestones, but durations are measured on
+        # the monotonic clock. Both boundaries must land inside the wall-clock window the
+        # watch actually occupied, and their gap must match the reported duration.
+        output = self.root / "main-menu-instants.json"
+        before = time.time()
+
+        def writer():
+            # Separated in time: lines read in one poll share an observed stamp, and the
+            # real game's boundary lines are seconds apart.
+            time.sleep(0.02)
+            self.append("7000 [Thread-3] INFO game - first post-click line")
+            time.sleep(0.05)
+            self.append(
+                "9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                "Reading save data from [save/descriptor.xml]"
+            )
+            time.sleep(0.05)
+            self.append(
+                "9500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
+                "VRAM after unload/preload: 450555 bytes"
+            )
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=2.0, quiet_seconds=0.10, sleep_seconds=0.01,
+        )
+        thread.join()
+        after = time.time()
+        self.assertTrue(accepted)
+        result = json.loads(output.read_text())
+
+        start = self.instant_seconds(result["gameStartInstant"])
+        ready = self.instant_seconds(result["mainMenuReadyInstant"])
+        self.assertLessEqual(before - 1.0, start)
+        self.assertLessEqual(ready, after + 1.0)
+        self.assertLess(start, ready)
+        self.assertAlmostEqual(
+            result["gameLogStartToMainMenuMs"] / 1000.0, ready - start, delta=0.05
+        )
+
+    def instant_seconds(self, text):
+        self.assertTrue(text.endswith("Z"), text)
+        parsed = time.strptime(text[:-5], "%Y-%m-%dT%H:%M:%S")
+        return calendar.timegm(parsed) + int(text[-4:-1]) / 1000.0
 
     def test_main_menu_uses_stream_containing_both_markers(self):
         output = self.root / "main-menu-stream.json"

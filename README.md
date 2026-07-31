@@ -171,6 +171,17 @@ See [automatic launch and discovery](docs/automatic-launch.md) for the full beha
 
 ## Benchmark records
 
+To run one against a real installation:
+
+```bash
+scripts/run-startup-benchmark.sh
+```
+
+Three conditions — vanilla, agent-only, preflight-enabled — shuffled inside every round so
+drift cannot line up with a condition, resumable after a bad launch, and reporting an exact
+permutation p-value beside every median. You click Play and quit the main menu; the rest is
+automatic. See [the repeated startup benchmark](docs/startup-benchmark.md).
+
 Inspect the available benchmark commands with:
 
 ```bash
