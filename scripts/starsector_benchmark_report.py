@@ -18,12 +18,24 @@ from pathlib import Path
 
 BASELINE = "vanilla"
 CAMPAIGN_MINIMUM = 5
-ORDER = ["vanilla", "agent", "enabled"]
+ORDER = ["vanilla", "agent", "enabled", "fast"]
 LABELS = {
     "vanilla": "vanilla (no preflight)",
     "agent": "agent only (recorder)",
-    "enabled": "preflight enabled",
+    "enabled": "preflight + recorder",
+    "fast": "preflight, no recorder",
 }
+# Comparisons worth naming, because the interesting ones are not against the baseline.
+# The 2026-07-31 campaign reported only "enabled vs vanilla" and so reported -2.4%, hiding
+# a texture cache worth -15% behind a recorder worth +24%. A comparison is only clean when
+# the two conditions differ in one thing.
+INTERESTING = [
+    ("agent", "enabled", "the texture cache, recorder held constant"),
+    ("vanilla", "fast", "what a user would actually feel"),
+    ("vanilla", "agent", "the cost of the recorder"),
+    ("enabled", "fast", "the cost of the recorder, cache held constant"),
+    ("vanilla", "enabled", "net, confounded by the recorder"),
+]
 
 
 def load(results: Path) -> list[dict]:
@@ -95,24 +107,22 @@ def summarize(runs: list[dict]) -> dict:
         }
 
     comparisons: dict[str, dict] = {}
-    baseline_samples = accepted(runs, BASELINE)
-    for condition in present:
-        if condition == BASELINE or not baseline_samples:
+    for baseline, candidate, why in INTERESTING:
+        if baseline not in present or candidate not in present:
             continue
-        samples = accepted(runs, condition)
-        if not samples:
+        left, right = accepted(runs, baseline), accepted(runs, candidate)
+        if not left or not right:
             continue
-        delta = statistics.median(samples) - statistics.median(baseline_samples)
-        comparisons[condition] = {
-            "versus": BASELINE,
+        delta = statistics.median(right) - statistics.median(left)
+        comparisons[f"{candidate} vs {baseline}"] = {
+            "baseline": baseline,
+            "candidate": candidate,
+            "isolates": why,
             "deltaSeconds": round(delta, 2),
-            "improvementPercent": round(
-                -delta / statistics.median(baseline_samples) * 100, 2
-            ),
-            "permutationP": permutation_p(baseline_samples, samples),
+            "improvementPercent": round(-delta / statistics.median(left) * 100, 2),
+            "permutationP": permutation_p(left, right),
             "meetsCampaignMinimum": (
-                len(samples) >= CAMPAIGN_MINIMUM
-                and len(baseline_samples) >= CAMPAIGN_MINIMUM
+                len(left) >= CAMPAIGN_MINIMUM and len(right) >= CAMPAIGN_MINIMUM
             ),
         }
 
@@ -121,48 +131,53 @@ def summarize(runs: list[dict]) -> dict:
         "measured": "game log start to main menu ready",
         "campaignMinimumSuccessfulRunsPerCondition": CAMPAIGN_MINIMUM,
         "conditions": stats,
-        "comparisonsVersusVanilla": comparisons,
+        "comparisons": comparisons,
         "benchmarkAccepted": bool(comparisons) and all(
-            comparison["meetsCampaignMinimum"] for comparison in comparisons.values()
+            values["successfulRuns"] >= CAMPAIGN_MINIMUM for values in stats.values()
         ),
     }
 
 
 def render(summary: dict, verbose: bool) -> str:
     lines: list[str] = []
-    lines.append(f"{'condition':<24}{'n':>3}{'median':>10}{'min':>9}{'max':>9}")
-    lines.append("-" * 55)
+    lines.append(f"{'condition':<24}{'n':>3}{'median':>10}{'min':>9}{'max':>9}{'range':>9}")
+    lines.append("-" * 64)
     for condition, values in summary["conditions"].items():
         median = values["medianSeconds"]
         lines.append(
             f"{LABELS.get(condition, condition):<24}"
             f"{values['successfulRuns']:>3}"
             + (
-                f"{median:>9.2f}s{values['minimumSeconds']:>8.2f}s{values['maximumSeconds']:>8.2f}s"
+                f"{median:>9.2f}s{values['minimumSeconds']:>8.2f}s"
+                f"{values['maximumSeconds']:>8.2f}s"
+                f"{values['maximumSeconds'] - values['minimumSeconds']:>8.2f}s"
                 if median is not None
-                else f"{'--':>10}{'--':>9}{'--':>9}"
+                else f"{'--':>10}{'--':>9}{'--':>9}{'--':>9}"
             )
             + (f"   ({values['excludedRuns']} excluded)" if values["excludedRuns"] else "")
         )
 
-    comparisons = summary["comparisonsVersusVanilla"]
+    comparisons = summary["comparisons"]
     if comparisons:
         lines.append("")
-        for condition, comparison in comparisons.items():
+        width = max(len(name) for name in comparisons)
+        for name, comparison in comparisons.items():
             delta = comparison["deltaSeconds"]
-            direction = "faster" if delta < 0 else "slower"
             p_value = comparison["permutationP"]
-            p_text = "p unavailable" if p_value is None else f"p = {p_value:.3f}"
+            p_text = "p     --" if p_value is None else f"p = {p_value:.3f}"
             lines.append(
-                f"{LABELS.get(condition, condition)} vs vanilla: "
-                f"{abs(delta):.2f}s {direction} "
-                f"({abs(comparison['improvementPercent']):.1f}%), {p_text}"
+                f"{name:<{width}}  {-delta:+7.2f}s "
+                f"({abs(comparison['improvementPercent']):5.1f}%)  {p_text}   "
+                f"{comparison['isolates']}"
             )
+        lines.append("")
+        lines.append("A positive delta means the candidate was faster. Only a comparison whose two")
+        lines.append("conditions differ in one thing isolates that thing.")
 
     if verbose:
         lines.append("")
         if not comparisons:
-            lines.append("No comparison yet: the vanilla baseline has no successful run.")
+            lines.append("No comparison yet: no pair of conditions both have a successful run.")
         elif not summary["benchmarkAccepted"]:
             shortfall = [
                 f"{LABELS.get(condition, condition)} n={values['successfulRuns']}"

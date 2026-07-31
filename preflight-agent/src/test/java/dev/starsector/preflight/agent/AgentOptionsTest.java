@@ -1,8 +1,10 @@
 package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -63,6 +65,25 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/cache/manifests/profile.spfm"), options.textureManifest());
         assertEquals(Path.of("build/cache/indexes/profile.spfi"), options.textureIndex());
         assertEquals(TextureAdapterMode.PREPARED_PIXELS, options.textureAdapterMode());
+    }
+
+    @Test
+    void recordsStartupUnlessTheCallerTurnsItOff() {
+        // Recording costs about 24% of startup on the reviewed installation, which is more
+        // than the texture cache saves, so it has to be separable from the adapter. It stays
+        // on by default: every analysis command in this repository reads what it produces.
+        assertTrue(AgentOptions.parse("adapter=enabled").recordStartup());
+        assertTrue(AgentOptions.parse("").recordStartup());
+        assertFalse(AgentOptions.parse("adapter=enabled,record=off").recordStartup());
+        assertFalse(AgentOptions.parse("record=OFF").recordStartup());
+    }
+
+    @Test
+    void anUnrecognisedRecordValueKeepsRecordingRatherThanSilentlyLosingTheProfile() {
+        // Failing open here means an extra recording; failing closed means a run whose
+        // profile silently never existed, which is the more expensive mistake.
+        assertTrue(AgentOptions.parse("record=on").recordStartup());
+        assertTrue(AgentOptions.parse("record=yes").recordStartup());
     }
 
     @Test

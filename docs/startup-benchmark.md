@@ -18,7 +18,8 @@ Starsector**, then quit from the main menu once it is up. Everything else is aut
 | --- | --- | --- |
 | `vanilla` | the game's own `starsector_mac.sh`, with `JAVA_TOOL_OPTIONS` cleared | the true baseline |
 | `agent` | `preflight run --no-adapter` | what the JFR recorder itself costs |
-| `enabled` | `preflight run --adapter --texture-auto` | the prepared texture path |
+| `enabled` | `preflight run --adapter --texture-auto` | the prepared texture path, recorded |
+| `fast` | the same plus `--no-record` | the caches without paying for the profile |
 
 The middle condition is the one that is easy to leave out and expensive to lose. Preflight
 attaches a recording agent in **both** of its modes, so a bare `enabled` minus `vanilla`
@@ -34,8 +35,17 @@ installation) and records it as `preparationMillis` setup cost.
 
 ## What is measured
 
-`gameLogStartToMainMenuMs` — the first game log line after you click Play, through to
-GraphicsLib reporting VRAM after preload, confirmed by six seconds of log silence.
+`gameLogStartToGraphicsPreloadMs` — the first game log line after you click Play, through
+to GraphicsLib reporting VRAM after preload. Six seconds of log silence still has to pass,
+because that is what proves the phase ended, but it no longer sets the timestamp.
+
+That distinction is worth the paragraph. The first version measured to *the last line before
+the quiet window*, which meant whatever the game happened to log next landed in the result.
+On the 2026-07-31 campaign that trailing chatter ranged from **0.0 to 9.3 seconds** across
+otherwise identical runs. The preload phase itself is not the variable part: from the
+save-descriptor read to the preload marker was 0.5-0.7s in every one of sixteen runs. Both
+boundaries are still recorded, along with `trailingLogActivityMs`, so the excluded noise
+stays visible.
 
 It deliberately excludes the launcher wait, because that interval contains your reaction
 time. It also excludes world generation: do not load a save. The startup work Preflight
@@ -80,15 +90,20 @@ built for.
 
 ## Reading the result
 
-```text
-condition                 n    median      min      max
--------------------------------------------------------
-vanilla (no preflight)    5    85.06s   84.30s   85.90s
-agent only (recorder)     5    86.65s   86.20s   87.10s
-preflight enabled         5    79.10s   78.40s   80.20s
+The report names several comparisons, not one, because **the interesting ones are not
+against the baseline**. A comparison only isolates something when its two conditions differ
+in exactly one thing:
 
-preflight enabled vs vanilla: 5.96s faster (7.0%), p = 0.008
+```text
+enabled vs agent     +12.81s ( 13.7%)  p = 0.119   the texture cache, recorder held constant
+fast vs vanilla       +7.20s (  9.6%)  p = 0.032   what a user would actually feel
+agent vs vanilla     -10.82s ( 13.1%)  p = 0.167   the cost of the recorder
+enabled vs vanilla    +1.99s (  2.4%)  p = 0.714   net, confounded by the recorder
 ```
+
+The first campaign, on 2026-07-31, reported only the last of those and so reported 2.4%.
+That single number hid a texture cache worth about 15% behind a recorder costing about 24%.
+Reporting one comparison against one baseline is how a real effect goes missing.
 
 Each comparison carries an exact permutation p-value over the difference in medians. With
 three runs per condition the smallest reachable value is 0.100, so a three-round session
@@ -117,3 +132,22 @@ Each session writes to `~/.starsector-preflight/benchmarks/<timestamp>/`:
 `identity.json` (repository head, JAR hash, hardware, OS, Java, profile fingerprint, seed),
 `results.jsonl` (one line per launch), `benchmark-summary.json`, and a per-run directory
 holding the JFR recording, profile census, detector output, and log snapshots.
+
+## Running the caches without the profile
+
+The recorder is not free. Measured against itself on the 2026-07-31 campaign it cost about
+**24% of startup** — stack-traced class loads and file reads plus 10ms execution sampling,
+across the tens of thousands of classes Starsector loads. That is more than the texture
+cache saves, which is why `enabled` versus `vanilla` came out near zero while `enabled`
+versus `agent` came out at 15%.
+
+So there is a launch mode that keeps the caches and skips the profile:
+
+```bash
+java -jar preflight.jar run --adapter --texture-auto --no-record
+```
+
+The adapter still runs and still writes `adapter.json`; only the JFR recording is skipped.
+Recording stays **on** by default, because every analysis command in this repository reads
+what it produces — `--no-record` is for launching, not for measuring. A run made this way
+has no `startup.jfr` and so cannot feed `preflight benchmark collect` or the probes.

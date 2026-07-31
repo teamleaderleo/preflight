@@ -153,6 +153,47 @@ class DetectorTest(unittest.TestCase):
         parsed = time.strptime(text[:-5], "%Y-%m-%dT%H:%M:%S")
         return calendar.timegm(parsed) + int(text[-4:-1]) / 1000.0
 
+    def test_the_preload_boundary_ignores_whatever_the_game_logs_afterwards(self):
+        # On the 2026-07-31 campaign the gap between the preload marker and the last line
+        # before the quiet window ranged from 0.0 to 9.3 seconds across otherwise identical
+        # runs. Measuring to the last line put all of that straight into the result.
+        output = self.root / "main-menu-trailing.json"
+
+        def writer():
+            time.sleep(0.02)
+            self.append("7000 [Thread-3] INFO game - first post-click line")
+            time.sleep(0.05)
+            self.append(
+                "9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                "Reading save data from [save/descriptor.xml]"
+            )
+            self.append(
+                "9500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
+                "VRAM after unload/preload: 450555 bytes"
+            )
+            # Chatter that lands inside the quiet window pushes the old boundary out; this
+            # is the shape that produced 0.0-9.3s of run-to-run noise on the real campaign.
+            time.sleep(0.07)
+            self.append("12000 [Thread-9] INFO something - unrelated later line")
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=3.0, quiet_seconds=0.10, sleep_seconds=0.01,
+        )
+        thread.join()
+        self.assertTrue(accepted)
+        result = json.loads(output.read_text())
+
+        preload = result["gameLogStartToGraphicsPreloadMs"]
+        last_line = result["gameLogStartToMainMenuMs"]
+        self.assertGreater(last_line - preload, 40,
+                           "the trailing line should sit after the preload marker")
+        self.assertAlmostEqual(last_line - preload, result["trailingLogActivityMs"], delta=1)
+        # Both boundaries are kept, so a reader can see how much noise was excluded.
+        self.assertLess(preload, last_line)
+
     def test_main_menu_uses_stream_containing_both_markers(self):
         output = self.root / "main-menu-stream.json"
         old_log = self.root / "starsector.log.1"

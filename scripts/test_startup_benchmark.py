@@ -125,7 +125,7 @@ class ReportTest(unittest.TestCase):
         ))
         self.assertEqual(102.0, summary["conditions"]["vanilla"]["medianSeconds"])
         self.assertEqual(92.0, summary["conditions"]["enabled"]["medianSeconds"])
-        comparison = summary["comparisonsVersusVanilla"]["enabled"]
+        comparison = summary["comparisons"]["enabled vs vanilla"]
         self.assertEqual(-10.0, comparison["deltaSeconds"])
         self.assertAlmostEqual(9.8, comparison["improvementPercent"], places=1)
 
@@ -149,7 +149,7 @@ class ReportTest(unittest.TestCase):
             *[("enabled", i, 10.0, "accepted") for i in range(1, 4)],
         ))
         self.assertFalse(summary["benchmarkAccepted"])
-        self.assertGreaterEqual(summary["comparisonsVersusVanilla"]["enabled"]["permutationP"], 0.1)
+        self.assertGreaterEqual(summary["comparisons"]["enabled vs vanilla"]["permutationP"], 0.1)
 
     def test_five_clean_rounds_per_condition_are_reportable(self):
         summary = report.summarize(runs(
@@ -158,7 +158,7 @@ class ReportTest(unittest.TestCase):
         ))
         self.assertTrue(summary["benchmarkAccepted"])
         self.assertTrue(
-            summary["comparisonsVersusVanilla"]["enabled"]["meetsCampaignMinimum"]
+            summary["comparisons"]["enabled vs vanilla"]["meetsCampaignMinimum"]
         )
 
     def test_a_condition_short_of_the_threshold_blocks_acceptance(self):
@@ -171,9 +171,9 @@ class ReportTest(unittest.TestCase):
 
     def test_no_baseline_means_no_comparison_rather_than_a_crash(self):
         summary = report.summarize(runs(("enabled", 1, 80.0, "accepted")))
-        self.assertEqual({}, summary["comparisonsVersusVanilla"])
+        self.assertEqual({}, summary["comparisons"])
         self.assertFalse(summary["benchmarkAccepted"])
-        self.assertIn("baseline", report.render(summary, verbose=True))
+        self.assertIn("No comparison yet", report.render(summary, verbose=True))
 
     def test_summary_round_trips_through_the_written_file(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -285,9 +285,19 @@ class AdapterEvidenceTest(unittest.TestCase):
     def test_a_missing_report_is_rejected_rather_than_assumed_healthy(self):
         self.assertFalse(self.served(None))
 
-    def test_only_the_enabled_condition_is_checked(self):
-        # vanilla and agent legitimately have no adapter evidence.
-        self.assertIn('[[ "$condition" == enabled ]] && ! served_prepared_textures', SCRIPT_TEXT)
+    def test_both_cache_serving_conditions_are_checked_and_no_others(self):
+        # vanilla and agent legitimately have no adapter evidence; enabled and fast both
+        # serve from the cache, so both have to prove they did.
+        guard = re.search(
+            r'elif \[\[ (?P<test>[^\]]*) \]\] \\?\s*\n?\s*&& ! served_prepared_textures',
+            SCRIPT_TEXT,
+        )
+        self.assertIsNotNone(guard, "adapter guard not found")
+        condition = guard.group("test")
+        self.assertIn("enabled", condition)
+        self.assertIn("fast", condition)
+        self.assertNotIn("vanilla", condition)
+        self.assertNotIn("agent", condition)
 
 
 class RecordedShapeTest(unittest.TestCase):

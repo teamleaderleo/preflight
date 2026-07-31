@@ -80,7 +80,7 @@ final class AgentInjection {
             Path textureIndex,
             TextureAdapterMode textureAdapterMode) {
         return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
-                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode, false);
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode, false, true);
     }
 
     static String append(
@@ -94,7 +94,8 @@ final class AgentInjection {
             Path textureManifest,
             Path textureIndex,
             TextureAdapterMode textureAdapterMode,
-            boolean exhaustiveFileReads) {
+            boolean exhaustiveFileReads,
+            boolean recordStartup) {
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
         if (lower.contains("-javaagent:") && lower.contains("preflight")) {
@@ -114,6 +115,9 @@ final class AgentInjection {
         appendPath(arguments, "textureIndex64", textureIndex);
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
+        }
+        if (!recordStartup) {
+            arguments.append(",record=off");
         }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())

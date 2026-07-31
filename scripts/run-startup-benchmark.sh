@@ -9,7 +9,7 @@ set -euo pipefail
 GAME="${GAME:-/Applications/Starsector.app}"
 CACHE="${CACHE:-$HOME/.starsector-preflight/cache}"
 ROUNDS=5
-CONDITIONS="vanilla,agent,enabled"
+CONDITIONS="vanilla,agent,enabled,fast"
 SESSION=""
 SKIP_WARMUP=false
 SEED="${SEED:-$RANDOM}"
@@ -31,7 +31,7 @@ Usage: scripts/run-startup-benchmark.sh [options]
   --rounds N          Rounds of every condition (default 5, the campaign threshold for
                       a reportable claim). Fewer rounds cannot reach significance: with
                       three per condition the smallest possible p-value is 0.1.
-  --conditions LIST   Comma-separated subset of vanilla,agent,enabled (default all).
+  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast (default all).
   --resume DIR        Continue an interrupted session, keeping its completed runs.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
   --game PATH         Starsector installation (default /Applications/Starsector.app).
@@ -40,11 +40,15 @@ Usage: scripts/run-startup-benchmark.sh [options]
 Conditions:
   vanilla   the game's own launcher, no preflight at all -- the true baseline
   agent     preflight run --no-adapter -- isolates what the JFR recorder itself costs
-  enabled   preflight run --adapter --texture-auto -- the prepared texture path
+  enabled   preflight run --adapter --texture-auto -- the prepared texture path, recorded
+  fast      the same, plus --no-record -- the caches without paying for the profile
 
 Each launch costs about 90 seconds plus your two clicks, so the default 5 rounds across
-three conditions is roughly 35 minutes. Ctrl-C is safe at any point: completed runs are
+four conditions is roughly 45 minutes. Ctrl-C is safe at any point: completed runs are
 kept, and --resume picks the session back up where it stopped.
+
+To answer only "is Preflight worth it", drop the two diagnostic conditions:
+  --conditions vanilla,fast
 USAGE
 }
 
@@ -89,7 +93,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled) ;;
+        vanilla|agent|enabled|fast) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -230,6 +234,10 @@ launch_once() {
         enabled)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE") ;;
+        fast)
+            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
+                     --no-record) ;;
     esac
 
     banner "$label"
@@ -270,7 +278,9 @@ launch_once() {
     fi
 
     local menu_ms
-    menu_ms="$(jq -er '.gameLogStartToMainMenuMs' "$menu_detection")"
+    # The preload marker, not the last line before the quiet window: the trailing chatter
+    # after preload ranged 0.0-9.3s across otherwise identical runs on 2026-07-31.
+    menu_ms="$(jq -er '.gameLogStartToGraphicsPreloadMs' "$menu_detection")"
     good "$(awk -v ms="$menu_ms" 'BEGIN { printf "Main menu ready in %.1fs", ms / 1000 }')"
     act "QUIT from the main menu now  (close the launcher if it reappears)"
 
@@ -287,7 +297,8 @@ launch_once() {
         status=excluded; reason="nonzero-exit-$exit_code"
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
-    elif [[ "$condition" == enabled ]] && ! served_prepared_textures "$run_dir"; then
+    elif [[ "$condition" == enabled || "$condition" == fast ]] \
+            && ! served_prepared_textures "$run_dir"; then
         # The adapter is fail-open by design, so a launch where it served nothing looks
         # exactly like a normal launch. Timing it would measure the baseline twice and
         # report the honest conclusion that the cache does nothing.
@@ -326,11 +337,12 @@ record_run() {
     # letting it reach the results file would drag its condition's median up.
     [[ "$RECORDING" == true ]] || return 0
     local menu_detection="$ROOT/runs/${condition}-${iteration}/main-menu-ready.json"
-    local start_instant="null" ready_instant="null" log_delta="null"
+    local start_instant="null" ready_instant="null" log_delta="null" trailing="null"
     if [[ -f "$menu_detection" ]]; then
         start_instant="$(jq -c '.gameStartInstant // null' "$menu_detection")"
         ready_instant="$(jq -c '.mainMenuReadyInstant // null' "$menu_detection")"
         log_delta="$(jq -c '.gameLogMillisDelta // null' "$menu_detection")"
+        trailing="$(jq -c '.trailingLogActivityMs // null' "$menu_detection")"
     fi
     jq -nc \
         --arg condition "$condition" \
@@ -343,9 +355,11 @@ record_run() {
         --argjson gameStartInstant "$start_instant" \
         --argjson mainMenuReadyInstant "$ready_instant" \
         --argjson gameLogMillisDelta "$log_delta" \
+        --argjson trailing "$trailing" \
         '{condition: $condition, iteration: $iteration, status: $status,
           reason: (if $reason == "" then null else $reason end),
           gameLogStartToMainMenuMs: $menuMs, launcherReadyMs: $launcherMs,
+          trailingLogActivityMs: $trailing,
           gameLogMillisDelta: $gameLogMillisDelta,
           gameStartInstant: $gameStartInstant, mainMenuReadyInstant: $mainMenuReadyInstant,
           exitCode: $exitCode}' >> "$RESULTS"
