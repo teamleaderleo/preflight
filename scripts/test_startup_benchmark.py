@@ -235,12 +235,67 @@ class DetectorContractTest(unittest.TestCase):
         self.assertEqual({"snapshot", "watch-launcher", "watch-main-menu"}, seen)
 
 
+class AdapterEvidenceTest(unittest.TestCase):
+    """A fail-open adapter run looks exactly like a baseline run from the outside, so
+    nothing but this check stops it from being counted as a prepared measurement."""
+
+    def served(self, telemetry) -> bool:
+        body = re.search(
+            r"served_prepared_textures\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL
+        )
+        self.assertIsNotNone(body, "served_prepared_textures not found")
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            if telemetry is not None:
+                (run_dir / "adapter.json").write_text(
+                    json.dumps({"textureCompatibility": telemetry}), encoding="utf-8"
+                )
+            script = (
+                "set -uo pipefail\n"
+                "bad() { :; }\nnote() { :; }\n"
+                f'served_prepared_textures() {{{body.group("body")}\n}}\n'
+                f'served_prepared_textures "{run_dir}"\n'
+            )
+            result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+            return result.returncode == 0
+
+    def healthy(self, **overrides) -> dict:
+        telemetry = {
+            "ready": True, "hits": 4956, "misses": 0, "fallbacks": 0,
+            "internalErrors": 0, "bytesServed": 12345, "disableReasons": [],
+        }
+        telemetry.update(overrides)
+        return telemetry
+
+    def test_a_serving_run_is_accepted(self):
+        self.assertTrue(self.served(self.healthy()))
+
+    def test_a_run_that_served_nothing_is_rejected(self):
+        self.assertFalse(self.served(self.healthy(hits=0)))
+
+    def test_a_disabled_adapter_is_rejected(self):
+        self.assertFalse(self.served(self.healthy(disableReasons=["circuit-breaker"])))
+
+    def test_internal_errors_reject_the_run(self):
+        self.assertFalse(self.served(self.healthy(internalErrors=1)))
+
+    def test_an_unready_adapter_is_rejected(self):
+        self.assertFalse(self.served(self.healthy(ready=False)))
+
+    def test_a_missing_report_is_rejected_rather_than_assumed_healthy(self):
+        self.assertFalse(self.served(None))
+
+    def test_only_the_enabled_condition_is_checked(self):
+        # vanilla and agent legitimately have no adapter evidence.
+        self.assertIn('[[ "$condition" == enabled ]] && ! served_prepared_textures', SCRIPT_TEXT)
+
+
 class RecordedShapeTest(unittest.TestCase):
     """The shell writes these records and the Python reads them. Nothing else checks
     that the two agree, so a renamed field would otherwise surface 35 minutes into a
     session with the game already running."""
 
-    def record(self, directory: Path, *args: str) -> None:
+    def record(self, directory: Path, *args: str, recording: str = "true") -> None:
         body = re.search(
             r"record_run\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL
         )
@@ -248,6 +303,7 @@ class RecordedShapeTest(unittest.TestCase):
         script = (
             'set -euo pipefail\n'
             f'ROOT="{directory}"\n'
+            f'RECORDING={recording}\n'
             'RESULTS="$ROOT/results.jsonl"\n'
             f'record_run() {{{body.group("body")}\n}}\n'
             'record_run "$@"\n'
@@ -267,6 +323,22 @@ class RecordedShapeTest(unittest.TestCase):
             self.assertIsNone(written["reason"])
             summary = report.summarize([written])
             self.assertEqual(81.23, summary["conditions"]["enabled"]["medianSeconds"])
+
+    def test_the_discarded_settling_launch_never_reaches_the_results(self):
+        # It is the slowest launch of the session -- it is the one that regenerates the
+        # GraphicsLib cache -- so counting it would drag its condition's median up.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.record(root, "enabled", "0", "accepted", "", "120000", "9000", "0",
+                        recording="false")
+            self.assertFalse((root / "results.jsonl").exists())
+
+    def test_the_warmup_disables_recording_around_the_settling_launch(self):
+        block = re.search(
+            r"RECORDING=false\n\s*launch_once enabled 0 [^\n]*\n\s*RECORDING=true",
+            SCRIPT_TEXT,
+        )
+        self.assertIsNotNone(block, "settling launch is not wrapped in RECORDING=false")
 
     def test_an_excluded_record_carries_its_reason_and_no_timing(self):
         with tempfile.TemporaryDirectory() as directory:

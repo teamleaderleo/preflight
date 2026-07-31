@@ -168,6 +168,34 @@ cat > "$ROOT/identity.json" <<IDENTITY
 }
 IDENTITY
 
+RECORDING=true
+
+# An enabled run only measures the prepared texture path if that path actually ran. The
+# adapter fails open on a stale artifact or a circuit-breaker trip, and a failed-open run
+# is indistinguishable from a baseline run by timing alone -- which is how the July pilot
+# nearly reported an untouched prepared path as a valid prepared measurement.
+served_prepared_textures() {
+    local run_dir="$1"
+    local report="$run_dir/adapter.json"
+    if [[ ! -f "$report" ]]; then
+        bad "The enabled run produced no adapter report; the texture path did not run."
+        return 1
+    fi
+    if jq -e '.textureCompatibility
+            | .ready == true
+            and .hits > 0
+            and .internalErrors == 0
+            and (.disableReasons | length) == 0' "$report" >/dev/null 2>&1; then
+        note "prepared textures served: $(jq -r '.textureCompatibility
+            | "\(.hits) hits, \(.bytesServed) bytes, \(.fallbacks) fallbacks"' "$report")"
+        return 0
+    fi
+    bad "The adapter failed open, so this run did not exercise the prepared texture path:"
+    jq -c '.textureCompatibility
+        | {ready, hits, misses, fallbacks, internalErrors, disableReasons}' "$report" >&2 || true
+    return 1
+}
+
 terminate() {
     local pid="$1"
     kill "$pid" >/dev/null 2>&1 || true
@@ -259,6 +287,11 @@ launch_once() {
         status=excluded; reason="nonzero-exit-$exit_code"
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
+    elif [[ "$condition" == enabled ]] && ! served_prepared_textures "$run_dir"; then
+        # The adapter is fail-open by design, so a launch where it served nothing looks
+        # exactly like a normal launch. Timing it would measure the baseline twice and
+        # report the honest conclusion that the cache does nothing.
+        status=excluded; reason="adapter-served-nothing"
     fi
 
     if [[ "$status" == excluded ]]; then
@@ -288,6 +321,10 @@ launch_once() {
 record_run() {
     local condition="$1" iteration="$2" status="$3" reason="$4"
     local menu_ms="$5" launcher_ms="$6" exit_code="$7"
+    # The settling launch is deliberately thrown away. It is also the slowest launch of
+    # the session, because it is the one that regenerates the GraphicsLib cache, so
+    # letting it reach the results file would drag its condition's median up.
+    [[ "$RECORDING" == true ]] || return 0
     local menu_detection="$ROOT/runs/${condition}-${iteration}/main-menu-ready.json"
     local start_instant="null" ready_instant="null" log_delta="null"
     if [[ -f "$menu_detection" ]]; then
@@ -340,7 +377,9 @@ thrown away; it exists so the installation stops changing before anything is cou
 WARMUP
     read -r -p "Press Enter to run the settling launch (or type skip): " reply
     if [[ "$reply" != skip ]]; then
+        RECORDING=false
         launch_once enabled 0 "SETTLING LAUNCH  (discarded)" || true
+        RECORDING=true
         EXPECTED_FINGERPRINT="$(scan_fingerprint "$ROOT/profile-settled.json")"
         echo "$EXPECTED_FINGERPRINT" > "$ROOT/expected-fingerprint.txt"
         note "settled profile: $EXPECTED_FINGERPRINT"

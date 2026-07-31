@@ -63,6 +63,14 @@ drift. Here a launch that crashes, times out, or changes the mod profile is reco
 `excluded` with its reason and the campaign continues. Ctrl-C is safe; `--resume` picks the
 session back up and keeps completed runs.
 
+**A fail-open adapter counted as a real measurement.** The texture adapter is fail-open by
+design: on a stale artifact or a circuit-breaker trip it quietly stops serving and the game
+loads normally. Such a run is indistinguishable from the baseline by timing alone, so
+counting it would measure the baseline twice and produce the honest-looking conclusion that
+the cache does nothing. Every `enabled` run is now checked against its own telemetry —
+ready, hits above zero, no internal errors, no disable reasons — and excluded as
+`adapter-served-nothing` if the path did not actually run.
+
 GraphicsLib writes generated normal maps into its own cache on a first run and reuses them
 afterwards — that one-time write is what invalidated the July comparison. The harness opens
 with a discarded settling launch so the installation stops changing before anything counts.
@@ -89,6 +97,12 @@ rather than letting the number stand alone.
 
 `benchmarkAccepted` is true only when every condition reached five successful runs. Even
 then it is one machine on one mod profile: treat it as a measurement, not a general claim.
+
+Two asymmetries to keep in mind when reading a result. The vanilla launcher script ends in
+an unconditional `exit 0`, so the exit-code check cannot fail a vanilla run — for that
+condition, main-menu detection is the only real gate. And `enabled` writes a JFR recording
+per run just as `agent` does, so its overhead is present in both and cancels in the
+`enabled` versus `agent` comparison but not in `enabled` versus `vanilla`.
 
 ## Options
 
