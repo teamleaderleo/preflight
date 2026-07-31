@@ -74,8 +74,17 @@ installation) and records it as `preparationMillis` setup cost.
 
 `gameLogStartToGraphicsPreloadMs` — from the first line Starsector's game-start method logs,
 `Running with the following mods (in order of priority):`, through to GraphicsLib reporting
-VRAM after preload. Six seconds of log silence still has to pass, because that is what proves
-the phase ended, but it no longer sets the timestamp.
+VRAM after preload. Both boundaries are markers the game logs itself, and the measurement
+completes the moment the second one lands.
+
+There is no quiet window any more. It used to be what proved the phase had ended, back when the
+measurement ran to "the last line before it" — but the preload marker proves that directly, and
+silence does not reliably arrive: the game keeps emitting `Cleaned buffer for texture` from the
+main menu in irregular bursts. On 2026-08-01 a launch whose load finished at 94.8s was still
+logging at 231.8s. Under the clicked protocol this never showed, because the operator quit the
+game and the log stopped; unattended, the harness sat on a completed measurement it already held.
+The `trailingLogActivityMs` that ranged 0.0-9.3s across identical runs was measuring when that
+trickle happened to pause, not anything about the game.
 
 **That start anchor is load-bearing, and getting it wrong produced every startup number this
 project recorded before 2026-08-01.** The measurement used to begin at the first log line that

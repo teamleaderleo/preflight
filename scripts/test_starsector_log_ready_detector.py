@@ -65,12 +65,16 @@ class DetectorTest(unittest.TestCase):
         self.assertEqual(2100, result["launcherReadyLogMillis"])
         self.assertGreater(result["launcherReadyMs"], 0)
 
-    def test_main_menu_requires_both_markers_and_sustained_quiet(self):
+    def test_main_menu_requires_every_marker(self):
+        # All three have to land on one stream: the game-start marker, the save-descriptor read
+        # that shows the menu populating, and GraphicsLib's preload report. The last of those is
+        # the boundary; anything the game logs afterwards is no longer part of the load.
         output = self.root / "main-menu.json"
 
         def writer():
             time.sleep(0.02)
-            self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - Running with the following mods (in order of priority):")
+            self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                        "Running with the following mods (in order of priority):")
             time.sleep(0.02)
             self.append(
                 "9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
@@ -101,9 +105,22 @@ class DetectorTest(unittest.TestCase):
         self.assertTrue(result["detected"])
         self.assertTrue(result["saveDescriptorSeen"])
         self.assertTrue(result["graphicsPreloadSeen"])
-        self.assertEqual(9700, result["mainMenuReadyLogMillis"])
-        self.assertEqual(2700, result["gameLogMillisDelta"])
+        self.assertEqual(9500, result["mainMenuReadyLogMillis"])
+        self.assertEqual(2500, result["gameLogMillisDelta"])
         self.assertGreater(result["gameLogStartToMainMenuMs"], 0)
+
+    def test_a_stream_missing_one_marker_is_not_a_finished_load(self):
+        output = self.root / "main-menu-partial.json"
+        self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
+                    "Running with the following mods (in order of priority):")
+        self.append("9500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
+                    "VRAM after unload/preload: 450555 bytes")
+        accepted = module.watch_main_menu(
+            self.root, self.snapshot, output, os.getpid(),
+            timeout_seconds=0.3, quiet_seconds=0.05, sleep_seconds=0.01,
+        )
+        self.assertFalse(accepted)
+        self.assertFalse(json.loads(output.read_text())["detected"])
 
     def test_main_menu_reports_absolute_instants_the_recorder_can_consume(self):
         # The benchmark recorder needs absolute milestones, but durations are measured on
@@ -153,16 +170,19 @@ class DetectorTest(unittest.TestCase):
         parsed = time.strptime(text[:-5], "%Y-%m-%dT%H:%M:%S")
         return calendar.timegm(parsed) + int(text[-4:-1]) / 1000.0
 
-    def test_the_preload_boundary_ignores_whatever_the_game_logs_afterwards(self):
-        # On the 2026-07-31 campaign the gap between the preload marker and the last line
-        # before the quiet window ranged from 0.0 to 9.3 seconds across otherwise identical
-        # runs. Measuring to the last line put all of that straight into the result.
+    def test_the_load_ends_at_the_marker_and_does_not_wait_for_the_game_to_go_quiet(self):
+        # The failure this replaces: a launch whose load finished at 94.8s was still emitting
+        # "Cleaned buffer for texture" at 231.8s, in bursts with a 20.8s gap. Waiting for six
+        # seconds of silence meant sitting on a completed measurement indefinitely -- which is
+        # exactly what happened the first time a campaign ran with nobody there to quit the game.
         output = self.root / "main-menu-trailing.json"
+        marker = ("INFO  com.fs.starfarer.StarfarerLauncher  - "
+                  "Running with the following mods (in order of priority):")
+        stop = threading.Event()
 
         def writer():
-            time.sleep(0.02)
-            self.append("7000 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - Running with the following mods (in order of priority):")
-            time.sleep(0.05)
+            self.append(f"7000 [Thread-3] {marker}")
+            time.sleep(0.03)
             self.append(
                 "9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
                 "Reading save data from [save/descriptor.xml]"
@@ -171,28 +191,55 @@ class DetectorTest(unittest.TestCase):
                 "9500 [Thread-3] INFO org.dark.shaders.util.TextureData  - "
                 "VRAM after unload/preload: 450555 bytes"
             )
-            # Chatter that lands inside the quiet window pushes the old boundary out; this
-            # is the shape that produced 0.0-9.3s of run-to-run noise on the real campaign.
-            time.sleep(0.07)
-            self.append("12000 [Thread-9] INFO something - unrelated later line")
+            # Never goes quiet. The old detector would have run to its timeout.
+            value = 10000
+            while not stop.wait(0.01):
+                value += 100
+                self.append(f"{value} [Thread-3] INFO com.fs.graphics.TextureLoader  - "
+                            f"Cleaned buffer for texture graphics/x{value}.png")
 
         thread = threading.Thread(target=writer)
         thread.start()
+        try:
+            accepted = module.watch_main_menu(
+                self.root, self.snapshot, output, os.getpid(),
+                timeout_seconds=5.0, quiet_seconds=90.0, sleep_seconds=0.01,
+            )
+        finally:
+            stop.set()
+            thread.join()
+
+        self.assertTrue(accepted, "must complete without the log ever going quiet")
+        result = json.loads(output.read_text())
+        self.assertEqual("graphics-preload-marker", result["completedOn"])
+        self.assertEqual(9500, result["mainMenuReadyLogMillis"])
+        self.assertEqual(2500, result["gameLogMillisDelta"])
+        # Both spellings of the boundary now name the same instant.
+        self.assertEqual(result["gameLogStartToMainMenuMs"],
+                         result["gameLogStartToGraphicsPreloadMs"])
+        self.assertIsNone(result["trailingLogActivityMs"])
+
+    def test_the_first_preload_is_the_boundary_not_the_last(self):
+        # GraphicsLib can report more than once. starsector_log_load_times.py takes the first,
+        # and that tool is the independent check this one has to agree with -- picking different
+        # markers would make them disagree by construction.
+        output = self.root / "main-menu-two-preloads.json"
+        marker = ("INFO  com.fs.starfarer.StarfarerLauncher  - "
+                  "Running with the following mods (in order of priority):")
+        preload = "INFO org.dark.shaders.util.TextureData  - VRAM after unload/preload: 1 bytes"
+        self.append(f"7000 [Thread-3] {marker}")
+        self.append("9000 [Thread-3] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                    "Reading save data from [save/descriptor.xml]")
+        self.append(f"9500 [Thread-3] {preload}")
+        self.append(f"30000 [Thread-3] {preload}")
+
         accepted = module.watch_main_menu(
             self.root, self.snapshot, output, os.getpid(),
-            timeout_seconds=3.0, quiet_seconds=0.10, sleep_seconds=0.01,
+            timeout_seconds=2.0, quiet_seconds=0.05, sleep_seconds=0.01,
         )
-        thread.join()
         self.assertTrue(accepted)
         result = json.loads(output.read_text())
-
-        preload = result["gameLogStartToGraphicsPreloadMs"]
-        last_line = result["gameLogStartToMainMenuMs"]
-        self.assertGreater(last_line - preload, 40,
-                           "the trailing line should sit after the preload marker")
-        self.assertAlmostEqual(last_line - preload, result["trailingLogActivityMs"], delta=1)
-        # Both boundaries are kept, so a reader can see how much noise was excluded.
-        self.assertLess(preload, last_line)
+        self.assertEqual(9500, result["mainMenuReadyLogMillis"])
 
     def test_main_menu_uses_stream_containing_both_markers(self):
         output = self.root / "main-menu-stream.json"

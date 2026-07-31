@@ -180,7 +180,7 @@ def watch_launcher(
                     "launcherLogInode": marker_line.inode,
                     "launcherReadyMs": round((last_activity_ns - process_start_ns) / 1_000_000, 3),
                     "launcherReadyLogMillis": state.last_log_ms.get(marker_line.inode),
-                    "quietConfirmationMillis": round(quiet_seconds * 1000, 3),
+                    "completedOn": "graphics-preload-marker",
                     "observedLines": state.observed_lines,
                 }
                 _write_result(output, result)
@@ -229,9 +229,13 @@ def watch_main_menu(
                 if any(marker in line.text for marker in GAME_START_MARKERS):
                     starts.setdefault(line.inode, line)
             if _contains_all(line.text, SAVE_DESCRIPTOR_PARTS):
-                descriptor_lines[line.inode] = line
+                descriptor_lines.setdefault(line.inode, line)
             if _contains_all(line.text, PRELOAD_PARTS):
-                preload_lines[line.inode] = line
+                # First, not last. GraphicsLib can report more than once, and
+                # scripts/starsector_log_load_times.py -- the independent check this has to
+                # agree with -- takes the first. Taking different ones would make the two
+                # disagree by construction and turn the cross-check into noise.
+                preload_lines.setdefault(line.inode, line)
             if candidate_inode is None:
                 matching = set(descriptor_lines) & set(preload_lines) & set(starts)
                 if matching:
@@ -240,16 +244,29 @@ def watch_main_menu(
                         key=lambda inode: preload_lines[inode].observed_ns,
                     )
 
-        now_ns = time.monotonic_ns()
-        quiet_ns = int(quiet_seconds * 1_000_000_000)
         if candidate_inode is not None:
             start = starts[candidate_inode]
             descriptor = descriptor_lines[candidate_inode]
             preload = preload_lines[candidate_inode]
-            last_activity_ns = state.last_activity_ns.get(candidate_inode)
-            if last_activity_ns is not None and now_ns - last_activity_ns >= quiet_ns:
-                observed_delta_ms = round((last_activity_ns - start.observed_ns) / 1_000_000, 3)
-                end_log_ms = state.last_log_ms.get(candidate_inode)
+            # Complete on the marker, not on silence.
+            #
+            # The quiet window used to be what proved the phase had ended, back when the
+            # measurement ran to "the last line before it". Since the boundary became the preload
+            # marker, silence proved nothing the marker did not already prove -- and it does not
+            # arrive. The game keeps emitting "Cleaned buffer for texture" from the main menu in
+            # irregular bursts: on 2026-08-01 a launch whose load finished at 94.8s was still
+            # logging at 231.8s, with a 20.8s gap in the middle that the six-second window would
+            # have accepted had a burst not landed first.
+            #
+            # Under the clicked protocol this never showed, because the operator quit the game and
+            # the log stopped. Unattended, nothing quits it, so the harness sat on a completed
+            # measurement it already held. That is also what "trailing activity ranged 0.0-9.3s
+            # across identical runs" was measuring: when the trickle happened to pause, not
+            # anything about the game.
+            if True:
+                observed_delta_ms = round((preload.observed_ns - start.observed_ns) / 1_000_000, 3)
+                end_log_ms = preload.log_ms
+                last_activity_ns = preload.observed_ns
                 log_delta_ms = None
                 if start.log_ms is not None and end_log_ms is not None:
                     log_delta_ms = end_log_ms - start.log_ms
@@ -284,14 +301,16 @@ def watch_main_menu(
                     "firstObservedLogLineToGraphicsPreloadMs": round(
                         (preload.observed_ns - first_lines[candidate_inode].observed_ns)
                         / 1_000_000, 3),
-                    "trailingLogActivityMs": round(
-                        (last_activity_ns - preload.observed_ns) / 1_000_000, 3),
+                    # Null by construction now: the phase ends at the marker, so there is no
+                    # window between it and completion to measure. It was never a property of the
+                    # game -- only of when the post-menu texture-cleanup trickle happened to pause.
+                    "trailingLogActivityMs": None,
                     "gameLogMillisDelta": log_delta_ms,
                     "saveDescriptorSeen": True,
                     "saveDescriptorLine": descriptor.text[:1000],
                     "graphicsPreloadSeen": True,
                     "graphicsPreloadLine": preload.text[:1000],
-                    "quietConfirmationMillis": round(quiet_seconds * 1000, 3),
+                    "completedOn": "graphics-preload-marker",
                     "observedLines": state.observed_lines,
                 })
                 return True
