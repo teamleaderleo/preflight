@@ -352,8 +352,29 @@ terminate() {
 # naive search for the word in HotSpot's guarantee() failures.
 FATAL_JVM_PATTERNS='A fatal error has been detected by the Java Runtime Environment|Internal Error at [a-zA-Z_]+\.cpp:[0-9]+|Do you want to debug the problem\?'
 
+# The second way a launch hangs forever, and the one behind the 2026-07-31 "Fatal: Number of
+# remaining buffer elements is 668043, must be at least 1572864" dialog. StarfarerLauncher wraps
+# both the launcher construction and the game start in one try, and its handler logs the
+# throwable and then calls org.lwjgl.Sys.alert -- a modal native dialog with nothing to dismiss
+# it. The process stays alive at idle with no new log lines, which is indistinguishable from a
+# slow load. It is not a HotSpot failure and must not be reported as one.
+#
+# Anchored on the logger category at ERROR rather than on the message, because the message is
+# whatever was thrown. That category is only ever this handler.
+FATAL_GAME_PATTERN='ERROR +com\.fs\.starfarer\.StarfarerLauncher'
+
 report_fatal_jvm_error() {
     local flag="$1"
+    if grep -qaE "$FATAL_GAME_PATTERN" "$flag" 2>/dev/null; then
+        bad "The game threw out of its own launcher. Excluding this run."
+        while IFS= read -r line; do
+            bad "  $line"
+        done < "$flag"
+        note "Starsector's top-level handler answers this with org.lwjgl.Sys.alert, a modal"
+        note "dialog that nothing dismisses, so the process would have sat here until the"
+        note "600-second timeout. The message above is the actual cause."
+        return
+    fi
     bad "The game's JVM crashed. Excluding this run."
     while IFS= read -r line; do
         bad "  $line"
@@ -366,9 +387,10 @@ report_fatal_jvm_error() {
 
 watch_for_fatal_jvm_error() {
     local output="$1" pid="$2" flag="$3"
+    local patterns="$FATAL_JVM_PATTERNS|$FATAL_GAME_PATTERN"
     while kill -0 "$pid" >/dev/null 2>&1; do
-        if [[ -s "$output" ]] && grep -qaE "$FATAL_JVM_PATTERNS" "$output" 2>/dev/null; then
-            grep -aE "$FATAL_JVM_PATTERNS" "$output" 2>/dev/null | head -3 > "$flag"
+        if [[ -s "$output" ]] && grep -qaE "$patterns" "$output" 2>/dev/null; then
+            grep -aE "$patterns" "$output" 2>/dev/null | head -3 > "$flag"
             # Killing the tree makes the readiness watcher's own liveness check fire, so
             # the run fails in seconds through the ordinary path instead of timing out.
             terminate "$pid"

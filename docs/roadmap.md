@@ -2,6 +2,34 @@
 
 Preflight follows a measurement-first sequence. Each optimization keeps the original loader available as a fallback.
 
+## Standing correction: every startup number before 2026-08-01 is void
+
+The benchmark measured from the first log line that appeared after its own snapshot. Starsector's
+launcher writes into the same log the game does, so log4j flush timing decided whether the early
+part of loading fell inside the measured interval. That is the whole of what was recorded as an
+"unexplained 18s bimodality": every run anchored on the launcher's line measured 92-99s, every
+run anchored on a later mid-load line measured 74-78s.
+
+Read straight out of the game's own log, the same launches are unimodal at 89.6-99.1s. **Startup
+on the reviewed profile is ~92 seconds, not ~75.** The measurement is fixed
+([evidence](evidence/2026-08-01-the-bimodality-was-the-anchor.md)), and
+`scripts/starsector_log_load_times.py` is the independent check that the harness now has to
+agree with.
+
+What this voids, and what it does not:
+
+- **Void:** every recorded `gameLogStartToGraphicsPreloadMs`, every campaign summary built on
+  one, and the prepared-pixels-versus-compatibility pilot — `prepared` was recorded at 99.1s
+  against `fast` at 92.2s and 74.9s, and only one of those two was measuring the same quantity.
+- **Not void:** everything established by JFR attribution, adapter reports, or the game's own
+  behaviour. The profile shares (texture conversion 34-40% of the loading thread, PNG decode
+  13-16%, the O(n) LinkedList scan 5-7%) are ratios within a recording and do not depend on the
+  harness's wall-clock boundary at all. The correctness work — compatibility-v2 acceptance, the
+  prepared-pixel contract check, the padding invariant — is untouched.
+
+The next campaign is the first that can produce a reportable number. Run it unattended, into a
+fresh session directory, and check it against `starsector_log_load_times.py` before believing it.
+
 ## Current near-term program
 
 The July 2026 unified real-install runs completed the broad discovery gate for texture loading, Janino compilation, and audio decoding.

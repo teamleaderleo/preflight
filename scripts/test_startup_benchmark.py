@@ -554,6 +554,62 @@ class FatalJvmErrorTest(unittest.TestCase):
             )
             return result.returncode == 0
 
+    def game_patterns(self) -> str:
+        match = re.search(r"FATAL_GAME_PATTERN='(?P<value>[^']*)'", SCRIPT_TEXT)
+        self.assertIsNotNone(match, "FATAL_GAME_PATTERN not found")
+        return match.group("value")
+
+    def game_matches(self, text: str) -> bool:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "wrapper-output.txt"
+            output.write_text(text, encoding="utf-8")
+            result = subprocess.run(
+                ["grep", "-qaE", self.game_patterns(), str(output)], capture_output=True
+            )
+            return result.returncode == 0
+
+    def test_the_modal_dialog_hang_is_detected(self):
+        # The 2026-07-31 failure. StarfarerLauncher wraps both the launcher and the game start
+        # in one try and answers a throwable with org.lwjgl.Sys.alert -- a modal native dialog
+        # nothing dismisses. The process stays alive at idle, which every signal the harness
+        # watches reads as a slow load, so it used to cost the full 600-second timeout.
+        self.assertTrue(self.game_matches(
+            "9421 [main] ERROR  com.fs.starfarer.StarfarerLauncher  - "
+            "Number of remaining buffer elements is 668043, must be at least 1572864\n"
+        ))
+
+    def test_ordinary_launcher_logging_is_not_mistaken_for_the_dialog(self):
+        # The same category logs INFO on every single launch, several times.
+        self.assertFalse(self.game_matches(
+            "9079 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - "
+            "Running with the following mods (in order of priority):\n"
+            "9080 [Thread-3] INFO  com.fs.starfarer.StarfarerLauncher  - Mod list finished\n"
+        ))
+        # A mod erroring is not the launcher's top-level handler firing.
+        self.assertFalse(self.game_matches(
+            "9421 [Thread-3] ERROR com.fs.starfarer.loading.SpecStore  - bad ship spec\n"
+        ))
+
+    def test_the_two_hangs_are_reported_as_different_things(self):
+        # One is HotSpot, one is the game throwing. Telling someone to drop --profile because
+        # a mod handed the loader a short buffer would send them at the wrong problem.
+        body = re.search(
+            r"report_fatal_jvm_error\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL
+        )
+        self.assertIsNotNone(body)
+        text = body.group("body")
+        self.assertIn("FATAL_GAME_PATTERN", text)
+        self.assertIn("Sys.alert", text)
+        # The game-side branch has to come first; the HotSpot advice is the fallthrough.
+        self.assertLess(text.index("Sys.alert"), text.index("ShowMessageBoxOnError"))
+
+    def test_both_hang_shapes_are_watched_during_a_launch(self):
+        body = re.search(
+            r"watch_for_fatal_jvm_error\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL
+        )
+        self.assertIsNotNone(body)
+        self.assertIn("$FATAL_JVM_PATTERNS|$FATAL_GAME_PATTERN", body.group("body"))
+
     def test_the_real_crash_is_detected(self):
         self.assertTrue(self.matches(
             "Internal Error at sharedRuntime.cpp:561, pid=44307, tid=146947\n"
