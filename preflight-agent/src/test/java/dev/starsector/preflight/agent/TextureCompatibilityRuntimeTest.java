@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,6 +17,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -102,7 +104,9 @@ class TextureCompatibilityRuntimeTest {
                 fixture.cache(), fixture.manifest(), fixture.index()));
 
         assertNull(TextureCompatibilityRuntime.load("graphics/missing.png"));
-        Files.write(fixture.source(), new byte[] {9, 9, 9, 9});
+        // A different length, so this is decided by the size comparison rather than by whether the
+        // filesystem's timestamp resolution happened to tick between the two writes.
+        Files.write(fixture.source(), new byte[] {9, 9, 9, 9, 9});
         assertNull(TextureCompatibilityRuntime.load("graphics/test.png"));
 
         Map<String, Object> telemetry = TextureCompatibilityRuntime.telemetry();
@@ -111,6 +115,57 @@ class TextureCompatibilityRuntimeTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> reasons = (Map<String, Object>) telemetry.get("fallbackReasons");
         assertEquals(1L, reasons.get("entry-missing"));
+        assertEquals(1L, reasons.get("source-changed"));
+    }
+
+    @Test
+    void aSourceTouchedSinceTheIndexWasBuiltIsRejected() throws Exception {
+        Fixture fixture = fixture();
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+
+        // Same length and same bytes; only the modification time moves. This is the half of the
+        // staleness test that catches an in-place edit the size cannot.
+        Files.setLastModifiedTime(
+                fixture.source(),
+                FileTime.fromMillis(Files.getLastModifiedTime(fixture.source()).toMillis() + 5_000));
+
+        assertNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> reasons =
+                (Map<String, Object>) TextureCompatibilityRuntime.telemetry().get("fallbackReasons");
+        assertEquals(1L, reasons.get("source-changed"));
+    }
+
+    /**
+     * The cost of taking SHA-256 off the loading thread, stated as a test rather than left in a
+     * comment. An edit that preserves both a file's length and its modification time to the
+     * millisecond is not detected by default; it is detected under
+     * {@code -Dpreflight.texture.verifySourceHash=true}. Every real mod update changes at least one
+     * of the two, and hashing 1.34 GB of sources per launch cost 41% of the loading thread's CPU
+     * under Rosetta 2, where the JVM's SHA-256 intrinsic cannot apply.
+     */
+    @Test
+    void anEditThatPreservesSizeAndTimestampIsCaughtOnlyByTheOptInHash() throws Exception {
+        Fixture fixture = fixture();
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        FileTime original = Files.getLastModifiedTime(fixture.source());
+        Files.write(fixture.source(), new byte[] {4, 3, 2, 1});
+        Files.setLastModifiedTime(fixture.source(), original);
+
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+
+        System.setProperty(TextureCompatibilityRuntime.VERIFY_SOURCE_HASH_PROPERTY, "true");
+        try {
+            assertNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        } finally {
+            System.clearProperty(TextureCompatibilityRuntime.VERIFY_SOURCE_HASH_PROPERTY);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> reasons =
+                (Map<String, Object>) TextureCompatibilityRuntime.telemetry().get("fallbackReasons");
         assertEquals(1L, reasons.get("source-changed"));
     }
 

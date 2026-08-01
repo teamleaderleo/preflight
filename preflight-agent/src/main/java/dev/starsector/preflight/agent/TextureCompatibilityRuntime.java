@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -30,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Shared fail-open cache lookup plus the decoded-image compatibility consumer. */
 public final class TextureCompatibilityRuntime {
     static final String PLAN_ID = "texture-compatibility-v2";
+    /** Opt back in to hashing every source file's contents on the loading thread. */
+    public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
     static final int MAX_INTERNAL_ERRORS = 8;
@@ -142,9 +145,10 @@ public final class TextureCompatibilityRuntime {
         if (!current.ready || current.circuitBreaker.get()) {
             return false;
         }
-        // Taking a path off the game's queue means this cache answers for it, and in prepared-pixel
-        // mode the answer is a token only the rewritten conversion can read. Consumers that read
-        // pixels -- mask conversion, for one -- must keep getting the game's own decoded image.
+        // Taking a path off the game's queue means this cache answers for it, so whatever it
+        // answers with has to be readable by every consumer, not just the rewritten conversion.
+        // This is why prepared-pixel mode stopped serving token carriers; the check stays because
+        // it is the thing that would have to be re-satisfied before any future mode serves one.
         if (TexturePreparedPixelRuntime.servesUnreadableCarriers()) {
             return false;
         }
@@ -212,12 +216,11 @@ public final class TextureCompatibilityRuntime {
                 TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
                 return null;
             }
-            if (!Files.isRegularFile(source)) {
-                TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
-                return null;
-            }
-            if (!entry.sourceSha256().equals(Hashes.sha256(source))) {
-                TELEMETRY.fallback(FallbackReason.SOURCE_CHANGED);
+            SourceVerdict verdict = verifySource(source, winner, entry);
+            if (verdict != SourceVerdict.UNCHANGED) {
+                TELEMETRY.fallback(verdict == SourceVerdict.MISSING
+                        ? FallbackReason.SOURCE_MISSING
+                        : FallbackReason.SOURCE_CHANGED);
                 return null;
             }
             if (entry.transformation() != PreparedTexture.Transformation.IDENTITY) {
@@ -261,6 +264,70 @@ public final class TextureCompatibilityRuntime {
             TELEMETRY.fallback(FallbackReason.INTERNAL_ERROR);
             return null;
         }
+    }
+
+    /**
+     * Decides whether the file on disk is still the one the cached blob was built from.
+     *
+     * <p>This used to re-read and SHA-256 every source file, on the loading thread, once per
+     * lookup. Under the prefetch bypass that became the single largest computation on the thread
+     * whose wall clock is the load: 1,076 of {@code main}'s 2,631 on-CPU samples -- 41% -- were
+     * {@code SHA2.implCompress0}, hashing up to 1.34 GB of PNGs per launch.
+     *
+     * <p>It is that expensive because Starsector ships an x86_64 JRE, so the whole game runs under
+     * Rosetta 2, which has no SHA-NI. The JVM's SHA-256 intrinsic never applies and the pure-Java
+     * {@code ByteArrayAccess.b2iBig64} VarHandle path runs instead: 292 MB/s measured in the game's
+     * own JRE against 3,314 MB/s in a native arm64 JDK on the same machine, an 11.4x penalty that
+     * no amount of work on our side removes.
+     *
+     * <p>So the fast path asks the cheaper question, and asks it of evidence that already exists.
+     * {@link #configure} runs {@link ResourceIndexValidator} over every provider in the index
+     * before the first lookup, and that validator's staleness test is exactly size and modified
+     * time. Re-checking those two here costs one {@code readAttributes} -- the same syscall the
+     * old {@code isRegularFile} guard already paid -- and closes the window between configure and
+     * lookup. What it gives up, relative to the hash, is detection of an edit that changes a file's
+     * contents while preserving both its length and its modification time to the millisecond. That
+     * is the staleness contract every build system in common use accepts.
+     *
+     * <p>Set {@code -Dpreflight.texture.verifySourceHash=true} to keep the content hash instead.
+     */
+    private static SourceVerdict verifySource(
+            Path source,
+            ResourceIndex.Provider winner,
+            TextureManifest.Entry entry) {
+        BasicFileAttributes attributes;
+        try {
+            attributes = Files.readAttributes(source, BasicFileAttributes.class);
+        } catch (IOException error) {
+            return SourceVerdict.MISSING;
+        }
+        if (!attributes.isRegularFile()) {
+            return SourceVerdict.MISSING;
+        }
+        if (attributes.size() != winner.size()) {
+            return SourceVerdict.CHANGED;
+        }
+        // Matches ResourceIndexValidator's own comparison, so the configure-time sweep and this
+        // per-lookup re-check cannot disagree about what counts as unchanged.
+        if (Math.max(0, attributes.lastModifiedTime().toMillis()) != winner.modifiedMillis()) {
+            return SourceVerdict.CHANGED;
+        }
+        if (!Boolean.getBoolean(VERIFY_SOURCE_HASH_PROPERTY)) {
+            return SourceVerdict.UNCHANGED;
+        }
+        try {
+            return entry.sourceSha256().equals(Hashes.sha256(source))
+                    ? SourceVerdict.UNCHANGED
+                    : SourceVerdict.CHANGED;
+        } catch (IOException error) {
+            return SourceVerdict.MISSING;
+        }
+    }
+
+    private enum SourceVerdict {
+        UNCHANGED,
+        CHANGED,
+        MISSING
     }
 
     static void hit(long bytes) {
