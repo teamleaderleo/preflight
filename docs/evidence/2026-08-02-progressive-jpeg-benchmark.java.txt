@@ -1,0 +1,55 @@
+import javax.imageio.*; import javax.imageio.stream.*;
+import java.awt.image.BufferedImage; import java.io.*; import java.nio.file.*; import java.util.*;
+public class JpegAgg {
+    public static void main(String[] a) throws Exception {
+        List<Path> all = Files.readAllLines(Path.of(a[0])).stream().map(Path::of).toList();
+        System.out.printf("jvm %s (%s); %d progressive JPEGs%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"), all.size());
+        long totalPx = 0;
+        for (Path p : all) totalPx += pixels(p);
+        System.out.printf("total %.1f megapixels%n%n", totalPx/1e6);
+        // sample every Nth file, spanning the size range
+        List<Path> sample = new ArrayList<>();
+        int step = Math.max(1, all.size()/12);
+        for (int i = 0; i < all.size(); i += step) sample.add(all.get(i));
+        double progMs=0, baseMs=0; long samplePx=0;
+        for (Path p : sample) {
+            byte[] prog = Files.readAllBytes(p);
+            BufferedImage img = ImageIO.read(new ByteArrayInputStream(prog));
+            byte[] base = baseline(img);
+            progMs += best(prog); baseMs += best(base);
+            samplePx += (long) img.getWidth()*img.getHeight();
+        }
+        double progPerMp = progMs/(samplePx/1e6), basePerMp = baseMs/(samplePx/1e6);
+        System.out.printf("sample of %d files, %.1f MP%n", sample.size(), samplePx/1e6);
+        System.out.printf("  progressive %8.1f ms/MP%n  baseline    %8.1f ms/MP%n  ratio %.2fx%n%n",
+                progPerMp, basePerMp, progPerMp/basePerMp);
+        System.out.printf("estimated over all %d files (%.1f MP):%n  progressive %6.2f s%n  baseline    %6.2f s%n  difference  %6.2f s%n",
+                all.size(), totalPx/1e6, totalPx/1e6*progPerMp/1000, totalPx/1e6*basePerMp/1000,
+                totalPx/1e6*(progPerMp-basePerMp)/1000);
+    }
+    static long pixels(Path p) throws IOException {
+        try (ImageInputStream in = ImageIO.createImageInputStream(p.toFile())) {
+            var it = ImageIO.getImageReaders(in);
+            if (!it.hasNext()) return 0;
+            ImageReader r = it.next(); r.setInput(in);
+            long px = (long) r.getWidth(0)*r.getHeight(0); r.dispose(); return px;
+        } catch (Exception e) { return 0; }
+    }
+    static byte[] baseline(BufferedImage img) throws IOException {
+        ImageWriter w = ImageIO.getImageWritersByFormatName("jpeg").next();
+        ImageWriteParam p = w.getDefaultWriteParam();
+        p.setCompressionMode(ImageWriteParam.MODE_EXPLICIT); p.setCompressionQuality(0.95f);
+        p.setProgressiveMode(ImageWriteParam.MODE_DISABLED);
+        ByteArrayOutputStream o = new ByteArrayOutputStream();
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(o)) {
+            w.setOutput(ios); w.write(null, new IIOImage(img, null, null), p); }
+        w.dispose(); return o.toByteArray();
+    }
+    static double best(byte[] d) throws IOException {
+        double b = Double.MAX_VALUE;
+        for (int i=0;i<3;i++){ long t0=System.nanoTime(); ImageIO.read(new ByteArrayInputStream(d));
+            b = Math.min(b,(System.nanoTime()-t0)/1e6); }
+        return b;
+    }
+}
