@@ -89,17 +89,95 @@ This repository's plan was to *cache* compiled bytecode instead. Those are compl
 
 Caching is the better fit for Preflight's thesis and for the long tail. Doing both is coherent.
 
-## Open questions before anything is built on this
+## Two questions answered by reading it
 
-1. **Agent collision.** Both are `premain` transformers and both rewrite `com/fs/graphics/L` and
-   `TextureLoader`. Transformers chain, so an ASM splice may run against a constant pool the other
-   agent has already rewritten, or vice versa. Untested. Anyone running both today is in undefined
-   territory, and that needs an answer before either is recommended alongside the other.
-2. **Whether their `com/fs/util/C` work already solves resource resolution**, which was the next
-   queued item here.
-3. **Whether their built-in profiler** (CTRL+SHIFT+F8, plus a `modules/jfr/` directory) makes the
+**They did not fix the prefetcher.** Their `assembly/com/fs/graphics/L.j` still starts exactly one
+`Thread` and still contains the 10ms `Thread.sleep` poll loops in both the image and byte getters.
+The 27-second wait this repository removed on 2026-08-01 is still paid by every Fast Rendering user.
+Our result is not duplicated there.
+
+**They did not cache resource resolution.** `assembly/com/fs/util/C.j` contains zero `HashMap`,
+zero cache of any kind, and the same `File.exists` / `lastModified` / `listFiles` probing across
+every mod root. That seam is still open ground.
+
+## Their artifacts are build-specific
+
+Their `L.j` and the local `fs.common_obf.jar` agree exactly on **fields** -- same names, order and
+types, including `ô00000 = 10485760` -- and on the two private decode methods. The public method
+names differ:
+
+| role | this install (macOS RC8) | `L.j` (Windows RC8) |
+| --- | --- | --- |
+| enqueue image | `Ö00000` | `return` |
+| enqueue bytes | `Ó00000` | `Object` |
+| get bytes | `new` | `Ò00000` |
+| get image | `class` | `Õ00000` |
+| reset | `new()` | `Ò00000()` |
+| decode image (private) | `o00000` | `o00000` |
+| decode bytes (private) | `Ô00000` | `Ô00000` |
+
+Same class, different name assignment. The cause is not established here; the consequence is, and it
+cuts both ways. Their name map and assembly cannot be dropped onto this install unverified, and the
+reason `AdapterTargetRegistry` pins a class hash rather than trusting a name is exactly this.
+
+The *semantic* map still transfers by signature and position, which is worth a great deal for the
+two biggest untouched seams: `SpecStore_init`, `ScriptStore_getScriptList`,
+`ScriptStore_javaSourceClassLoader`, `ResourceLoader_getResourceList`, and the whole `TextureHandler`
+setter family this repository's prepared-pixel path already writes through.
+
+## The collision is real, predictable, and silent
+
+`fr.vmparams` puts **`fr.jar` first on the classpath**, ahead of `starfarer_obf.jar` and
+`fs.common_obf.jar`, and adds `-javaagent:fr.agent.jar`. So their assembled `com/fs/graphics/L`,
+`com/fs/util/C`, `TextureLoader`, `ResourceLoaderState`, `SpecStore` and `ScriptStore` **shadow** the
+game's classes outright.
+
+`AdapterProbeTransformer` hashes `classfileBuffer` -- the bytes delivered to `transform()`, not the
+jar entry. Under Fast Rendering those bytes are theirs, so the pinned
+`229d05ef109d56913b2c04263839088aa2719d31bc5fd3d58af6bc2415b84cd2` will not match and the target is
+declined.
+
+**Preflight therefore becomes a silent no-op for every Fast Rendering user**, and this is
+classpath-level so it does not depend on `-javaagent:` ordering. It fails open, which is correct, but
+the telemetry would report a declined target rather than "another agent owns this class", which is
+the wrong diagnosis for anyone reading it.
+
+That last part is worth fixing on its own merits, whatever else happens: detect a shadowed target and
+say so.
+
+## Getting both
+
+The two projects optimise on different axes and compose in principle: they make a single launch
+cheaper (defer GL submission, parallelise Janino, thread the renderer), and this repository makes the
+*next* launch cheaper (precompute, cache, skip the work entirely). Nothing about that is in conflict.
+Only the mechanism collides.
+
+Three ways out, in increasing order of ambition:
+
+1. **Report it.** Detect a shadowed class and emit a specific disable reason. Cheap, honest, and
+   stops a user from concluding Preflight is broken.
+2. **Pin their identity too.** Register a second target set keyed to their class hashes. Safe and
+   exact, but it means tracking their releases.
+3. **Change our mechanism where a wrapper is enough.** Constant-pool redirection composes with
+   classpath shadowing: redirecting references to `com/fs/graphics/L` intercepts whoever's
+   implementation is underneath, theirs or the game's, without needing to know either one's method
+   names. That would make the two agents genuinely stackable, and it drops the requirement for exact
+   method identity on those seams.
+
+   The cost is the verification gate. Splicing a pinned method lets us prove what we changed;
+   redirecting a class name proves nothing about what we wrapped, so the safety story would have to
+   move to verifying the wrapper's delegation instead of the target's bytes.
+
+Option 3 is the interesting one and is unproven. Option 1 should happen regardless.
+
+## Still open
+
+1. **Whether their built-in profiler** (CTRL+SHIFT+F8, plus a `modules/jfr/` directory) makes the
    frame-time harness in the roadmap redundant.
-4. **macOS.** It targets Windows. How much is portable is unknown.
+2. **macOS.** It targets Windows, and the name divergence above means porting is not a repackaging
+   job.
+3. **Janino.** They parallelise; caching and parallelising compose, and neither has been measured
+   here against a corrected clock.
 
 ## Licensing
 
