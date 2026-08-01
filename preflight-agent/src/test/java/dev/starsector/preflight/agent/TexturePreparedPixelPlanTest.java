@@ -106,7 +106,8 @@ class TexturePreparedPixelPlanTest {
                 .orElse(null);
     }
 
-    private static byte[] textureLoader(int colorFields, boolean rasterRead, boolean dimensions) {
+    /** Shared with {@link TextureLoaderPlanCompositionTest}, which weaves a fold onto this loader. */
+    static byte[] textureLoader(int colorFields, boolean rasterRead, boolean dimensions) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, TexturePreparedPixelPlan.TARGET_CLASS,
                 null, "java/lang/Object", null);
