@@ -144,12 +144,15 @@ seams examined here touch it.
 load in the current mod configuration. Timing one, with a profile attached, anchors everything above
 and decides whether this line continues. It needs the game running and a save loaded through the UI.
 
-> **Answered the same day: [a save load is 96 seconds](2026-08-02-a-save-load-is-ninety-six-seconds.md).**
-> A 42.7 MB save took **96.0 s** -- longer than the whole optimized startup. XStream is **13.3 s
-> (14%)**, so this document's estimate of ~3.3 s was low by about 4x, but its conclusion was right
-> and is now measured: **86% of a save load is not XStream.** The largest item is intel/mission
-> regeneration at 30%, and the JSON/spec path costs another 18% -- meaning that corpus is paid at
-> launch *and* on every save load.
+> **Answered the same day: [a save load is 11.3 seconds](2026-08-02-a-save-load-is-eleven-seconds.md).**
+> A 42.7 MB save takes **6.74 s** to "Finished loading" and **11.31 s** through its last staging
+> line. XStream is **1.97 s (17.5%)**, consistent with this document's ~3.3 s projection for a save
+> 2.4x larger -- so its conclusion is confirmed: **the serialiser is not the bottleneck.** The
+> dominant cost is the **JSON/spec path at 63%**, which means that corpus is paid at launch *and* on
+> every save load.
+>
+> (An earlier revision of that file claimed 96 seconds. It measured until the log went quiet while
+> the operator was playing, so ~78 s of gameplay was counted as loading. Corrected in place.)
 
 Caveats on the synthetic: the node type carries six scalar fields, a nested object, a child list and
 one cross-link. Starsector's classes are richer and some have custom converters, so this is a lower
