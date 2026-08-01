@@ -17,40 +17,56 @@ cooldown before every launch, 5 rounds x 3 conditions, launch-order drift +0.47s
 
 Three things follow, in priority order:
 
-1. **The load is serial on one thread and the machine is 27.8% busy.** Removing the conversion
-   entirely bought 2.68s of 96s, which is what a serial chain predicts. Further CPU
-   micro-optimization of the texture path should be dropped: the conversion was the largest single
-   item on that thread. What stays reachable is the O(n) registry scan (6.4% of the loading
-   thread) and the per-lookup SHA-256 (1.01s).
+1. **Serve the cache before the game's prefetcher, not after it.** The loading thread sleeps
+   **27 of the load's 96 seconds** waiting on Starsector's own single-threaded image prefetcher,
+   and Preflight's cache lookup is spliced in *after* the call that does the waiting. Every image
+   the prefetcher owns is decoded by one thread while the decoded pixels sit unread in our cache.
+   This is the largest reachable item the project has ever measured, and it is the same one-method
+   rewrite moved a few instructions earlier.
 2. **The compatibility cache is a regression on this profile** and must not ship as a speed
    feature. It buys the PNG decode (13-16% of texture time) while paying blob I/O and a
-   per-lookup SHA-256 on the loading thread measured at 1.01s. It is worth carrying only as the
-   substrate the prepared-pixel path needs.
-3. **Take the SHA-256 off the loading thread** -- designed, never built, now with a measured
-   justification.
+   per-lookup SHA-256 on the loading thread. It is worth carrying only as the substrate the
+   prepared-pixel path needs.
+3. **Take the SHA-256 off the loading thread** -- designed, never built. Its cost needs
+   re-measuring: the 1.01s previously recorded came off a recording whose clock ran at 0.401x.
 
 Full write-up: [the first valid startup number](evidence/2026-08-01-the-first-valid-startup-number.md).
 
 ### Why it is only 1.5%, measured
 
-A sampling profile of the load answers it: **the machine is 27.8% busy for the whole 96 seconds**
--- under three of ten cores, seven idle. Stop-the-world GC is 0.00s, GPU upload is ~1% of
-samples, and the loading thread never parks, sleeps or waits on a monitor. The load is one long
-serial chain, and its length is the load time. Making a link of that chain cheaper returns exactly
-that link and no more, which is what 2.68s for the conversion bypass is.
+**The loading thread spends 27 of 96 seconds asleep**, in a 10ms poll loop, waiting on a single
+background thread decoding PNGs. The machine is 27.8% busy -- under three of ten cores -- because
+the game's own prefetch pipeline is one thread wide. Stop-the-world GC is 0.00s and GPU upload is
+~1% of samples, so neither is the constraint.
 
-This retires the question this work opened with -- whether async, worker pools or cache-locality
-tricks could split the serialized load. The opportunity is real and large, and it is not reachable
-from where Preflight sits: restructuring the loader's serial chain means changing the loader, not
-decorating it from outside with a fail-open agent.
+Preflight gets none of that time back because its cache lookup sits on the wrong side of the wait.
+Our hook was reached 6,654 times; the manifest holds 32,917 textures. The difference is the set the
+prefetcher answered first, and the 27 seconds is what the loading thread paid to wait for it.
+
+So the load is **not** an irreducibly serial chain, and the opportunity **is** reachable from where
+Preflight sits -- both of which this roadmap asserted earlier today on the strength of a report
+that printed the eight longest-blocked threads while the loading thread ranked ninth.
 
 Also measured, and unaddressed: **the JSON/spec path is comparable to the texture path** in both
 wall time (`LoadingUtils` owns 0-25s and 65-85s; `TextureLoader` owns 25-65s and 85-95s) and
 allocation (27% of ~126 GB, the single largest site). The resource index solves *finding* a
 resource; nothing caches the parsed result.
 
-Full write-up: [what the load is actually waiting for](evidence/2026-08-01-what-the-load-is-actually-waiting-for.md),
-reproducible with `scripts/starsector_critical_path.py <recording.jfr>`.
+Full write-up: [the loading thread waits on a one-thread prefetcher](evidence/2026-08-01-the-loading-thread-waits-on-a-one-thread-prefetcher.md),
+reproducible with `scripts/starsector_critical_path.py <recording.jfr>`. It supersedes
+[what the load is actually waiting for](evidence/2026-08-01-what-the-load-is-actually-waiting-for.md).
+
+### Standing correction: JFR durations from a Starsector recording are 2.49x short
+
+The game launches with `-XX:+UseFastUnorderedTimeStamps`, under which JFR's tick-to-nanosecond
+conversion is wrong by a constant factor. On the reviewed install a `Thread.sleep(10)` records as
+4.7ms and a 96-second load records as 38.5 seconds of events, which reads as a truncated recording
+and is not one. `scripts/starsector_critical_path.py` now measures the factor against `jdk.CPULoad`'s
+fixed 1000ms period and says so at the top of every report.
+
+Shares, ratios and sample counts are unaffected -- they count events, and counting does not depend
+on the clock. Durations are not: any wall-clock figure previously read out of a Starsector JFR
+recording is short by ~2.49x.
 
 ## Standing correction: every startup number before 2026-08-01 is void
 

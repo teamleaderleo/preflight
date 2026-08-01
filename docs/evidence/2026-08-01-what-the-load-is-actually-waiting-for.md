@@ -5,6 +5,15 @@
 **Recording:** `20260801-100133/runs/profile-1/startup.jfr`, SAMPLE mode, 99s, direct protocol
 **Prompted by:** deleting ~15s of sampled CPU from the loading thread bought 2.68s of wall clock
 
+> **Superseded the same day. Do not cite the conclusion of this document.**
+> Its central claim — that the loading thread never blocks, and therefore that the load is an
+> irreducibly serial chain — came from a reporting script that printed only the eight
+> longest-blocked threads. Six permanently-idle daemons outrank the loading thread, which places
+> ninth. It in fact sleeps **27 of the load's 96 seconds**, waiting on the game's single-threaded
+> image prefetcher. Separately, every *duration* below is on a clock running at 0.401x real time
+> (`-XX:+UseFastUnorderedTimeStamps`); the shares and sample counts are unaffected and still hold.
+> See [the loading thread waits on a one-thread prefetcher](2026-08-01-the-loading-thread-waits-on-a-one-thread-prefetcher.md).
+
 ## The question
 
 The [first valid campaign](2026-08-01-the-first-valid-startup-number.md) showed the prepared-pixel
@@ -24,12 +33,16 @@ Everything else follows from that.
 | --- | --- |
 | stop-the-world GC | **0.00s** of pause across 128 `GCPhasePause` events (Shenandoah, concurrent; 32 collections, 2.3s of concurrent work) |
 | GPU upload | `GL11.nglTexImage2D` is **68 of 6,683** samples, ~1% |
-| Java-level blocking on the loading thread | `main` does not appear in the blocked ranking at all — no park, no sleep, no monitor wait |
+| ~~Java-level blocking on the loading thread~~ | ~~`main` does not appear in the blocked ranking at all — no park, no sleep, no monitor wait~~ **False: it ranks ninth and the report showed eight. It sleeps 27s on the prefetcher.** |
 | CPU saturation | 27.8% of ten cores |
 
 So the loading thread is neither waiting on a lock, nor waiting on the GPU, nor stopped by the
 collector, nor competing for a busy machine. It is a long serial chain, and its length is the
 load time.
+
+> **Wrong.** It is also, for 27 of those 96 seconds, sleeping in a 10ms poll loop waiting on the
+> game's one-thread image prefetcher — which the row above missed and this paragraph then reasoned
+> from. The load is not an irreducible serial chain; it is a pipeline one thread too narrow.
 
 ## Where the work is
 
@@ -101,6 +114,12 @@ cache-locality tricks could split the serialized load. The measured answer is th
 opportunity is real and large, and that **it is not reachable from where Preflight sits.**
 Restructuring the loader's serial chain means changing the loader, not decorating it from the
 outside with a fail-open agent.
+
+> **This paragraph is the wrong conclusion and it is the reason this document is superseded.**
+> The opportunity is reachable. The game already runs an asynchronous prefetcher; Preflight's
+> cache lookup is simply spliced in *after* the call that waits on it, so the loading thread
+> blocks on a single PNG decoder while the decoded pixels sit unread in our cache. Moving the
+> lookup ahead of that call is the same one-method rewrite, a few instructions earlier.
 
 What remains reachable, in order:
 

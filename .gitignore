@@ -17,3 +17,7 @@ probe-kits/gpu-capability/gpu-capability-report-*.txt
 probe-kits/gpu-capability/.probe-build/
 probe-kits/texture-pipeline/.probe-build/
 probe-kits/texture-pipeline/texture-pipeline-report-*.txt
+
+# Python bytecode from the script tests, which import each other as modules.
+__pycache__/
+*.pyc
