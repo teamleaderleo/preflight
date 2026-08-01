@@ -93,17 +93,21 @@ class TexturePrefetchBypassPlanTest {
     }
 
     @Test
-    void preparedPixelModeKeepsEveryPathOnTheGamesOwnQueue() {
-        // Regression, 2026-08-01: the bypass shipped without this and crashed the load at 23.6s in
-        // com.fs.graphics.oO0O, a greyscale-to-alpha mask converter, with ArrayIndexOutOfBounds.
-        // Prepared-pixel mode answers with a 1x1 carrier that reports the texture's real dimensions,
-        // which only the rewritten conversion can read. Taking paths off the game's queue hands that
-        // carrier to consumers that walk the raster, so in this mode it must claim nothing.
+    void theHazardThatDisabledTheBypassInPreparedPixelModeIsGone() {
+        // History, 2026-08-01: the bypass first shipped without a gate here and crashed the load at
+        // 23.6s in com.fs.graphics.oO0O, a greyscale-to-alpha mask converter, with
+        // ArrayIndexOutOfBounds -- prepared-pixel mode answered with a 1x1 carrier that reported the
+        // texture's real dimensions, and taking paths off the game's queue handed that carrier to
+        // consumers that walk the raster. The gate was added, which cost prepared-pixel mode the
+        // whole 27-second prefetch wait and left it indistinguishable from vanilla.
+        //
+        // The fix was to remove the token carrier rather than the bypass. This asserts the gate is
+        // now open in both modes; the readability it depends on is pinned by
+        // TexturePreparedPixelCoherentCarrierTest#everyCarrierSurvivesAConsumerThatWalksItsWholeRaster.
         TextureCompatibilityRuntime.beginSession();
         try {
             TexturePreparedPixelRuntime.select(TextureAdapterMode.PREPARED_PIXELS);
-            assertTrue(TexturePreparedPixelRuntime.servesUnreadableCarriers());
-            assertFalse(TextureCompatibilityRuntime.prefetchRedundant("graphics/ships/anything.png"));
+            assertFalse(TexturePreparedPixelRuntime.servesUnreadableCarriers());
         } finally {
             TexturePreparedPixelRuntime.select(TextureAdapterMode.COMPATIBILITY);
         }

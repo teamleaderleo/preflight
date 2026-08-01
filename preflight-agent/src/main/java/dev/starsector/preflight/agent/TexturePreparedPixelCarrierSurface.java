@@ -3,7 +3,6 @@ package dev.starsector.preflight.agent;
 import dev.starsector.preflight.core.PreparedTexture;
 import java.awt.Transparency;
 import java.awt.color.ColorSpace;
-import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ComponentColorModel;
 import java.awt.image.DataBuffer;
@@ -12,17 +11,17 @@ import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 import java.util.Objects;
 
-/** Creates either the historical lightweight carrier or an opt-in coherent cached image. */
+/**
+ * Materialises the readable surface every prepared-pixel carrier is built on.
+ *
+ * <p>There used to be a second, lightweight option here: a 1x1 raster paired with a carrier that
+ * reported the texture's real dimensions. It was removed on 2026-08-01 rather than kept behind a
+ * flag, because a carrier that lies about its size is only safe while exactly one consumer ever
+ * sees it, and that stopped being true when this mode took the prefetch bypass. See
+ * {@code TexturePreparedPixelRuntime#servesUnreadableCarriers()}.
+ */
 final class TexturePreparedPixelCarrierSurface {
     private TexturePreparedPixelCarrierSurface() {
-    }
-
-    static Surface legacy(int channels) {
-        BufferedImage image = new BufferedImage(
-                1,
-                1,
-                channels == 4 ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
-        return new Surface(image.getColorModel(), image.getRaster(), 0, false);
     }
 
     static Surface coherent(PreparedTexture texture) {

@@ -64,20 +64,24 @@ public final class TexturePreparedPixelRuntime {
     /**
      * True when the image handed back to the loader is a token rather than a readable image.
      *
-     * <p>The carrier is a 1x1 raster that reports the texture's real dimensions, because the whole
-     * point of this mode is that the pixels never become a {@link BufferedImage} at all. That
-     * contract holds for exactly one consumer -- the conversion this plan rewrites. Any other
-     * consumer that walks {@code 0..getWidth()} calling {@code raster.getPixel} reads off the end
-     * of a single pixel.
+     * <p>It used to be true whenever this mode was selected. The carrier was a 1x1 raster that
+     * reported the texture's real dimensions, because the point of the mode is that the pixels
+     * never become a {@link BufferedImage} at all. That contract held for exactly one consumer --
+     * the conversion this plan rewrites -- and any other consumer that walks {@code 0..getWidth()}
+     * calling {@code raster.getPixel} read off the end of a single pixel.
      *
-     * <p>Nothing enforced that before, and it held only because the game's own prefetcher happened
-     * to answer first for the textures other consumers read. That was luck, not design: routing
-     * those paths to the cache crashed the load in {@code com.fs.graphics.oO0O}, a greyscale-to-alpha
-     * mask converter, on 2026-08-01. So anything that widens the set of paths served here has to ask
-     * this first.
+     * <p>Nothing enforced it, and it survived only because the game's own prefetcher happened to
+     * answer first for the textures other consumers read. That was luck, not design: routing those
+     * paths to the cache crashed the load in {@code com.fs.graphics.oO0O}, a greyscale-to-alpha mask
+     * converter, on 2026-08-01, and the prefetch bypass had to be disabled here as a result.
+     *
+     * <p>It is now false, because {@link CarrierImage} always materialises a readable raster. The
+     * boolean is kept rather than deleted: it names the hazard, and reintroducing a token carrier
+     * for any subset of textures means making this true again for that subset. The invariant itself
+     * is pinned by a test that walks the whole raster of a carrier, not by this method.
      */
     static boolean servesUnreadableCarriers() {
-        return selected;
+        return false;
     }
 
     /** Returns a prepared-texture carrier, or {@code null} for original decode fallback. */
@@ -609,9 +613,14 @@ public final class TexturePreparedPixelRuntime {
                     logicalPath,
                     texture,
                     layout,
-                    coherentOriginalConvert || coherentDirect
-                            ? TexturePreparedPixelCarrierSurface.coherent(texture)
-                            : TexturePreparedPixelCarrierSurface.legacy(texture.channels()),
+                    // Every carrier is readable, unconditionally. The old alternative was a 1x1
+                    // raster that reported the texture's real dimensions, which is only safe while
+                    // the rewritten conversion is the sole consumer -- and it stopped being the
+                    // sole consumer the moment this mode could take the prefetch bypass. The
+                    // materialisation this costs was already being paid for 6,123 of 6,651
+                    // carriers on the measured profile, because every NPOT texture took the
+                    // coherent path already. See servesUnreadableCarriers().
+                    TexturePreparedPixelCarrierSurface.coherent(texture),
                     coherentOriginalConvert,
                     coherentDirect);
         }
@@ -653,6 +662,7 @@ public final class TexturePreparedPixelRuntime {
 
     private static final class Telemetry {
         private long carriers;
+        private long carrierRasterBytes;
         private long coherentCarriers;
         private long coherentCarrierBytes;
         private long coherentDirectCarriers;
@@ -676,6 +686,7 @@ public final class TexturePreparedPixelRuntime {
 
         synchronized void reset() {
             carriers = 0;
+            carrierRasterBytes = 0;
             coherentCarriers = 0;
             coherentCarrierBytes = 0;
             coherentDirectCarriers = 0;
@@ -700,6 +711,10 @@ public final class TexturePreparedPixelRuntime {
 
         synchronized void carrier(long rasterBytes, boolean coherent, boolean coherentDirect) {
             carriers++;
+            // Every carrier materialises a readable raster now, so this is the mode's true
+            // materialisation cost. coherentCarrierBytes below still counts only the carriers the
+            // NPOT policy flags select, which is a strictly smaller set.
+            carrierRasterBytes = saturatedAdd(carrierRasterBytes, rasterBytes);
             if (coherent) {
                 coherentCarriers++;
                 coherentCarrierBytes = saturatedAdd(coherentCarrierBytes, rasterBytes);
@@ -790,6 +805,7 @@ public final class TexturePreparedPixelRuntime {
             values.put("maxActiveBuffers", MAX_ACTIVE_BUFFERS);
             values.put("maxLayoutObservations", MAX_LAYOUT_OBSERVATIONS);
             values.put("carriers", carriers);
+            values.put("carrierRasterBytes", carrierRasterBytes);
             values.put("coherentCarriers", coherentCarriers);
             values.put("coherentCarrierBytes", coherentCarrierBytes);
             values.put("coherentDirectCarriers", coherentDirectCarriers);

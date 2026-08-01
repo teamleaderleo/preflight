@@ -177,28 +177,65 @@ class TexturePreparedPixelCoherentCarrierTest {
     }
 
     @Test
-    void defaultNpotPathKeepsLegacyCarrierAndOriginalDecodeFallback() throws Exception {
+    void defaultNpotPathKeepsOriginalDecodeFallbackButNoLongerHandsOutATokenCarrier() throws Exception {
+        // Until 2026-08-01 this path produced a 1x1 raster under real reported dimensions, and this
+        // test asserted it. The NPOT *upload* policy below is unchanged -- prepare() still declines,
+        // and the original converter still runs. What changed is that the image handed back is now
+        // readable, which is what lets prepared-pixel mode take the prefetch bypass at all.
         Fixture fixture = fixture(2, 3, 3, new byte[18]);
         configure(fixture);
 
         BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
         assertEquals(2, carrier.getWidth());
         assertEquals(3, carrier.getHeight());
-        assertEquals(1, carrier.getWidth(null));
-        assertEquals(1, carrier.getHeight(null));
-        assertEquals(1, carrier.getRaster().getWidth());
-        assertEquals(1, carrier.getRaster().getHeight());
+        assertEquals(2, carrier.getWidth(null));
+        assertEquals(3, carrier.getHeight(null));
+        assertEquals(2, carrier.getRaster().getWidth());
+        assertEquals(3, carrier.getRaster().getHeight());
         assertNull(TexturePreparedPixelRuntime.prepare(carrier));
         assertFalse(TexturePreparedPixelRuntime.useCarrierForOriginalFallback(carrier));
 
         Map<String, Object> telemetry = TexturePreparedPixelRuntime.telemetry();
+        // The policy counters still count only what the NPOT flags select; the raster bytes count
+        // every carrier, because every carrier now materialises one.
         assertEquals(0L, telemetry.get("coherentCarriers"));
         assertEquals(0L, telemetry.get("coherentCarrierBytes"));
+        assertEquals(18L, telemetry.get("carrierRasterBytes"));
         assertEquals(0L, telemetry.get("coherentDirectCarriers"));
         assertEquals(0L, telemetry.get("coherentDirectHits"));
         assertEquals(0L, telemetry.get("coherentOriginalConvertFallbacks"));
         assertEquals(0L, telemetry.get("coherentOriginalDecodeBypasses"));
         assertEquals(0L, telemetry.get("paddedUploads"));
+    }
+
+    @Test
+    void everyCarrierSurvivesAConsumerThatWalksItsWholeRaster() throws Exception {
+        // The invariant that replaced servesUnreadableCarriers(). com.fs.graphics.oO0O is a
+        // greyscale-to-alpha mask converter that loops 0..getWidth() x 0..getHeight() calling
+        // raster.getPixel; against a 1x1 carrier that reported real dimensions it threw
+        // ArrayIndexOutOfBoundsException and killed the load at 23.6s on 2026-08-01. Both a
+        // power-of-two texture and an NPOT one are checked, because the crash came from the POT
+        // minority -- the NPOT majority already took the readable path.
+        for (int[] size : new int[][] {{4, 4}, {2, 3}}) {
+            int width = size[0];
+            int height = size[1];
+            Fixture fixture = fixture(width, height, 4, sequential(width * height * 4));
+            configure(fixture);
+
+            BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+            assertTrue(TexturePreparedPixelRuntime.isCarrier(carrier));
+            assertEquals(width, carrier.getWidth());
+            assertEquals(height, carrier.getHeight());
+
+            int[] pixel = new int[4];
+            for (int x = 0; x < carrier.getWidth(); x++) {
+                for (int y = 0; y < carrier.getHeight(); y++) {
+                    carrier.getRaster().getPixel(x, y, pixel);
+                    carrier.getRGB(x, y);
+                }
+            }
+            assertEquals(width * height, carrier.getData().getWidth() * carrier.getData().getHeight());
+        }
     }
 
     private void configure(Fixture fixture) {
