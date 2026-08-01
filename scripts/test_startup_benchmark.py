@@ -819,3 +819,54 @@ class RecordedShapeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnattendedPromptTest(unittest.TestCase):
+    """The prompts must not need an operator that --unattended promises is not there.
+
+    On 2026-08-01 a ninety-minute campaign was announced as running and was not: piping one
+    newline satisfied the settling prompt, the next prompt read EOF, and `set -e` ended the
+    script one line after the header. Text assertions cannot catch that, so these run the
+    function.
+    """
+
+    def confirm(self, stdin, unattended, argument='reply'):
+        body = re.search(r"\nconfirm\(\) \{\n(?P<body>.*?)\n\}\n", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(body, "confirm() not found")
+        harness = (
+            "set -euo pipefail\n"
+            f"UNATTENDED={'true' if unattended else 'false'}\n"
+            "note() { :; }\n"
+            "confirm() {\n" + body.group("body") + "\n}\n"
+            f"reply=UNSET\n"
+            f"confirm 'prompt: ' {argument}\n"
+            "printf 'rc=0 reply=[%s]' \"${reply-}\"\n"
+        )
+        return subprocess.run(
+            ["bash", "-c", harness], input=stdin, capture_output=True, text=True)
+
+    def test_unattended_never_blocks_and_never_consumes_stdin(self):
+        done = self.confirm("", unattended=True)
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertIn("rc=0", done.stdout)
+        self.assertIn("reply=[]", done.stdout)
+
+    def test_closed_stdin_does_not_kill_the_run_under_set_e(self):
+        # This is the exact failure: EOF made read return non-zero, and `set -e` did the rest.
+        done = self.confirm("", unattended=False)
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertIn("reply=[]", done.stdout)
+
+    def test_an_attended_answer_still_reaches_the_caller(self):
+        # `skip` is how an operator declines the settling launch; it has to survive the helper.
+        done = self.confirm("skip\n", unattended=False)
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertIn("reply=[skip]", done.stdout)
+
+    def test_every_prompt_goes_through_the_helper(self):
+        # A bare `read -r -p` reintroduces the bug for whichever prompt it is added to.
+        prompts = [line for line in SCRIPT_TEXT.splitlines()
+                   if "read -r -p" in line and "confirm()" not in line]
+        self.assertEqual(
+            1, len(prompts),
+            "only confirm() itself may call `read -r -p`; found: " + repr(prompts))

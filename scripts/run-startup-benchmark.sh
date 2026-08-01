@@ -333,6 +333,31 @@ descendants() {
 # starsector_mac.sh, and that shell starts the JVM. Signalling only the wrapper leaves a
 # hung or crashed game running, holding the screen and the next run's page cache -- which
 # is exactly what happened on 2026-07-31, where a crashed JVM outlived its own timeout.
+# An operator prompt that an unattended campaign does not have an operator for.
+#
+# --unattended exists so a campaign can run with nobody at the keyboard, and these prompts
+# defeated that twice on 2026-08-01: piping a single newline satisfied the first prompt, the
+# next one read EOF, and `set -e` killed the script one line after it announced it was
+# starting. A ninety-minute campaign looked like it was running and was not.
+#
+# So: skip entirely when unattended, and never let an exhausted stdin end the run silently.
+confirm() {
+    local prompt="$1" target="${2:-}" answer=""
+    if [[ "$UNATTENDED" == true ]]; then
+        [[ -n "$target" ]] && printf -v "$target" '%s' ""
+        return 0
+    fi
+    if ! read -r -p "$prompt" answer; then
+        # Closed stdin is not an answer. Carrying on is the same choice a bare Enter makes,
+        # and it is the one that does not discard a campaign already in progress.
+        echo
+        note "stdin closed; continuing as though you pressed Enter."
+        answer=""
+    fi
+    [[ -n "$target" ]] && printf -v "$target" '%s' "$answer"
+    return 0
+}
+
 terminate() {
     local pid="$1" target
     local tree
@@ -676,7 +701,8 @@ GraphicsLib generates normal maps into its own cache on a first run and reuses t
 afterwards. That one-time write is what invalidated the July comparison. This launch is
 thrown away; it exists so the installation stops changing before anything is counted.
 WARMUP
-    read -r -p "Press Enter to run the settling launch (or type skip): " reply
+    reply=""
+    confirm "Press Enter to run the settling launch (or type skip): " reply
     settled=skipped
     if [[ "$reply" != skip ]]; then
         RECORDING=false
@@ -696,7 +722,8 @@ WARMUP
             note "anything is counted. A launch that stopped early may not have finished,"
             note "and whatever is left would be paid by the first measured run instead --"
             note "which is the exact contamination that invalidated the July comparison."
-            read -r -p "Press Enter to retry it, or type skip to go on anyway: " retry
+            retry=""
+            confirm "Press Enter to retry it, or type skip to go on anyway: " retry
             [[ "$retry" == skip ]] && break
         done
         RECORDING=true
@@ -734,7 +761,7 @@ Do not load a save. The order of conditions is shuffled inside every round so th
 thermal drift and background load cannot line up with any one condition.
 PROTOCOL
 fi
-read -r -p "Press Enter to begin, or Ctrl-C to stop: "
+confirm "Press Enter to begin, or Ctrl-C to stop: "
 
 INDEX=0
 for round in $(seq 1 "$ROUNDS"); do
