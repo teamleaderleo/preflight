@@ -1,0 +1,107 @@
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+
+/**
+ * What {@code LoadingUtils.super(InputStream)} costs -- the reader every spec file goes through.
+ *
+ * <p>From the disassembly:
+ *
+ * <pre>
+ *   byte[] buf = new byte[1048576];              // 1 MiB, per call, whatever the file size
+ *   StringBuffer sb = new StringBuffer();        // synchronised, unpresized
+ *   while ((n = in.read(buf)) != -1)
+ *       sb.append(new String(buf, 0, n, "UTF-8"));   // a String per chunk
+ *   return sb.toString().replaceAll("\\r", "");      // full copy, then a regex over the whole file
+ * </pre>
+ *
+ * <p>Four full copies of every file, a 1 MiB allocation per call, and a {@code Pattern} compiled
+ * per call to delete a character. Run over the game's real spec corpus.
+ */
+public class LoadingUtilsBench {
+
+    /** The game's reader, transcribed. */
+    static String vanilla(InputStream in) throws IOException {
+        byte[] buf = new byte[1048576];
+        StringBuffer sb = new StringBuffer();
+        int n;
+        try {
+            while ((n = in.read(buf)) != -1) sb.append(new String(buf, 0, n, "UTF-8"));
+        } finally {
+            in.close();
+        }
+        return sb.toString().replaceAll("\\r", "");
+    }
+
+    /** Same reader, but the regex replaced by the literal it implements. */
+    static String noRegex(InputStream in) throws IOException {
+        byte[] buf = new byte[1048576];
+        StringBuffer sb = new StringBuffer();
+        int n;
+        try {
+            while ((n = in.read(buf)) != -1) sb.append(new String(buf, 0, n, "UTF-8"));
+        } finally {
+            in.close();
+        }
+        return sb.toString().replace("\r", "");
+    }
+
+    /** Read the bytes once, decode once, strip in the same pass. */
+    static String direct(Path path) throws IOException {
+        byte[] bytes = Files.readAllBytes(path);
+        int out = 0;
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] != '\r') bytes[out++] = bytes[i];
+        }
+        return new String(bytes, 0, out, StandardCharsets.UTF_8);
+    }
+
+    public static void main(String[] args) throws Exception {
+        System.out.printf("jvm %s (%s)%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+
+        List<Path> files = new ArrayList<>();
+        Path root = Path.of("/Applications/Starsector.app");
+        try (var walk = Files.walk(root)) {
+            walk.filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String s = p.toString();
+                        for (String ext : new String[] {".json", ".csv", ".ship", ".variant", ".wpn", ".faction", ".system", ".skin", ".proj"}) if (s.endsWith(ext)) return true;
+                        return false;
+                    })
+                    .forEach(files::add);
+        }
+        long bytes = 0;
+        for (Path p : files) bytes += Files.size(p);
+        System.out.printf("corpus: %d spec files, %.1f MiB, mean %.0f bytes%n%n",
+                files.size(), bytes / 1048576.0, bytes / (double) files.size());
+
+        // Warm the page cache so this measures CPU, not the first read from disk.
+        for (int pass = 0; pass < 2; pass++) for (Path p : files) Files.readAllBytes(p);
+
+        double v = best(files, 0), nr = best(files, 1), d = best(files, 2);
+        System.out.printf("%-34s %9.3f s   %8.1f us/file%n", "vanilla (1 MiB buf, regex)", v, v * 1e6 / files.size());
+        System.out.printf("%-34s %9.3f s   %8.1f us/file   %.2fx%n", "same, String.replace not regex", nr, nr * 1e6 / files.size(), v / nr);
+        System.out.printf("%-34s %9.3f s   %8.1f us/file   %.2fx%n", "readAllBytes, strip in place", d, d * 1e6 / files.size(), v / d);
+        System.out.printf("%nper full corpus pass, saved: %.3f s (no regex) / %.3f s (direct)%n", v - nr, v - d);
+    }
+
+    private static long sink;
+
+    private static double best(List<Path> files, int which) throws IOException {
+        double best = Double.MAX_VALUE;
+        for (int pass = 0; pass < 4; pass++) {
+            long t0 = System.nanoTime();
+            for (Path p : files) {
+                String s = which == 0 ? vanilla(Files.newInputStream(p))
+                        : which == 1 ? noRegex(Files.newInputStream(p))
+                        : direct(p);
+                sink += s.length();
+            }
+            double seconds = (System.nanoTime() - t0) / 1e9;
+            if (pass > 0) best = Math.min(best, seconds);
+        }
+        return best;
+    }
+}
