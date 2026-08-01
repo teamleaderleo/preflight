@@ -264,6 +264,15 @@ nowhere. Three facts shape the policy the second bullet still needs
 - Effect versus music is decided by `sounds.json`, never by directory naming, which is wrong in both
   directions in this profile.
 
+## Prior art on the same seams
+
+`starsector-render` is a Java agent for the same game version that already rewrites
+`com/fs/graphics/L`, `TextureLoader`, `com/fs/util/C`, `ResourceLoaderState`, `SpecStore` and
+`ScriptStore`, parallelises Janino compilation, and ships a frame profiler. Read
+[the review](prior-art-starsector-render.md) before starting anything below it -- two queued items
+here may already be solved there, its constant-pool substitution technique is worth borrowing, and
+the question of whether the two agents can coexist is open and unanswered.
+
 ## Runtime performance: a second axis, and four leads
 
 Everything above measures **time to main menu**. That is not the only thing a player feels, and on
