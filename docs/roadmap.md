@@ -17,11 +17,11 @@ cooldown before every launch, 5 rounds x 3 conditions, launch-order drift +0.47s
 
 Three things follow, in priority order:
 
-1. **The loading thread is not the critical path.** JFR put the BufferedImage conversion at
-   ~15-18% of sampled CPU, on the order of 15s. Removing it entirely bought 2.68s. Four fifths of
-   the deleted work was never in the wall clock, so further CPU optimization of that thread is
-   speculative until the actual bottleneck is identified -- and execution sampling of Java frames
-   is evidently not the instrument that will find it.
+1. **The load is serial on one thread and the machine is 27.8% busy.** Removing the conversion
+   entirely bought 2.68s of 96s, which is what a serial chain predicts. Further CPU
+   micro-optimization of the texture path should be dropped: the conversion was the largest single
+   item on that thread. What stays reachable is the O(n) registry scan (6.4% of the loading
+   thread) and the per-lookup SHA-256 (1.01s).
 2. **The compatibility cache is a regression on this profile** and must not ship as a speed
    feature. It buys the PNG decode (13-16% of texture time) while paying blob I/O and a
    per-lookup SHA-256 on the loading thread measured at 1.01s. It is worth carrying only as the
@@ -30,6 +30,27 @@ Three things follow, in priority order:
    justification.
 
 Full write-up: [the first valid startup number](evidence/2026-08-01-the-first-valid-startup-number.md).
+
+### Why it is only 1.5%, measured
+
+A sampling profile of the load answers it: **the machine is 27.8% busy for the whole 96 seconds**
+-- under three of ten cores, seven idle. Stop-the-world GC is 0.00s, GPU upload is ~1% of
+samples, and the loading thread never parks, sleeps or waits on a monitor. The load is one long
+serial chain, and its length is the load time. Making a link of that chain cheaper returns exactly
+that link and no more, which is what 2.68s for the conversion bypass is.
+
+This retires the question this work opened with -- whether async, worker pools or cache-locality
+tricks could split the serialized load. The opportunity is real and large, and it is not reachable
+from where Preflight sits: restructuring the loader's serial chain means changing the loader, not
+decorating it from outside with a fail-open agent.
+
+Also measured, and unaddressed: **the JSON/spec path is comparable to the texture path** in both
+wall time (`LoadingUtils` owns 0-25s and 65-85s; `TextureLoader` owns 25-65s and 85-95s) and
+allocation (27% of ~126 GB, the single largest site). The resource index solves *finding* a
+resource; nothing caches the parsed result.
+
+Full write-up: [what the load is actually waiting for](evidence/2026-08-01-what-the-load-is-actually-waiting-for.md),
+reproducible with `scripts/starsector_critical_path.py <recording.jfr>`.
 
 ## Standing correction: every startup number before 2026-08-01 is void
 
