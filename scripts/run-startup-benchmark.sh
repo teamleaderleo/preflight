@@ -12,6 +12,7 @@ ROUNDS=5
 CONDITIONS="vanilla,agent,enabled,fast"
 UNATTENDED=false
 REPREPARE=false
+COOLDOWN_SECONDS=0
 SESSION=""
 SKIP_WARMUP=false
 SEED="${SEED:-$RANDOM}"
@@ -41,6 +42,12 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       the launcher itself would have used, and applies to every condition
                       including vanilla. Refuses up front, with a reason, if the install
                       cannot support it.
+  --cooldown-seconds N
+                      Idle for N seconds before every launch, so each one starts from the same
+                      thermal state. A fanless machine loading this game repeatedly slows as it
+                      heats: the 2026-08-01 campaign drifted +19.6s across fifteen launches,
+                      which is ten times the effect it was trying to measure. 240 is a
+                      reasonable starting point.
   --reprepare         Rebuild the caches even when they already match this profile.
   --resume DIR        Continue an interrupted session, keeping its completed runs.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
@@ -93,6 +100,7 @@ while [[ $# -gt 0 ]]; do
         --rounds) ROUNDS="$2"; shift 2 ;;
         --conditions) CONDITIONS="$2"; shift 2 ;;
         --unattended) UNATTENDED=true; shift ;;
+        --cooldown-seconds) COOLDOWN_SECONDS="$2"; shift 2 ;;
         --reprepare) REPREPARE=true; shift ;;
         # Removed rather than aliased. --auto-play searched the launcher for a Swing button to
         # press, and current Starsector draws its launcher in OpenGL, so there was never a button
@@ -451,6 +459,14 @@ launch_once() {
     esac
 
     banner "$label"
+    # Before the snapshot and before the launch: the point is that every launch begins from the
+    # same thermal state, so the comparison between conditions is not a comparison between how
+    # hot the machine happened to be. It does not need to cool fully -- ten minutes only
+    # recovered 87% of the drift -- it needs to be the same every time.
+    if (( COOLDOWN_SECONDS > 0 )); then
+        note "Cooling down for ${COOLDOWN_SECONDS}s so this launch starts where the others did..."
+        sleep "$COOLDOWN_SECONDS"
+    fi
     note "${command[*]}"
     python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$before_logs"
 

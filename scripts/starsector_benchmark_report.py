@@ -96,6 +96,53 @@ def protocols(runs: list[dict]) -> list[str]:
     return sorted({run.get("protocol") or "clicked" for run in runs})
 
 
+def launch_order_trend(runs: list[dict]) -> dict:
+    """How much of the result is explained by when the launch happened rather than by what ran.
+
+    A fanless machine loading a 6 GB-heap game fifteen times in half an hour heats up, and the
+    load slows as it does. On 2026-08-01 that produced +1.40s per launch, +19.6s across a
+    campaign whose condition effects were about 2s -- and every one of the fifteen runs was
+    accepted, because nothing in the harness was looking. Shuffling conditions inside a round
+    stops drift from *correlating* with a condition; it does nothing about drift itself.
+
+    Reported in the units that matter: total drift across the campaign, against the largest
+    difference between conditions. When the first exceeds the second the comparison is measuring
+    the machine.
+    """
+    usable = [
+        run for run in runs
+        if run["status"] == "accepted" and run.get("gameLogStartToMainMenuMs") is not None
+    ]
+    if len(usable) < 3:
+        return {"measurable": False}
+    seconds = [run["gameLogStartToMainMenuMs"] / 1000.0 for run in usable]
+    # Centre each run on its own condition's mean before looking for a trend. Regressing the raw
+    # series on launch order would read the conditions themselves as drift whenever they differ
+    # much and do not alternate evenly -- a 30s gap between two conditions can manufacture a
+    # slope of either sign out of nothing. What is wanted is the part of the movement that
+    # launch order explains *after* the conditions are accounted for.
+    totals: dict[str, list[float]] = {}
+    for run, value in zip(usable, seconds):
+        totals.setdefault(run["condition"], []).append(value)
+    means = {name: sum(values) / len(values) for name, values in totals.items()}
+    ordered = [value - means[run["condition"]] for run, value in zip(usable, seconds)]
+    xs = list(range(len(ordered)))
+    mean_x = sum(xs) / len(xs)
+    mean_y = sum(ordered) / len(ordered)
+    variance_x = sum((x - mean_x) ** 2 for x in xs)
+    if variance_x == 0:
+        return {"measurable": False}
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ordered)) / variance_x
+    total = sum((y - mean_y) ** 2 for y in ordered)
+    residual = sum((y - (mean_y + slope * (x - mean_x))) ** 2 for x, y in zip(xs, ordered))
+    return {
+        "measurable": True,
+        "secondsPerLaunch": round(slope, 3),
+        "secondsAcrossCampaign": round(slope * (len(ordered) - 1), 2),
+        "varianceExplained": round(1 - residual / total, 3) if total else None,
+    }
+
+
 def permutation_p(baseline: list[float], candidate: list[float]) -> float | None:
     """Exact two-sided p-value for a difference in medians.
 
@@ -165,15 +212,29 @@ def summarize(runs: list[dict]) -> dict:
             ),
         }
 
+    trend = launch_order_trend(runs)
+    largest_delta = max(
+        (abs(c["deltaSeconds"]) for c in comparisons.values()), default=0.0
+    )
+    # The campaign is measuring the machine when the drift across it is bigger than the biggest
+    # difference it found between conditions.
+    drift_dominates = bool(
+        trend.get("measurable")
+        and comparisons
+        and abs(trend["secondsAcrossCampaign"]) > largest_delta
+    )
+
     return {
         "scenarioId": "main-menu-v1",
         "measured": "game start log marker to graphics preload",
         "campaignMinimumSuccessfulRunsPerCondition": CAMPAIGN_MINIMUM,
         "launchProtocols": present_protocols,
         "protocolsMixed": mixed,
+        "launchOrderTrend": trend,
+        "driftDominatesConditions": drift_dominates,
         "conditions": stats,
         "comparisons": comparisons,
-        "benchmarkAccepted": (not mixed) and bool(comparisons) and all(
+        "benchmarkAccepted": (not mixed) and (not drift_dominates) and bool(comparisons) and all(
             values["successfulRuns"] >= CAMPAIGN_MINIMUM
             for condition, values in stats.items()
             if condition not in DIAGNOSTIC
@@ -217,6 +278,18 @@ def render(summary: dict, verbose: bool) -> str:
         lines.append("A positive delta means the candidate was faster. Only a comparison whose two")
         lines.append("conditions differ in one thing isolates that thing.")
 
+    if summary.get("driftDominatesConditions"):
+        trend = summary["launchOrderTrend"]
+        lines.append("")
+        lines.append(
+            f"NOT comparable: launches drifted {trend['secondsAcrossCampaign']:+.1f}s across this"
+            f" campaign ({trend['secondsPerLaunch']:+.2f}s each,"
+            f" {trend['varianceExplained'] * 100:.0f}% of all variance)."
+        )
+        lines.append("That is larger than the biggest difference between any two conditions, so")
+        lines.append("these medians describe the machine warming up, not the software. Re-run with")
+        lines.append("--cooldown-seconds so every launch starts from the same thermal state.")
+
     if summary.get("protocolsMixed"):
         lines.append("")
         lines.append(
@@ -230,7 +303,7 @@ def render(summary: dict, verbose: bool) -> str:
 
     if verbose:
         lines.append("")
-        if summary.get("protocolsMixed"):
+        if summary.get("protocolsMixed") or summary.get("driftDominatesConditions"):
             pass
         elif not comparisons:
             lines.append("No comparison yet: no pair of conditions both have a successful run.")

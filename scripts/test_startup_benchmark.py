@@ -243,6 +243,64 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(["clicked"], summary["launchProtocols"])
         self.assertFalse(summary["protocolsMixed"])
 
+    def test_a_campaign_that_drifted_more_than_it_measured_is_not_a_result(self):
+        # The 2026-08-01 campaign, reproduced. Fifteen launches, every one accepted, medians
+        # printed -- and launch order explained 88% of the variance because the machine warmed
+        # up +19.6s across a run whose condition effects were about 2s. Nothing in the harness
+        # was looking, so a worthless campaign looked like a clean one.
+        drifting = []
+        for index, (condition, iteration) in enumerate(
+            [(c, i) for i in range(1, 6) for c in ("vanilla", "fast", "prepared")]
+        ):
+            drifting.append((condition, iteration, 94.0 + 1.4 * index, "accepted"))
+        summary = report.summarize(runs(*drifting))
+
+        self.assertTrue(summary["driftDominatesConditions"])
+        trend = summary["launchOrderTrend"]
+        # Slightly under the 1.4 built into the fixture, and correctly so: centring on condition
+        # means absorbs a little of a trend this perfectly confounded with position. The
+        # estimate is deliberately conservative -- it under-reports drift rather than inventing
+        # it out of a difference between conditions.
+        self.assertAlmostEqual(1.4, trend["secondsPerLaunch"], delta=0.1)
+        self.assertAlmostEqual(19.6, trend["secondsAcrossCampaign"], delta=1.5)
+        self.assertFalse(summary["benchmarkAccepted"],
+                         "a campaign the machine dominated is not a reportable result")
+        rendered = report.render(summary, verbose=True)
+        self.assertIn("NOT comparable", rendered)
+        self.assertIn("cooldown-seconds", rendered)
+
+    def test_a_steady_campaign_still_reports(self):
+        # The guard must not fire on ordinary scatter, or it blocks every campaign forever.
+        steady = []
+        wobble = [0.4, -0.3, 0.2, -0.4, 0.1]
+        for iteration in range(1, 6):
+            steady.append(("vanilla", iteration, 100.0 + wobble[iteration - 1], "accepted"))
+            steady.append(("fast", iteration, 80.0 + wobble[iteration - 1], "accepted"))
+        summary = report.summarize(runs(*steady))
+
+        self.assertFalse(summary["driftDominatesConditions"])
+        self.assertTrue(summary["benchmarkAccepted"])
+
+    def test_the_trend_is_reported_even_when_it_does_not_block(self):
+        # A drift smaller than the effect still belongs in the record: it is the difference
+        # between a 20s win and a 20s win with 5s of machine in it.
+        mild = []
+        for index, (condition, iteration) in enumerate(
+            [(c, i) for i in range(1, 6) for c in ("vanilla", "fast")]
+        ):
+            base = 100.0 if condition == "vanilla" else 70.0
+            mild.append((condition, iteration, base + 0.5 * index, "accepted"))
+        summary = report.summarize(runs(*mild))
+
+        self.assertTrue(summary["launchOrderTrend"]["measurable"])
+        self.assertGreater(summary["launchOrderTrend"]["secondsAcrossCampaign"], 0)
+        self.assertFalse(summary["driftDominatesConditions"])
+
+    def test_too_few_runs_to_see_a_trend_is_not_a_claim_that_there_is_none(self):
+        summary = report.summarize(runs(("vanilla", 1, 100.0, "accepted")))
+        self.assertFalse(summary["launchOrderTrend"]["measurable"])
+        self.assertFalse(summary["driftDominatesConditions"])
+
     def test_no_baseline_means_no_comparison_rather_than_a_crash(self):
         summary = report.summarize(runs(("enabled", 1, 80.0, "accepted")))
         self.assertEqual({}, summary["comparisons"])
@@ -469,6 +527,20 @@ class UnattendedTest(unittest.TestCase):
         self.assertIn("launch-settings", SCRIPT_TEXT)
         self.assertIn(".settings.javaOptions", SCRIPT_TEXT)
         self.assertNotRegex(SCRIPT_TEXT, r"startRes=\d+x\d+")
+
+    def test_a_cooldown_precedes_the_launch_rather_than_following_it(self):
+        # It has to be inside launch_once and before the snapshot, so every launch begins from
+        # the same thermal state. After the launch it would cool the machine for whatever ran
+        # next, which is the same bug with an extra step.
+        block = re.search(r"launch_once\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(block)
+        body = block.group("body")
+        self.assertIn("COOLDOWN_SECONDS > 0", body)
+        self.assertLess(
+            body.index("COOLDOWN_SECONDS > 0"),
+            body.index('"$DETECTOR" snapshot'),
+            "the cooldown must finish before the run's log snapshot is taken",
+        )
 
     def test_the_old_button_driver_is_refused_rather_than_aliased(self):
         # --auto-play measured a different interval. Quietly accepting the name would put two
