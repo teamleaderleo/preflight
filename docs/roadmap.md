@@ -2,6 +2,33 @@
 
 Preflight follows a measurement-first sequence. Each optimization keeps the original loader available as a fallback.
 
+## In flight: the prefetch bypass is committed and NOT yet measured
+
+`609b27d` stops the game queueing images the cache can serve. It is real code on `main` with
+tests, and **no campaign has validated it.** Everything below about `fast` predates it.
+
+What exists so far, all of it provisional:
+
+| evidence | result |
+| --- | --- |
+| one validation launch, `fast` | 88.8s, against a 97.22s median for the same condition and profile |
+| one paired round of an abandoned campaign | `fast` 82.44s, `prepared` 91.21s, `vanilla` 91.83s |
+| adapter telemetry | 50,879 enqueues skipped; textures served 6,651 -> 21,653; 643 MB -> 2.53 GB |
+
+Read none of that as a number. Two rounds are not a campaign, and the abandoned one ran while
+the machine was loaded; a single quiet-machine settling launch came in at **75.9s**, so the
+measurement environment alone moves this by ~6.5s -- the same order as the effect. **A campaign
+for this has to run on a quiet machine: other applications closed, and nothing else measuring.**
+
+Also unmeasured: whether `fast` now beats `prepared`. It should, because the bypass is disabled
+in prepared-pixel mode (see below), and that would reverse the standing recommendation.
+
+**The bypass is off in prepared-pixel mode, and that is a finding, not a limitation.** That mode
+answers with a 1x1 raster reporting the texture's real dimensions -- a token only the rewritten
+conversion can read. It survived until now only because the game's prefetcher happened to answer
+first for the textures other consumers read; routing those paths to the cache crashed the load at
+23.6s in a mask converter. Anything that widens what that mode serves has to deal with this first.
+
 ## Measured result (2026-08-01)
 
 The first campaign in this project's history to reach `benchmarkAccepted`. Unattended, 240s
