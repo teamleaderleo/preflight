@@ -137,5 +137,7 @@ jcmd <pid> JFR.dump name=1 filename=out.jfr
 `name="Starsector Preflight startup"` does **not** work — `jcmd` splits its arguments on whitespace
 and rejects the recording's name. Use the ordinal.
 
-**Every `--profile` run this project has taken has been silently losing its tail**, and the agent
-should be fixed to flush or dump rather than relying on exit.
+> **Corrected.** "Every `--profile` run has been silently losing its tail" was too strong. The events
+> are all present; what breaks is cross-chunk *timestamps*, and only on recordings that rotated.
+> This recording is a single chunk, so nothing here is affected. See
+> [what the profiler was not telling us](2026-08-02-what-the-profiler-was-not-telling-us.md).
