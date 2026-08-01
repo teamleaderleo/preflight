@@ -51,6 +51,24 @@ Prior campaign, for the 27-second wait itself:
 Next, in order: the game's own `File.exists` probe of 77 mod roots per resource, and the untouched
 JSON/spec path.
 
+## Landed since that campaign (2026-08-02), correctness-validated, not timed
+
+**The texture padding is gone.** `--prepared-unpadded` was inert because the fold bypass and the
+prepared-pixel rewrite both target `com/fs/graphics/TextureLoader` and the registry dispatches one
+plan per class. They now compose, and a real full load reports **0 padding bytes against
+1,394,162,605** before it -- 3.65 GiB uploaded becomes 2.43 GiB, **1.22 GiB less**, while serving
+1,754 *more* textures. Every safety counter stayed at zero and the launcher texture that caused the
+July crash now allocates exactly the 668,043 bytes it is given.
+[Evidence](evidence/2026-08-02-the-padding-is-gone.md). Still opt-in; no timing claim.
+
+**Preflight now says when another agent owns a target class** instead of reporting a hash mismatch
+that reads as a stale cache. [Prior art](prior-art-starsector-render.md).
+
+**Two ideas were measured and rejected before being built**: the save-load reference pre-scan (the
+scan costs more than the registrations it avoids) and any binary save format (the whole 103 MB save
+pull-parses in 685 ms).
+[Save analysis](evidence/2026-08-02-save-loading-is-not-parsing.md).
+
 Context that reframes all remaining CPU work:
 [the game runs under Rosetta](evidence/2026-08-01-the-game-runs-under-rosetta.md).
 
