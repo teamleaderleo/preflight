@@ -49,6 +49,28 @@ final class AdapterTargetRegistry {
                 TexturePreparedPixelRuntime.PLAN_ID);
     }
 
+    /**
+     * The game's own image prefetcher, pinned like every other target to an exact reviewed class.
+     *
+     * <p>Separate from the TextureLoader target because it is a different class in the same jar and
+     * either rewrite must be able to install without the other.
+     */
+    static AdapterTarget texturePrefetchBypassTarget() {
+        return new AdapterTarget(
+                "vanilla-image-prefetcher-0.98a-rc8-bypass",
+                TexturePrefetchBypassPlan.TARGET_CLASS,
+                "229d05ef109d56913b2c04263839088aa2719d31bc5fd3d58af6bc2415b84cd2",
+                TexturePrefetchBypassPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        TexturePrefetchBypassPlan.CONSUMER_METHOD,
+                        TexturePrefetchBypassPlan.CONSUMER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget textureTarget(String id, String planId) {
         return new AdapterTarget(
                 id,
@@ -93,9 +115,12 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
+        // Both cache-backed modes read through the same manifest, so both want the prefetcher to
+        // stop queueing what that manifest can serve.
         return withTarget(mode == TextureAdapterMode.PREPARED_PIXELS
                 ? texturePreparedPixelTarget()
-                : textureCompatibilityTarget());
+                : textureCompatibilityTarget())
+                .withTarget(texturePrefetchBypassTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {

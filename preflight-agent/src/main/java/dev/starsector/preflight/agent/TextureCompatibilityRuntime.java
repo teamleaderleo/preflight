@@ -127,6 +127,46 @@ public final class TextureCompatibilityRuntime {
         }
     }
 
+    /**
+     * True when this path need not go on the game's own prefetch queue, because the cache has it.
+     *
+     * <p>Called once per image resource while the loader builds that queue, so it must stay cheap:
+     * a normalize and one manifest lookup, and deliberately <em>not</em> the source hash, which is
+     * the expensive part of {@link #lookup} and belongs on the path that actually serves an image.
+     * Being wrong here costs no correctness either way. A path wrongly skipped is decoded
+     * synchronously by the game exactly as an uncached path always was; a path wrongly kept is
+     * prefetched exactly as it always was.
+     */
+    public static boolean prefetchRedundant(String logicalPath) {
+        State current = state;
+        if (!current.ready || current.circuitBreaker.get()) {
+            return false;
+        }
+        try {
+            String normalized;
+            try {
+                normalized = ResourceIndex.normalizeLogicalPath(logicalPath);
+            } catch (IllegalArgumentException error) {
+                TELEMETRY.prefetchKept();
+                return false;
+            }
+            TextureManifest.Entry entry = current.manifest.entry(normalized).orElse(null);
+            // Only an identity entry is servable by load(); anything else falls back, and a path
+            // that is going to fall back is better left prefetched than decoded on the loader.
+            if (entry == null || entry.transformation() != PreparedTexture.Transformation.IDENTITY) {
+                TELEMETRY.prefetchKept();
+                return false;
+            }
+            TELEMETRY.prefetchSkipped();
+            return true;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            internalFailure();
+            return false;
+        }
+    }
+
     /** Shared exact lookup used by independently selectable texture consumers. */
     static PreparedTexture lookup(String logicalPath) {
         TELEMETRY.attempt();
@@ -376,6 +416,8 @@ public final class TextureCompatibilityRuntime {
         private long quarantined;
         private long internalErrors;
         private long bytesServed;
+        private long prefetchSkipped;
+        private long prefetchKept;
 
         synchronized void reset() {
             fallbackReasons.clear();
@@ -389,6 +431,8 @@ public final class TextureCompatibilityRuntime {
             quarantined = 0;
             internalErrors = 0;
             bytesServed = 0;
+            prefetchSkipped = 0;
+            prefetchKept = 0;
         }
 
         synchronized void configured() {
@@ -428,6 +472,14 @@ public final class TextureCompatibilityRuntime {
             internalErrors++;
         }
 
+        synchronized void prefetchSkipped() {
+            prefetchSkipped++;
+        }
+
+        synchronized void prefetchKept() {
+            prefetchKept++;
+        }
+
         synchronized Map<String, Object> snapshot(boolean ready) {
             Map<String, Object> reasons = new LinkedHashMap<>();
             for (FallbackReason reason : FallbackReason.values()) {
@@ -449,6 +501,11 @@ public final class TextureCompatibilityRuntime {
             values.put("quarantined", quarantined);
             values.put("internalErrors", internalErrors);
             values.put("bytesServed", bytesServed);
+            // Zero skips while the cache is ready means the prefetch bypass did not install, which
+            // is the difference between a loading thread that waits on one decoder thread and one
+            // that does not. It is not visible in hits, which count only what the cache served.
+            values.put("prefetchSkipped", prefetchSkipped);
+            values.put("prefetchKept", prefetchKept);
             values.put("circuitBreakerActive", disableReasons.contains(DisableReason.CIRCUIT_BREAKER));
             values.put("disableReasons", disabled);
             values.put("fallbackReasons", reasons);

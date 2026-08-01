@@ -16,6 +16,13 @@ final class AdapterTransformationRegistry {
                     ? TexturePreparedPixelPlan.transform(signature, originalBytes)
                     : null;
         }
+        // Gated on the compatibility runtime because the predicate it installs reads that manifest.
+        // Without a ready cache the bypass would drop prefetches it cannot replace.
+        if (TexturePrefetchBypassPlan.PLAN_ID.equals(target.planId())) {
+            return TextureCompatibilityRuntime.ready()
+                    ? TexturePrefetchBypassPlan.transform(signature, originalBytes)
+                    : null;
+        }
         // No built-in target declares this plan yet. Adding one means pinning a reviewed class and
         // jar digest for a specific game build, which is the step every other target went through,
         // and it is deliberately not done from a reading of one installation.
@@ -33,6 +40,9 @@ final class AdapterTransformationRegistry {
         }
         if (TexturePreparedPixelRuntime.PLAN_ID.equals(planId)) {
             return TexturePreparedPixelRuntime.ready();
+        }
+        if (TexturePrefetchBypassPlan.PLAN_ID.equals(planId)) {
+            return TextureCompatibilityRuntime.ready();
         }
         if (TexturePaddingRuntime.PLAN_ID.equals(planId)) {
             return TexturePaddingRuntime.ready();
