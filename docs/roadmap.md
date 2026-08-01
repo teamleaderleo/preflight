@@ -264,6 +264,128 @@ nowhere. Three facts shape the policy the second bullet still needs
 - Effect versus music is decided by `sounds.json`, never by directory naming, which is wrong in both
   directions in this profile.
 
+## Runtime performance: a second axis, and four leads
+
+Everything above measures **time to main menu**. That is not the only thing a player feels, and on
+the hardware most players own it may not be the thing they feel most: general snappiness, battle
+entry and exit, and frame pacing when a high-DP fight fills the screen with projectiles.
+
+Nothing in this section is a result. They are leads, recorded so they are not rediscovered, ordered
+by expected value over cost. All four were found on 2026-08-01 while profiling the load; none has
+been measured.
+
+### 1. The combat package may be excluded from the optimizing JIT
+
+Starsector launches with `-XX:CompilerDirectivesFile=../../MacOS/compiler_directives.txt`. That file
+contains two blocks:
+
+```
+match: ["com/fs/starfarer/combat/*.*", "org/dark/shaders/*.*"]
+  c1: { Enable: true, Exclude: false }
+  c2: { Enable: true, Exclude: true  }      <-- combat excluded from C2
+
+match: ["com/fs/graphics/*.*", "com/fs/state/*.*", "com/fs/util/*.*"]
+  c1: { Enable: true, Exclude: true  }
+  c2: { Enable: true, Exclude: false, Vectorize: true }
+```
+
+Read plainly, the combat package never reaches C2 and runs C1-compiled forever, while graphics skips
+C1 and goes straight to a vectorizing C2. That asymmetry points at exactly the code that governs
+frame time in large battles.
+
+Two unknowns, neither guessed at here:
+
+- whether `com/fs/starfarer/combat/*.*` matches sub-packages, since the AI code likely lives under
+  `combat/ai/` and may fall outside the pattern;
+- **why it exists.** A C2 miscompilation workaround or a defence against compile-pause stutter are
+  both plausible, and in either case removing it makes things worse.
+
+It is a text file, so the experiment is one line and instantly reversible. Verify first with
+`-XX:+PrintCompilation`, or JFR compilation events, and check whether combat methods ever reach
+level 4.
+
+### 2. The game ships with VBOs forced off
+
+`data/config/settings.json` line 76: `"forceNoVBO": true`. Vertex buffer objects are disabled
+globally, so geometry goes through immediate mode or client-side arrays -- the most expensive way to
+push it, and expensive in proportion to how much is on screen. Almost certainly a legacy guard
+against driver bugs; two lines below, `"slipstreamUseGLLines": true # a bit faster but may have some
+rendering issues depending on drivers` makes the same safety-over-speed tradeoff explicit.
+
+Same shape as the JIT directive: conservative default, one-line experiment, reversible, and the
+correctness risk is visual and immediately obvious rather than silent.
+
+### 3. Rosetta is a frame-time cost, not just a load cost
+
+The bundled JRE is x86_64, so the combat loop -- projectile physics, collision, AI over hundreds of
+entities -- runs translated. The 11.4x measured for SHA-256 is the *worst* case, since hashing is
+exactly what hardware intrinsics target, and ordinary branch-heavy Java is penalised far less. No
+number is claimed for the combat loop. But on a CPU-bound frame budget any penalty comes straight
+out of frames, and this is plausibly the largest single lever on battle performance for every Apple
+Silicon player. It needs arm64 LWJGL 2 natives, so it is Fractal's to pull, not ours. See
+[the game runs under Rosetta](evidence/2026-08-01-the-game-runs-under-rosetta.md).
+
+### 4. A frame-time harness, which the project does not have
+
+The existing gameplay script is human-observation correctness only ("did the projectiles look
+normal?"). There is no timing. JFR sampling at ~10-20ms cannot resolve a 16ms frame, so sampling
+alone will not do it. What would:
+
+1. Hook `org/lwjgl/opengl/Display.update`/`swapBuffers` and write a timestamp to a ring buffer. Pure
+   observation, no behaviour change, negligible cost, and the class rewriting machinery already
+   exists.
+2. Report **99th and 99.9th percentile frame times**, never averages. Stutter is a tail phenomenon
+   and means are blind to it.
+3. Correlate the worst 1% of frames against JFR windows -- what was on-CPU, what was allocating,
+   what Shenandoah was doing -- rather than against the whole run.
+4. Fix the scenario using the simulator or a mission, so runs compare.
+
+This is what would let lead 5 below be argued in frame times instead of VRAM accounting.
+
+### 5. What the padding fold is actually for
+
+`TexturePaddingRuntime` serves textures at their true size instead of padded up to a power of two.
+Measured on the composed run of 2026-08-01:
+
+```
+uploadBytesSupplied  3,923,988,688     handed to the GPU
+paddingBytes         1,394,162,605     of which this is zeroes (35.5%)
+paddedUploads               17,525     of 21,653 textures (81%)
+```
+
+**1.39 GB of VRAM is padding**, and unlike every timing number in this repository that figure is
+machine-independent: it is 1.39 GB on a 4 GB integrated GPU exactly as it is on a fast discrete one.
+VRAM oversubscription does not show up as a lower average framerate; it shows up as hitching when a
+battle pulls in a texture set the driver has evicted.
+
+It is currently switched off, because the padding fold and the pixel plan target the same class and
+have not been composed -- the same problem solved for the prefetch bypass on 2026-08-01. See
+[half an invariant kills the launcher](evidence/2026-07-31-half-an-invariant-kills-the-launcher.md).
+
+### The long tail, and how to measure it without owning the hardware
+
+This machine (M5 MacBook Air, 24 GB) is well above the median player's. Reports of five-, ten- and
+twenty-minute loads come from hardware nobody here has, and cannot be measured here. Two rules keep
+that from becoming speculation:
+
+- **Prefer counts over times.** Bytes uploaded, padding bytes, peak heap, allocation rate, GC
+  counts. They transfer across machines; seconds do not. The 1.39 GB above is the model.
+- **Constrain this machine rather than hunt for a worse one.** The interesting question is not "how
+  much slower is a small machine" but **"what is the lowest `-Xmx` at which this modlist loads at
+  all, with and without Preflight?"** That is binary, machine-independent, and answerable here.
+
+  Predicting against ourselves: texture work probably does *not* move that floor much. Decoded
+  textures leave the heap for VRAM; what prepared-pixel mode improves is allocation rate and peak
+  transient (`peakDirectBytes` 25 MB, against a 16 MB `int[]` per 2048x2048 texture in compatibility
+  mode). The floor is more likely set by retained spec/JSON/rules data -- the path still untouched.
+  A boring answer here is worth having, because it redirects effort there.
+
+One correction worth recording, since it was made in the other direction first: the `-Xms6144m
+-Xmx6144m -XX:+AlwaysPreTouch` in `starsector_mac.sh` is an **operator setting, not a shipped
+default**. The stock heap is far smaller. The squeeze on low-RAM players is therefore worse than
+"the game wants 6 GB": a heavy modlist *forces* the heap up to avoid OOM, and that is exactly the
+player who cannot afford it. They choose between crashing and swapping.
+
 ## Exploratory tracks (not yet evidence-gated)
 
 Separate from the speed-first milestone program above:
