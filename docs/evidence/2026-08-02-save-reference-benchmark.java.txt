@@ -1,0 +1,78 @@
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+
+/** Both halves of the save-reference-filter trade, on whichever JVM runs this. */
+public class RefBench {
+    static final int DEFINED = 440_117, REFERENCED = 40_659, TRIALS = 7;
+
+    public static void main(String[] a) throws Exception {
+        Path save = Path.of(a[0]);
+        byte[] content = Files.readAllBytes(save);
+        System.out.printf("jvm      %s (%s)%n", System.getProperty("java.version"), System.getProperty("os.arch"));
+        System.out.printf("save     %s  %.1f MB%n%n", save.getFileName(), content.length / 1048576.0);
+
+        // ---- the cost we would pay: one linear scan of the file
+        long[] scan = new long[TRIALS];
+        int found = 0;
+        for (int t = 0; t < TRIALS; t++) {
+            long t0 = System.nanoTime();
+            found = scanRefs(content);
+            scan[t] = System.nanoTime() - t0;
+        }
+        report("scan " + content.length / 1048576 + "MB (found " + found + ")", scan);
+
+        // ---- the cost we would avoid: registrations into the reference map
+        String[] keys = new String[DEFINED];
+        for (int i = 0; i < DEFINED; i++) keys[i] = Integer.toString(i + 1);
+        Object value = new Object();
+
+        long[] all = new long[TRIALS], few = new long[TRIALS];
+        for (int t = 0; t < TRIALS; t++) {
+            all[t] = time(keys, DEFINED, value);
+            few[t] = time(keys, REFERENCED, value);
+        }
+        report("register " + DEFINED + " ids", all);
+        report("register " + REFERENCED + " ids", few);
+
+        long saved = median(all) - median(few), cost = median(scan);
+        System.out.printf("%nregistration saved  %8.1f ms%nscan cost           %8.1f ms%nnet                 %8.1f ms  (%s)%n",
+                saved / 1e6, cost / 1e6, (saved - cost) / 1e6, saved > cost ? "worth it" : "NOT worth it");
+    }
+
+    static long time(String[] keys, int n, Object value) {
+        Map<String, Object> map = new HashMap<>();
+        long t0 = System.nanoTime();
+        for (int i = 0; i < n; i++) {
+            if (!map.containsKey(keys[i])) map.put(keys[i], value);
+        }
+        long elapsed = System.nanoTime() - t0;
+        if (map.size() != n) throw new IllegalStateException("bad map");
+        return elapsed;
+    }
+
+    /** Same shape as SaveReferenceScan: byte-level match of ` ref="` then digits. */
+    static int scanRefs(byte[] d) {
+        byte[] lit = " ref=\"".getBytes();
+        BitSet seen = new BitSet();
+        int p = 0; boolean dig = false; long v = 0; boolean any = false;
+        for (byte c : d) {
+            if (dig) {
+                if (c >= '0' && c <= '9') { any = true; v = v * 10 + (c - '0'); }
+                else { if (c == '"' && any) seen.set((int) v); p = 0; dig = false; v = 0; any = false; }
+                continue;
+            }
+            if (c == lit[p]) { if (++p == lit.length) { p = 0; dig = true; v = 0; any = false; } }
+            else p = (c == lit[0]) ? 1 : 0;
+        }
+        return seen.cardinality();
+    }
+
+    static long median(long[] v) { long[] c = v.clone(); Arrays.sort(c); return c[c.length / 2]; }
+
+    static void report(String label, long[] v) {
+        long[] c = v.clone(); Arrays.sort(c);
+        System.out.printf("%-34s median %8.1f ms   min %7.1f   max %7.1f%n",
+                label, c[c.length / 2] / 1e6, c[0] / 1e6, c[c.length - 1] / 1e6);
+    }
+}

@@ -121,6 +121,37 @@ requiring no cache, no prepare step, and no persisted artifact.**
 It fails open trivially: if the pre-scan does not run or the format is unrecognised, register
 everything, which is current behaviour.
 
+> **Correction, measured the same day. This does not work, and the paragraph above oversold it.**
+>
+> A large *count* is not a large *cost*. Both halves of the trade, measured on the real 40.6 MB
+> save, 7 trials, medians:
+>
+> | | native arm64 JDK 21 | game JVM (x86_64, Rosetta 2) |
+> | --- | ---: | ---: |
+> | scan the file for `ref="` | 26.6 ms | 26.2 ms |
+> | register 440,117 ids | 16.2 ms | 19.2 ms |
+> | register 40,659 ids | 0.8 ms | 1.0 ms |
+> | **registration saved** | **15.4 ms** | **18.2 ms** |
+> | **net** | **-11.2 ms** | **-8.0 ms** |
+>
+> **The scan costs more than the registrations it avoids, on both JVMs.** 400,000 `HashMap.put`
+> calls are about 40 ns each; the whole redundancy is worth roughly 18 ms inside a load measured in
+> seconds. And the benchmark is generous to the idea -- it pays `containsKey` on every key, where
+> XStream only does that at one of its two registration sites, so the real saving is smaller still.
+>
+> A second thing worth keeping: **Rosetta barely penalises either operation** (26.6 vs 26.2 ms, 16.2
+> vs 19.2 ms). Both are memory-bound rather than instruction-bound, which is the opposite of the
+> 11.4x penalty SHA-256 pays. "Runs under Rosetta" is not a blanket multiplier -- it hits code that
+> leans on x86 extensions, and barely touches pointer-chasing and byte scanning.
+>
+> What this does **not** close is the memory argument: 440,117 retained map entries plus their key
+> strings is tens of megabytes held for the duration of a load, and Fast Rendering's XStream work
+> was a GC-pressure fix on this exact subsystem. That is a different claim needing a different
+> measurement, and it argues for reducing retention rather than for this pre-scan.
+>
+> `SaveReferenceScan` stays in the tree -- it is correct, tested, and it is the instrument that
+> produced this table -- but it should not be wired into a load as a speedup.
+
 What this does **not** establish is how much of save-load wall time is reference tracking versus XML
 pull-parsing versus reflective object construction. Those have completely different fixes and the
 split is unmeasured. What it does establish is that one of the three has a large, exactly-quantified
@@ -147,8 +178,12 @@ they made each tracked path cheaper; the pre-scan stops tracking 90.8% of them. 
 
 Ranked by measured redundancy rather than by guess:
 
-1. **Save-load reference pre-scan.** 90.8% of a 440,117-entry map is dead. No artifact, no cache, no
-   prepare step, fails open. The clearest idea in this document.
+1. ~~**Save-load reference pre-scan.** 90.8% of a 440,117-entry map is dead.~~ **Measured and
+   rejected the same day** -- the scan costs 26 ms to avoid 18 ms of registrations. See the
+   correction above. The lesson is worth more than the idea was: this document ranked seams by
+   *redundancy* on the assumption that redundancy implies cost, and for this one it did not. The
+   remaining items below inherit that doubt until each is measured, and the microbenchmark that
+   settled it took minutes.
 2. **Resource resolution from the index.** 13,069 spec files plus 4,640 script files plus 33,579
    textures all resolve through the same 84-root probe. This is one fix serving every corpus, and it
    subsumes what was filed as a separate "JSON path" project.

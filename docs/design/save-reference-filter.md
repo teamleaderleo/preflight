@@ -1,7 +1,13 @@
 # Design: filtering XStream's reference map during a save load
 
 **Date:** 2026-08-02
-**Status:** seam verified from bytecode; scan implemented and tested; nothing wired to the game yet
+**Status: rejected on measurement. Do not build this.** The seam analysis below is correct and worth
+keeping -- it is the cleanest interception point this project has found, and some other idea may want
+it -- but the optimization it was written for does not pay. The scan costs **26 ms** to avoid
+**18 ms** of registrations, on both the native and the game JVM. See
+[the correction](../evidence/2026-08-02-what-is-left-measured-without-launching.md) for the table.
+`SaveReferenceScan` remains in `preflight-core` as a measurement instrument, not as a load-time
+component.
 **Depends on:** `SaveReferenceScan` (landed), the adapter's pinned-target machinery (exists)
 
 The measurement is in
@@ -118,23 +124,39 @@ increasing order of intrusiveness:
 The first option is most likely correct; discovering the method requires running the game with the
 adapter probe, which is a launch but not a timing measurement.
 
-## What this is worth
+## What this is worth: nothing, measured
 
-**Unknown, and that is the honest state.** The redundancy is exactly measured -- 399,458 dead
-registrations on the largest save. What 400,000 `HashMap.put` calls plus their boxing and the
-resulting GC pressure actually cost in wall time is not, and Fast Rendering's own changelog suggests
-the region matters (they replaced XStream's `Path` to fix save/load freezes, a GC-pressure fix on
-the same subsystem).
+The question this section originally left open -- "if the registrations cost less than the scan,
+this is not worth shipping" -- was answered by a microbenchmark on the real 40.6 MB save, 7 trials,
+medians:
 
-The scan side is measured: **53-117 ms for ~40 MB** on a native arm64 JVM. The game's JVM is x86_64
-under Rosetta 2, so expect worse -- though a byte scan is memory-bound rather than
-instruction-bound, and unlike SHA-256 it has no intrinsic to lose. **If the registrations turn out
-to cost less than the scan, this idea is not worth shipping**, and that comparison has to be made
-before it is.
+| | native arm64 JDK 21 | game JVM (x86_64, Rosetta 2) |
+| --- | ---: | ---: |
+| scan for `ref="` | 26.6 ms | 26.2 ms |
+| register 440,117 ids | 16.2 ms | 19.2 ms |
+| register 40,659 ids | 0.8 ms | 1.0 ms |
+| **net** | **-11.2 ms** | **-8.0 ms** |
+
+A `HashMap.put` with a short String key costs about 40 ns. Four hundred thousand of them is 18 ms --
+a real number attached to a big-sounding count, and noise inside a load measured in seconds. The
+benchmark is also generous to the idea: it calls `containsKey` on every key, where XStream only does
+so at one of its two sites.
+
+**The general lesson is the durable part.** The 90.8% figure was ranked first because it was the
+largest measured redundancy in the profile, and redundancy was quietly treated as a proxy for cost.
+It is not. A count is worth measuring into milliseconds before anything is designed around it, and
+here that took a single-file benchmark and about five minutes -- against building a save-open seam,
+a target pin, an ASM splice and a campaign to find the same thing out.
 
 ## Sequence
 
-1. ~~Scan, with the over-approximation rule and tests~~ -- landed as `SaveReferenceScan`.
-2. Discover the save-open seam with the adapter probe (needs a launch, not a measurement).
-3. Measure what the registrations cost, by profiling one save load. If the answer is small, stop.
-4. Only then: the splice, the filter, and a campaign.
+1. ~~Scan, with the over-approximation rule and tests~~ -- landed as `SaveReferenceScan`, now a
+   measurement instrument.
+2. ~~Discover the save-open seam~~ -- unnecessary; step 3 came first and closed the question.
+3. ~~Measure what the registrations cost~~ -- **done, and the answer is "less than the scan".**
+4. ~~The splice, the filter, and a campaign~~ -- cancelled.
+
+What remains open on save loading is where the time *does* go. The three candidates named in the
+evidence document -- XML pull-parsing, reflective object construction, reference resolution -- are
+still unsplit, and this result removes only a small part of the third. Profiling one real save load
+is the next step, and it needs a launch rather than another byte count.
