@@ -49,6 +49,8 @@ final class AdapterReport {
     private long transformationEligible;
     private long transformationDeclined;
     private long transformationsApplied;
+    private long shadowedTargets;
+    private final Map<String, String> shadowingSources = new LinkedHashMap<>();
     private long containedFailures;
     private boolean candidateTruncated;
     private boolean diagnosticsTruncated;
@@ -141,6 +143,24 @@ final class AdapterReport {
                     target.loaderName(),
                     match.problems()));
         }
+    }
+
+    /**
+     * Records that a target class was supplied by an archive other than the one it is pinned to.
+     *
+     * <p>Without this, the only trace a shadowed target leaves is "class SHA-256 differs", which
+     * reads as a stale cache or a game update and sends a user to re-prepare artifacts that are
+     * perfectly fine. Naming the archive that actually supplied the class turns an inscrutable
+     * no-op into a one-line explanation.
+     */
+    synchronized void shadowed(AdapterTarget target, AdapterSourceIdentity source) {
+        shadowedTargets++;
+        String owner = source.normalizedSource().isBlank() ? "<unknown>" : source.normalizedSource();
+        shadowingSources.putIfAbsent(target.internalClassName(), owner);
+        diagnostic("Target " + target.id() + " (" + target.internalClassName() + ") was supplied by "
+                + owner + " [" + source.sourceKind() + "], not by the pinned "
+                + target.sourceSuffix() + "; another agent or mod owns this class, so Preflight left"
+                + " it alone. This is not a stale cache and re-preparing will not change it.");
     }
 
     synchronized void unbound(AdapterTarget target) {
@@ -238,6 +258,10 @@ final class AdapterReport {
         numberField(output, "transformationEligible", transformationEligible);
         numberField(output, "transformationDeclined", transformationDeclined);
         numberField(output, "transformationsApplied", transformationsApplied);
+        numberField(output, "shadowedTargets", shadowedTargets);
+        arrayField(output, "shadowedBy", shadowingSources.entrySet().stream()
+                .map(entry -> entry.getKey() + " <- " + entry.getValue())
+                .toList());
         numberField(output, "containedFailures", containedFailures);
         booleanField(output, "liveTransformationPlansRegistered", AdapterTransformationRegistry.anyPlanCompiled());
         booleanField(output, "candidateTruncated", candidateTruncated);

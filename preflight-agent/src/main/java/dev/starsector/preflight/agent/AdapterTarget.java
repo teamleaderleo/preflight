@@ -85,6 +85,30 @@ record AdapterTarget(
         return new Match(problems.isEmpty(), List.copyOf(problems));
     }
 
+    /**
+     * True when this target's class was loaded from an archive that is not the one it is pinned to.
+     *
+     * <p>Preflight pins a class hash rather than a name, so when another agent supplies its own copy
+     * of a target class -- Fast Rendering puts {@code fr.jar} ahead of {@code starfarer_obf.jar} on
+     * the classpath and ships assembled replacements for several of our seams -- the bytes handed to
+     * {@code transform()} are theirs, the hash cannot match, and the target is simply declined. That
+     * is the correct outcome and it fails open, but "class SHA-256 differs" is the wrong diagnosis
+     * to hand a user: nothing is wrong with their install and re-preparing will not help.
+     *
+     * <p>The signal is narrow on purpose. The class name has to match, so this really is our target
+     * and not an unrelated class; the target has to carry an expected code-source suffix, so there
+     * is something to contradict; and the observed source has to be both known and different. A game
+     * update that changes the class in place keeps the same code source and is not reported here.
+     */
+    boolean shadowed(ClassSignature actual, AdapterSourceIdentity source) {
+        Objects.requireNonNull(actual, "actual");
+        Objects.requireNonNull(source, "source");
+        return internalClassName.equals(actual.internalName())
+                && !sourceSuffix.isBlank()
+                && !source.normalizedSource().isBlank()
+                && !source.sourceEndsWith(sourceSuffix);
+    }
+
     boolean requiresSourceHash() {
         return !sourceSha256.isBlank();
     }

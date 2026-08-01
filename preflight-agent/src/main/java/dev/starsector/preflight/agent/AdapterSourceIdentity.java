@@ -93,8 +93,15 @@ record AdapterSourceIdentity(
 
     private static String classify(String source) {
         String normalized = normalizePath(source).toLowerCase(Locale.ROOT);
-        if (normalized.contains("fast-render") || normalized.contains("fastrender")
-                || normalized.contains("fast_render")) {
+        // The file name has to be tested before any path substring. Fast Rendering installs its
+        // archives as fr.jar and fr.agent.jar *inside* the game directory, so a path-substring test
+        // for "starsector" matches them first and reports a foreign artifact as STARSECTOR_CORE --
+        // exactly backwards, and precisely the case shadow detection has to get right.
+        String fileName = normalized.substring(normalized.lastIndexOf('/') + 1);
+        if (fileName.equals("fr.jar") || fileName.equals("fr.agent.jar")
+                || normalized.contains("fast-render") || normalized.contains("fastrender")
+                || normalized.contains("fast_render") || normalized.contains("starsector-render")
+                || normalized.contains("com/genir/")) {
             return "FAST_RENDERING";
         }
         if (normalized.contains("/mods/")) {

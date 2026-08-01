@@ -134,7 +134,16 @@ final class AdapterProbeTransformer implements ClassFileTransformer {
             for (AdapterTarget target : targets) {
                 AdapterTarget.Match match = target.match(signature, source);
                 report.evaluation(target, match);
-                if (!match.exact() || mode != AdapterMode.ENABLED) {
+                if (!match.exact()) {
+                    // Distinguish "another agent supplied this class" from "these bytes drifted".
+                    // Both decline the target and both fail open; only one of them is something the
+                    // user can act on, and only one of them means their cache is fine.
+                    if (target.shadowed(signature, source)) {
+                        report.shadowed(target, source);
+                    }
+                    continue;
+                }
+                if (mode != AdapterMode.ENABLED) {
                     continue;
                 }
                 if (!target.hasLiveSourceBinding()) {
