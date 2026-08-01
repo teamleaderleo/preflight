@@ -2,73 +2,70 @@
 
 Preflight follows a measurement-first sequence. Each optimization keeps the original loader available as a fallback.
 
-## In flight: the prefetch bypass is committed and NOT yet measured
+## Measured result (2026-08-01, second campaign)
 
-`609b27d` stops the game queueing images the cache can serve. It is real code on `main` with
-tests, and **no campaign has validated it.** Everything below about `fast` predates it.
+`benchmarkAccepted: true`, 15 of 15 runs, no exclusions, launch-order drift -0.5s (1.3% of
+variance). Unattended, 240s cooldown before every launch, discarded settling launch, quiet machine.
 
-What exists so far, all of it provisional:
+| condition | median | paired result |
+| --- | --- | --- |
+| `vanilla` | 88.49s | -- |
+| **`fast`** (cache + prefetch bypass) | **78.93s** | **beats vanilla by 9.56s, 5 rounds of 5** |
+| `prepared` (pixel bypass; prefetch bypass disabled) | 87.89s | 0.60s from vanilla, p = 1.000 |
 
-| evidence | result |
-| --- | --- |
-| one validation launch, `fast` | 88.8s, against a 97.22s median for the same condition and profile |
-| one paired round of an abandoned campaign | `fast` 82.44s, `prepared` 91.21s, `vanilla` 91.83s |
-| adapter telemetry | 50,879 enqueues skipped; textures served 6,651 -> 21,653; 643 MB -> 2.53 GB |
+**What a user feels: 9.6s off 88.5s, about 10.8%.**
 
-Read none of that as a number. Two rounds are not a campaign, and the abandoned one ran while
-the machine was loaded; a single quiet-machine settling launch came in at **75.9s**, so the
-measurement environment alone moves this by ~6.5s -- the same order as the effect. **A campaign
-for this has to run on a quiet machine: other applications closed, and nothing else measuring.**
+It is not a cheaper computation. It is a wait that stops happening: the loading thread was sleeping
+**27 of the load's 96 seconds** polling Starsector's one-thread image prefetcher, while the decoded
+pixels sat unread in the cache behind it. The bypass takes 50,879 enqueues off the game's queue; the
+cache goes from serving 6,651 textures to 21,653.
 
-Also unmeasured: whether `fast` now beats `prepared`. It should, because the bypass is disabled
-in prepared-pixel mode (see below), and that would reverse the standing recommendation.
+Two reversals this campaign settles:
 
-**The bypass is off in prepared-pixel mode, and that is a finding, not a limitation.** That mode
-answers with a 1x1 raster reporting the texture's real dimensions -- a token only the rewritten
-conversion can read. It survived until now only because the game's prefetcher happened to answer
-first for the textures other consumers read; routing those paths to the cache crashed the load at
-23.6s in a mask converter. Anything that widens what that mode serves has to deal with this first.
+- **`fast` was the condition that lost.** It was 1.28s *slower* than vanilla and carried a "do not
+  ship as a speed feature" note. Nothing about the cache changed -- it is now asked.
+- **`prepared` is no longer the best path.** It is indistinguishable from vanilla here, because it
+  is the one mode that cannot take the prefetch bypass: it answers with a 1x1 carrier that reports
+  the texture's real dimensions, and handing that to a consumer which walks the raster crashed the
+  load at 23.6s in a mask converter. **The two optimizations are currently mutually exclusive and
+  the pixel bypass is the smaller one.**
 
-## Measured result (2026-08-01)
+Next, in order:
 
-The first campaign in this project's history to reach `benchmarkAccepted`. Unattended, 240s
-cooldown before every launch, 5 rounds x 3 conditions, launch-order drift +0.47s.
+1. **Ship the prefetch bypass as the default cache-backed path.** Fail-open, no new artifacts.
+2. **Decide what `prepared` is for** -- make its carrier readable so it can take the bypass too, or
+   retire it. The composition is unmeasured.
+3. **Take the SHA-256 off the loading thread**, and re-measure it: the 1.01s came off a recording
+   whose clock ran at 0.401x.
+
+Full write-up: [ten percent, by not waiting](evidence/2026-08-01-ten-percent-by-not-waiting.md).
+
+### Superseded: the first accepted campaign (same day, before the bypass)
 
 | condition | median | paired result |
 | --- | --- | --- |
 | `vanilla` | 95.78s | -- |
-| `fast` (cache, compatibility) | 97.22s | **loses to vanilla by 1.28s, 4 rounds of 5** |
-| `prepared` (cache + pixel bypass) | 94.10s | **beats fast by 2.68s, 5 rounds of 5** |
+| `fast` (cache, compatibility) | 97.22s | loses to vanilla by 1.28s, 4 rounds of 5 |
+| `prepared` (cache + pixel bypass) | 94.10s | beats fast by 2.68s, 5 rounds of 5 |
 
-**What a user feels: 1.4s off 95.7s, about 1.5%.** Small, and the direction is probably real.
+1.5%, and correct for the code as it stood. Absolute times are ~7s higher throughout because that
+campaign ran on a loaded machine; the measurement environment moves this profile by about as much as
+the old effect size, which is why campaigns now require the machine to themselves.
+[Write-up](evidence/2026-08-01-the-first-valid-startup-number.md).
 
-Three things follow, in priority order:
-
-1. **Serve the cache before the game's prefetcher, not after it.** The loading thread sleeps
-   **27 of the load's 96 seconds** waiting on Starsector's own single-threaded image prefetcher,
-   and Preflight's cache lookup is spliced in *after* the call that does the waiting. Every image
-   the prefetcher owns is decoded by one thread while the decoded pixels sit unread in our cache.
-   This is the largest reachable item the project has ever measured, and it is the same one-method
-   rewrite moved a few instructions earlier.
-2. **The compatibility cache is a regression on this profile** and must not ship as a speed
-   feature. It buys the PNG decode (13-16% of texture time) while paying blob I/O and a
-   per-lookup SHA-256 on the loading thread. It is worth carrying only as the substrate the
-   prepared-pixel path needs.
-3. **Take the SHA-256 off the loading thread** -- designed, never built. Its cost needs
-   re-measuring: the 1.01s previously recorded came off a recording whose clock ran at 0.401x.
-
-Full write-up: [the first valid startup number](evidence/2026-08-01-the-first-valid-startup-number.md).
-
-### Why it is only 1.5%, measured
+### Why it was only 1.5%, measured -- and what fixing it was worth
 
 **The loading thread spends 27 of 96 seconds asleep**, in a 10ms poll loop, waiting on a single
 background thread decoding PNGs. The machine is 27.8% busy -- under three of ten cores -- because
 the game's own prefetch pipeline is one thread wide. Stop-the-world GC is 0.00s and GPU upload is
 ~1% of samples, so neither is the constraint.
 
-Preflight gets none of that time back because its cache lookup sits on the wrong side of the wait.
+Preflight got none of that time back because its cache lookup sat on the wrong side of the wait.
 Our hook was reached 6,654 times; the manifest holds 32,917 textures. The difference is the set the
 prefetcher answered first, and the 27 seconds is what the loading thread paid to wait for it.
+
+**Fixing that is the 10.8% above.** Taking those paths off the game's queue moved the cache from
+6,654 lookups to 21,656 and the load from 88.49s to 78.93s.
 
 So the load is **not** an irreducibly serial chain, and the opportunity **is** reachable from where
 Preflight sits -- both of which this roadmap asserted earlier today on the strength of a report
