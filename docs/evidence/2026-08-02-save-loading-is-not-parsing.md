@@ -109,3 +109,42 @@ Routes that are not obviously dead, none measured:
 **The next measurement is a profile of a real save load**, and unlike everything in this document it
 needs the game running and a save being loaded through the UI. Sample *proportions* survive thermal
 throttling; the wall clock does not.
+
+## Addendum: a synthetic graph says XStream is not the bottleneck either
+
+The 103 MB save cannot be loaded in the live install -- it needs a different mod set -- so the real
+load could not be profiled. A synthetic graph answers the same question without the game: build an
+object graph, let XStream serialise it, then time XStream unmarshalling it back against a bare StAX
+pass over the identical bytes. Same library, same `StaxDriver`, same `ID_REFERENCES` mode, on the
+game's own JVM.
+
+174,762 objects, 13.4 MB, 821,218 elements:
+
+| | ms | us/element |
+| --- | ---: | ---: |
+| StAX parse only | 78 | 0.095 |
+| **XStream unmarshal (builds objects)** | **374** | **0.455** |
+
+**Construction is 4.8x the parse, and parse is 21% of the total.** Scaled to the real save's
+2,783,874 elements: **0.26 s parsing, 1.27 s unmarshalling.**
+
+Even allowing that real elements are richer -- the real save parses at 0.25 us/element against this
+graph's 0.095, so call it 2.6x heavier and put unmarshalling near 3.3 s -- **generic XStream work
+does not explain a slow save load.**
+
+Which leaves an uncomfortable and honest conclusion: **every number in this document is unanchored,
+because nobody has measured how long a real Starsector save actually takes to load.** The analysis
+assumed "tens of seconds" and never checked. If a 100 MB campaign really does load in a handful of
+seconds, there is no save-loading problem to solve and this whole line of work is closed. If it
+takes thirty, then roughly 90% of that time is something other than parsing, reference tracking, or
+XStream reflection -- post-load fixup, sector regeneration, script initialisation -- and none of the
+seams examined here touch it.
+
+**The missing measurement is cheap and available.** The live install has five 32-43 MB saves that
+load in the current mod configuration. Timing one, with a profile attached, anchors everything above
+and decides whether this line continues. It needs the game running and a save loaded through the UI.
+
+Caveats on the synthetic: the node type carries six scalar fields, a nested object, a child list and
+one cross-link. Starsector's classes are richer and some have custom converters, so this is a lower
+bound on per-element construction cost. It is not a lower bound on total load time, because it
+models only the XStream portion.

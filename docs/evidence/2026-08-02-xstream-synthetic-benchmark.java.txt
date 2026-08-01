@@ -1,0 +1,73 @@
+import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.io.xml.StaxDriver;
+import javax.xml.stream.*;
+import java.io.*; import java.util.*;
+
+/** How much of a save load is XStream building objects, versus reading XML? */
+public class XsBench {
+    // Shaped after a real campaign: a few scalars, a nested child list, cross-links.
+    public static class Node {
+        String st; float b, m; int t; Loc loc; List<Node> e = new ArrayList<>(); Node ow;
+    }
+    public static class Loc { float x, y; }
+
+    static int made = 0;
+    static Node build(Random r, int depth, List<Node> pool, int fanout) {
+        Node n = new Node();
+        made++;
+        n.st = "tok" + r.nextInt(4000);
+        n.b = r.nextFloat(); n.m = r.nextFloat(); n.t = r.nextInt(1000);
+        n.loc = new Loc(); n.loc.x = r.nextFloat()*20000; n.loc.y = r.nextFloat()*20000;
+        made++;
+        if (!pool.isEmpty() && r.nextInt(100) < 40) n.ow = pool.get(r.nextInt(pool.size()));
+        pool.add(n);
+        if (depth > 0) for (int i = 0; i < fanout; i++) n.e.add(build(r, depth-1, pool, fanout));
+        return n;
+    }
+
+    public static void main(String[] a) throws Exception {
+        System.out.printf("jvm %s (%s)%n", System.getProperty("java.version"), System.getProperty("os.arch"));
+        XStream x = new XStream(new StaxDriver());
+        x.setMode(XStream.ID_REFERENCES);
+        x.allowTypesByWildcard(new String[]{"XsBench*"});
+        x.alias("n", Node.class); x.alias("loc", Loc.class);
+        x.aliasField("e", Node.class, "e"); x.aliasField("ow", Node.class, "ow");
+
+        Random r = new Random(42);
+        List<Node> pool = new ArrayList<>();
+        Node root = build(r, 8, pool, 4);          // ~87k nodes
+        System.out.printf("built %,d objects in the graph%n", made);
+
+        String xml = x.toXML(root);
+        byte[] bytes = xml.getBytes("UTF-8");
+        int elements = countElements(bytes);
+        System.out.printf("serialised %.1f MB, %,d elements%n%n", bytes.length/1048576.0, elements);
+
+        double parse = best(() -> { try { return (double) countElements(bytes); } catch (Exception e) { throw new RuntimeException(e); } });
+        double unmarshal = best(() -> { x.fromXML(new ByteArrayInputStream(bytes)); return 1.0; });
+
+        System.out.printf("%-34s %10s %12s%n", "", "ms", "us/element");
+        System.out.printf("%-34s %10.0f %12.3f%n", "StAX parse only", parse, parse*1000/elements);
+        System.out.printf("%-34s %10.0f %12.3f%n", "XStream unmarshal (build objects)", unmarshal, unmarshal*1000/elements);
+        System.out.printf("%nconstruction is %.1fx the parse; parse is %.1f%% of the total%n",
+                unmarshal/parse, 100*parse/unmarshal);
+        System.out.printf("%nscaled to a real 2,783,874-element save:%n  parse %.2f s   unmarshal %.2f s%n",
+                2783874.0*parse/elements/1000, 2783874.0*unmarshal/elements/1000);
+    }
+
+    interface Work { double run(); }
+    static double best(Work w) {
+        double b = Double.MAX_VALUE;
+        for (int i = 0; i < 5; i++) { long t0 = System.nanoTime(); w.run(); b = Math.min(b, (System.nanoTime()-t0)/1e6); }
+        return b;
+    }
+    static int countElements(byte[] data) throws Exception {
+        XMLInputFactory f = XMLInputFactory.newInstance();
+        f.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+        XMLStreamReader rd = f.createXMLStreamReader(new ByteArrayInputStream(data), "UTF-8");
+        int n = 0;
+        while (rd.hasNext()) { if (rd.next() == XMLStreamConstants.START_ELEMENT) { n++;
+            int c = rd.getAttributeCount(); for (int i=0;i<c;i++){ rd.getAttributeLocalName(i); rd.getAttributeValue(i);} rd.getLocalName(); } }
+        rd.close(); return n;
+    }
+}
