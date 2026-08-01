@@ -2,6 +2,35 @@
 
 Preflight follows a measurement-first sequence. Each optimization keeps the original loader available as a fallback.
 
+## Measured result (2026-08-01)
+
+The first campaign in this project's history to reach `benchmarkAccepted`. Unattended, 240s
+cooldown before every launch, 5 rounds x 3 conditions, launch-order drift +0.47s.
+
+| condition | median | paired result |
+| --- | --- | --- |
+| `vanilla` | 95.78s | -- |
+| `fast` (cache, compatibility) | 97.22s | **loses to vanilla by 1.28s, 4 rounds of 5** |
+| `prepared` (cache + pixel bypass) | 94.10s | **beats fast by 2.68s, 5 rounds of 5** |
+
+**What a user feels: 1.4s off 95.7s, about 1.5%.** Small, and the direction is probably real.
+
+Three things follow, in priority order:
+
+1. **The loading thread is not the critical path.** JFR put the BufferedImage conversion at
+   ~15-18% of sampled CPU, on the order of 15s. Removing it entirely bought 2.68s. Four fifths of
+   the deleted work was never in the wall clock, so further CPU optimization of that thread is
+   speculative until the actual bottleneck is identified -- and execution sampling of Java frames
+   is evidently not the instrument that will find it.
+2. **The compatibility cache is a regression on this profile** and must not ship as a speed
+   feature. It buys the PNG decode (13-16% of texture time) while paying blob I/O and a
+   per-lookup SHA-256 on the loading thread measured at 1.01s. It is worth carrying only as the
+   substrate the prepared-pixel path needs.
+3. **Take the SHA-256 off the loading thread** -- designed, never built, now with a measured
+   justification.
+
+Full write-up: [the first valid startup number](evidence/2026-08-01-the-first-valid-startup-number.md).
+
 ## Standing correction: every startup number before 2026-08-01 is void
 
 The benchmark measured from the first log line that appeared after its own snapshot. Starsector's
