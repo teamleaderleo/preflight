@@ -1,0 +1,187 @@
+import java.util.*;
+
+/**
+ * What {@code BaseLocation.getEntityById} costs, and what the alternatives cost.
+ *
+ * <p>The shape is taken from the disassembly, not from a guess:
+ *
+ * <pre>
+ *   if (idToEntity == null) rebuildIDToEntityMap();
+ *   if (idToEntity.containsKey(id))                                  // hash lookup 1
+ *     if (idToEntity.get(id) instanceof BaseCampaignEntity)          // hash lookup 2
+ *       BaseCampaignEntity e = (BaseCampaignEntity) idToEntity.get(id);  // hash lookup 3
+ *       if (e.getContainingLocation() != null)                       // virtual call 1
+ *         if (e.getContainingLocation().getAllEntities().contains(e))// virtual call 2 + O(n)
+ *           return e;
+ * </pre>
+ *
+ * <p>{@code getAllEntities()} is {@code objects.getList(SectorEntityToken.class)} -- a HashMap
+ * lookup returning a cached ArrayList, so it is O(1) and the scan is the whole cost. Neither
+ * BaseCampaignEntity nor its supertypes override {@code equals}, so {@code List.contains} is a
+ * reference comparison per element: cheap per element, linear in the list.
+ *
+ * <p>And {@code ObjectRepository} already carries {@code forFastContains}, a HashSet, with a public
+ * {@code contains(Object)} that answers the same question in O(1). The fast answer is on the object
+ * being asked.
+ */
+public class EntityLookupBench {
+
+    /** Stands in for BaseCampaignEntity: an id, a containing location, no equals override. */
+    static final class Entity {
+        final String id;
+        Location location;
+        // Padding so entities are not packed densely; real entities are large objects with many
+        // fields, and the scan's cost is dominated by walking that memory.
+        long p0, p1, p2, p3, p4, p5, p6, p7;
+        Entity(String id) { this.id = id; }
+        Location getContainingLocation() { return location; }
+    }
+
+    /** Stands in for BaseLocation + its ObjectRepository. */
+    static final class Location {
+        final Map<String, Entity> idToEntity = new HashMap<>();
+        final Map<Class<?>, List<Entity>> lists = new HashMap<>();
+        final HashSet<Entity> forFastContains = new HashSet<>();
+        final List<Entity> entities = new ArrayList<>();
+
+        Location(int n, Random random) {
+            for (int i = 0; i < n; i++) {
+                Entity e = new Entity("entity_" + i + "_" + random.nextInt(1 << 20));
+                e.location = this;
+                // Interleave an unrelated allocation so the list does not point at one contiguous
+                // block. A densely packed array of freshly allocated objects scans far faster than
+                // a heap that has been running for hours.
+                if ((i & 1) == 0) { Entity filler = new Entity("filler"); filler.p0 = i; }
+                entities.add(e);
+                idToEntity.put(e.id, e);
+                forFastContains.add(e);
+            }
+            lists.put(Entity.class, entities);
+            Collections.shuffle(entities, random);
+        }
+
+        List<Entity> getAllEntities() { return lists.get(Entity.class); }
+
+        // ---- the four candidates -------------------------------------------------------------
+
+        /** Exactly what the game does. */
+        Entity vanilla(String id) {
+            if (idToEntity.containsKey(id)) {
+                if (idToEntity.get(id) instanceof Entity) {
+                    Entity e = idToEntity.get(id);
+                    if (e.getContainingLocation() != null) {
+                        if (e.getContainingLocation().getAllEntities().contains(e)) return e;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /** Same validation, but the three map lookups and two virtual calls hoisted to one each. */
+        Entity hoisted(String id) {
+            Entity e = idToEntity.get(id);
+            if (e == null) return null;
+            Location owner = e.getContainingLocation();
+            if (owner == null) return null;
+            return owner.getAllEntities().contains(e) ? e : null;
+        }
+
+        /** The repository's own HashSet, which already exists and is already maintained. */
+        Entity repoSet(String id) {
+            Entity e = idToEntity.get(id);
+            if (e == null) return null;
+            Location owner = e.getContainingLocation();
+            if (owner == null) return null;
+            return owner.forFastContains.contains(e) ? e : null;
+        }
+
+        /**
+         * No set at all: the entity already knows its location, and the map is per-location, so
+         * "is this entity still in me" is a reference comparison. Strictly weaker than the set --
+         * it trusts the back-pointer -- and it is the floor for a validated lookup.
+         */
+        Entity backPointer(String id) {
+            Entity e = idToEntity.get(id);
+            return e != null && e.getContainingLocation() == this ? e : null;
+        }
+
+        /** No validation at all. The floor. */
+        Entity unchecked(String id) { return idToEntity.get(id); }
+    }
+
+    interface Lookup { Entity apply(Location loc, String id); }
+
+    public static void main(String[] args) {
+        System.out.printf("jvm %s (%s), %s%n%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"), System.getProperty("os.name"));
+
+        int[] sizes = {33, 101, 213, 500, 1000, 3023, 8000, 20000};
+        String[] names = {"vanilla", "hoisted", "repoSet", "backPointer", "unchecked"};
+        Lookup[] lookups = {
+            (l, id) -> l.vanilla(id),
+            (l, id) -> l.hoisted(id),
+            (l, id) -> l.repoSet(id),
+            (l, id) -> l.backPointer(id),
+            (l, id) -> l.unchecked(id),
+        };
+
+        System.out.println("HIT: the id resolves in this location (the path the scan runs on)");
+        System.out.printf("%8s", "n");
+        for (String name : names) System.out.printf("%14s", name + " ns");
+        System.out.printf("%12s%n", "vanilla/set");
+
+        for (int n : sizes) {
+            Random random = new Random(20260802L + n);
+            Location loc = new Location(n, random);
+            String[] ids = new String[1024];
+            for (int i = 0; i < ids.length; i++) ids[i] = loc.entities.get(random.nextInt(n)).id;
+
+            double[] result = new double[names.length];
+            for (int k = 0; k < names.length; k++) result[k] = time(loc, ids, lookups[k]);
+            System.out.printf("%8d", n);
+            for (double r : result) System.out.printf("%14.1f", r);
+            System.out.printf("%12.1fx%n", result[0] / result[2]);
+        }
+
+        // The miss path: CampaignEngine.getEntityById falls through to hyperspace and then every
+        // star system in turn, so a miss costs one map lookup per location and never scans.
+        System.out.println("\nMISS: the id is not in this location (containsKey fails, no scan)");
+        System.out.printf("%8s%14s%14s%n", "n", "vanilla ns", "hoisted ns");
+        for (int n : sizes) {
+            Random random = new Random(7L + n);
+            Location loc = new Location(n, random);
+            String[] ids = new String[1024];
+            for (int i = 0; i < ids.length; i++) ids[i] = "absent_" + i;
+            System.out.printf("%8d%14.1f%14.1f%n", n,
+                    time(loc, ids, (l, id) -> l.vanilla(id)),
+                    time(loc, ids, (l, id) -> l.hoisted(id)));
+        }
+    }
+
+    private static long sink;
+
+    /** Warms up, then reports the best of five timed passes in nanoseconds per lookup. */
+    private static double time(Location loc, String[] ids, Lookup lookup) {
+        for (int pass = 0; pass < 3; pass++) run(loc, ids, lookup, 20_000);
+        int reps = Math.max(200, 2_000_000 / Math.max(1, loc.entities.size()));
+        double best = Double.MAX_VALUE;
+        for (int pass = 0; pass < 5; pass++) {
+            long t0 = System.nanoTime();
+            run(loc, ids, lookup, reps);
+            double ns = (System.nanoTime() - t0) / (double) (reps * (long) ids.length);
+            best = Math.min(best, ns);
+        }
+        return best;
+    }
+
+    private static void run(Location loc, String[] ids, Lookup lookup, int reps) {
+        long acc = 0;
+        for (int r = 0; r < reps; r++) {
+            for (String id : ids) {
+                Entity e = lookup.apply(loc, id);
+                if (e != null) acc += e.p0 + 1;
+            }
+        }
+        sink += acc;
+    }
+}
