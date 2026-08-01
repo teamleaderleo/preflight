@@ -62,7 +62,11 @@ def _files(log_dir: Path) -> list[Path]:
 def snapshot(log_dir: Path) -> dict[str, dict[str, int]]:
     values: dict[str, dict[str, int]] = {}
     for path in _files(log_dir):
-        stat = path.stat()
+        try:
+            stat = path.stat()
+        except FileNotFoundError:
+            # Rotation happened between the glob and the stat. See _read_new_lines.
+            continue
         values[path.name] = {"inode": stat.st_ino, "size": stat.st_size}
     return values
 
@@ -80,17 +84,29 @@ def load_offsets(snapshot_file: Path) -> dict[int, int]:
 def _read_new_lines(log_dir: Path, state: TailState) -> list[LogLine]:
     lines: list[LogLine] = []
     for path in _files(log_dir):
-        stat = path.stat()
-        inode = int(stat.st_ino)
-        offset = state.offsets.get(inode, 0)
-        if stat.st_size < offset:
-            offset = 0
-            state.partial.pop(inode, None)
-        if stat.st_size == offset:
+        # A rotation can land between the glob and the read. log4j renames the live file to .1,
+        # shifts every archive down, and unlinks the oldest -- so a path listed a microsecond ago
+        # may already be gone. An unhandled FileNotFoundError here killed the detector process
+        # outright, which meant no result file at all: not a failed detection, no detection. The
+        # harness then reported "the main menu was never detected" for a launch that was loading
+        # normally. Unattended campaigns rotate on nearly every launch, so this went from rare to
+        # routine the moment nobody was clicking.
+        try:
+            stat = path.stat()
+            inode = int(stat.st_ino)
+            offset = state.offsets.get(inode, 0)
+            if stat.st_size < offset:
+                offset = 0
+                state.partial.pop(inode, None)
+            if stat.st_size == offset:
+                continue
+            with path.open("rb") as stream:
+                stream.seek(offset)
+                data = stream.read()
+        except (FileNotFoundError, PermissionError):
+            # The bytes are not lost: this file is either gone for good, or has been renamed and
+            # will be picked up by inode on the next pass with its offset intact.
             continue
-        with path.open("rb") as stream:
-            stream.seek(offset)
-            data = stream.read()
         state.offsets[inode] = stat.st_size
         if not data:
             continue

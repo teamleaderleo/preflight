@@ -439,6 +439,49 @@ class DetectorTest(unittest.TestCase):
         self.assertTrue(result["gameStartMarkerSeen"])
         self.assertFalse(result["graphicsPreloadSeen"])
 
+    def test_a_file_vanishing_mid_read_does_not_kill_the_detector(self):
+        # log4j rotation renames the live file, shifts the archives down and unlinks the oldest,
+        # so a path listed a microsecond ago can already be gone. This used to raise
+        # FileNotFoundError out of the detector, which then wrote no result at all -- and the
+        # harness reported "the main menu was never detected" for a launch that was loading fine.
+        # Unattended campaigns rotate on nearly every launch, so it went from rare to routine.
+        marker = ("INFO  com.fs.starfarer.StarfarerLauncher  - "
+                  "Running with the following mods (in order of priority):")
+        self.append(f"340 [main] {marker}")
+        self.append("9000 [main] INFO com.fs.starfarer.campaign.save.CampaignGameManager  - "
+                    "Reading save data from [save/descriptor.xml]")
+        self.append("9500 [main] INFO org.dark.shaders.util.TextureData  - "
+                    "VRAM after unload/preload: 1 bytes")
+
+        real = module._files
+        vanished = self.root / "starsector.log.9"
+
+        def files_including_one_that_is_gone(log_dir):
+            return sorted(real(log_dir) + [vanished])
+
+        module._files = files_including_one_that_is_gone
+        try:
+            output = self.root / "main-menu-vanishing.json"
+            accepted = module.watch_main_menu(
+                self.root, self.snapshot, output, os.getpid(),
+                timeout_seconds=2.0, quiet_seconds=0.05, sleep_seconds=0.01,
+            )
+        finally:
+            module._files = real
+
+        self.assertTrue(accepted, "a vanished rotation must not abort the watch")
+        self.assertEqual(9500, json.loads(output.read_text())["mainMenuReadyLogMillis"])
+
+    def test_a_snapshot_survives_a_rotation_landing_on_it(self):
+        real = module._files
+        module._files = lambda log_dir: sorted(real(log_dir) + [self.root / "starsector.log.9"])
+        try:
+            values = module.snapshot(self.root)
+        finally:
+            module._files = real
+        self.assertIn("starsector.log", values)
+        self.assertNotIn("starsector.log.9", values)
+
     def test_rotated_file_is_matched_by_inode(self):
         before = self.root / "before.json"
         module.write_snapshot(self.root, before)
