@@ -1,0 +1,45 @@
+import java.io.File;
+import java.nio.file.*;
+import java.util.*;
+
+/** What Starsector's per-resource root probing actually costs. */
+public class ProbeBench {
+    public static void main(String[] a) throws Exception {
+        Path game = Path.of("/Applications/Starsector.app");
+        List<Path> roots = new ArrayList<>();
+        roots.add(game.resolve("Contents/Resources/Java"));
+        try (var s = Files.list(game.resolve("mods"))) {
+            s.filter(Files::isDirectory).sorted().forEach(roots::add);
+        }
+        System.out.printf("jvm %s (%s)%nroots %d%n%n",
+                System.getProperty("java.version"), System.getProperty("os.arch"), roots.size());
+
+        // A miss is the expensive case: every root probed, none found.
+        String missing = "data/config/__preflight_does_not_exist.json";
+        long t0 = System.nanoTime();
+        int hits = 0;
+        for (int i = 0; i < 200; i++)
+            for (Path r : roots) if (new File(r.toFile(), missing).exists()) hits++;
+        double perProbe = (System.nanoTime() - t0) / 200.0 / roots.size();
+        System.out.printf("full-miss probe        %7.2f us/probe   (%d roots, hits=%d)%n",
+                perProbe / 1000.0, roots.size(), hits);
+
+        // A hit in the first root is the cheap case.
+        String present = "data/config/settings.json";
+        t0 = System.nanoTime();
+        for (int i = 0; i < 2000; i++) new File(roots.get(0).toFile(), present).exists();
+        System.out.printf("existing-file exists() %7.2f us/probe%n%n", (System.nanoTime()-t0)/2000.0/1000.0);
+
+        // Bound the real workload.
+        int[][] work = {{13069}, {4640}, {33579}};
+        String[] names = {"spec json+csv", "janino sources", "textures"};
+        double totalMid = 0;
+        System.out.printf("%-18s %8s   %10s %10s %10s%n","corpus","files","@10 roots","@42 roots","@84 roots");
+        for (int i = 0; i < work.length; i++) {
+            double a10 = work[i][0]*10*perProbe/1e9, a42 = work[i][0]*42*perProbe/1e9, a84 = work[i][0]*84*perProbe/1e9;
+            totalMid += a42;
+            System.out.printf("%-18s %8d   %9.2fs %9.2fs %9.2fs%n", names[i], work[i][0], a10, a42, a84);
+        }
+        System.out.printf("%ntotal at 42 roots (half the list, average case): %.2f s%n", totalMid);
+    }
+}
