@@ -80,25 +80,139 @@ com/fs/starfarer/combat/{CombatEngine,CombatState,collision,entities/Ship}
 `modules/renderer/.../MultiThreadedJaninoClassLoader.java` **parallelises script compilation**, and
 the agent substitutes `org/codehaus/janino/JavaSourceClassLoader` wholesale to install it.
 
-This repository's plan was to *cache* compiled bytecode instead. Those are complementary:
+This repository's plan was to *cache* compiled bytecode instead. Those are complementary, and
+reading the source makes the boundary exact:
+
+`MultiThreadedJaninoClassLoader` holds `private final Map<String, byte[]> bytecodeCache =
+new ConcurrentHashMap<>()`, and each thread gets its own `JavaSourceCompiler` via a `ThreadLocal`
+writing into that shared map. **So they do cache bytecode -- in memory, for the lifetime of one
+class loader, in one launch.** It exists to stop two worker threads compiling the same class, not to
+carry anything to the next launch. Nothing is written to disk; the map dies with the process.
 
 - **Parallelising** helps every launch, including the first, and scales with cores -- which is
   exactly what a low-core machine cannot offer.
-- **Caching** does no work at all on repeat launches, and is CPU-count independent. On this
-  install the profile shows `Thread-4` sleeping 33.7s in `ScriptStore$3.run`.
+- **Persisting** that same map is the piece they left on the table, and it is Preflight-shaped:
+  CPU-count independent, zero work on repeat launches. On this install the profile shows `Thread-4`
+  sleeping 33.7s in `ScriptStore$3.run`.
 
-Caching is the better fit for Preflight's thesis and for the long tail. Doing both is coherent.
+Their in-memory `Map<String, byte[]>` is, quite literally, the thing we would serialise. Doing both
+is coherent, and the interface between them is already the right shape.
+
+One design decision of theirs is worth copying regardless: `ScriptLoader.joinScriptLoadingThread`
+calls every script constructor **on the main thread**, because vanilla ran constructors on the
+loading thread and scripts that call API methods from their constructors raced. Any parallel or
+cached script path we build has to preserve that.
 
 ## Two questions answered by reading it
 
-**They did not fix the prefetcher.** Their `assembly/com/fs/graphics/L.j` still starts exactly one
-`Thread` and still contains the 10ms `Thread.sleep` poll loops in both the image and byte getters.
-The 27-second wait this repository removed on 2026-08-01 is still paid by every Fast Rendering user.
-Our result is not duplicated there.
+### They did fix the prefetcher, and an earlier version of this document said otherwise
 
-**They did not cache resource resolution.** `assembly/com/fs/util/C.j` contains zero `HashMap`,
-zero cache of any kind, and the same `File.exists` / `lastModified` / `listFiles` probing across
-every mod root. That seam is still open ground.
+**Correction, 2026-08-02.** This document previously claimed: *"They did not fix the prefetcher
+[...] The 27-second wait this repository removed on 2026-08-01 is still paid by every Fast Rendering
+user."* **That was wrong.** The observation behind it was right and the conclusion did not follow:
+`assembly/com/fs/graphics/L.j` does still contain one `Thread` and the 10ms `Thread.sleep` poll
+loops, but **nothing under Fast Rendering ever reaches them**, because they replaced the *caller*
+rather than the class. The error was checking a class and not its call sites.
+
+The path, end to end:
+
+```
+ResourceLoaderState (methods/)  ->  ResourceLoader.loadResource(flags.name(), path)
+  case "TEXTURE" / "TEXTURE_OPTIONAL" / "TEXTURE_ALPHA_ADDER"
+      -> TextureLoader.queueImage(type, path)
+          -> ResourceLoader.workers.execute(...)          // 4-thread pool
+              -> FileRepository.FileRepository_loadImage(path)
+```
+
+and `ObfTransformations` maps `FileRepository` = `com/fs/graphics/L` with
+`FileRepository_loadImage` = `o00000` -- **the private decode method**, which on the name-divergence
+table below is one of the two names that agree across Windows and macOS. So their workers call the
+decoder *directly*. The enqueue method and the polling getter are never invoked, the prefetch queue
+stays empty, and the single decode thread is never started.
+
+**Both projects removed the same 27 seconds, by opposite means.** They spread the decode across four
+workers; Preflight takes 50,879 paths off the queue and serves them from a cache. That is the single
+most important consequence of this review, and it is the opposite of what this file said before:
+**on textures the two projects overlap rather than stack.** Any claim that 29% and 25% compose is
+unfounded until measured together.
+
+**They did not cache resource resolution across launches** -- but they do cache it *within* one, and
+that is new since the first pass of this review. See `PathCache` below. `assembly/com/fs/util/C.j`
+is untouched because the work moved into `com.genir.renderer.overrides.FileUtils`.
+
+**They did not touch the JSON/spec path at all.** `SpecStore` appears only as a compile-time proxy
+stub and as a call site used to sequence the load; the sole mention of JSON anywhere in their 132
+source files is a `throws JSONException` clause. There is no `JSONObject`, `JSONTokener`, or
+`org.json` reference in their tree. That seam is open ground, and it is the largest one left in our
+own profile.
+
+## How their startup actually works
+
+Reading `overrides/loading/ResourceLoader.java` answers "what was the 25%". It is one idea applied
+four ways: **the load is not serial, so stop running it serially.**
+
+1. **Thread inversion.** `initSpecStore` moves the bulk of resource loading onto a worker and turns
+   `main` into a message pump draining `mainThreadQueue` on a 333ms poll, running only the work that
+   must touch GL and rendering the progress bar between items. GL stays on the thread that owns the
+   context; everything else leaves it.
+2. **A 4-worker pool** (`FR-Resource-Loader-Worker`) shared by textures, sounds and scripts, with a
+   `mainThreadWaitGroup` counter as the join barrier and a single `AtomicReference<Throwable>`
+   funnelling worker failures back to the main thread.
+3. **Speculative sprite queueing.** `queueWeaponSprite` / `queueProjectileSprite` /
+   `queueShipSprite` queue textures *as each spec is parsed*, so decoding overlaps spec parsing
+   rather than following it. `queueShipAndWeaponSprites()` then runs as the authoritative pass --
+   "vanilla is the final judge on what should be loaded," in their comment.
+4. **Skipping the vanilla epilogue** by throwing a private `SkipVanillaInitEpilogue` out of
+   `initSpecStore` to abort the middle of vanilla `init`, then running a hand-written `initEpilogue()`
+   that re-does the parts they still want, in order.
+
+Item 4 is worth noting as a technique we should *not* copy: it pins them to the exact statement
+order of a specific build's `init`, and it is the kind of thing that breaks silently on a game
+update. It is also why their changelog has so many "fixed a race condition in vanilla code" entries
+-- parallelising code that was written serially surfaces every latent ordering assumption in it.
+
+**The strategic read: they make one launch cheaper by using more cores; we make the next launch
+cheaper by not doing the work at all.** That framing still holds and is still the reason both can
+exist. What does *not* hold is the assumption that the two are additive everywhere -- on the texture
+path they are two solutions to one problem.
+
+## `PathCache`: their answer to the 77-root probe, and why ours can be better
+
+`overrides/PathCache.java` is 89 lines and directly addresses the seam our roadmap has queued:
+
+- A background thread (`FR-Path-Loader`) recursively enumerates the core directory and the mods
+  directory into a `HashSet<String>` of lowercased, prefix-stripped relative paths.
+- `exists(File)` becomes a set membership test; if the enumeration has not finished,
+  it **falls back to real `File.exists`**, so it fails open the same way we do.
+- `FileUtils.findResources` tries the fast path first and, if it finds *nothing*, redoes the entire
+  search with real `File.exists` -- a guard against false negatives.
+- It is switched off once `GameState.gameInitialized` is set, because a mod deleting a file during
+  init would make the set stale, and deallocated by `closeFileRepository()`.
+
+Three things are worth taking, and three are worth improving on:
+
+**Take:** the fail-open-while-warming pattern; the retry-with-real-`exists` guard; and the
+observation that this is safe *only* during init, which is precisely the window Preflight cares
+about.
+
+**Improve:**
+
+1. **It re-enumerates the whole tree every launch.** Preflight's `ResourceIndex` already holds this,
+   built and validated offline on a native JVM -- which the Rosetta finding says is worth roughly an
+   order of magnitude on exactly this kind of work. Persisting it is the entire thesis of this
+   project.
+2. **It answers "does this exist", not "which location wins".** Their `openResource` still walks
+   every location in order doing one set lookup each; `ResourceIndex` knows the winning provider
+   directly, so the same question is O(1) instead of O(locations).
+3. **`normalizePath` lowercases every path.** Their own comment says *"Not sure if this works on
+   Linux or MacOS."* It does not, in general: on a case-sensitive filesystem, lowercasing collapses
+   distinct files and can produce a **false positive** -- and false positives are exactly what the
+   retry-with-real-`exists` guard does *not* catch, since it only fires when the fast path finds
+   nothing. Our index stores real paths and does not have this failure mode.
+
+Also, if the enumeration throws, the `RuntimeException` dies inside the executor lambda,
+`filesReference` stays null, and the optimization silently never applies. Fail-open, but silent --
+the same class of gap as their missing verification gate.
 
 ## Their artifacts are build-specific
 
@@ -147,10 +261,12 @@ say so.
 
 ## Getting both
 
-The two projects optimise on different axes and compose in principle: they make a single launch
-cheaper (defer GL submission, parallelise Janino, thread the renderer), and this repository makes the
-*next* launch cheaper (precompute, cache, skip the work entirely). Nothing about that is in conflict.
-Only the mechanism collides.
+The two projects optimise on different axes: they make a single launch cheaper (defer GL submission,
+parallelise the load, thread the renderer), and this repository makes the *next* launch cheaper
+(precompute, cache, skip the work entirely). The mechanism collides -- and, per the correction
+above, **on the texture path the results overlap too**, since both remove the same 27-second serial
+decode. Where they genuinely stack is everything neither has taken: the JSON/spec path, persisted
+Janino bytecode, and resolution answered from a persisted index rather than a per-launch scan.
 
 Three ways out, in increasing order of ambition:
 
