@@ -2,59 +2,54 @@
 
 Preflight follows a measurement-first sequence. Each optimization keeps the original loader available as a fallback.
 
-## Measured result (2026-08-01, second campaign)
+## Measured result (2026-08-01, third campaign)
 
-`benchmarkAccepted: true`, 15 of 15 runs, no exclusions, launch-order drift -0.5s (1.3% of
-variance). Unattended, 240s cooldown before every launch, discarded settling launch, quiet machine.
+`benchmarkAccepted: true`, 15 of 15 runs, no exclusions, launch-order drift **-0.04s (0.0% of
+variance)**. Unattended, 240s cooldown before every launch, discarded settling launch, quiet
+machine.
 
 | condition | median | paired result |
 | --- | --- | --- |
-| `vanilla` | 88.49s | -- |
-| **`fast`** (cache + prefetch bypass) | **78.93s** | **beats vanilla by 9.56s, 5 rounds of 5** |
-| `prepared` (pixel bypass; prefetch bypass disabled) | 87.89s | 0.60s from vanilla, p = 1.000 |
+| `vanilla` | 88.13s | -- |
+| `fast` (cache + prefetch bypass) | 72.25s | beats vanilla by 15.88s, 5 rounds of 5 |
+| **`prepared`** (pixel bypass + prefetch bypass) | **62.60s** | **beats vanilla by 25.53s, 5 rounds of 5** |
 
-**What a user feels: 9.6s off 88.5s, about 10.8%.**
+**What a user feels: 25.5s off 88.1s, about 29%.**
 
-It is not a cheaper computation. It is a wait that stops happening: the loading thread was sleeping
-**27 of the load's 96 seconds** polling Starsector's one-thread image prefetcher, while the decoded
-pixels sat unread in the cache behind it. The bypass takes 50,879 enqueues off the game's queue; the
-cache goes from serving 6,651 textures to 21,653.
+Every ordering is unanimous and the three conditions do not overlap: the slowest `prepared` run is
+7.8s faster than the fastest `fast` run, which is 15.6s faster than the fastest `vanilla` run.
 
-Two reversals this campaign settles:
+The control that makes it believable is `vanilla`, measured ten hours earlier on the same install
+and profile at **88.49s** -- it moved 0.4%. The other two moved because the code did:
 
-- **`fast` was the condition that lost.** It was 1.28s *slower* than vanilla and carried a "do not
-  ship as a speed feature" note. Nothing about the cache changed -- it is now asked.
-- **`prepared` is no longer the best path.** It is indistinguishable from vanilla here, because it
-  is the one mode that cannot take the prefetch bypass: it answers with a 1x1 carrier that reports
-  the texture's real dimensions, and handing that to a consumer which walks the raster crashed the
-  load at 23.6s in a mask converter. **The two optimizations are currently mutually exclusive and
-  the pixel bypass is the smaller one.**
+| condition | previous campaign | this campaign |
+| --- | --- | --- |
+| `vanilla` | 88.49s | 88.13s |
+| `fast` | 78.93s | 72.25s |
+| `prepared` | 87.89s | **62.60s** |
 
-Full write-up: [ten percent, by not waiting](evidence/2026-08-01-ten-percent-by-not-waiting.md).
+Three things stack, and none of them is a faster computation:
 
-## Landed since that campaign, not yet campaigned
+1. **A wait that stops happening.** The loading thread slept **27 of the load's 96 seconds** polling
+   Starsector's one-thread image prefetcher while the decoded pixels sat unread in the cache behind
+   it. The bypass takes 50,879 enqueues off the game's queue and moves the cache from 6,651
+   textures served to 21,652.
+2. **A hash that stops happening.** Up to 1.34 GB of PNGs re-hashed per launch on the loading
+   thread at 292 MB/s -- 40.9% of `main`'s on-CPU samples -- because the game ships an x86_64 JRE
+   and Rosetta 2 exposes no SHA-NI. Worth **6.68s** on its own.
+3. **A decode and conversion that stop happening.** 21,652 pixel conversions bypassed, 3.92 GB
+   handed straight to `glTexImage2D`. Worth **9.65s** with everything else held constant.
 
-Both changes are in `main`, `mvn verify` green, and smoke-launched against the real install. **No
-reportable number yet:** one launch per condition, 60s cooldown instead of 240s, warm page cache.
+Item 3 was the condition that lost the last campaign, at 0.60s from vanilla with p = 1.000, because
+it was the one mode that could not take item 1. It can now.
 
-1. **`prepared` and the prefetch bypass now compose.** The claim that this would cost "a
-   materialisation the mode exists to avoid" was wrong -- 6,123 of 6,651 carriers already paid it,
-   and the token carrier survived only for the 528 power-of-two textures that crashed the load. Now
-   every carrier materialises a readable raster. `prepared` went from 6,651 textures served to
-   **21,652, with zero NPOT fallbacks**, and skips 50,879 prefetch enqueues.
-2. **The per-lookup source SHA-256 is gone from the loading thread.** With the prefetch wait
-   removed, it was **41% of `main`'s on-CPU samples** -- hashing up to 1.34 GB of PNGs per launch at
-   292 MB/s, because Starsector ships an x86_64 JRE and Rosetta 2 has no SHA-NI, so the JVM's
-   intrinsic can never fire. Replaced by the size+mtime check `configure()`'s index validation
-   already performs; content hashing available under `-Dpreflight.texture.verifySourceHash=true`.
+Full write-up:
+[twenty-nine percent, when they compose](evidence/2026-08-01-twenty-nine-percent-when-they-compose.md).
+Prior campaign, for the 27-second wait itself:
+[ten percent, by not waiting](evidence/2026-08-01-ten-percent-by-not-waiting.md).
 
-Indicative smoke timings, **not a result**: `prepared` 62.80s and `fast` 72.60s, against 87.89s and
-78.93s in the campaign above. The third reversal in a day, if it holds: `prepared` is ahead again,
-because it is now the mode carrying both optimizations.
-
-Next: **a real campaign** -- the numbers above are the only thing standing between this and a
-reportable claim. Then the two frames the new profile exposes, in order: the game's own
-`File.exists` probe of 77 mod roots per resource, and the untouched JSON/spec path.
+Next, in order: the game's own `File.exists` probe of 77 mod roots per resource, and the untouched
+JSON/spec path.
 
 Context that reframes all remaining CPU work:
 [the game runs under Rosetta](evidence/2026-08-01-the-game-runs-under-rosetta.md).
@@ -83,8 +78,9 @@ Preflight got none of that time back because its cache lookup sat on the wrong s
 Our hook was reached 6,654 times; the manifest holds 32,917 textures. The difference is the set the
 prefetcher answered first, and the 27 seconds is what the loading thread paid to wait for it.
 
-**Fixing that is the 10.8% above.** Taking those paths off the game's queue moved the cache from
-6,654 lookups to 21,656 and the load from 88.49s to 78.93s.
+**Fixing that is the first of the three items above.** Taking those paths off the game's queue moved
+the cache from 6,654 lookups to 21,656, and the load from 88.49s to 78.93s in the campaign that
+isolated it -- and, once the hash and the pixel bypass composed on top, to 62.60s.
 
 So the load is **not** an irreducibly serial chain, and the opportunity **is** reachable from where
 Preflight sits -- both of which this roadmap asserted earlier today on the strength of a report
