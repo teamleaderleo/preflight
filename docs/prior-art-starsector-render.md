@@ -286,6 +286,53 @@ Three ways out, in increasing order of ambition:
 
 Option 3 is the interesting one and is unproven. Option 1 should happen regardless.
 
+## The macOS fork, and what it proves about names
+
+<https://github.com/jontyab/starsector-render> is a fork at v0.7.7 (upstream is past v0.8.0) that
+ports the project to macOS and Linux. It carries one artifact worth more to us than the port itself:
+
+```
+modules/renderer/src/mappings/obf_windows.tsv
+modules/renderer/src/mappings/obf_macos.tsv
+modules/renderer/src/mappings/obf_linux.tsv
+```
+
+85 symbols each, applied to the Jasmin sources at build time by `scripts/rewrite_j_files.py`.
+
+**49 of the 85 diverge across the three platforms -- 58%.** Only 36 are stable. And it is not only
+methods: whole class names move, so `AlphaAdder` is `com/fs/graphics/do` on Windows,
+`com/fs/graphics/oO0O` on macOS and `com/fs/graphics/M` on Linux.
+
+Two conclusions.
+
+**First, this settles the name-divergence question that section opened.** The divergence is not an
+artifact of one class or one build -- it is the majority of every symbol, on every platform, and
+anyone doing name-based interception needs a per-platform table. Preflight pins a class hash instead,
+and this is the strongest evidence yet that the choice was right: a hash needs no table, and it
+cannot silently bind to the wrong member when a platform reshuffles names.
+
+**Second, it independently confirms our own reverse-engineering at the exact point it mattered.**
+Their macOS table gives:
+
+| our finding | their macOS mapping |
+| --- | --- |
+| `com/fs/graphics/L.o00000` is the private image decoder | `FileRepository_loadImage` = `o00000` |
+| `com/fs/graphics/L.Ô00000` is the private byte decoder | `FileRepository_loadSound` = `Ô00000` |
+| `com.fs.graphics.oO0O` is "a greyscale-to-alpha mask converter that walks the raster" | `AlphaAdder` = `com/fs/graphics/oO0O` |
+
+That third row is the class whose raster walk crashed the load at 23.6s when prepared-pixel mode
+served it a 1x1 token carrier. We identified it from a stack trace and a crash; their table names it
+`AlphaAdder` and files it under `TextureTransformer`. It walks the raster because adding an alpha
+channel is precisely what it is for -- which means the coherent-carrier fix was not a workaround for
+one awkward consumer, it was the only correct answer.
+
+**On `PathCache`, the fork did not fix the lowercasing.** It repairs leading-separator handling for
+POSIX paths and swaps `path.toFile().isDirectory()` for `Files.isDirectory(path)`, but the
+`toLowerCase(Locale.ROOT)` remains -- and the upstream comment admitting *"Not sure if this works on
+Linux or MacOS"* was deleted rather than acted on. The hazard is now shipped to Linux, where
+case-sensitive filesystems are the norm and two files differing only in case collapse to one set
+entry. It is a false positive, which their retry-with-real-`exists` guard does not catch.
+
 ## Still open
 
 1. **Whether their built-in profiler** (CTRL+SHIFT+F8, plus a `modules/jfr/` directory) makes the
