@@ -144,6 +144,13 @@ seams examined here touch it.
 load in the current mod configuration. Timing one, with a profile attached, anchors everything above
 and decides whether this line continues. It needs the game running and a save loaded through the UI.
 
+> **Answered the same day: [a save load is 96 seconds](2026-08-02-a-save-load-is-ninety-six-seconds.md).**
+> A 42.7 MB save took **96.0 s** -- longer than the whole optimized startup. XStream is **13.3 s
+> (14%)**, so this document's estimate of ~3.3 s was low by about 4x, but its conclusion was right
+> and is now measured: **86% of a save load is not XStream.** The largest item is intel/mission
+> regeneration at 30%, and the JSON/spec path costs another 18% -- meaning that corpus is paid at
+> launch *and* on every save load.
+
 Caveats on the synthetic: the node type carries six scalar fields, a nested object, a child list and
 one cross-link. Starsector's classes are richer and some have custom converters, so this is a lower
 bound on per-element construction cost. It is not a lower bound on total load time, because it
