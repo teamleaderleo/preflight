@@ -1,0 +1,256 @@
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+
+/**
+ * What {@code getEntityById} costs on a real sector, and what the alternatives cost.
+ *
+ * <p>Both {@code BaseLocation.getEntityById} and {@code CampaignEngine.getEntityById} have the same
+ * two-part shape, taken from the disassembly:
+ *
+ * <pre>
+ *   // fast path: a HashMap, then an O(n) List.contains to validate the hit
+ *   if (idToEntity.containsKey(id)) { ... if (e.getContainingLocation().getAllEntities().contains(e)) return e; }
+ *   // fallback, reached on ANY failure above -- including a plain map miss:
+ *   for (SectorEntityToken e : getObjects().getList(SectorEntityToken.class))
+ *       if (e.getId() != null &amp;&amp; e.getId().toLowerCase().equals(id.toLowerCase())) return e;
+ * </pre>
+ *
+ * <p>The fallback is a linear scan that allocates <em>two</em> lowercased Strings per entity per
+ * lookup. And {@code CampaignEngine.getEntityById} runs it over hyperspace and then over every star
+ * system in turn, so one sector-wide miss scans every entity in the sector.
+ *
+ * <p>Location sizes come from the player's own saves, counted out of the campaign.xml.
+ */
+public class SectorLookupBench {
+
+    static final class Entity {
+        final String id;
+        Location location;
+        long p0, p1, p2, p3, p4, p5, p6, p7;
+        Entity(String id) { this.id = id; }
+        String getId() { return id; }
+        Location getContainingLocation() { return location; }
+    }
+
+    static final class Location {
+        /**
+         * Nulled by {@code BaseLocation.advance} every frame, so the next lookup rebuilds it. The
+         * rebuild allocates a fresh HashMap and puts every entity into it.
+         */
+        Map<String, Entity> idToEntity;
+        final HashSet<Entity> forFastContains = new HashSet<>();
+        final List<Entity> entities = new ArrayList<>();
+        /** The candidate index: the fallback's case-insensitive match, precomputed. */
+        final Map<String, Entity> lowerToEntity = new HashMap<>();
+
+        Location(int n, int seed, Random random) {
+            for (int i = 0; i < n; i++) {
+                Entity e = new Entity("entity_" + seed + "_" + i);
+                e.location = this;
+                if ((i & 1) == 0) { Entity filler = new Entity("filler"); filler.p0 = i; }
+                entities.add(e);
+                forFastContains.add(e);
+                lowerToEntity.put(e.id.toLowerCase(), e);
+            }
+            Collections.shuffle(entities, random);
+        }
+
+        void rebuildIDToEntityMap() {
+            idToEntity = new HashMap<>();
+            for (Entity e : getAllEntities()) idToEntity.put(e.getId(), e);
+        }
+
+        /** What {@code advance} does to this location once a frame. */
+        void frameBoundary() { idToEntity = null; }
+
+        List<Entity> getAllEntities() { return entities; }
+
+        /** Exactly what the game does, fallback included. */
+        Entity vanilla(String id) {
+            if (idToEntity == null) rebuildIDToEntityMap();
+            if (idToEntity.containsKey(id)) {
+                if (idToEntity.get(id) instanceof Entity) {
+                    Entity e = idToEntity.get(id);
+                    if (e.getContainingLocation() != null
+                            && e.getContainingLocation().getAllEntities().contains(e)) {
+                        return e;
+                    }
+                }
+            }
+            for (Entity e : getAllEntities()) {
+                if (e.getId() != null && e.getId().toLowerCase().equals(id.toLowerCase())) return e;
+            }
+            return null;
+        }
+
+        /**
+         * The candidate. One index, maintained when entities are added and removed rather than
+         * rebuilt every frame, answering the same case-insensitive question the fallback answers.
+         * Membership is still validated, through the repository's own HashSet, in O(1).
+         */
+        Entity indexed(String id) {
+            Entity e = lowerToEntity.get(id.toLowerCase());
+            return e != null && forFastContains.contains(e) ? e : null;
+        }
+    }
+
+    static final class Sector {
+        final Map<String, Entity> idToEntity = new HashMap<>();
+        final Map<String, Entity> lowerToEntity = new HashMap<>();
+        final Location hyperspace;
+        final List<Location> starSystems = new ArrayList<>();
+        final List<Location> all = new ArrayList<>();
+
+        Sector(int[] sizes, boolean indexEverything) {
+            Random random = new Random(20260802L);
+            hyperspace = new Location(sizes[0], 0, random);
+            all.add(hyperspace);
+            for (int i = 1; i < sizes.length; i++) {
+                Location loc = new Location(sizes[i], i, random);
+                starSystems.add(loc);
+                all.add(loc);
+            }
+            // The sector map is built once and only rebuilt when null, so it covers what existed
+            // when it was built. indexEverything=false models the entities created since.
+            for (Location loc : all) {
+                for (Entity e : loc.entities) {
+                    lowerToEntity.put(e.id.toLowerCase(), e);
+                    if (indexEverything) idToEntity.put(e.id, e);
+                }
+            }
+        }
+
+        /** CampaignEngine.getEntityById, exactly. */
+        Entity vanilla(String id) {
+            Entity e = idToEntity.get(id);
+            if (e != null && e.getContainingLocation() != null
+                    && e.getContainingLocation().getAllEntities().contains(e)) {
+                return e;
+            }
+            Entity t = hyperspace.vanilla(id);
+            if (t != null) return t;
+            for (Location loc : starSystems) {
+                t = loc.vanilla(id);
+                if (t != null) return t;
+            }
+            return null;
+        }
+
+        /** Same search order, but each location answers from an index rather than a scan. */
+        Entity indexed(String id) {
+            Entity e = idToEntity.get(id);
+            if (e != null && e.getContainingLocation() != null
+                    && e.getContainingLocation().forFastContains.contains(e)) {
+                return e;
+            }
+            Entity t = hyperspace.indexed(id);
+            if (t != null) return t;
+            for (Location loc : starSystems) {
+                t = loc.indexed(id);
+                if (t != null) return t;
+            }
+            return null;
+        }
+
+        /** What {@code advance} does to every location once a frame. */
+        void frameBoundary() { for (Location loc : all) loc.frameBoundary(); }
+
+        /** A sector-wide case-insensitive index. One lookup, no walk over locations at all. */
+        Entity sectorIndex(String id) {
+            Entity e = idToEntity.get(id);
+            if (e != null && e.getContainingLocation() != null
+                    && e.getContainingLocation().forFastContains.contains(e)) {
+                return e;
+            }
+            return lowerToEntity.get(id.toLowerCase());
+        }
+    }
+
+    interface Lookup { Entity apply(String id); }
+
+    public static void main(String[] args) throws Exception {
+        System.out.printf("jvm %s (%s)%n%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+
+        for (String save : new String[] {"early", "late"}) {
+            int[] sizes = readSizes("sizes-" + save + ".txt");
+            System.out.printf("=== %s save: %d locations, %d entities, largest %d ===%n",
+                    save, sizes.length, Arrays.stream(sizes).sum(), sizes[0]);
+
+            // Case A: the id is in the sector map and still valid. The common, cheap path.
+            Sector indexedSector = new Sector(sizes, true);
+            String[] mapped = pick(indexedSector, 64, 0.5);
+            report("A  in sector map, valid", indexedSector, mapped, sizes);
+
+            // Case B: the entity exists but was created after the sector map was built -- every
+            // fleet Nexerelin spawns, every entity added since the last rebuild.
+            Sector staleSector = new Sector(sizes, false);
+            String[] unmapped = pick(staleSector, 32, 0.5);
+            report("B  not in sector map", staleSector, unmapped, sizes);
+
+            // Case C: no such entity anywhere. Every location is scanned.
+            String[] absent = new String[8];
+            for (int i = 0; i < absent.length; i++) absent[i] = "no_such_entity_" + i;
+            report("C  absent from sector", staleSector, absent, sizes);
+            System.out.println();
+        }
+    }
+
+    /** Ids drawn from the location at the given depth through the star-system list. */
+    private static String[] pick(Sector sector, int count, double depth) {
+        Location loc = sector.starSystems.get((int) (sector.starSystems.size() * depth));
+        String[] ids = new String[count];
+        Random random = new Random(11L);
+        for (int i = 0; i < count; i++) {
+            ids[i] = loc.entities.get(random.nextInt(loc.entities.size())).id;
+        }
+        return ids;
+    }
+
+    private static void report(String label, Sector sector, String[] ids, int[] sizes) {
+        double vanilla = time(sector, sector::vanilla, ids);
+        double indexed = time(sector, sector::indexed, ids);
+        double whole = time(sector, sector::sectorIndex, ids);
+        System.out.printf("%-24s vanilla %10.1f us   per-location index %8.3f us   "
+                        + "sector index %8.3f us   %6.0fx / %6.0fx%n",
+                label, vanilla / 1000, indexed / 1000, whole / 1000,
+                vanilla / indexed, vanilla / whole);
+    }
+
+    private static long sink;
+
+    /**
+     * A frame is one {@code advance} -- which nulls every location's map -- followed by the
+     * lookups that frame makes. Reported as nanoseconds per lookup.
+     */
+    private static double time(Sector sector, Lookup lookup, String[] ids) {
+        for (int pass = 0; pass < 2; pass++) run(sector, lookup, ids, 3);
+        double best = Double.MAX_VALUE;
+        for (int pass = 0; pass < 3; pass++) {
+            long t0 = System.nanoTime();
+            run(sector, lookup, ids, 3);
+            best = Math.min(best, (System.nanoTime() - t0) / (double) (3L * ids.length));
+        }
+        return best;
+    }
+
+    private static void run(Sector sector, Lookup lookup, String[] ids, int frames) {
+        long acc = 0;
+        for (int f = 0; f < frames; f++) {
+            sector.frameBoundary();
+            for (String id : ids) {
+                Entity e = lookup.apply(id);
+                if (e != null) acc += e.p0 + 1;
+            }
+        }
+        sink += acc;
+    }
+
+    private static int[] readSizes(String file) throws IOException {
+        String[] parts = Files.readString(Path.of(file)).trim().split(",");
+        int[] sizes = new int[parts.length];
+        for (int i = 0; i < parts.length; i++) sizes[i] = Integer.parseInt(parts[i]);
+        return sizes;
+    }
+}
