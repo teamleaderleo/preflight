@@ -1,0 +1,50 @@
+import javax.xml.stream.*;
+import java.io.*; import java.nio.file.*; import java.util.*;
+import com.thoughtworks.xstream.XStream;
+
+public class ParseBench {
+    public static void main(String[] a) throws Exception {
+        Path f = Path.of(a[0]);
+        byte[] data = Files.readAllBytes(f);
+        System.out.printf("jvm %s (%s)%nfile %.1f MB%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"), data.length/1048576.0);
+        try {
+            XStream x = new XStream();
+            System.out.println("XStream default driver: " + x.getClass().getName()
+                + " -> reader " + readerName(x));
+        } catch (Throwable t) { System.out.println("XStream probe failed: " + t); }
+
+        XMLInputFactory factory = XMLInputFactory.newInstance();
+        factory.setProperty(XMLInputFactory.IS_COALESCING, false);
+        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+
+        double best = Double.MAX_VALUE; long elements = 0, chars = 0;
+        for (int trial = 0; trial < 3; trial++) {
+            long t0 = System.nanoTime();
+            XMLStreamReader r = factory.createXMLStreamReader(new ByteArrayInputStream(data), "UTF-8");
+            long e = 0, c = 0;
+            while (r.hasNext()) {
+                int ev = r.next();
+                if (ev == XMLStreamConstants.START_ELEMENT) {
+                    e++;
+                    int n = r.getAttributeCount();
+                    for (int i = 0; i < n; i++) { r.getAttributeLocalName(i); r.getAttributeValue(i); }
+                    r.getLocalName();
+                } else if (ev == XMLStreamConstants.CHARACTERS) c += r.getTextLength();
+            }
+            r.close();
+            double ms = (System.nanoTime()-t0)/1e6;
+            best = Math.min(best, ms); elements = e; chars = c;
+        }
+        System.out.printf("%nStAX pull-parse (attributes read, nothing built)%n");
+        System.out.printf("  elements %,d   text chars %,d%n", elements, chars);
+        System.out.printf("  best %.0f ms   (%.1f MB/s, %.2f us/element)%n",
+                best, data.length/1048576.0/(best/1000), best*1000/elements);
+    }
+    static String readerName(XStream x) {
+        try {
+            java.lang.reflect.Field f = XStream.class.getDeclaredField("hierarchicalStreamDriver");
+            f.setAccessible(true); return f.get(x).getClass().getName();
+        } catch (Throwable t) { return "?"; }
+    }
+}
