@@ -61,6 +61,25 @@ public final class TexturePreparedPixelRuntime {
         return selected && TextureCompatibilityRuntime.ready();
     }
 
+    /**
+     * True when the image handed back to the loader is a token rather than a readable image.
+     *
+     * <p>The carrier is a 1x1 raster that reports the texture's real dimensions, because the whole
+     * point of this mode is that the pixels never become a {@link BufferedImage} at all. That
+     * contract holds for exactly one consumer -- the conversion this plan rewrites. Any other
+     * consumer that walks {@code 0..getWidth()} calling {@code raster.getPixel} reads off the end
+     * of a single pixel.
+     *
+     * <p>Nothing enforced that before, and it held only because the game's own prefetcher happened
+     * to answer first for the textures other consumers read. That was luck, not design: routing
+     * those paths to the cache crashed the load in {@code com.fs.graphics.oO0O}, a greyscale-to-alpha
+     * mask converter, on 2026-08-01. So anything that widens the set of paths served here has to ask
+     * this first.
+     */
+    static boolean servesUnreadableCarriers() {
+        return selected;
+    }
+
     /** Returns a prepared-texture carrier, or {@code null} for original decode fallback. */
     public static BufferedImage load(String logicalPath) {
         if (!ready()) {

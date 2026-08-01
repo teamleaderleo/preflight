@@ -93,6 +93,24 @@ class TexturePrefetchBypassPlanTest {
     }
 
     @Test
+    void preparedPixelModeKeepsEveryPathOnTheGamesOwnQueue() {
+        // Regression, 2026-08-01: the bypass shipped without this and crashed the load at 23.6s in
+        // com.fs.graphics.oO0O, a greyscale-to-alpha mask converter, with ArrayIndexOutOfBounds.
+        // Prepared-pixel mode answers with a 1x1 carrier that reports the texture's real dimensions,
+        // which only the rewritten conversion can read. Taking paths off the game's queue hands that
+        // carrier to consumers that walk the raster, so in this mode it must claim nothing.
+        TextureCompatibilityRuntime.beginSession();
+        try {
+            TexturePreparedPixelRuntime.select(TextureAdapterMode.PREPARED_PIXELS);
+            assertTrue(TexturePreparedPixelRuntime.servesUnreadableCarriers());
+            assertFalse(TextureCompatibilityRuntime.prefetchRedundant("graphics/ships/anything.png"));
+        } finally {
+            TexturePreparedPixelRuntime.select(TextureAdapterMode.COMPATIBILITY);
+        }
+        assertFalse(TexturePreparedPixelRuntime.servesUnreadableCarriers());
+    }
+
+    @Test
     void anUnreadyCacheKeepsEveryPathOnTheGamesOwnQueue() {
         // Fail-open: with no manifest configured the predicate must never claim a path, or the
         // bypass would drop prefetches it has nothing to replace them with.

@@ -142,6 +142,12 @@ public final class TextureCompatibilityRuntime {
         if (!current.ready || current.circuitBreaker.get()) {
             return false;
         }
+        // Taking a path off the game's queue means this cache answers for it, and in prepared-pixel
+        // mode the answer is a token only the rewritten conversion can read. Consumers that read
+        // pixels -- mask conversion, for one -- must keep getting the game's own decoded image.
+        if (TexturePreparedPixelRuntime.servesUnreadableCarriers()) {
+            return false;
+        }
         try {
             String normalized;
             try {
