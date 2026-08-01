@@ -82,6 +82,15 @@ Composing them means a carrier that any consumer can read; `TexturePreparedPixel
 already builds one for the padded case, and it costs a materialisation the mode exists to avoid.
 That trade is unmeasured.
 
+> **Correction, later the same day.** The last sentence of that paragraph was wrong, and the
+> telemetry to see it was already in the table above. `coherentCarriers` on the measured `prepared`
+> run is **6,123 of 6,651** -- 92% of carriers had already materialised a readable raster, because
+> every NPOT texture took that path. The materialisation "the mode exists to avoid" was a cost the
+> mode was already paying nine times in ten; the token carrier survived only for the 528
+> power-of-two stragglers, which are exactly the ones that crashed the load. Composing them cost
+> extending an existing path to 8% more textures, and it is done:
+> [what a bypass and a hash cost when the JVM is emulated](2026-08-01-the-game-runs-under-rosetta.md).
+
 ## What this campaign cost to get right
 
 Three claims published earlier the same day were wrong, and all three came from the instrument

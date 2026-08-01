@@ -30,15 +30,34 @@ Two reversals this campaign settles:
   load at 23.6s in a mask converter. **The two optimizations are currently mutually exclusive and
   the pixel bypass is the smaller one.**
 
-Next, in order:
-
-1. **Ship the prefetch bypass as the default cache-backed path.** Fail-open, no new artifacts.
-2. **Decide what `prepared` is for** -- make its carrier readable so it can take the bypass too, or
-   retire it. The composition is unmeasured.
-3. **Take the SHA-256 off the loading thread**, and re-measure it: the 1.01s came off a recording
-   whose clock ran at 0.401x.
-
 Full write-up: [ten percent, by not waiting](evidence/2026-08-01-ten-percent-by-not-waiting.md).
+
+## Landed since that campaign, not yet campaigned
+
+Both changes are in `main`, `mvn verify` green, and smoke-launched against the real install. **No
+reportable number yet:** one launch per condition, 60s cooldown instead of 240s, warm page cache.
+
+1. **`prepared` and the prefetch bypass now compose.** The claim that this would cost "a
+   materialisation the mode exists to avoid" was wrong -- 6,123 of 6,651 carriers already paid it,
+   and the token carrier survived only for the 528 power-of-two textures that crashed the load. Now
+   every carrier materialises a readable raster. `prepared` went from 6,651 textures served to
+   **21,652, with zero NPOT fallbacks**, and skips 50,879 prefetch enqueues.
+2. **The per-lookup source SHA-256 is gone from the loading thread.** With the prefetch wait
+   removed, it was **41% of `main`'s on-CPU samples** -- hashing up to 1.34 GB of PNGs per launch at
+   292 MB/s, because Starsector ships an x86_64 JRE and Rosetta 2 has no SHA-NI, so the JVM's
+   intrinsic can never fire. Replaced by the size+mtime check `configure()`'s index validation
+   already performs; content hashing available under `-Dpreflight.texture.verifySourceHash=true`.
+
+Indicative smoke timings, **not a result**: `prepared` 62.80s and `fast` 72.60s, against 87.89s and
+78.93s in the campaign above. The third reversal in a day, if it holds: `prepared` is ahead again,
+because it is now the mode carrying both optimizations.
+
+Next: **a real campaign** -- the numbers above are the only thing standing between this and a
+reportable claim. Then the two frames the new profile exposes, in order: the game's own
+`File.exists` probe of 77 mod roots per resource, and the untouched JSON/spec path.
+
+Context that reframes all remaining CPU work:
+[the game runs under Rosetta](evidence/2026-08-01-the-game-runs-under-rosetta.md).
 
 ### Superseded: the first accepted campaign (same day, before the bypass)
 
