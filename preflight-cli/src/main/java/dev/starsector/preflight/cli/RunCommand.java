@@ -120,6 +120,42 @@ final class RunCommand {
                         + " Launcher exit " + launcherExitCode + " is not a clean game exit.");
             }
 
+            // Before anything reads the recording. The JVM's exit dump and the agent's sidecar are
+            // two writes of the same run that race inside the process and cannot race out here.
+            try {
+                RecordingSidecar.Result reconciled = RecordingSidecar.reconcile(recording);
+                if (reconciled != null && reconciled.promoted()) {
+                    System.out.println("Preflight kept the in-flight recording ("
+                            + reconciled.sidecarBytes() + " bytes); the exit dump held only "
+                            + reconciled.recordingBytes()
+                            + (reconciled.displaced() == null
+                                    ? " bytes" : " bytes and is at " + reconciled.displaced()));
+                }
+            } catch (Exception error) {
+                addPostprocessingFailure(postprocessingFailures, "recording-sidecar", error);
+                System.err.println("Preflight could not reconcile the recording sidecar: " + message(error));
+            }
+
+            // A multi-chunk recording folds every later chunk's events back into the first chunk's
+            // window, so a run that looks like it stopped early has not lost anything -- its
+            // timestamps just cannot be read at face value. Say so, loudly, rather than letting the
+            // next analysis quietly assume otherwise.
+            if (Files.isRegularFile(recording)) {
+                try {
+                    RecordingCoverage.Result coverage = RecordingCoverage.inspect(recording);
+                    if (!coverage.timestampsTrustworthy()) {
+                        System.err.println("Preflight recording holds " + coverage.chunks()
+                                + " chunks; its events claim a window of "
+                                + coverage.eventSpan().toSeconds() + "s, which is not the run."
+                                + " Timestamps across chunks are not comparable -- split it first:"
+                                + " jfr disassemble --max-chunks 1 --output <dir> " + recording);
+                    }
+                } catch (Exception error) {
+                    addPostprocessingFailure(postprocessingFailures, "recording-coverage", error);
+                    System.err.println("Preflight could not inspect recording coverage: " + message(error));
+                }
+            }
+
             if (options.summarize() && Files.isRegularFile(recording)) {
                 try {
                     PreflightCli.summarize(recording, report);

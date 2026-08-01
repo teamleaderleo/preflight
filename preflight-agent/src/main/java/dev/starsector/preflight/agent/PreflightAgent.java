@@ -35,10 +35,17 @@ public final class PreflightAgent {
                 "Adapter initialization",
                 () -> AdapterRuntime.start(options, instrumentation));
         Recording recording = startRecording(options);
+        RecordingFlusher flusher = contain(
+                "Recording flusher",
+                () -> RecordingFlusher.start(
+                        recording,
+                        options.destination().toAbsolutePath().normalize(),
+                        options.flushInterval()));
         try {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     () -> {
                         markStopping(recording);
+                        closeFlusher(flusher);
                         closeAdapter(adapterSession);
                     },
                     "Preflight-Shutdown"));
@@ -46,9 +53,25 @@ public final class PreflightAgent {
             throw fatal;
         } catch (Throwable error) {
             log("Could not register shutdown hook: " + message(error));
+            closeFlusher(flusher);
             stopRecording(recording, options.destination());
             closeAdapter(adapterSession);
         }
+    }
+
+    /**
+     * Takes the last sidecar flush. This runs before the adapter's report so that a slow report
+     * cannot cost the recording its final seconds, and alongside -- not instead of -- the JVM's own
+     * dump, which is the only writer that can see the final chunk.
+     */
+    private static void closeFlusher(RecordingFlusher flusher) {
+        if (flusher == null) {
+            return;
+        }
+        contain("Recording flush", () -> {
+            flusher.close();
+            return null;
+        });
     }
 
     static <T> T contain(String component, Startup<T> startup) {
