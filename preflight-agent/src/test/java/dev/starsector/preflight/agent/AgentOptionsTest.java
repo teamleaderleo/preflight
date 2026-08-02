@@ -108,6 +108,12 @@ class AgentOptionsTest {
         assertThrows(IllegalArgumentException.class, () -> AgentOptions.parse("textureMode=unknown"));
     }
 
+    @Test
+    void startupPhaseProbeIsExplicitlyOptIn() {
+        assertFalse(AgentOptions.parse("adapter=enabled").startupPhaseProbe());
+        assertTrue(AgentOptions.parse("adapter=enabled,startupPhases=on").startupPhaseProbe());
+    }
+
     private static String encoded(String value) {
         return Base64.getUrlEncoder()
                 .withoutPadding()
