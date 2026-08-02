@@ -37,6 +37,9 @@ final class AdapterTransformationRegistry {
         if (EntityLookupRuntime.PLAN_ID.equals(target.planId())) {
             return EntityLookupPlan.transform(signature, originalBytes);
         }
+        if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
+            return StartupPhasePlan.transform(signature, originalBytes);
+        }
         return null;
     }
 
@@ -90,6 +93,9 @@ final class AdapterTransformationRegistry {
         }
         if (EntityLookupRuntime.PLAN_ID.equals(planId)) {
             return EntityLookupRuntime.ready();
+        }
+        if (StartupPhaseRuntime.PLAN_ID.equals(planId)) {
+            return true;
         }
         return false;
     }

@@ -59,6 +59,18 @@ java -jar preflight.jar run --game "/path/to/Starsector.app" --adapter-probe
 java -jar preflight.jar run --launcher "/path/to/starsector" --adapter-probe
 ```
 
+To measure the work that occurs after the loading bar reaches 100%, run the enabled adapter with
+the direct phase probe:
+
+```bash
+java -jar preflight.jar run --adapter --texture-auto --no-record --startup-phase-probe
+```
+
+The probe writes `adapter-startup-phases.json` beside `adapter.json` as each boundary completes,
+including one timing for every enabled mod's `onApplicationLoad()` callback. It is opt-in because
+persisting those callback boundaries adds diagnostic I/O; ordinary accelerated launches do not
+weave the probe or pay that cost.
+
 `--adapter` selects `ENABLED` mode. Exact target matching and runtime configuration still decide whether a class changes.
 
 A custom allowlist file may be supplied with:
