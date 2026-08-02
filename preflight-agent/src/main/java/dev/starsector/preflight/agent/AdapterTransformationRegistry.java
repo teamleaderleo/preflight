@@ -48,7 +48,17 @@ final class AdapterTransformationRegistry {
                 if (weaponPhases == null) {
                     byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
                     if (hullPhases == null) {
-                        return RulesLoaderPhasePlan.transform(signature, originalBytes);
+                        byte[] rulesPhases = RulesLoaderPhasePlan.transform(signature, originalBytes);
+                        if (rulesPhases == null || !RulesDuplicateIndexRuntime.ready()) {
+                            return rulesPhases;
+                        }
+                        try {
+                            byte[] indexed = RulesDuplicateIndexPlan.transform(
+                                    ClassSignature.parse(rulesPhases), rulesPhases);
+                            return indexed == null ? rulesPhases : indexed;
+                        } catch (java.io.IOException ignored) {
+                            return rulesPhases;
+                        }
                     }
                     if (!HullJsonCacheRuntime.ready()) {
                         return hullPhases;
@@ -97,6 +107,11 @@ final class AdapterTransformationRegistry {
         if (HullJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
             return HullJsonCacheRuntime.ready()
                     ? HullJsonCachePlan.transform(signature, originalBytes)
+                    : null;
+        }
+        if (RulesDuplicateIndexRuntime.PLAN_ID.equals(target.planId())) {
+            return RulesDuplicateIndexRuntime.ready()
+                    ? RulesDuplicateIndexPlan.transform(signature, originalBytes)
                     : null;
         }
         return null;
@@ -192,6 +207,9 @@ final class AdapterTransformationRegistry {
         }
         if (HullJsonCacheRuntime.PLAN_ID.equals(planId)) {
             return HullJsonCacheRuntime.ready();
+        }
+        if (RulesDuplicateIndexRuntime.PLAN_ID.equals(planId)) {
+            return RulesDuplicateIndexRuntime.ready();
         }
         return false;
     }

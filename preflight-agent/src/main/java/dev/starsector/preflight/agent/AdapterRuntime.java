@@ -26,6 +26,7 @@ final class AdapterRuntime {
         WeaponJsonCacheRuntime.beginSession();
         ProjectileJsonCacheRuntime.beginSession();
         HullJsonCacheRuntime.beginSession();
+        RulesDuplicateIndexRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         AdapterReport report = new AdapterReport(
@@ -100,6 +101,10 @@ final class AdapterRuntime {
                     registry = registry.withHullJsonCacheTarget();
                     report.diagnostic("Loaded the exact hull JSON cache target ("
                             + HullJsonCacheRuntime.status() + ")");
+                }
+                if (RulesDuplicateIndexRuntime.ready()) {
+                    registry = registry.withRulesDuplicateIndexTarget();
+                    report.diagnostic("Loaded the exact rules duplicate-index target");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "
