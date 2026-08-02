@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 
 BASELINE_SECONDS = 88.13
+MEASURED_VANILLA_SECONDS = 80.09
+MEASURED_FULL_SECONDS = 42.36
 ORIGINAL_OBSERVED_LOW_SECONDS = 90.0
 ORIGINAL_OBSERVED_HIGH_SECONDS = 100.0
 
@@ -111,23 +113,26 @@ def main() -> None:
         print(f"  {value:>15}  {item.name}  ({item.source})")
 
     print()
-    print(f"Total saved: {saved_low:.3f}-{saved_high:.3f}s")
-    print(f"Theoretical floor from {BASELINE_SECONDS:.2f}s: {floor_low:.3f}-{floor_high:.3f}s")
+    print(f"Total of the component savings: {saved_low:.3f}-{saved_high:.3f}s")
+    print(f"  predicted floor from the 2026-08-01 {BASELINE_SECONDS:.2f}s baseline: "
+          f"{floor_low:.3f}-{floor_high:.3f}s")
+
+    print()
+    print("MEASURED, 2026-08-03 composed campaign (this is the number to quote):")
+    print(f"  vanilla                {MEASURED_VANILLA_SECONDS:.2f}s")
+    print(f"  full                   {MEASURED_FULL_SECONDS:.2f}s")
+    print(f"  removed                {MEASURED_VANILLA_SECONDS - MEASURED_FULL_SECONDS:.2f}s "
+          f"({percent_reduction(MEASURED_VANILLA_SECONDS, MEASURED_FULL_SECONDS):.1f}%)")
+    print(f"  speedup                {speedup(MEASURED_VANILLA_SECONDS, MEASURED_FULL_SECONDS):.2f}x")
     print(
-        "Theoretical speedup: "
-        f"{speedup(BASELINE_SECONDS, floor_high):.2f}-"
-        f"{speedup(BASELINE_SECONDS, floor_low):.2f}x"
+        f"  against the 90-100s lived range: "
+        f"{speedup(ORIGINAL_OBSERVED_LOW_SECONDS, MEASURED_FULL_SECONDS):.2f}-"
+        f"{speedup(ORIGINAL_OBSERVED_HIGH_SECONDS, MEASURED_FULL_SECONDS):.2f}x"
     )
-    print(
-        "Theoretical time reduction: "
-        f"{percent_reduction(BASELINE_SECONDS, floor_high):.1f}-"
-        f"{percent_reduction(BASELINE_SECONDS, floor_low):.1f}%"
-    )
-    print(
-        "Against the original 90-100s observed range: "
-        f"{speedup(ORIGINAL_OBSERVED_LOW_SECONDS, floor_high):.2f}-"
-        f"{speedup(ORIGINAL_OBSERVED_HIGH_SECONDS, floor_low):.2f}x faster"
-    )
+    print()
+    print("The component savings above summed to within ~2s of the measured floor, but the")
+    print("2026-08-01 baseline they were subtracted from had moved 8s by the time the composed")
+    print("campaign ran. Divide by the vanilla measured in the same session, not an older one.")
 
     print()
     print(f"Cache or memo hits represented by the component runs: {CACHE_OR_MEMO_HITS:,}")

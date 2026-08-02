@@ -1,17 +1,35 @@
 # Accumulated startup scorecard
 
-**Date:** 2026-08-02  
-**Baseline:** 88.13 seconds, accepted unattended campaign  
-**Current stacked result:** 47.634–48.003 seconds removed  
-**Theoretical current floor:** 40.127–40.496 seconds
+**Date:** 2026-08-02, superseded 2026-08-03 by a measured campaign
+**Measured result:** 80.09s -> 42.36s, **37.74s removed, 47.1%, 1.89x**
+**Source:** [The whole stack, measured at once](2026-08-03-the-whole-stack-measured-at-once.md)
 
-This page adds the measured component results that landed after the accepted texture campaign. It is the current running scorecard for the development machine and mod profile while the fully composed campaign is still being assembled.
+This page was the running scorecard while the fully composed campaign was still being assembled. It
+added component results measured one at a time and subtracted the total from an earlier campaign's
+baseline, producing a predicted floor rather than a measured one.
 
-The arithmetic is executable:
+That campaign has now run. **Quote the measured numbers, not the arithmetic below.**
 
-```bash
-python3 scripts/startup_scorecard.py
-```
+| | predicted here | measured |
+| --- | ---: | ---: |
+| baseline | 88.13s | **80.09s** |
+| accelerated | 40.13-40.50s | **42.36s** |
+| removed | 47.63-48.00s | **37.74s** |
+| speedup | 2.18-2.20x | **1.89x** |
+
+Two separate things went into that gap, and only one of them was a modelling error:
+
+- **the predicted floor was close** -- 40.13-40.50s against 42.36s measured. Component savings
+  measured in isolation composed to within about 2 seconds, which is better than this project's own
+  history suggested they would;
+- **the baseline was stale.** `vanilla` was 88.13s in the 2026-08-01 session and 80.09s in the
+  2026-08-03 one, on the same machine, with the same measurement boundary, while the profile grew
+  from 77 mods to 83. Nothing Preflight does can affect `vanilla`. The cause is not established, and
+  the operational rule that follows does not depend on it: **divide by the `vanilla` measured in the
+  same interleaved session, never one captured days earlier.**
+
+The component table below is still the right record of where each change landed, and the per-boundary
+multipliers in it were each measured directly. What it cannot do is add up to an end-to-end result.
 
 ## Accumulated time removed
 
@@ -31,9 +49,9 @@ python3 scripts/startup_scorecard.py
 | Shared cache-profile identity pass | **1.161s** | [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) |
 | **Total** | **47.634–48.003s** | [scorecard script](../../scripts/startup_scorecard.py) |
 
-Subtracting that stack from the accepted 88.13-second baseline gives **40.127–40.496 seconds**. That is **2.18–2.20× faster** and **54.0–54.5% less startup time** than the accepted baseline.
+Subtracting that stack from the 2026-08-01 baseline predicted **40.127–40.496 seconds**. The measured campaign came in at **42.36 seconds** against a **80.09-second** same-session baseline: **37.74s removed, 47.1%, 1.89×**.
 
-The development installation originally occupied the **90–100+ second** range. Against that original experience, the current floor is approximately **2.22–2.49× faster**, or roughly **55–60% of the wait removed**.
+The development installation originally occupied the **90–100+ second** range, which includes a cold page cache, a thermally loaded machine, and the launcher itself. Against that lived range a 42.36s load is roughly **2.1–2.4×**. The controlled 1.89× is the claim; the lived range is context.
 
 ## Individual multipliers
 
@@ -113,6 +131,8 @@ The hard part was not inventing a novel cache. It was identifying the correct pu
 
 ## Next
 
-The immediate performance milestone is a fully composed unattended campaign covering every landed cache and the current direct-launch path. That will replace the arithmetic floor with a single end-to-end distribution.
+The fully composed campaign has now run: [The whole stack, measured at once](2026-08-03-the-whole-stack-measured-at-once.md). It also added the `full` benchmark condition, without which no campaign could turn on everything that had landed — `fast` runs compatibility textures and leaves both rule caches off, and the 4.72s between the two is how much was going unmeasured.
+
+There is more to squeeze. The largest known remaining items are the 124ms resource-index read ([#304](https://github.com/teamleaderleo/starsector-preflight/issues/304)), the GraphicsLib and AshLib callbacks that still hold seconds between them, and the untouched audio and script-bytecode paths in the [roadmap](../roadmap.md).
 
 The user-facing work is tracked in [issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294): a simple desktop launcher, clear uninstall behavior, and a front page that leads with the proven result. The longer program—including direct resource-provider lookup, persistent script bytecode, cross-platform packaging, and later prepared-audio experiments—is in the [roadmap](../roadmap.md).
