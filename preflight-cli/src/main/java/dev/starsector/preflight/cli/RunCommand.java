@@ -1,8 +1,6 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
-import dev.starsector.preflight.core.ResourceIndex;
-import dev.starsector.preflight.core.ResourceIndexIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,13 +37,13 @@ final class RunCommand {
             return 3;
         }
         TextureLaunchContext textureContext = textureContext(options, target);
-        VariantJsonCacheContext variantJsonCache = variantJsonCacheContext(options, target, textureContext);
-        WeaponJsonCacheContext weaponJsonCache = weaponJsonCacheContext(options, target, textureContext);
-        ProjectileJsonCacheContext projectileJsonCache = projectileJsonCacheContext(options, target, textureContext);
-        HullJsonCacheContext hullJsonCache = hullJsonCacheContext(options, target, textureContext);
-        RulesCsvCacheContext rulesCsvCache = rulesCsvCacheContext(options, target, textureContext);
-        RuleCommandCacheContext ruleCommandCache =
-                ruleCommandCacheContext(options, target, textureContext);
+        SpecStoreCacheContexts specStoreCaches = specStoreCacheContexts(options, target, textureContext);
+        VariantJsonCacheContext variantJsonCache = specStoreCaches.variantJson();
+        WeaponJsonCacheContext weaponJsonCache = specStoreCaches.weaponJson();
+        ProjectileJsonCacheContext projectileJsonCache = specStoreCaches.projectileJson();
+        HullJsonCacheContext hullJsonCache = specStoreCaches.hullJson();
+        RulesCsvCacheContext rulesCsvCache = specStoreCaches.rulesCsv();
+        RuleCommandCacheContext ruleCommandCache = specStoreCaches.ruleCommand();
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -555,214 +553,185 @@ final class RunCommand {
                 0);
     }
 
-    private static VariantJsonCacheContext variantJsonCacheContext(
+    /**
+     * Selects every spec-store cache artifact from one pass over the launch profile.
+     *
+     * <p>These six identities used to be built independently, which meant six reads of the same
+     * 8&nbsp;MB resource index, six hashes of the same game jar, and 12,797 separate {@code
+     * toRealPath} resolutions -- 1,612ms in the launcher before the JVM started. Sharing one
+     * {@link ProfileIdentityContext} removes the duplication without changing a single digest.
+     *
+     * <p>Each cache still fails independently: an identity that cannot be built leaves that one
+     * context null and vanilla loading handles that corpus, exactly as before.
+     */
+    private static SpecStoreCacheContexts specStoreCacheContexts(
             CommandLine options,
             LaunchTarget target,
             TextureLaunchContext textures) {
         if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
                 || textures == null || !textures.automatic()) {
-            return null;
+            return SpecStoreCacheContexts.none();
         }
+        long opened = System.nanoTime();
+        try (ProfileIdentityContext context =
+                     ProfileIdentityContext.open(target.installRoot(), textures.index())) {
+            System.out.printf(Locale.ROOT,
+                    "Preflight read the launch profile in %.1fms (%d providers).%n",
+                    (System.nanoTime() - opened) / 1_000_000.0,
+                    context.resources().providerCount());
+            return new SpecStoreCacheContexts(
+                    variantJsonCacheContext(context, textures),
+                    weaponJsonCacheContext(context, textures),
+                    projectileJsonCacheContext(context, textures),
+                    hullJsonCacheContext(context, textures),
+                    rulesCsvCacheContext(context, textures),
+                    options.ruleCommandClassCache()
+                            ? ruleCommandCacheContext(context, textures)
+                            : null);
+        } catch (Exception error) {
+            System.err.println("Preflight launch profile identity failed: " + message(error)
+                    + "; vanilla loading remains active.");
+            return SpecStoreCacheContexts.none();
+        }
+    }
+
+    private static VariantJsonCacheContext variantJsonCacheContext(
+            ProfileIdentityContext context, TextureLaunchContext textures) {
         long started = System.nanoTime();
         try {
-            ResourceIndex resources = ResourceIndexIO.read(textures.index());
             VariantJsonProfileIdentityBuilder.Result profile =
-                    VariantJsonProfileIdentityBuilder.build(target.installRoot(), resources);
-            String identity = profile.identitySha256();
-            Path artifact = textures.cacheDirectory()
-                    .resolve("spec-store/variant-json")
-                    .resolve(identity + ".spvj")
-                    .toAbsolutePath().normalize();
-            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
-            System.out.printf(Locale.ROOT,
-                    "Preflight matched variant JSON dependency profile %s in %.1fms "
-                            + "(%d paths, %d providers, %s).%n",
-                    identity,
-                    durationMillis,
-                    profile.logicalPaths(),
-                    profile.providerCount(),
-                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+                    VariantJsonProfileIdentityBuilder.build(context);
+            Path artifact = artifact(textures, "variant-json", profile.identitySha256(), ".spvj");
+            report("variant JSON", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d paths, %d providers",
+                            profile.logicalPaths(), profile.providerCount()));
             return new VariantJsonCacheContext(artifact);
         } catch (Exception error) {
-            System.err.println("Preflight variant JSON cache selection failed: " + message(error)
-                    + "; vanilla loading remains active.");
+            declined("variant JSON", error);
             return null;
         }
     }
 
     private static WeaponJsonCacheContext weaponJsonCacheContext(
-            CommandLine options,
-            LaunchTarget target,
-            TextureLaunchContext textures) {
-        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || textures == null || !textures.automatic()) {
-            return null;
-        }
+            ProfileIdentityContext context, TextureLaunchContext textures) {
         long started = System.nanoTime();
         try {
-            ResourceIndex resources = ResourceIndexIO.read(textures.index());
             WeaponJsonProfileIdentityBuilder.Result profile =
-                    WeaponJsonProfileIdentityBuilder.build(target.installRoot(), resources);
-            String identity = profile.identitySha256();
-            Path artifact = textures.cacheDirectory()
-                    .resolve("spec-store/weapon-json")
-                    .resolve(identity + ".spwj")
-                    .toAbsolutePath().normalize();
-            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
-            System.out.printf(Locale.ROOT,
-                    "Preflight matched weapon JSON dependency profile %s in %.1fms "
-                            + "(%d paths, %d providers, %s).%n",
-                    identity,
-                    durationMillis,
-                    profile.logicalPaths(),
-                    profile.providerCount(),
-                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+                    WeaponJsonProfileIdentityBuilder.build(context);
+            Path artifact = artifact(textures, "weapon-json", profile.identitySha256(), ".spwj");
+            report("weapon JSON", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d paths, %d providers",
+                            profile.logicalPaths(), profile.providerCount()));
             return new WeaponJsonCacheContext(artifact);
         } catch (Exception error) {
-            System.err.println("Preflight weapon JSON cache selection failed: " + message(error)
-                    + "; vanilla loading remains active.");
+            declined("weapon JSON", error);
             return null;
         }
     }
 
     private static ProjectileJsonCacheContext projectileJsonCacheContext(
-            CommandLine options,
-            LaunchTarget target,
-            TextureLaunchContext textures) {
-        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || textures == null || !textures.automatic()) {
-            return null;
-        }
+            ProfileIdentityContext context, TextureLaunchContext textures) {
         long started = System.nanoTime();
         try {
-            ResourceIndex resources = ResourceIndexIO.read(textures.index());
             ProjectileJsonProfileIdentityBuilder.Result profile =
-                    ProjectileJsonProfileIdentityBuilder.build(target.installRoot(), resources);
-            String identity = profile.identitySha256();
-            Path artifact = textures.cacheDirectory()
-                    .resolve("spec-store/projectile-json")
-                    .resolve(identity + ".sppj")
-                    .toAbsolutePath().normalize();
-            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
-            System.out.printf(Locale.ROOT,
-                    "Preflight matched projectile JSON dependency profile %s in %.1fms "
-                            + "(%d paths, %d providers, %s).%n",
-                    identity,
-                    durationMillis,
-                    profile.logicalPaths(),
-                    profile.providerCount(),
-                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+                    ProjectileJsonProfileIdentityBuilder.build(context);
+            Path artifact = artifact(textures, "projectile-json", profile.identitySha256(), ".sppj");
+            report("projectile JSON", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d paths, %d providers",
+                            profile.logicalPaths(), profile.providerCount()));
             return new ProjectileJsonCacheContext(artifact);
         } catch (Exception error) {
-            System.err.println("Preflight projectile JSON cache selection failed: " + message(error)
-                    + "; vanilla loading remains active.");
+            declined("projectile JSON", error);
             return null;
         }
     }
 
     private static HullJsonCacheContext hullJsonCacheContext(
-            CommandLine options,
-            LaunchTarget target,
-            TextureLaunchContext textures) {
-        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || textures == null || !textures.automatic()) {
-            return null;
-        }
+            ProfileIdentityContext context, TextureLaunchContext textures) {
         long started = System.nanoTime();
         try {
-            ResourceIndex resources = ResourceIndexIO.read(textures.index());
             HullJsonProfileIdentityBuilder.Result profile =
-                    HullJsonProfileIdentityBuilder.build(target.installRoot(), resources);
-            String identity = profile.identitySha256();
-            Path artifact = textures.cacheDirectory()
-                    .resolve("spec-store/hull-json")
-                    .resolve(identity + ".sphj")
-                    .toAbsolutePath().normalize();
-            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
-            System.out.printf(Locale.ROOT,
-                    "Preflight matched hull JSON dependency profile %s in %.1fms "
-                            + "(%d paths, %d providers, %s).%n",
-                    identity,
-                    durationMillis,
-                    profile.logicalPaths(),
-                    profile.providerCount(),
-                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+                    HullJsonProfileIdentityBuilder.build(context);
+            Path artifact = artifact(textures, "hull-json", profile.identitySha256(), ".sphj");
+            report("hull JSON", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d paths, %d providers",
+                            profile.logicalPaths(), profile.providerCount()));
             return new HullJsonCacheContext(artifact);
         } catch (Exception error) {
-            System.err.println("Preflight hull JSON cache selection failed: " + message(error)
-                    + "; vanilla loading remains active.");
-            return null;
-        }
-    }
-
-    private static RuleCommandCacheContext ruleCommandCacheContext(
-            CommandLine options,
-            LaunchTarget target,
-            TextureLaunchContext textures) {
-        if (!options.ruleCommandClassCache()
-                || options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || textures == null || !textures.automatic()) {
-            return null;
-        }
-        long started = System.nanoTime();
-        try {
-            ResourceIndex resources = ResourceIndexIO.read(textures.index());
-            RuleCommandClassProfileIdentityBuilder.Result profile =
-                    RuleCommandClassProfileIdentityBuilder.build(target.installRoot(), resources);
-            String identity = profile.identitySha256();
-            Path artifact = textures.cacheDirectory()
-                    .resolve("spec-store/rule-command-classes")
-                    .resolve(identity + ".sprk")
-                    .toAbsolutePath().normalize();
-            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
-            System.out.printf(Locale.ROOT,
-                    "Preflight matched rule command class profile %s in %.1fms "
-                            + "(%d settings.json providers, %d jars, %.1f MB, %s).%n",
-                    identity,
-                    durationMillis,
-                    profile.settingsProviderCount(),
-                    profile.jarCount(),
-                    profile.jarBytes() / 1_048_576.0,
-                    Files.isRegularFile(artifact) ? "hit" : "learning run");
-            return new RuleCommandCacheContext(artifact);
-        } catch (Exception error) {
-            System.err.println("Preflight rule command class cache selection failed: " + message(error)
-                    + "; vanilla resolution remains active.");
+            declined("hull JSON", error);
             return null;
         }
     }
 
     private static RulesCsvCacheContext rulesCsvCacheContext(
-            CommandLine options,
-            LaunchTarget target,
-            TextureLaunchContext textures) {
-        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || textures == null || !textures.automatic()) {
-            return null;
-        }
+            ProfileIdentityContext context, TextureLaunchContext textures) {
         long started = System.nanoTime();
         try {
-            ResourceIndex resources = ResourceIndexIO.read(textures.index());
             RulesCsvProfileIdentityBuilder.Result profile =
-                    RulesCsvProfileIdentityBuilder.build(target.installRoot(), resources);
-            String identity = profile.identitySha256();
-            Path artifact = textures.cacheDirectory()
-                    .resolve("spec-store/rules-csv")
-                    .resolve(identity + ".sprc")
-                    .toAbsolutePath().normalize();
-            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
-            System.out.printf(Locale.ROOT,
-                    "Preflight matched rules CSV dependency profile %s in %.1fms "
-                            + "(%d providers, %s).%n",
-                    identity,
-                    durationMillis,
-                    profile.providerCount(),
-                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+                    RulesCsvProfileIdentityBuilder.build(context);
+            Path artifact = artifact(textures, "rules-csv", profile.identitySha256(), ".sprc");
+            report("rules CSV", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d providers", profile.providerCount()));
             return new RulesCsvCacheContext(artifact);
         } catch (Exception error) {
-            System.err.println("Preflight rules CSV cache selection failed: " + message(error)
-                    + "; vanilla loading remains active.");
+            declined("rules CSV", error);
             return null;
+        }
+    }
+
+    private static RuleCommandCacheContext ruleCommandCacheContext(
+            ProfileIdentityContext context, TextureLaunchContext textures) {
+        long started = System.nanoTime();
+        try {
+            RuleCommandClassProfileIdentityBuilder.Result profile =
+                    RuleCommandClassProfileIdentityBuilder.build(context);
+            Path artifact =
+                    artifact(textures, "rule-command-classes", profile.identitySha256(), ".sprk");
+            report("rule command class", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d settings.json providers, %d jars, %.1f MB",
+                            profile.settingsProviderCount(), profile.jarCount(),
+                            profile.jarBytes() / 1_048_576.0));
+            return new RuleCommandCacheContext(artifact);
+        } catch (Exception error) {
+            declined("rule command class", error);
+            return null;
+        }
+    }
+
+    private static Path artifact(
+            TextureLaunchContext textures, String store, String identity, String extension) {
+        return textures.cacheDirectory()
+                .resolve("spec-store").resolve(store)
+                .resolve(identity + extension)
+                .toAbsolutePath().normalize();
+    }
+
+    private static void report(
+            String label, String identity, long started, Path artifact, String detail) {
+        System.out.printf(Locale.ROOT,
+                "Preflight matched %s dependency profile %s in %.1fms (%s, %s).%n",
+                label,
+                identity,
+                (System.nanoTime() - started) / 1_000_000.0,
+                detail,
+                Files.isRegularFile(artifact) ? "hit" : "learning run");
+    }
+
+    private static void declined(String label, Exception error) {
+        System.err.println("Preflight " + label + " cache selection failed: " + message(error)
+                + "; vanilla loading remains active.");
+    }
+
+    private record SpecStoreCacheContexts(
+            VariantJsonCacheContext variantJson,
+            WeaponJsonCacheContext weaponJson,
+            ProjectileJsonCacheContext projectileJson,
+            HullJsonCacheContext hullJson,
+            RulesCsvCacheContext rulesCsv,
+            RuleCommandCacheContext ruleCommand) {
+
+        static SpecStoreCacheContexts none() {
+            return new SpecStoreCacheContexts(null, null, null, null, null, null);
         }
     }
 
