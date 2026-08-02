@@ -56,6 +56,38 @@ CharSequence)` builds its result through a `StringBuilder` with bounds work per 
 `replaceAll` on a one-character pattern gets a fast path through `Matcher.appendReplacement`. The
 obvious cleanup makes it slower. The win is in not making four copies, not in avoiding the regex.
 
+## The logging is smaller still
+
+`log4j.properties` inside `starfarer_obf.jar` reads:
+
+```
+log4j.rootLogger=INFO, ConsoleAppender, file
+log4j.appender.file=org.apache.log4j.RollingFileAppender
+```
+
+Two appenders at INFO, and `FileAppender` defaults to `immediateFlush=true` with `bufferedIO=false`,
+so every line is laid out and flushed to disk and laid out again for stdout. A startup on this
+install emits **65,305 INFO lines before the main menu**: 43,642 `Loading JSON from`, 21,663
+`Cleaned buffer (using reflection)`, 3,980 variants, 2,100 sounds, 744 CSV.
+
+Replaying that mix on the game's own JVM with the game's own log4j jar:
+
+| configuration | whole startup's worth |
+| --- | ---: |
+| shipped: console + unbuffered file | **0.290 s** |
+| file only, unbuffered | 0.112 s |
+| file only, `bufferedIO=true` | **0.048 s** |
+| console + buffered file | 0.145 s |
+| level raised, nothing emitted | 0.008 s |
+
+**0.24 s at best**, and the cost of taking it is that mod authors and bug reports lose their
+diagnostics. Not worth it. Recorded because 65,000 unbuffered log lines *looks* like a lever and is
+not; the number is what settles it.
+
+The `Cleaned buffer (using reflection)` line comes from `Misc.cleanBuffer(Buffer)`, which caches its
+reflective `cleaner`/`clean` handles in maps and so pays two `Map.get` and two `Method.invoke` per
+texture rather than a lookup -- also small, and not separately measured.
+
 ## What is not established
 
 - **No claim that 0.475 s appears at startup.** The benchmark reads every spec file once with the
