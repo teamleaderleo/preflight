@@ -223,7 +223,10 @@ public final class PreflightCli {
         usage.put("cache", List.of(
                 "preflight cache",
                 "  Reports total storage by category, the prepared profiles held, and which",
-                "  one the current install matches."));
+                "  one the current install matches.",
+                "preflight cache prune [--yes]",
+                "  Removes every profile except the current one, including the texture blobs",
+                "  no surviving profile references. Prints the plan and exits unless --yes."));
         usage.put("scan", List.of(
                 "preflight scan [--game <path>] [--launcher <path>] [--json <profile.json>] [--vram-budget <size>] [--max-texture-size <pixels>]",
                 "  --vram-budget accepts bytes or a K/M/G suffix (e.g. 4G); adds a decoded-VRAM budget verdict",
