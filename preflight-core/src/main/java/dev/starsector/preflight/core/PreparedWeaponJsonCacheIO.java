@@ -1,0 +1,189 @@
+package dev.starsector.preflight.core;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.TreeMap;
+
+/** Checksummed, bounded, transactional persistence for merged weapon-definition JSON. */
+public final class PreparedWeaponJsonCacheIO {
+    private static final byte[] MAGIC = {'S', 'P', 'W', 'J'};
+    private static final int CHECKSUM_BYTES = 32;
+    private static final int SHA256_BYTES = 32;
+    private static final int MAX_FILE_BYTES = 512 * 1024 * 1024;
+    private static final int MAX_ENTRIES = 100_000;
+    private static final int MAX_PATH_BYTES = 1024 * 1024;
+    private static final int MAX_JSON_BYTES = 32 * 1024 * 1024;
+
+    private PreparedWeaponJsonCacheIO() {
+    }
+
+    public static void write(Path target, PreparedWeaponJsonCache cache) throws IOException {
+        Path absolute = target.toAbsolutePath().normalize();
+        Path parent = absolute.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        byte[] bytes = toBytes(cache);
+        Path temporary = absolute.resolveSibling(
+                absolute.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
+        boolean moved = false;
+        try {
+            try (FileChannel channel = FileChannel.open(
+                    temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining()) {
+                    channel.write(buffer);
+                }
+                channel.force(true);
+            }
+            try {
+                Files.move(temporary, absolute,
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+            }
+            moved = true;
+        } finally {
+            if (!moved) {
+                Files.deleteIfExists(temporary);
+            }
+        }
+    }
+
+    public static PreparedWeaponJsonCache read(Path source) throws IOException {
+        long size = Files.size(source);
+        if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
+            throw new IOException("Prepared weapon cache size is invalid: " + source);
+        }
+        return fromBytes(Files.readAllBytes(source));
+    }
+
+    public static byte[] toBytes(PreparedWeaponJsonCache cache) throws IOException {
+        byte[] payload = payload(cache);
+        long total = minimumFileBytes() + (long) payload.length;
+        if (total > MAX_FILE_BYTES) {
+            throw new IOException("Prepared weapon cache exceeds the safety limit");
+        }
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream((int) total);
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
+            output.write(MAGIC);
+            output.writeInt(PreparedWeaponJsonCache.FORMAT_VERSION);
+            output.writeInt(payload.length);
+            output.write(payload);
+            output.write(Hashes.sha256Bytes(payload));
+        }
+        return bytes.toByteArray();
+    }
+
+    public static PreparedWeaponJsonCache fromBytes(byte[] bytes) throws IOException {
+        if (bytes.length < minimumFileBytes() || bytes.length > MAX_FILE_BYTES) {
+            throw new IOException("Prepared weapon cache size is invalid");
+        }
+        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes))) {
+            if (!Arrays.equals(MAGIC, input.readNBytes(MAGIC.length))) {
+                throw new IOException("Prepared weapon cache magic header is invalid");
+            }
+            int version = input.readInt();
+            if (version != PreparedWeaponJsonCache.FORMAT_VERSION) {
+                throw new IOException("Unsupported prepared weapon cache version: " + version);
+            }
+            int payloadLength = input.readInt();
+            if (payloadLength < 0 || minimumFileBytes() + (long) payloadLength != bytes.length) {
+                throw new IOException("Prepared weapon cache payload length is invalid");
+            }
+            byte[] payload = input.readNBytes(payloadLength);
+            byte[] checksum = input.readNBytes(CHECKSUM_BYTES);
+            if (payload.length != payloadLength || checksum.length != CHECKSUM_BYTES) {
+                throw new EOFException("Prepared weapon cache ended before its checksum");
+            }
+            if (!MessageDigest.isEqual(checksum, Hashes.sha256Bytes(payload))) {
+                throw new IOException("Prepared weapon cache checksum mismatch");
+            }
+            return decodePayload(payload);
+        } catch (IllegalArgumentException | ArithmeticException error) {
+            throw new IOException("Prepared weapon cache contains invalid data: " + error.getMessage(), error);
+        }
+    }
+
+    private static byte[] payload(PreparedWeaponJsonCache cache) throws IOException {
+        if (cache.entries().size() > MAX_ENTRIES) {
+            throw new IOException("Prepared weapon cache has too many entries");
+        }
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
+            output.write(Hashes.decodeSha256(cache.profileIdentitySha256()));
+            output.writeInt(cache.entries().size());
+            for (Map.Entry<String, String> item : cache.entries().entrySet()) {
+                writeString(output, item.getKey(), MAX_PATH_BYTES);
+                writeString(output, item.getValue(), MAX_JSON_BYTES);
+            }
+        }
+        return bytes.toByteArray();
+    }
+
+    private static PreparedWeaponJsonCache decodePayload(byte[] payload) throws IOException {
+        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(payload))) {
+            byte[] profile = input.readNBytes(SHA256_BYTES);
+            if (profile.length != SHA256_BYTES) {
+                throw new EOFException("Prepared weapon cache ended inside its profile identity");
+            }
+            int count = input.readInt();
+            if (count < 0 || count > MAX_ENTRIES) {
+                throw new IOException("Prepared weapon cache entry count is invalid: " + count);
+            }
+            TreeMap<String, String> entries = new TreeMap<>();
+            for (int index = 0; index < count; index++) {
+                String path = readString(input, MAX_PATH_BYTES);
+                String json = readString(input, MAX_JSON_BYTES);
+                if (entries.put(path, json) != null) {
+                    throw new IOException("Duplicate prepared weapon path: " + path);
+                }
+            }
+            if (input.read() != -1) {
+                throw new IOException("Prepared weapon cache payload has trailing bytes");
+            }
+            return new PreparedWeaponJsonCache(
+                    java.util.HexFormat.of().formatHex(profile), entries);
+        }
+    }
+
+    private static void writeString(DataOutputStream output, String value, int limit) throws IOException {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > limit) {
+            throw new IOException("Prepared weapon cache string exceeds the safety limit");
+        }
+        output.writeInt(bytes.length);
+        output.write(bytes);
+    }
+
+    private static String readString(DataInputStream input, int limit) throws IOException {
+        int length = input.readInt();
+        if (length < 0 || length > limit) {
+            throw new IOException("Prepared weapon cache string length is invalid: " + length);
+        }
+        byte[] bytes = input.readNBytes(length);
+        if (bytes.length != length) {
+            throw new EOFException("Prepared weapon cache ended inside a string");
+        }
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    private static int minimumFileBytes() {
+        return MAGIC.length + Integer.BYTES * 2 + CHECKSUM_BYTES;
+    }
+}
