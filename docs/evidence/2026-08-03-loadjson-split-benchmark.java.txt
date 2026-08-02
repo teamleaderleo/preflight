@@ -1,0 +1,298 @@
+import com.fs.starfarer.loading.LoadingUtils;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import org.json.JSONObject;
+
+/**
+ * What does {@code LoadingUtils.ô00000(String)} actually spend its time on?
+ *
+ * <p>Every mod that reads game data goes through {@code Global.getSettings().loadJSON(path)}, which
+ * is {@code LoadingUtils.ô00000(String)}. That method does exactly three things: log the path, call
+ * {@code super(path)} to resolve and read the file into a String, and call
+ * {@code Ö00000(path, text)}, which strips {@code #} comments character by character into a
+ * {@code StringBuffer} and then constructs a {@code JSONObject}.
+ *
+ * <p>The whole-run log for the measured profile records 24,259 such calls across 8,379 distinct
+ * paths -- 15,880 of them repeats of a path already read. Whether it is worth memoising anything,
+ * and at which boundary, depends entirely on how that time splits between read, strip and parse.
+ * This benchmark replays the real call sequence, in order and with its repeats, against the real
+ * files on the game's own JVM.
+ *
+ * <p>The strip loop is transcribed from {@code Ö00000}'s bytecode rather than called through it,
+ * because {@code Ö00000} strips and parses in one method and the two costs have to come apart. The
+ * {@code vanilla} arm calls the game's own {@code Ö00000} so the transcription can be checked
+ * against it: strip + parse measured separately must add up to what the game's own method costs.
+ */
+public class LoadJsonBench {
+    public static void main(String[] args) throws Exception {
+        List<String[]> corpus = new ArrayList<>();
+        for (String line : Files.readAllLines(Path.of(args[0]), StandardCharsets.UTF_8)) {
+            if (!line.isBlank()) {
+                corpus.add(line.split("\t", 2));
+            }
+        }
+        System.out.printf("jvm %s (%s)%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+
+        LinkedHashSet<String> distinct = new LinkedHashSet<>();
+        long bytes = 0;
+        for (String[] entry : corpus) {
+            distinct.add(entry[1]);
+            bytes += Files.size(Path.of(entry[1]));
+        }
+        System.out.printf("corpus %d calls, %d distinct files, %.2f MB replayed%n",
+                corpus.size(), distinct.size(), bytes / 1e6);
+
+        // How many files would a strip that detects "nothing to strip" be able to skip outright?
+        int identity = 0;
+        long identityBytes = 0;
+        for (String file : distinct) {
+            String text = Files.readString(Path.of(file), StandardCharsets.UTF_8);
+            if (text.indexOf('#') < 0 && text.indexOf('\r') < 0) {
+                identity++;
+                identityBytes += text.length();
+            }
+        }
+        System.out.printf("distinct files whose comment strip is the identity: %d of %d (%.1f%%)%n%n",
+                identity, distinct.size(), 100.0 * identity / distinct.size());
+        if (identityBytes < 0) {
+            throw new AssertionError();
+        }
+
+        // Correctness first: the transcribed strip must agree with the game's own strip+parse.
+        checkStripMatchesTheGame(distinct);
+
+        for (int round = 1; round <= 3; round++) {
+            System.out.printf("round %d%n", round);
+            System.out.printf("  read only                 %7.3f s%n", readOnly(corpus));
+            System.out.printf("  read + strip              %7.3f s%n", readStrip(corpus));
+            System.out.printf("  read + strip + parse      %7.3f s   <- what the game does%n",
+                    readStripParse(corpus));
+            System.out.printf("  game's own strip+parse    %7.3f s%n", readGameParse(corpus));
+            System.out.printf("  read + faststrip + parse  %7.3f s%n", readFastStripParse(corpus));
+            System.out.printf("  memo text (strip+parse)   %7.3f s%n", memoText(corpus));
+            System.out.printf("  memo JSONObject           %7.3f s%n", memoJson(corpus));
+            System.out.println();
+        }
+    }
+
+    private static void checkStripMatchesTheGame(Iterable<String> distinct) throws Exception {
+        int checked = 0;
+        int disagreements = 0;
+        for (String file : distinct) {
+            String text = read(file);
+            String mine;
+            String theirs;
+            try {
+                mine = new JSONObject(strip(text)).toString();
+            } catch (Exception rejected) {
+                mine = "rejected";
+            }
+            try {
+                theirs = LoadingUtils.Ö00000(file, text).toString();
+            } catch (Exception rejected) {
+                theirs = "rejected";
+            }
+            // JSONObject.toString on a HashMap-backed object does not fix key order, so compare
+            // length and rejection rather than the exact string.
+            if (mine.length() != theirs.length()) {
+                disagreements++;
+            }
+            checked++;
+        }
+        System.out.printf("transcribed strip checked against the game's own on %d files, "
+                + "%d disagreements%n%n", checked, disagreements);
+    }
+
+    private static double readOnly(List<String[]> corpus) throws Exception {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            sink += read(entry[1]).length();
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double readStrip(List<String[]> corpus) throws Exception {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            sink += strip(read(entry[1])).length();
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double readStripParse(List<String[]> corpus) throws Exception {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            sink += parse(strip(read(entry[1])));
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double readGameParse(List<String[]> corpus) throws Exception {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            String text = read(entry[1]);
+            try {
+                sink += LoadingUtils.Ö00000(entry[0], text).length();
+            } catch (Exception rejected) {
+                sink += 1;
+            }
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double readFastStripParse(List<String[]> corpus) throws Exception {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            sink += parse(stripFast(read(entry[1])));
+        }
+        return elapsed(start, sink);
+    }
+
+    /** Skips the file read on a repeat; still strips and parses, so nothing mutable is shared. */
+    private static double memoText(List<String[]> corpus) throws Exception {
+        Map<String, String> cache = new HashMap<>();
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            String text = cache.get(entry[1]);
+            if (text == null) {
+                text = read(entry[1]);
+                cache.put(entry[1], text);
+            }
+            sink += parse(strip(text));
+        }
+        return elapsed(start, sink);
+    }
+
+    /** The upper bound: hands back the same JSONObject instance. Not safe, only informative. */
+    private static double memoJson(List<String[]> corpus) throws Exception {
+        Map<String, JSONObject> cache = new HashMap<>();
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            JSONObject json = cache.get(entry[1]);
+            if (json == null) {
+                try {
+                    json = new JSONObject(strip(read(entry[1])));
+                } catch (Exception rejected) {
+                    json = new JSONObject();
+                }
+                cache.put(entry[1], json);
+            }
+            sink += json.length();
+        }
+        return elapsed(start, sink);
+    }
+
+    private static int parse(String stripped) {
+        try {
+            return new JSONObject(stripped).length();
+        } catch (Exception rejected) {
+            return 1;
+        }
+    }
+
+    /** The game's own read path: {@code LoadingUtils.Ò00000(InputStream)} over the resolved file. */
+    private static String read(String file) throws Exception {
+        try (InputStream stream = new FileInputStream(file)) {
+            return LoadingUtils.Ò00000(stream);
+        }
+    }
+
+    /**
+     * Transcribed from {@code LoadingUtils.Ö00000}'s bytecode, minus the {@code new JSONObject}.
+     * A {@code #} outside quotes starts a comment that runs to end of line; {@code \r} is dropped;
+     * a newline ends both the comment and the quote state.
+     */
+    private static String strip(String text) {
+        StringBuffer out = new StringBuffer();
+        boolean inComment = false;
+        boolean inQuote = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '"') {
+                inQuote = !inQuote;
+            }
+            if (c == '\n' || c == '\r') {
+                inComment = false;
+                inQuote = false;
+                if (c == '\n') {
+                    out.append('\n');
+                }
+            } else if (c == '#' && !inQuote) {
+                inComment = true;
+            } else if (!inComment) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /**
+     * Same output, without the synchronized per-character append. Two changes: a file containing
+     * neither {@code #} nor {@code \r} needs no strip at all and is returned as it stands, and what
+     * is left copies plain runs in bulk into a presized {@link StringBuilder}.
+     */
+    private static String stripFast(String text) {
+        if (text.indexOf('#') < 0 && text.indexOf('\r') < 0) {
+            return text;
+        }
+        int length = text.length();
+        StringBuilder out = new StringBuilder(length);
+        boolean inComment = false;
+        boolean inQuote = false;
+        int runStart = 0;
+        for (int i = 0; i < length; i++) {
+            char c = text.charAt(i);
+            if (c != '"' && c != '\n' && c != '\r' && c != '#') {
+                continue;
+            }
+            if (!inComment && i > runStart) {
+                out.append(text, runStart, i);
+            }
+            if (c == '"') {
+                inQuote = !inQuote;
+                if (!inComment) {
+                    out.append('"');
+                }
+            } else if (c == '\n' || c == '\r') {
+                inComment = false;
+                inQuote = false;
+                if (c == '\n') {
+                    out.append('\n');
+                }
+            } else if (!inQuote) {
+                inComment = true;
+            } else if (!inComment) {
+                out.append('#');
+            }
+            runStart = i + 1;
+        }
+        if (!inComment && length > runStart) {
+            out.append(text, runStart, length);
+        }
+        return out.toString();
+    }
+
+    private static double elapsed(long start, long sink) {
+        double seconds = (System.nanoTime() - start) / 1e9;
+        if (sink < 0) {
+            throw new AssertionError();
+        }
+        return seconds;
+    }
+}
