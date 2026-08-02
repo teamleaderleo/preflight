@@ -20,6 +20,7 @@ public final class StartupPhaseRuntime {
     private static final int MAX_PHASES = 64;
     private static final int MAX_PLUGINS = 128;
     private static final int MAX_SPEC_LOADERS = 64;
+    private static final int MAX_SPEC_SUBPHASES = 16;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
     private static Path destination;
@@ -31,10 +32,13 @@ public final class StartupPhaseRuntime {
     private static final List<Map<String, Object>> phases = new ArrayList<>();
     private static final List<Map<String, Object>> plugins = new ArrayList<>();
     private static final List<Map<String, Object>> specLoaders = new ArrayList<>();
+    private static final Map<String, SpecSubphase> specSubphases = new LinkedHashMap<>();
     private static String activePlugin;
     private static long activePluginNanos;
     private static String activeSpecLoader;
     private static long activeSpecLoaderNanos;
+    private static String activeSpecSubphase;
+    private static long activeSpecSubphaseNanos;
     private static long progressCalls;
     private static int lastProgressPermille;
     private static int nextProgressMilestone;
@@ -52,10 +56,13 @@ public final class StartupPhaseRuntime {
         phases.clear();
         plugins.clear();
         specLoaders.clear();
+        specSubphases.clear();
         activePlugin = null;
         activePluginNanos = 0L;
         activeSpecLoader = null;
         activeSpecLoaderNanos = 0L;
+        activeSpecSubphase = null;
+        activeSpecSubphaseNanos = 0L;
         progressCalls = 0L;
         lastProgressPermille = -1;
         nextProgressMilestone = 0;
@@ -162,6 +169,36 @@ public final class StartupPhaseRuntime {
         }
     }
 
+    /** Starts one repeated operation inside a measured {@code SpecStore} loader. */
+    public static synchronized void specSubphaseStart(String label) {
+        try {
+            long now = System.nanoTime();
+            if (activeSpecSubphase != null) {
+                recordSpecSubphase(activeSpecSubphase, activeSpecSubphaseNanos, now, false);
+            }
+            activeSpecSubphase = label == null ? "<null>" : label;
+            activeSpecSubphaseNanos = now;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Aggregates a repeated loader operation without performing file I/O in the hot loop. */
+    public static synchronized void specSubphaseEnd() {
+        try {
+            if (activeSpecSubphase != null) {
+                recordSpecSubphase(
+                        activeSpecSubphase, activeSpecSubphaseNanos, System.nanoTime(), true);
+            }
+            activeSpecSubphase = null;
+            activeSpecSubphaseNanos = 0L;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+        }
+    }
+
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("installed", installed);
@@ -170,8 +207,11 @@ public final class StartupPhaseRuntime {
         output.put("phases", List.copyOf(phases));
         output.put("plugins", List.copyOf(plugins));
         output.put("specLoaders", List.copyOf(specLoaders));
+        output.put("specSubphases", specSubphases.values().stream()
+                .map(SpecSubphase::toMap).toList());
         output.put("activePlugin", activePlugin);
         output.put("activeSpecLoader", activeSpecLoader);
+        output.put("activeSpecSubphase", activeSpecSubphase);
         output.put("progressCalls", progressCalls);
         output.put("lastProgressPermille", lastProgressPermille);
         output.put("writeProblem", writeProblem);
@@ -215,8 +255,52 @@ public final class StartupPhaseRuntime {
         return timing;
     }
 
+    private static void recordSpecSubphase(
+            String label, long startNanos, long endNanos, boolean completed) {
+        SpecSubphase timing = specSubphases.get(label);
+        if (timing == null) {
+            if (specSubphases.size() >= MAX_SPEC_SUBPHASES) {
+                return;
+            }
+            timing = new SpecSubphase(label);
+            specSubphases.put(label, timing);
+        }
+        timing.record(Math.max(0L, endNanos - startNanos), completed);
+    }
+
     private static long millis(long nanos) {
         return Math.max(0L, nanos / 1_000_000L);
+    }
+
+    private static final class SpecSubphase {
+        private final String label;
+        private long calls;
+        private long completedCalls;
+        private long totalNanos;
+        private long maxNanos;
+
+        private SpecSubphase(String label) {
+            this.label = label;
+        }
+
+        private void record(long durationNanos, boolean completed) {
+            calls++;
+            if (completed) {
+                completedCalls++;
+            }
+            totalNanos = Math.addExact(totalNanos, durationNanos);
+            maxNanos = Math.max(maxNanos, durationNanos);
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> timing = new LinkedHashMap<>();
+            timing.put("label", label);
+            timing.put("calls", calls);
+            timing.put("completedCalls", completedCalls);
+            timing.put("durationMillis", millis(totalNanos));
+            timing.put("maxCallMillis", millis(maxNanos));
+            return timing;
+        }
     }
 
     private static void writeSafely() {
