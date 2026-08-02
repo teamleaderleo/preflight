@@ -441,6 +441,83 @@ reported here as such rather than as a win.
 **Command-class resolution is now the larger half of the expression phase and the next thing to
 build.**
 
+### The prepared command-class map, and why it recovered a quarter of what was predicted
+
+`getCommandClass(name)` disassembles to a memo check followed by a walk over every declared
+`ruleCommandPackages` entry, calling `Class.forName(pkg + "." + name, false, loader)` and
+`newInstance()` until one resolves, catching `Exception` and continuing. `RuleCommandClassCachePlan`
+inserts a prepared answer at the branch target of the memo miss -- so it cannot run on the 25,091
+calls a launch that never leave the map -- and reports every caught failure and every winner so a
+cold run learns the map. A fourth insertion publishes it from the rules loader's return.
+
+Reading the bytecode changed the design that issue #290 recorded. `forName` passes
+`initialize = false`, but `newInstance()` initialises, so a package ahead of the winner holding a
+same-named class that loads and then fails to instantiate has **already run that class's static
+initialiser**, and shortcutting past it would skip that. Rather than assume this never happens, the
+learning run records the kind of every caught failure and admits a name only when all of them were
+`ClassNotFoundException`. On this profile `uncleanNames` was 0, so the assumption happened to hold --
+but it is now a checked fact rather than an assumption, and a profile where it does not hold degrades
+name by name instead of resolving the wrong class.
+
+The mechanism does exactly what it was built to do. Cold run: 671 misses, 671 captures, one 20 KB
+artifact. Warm run: **671 prepared, 671 hits, 0 misses, 0 disagreements, 0 writes**, and the declared
+package list matched. The 671 is the fifth independent agreement with the offline census, which
+predicted 671 distinct names. The game declares **47** packages, not the 41 the census counted, and
+the identity builder sees 74 `settings.json` providers against the census's 28; the census
+under-counted providers and the count of 41 above should be read as a floor.
+
+| `rules-expression-command-class` | duration |
+| --- | ---: |
+| no cache (three earlier runs) | 641ms, 675ms, 626ms |
+| cold, learning hooks installed | 653ms |
+| warm, prepared map | **515ms** |
+| warm, prepared map (second run) | **454ms** |
+
+The rules loader moved with it: 2,098ms on the tokenizer-memo run, then 1,983ms and 1,909ms warm.
+The honest figure is **about 165ms**, and the learning hooks cost nothing measurable.
+
+**That is roughly a quarter of what the model predicted, and the model was wrong in an instructive
+way.** The reasoning in #290 was that 641ms is 671 package walks at ~0.9ms each, so replacing 41
+lookups with 1 should remove most of it. Removing 40 of 41 lookups removed 25%. So the failed
+lookups were never where the time was: a lookup that misses is answered cheaply, while the one that
+hits has to find, read, define, verify, and **initialise** a real mod class. About 485ms of the
+~649ms is that work, it is vanilla's own, and this cache deliberately still performs it.
+
+The offline replay's 10.5x reduction in `forName` attempts therefore transferred as a count and not
+as a duration, exactly as the caveat recorded beside it said it might. That caveat was right for a
+reason worth keeping: the replay built its own `URLClassLoader` and paid cold jar-index construction
+inside the timed region, which inflates failures relative to successes.
+
+### The launcher is now spending 1.6 seconds hashing before the JVM starts
+
+Measuring the above surfaced something larger than the thing being measured. Every prepared-artifact
+cache asks the CLI to hash its dependency profile before the game is launched, and those costs are
+serial and additive:
+
+| profile | identity build |
+| --- | ---: |
+| variant JSON | 590.0ms |
+| weapon JSON | 375.8ms |
+| projectile JSON | 207.5ms |
+| hull JSON | 190.8ms |
+| rule command classes | 170.5ms |
+| rules CSV | 125.4ms |
+| **total, before the JVM starts** | **1,612.6ms** |
+
+The caches these unlock are worth several seconds, so the net is still strongly positive. But 1.6
+seconds of the win is being handed back in the launcher, on every single launch, and until now nobody
+had added it up.
+
+For this cache specifically the arithmetic is stark: **170ms of hashing to save 165ms of loading.**
+In isolation it is a wash. It is still worth keeping -- the in-game work is genuinely gone and the
+artifact is 20 KB -- but the honest statement is that it only pays once the identity is cheap.
+
+The fix is not subtle and it is not specific to this cache. Every one of these digests re-reads and
+re-hashes files that have not changed: this one alone hashes 64.3 MB across 104 jars on every launch.
+A per-file SHA-256 memo keyed by path, size, and modification time would take all six to near zero on
+any launch where the install did not change, which is every launch except the one after a mod update.
+Tracked as its own issue, because it is worth more than any single one of the caches it gates.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -551,6 +628,9 @@ The three run directories were:
 - `20260802-122951-010-635c22d6` — rule-expression tokenize/command-class split
 - `20260802-125919-474-c0f105ea` — tokenizer memo, generic invoke
 - `20260802-130134-146-3dfa544f` — tokenizer memo, erased invokeExact
+- `20260802-134008-426-7cd6b30b` — cold rule command class learning run
+- `20260802-135231-185-e9b37a7d` — warm prepared command class map
+- `20260802-135428-568-26345296` — warm prepared command class map, second run
 
 The offline half of the expression investigation needs no run directory. Its three sources are
 archived beside this document:

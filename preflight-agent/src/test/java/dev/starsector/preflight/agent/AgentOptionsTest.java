@@ -150,6 +150,13 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/cache/profile.sprc"), options.rulesCsvCache());
     }
 
+    @Test
+    void parsesRuleCommandClassCacheArtifact() {
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,ruleCommandCache64=" + encoded("build/cache/profile.sprk"));
+        assertEquals(Path.of("build/cache/profile.sprk"), options.ruleCommandClassCache());
+    }
+
     private static String encoded(String value) {
         return Base64.getUrlEncoder()
                 .withoutPadding()

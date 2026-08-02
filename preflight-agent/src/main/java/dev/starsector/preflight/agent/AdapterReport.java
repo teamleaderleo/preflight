@@ -274,6 +274,8 @@ final class AdapterReport {
         key(output, "projectileJsonCache").append(Json.value(ProjectileJsonCacheRuntime.telemetry())).append(',');
         key(output, "hullJsonCache").append(Json.value(HullJsonCacheRuntime.telemetry())).append(',');
         key(output, "rulesCsvCache").append(Json.value(RulesCsvCacheRuntime.telemetry())).append(',');
+        key(output, "ruleCommandClassCache")
+                .append(Json.value(RuleCommandClassCacheRuntime.telemetry())).append(',');
         key(output, "rulesDuplicateIndex").append(Json.value(RulesDuplicateIndexRuntime.telemetry())).append(',');
         key(output, "ruleTokenCache").append(Json.value(RuleTokenCacheRuntime.telemetry())).append(',');
 

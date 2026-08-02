@@ -29,6 +29,7 @@ record CommandLine(
         boolean campaignEntityIndex,
         boolean startupPhaseProbe,
         boolean ruleTokenCache,
+        boolean ruleCommandClassCache,
         boolean directLaunch,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
@@ -46,6 +47,7 @@ record CommandLine(
         boolean campaignEntityIndex = false;
         boolean startupPhaseProbe = false;
         boolean ruleTokenCache = false;
+        boolean ruleCommandClassCache = false;
         boolean directLaunch = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
@@ -92,6 +94,7 @@ record CommandLine(
                 case "--campaign-entity-index" -> campaignEntityIndex = true;
                 case "--startup-phase-probe" -> startupPhaseProbe = true;
                 case "--rule-token-cache" -> ruleTokenCache = true;
+                case "--rule-command-cache" -> ruleCommandClassCache = true;
                 case "--direct" -> directLaunch = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
@@ -154,6 +157,9 @@ record CommandLine(
             throw new IllegalArgumentException(
                     "--rule-token-cache requires --adapter");
         }
+        if (ruleCommandClassCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--rule-command-cache requires --adapter");
+        }
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
         }
@@ -185,6 +191,7 @@ record CommandLine(
                 campaignEntityIndex,
                 startupPhaseProbe,
                 ruleTokenCache,
+                ruleCommandClassCache,
                 directLaunch,
                 List.copyOf(forwarded));
     }

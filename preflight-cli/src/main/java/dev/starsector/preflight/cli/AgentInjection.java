@@ -366,6 +366,41 @@ final class AgentInjection {
             Path hullJsonCache,
             Path rulesCsvCache,
             boolean ruleTokenCache) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache, null);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache) {
+        if (ruleCommandClassCache != null && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Rule command class cache requires the enabled adapter");
+        }
         if (ruleTokenCache && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Rule token cache requires the enabled adapter");
         }
@@ -415,6 +450,7 @@ final class AgentInjection {
         appendPath(arguments, "projectileJsonCache64", projectileJsonCache);
         appendPath(arguments, "hullJsonCache64", hullJsonCache);
         appendPath(arguments, "rulesCsvCache64", rulesCsvCache);
+        appendPath(arguments, "ruleCommandCache64", ruleCommandClassCache);
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
         }

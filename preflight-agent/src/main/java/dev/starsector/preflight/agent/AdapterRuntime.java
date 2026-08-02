@@ -29,6 +29,7 @@ final class AdapterRuntime {
         RulesCsvCacheRuntime.beginSession();
         RulesDuplicateIndexRuntime.beginSession();
         RuleTokenCacheRuntime.beginSession();
+        RuleCommandClassCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         AdapterReport report = new AdapterReport(
@@ -74,6 +75,7 @@ final class AdapterRuntime {
             ProjectileJsonCacheRuntime.configure(options.projectileJsonCache());
             HullJsonCacheRuntime.configure(options.hullJsonCache());
             RulesCsvCacheRuntime.configure(options.rulesCsvCache());
+            RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             if (options.ruleTokenCache()) {
                 RuleTokenCacheRuntime.enable();
             }
@@ -120,6 +122,11 @@ final class AdapterRuntime {
                 if (RuleTokenCacheRuntime.ready()) {
                     registry = registry.withRuleTokenCacheTarget();
                     report.diagnostic("Loaded the exact rule-expression tokenizer memo target");
+                }
+                if (RuleCommandClassCacheRuntime.ready()) {
+                    registry = registry.withRuleCommandClassCacheTarget();
+                    report.diagnostic("Loaded the exact rule command class cache targets ("
+                            + RuleCommandClassCacheRuntime.status() + ")");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "

@@ -30,6 +30,7 @@ record AgentOptions(
         Path projectileJsonCache,
         Path hullJsonCache,
         Path rulesCsvCache,
+        Path ruleCommandClassCache,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -107,6 +108,7 @@ record AgentOptions(
         Path projectileJsonCache = decodedPath(values, "projectileJsonCache64");
         Path hullJsonCache = decodedPath(values, "hullJsonCache64");
         Path rulesCsvCache = decodedPath(values, "rulesCsvCache64");
+        Path ruleCommandClassCache = decodedPath(values, "ruleCommandCache64");
         return new AgentOptions(
                 destination,
                 settings,
@@ -127,6 +129,7 @@ record AgentOptions(
                 projectileJsonCache,
                 hullJsonCache,
                 rulesCsvCache,
+                ruleCommandClassCache,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 
