@@ -1,6 +1,5 @@
 package dev.starsector.preflight.cli;
 
-import dev.starsector.preflight.core.ClasspathProfileIndex;
 import dev.starsector.preflight.core.Json;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
@@ -551,24 +550,22 @@ final class RunCommand {
         long started = System.nanoTime();
         try {
             ResourceIndex resources = ResourceIndexIO.read(textures.index());
-            ClasspathIndexBuilder.Result classpathBuild = ClasspathIndexBuilder.build(
-                    target.installRoot(), textures.cacheDirectory());
-            if (!classpathBuild.profileWritten() || classpathBuild.failedArchives() != 0) {
-                System.err.println("Preflight variant JSON cache is unavailable because the current classpath "
-                        + "profile could not be indexed exactly; vanilla loading remains active.");
-                return null;
-            }
-            ClasspathProfileIndex classpath = classpathBuild.profile();
-            String identity = SpecStoreProfileIdentityBuilder.build(
-                    target.installRoot(), resources, classpath).identity().identitySha256();
+            VariantJsonProfileIdentityBuilder.Result profile =
+                    VariantJsonProfileIdentityBuilder.build(target.installRoot(), resources);
+            String identity = profile.identitySha256();
             Path artifact = textures.cacheDirectory()
                     .resolve("spec-store/variant-json")
                     .resolve(identity + ".spvj")
                     .toAbsolutePath().normalize();
             double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
             System.out.printf(Locale.ROOT,
-                    "Preflight matched variant JSON cache profile %s in %.1fms (%s).%n",
-                    identity, durationMillis, Files.isRegularFile(artifact) ? "hit" : "learning run");
+                    "Preflight matched variant JSON dependency profile %s in %.1fms "
+                            + "(%d paths, %d providers, %s).%n",
+                    identity,
+                    durationMillis,
+                    profile.logicalPaths(),
+                    profile.providerCount(),
+                    Files.isRegularFile(artifact) ? "hit" : "learning run");
             return new VariantJsonCacheContext(artifact);
         } catch (Exception error) {
             System.err.println("Preflight variant JSON cache selection failed: " + message(error)
