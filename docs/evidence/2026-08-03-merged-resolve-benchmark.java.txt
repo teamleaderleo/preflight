@@ -1,0 +1,35 @@
+import com.fs.util.C;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+/**
+ * The merged loader cannot stop at the first hit: it collects every root that has the path so it
+ * can merge them. So it pays the full root list on every call, whether or not anything overrides.
+ */
+public class MergedResolveBench {
+    public static void main(String[] args) throws Exception {
+        List<String> corpus = Files.readAllLines(Path.of(args[0]), StandardCharsets.UTF_8)
+                .stream().filter(line -> !line.isBlank()).toList();
+        List<String> roots = Files.readAllLines(Path.of(args[1]), StandardCharsets.UTF_8);
+        System.out.printf("corpus %d merged calls, %d roots%n", corpus.size(), roots.size());
+        C resolver = C.Object();
+        for (String root : roots) {
+            resolver.Õ00000(root);
+        }
+        for (int round = 1; round <= 3; round++) {
+            long start = System.nanoTime();
+            long sink = 0;
+            for (String path : corpus) {
+                try {
+                    sink += resolver.Ò00000(path).size();
+                } catch (Exception missing) {
+                    sink += 1;
+                }
+            }
+            System.out.printf("  round %d: collect every source  %7.3f s  (sink %d)%n",
+                    round, (System.nanoTime() - start) / 1e9, sink);
+        }
+    }
+}

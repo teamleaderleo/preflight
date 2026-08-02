@@ -1,5 +1,15 @@
 # `loadJSON` is not where GraphicsLib spends its time
 
+> **Superseded on the same day by
+> [the game spends nine seconds looking for files](2026-08-03-the-game-spends-nine-seconds-looking-for-files.md).**
+> Two things below are wrong. The corpus was extracted from logs of an install where AshLib's and
+> GraphicsLib's patched jars were **already installed**, so it measured work whose redundancy had
+> already been removed -- on the stock jars the same corpus is 39,017 calls, not 12,130. And the
+> benchmark opened each resolved absolute path directly, which skipped the part that turned out to
+> be the expensive one: the game does not open a path, it searches 84 mod roots for it, and that
+> search costs 5.25 s. The read/strip/parse split below still holds and is still used; the
+> conclusion drawn from it does not.
+
 **Date:** 2026-08-03
 **Install:** Starsector 0.98a-RC8, 83 enabled mods, macOS 15, M5 MacBook Air (10 cores), 24 GB
 **Benchmark:** [`2026-08-03-loadjson-split-benchmark.java.txt`](2026-08-03-loadjson-split-benchmark.java.txt)
