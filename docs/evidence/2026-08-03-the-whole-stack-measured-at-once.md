@@ -71,24 +71,38 @@ Splitting the difference into its two halves is more useful than the single disc
   Component savings measured in isolation composed better than they had any right to;
 - **the baseline was not.** The old campaign's `vanilla` was 88.13s and this one's is 80.09s.
 
-`vanilla` runs the game's own launcher with `JAVA_TOOL_OPTIONS` cleared. Nothing Preflight does can
-touch it, and Preflight never writes to the installation, so the 8-second move is not our work
-appearing where it should not.
+`vanilla` is a bad name for this condition and it is worth saying so before anything else. It runs the
+game's own launcher with `JAVA_TOOL_OPTIONS` cleared -- but the installation it launches is the
+modded one, all 83 of them. It is not vanilla Starsector. It is *the modded install with no
+Preflight*, which is the right comparison but not the name on the label.
 
-What it is has not been established. The obvious candidate points the wrong way: the profile grew
-from 77 mods to 83, which should be slower rather than faster. So does cooldown, since the earlier
-campaign idled 240s before each launch against this one's 45s, and a cooler machine is a faster one.
-The measurement boundary is identical in both -- `gameLogStartToMainMenuMs` is the recorded key in
-both sessions' `results.jsonl`, so this is not a metric change.
+That distinction is exactly what moved the baseline. Between the two campaigns, on 2026-08-02, two
+patched mod jars were installed: `Ashlib_/jars/ashlib.jar` at 09:43 and
+`zz GraphicsLib-1.12.1/jars/Graphics.jar` at 10:07. Those are the AshLib `ShipRenderInfo` memoization
+and the GraphicsLib compact auto-generation replay -- **changes to the mods' own source, not
+Preflight code.** There is no AshLib or GraphicsLib code anywhere in `preflight-agent` or
+`preflight-cli`.
 
-**The operational conclusion stands regardless of the cause: a `vanilla` median measured three days
-earlier is not a valid baseline.** It moved 9% while the thing it measures did not change. Every
-speedup claim should divide by the `vanilla` measured in its own session, interleaved with the
-condition it is being compared against, which is what the harness already shuffles for and what this
-campaign does.
+So the savings from those two patches are now *inside* the 80.09s baseline. The condition got faster
+because the installation got faster, which is exactly what a no-Preflight condition should report.
 
-That is also the cleanest explanation for why the stacked scorecard drifted: it subtracted a growing
-stack of same-session component savings from a baseline captured in a different session.
+This also resolves what the accumulated scorecard was doing wrong. It listed both patches among
+Preflight's own savings and subtracted them from a baseline recorded before they were installed:
+
+| | seconds |
+| --- | ---: |
+| scorecard component total | 47.63-48.00 |
+| less AshLib + GraphicsLib, which are mod-side and now sit in the baseline | -11.89 to -12.26 |
+| remainder attributable to Preflight | **35.4-36.1** |
+| **measured (`full` vs the same session's baseline)** | **37.74** |
+
+Within about 2 seconds, which is the same accuracy the floor prediction showed. The component
+arithmetic was not really wrong; it was crediting Preflight with work that ships in two mod jars, and
+subtracting it twice.
+
+The rule that follows still holds, and now for a concrete reason: **divide by the baseline measured
+in the same interleaved session.** Anything that changes the installation -- including a mod patch of
+your own -- moves it.
 
 ## What the number is and is not
 
