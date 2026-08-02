@@ -143,6 +143,13 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/cache/profile.sphj"), options.hullJsonCache());
     }
 
+    @Test
+    void parsesRulesCsvCacheArtifact() {
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,rulesCsvCache64=" + encoded("build/cache/profile.sprc"));
+        assertEquals(Path.of("build/cache/profile.sprc"), options.rulesCsvCache());
+    }
+
     private static String encoded(String value) {
         return Base64.getUrlEncoder()
                 .withoutPadding()

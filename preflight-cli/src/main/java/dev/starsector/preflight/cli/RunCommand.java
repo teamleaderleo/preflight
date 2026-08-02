@@ -43,6 +43,7 @@ final class RunCommand {
         WeaponJsonCacheContext weaponJsonCache = weaponJsonCacheContext(options, target, textureContext);
         ProjectileJsonCacheContext projectileJsonCache = projectileJsonCacheContext(options, target, textureContext);
         HullJsonCacheContext hullJsonCache = hullJsonCacheContext(options, target, textureContext);
+        RulesCsvCacheContext rulesCsvCache = rulesCsvCacheContext(options, target, textureContext);
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -77,7 +78,8 @@ final class RunCommand {
                 variantJsonCache == null ? null : variantJsonCache.artifact(),
                 weaponJsonCache == null ? null : weaponJsonCache.artifact(),
                 projectileJsonCache == null ? null : projectileJsonCache.artifact(),
-                hullJsonCache == null ? null : hullJsonCache.artifact());
+                hullJsonCache == null ? null : hullJsonCache.artifact(),
+                rulesCsvCache == null ? null : rulesCsvCache.artifact());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -685,6 +687,40 @@ final class RunCommand {
         }
     }
 
+    private static RulesCsvCacheContext rulesCsvCacheContext(
+            CommandLine options,
+            LaunchTarget target,
+            TextureLaunchContext textures) {
+        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
+                || textures == null || !textures.automatic()) {
+            return null;
+        }
+        long started = System.nanoTime();
+        try {
+            ResourceIndex resources = ResourceIndexIO.read(textures.index());
+            RulesCsvProfileIdentityBuilder.Result profile =
+                    RulesCsvProfileIdentityBuilder.build(target.installRoot(), resources);
+            String identity = profile.identitySha256();
+            Path artifact = textures.cacheDirectory()
+                    .resolve("spec-store/rules-csv")
+                    .resolve(identity + ".sprc")
+                    .toAbsolutePath().normalize();
+            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
+            System.out.printf(Locale.ROOT,
+                    "Preflight matched rules CSV dependency profile %s in %.1fms "
+                            + "(%d providers, %s).%n",
+                    identity,
+                    durationMillis,
+                    profile.providerCount(),
+                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+            return new RulesCsvCacheContext(artifact);
+        } catch (Exception error) {
+            System.err.println("Preflight rules CSV cache selection failed: " + message(error)
+                    + "; vanilla loading remains active.");
+            return null;
+        }
+    }
+
     private record TextureLaunchContext(
             Path cacheDirectory,
             Path manifest,
@@ -707,5 +743,8 @@ final class RunCommand {
     }
 
     private record HullJsonCacheContext(Path artifact) {
+    }
+
+    private record RulesCsvCacheContext(Path artifact) {
     }
 }

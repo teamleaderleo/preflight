@@ -305,6 +305,36 @@ final class AgentInjection {
             Path weaponJsonCache,
             Path projectileJsonCache,
             Path hullJsonCache) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, null);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache) {
         if (singleChunkRecording && !recordingMode.records()) {
             throw new IllegalArgumentException("Single-chunk recording requires recording to be enabled");
         }
@@ -325,6 +355,9 @@ final class AgentInjection {
         }
         if (hullJsonCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Hull JSON cache requires the enabled adapter");
+        }
+        if (rulesCsvCache != null && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Rules CSV cache requires the enabled adapter");
         }
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
@@ -347,6 +380,7 @@ final class AgentInjection {
         appendPath(arguments, "weaponJsonCache64", weaponJsonCache);
         appendPath(arguments, "projectileJsonCache64", projectileJsonCache);
         appendPath(arguments, "hullJsonCache64", hullJsonCache);
+        appendPath(arguments, "rulesCsvCache64", rulesCsvCache);
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
         }

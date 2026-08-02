@@ -49,16 +49,11 @@ final class AdapterTransformationRegistry {
                     byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
                     if (hullPhases == null) {
                         byte[] rulesPhases = RulesLoaderPhasePlan.transform(signature, originalBytes);
-                        if (rulesPhases == null || !RulesDuplicateIndexRuntime.ready()) {
+                        if (rulesPhases == null) {
                             return rulesPhases;
                         }
-                        try {
-                            byte[] indexed = RulesDuplicateIndexPlan.transform(
-                                    ClassSignature.parse(rulesPhases), rulesPhases);
-                            return indexed == null ? rulesPhases : indexed;
-                        } catch (java.io.IOException ignored) {
-                            return rulesPhases;
-                        }
+                        byte[] optimized = rulesOptimizations(rulesPhases);
+                        return optimized == null ? rulesPhases : optimized;
                     }
                     if (!HullJsonCacheRuntime.ready()) {
                         return hullPhases;
@@ -109,10 +104,9 @@ final class AdapterTransformationRegistry {
                     ? HullJsonCachePlan.transform(signature, originalBytes)
                     : null;
         }
-        if (RulesDuplicateIndexRuntime.PLAN_ID.equals(target.planId())) {
-            return RulesDuplicateIndexRuntime.ready()
-                    ? RulesDuplicateIndexPlan.transform(signature, originalBytes)
-                    : null;
+        if (RulesDuplicateIndexRuntime.PLAN_ID.equals(target.planId())
+                || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return rulesOptimizations(originalBytes);
         }
         return null;
     }
@@ -133,6 +127,31 @@ final class AdapterTransformationRegistry {
                 byte[] projectile = ProjectileJsonCachePlan.transform(ClassSignature.parse(current), current);
                 if (projectile != null) {
                     current = projectile;
+                    changed = true;
+                }
+            }
+            return changed ? current : null;
+        } catch (java.io.IOException ignored) {
+            return changed ? current : null;
+        }
+    }
+
+    /** Composes the merged-CSV cache and duplicate index that share the rules loader. */
+    private static byte[] rulesOptimizations(byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+        try {
+            if (RulesCsvCacheRuntime.ready()) {
+                byte[] cached = RulesCsvCachePlan.transform(ClassSignature.parse(current), current);
+                if (cached != null) {
+                    current = cached;
+                    changed = true;
+                }
+            }
+            if (RulesDuplicateIndexRuntime.ready()) {
+                byte[] indexed = RulesDuplicateIndexPlan.transform(ClassSignature.parse(current), current);
+                if (indexed != null) {
+                    current = indexed;
                     changed = true;
                 }
             }
@@ -210,6 +229,9 @@ final class AdapterTransformationRegistry {
         }
         if (RulesDuplicateIndexRuntime.PLAN_ID.equals(planId)) {
             return RulesDuplicateIndexRuntime.ready();
+        }
+        if (RulesCsvCacheRuntime.PLAN_ID.equals(planId)) {
+            return RulesCsvCacheRuntime.ready();
         }
         return false;
     }

@@ -26,6 +26,7 @@ final class AdapterRuntime {
         WeaponJsonCacheRuntime.beginSession();
         ProjectileJsonCacheRuntime.beginSession();
         HullJsonCacheRuntime.beginSession();
+        RulesCsvCacheRuntime.beginSession();
         RulesDuplicateIndexRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
@@ -71,6 +72,7 @@ final class AdapterRuntime {
             WeaponJsonCacheRuntime.configure(options.weaponJsonCache());
             ProjectileJsonCacheRuntime.configure(options.projectileJsonCache());
             HullJsonCacheRuntime.configure(options.hullJsonCache());
+            RulesCsvCacheRuntime.configure(options.rulesCsvCache());
         }
 
         AdapterTargetRegistry registry;
@@ -101,6 +103,11 @@ final class AdapterRuntime {
                     registry = registry.withHullJsonCacheTarget();
                     report.diagnostic("Loaded the exact hull JSON cache target ("
                             + HullJsonCacheRuntime.status() + ")");
+                }
+                if (RulesCsvCacheRuntime.ready()) {
+                    registry = registry.withRulesCsvCacheTarget();
+                    report.diagnostic("Loaded the exact rules CSV cache target ("
+                            + RulesCsvCacheRuntime.status() + ")");
                 }
                 if (RulesDuplicateIndexRuntime.ready()) {
                     registry = registry.withRulesDuplicateIndexTarget();
