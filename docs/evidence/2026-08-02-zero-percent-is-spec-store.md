@@ -130,6 +130,22 @@ net launch improvement roughly 2.0 seconds. The identity names the artifact, so 
 profiles coexist and any relevant content, provider-order, or game-version change selects a new
 learning artifact instead of reusing stale data.
 
+The adjacent projectile loader uses the same `WeaponSpecLoader` shape but a separate pair of methods
+and data domains. A pinned probe split its 2.345s directional total as follows:
+
+| projectile operation | calls | aggregate duration |
+| --- | ---: | ---: |
+| merged JSON lookup, overlay, and parse | 1,263 | **1.618s** |
+| file listing | 2 | 9ms |
+| live registry insertion | 1,260 | 9ms |
+| script registration | 580 | 6ms |
+
+Merged JSON accounts for 69.0% of the projectile loader, leaving about 703ms for object hydration,
+branching, and loop/logging overhead. macOS reported no thermal or performance warning immediately
+before and after this run, but the 31°C ambient and single sample make the absolute duration
+directional rather than a benchmark claim. The subphase dominance is sufficient to justify the same
+pure-representation cache boundary while retaining all live projectile construction and side effects.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -225,6 +241,7 @@ The three run directories were:
 - `20260802-040845-699-516fb794` — aggregate weapon merge/script/register timings
 - `20260802-042118-653-6bcc3fae` — cold weapon JSON learning run
 - `20260802-042235-465-fe4d1ef1` — warm weapon JSON cache run
+- `20260802-102845-271-bd5752d6` — aggregate projectile merge/script/register timings
 
 Command shape:
 

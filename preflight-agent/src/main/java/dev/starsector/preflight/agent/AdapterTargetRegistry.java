@@ -144,7 +144,13 @@ final class AdapterTargetRegistry {
                                 WeaponLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
                                 WeaponLoaderPhasePlan.LOAD_ONE_METHOD,
-                                WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                                WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ProjectileLoaderPhasePlan.LOAD_ALL_METHOD,
+                                ProjectileLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ProjectileLoaderPhasePlan.LOAD_ONE_METHOD,
+                                ProjectileLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",

@@ -45,13 +45,19 @@ final class AdapterTransformationRegistry {
             byte[] specStore = SpecStorePhasePlan.transform(signature, originalBytes);
             if (specStore == null) {
                 byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
-                if (weaponPhases == null || !WeaponJsonCacheRuntime.ready()) {
+                if (weaponPhases == null) {
                     return weaponPhases;
                 }
                 try {
-                    byte[] cached = WeaponJsonCachePlan.transform(
+                    byte[] projectilePhases = ProjectileLoaderPhasePlan.transform(
                             ClassSignature.parse(weaponPhases), weaponPhases);
-                    return cached == null ? weaponPhases : cached;
+                    byte[] attributed = projectilePhases == null ? weaponPhases : projectilePhases;
+                    if (!WeaponJsonCacheRuntime.ready()) {
+                        return attributed;
+                    }
+                    byte[] cached = WeaponJsonCachePlan.transform(
+                            ClassSignature.parse(attributed), attributed);
+                    return cached == null ? attributed : cached;
                 } catch (java.io.IOException ignored) {
                     return weaponPhases;
                 }
