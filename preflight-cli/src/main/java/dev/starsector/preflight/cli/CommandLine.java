@@ -27,6 +27,7 @@ record CommandLine(
         boolean npotDirect,
         boolean unpadded,
         boolean campaignEntityIndex,
+        boolean startupPhaseProbe,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -41,6 +42,7 @@ record CommandLine(
         boolean npotDirect = false;
         boolean unpadded = false;
         boolean campaignEntityIndex = false;
+        boolean startupPhaseProbe = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -84,6 +86,7 @@ record CommandLine(
                 case "--prepared-npot" -> npotDirect = true;
                 case "--prepared-unpadded" -> unpadded = true;
                 case "--campaign-entity-index" -> campaignEntityIndex = true;
+                case "--startup-phase-probe" -> startupPhaseProbe = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -141,6 +144,9 @@ record CommandLine(
         if (campaignEntityIndex && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--campaign-entity-index requires --adapter");
         }
+        if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
+        }
         // --texture-auto and --texture-mode are independent: auto resolves which manifest and
         // index to use, the mode decides which TextureLoader target reads them. Both modes are
         // configured from the same TextureCompatibilityRuntime.configure call and the same SPFT
@@ -167,6 +173,7 @@ record CommandLine(
                 npotDirect,
                 unpadded,
                 campaignEntityIndex,
+                startupPhaseProbe,
                 List.copyOf(forwarded));
     }
 

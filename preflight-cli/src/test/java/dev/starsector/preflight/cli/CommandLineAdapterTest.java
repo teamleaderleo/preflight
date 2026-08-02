@@ -72,6 +72,20 @@ class CommandLineAdapterTest {
     }
 
     @Test
+    void startupPhaseProbeRequiresTheEnabledAdapter() {
+        CommandLine enabled = CommandLine.parse(
+                new String[] {"run", "--adapter", "--startup-phase-probe"}, 1);
+        assertEquals(true, enabled.startupPhaseProbe());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--startup-phase-probe"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--startup-phase-probe"}, 1));
+    }
+
+    @Test
     void textureAutoResolvesTheCacheForEitherTextureMode() {
         // Auto decides *which* manifest and index to use; the mode decides which TextureLoader
         // target reads them. They are independent -- both modes configure from the same call and

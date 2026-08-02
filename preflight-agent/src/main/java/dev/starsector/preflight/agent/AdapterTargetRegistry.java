@@ -99,6 +99,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The loading bar reaches 100% before this class waits for audio and runs final callbacks. */
+    static AdapterTarget startupPhaseTarget() {
+        return new AdapterTarget(
+                "vanilla-resource-loader-0.98a-rc8-startup-phases",
+                StartupPhasePlan.TARGET_CLASS,
+                "a64927cec70db4e15d54b8611073b4008ba62878e0208f30ca338d66377214ab",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        StartupPhasePlan.INIT_METHOD, StartupPhasePlan.INIT_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget textureTarget(String id, String planId) {
         return new AdapterTarget(
                 id,
@@ -149,6 +165,10 @@ final class AdapterTargetRegistry {
      */
     AdapterTargetRegistry withCampaignEntityIndexTarget() {
         return withTarget(campaignEntityIndexTarget());
+    }
+
+    AdapterTargetRegistry withStartupPhaseTarget() {
+        return withTarget(startupPhaseTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

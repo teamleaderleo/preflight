@@ -22,6 +22,8 @@ final class AdapterRuntime {
         TextureCompatibilityRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
+        StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
+                ? sibling(options.adapterReport(), "startup-phases.json") : null);
         AdapterReport report = new AdapterReport(
                 options.adapterMode(),
                 options.adapterReport(),
@@ -67,6 +69,10 @@ final class AdapterRuntime {
             registry = loadRegistry(options.adapterTargets(), report);
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
+                if (options.startupPhaseProbe()) {
+                    registry = registry.withStartupPhaseTarget();
+                    report.diagnostic("Loaded the exact ResourceLoaderState startup-phase probe target");
+                }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "
                         + options.textureAdapterMode().optionValue() + " target");

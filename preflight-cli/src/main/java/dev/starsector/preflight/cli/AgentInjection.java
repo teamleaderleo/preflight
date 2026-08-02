@@ -174,11 +174,38 @@ final class AgentInjection {
             boolean unpadded,
             boolean singleChunkRecording,
             boolean campaignEntityIndex) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe) {
         if (singleChunkRecording && !recordingMode.records()) {
             throw new IllegalArgumentException("Single-chunk recording requires recording to be enabled");
         }
         if (campaignEntityIndex && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Campaign entity index requires the enabled adapter");
+        }
+        if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Startup phase probe requires the enabled adapter");
         }
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
@@ -207,6 +234,9 @@ final class AgentInjection {
             // Recording.dump rotates the active chunk. A periodic sidecar is valuable for ordinary
             // sessions but defeats a mode whose entire purpose is one timestamp-coherent chunk.
             arguments.append(",flush=0");
+        }
+        if (startupPhaseProbe) {
+            arguments.append(",startupPhases=on");
         }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())

@@ -268,6 +268,7 @@ final class AdapterReport {
         booleanField(output, "diagnosticsTruncated", diagnosticsTruncated);
         booleanField(output, "evaluationsTruncated", evaluationsTruncated);
         key(output, "textureCompatibility").append(Json.value(TextureCompatibilityRuntime.telemetry())).append(',');
+        key(output, "startupPhases").append(Json.value(StartupPhaseRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

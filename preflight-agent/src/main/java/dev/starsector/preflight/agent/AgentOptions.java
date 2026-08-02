@@ -23,6 +23,7 @@ record AgentOptions(
         boolean exhaustiveFileReads,
         RecordingMode recordingMode,
         Duration flushInterval,
+        boolean startupPhaseProbe,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -91,6 +92,7 @@ record AgentOptions(
         // own recordings show the exit dump losing the tail even on a clean exit. The flusher writes
         // a sidecar as the run goes, so a force-quit or a crash still leaves something to read.
         Duration flushInterval = flushInterval(values.get("flush"));
+        boolean startupPhaseProbe = "on".equalsIgnoreCase(values.get("startupPhases"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -104,6 +106,7 @@ record AgentOptions(
                 exhaustiveFileReads,
                 recordingMode,
                 flushInterval,
+                startupPhaseProbe,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

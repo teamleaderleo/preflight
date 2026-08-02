@@ -65,7 +65,8 @@ final class RunCommand {
                 options.npotDirect(),
                 options.unpadded(),
                 options.singleChunkRecording(),
-                options.campaignEntityIndex());
+                options.campaignEntityIndex(),
+                options.startupPhaseProbe());
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
@@ -177,6 +178,10 @@ final class RunCommand {
             }
             if (Files.isRegularFile(adapterReport)) {
                 System.out.println("Preflight adapter report: " + adapterReport);
+                Path startupPhases = adapterReport.resolveSibling("adapter-startup-phases.json");
+                if (Files.isRegularFile(startupPhases)) {
+                    System.out.println("Preflight startup phase report: " + startupPhases);
+                }
                 if (Files.isRegularFile(report)) {
                     try {
                         AdapterProbeAnalysis.analyze(adapterReport, report, adapterAnalysis);
@@ -323,6 +328,7 @@ final class RunCommand {
         System.out.println("  recording: " + options.recordingMode()
                 + (options.singleChunkRecording() ? " (single timestamp-coherent chunk)" : ""));
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
+        System.out.println("  startup phase probe: " + options.startupPhaseProbe());
         System.out.println("  adapter report: " + adapterReport);
         if (options.adapterTargets() != null) {
             System.out.println("  adapter targets: " + options.adapterTargets().toAbsolutePath().normalize());
@@ -436,6 +442,7 @@ final class RunCommand {
         values.put("recordingPeriodicFlush",
                 options.recordingMode().records() && !options.singleChunkRecording());
         values.put("campaignEntityIndex", options.campaignEntityIndex());
+        values.put("startupPhaseProbe", options.startupPhaseProbe());
         values.put("adapterMode", options.adapterMode());
         values.put("adapterReport", adapterReport);
         values.put("adapterAnalysis", Files.isRegularFile(adapterAnalysis) ? adapterAnalysis : null);
