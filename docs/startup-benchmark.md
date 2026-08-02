@@ -47,6 +47,7 @@ quantities read as one.
 | `agent` | `preflight run --no-adapter` | what the JFR recorder itself costs |
 | `enabled` | `preflight run --adapter --texture-auto` | the prepared texture path, recorded |
 | `fast` | the same plus `--no-record` | the caches without paying for the profile |
+| `full` | the same plus `--texture-mode prepared-pixels --prepared-npot --rule-token-cache --rule-command-cache` | **everything landed, at once** |
 | `profile` | the same plus `--profile` | **not a timing condition** — see below |
 
 `profile` is opt-in and is not part of the default set, because reading its wall clock as
@@ -61,6 +62,11 @@ very thing it is most often consulted about. Analyse these runs with `preflight 
 The middle condition is the one that is easy to leave out and expensive to lose. Preflight
 attaches a recording agent in **both** of its modes, so a bare `enabled` minus `vanilla`
 difference mixes "the cache helped" with "the recorder cost us". Only `agent` separates them.
+
+`full` is the only condition that turns on everything the project has landed. `fast` deliberately
+does not: it runs compatibility texture mode and leaves both rule caches off, so a `fast` number
+understates the project by 4.72s on the reviewed profile. Use `full` for "what does Preflight do",
+and `fast` only to isolate how much of that comes from the prepared-pixel path.
 
 `enabled` uses `--texture-auto`, which resolves the manifest and index for the current
 profile and runs the accepted compatibility texture path. That is deliberate: it is the

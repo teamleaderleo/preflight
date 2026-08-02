@@ -16,21 +16,44 @@ java -jar preflight.jar run --direct
 
 ## Current scorecard
 
-On the development machine, the original heavily modded startup occupied roughly the **90–100+ second** range. The first accepted end-to-end campaign moved the median from **88.13 seconds to 62.60 seconds**, a **25.53-second / 29% reduction** and a **1.41× speedup**.
+On the development machine — 83 mods, M5 MacBook Air — a full modded startup takes **80.09 seconds**.
+With Preflight it takes **42.36 seconds**.
 
-The optimizations completed after that campaign add another **22.10–22.47 seconds** of measured component savings. Stacked together, they remove **47.63–48.00 seconds** from the accepted baseline and produce a current theoretical floor of **40.13–40.50 seconds**.
-
-That is **2.18–2.20× faster** than the 88.13-second accepted baseline, with **54.0–54.5% of the startup time removed**. Against the original 90–100+ second experience, it is approximately **2.22–2.49× faster**. Direct development launches have already entered the same low-40-second range.
-
-| Current headline | Result |
+| | |
 | --- | ---: |
-| Accumulated measured time removed | **47.63–48.00s** |
-| Theoretical current startup | **40.13–40.50s** |
-| Cache or memo hits in the stacked component runs | **64,739** |
+| Vanilla, no Preflight | **80.09s** |
+| Preflight, everything enabled | **42.36s** |
+| Removed | **37.74s (47.1%)** |
+| Speedup | **1.89×** |
+
+That is a measured campaign, not an estimate: fifteen unattended launches, five per condition,
+conditions interleaved within every round, all fifteen accepted. Every round agrees to within 1.9
+seconds on a 37-second effect. The full result, including what moved and what did not, is in
+[The whole stack, measured at once](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md).
+
+Reproduce it yourself:
+
+```bash
+scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast,full --rounds 5
+```
+
+Two notes on reading that number. The 80.09s baseline is a quiet machine with warm caches and no
+launcher; the lived experience on this installation was the **90–100+ second** range, and against
+that a 42.36s load is roughly **2.1–2.4×**. And this is one machine on one mod profile — the
+harness exists so anyone can produce their own.
+
+**This is a waypoint, not a finish line.** The largest known remaining items are the resource-index
+read ([#304](https://github.com/teamleaderleo/starsector-preflight/issues/304)), the GraphicsLib and
+AshLib callbacks, and the untouched audio and script-bytecode paths in the [roadmap](docs/roadmap.md).
+
+| Repeated work removed | Count |
+| --- | ---: |
+| Cache or memo hits in the measured launch | **64,739** |
 | Counted operations removed or shortcut | **192,089** |
 | Empty texture allocation removed | **1.22 GiB** |
 
-The full arithmetic, individual multipliers, operation counts, and source links are in the [accumulated startup scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md). The calculation is also executable with [`scripts/startup_scorecard.py`](scripts/startup_scorecard.py).
+The per-change arithmetic, individual multipliers, and source links are in the
+[accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
 
 ## What we did
 
@@ -57,6 +80,7 @@ The final startup tail contained repeated work in mod callbacks. AshLib repeated
 | Merged ship-hull JSON | **3.52× faster loader; ~1.7s net** | [PR #284](https://github.com/teamleaderleo/starsector-preflight/pull/284) |
 | Rules CSV, duplicate checks, tokens, command packages | **~1.56s combined** | [#286](https://github.com/teamleaderleo/starsector-preflight/pull/286), [#288](https://github.com/teamleaderleo/starsector-preflight/pull/288), [#291](https://github.com/teamleaderleo/starsector-preflight/pull/291), [#298](https://github.com/teamleaderleo/starsector-preflight/pull/298) |
 | Shared cache-profile identity | **1.613s → 0.452s; 3.57× faster** | [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) |
+| **All of it, composed and measured** | **80.09s → 42.36s; 1.89× overall** | [2026-08-03 campaign](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md) |
 
 The texture path also stopped allocating empty power-of-two padding. In one full load, texture uploads fell from **3.65 GiB to 2.43 GiB**, removing **1.22 GiB** while serving more textures. See [The texture padding is gone](docs/evidence/2026-08-02-the-padding-is-gone.md).
 
@@ -140,7 +164,7 @@ On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux rec
 
 ## What is next
 
-The immediate performance milestone is a complete unattended campaign with every landed optimization enabled together. That will replace the current stacked floor with one end-to-end distribution.
+The composed campaign has run, and the number above is its result. Work continues: the resource-index read is now the largest launcher-side cost ([#304](https://github.com/teamleaderleo/starsector-preflight/issues/304)), the GraphicsLib and AshLib callbacks still hold seconds between them, and the audio and script-bytecode paths are untouched.
 
 The user-facing work is tracked in [issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294): a simple desktop launcher, clear uninstall behavior, and a front page that makes the result easy to verify. The broader plan—including direct resource-provider lookup, persistent script bytecode, cross-platform packaging, and later prepared-audio experiments—is in the [roadmap](docs/roadmap.md).
 
