@@ -26,6 +26,7 @@ record AgentOptions(
         boolean startupPhaseProbe,
         boolean ruleTokenCache,
         boolean resourceProbeCache,
+        boolean loadJsonMemo,
         Path variantJsonCache,
         Path weaponJsonCache,
         Path projectileJsonCache,
@@ -107,6 +108,7 @@ record AgentOptions(
         // Same shape: an in-process memo of which directories exist, with nothing on disk
         // to point at and nothing to invalidate between launches.
         boolean resourceProbeCache = "on".equalsIgnoreCase(values.get("resourceProbes"));
+        boolean loadJsonMemo = "on".equalsIgnoreCase(values.get("loadJsonMemo"));
         Path variantJsonCache = decodedPath(values, "variantJsonCache64");
         Path weaponJsonCache = decodedPath(values, "weaponJsonCache64");
         Path projectileJsonCache = decodedPath(values, "projectileJsonCache64");
@@ -129,6 +131,7 @@ record AgentOptions(
                 startupPhaseProbe,
                 ruleTokenCache,
                 resourceProbeCache,
+                loadJsonMemo,
                 variantJsonCache,
                 weaponJsonCache,
                 projectileJsonCache,

@@ -494,6 +494,31 @@ final class AdapterTargetRegistry {
                 .withTarget(ruleCommandClassPublishTarget());
     }
 
+    /**
+     * The single-file JSON loader behind {@code SettingsAPI.loadJSON}, in {@code starfarer_obf.jar}.
+     *
+     * <p>Every mod that reads game data arrives here, which is the whole point of pinning it: one
+     * memo serves all of them rather than one mod each.
+     */
+    static AdapterTarget loadJsonMemoTarget() {
+        return new AdapterTarget(
+                "vanilla-loading-utils-0.98a-rc8-loadjson-memo",
+                LoadJsonMemoPlan.TARGET_CLASS,
+                "aa9f88ee76576894432503103de2979f297c01b399e528c096d1905f5a59f89d",
+                LoadJsonMemoRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        LoadJsonMemoPlan.LOAD_METHOD, LoadJsonMemoPlan.LOAD_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    AdapterTargetRegistry withLoadJsonMemoTarget() {
+        return withTarget(loadJsonMemoTarget());
+    }
+
     AdapterTargetRegistry withResourceProbeCacheTarget() {
         return withTarget(resourceProbeCacheTarget());
     }

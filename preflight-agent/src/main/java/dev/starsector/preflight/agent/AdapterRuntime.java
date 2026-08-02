@@ -80,6 +80,7 @@ final class AdapterRuntime {
                 RuleTokenCacheRuntime.enable();
             }
             ResourceProbeRuntime.enable(options.resourceProbeCache());
+            LoadJsonMemoRuntime.enable(options.loadJsonMemo());
         }
 
         AdapterTargetRegistry registry;
@@ -123,6 +124,10 @@ final class AdapterRuntime {
                 if (RuleTokenCacheRuntime.ready()) {
                     registry = registry.withRuleTokenCacheTarget();
                     report.diagnostic("Loaded the exact rule-expression tokenizer memo target");
+                }
+                if (LoadJsonMemoRuntime.ready()) {
+                    registry = registry.withLoadJsonMemoTarget();
+                    report.diagnostic("Loaded the exact loadJSON memo target");
                 }
                 if (ResourceProbeRuntime.ready()) {
                     registry = registry.withResourceProbeCacheTarget();

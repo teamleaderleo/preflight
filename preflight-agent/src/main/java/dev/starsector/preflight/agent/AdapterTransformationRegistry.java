@@ -120,6 +120,11 @@ final class AdapterTransformationRegistry {
                 || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())) {
             return rulesOptimizations(originalBytes);
         }
+        if (LoadJsonMemoRuntime.PLAN_ID.equals(target.planId())) {
+            return LoadJsonMemoRuntime.ready()
+                    ? LoadJsonMemoPlan.transform(signature, originalBytes)
+                    : null;
+        }
         if (ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
             return ResourceProbeRuntime.ready()
                     ? ResourceProbePlan.transform(signature, originalBytes)
@@ -325,6 +330,9 @@ final class AdapterTransformationRegistry {
         }
         if (ResourceProbeRuntime.PLAN_ID.equals(planId)) {
             return ResourceProbeRuntime.ready();
+        }
+        if (LoadJsonMemoRuntime.PLAN_ID.equals(planId)) {
+            return LoadJsonMemoRuntime.ready();
         }
         return false;
     }

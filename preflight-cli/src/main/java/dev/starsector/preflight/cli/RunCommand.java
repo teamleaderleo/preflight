@@ -82,7 +82,8 @@ final class RunCommand {
                 rulesCsvCache == null ? null : rulesCsvCache.artifact(),
                 options.ruleTokenCache(),
                 ruleCommandCache == null ? null : ruleCommandCache.artifact(),
-                options.resourceProbeCache());
+                options.resourceProbeCache(),
+                options.loadJsonMemo());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -360,6 +361,7 @@ final class RunCommand {
         System.out.println("  startup phase probe: " + options.startupPhaseProbe());
         System.out.println("  rule token cache: " + options.ruleTokenCache());
         System.out.println("  resource probe cache: " + options.resourceProbeCache());
+        System.out.println("  loadJSON memo: " + options.loadJsonMemo());
         System.out.println("  rule command class cache: " + options.ruleCommandClassCache());
         System.out.println("  launch: " + (directSettings == null
                 ? "launcher UI"
@@ -483,6 +485,7 @@ final class RunCommand {
         values.put("startupPhaseProbe", options.startupPhaseProbe());
         values.put("ruleTokenCache", options.ruleTokenCache());
         values.put("resourceProbeCache", options.resourceProbeCache());
+        values.put("loadJsonMemo", options.loadJsonMemo());
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
