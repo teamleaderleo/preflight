@@ -32,6 +32,11 @@ final class AdapterTransformationRegistry {
                     ? TexturePaddingPlan.transform(signature, originalBytes)
                     : null;
         }
+        // Ungated: the wrapper it installs delegates to the original until
+        // preflight.campaign.entityIndex says otherwise, so there is nothing to be ready for.
+        if (EntityLookupRuntime.PLAN_ID.equals(target.planId())) {
+            return EntityLookupPlan.transform(signature, originalBytes);
+        }
         return null;
     }
 
@@ -82,6 +87,9 @@ final class AdapterTransformationRegistry {
         }
         if (TexturePaddingRuntime.PLAN_ID.equals(planId)) {
             return TexturePaddingRuntime.ready();
+        }
+        if (EntityLookupRuntime.PLAN_ID.equals(planId)) {
+            return EntityLookupRuntime.ready();
         }
         return false;
     }
