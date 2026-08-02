@@ -71,9 +71,9 @@ was:
 | top-level loader | duration | share of measured calls |
 | --- | ---: | ---: |
 | ship and fighter variants (`SpecStore.oO0000()`) | **4.145s** | 21.1% |
-| weapon-spec post-processing (`WeaponSpecLoader.new()`) | **3.183s** | 16.2% |
+| weapon definitions (`WeaponSpecLoader.new()`) | **3.183s** | 16.2% |
 | campaign rules (`Rules.super(...)`) | **3.031s** | 15.4% |
-| weapon specs (`WeaponSpecLoader.o00000()`) | **2.273s** | 11.6% |
+| projectile definitions (`WeaponSpecLoader.o00000()`) | **2.273s** | 11.6% |
 | ship hull specs (`ShipHullSpecLoader.Ò00000()`) | **2.138s** | 10.9% |
 | `SpecStore.oo0000(...)` | **1.087s** | 5.5% |
 
@@ -147,6 +147,15 @@ The safe concurrency pattern is narrower:
 3. cross one barrier;
 4. apply/rehydrate live registry mutations on the original thread in original order;
 5. run vanilla on every miss or mismatch.
+
+Preflight now materializes the safety key for that cache as a separate preparation stage. It hashes
+the exact game JAR, every ordered provider below `data/`, and every ordered mod classpath archive;
+the final identity names the profile artifact, so multiple mod profiles coexist instead of evicting
+one another. On the measured 83-mod profile it covered 17,839 data providers (55,945,461 bytes) and
+85 archives (49,075,713 bytes). A second real preparation selected the identical
+`9d44e2704857856b8c7e22acddd422c32b3cbebb766bc0c25200d3bf6538b827` profile with
+`artifactHit: true`; warm validation took 498ms. No runtime shortcut consumes this key yet, so this
+change is deliberately inert until a loader-specific cache proves equivalent and faster.
 
 That is closer to SWC's ahead-of-time transform cache or a persistent query cache than React's
 `useRef`, which only avoids repeat work inside one process. The follow-up in

@@ -44,6 +44,7 @@ class PrepareCommandTest {
         assertTrue(first.contains("\"successful\":true"), first);
         assertTrue(first.contains("\"resourceIndex\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"classpathIndex\":{\"status\":\"SUCCESS\""), first);
+        assertTrue(first.contains("\"specStoreIdentity\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"textures\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"lookupVerification\":{\"status\":\"SUCCESS\""), first);
         assertTrue(first.contains("\"totalMismatches\":0"), first);
@@ -82,6 +83,7 @@ class PrepareCommandTest {
         assertTrue(Files.isRegularFile(report));
         assertTrue(Files.list(cache.resolve("resource-indexes")).anyMatch(path -> path.toString().endsWith(".spfi")));
         assertTrue(Files.list(cache.resolve("classpath/profiles")).anyMatch(path -> path.toString().endsWith(".spfc")));
+        assertTrue(Files.list(cache.resolve("spec-store/profiles")).anyMatch(path -> path.toString().endsWith(".json")));
         assertTrue(Files.list(cache.resolve("manifests")).anyMatch(path -> path.toString().endsWith(".spfm")));
     }
 
@@ -115,7 +117,8 @@ class PrepareCommandTest {
                 stdout.toString(StandardCharsets.UTF_8));
         String progress = stderr.toString(StandardCharsets.UTF_8);
         for (String stage : new String[] {
-                "census", "resource-index", "classpath-index", "textures", "lookup-verification"}) {
+                "census", "resource-index", "classpath-index", "spec-store-identity", "textures",
+                "lookup-verification"}) {
             assertTrue(progress.contains("prepare: " + stage + " started"), progress);
             assertTrue(progress.contains("prepare: " + stage + " completed status="), progress);
         }
@@ -141,6 +144,7 @@ class PrepareCommandTest {
         String json = Files.readString(report);
         assertTrue(json.contains("\"resourceIndex\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"classpathIndex\":{\"status\":\"SKIPPED\""), json);
+        assertTrue(json.contains("\"specStoreIdentity\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"textures\":{\"status\":\"SKIPPED\""), json);
         assertEquals(before, Files.getLastModifiedTime(install.resolve("mods/enabled_mods.json")).toMillis());
     }
@@ -153,6 +157,7 @@ class PrepareCommandTest {
         writeImage(core.resolve("graphics/core.png"), Color.GRAY);
         writeImage(core.resolve("graphics/shared.png"), Color.BLUE);
         writeImage(mod.resolve("graphics/shared.png"), Color.MAGENTA);
+        jar(core.resolve("starfarer_obf.jar"), Map.of("game/Spec.class", new byte[] {9}));
         Files.createDirectories(mod);
         Files.writeString(mod.resolve("mod_info.json"), """
                 {

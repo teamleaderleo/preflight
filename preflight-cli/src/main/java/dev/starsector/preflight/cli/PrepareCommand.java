@@ -5,6 +5,7 @@ import dev.starsector.preflight.core.Json;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.ResourceIndexValidator;
+import dev.starsector.preflight.core.SpecStoreProfileIdentity;
 import dev.starsector.preflight.core.TextureManifestValidator;
 import dev.starsector.preflight.core.TextureMemoryEstimator;
 import java.io.IOException;
@@ -58,6 +59,7 @@ final class PrepareCommand {
         Path resourceIndexPath = null;
         ClasspathProfileIndex classpathIndex = null;
         Path classpathIndexPath = null;
+        Path specStoreProfilePath = null;
         boolean allEnabledStagesSuccessful = true;
 
         stageStarted("census");
@@ -170,6 +172,51 @@ final class PrepareCommand {
         allEnabledStagesSuccessful &= classpathStage.successful();
         diagnostics.addAll(classpathStage.diagnostics());
 
+        stageStarted("spec-store-identity");
+        Stage specStoreStage;
+        if (resourceIndex == null || classpathIndex == null) {
+            specStoreStage = Stage.skipped(
+                    "Prepared resource and classpath indexes are required for SpecStore identity");
+        } else {
+            try {
+                long stageStarted = System.nanoTime();
+                SpecStoreProfileIdentityBuilder.Result built = SpecStoreProfileIdentityBuilder.build(
+                        target.installRoot(), resourceIndex, classpathIndex);
+                SpecStoreProfileIdentity identity = built.identity();
+                Path output = cache.resolve("spec-store/profiles")
+                        .resolve(identity.identitySha256() + ".json")
+                        .toAbsolutePath().normalize();
+                Map<String, Object> artifact = new LinkedHashMap<>();
+                artifact.put("format", "starsector-preflight-spec-store-profile-v1");
+                artifact.put("formatVersion", SpecStoreProfileIdentity.FORMAT_VERSION);
+                artifact.put("identitySha256", identity.identitySha256());
+                artifact.put("gameJar", built.gameJar());
+                artifact.put("gameJarSha256", identity.gameJarSha256());
+                artifact.put("dataProvidersSha256", identity.dataProvidersSha256());
+                artifact.put("dataProviderCount", identity.dataProviderCount());
+                artifact.put("dataProviderBytes", identity.dataProviderBytes());
+                artifact.put("classpathArchivesSha256", identity.classpathArchivesSha256());
+                artifact.put("classpathArchiveCount", identity.classpathArchiveCount());
+                artifact.put("classpathArchiveBytes", identity.classpathArchiveBytes());
+                String content = Json.object(artifact) + System.lineSeparator();
+                boolean artifactHit = Files.isRegularFile(output)
+                        && Files.readString(output).equals(content);
+                if (!artifactHit) {
+                    writeAtomic(output, content);
+                }
+                artifact.put("file", output);
+                artifact.put("artifactHit", artifactHit);
+                specStoreStage = Stage.success(artifact, System.nanoTime() - stageStarted);
+                specStoreProfilePath = output;
+            } catch (Exception error) {
+                specStoreStage = Stage.failed(error);
+            }
+        }
+        stageCompleted("spec-store-identity", specStoreStage);
+        stages.put("specStoreIdentity", specStoreStage.toMap());
+        allEnabledStagesSuccessful &= specStoreStage.successful();
+        diagnostics.addAll(specStoreStage.diagnostics());
+
         stageStarted("textures");
         Stage textureStage;
         if (options.textures()) {
@@ -275,6 +322,7 @@ final class PrepareCommand {
         output.put("report", report);
         output.put("resourceIndex", resourceIndexPath);
         output.put("classpathIndex", classpathIndexPath);
+        output.put("specStoreProfile", specStoreProfilePath);
         output.put("options", options.toMap());
         output.put("stages", stages);
         output.put("readiness", readiness);
