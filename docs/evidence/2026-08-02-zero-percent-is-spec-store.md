@@ -98,6 +98,20 @@ JSON representation, then retain the game's cheap constructor, registry insertio
 and post-pass. Serializing mutable live `HullVariantSpec` instances would attack only 221ms while
 assuming responsibility for transient hull links and later fixups.
 
+The next exact-profile run split the 3.512s weapon-definition loader at the same boundary:
+
+| weapon operation | calls | aggregate duration |
+| --- | ---: | ---: |
+| merged JSON lookup, overlay, and parse | 3,077 | **2.761s** |
+| script registration | 987 | 14ms |
+| file listing | 2 | 11ms |
+| live registry insertion | 3,074 | 7ms |
+
+Merged JSON therefore accounts for 78.6% of the weapon loader. The remaining roughly 719ms includes
+vanilla object hydration and loop/logging overhead. As with variants, the safe shortcut is to cache
+only the pure merged representation and leave duplicate gates, script registration, concrete weapon
+construction, and registry mutation on the original thread in their original order.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -190,6 +204,7 @@ The three run directories were:
 - `20260802-022644-286-6d60db3b` — exact `SpecStore`, JSON-reader negative
 - `specstore-attribution-20260802` — 41 per-loader timings, vanilla audio
 - `variant-attribution-2-20260802` — aggregate variant merge/construct/register/post-pass timings
+- `20260802-040845-699-516fb794` — aggregate weapon merge/script/register timings
 
 Command shape:
 
