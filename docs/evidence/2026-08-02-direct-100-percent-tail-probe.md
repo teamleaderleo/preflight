@@ -57,6 +57,33 @@ Neither optimization should be implemented as a blind skip. AshLib's populated m
 linked texture entries are runtime outputs consumed later. A cache needs an exact profile/content
 key, fail-open rebuild, behavioral comparison, and campaign/combat visual acceptance.
 
+The matching game-log windows show the scale of the repeated work. During AshLib's measured callback
+the game emitted 25,443 JSON-load lines, including 1,974 variant paths, plus 164 CSV loads. During
+GraphicsLib's callback it emitted 7,759 JSON-load lines and 6,191 texture-buffer cleanup lines. Log
+line counts are work evidence, not time attribution independent of the direct callback markers.
+
+## Follow-up upload-ready prepared-pixel diagnostic
+
+A consecutive no-record run selected the opt-in prepared-pixel coherent-direct path with the same
+profile and direct phase probe:
+
+`~/.starsector-preflight/runs/20260802-013011-604-5ffee33b`
+
+| phase | compatibility diagnostic | prepared-pixel diagnostic | difference |
+| --- | ---: | ---: | ---: |
+| resource loop | 49.03 s | 35.17 s | -13.86 s |
+| audio join after exact 100% | 0.02 s | 1.72 s | +1.70 s |
+| all mod callbacks | 26.66 s | 22.34 s | -4.33 s |
+| AshLib callback | 11.00 s | 9.78 s | -1.22 s |
+| GraphicsLib callback | 12.06 s | 9.83 s | -2.24 s |
+| `ResourceLoaderState.init` | 76.00 s | 59.38 s | **-16.63 s** |
+
+This is a strong diagnostic signal, not an accepted benchmark pair: the order was not randomized,
+the second launch may benefit from warmer filesystem/JIT/mod caches, and the phase probe adds small
+diagnostic I/O to both runs. It does show that the lower prepared-pixel path reaches the audio join
+early enough to expose 1.7 seconds of remaining decode work, while the two deterministic mod
+traversals still dominate the exact post-100 tail at a combined 19.6 seconds.
+
 ## Probe implementation
 
 The agent now has an exact-gated `startup-phase-probe-v1` rewrite for the reviewed
