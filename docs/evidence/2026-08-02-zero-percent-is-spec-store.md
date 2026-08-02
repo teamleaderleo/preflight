@@ -327,6 +327,41 @@ Applied offline to the installed class, the plan takes the constructor from 310 
 instructions, keeps the single `tokenize` call and both `getCommandClass` calls, emits the seven
 label switches and one close in the expected order, and declines a second weave.
 
+A real direct launch then measured the split, with all four earlier caches warm:
+
+| expression subphase | calls | duration |
+| --- | ---: | ---: |
+| `rules-expression-tokenize` | 62,340 | **742ms** |
+| `rules-expression-command-class` | 25,762 | **641ms** |
+| `rules-expression-residual` | 150,442 | 48ms |
+| `rules-expression-parse` (argument evaluation only, as predicted) | 62,340 | 23ms |
+
+The constructor totals 1,431ms against the 1,575ms the single outer label used to report, and the
+outer label collapsed to 23ms exactly as the design said it would. The complete rules loader took
+2,293ms on this run, so **the expression constructor is 62% of the warm rules loader, and it is two
+roughly equal halves.**
+
+The census predicted 25,721 command invocations; the game performed 25,762, a 0.16% difference,
+which is the third independent agreement between the offline model and the running game.
+
+The command-class number is the more interesting one because of how few calls actually do work:
+only the **671 distinct names** miss the static map, and the other 25,091 calls are map hits worth
+nanoseconds. So 641ms is carried by 671 package walks — roughly **0.9ms each**, spent on failed
+`Class.forName` calls against the modded classpath. That is what a prepared `name -> winning
+package` map removes, and it is the shape the offline replay predicted.
+
+Both halves are now worth building and neither is a serialization problem:
+
+- the tokenizer wants an in-process memo of the character scan only, never a shared `Token`, with a
+  measured ceiling near 40% of 742ms;
+- command-class resolution wants a prepared map keyed by the game JAR, the ordered mod archives,
+  and the declared package list, replaying `Class.forName` plus `newInstance` on the winning package
+  only — which keeps every side effect vanilla has, including the discarded instance's static
+  initialisation, and falls back to the full walk on any miss.
+
+The run reported 15 registry targets, 9 exact matches, 9 transformations applied, zero declined and
+zero shadowed.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -434,7 +469,9 @@ The three run directories were:
 - `20260802-115136-046-268dc24b` — cold merged rules CSV learning run
 - `20260802-115233-425-55898e14` — warm merged rules CSV cache hit
 
-The expression-phase investigation is offline and needs no run directory. Its three sources are
+- `20260802-122951-010-635c22d6` — rule-expression tokenize/command-class split
+
+The offline half of the expression investigation needs no run directory. Its three sources are
 archived beside this document:
 
 - `2026-08-02-rules-expression-census.py.txt` — merged-profile expression census
