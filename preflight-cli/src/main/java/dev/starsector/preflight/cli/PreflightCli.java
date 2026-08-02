@@ -72,6 +72,8 @@ public final class PreflightCli {
             case "doctor" -> RunCommand.doctor(CommandLine.parse(args, 1));
             case "launch-settings" -> LaunchSettingsCommand.execute(args, 1);
             case "install" -> InstallCommand.execute(CommandLine.parse(args, 1));
+            case "uninstall" -> UninstallCommand.execute(args, 1);
+            case "cache" -> CacheCommand.execute(args, 1);
             case "scan" -> ScanCommand.execute(ScanOptions.parse(args, 1));
             case "index" -> IndexCommand.execute(args, 1);
             case "texture" -> textureCommand(args);
@@ -212,6 +214,16 @@ public final class PreflightCli {
                         + " launch matches a clicked one. Always exits zero -- unavailable is an"
                         + " answer, with a reason saying what to do about it."));
         usage.put("install", List.of("preflight install [--game <path>] [--launcher <path>]"));
+        usage.put("uninstall", List.of(
+                "preflight uninstall [--purge] [--yes]",
+                "  Prints what it would remove and exits; --yes performs the removal.",
+                "  --purge also removes ~/.starsector-preflight, discarding prepared caches",
+                "  and every run and benchmark record under it. The Starsector installation",
+                "  is never modified by Preflight, so nothing there needs restoring."));
+        usage.put("cache", List.of(
+                "preflight cache",
+                "  Reports total storage by category, the prepared profiles held, and which",
+                "  one the current install matches."));
         usage.put("scan", List.of(
                 "preflight scan [--game <path>] [--launcher <path>] [--json <profile.json>] [--vram-budget <size>] [--max-texture-size <pixels>]",
                 "  --vram-budget accepts bytes or a K/M/G suffix (e.g. 4G); adds a decoded-VRAM budget verdict",
@@ -289,7 +301,7 @@ public final class PreflightCli {
         return usage;
     }
 
-    private static void commandUsage(String command, java.io.PrintStream output) {
+    static void commandUsage(String command, java.io.PrintStream output) {
         output.println("Usage:");
         for (String line : USAGE.get(command)) {
             output.println("  " + line);
@@ -328,6 +340,8 @@ public final class PreflightCli {
             case "doctor" -> "Check installation discovery and launch readiness.";
             case "launch-settings" -> "Report whether the game can start without showing its launcher.";
             case "install" -> "Write the local Preflight launcher integration.";
+            case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
+            case "cache" -> "Report what Preflight is storing and which profiles it holds.";
             case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
             case "index" -> "Build, inspect, query, or validate a resource-provider index.";
             case "texture" -> "Prepare and inspect texture cache artifacts.";
