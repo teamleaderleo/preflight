@@ -239,6 +239,25 @@ in the indexed sample. The adapter reported one completed load, 21,059 checks, z
 zero shadowed targets. macOS again recorded no thermal, performance, or CPU-power warning; at 31°C
 ambient this remains a directional single-run comparison rather than a stable benchmark.
 
+The next cold/warm pair exercised a strict-profile cache around the single merged `rules.csv`
+operation. Its identity hashes the exact game JAR and all 44 ordered providers of
+`data/campaign/rules.csv`; unrelated campaign CSV files are excluded. The cold run selected that
+identity in 116ms, executed vanilla, captured one 12.3 MiB serialized array, and published it only
+after the complete rules loader returned normally. The warm run selected the same artifact in
+113ms and reconstructed a fresh `JSONArray` before retaining all live rule parsing, construction,
+script registration, and ordered trigger insertion:
+
+| rules boundary | cold learning | warm cache | change |
+| --- | ---: | ---: | ---: |
+| complete indexed rules loader | 3.325s | **2.306s** | **-1.019s** |
+| merged CSV operation | 959ms | **166ms** | **-793ms** |
+| expression/token parsing | 1.451s | 1.479s | noise |
+
+After the warm selector cost, the directional net launch improvement from this cache is about
+**680ms**. Telemetry reported one hit, zero misses, captures, or writes, all 21,059 duplicate-index
+checks, zero duplicates, and zero shadowed targets. macOS again recorded no thermal, performance,
+or CPU-power warning; the 31°C ambient still limits these figures to directional evidence.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -343,6 +362,8 @@ The three run directories were:
 - `20260802-112438-211-4b39a214` — first rules-loader inner attribution
 - `20260802-112637-599-df8c2752` — rules regex and duplicate-scan attribution
 - `20260802-113646-682-c1b1a287` — indexed rules duplicate check, real direct launch
+- `20260802-115136-046-268dc24b` — cold merged rules CSV learning run
+- `20260802-115233-425-55898e14` — warm merged rules CSV cache hit
 
 Command shape:
 

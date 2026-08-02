@@ -213,6 +213,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact campaign-rules loader used by the strict-profile merged-CSV cache. */
+    static AdapterTarget rulesCsvCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-rules-loader-0.98a-rc8-csv-cache",
+                RulesLoaderPhasePlan.TARGET_CLASS,
+                "61f5432f35037ac48cb665930652f01e72e4ea94085ddf0676cd80b07b98d996",
+                RulesCsvCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RulesLoaderPhasePlan.LOAD_METHOD,
+                        RulesLoaderPhasePlan.LOAD_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact reviewed variant loader used by the strict-profile merged-JSON cache. */
     static AdapterTarget variantJsonCacheTarget() {
         return new AdapterTarget(
@@ -370,6 +387,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withRulesDuplicateIndexTarget() {
         return withTarget(rulesDuplicateIndexTarget());
+    }
+
+    AdapterTargetRegistry withRulesCsvCacheTarget() {
+        return withTarget(rulesCsvCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
