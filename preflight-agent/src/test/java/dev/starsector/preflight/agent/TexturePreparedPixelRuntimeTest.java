@@ -45,6 +45,7 @@ class TexturePreparedPixelRuntimeTest {
         byte[] source = sequential(width * height * channels);
         configure(fixture(width, height, channels, source));
         System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
 
         TexturePreparedPixelRuntime.PreparedPixel prepared = TexturePreparedPixelRuntime.prepare(
                 TexturePreparedPixelRuntime.load("graphics/test.png"));
@@ -84,6 +85,7 @@ class TexturePreparedPixelRuntimeTest {
         int channels = 3;
         configure(fixture(width, height, channels, sequential(width * height * channels)));
         System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
 
         TexturePreparedPixelRuntime.prepare(TexturePreparedPixelRuntime.load("graphics/test.png"));
 

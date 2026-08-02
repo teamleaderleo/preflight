@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
@@ -21,7 +22,15 @@ record AgentOptions(
         TextureAdapterMode textureAdapterMode,
         boolean exhaustiveFileReads,
         RecordingMode recordingMode,
+        Duration flushInterval,
         List<String> candidatePrefixes) {
+    /**
+     * Long enough that a startup which finishes inside it pays nothing, short enough that a session
+     * ended by force-quit loses at most this much. A flush writes the recording so far -- single-digit
+     * megabytes -- from a minimum-priority daemon thread.
+     */
+    static final Duration DEFAULT_FLUSH_INTERVAL = Duration.ofSeconds(60);
+
     private static final List<String> DEFAULT_CANDIDATE_PREFIXES = List.of(
             "com/fs/starfarer/",
             "com/fs/graphics/");
@@ -78,6 +87,10 @@ record AgentOptions(
         // sampling and drops the stack-traced per-event records, so a profile can ask where the
         // time goes without the measurement landing on class loading hardest.
         RecordingMode recordingMode = RecordingMode.parse(values.get("record"));
+        // A recording with a destination is a zero-byte file until the JVM exits, and this project's
+        // own recordings show the exit dump losing the tail even on a clean exit. The flusher writes
+        // a sidecar as the run goes, so a force-quit or a crash still leaves something to read.
+        Duration flushInterval = flushInterval(values.get("flush"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -90,7 +103,25 @@ record AgentOptions(
                 textureAdapterMode,
                 exhaustiveFileReads,
                 recordingMode,
+                flushInterval,
                 DEFAULT_CANDIDATE_PREFIXES);
+    }
+
+    /** {@code flush=<seconds>}; {@code 0} turns sidecar flushing off. */
+    private static Duration flushInterval(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return DEFAULT_FLUSH_INTERVAL;
+        }
+        long seconds;
+        try {
+            seconds = Long.parseLong(raw.trim());
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException("Invalid flush interval: " + raw, error);
+        }
+        if (seconds < 0) {
+            throw new IllegalArgumentException("Flush interval cannot be negative: " + raw);
+        }
+        return Duration.ofSeconds(seconds);
     }
 
 
