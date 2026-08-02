@@ -29,6 +29,7 @@ record CommandLine(
         boolean campaignEntityIndex,
         boolean startupPhaseProbe,
         boolean ruleTokenCache,
+        boolean resourceProbeCache,
         boolean ruleCommandClassCache,
         boolean directLaunch,
         List<String> forwardedArgs) {
@@ -47,6 +48,7 @@ record CommandLine(
         boolean campaignEntityIndex = false;
         boolean startupPhaseProbe = false;
         boolean ruleTokenCache = false;
+        boolean resourceProbeCache = false;
         boolean ruleCommandClassCache = false;
         boolean directLaunch = false;
         AdapterMode adapterMode = AdapterMode.OFF;
@@ -94,8 +96,23 @@ record CommandLine(
                 case "--campaign-entity-index" -> campaignEntityIndex = true;
                 case "--startup-phase-probe" -> startupPhaseProbe = true;
                 case "--rule-token-cache" -> ruleTokenCache = true;
+                case "--resource-probe-cache" -> resourceProbeCache = true;
                 case "--rule-command-cache" -> ruleCommandClassCache = true;
                 case "--direct" -> directLaunch = true;
+                // One flag for "everything that has landed and is safe to turn on". The individual
+                // flags stay, because a campaign that isolates one of them needs to name it -- but
+                // nobody running the game should have to remember seven of them in the right order.
+                case "--fast" -> {
+                    adapterMode = AdapterMode.ENABLED;
+                    textureAuto = true;
+                    textureAdapterMode = TextureAdapterMode.PREPARED_PIXELS;
+                    textureModeSpecified = true;
+                    npotDirect = true;
+                    ruleTokenCache = true;
+                    ruleCommandClassCache = true;
+                    resourceProbeCache = true;
+                    recordingMode = RecordingMode.OFF;
+                }
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -153,6 +170,10 @@ record CommandLine(
         if (campaignEntityIndex && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--campaign-entity-index requires --adapter");
         }
+        if (resourceProbeCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException(
+                    "--resource-probe-cache requires --adapter");
+        }
         if (ruleTokenCache && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException(
                     "--rule-token-cache requires --adapter");
@@ -191,6 +212,7 @@ record CommandLine(
                 campaignEntityIndex,
                 startupPhaseProbe,
                 ruleTokenCache,
+                resourceProbeCache,
                 ruleCommandClassCache,
                 directLaunch,
                 List.copyOf(forwarded));

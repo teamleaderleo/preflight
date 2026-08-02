@@ -81,7 +81,8 @@ final class RunCommand {
                 hullJsonCache == null ? null : hullJsonCache.artifact(),
                 rulesCsvCache == null ? null : rulesCsvCache.artifact(),
                 options.ruleTokenCache(),
-                ruleCommandCache == null ? null : ruleCommandCache.artifact());
+                ruleCommandCache == null ? null : ruleCommandCache.artifact(),
+                options.resourceProbeCache());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -358,6 +359,7 @@ final class RunCommand {
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
         System.out.println("  startup phase probe: " + options.startupPhaseProbe());
         System.out.println("  rule token cache: " + options.ruleTokenCache());
+        System.out.println("  resource probe cache: " + options.resourceProbeCache());
         System.out.println("  rule command class cache: " + options.ruleCommandClassCache());
         System.out.println("  launch: " + (directSettings == null
                 ? "launcher UI"
@@ -480,6 +482,7 @@ final class RunCommand {
         values.put("campaignEntityIndex", options.campaignEntityIndex());
         values.put("startupPhaseProbe", options.startupPhaseProbe());
         values.put("ruleTokenCache", options.ruleTokenCache());
+        values.put("resourceProbeCache", options.resourceProbeCache());
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());

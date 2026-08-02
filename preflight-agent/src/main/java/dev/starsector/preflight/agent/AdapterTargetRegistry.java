@@ -72,6 +72,29 @@ final class AdapterTargetRegistry {
     }
 
     /**
+     * The resource resolver every load in the game goes through, game code and mod code alike.
+     *
+     * <p>Same jar as the image prefetcher above, and pinned the same way. This one is worth saying
+     * out loud: it is the only target that is not on any particular loading path, because it is
+     * underneath all of them.
+     */
+    static AdapterTarget resourceProbeCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-resource-resolver-0.98a-rc8-probe-cache",
+                ResourceProbePlan.TARGET_CLASS,
+                "ee81369a75dfa518ddbbf1bfb83c96845effc2cf9189179fc08a17863837d0fd",
+                ResourceProbeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        ResourceProbePlan.RESOLVE_METHOD,
+                        ResourceProbePlan.RESOLVE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
      *
@@ -469,6 +492,10 @@ final class AdapterTargetRegistry {
     AdapterTargetRegistry withRuleCommandClassCacheTarget() {
         return withTarget(ruleCommandClassLookupTarget())
                 .withTarget(ruleCommandClassPublishTarget());
+    }
+
+    AdapterTargetRegistry withResourceProbeCacheTarget() {
+        return withTarget(resourceProbeCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

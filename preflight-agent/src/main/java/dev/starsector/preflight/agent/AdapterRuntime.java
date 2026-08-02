@@ -79,6 +79,7 @@ final class AdapterRuntime {
             if (options.ruleTokenCache()) {
                 RuleTokenCacheRuntime.enable();
             }
+            ResourceProbeRuntime.enable(options.resourceProbeCache());
         }
 
         AdapterTargetRegistry registry;
@@ -122,6 +123,10 @@ final class AdapterRuntime {
                 if (RuleTokenCacheRuntime.ready()) {
                     registry = registry.withRuleTokenCacheTarget();
                     report.diagnostic("Loaded the exact rule-expression tokenizer memo target");
+                }
+                if (ResourceProbeRuntime.ready()) {
+                    registry = registry.withResourceProbeCacheTarget();
+                    report.diagnostic("Loaded the exact resource-resolver probe cache target");
                 }
                 if (RuleCommandClassCacheRuntime.ready()) {
                     registry = registry.withRuleCommandClassCacheTarget();

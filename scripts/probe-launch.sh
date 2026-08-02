@@ -44,35 +44,56 @@ done
 JAR=preflight-cli/target/preflight.jar
 DETECTOR=scripts/starsector_log_ready_detector.py
 LOG_DIR="$GAME/logs"
-# Matching on the game's own bundled JVM path is what makes cleanup reliable: it identifies the
-# game whatever its ancestry, and it cannot match this script, the wrapper, or an unrelated JVM.
-GAME_JVM_PATTERN="$GAME/Contents/Home/bin/java"
 
-if pgrep -f "$GAME_JVM_PATTERN" >/dev/null 2>&1; then
-    echo "A Starsector process is already running. Stop it before probing." >&2
+# Finding the game process is the part that has to be right, and matching its command line is not
+# the way to do it. The launcher script execs java from inside the game directory using a *relative*
+# path -- the real command line is `../../Home/bin/java -Xdock:name=Starsector ...` -- so a pattern
+# built from the absolute install path matches nothing, silently, and the game is left running.
+#
+# Its working directory is not relative. Ask each JVM where it is, and keep the ones that answer
+# from inside the install.
+game_pids() {
+    local resolved
+    resolved="$(cd "$GAME" && pwd -P)"
+    local pid cwd
+    for pid in $(pgrep -x java 2>/dev/null; pgrep -f '[j]ava$|/java ' 2>/dev/null); do
+        [[ "$pid" == "$$" ]] && continue
+        cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+        [[ -n "$cwd" && "$cwd" == "$resolved"* ]] && echo "$pid"
+    done | sort -u
+}
+
+if [[ -n "$(game_pids)" ]]; then
+    echo "A Starsector process is already running (pids: $(game_pids | tr '\n' ' '))." >&2
+    echo "Stop it before probing." >&2
     exit 1
 fi
 
 WRAPPER_PID=""
 cleanup() {
     local status=$?
-    if pgrep -f "$GAME_JVM_PATTERN" >/dev/null 2>&1; then
-        echo "Stopping the game..."
+    local pids
+    pids="$(game_pids)"
+    if [[ -n "$pids" ]]; then
+        echo "Stopping the game (pids: $(echo "$pids" | tr '\n' ' '))..."
         # SIGTERM first so the JVM runs its shutdown hooks and flushes any recording.
-        pkill -TERM -f "$GAME_JVM_PATTERN" 2>/dev/null || true
+        echo "$pids" | xargs -r kill -TERM 2>/dev/null || true
         for _ in $(seq 1 15); do
-            pgrep -f "$GAME_JVM_PATTERN" >/dev/null 2>&1 || break
+            [[ -z "$(game_pids)" ]] && break
             sleep 1
         done
-        if pgrep -f "$GAME_JVM_PATTERN" >/dev/null 2>&1; then
+        pids="$(game_pids)"
+        if [[ -n "$pids" ]]; then
             echo "The game ignored SIGTERM; forcing."
-            pkill -KILL -f "$GAME_JVM_PATTERN" 2>/dev/null || true
-            sleep 1
+            echo "$pids" | xargs -r kill -9 2>/dev/null || true
+            sleep 2
         fi
     fi
     [[ -n "$WRAPPER_PID" ]] && kill -TERM "$WRAPPER_PID" 2>/dev/null || true
-    if pgrep -f "$GAME_JVM_PATTERN" >/dev/null 2>&1; then
-        echo "WARNING: a game process survived cleanup." >&2
+    if [[ -n "$(game_pids)" ]]; then
+        echo "WARNING: a game process survived cleanup: $(game_pids | tr '\n' ' ')" >&2
+    else
+        echo "game stopped"
     fi
     return $status
 }
