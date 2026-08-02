@@ -84,6 +84,11 @@ diagnostic I/O to both runs. It does show that the lower prepared-pixel path rea
 early enough to expose 1.7 seconds of remaining decode work, while the two deterministic mod
 traversals still dominate the exact post-100 tail at a combined 19.6 seconds.
 
+The prepared-pixel runtime remained healthy through clean exit: 21,679 hits and 2.53 GB of source
+pixel work bypassed, including 17,536 coherent-direct NPOT hits; zero prepared-pixel fallbacks,
+dimension fallbacks, internal errors, corruptions, or quarantines; and zero active/pending/direct
+buffers at shutdown. The compatibility manifest had three ordinary missing-entry fallbacks.
+
 ## Probe implementation
 
 The agent now has an exact-gated `startup-phase-probe-v1` rewrite for the reviewed
