@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.EntityLookupRuntime;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TexturePaddingRuntime;
 import dev.starsector.preflight.agent.TexturePreparedPixelRuntime;
@@ -84,7 +85,7 @@ final class AgentInjection {
             TextureAdapterMode textureAdapterMode) {
         return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
                 textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode, false,
-                RecordingMode.FULL, false, false);
+                RecordingMode.FULL, false, false, false, false);
     }
 
     static String append(
@@ -102,6 +103,83 @@ final class AgentInjection {
             RecordingMode recordingMode,
             boolean npotDirect,
             boolean unpadded) {
+        return append(
+                existing,
+                agentJar,
+                destination,
+                adapterMode,
+                adapterReport,
+                adapterTargets,
+                textureCacheDirectory,
+                textureManifest,
+                textureIndex,
+                textureAdapterMode,
+                exhaustiveFileReads,
+                recordingMode,
+                npotDirect,
+                unpadded,
+                false,
+                false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording) {
+        return append(
+                existing,
+                agentJar,
+                destination,
+                adapterMode,
+                adapterReport,
+                adapterTargets,
+                textureCacheDirectory,
+                textureManifest,
+                textureIndex,
+                textureAdapterMode,
+                exhaustiveFileReads,
+                recordingMode,
+                npotDirect,
+                unpadded,
+                singleChunkRecording,
+                false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex) {
+        if (singleChunkRecording && !recordingMode.records()) {
+            throw new IllegalArgumentException("Single-chunk recording requires recording to be enabled");
+        }
+        if (campaignEntityIndex && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Campaign entity index requires the enabled adapter");
+        }
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
         if (lower.contains("-javaagent:") && lower.contains("preflight")) {
@@ -125,6 +203,11 @@ final class AgentInjection {
         if (recordingMode != RecordingMode.FULL) {
             arguments.append(",record=").append(recordingMode.optionValue());
         }
+        if (singleChunkRecording) {
+            // Recording.dump rotates the active chunk. A periodic sidecar is valuable for ordinary
+            // sessions but defeats a mode whose entire purpose is one timestamp-coherent chunk.
+            arguments.append(",flush=0");
+        }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())
                 + "="
@@ -136,6 +219,15 @@ final class AgentInjection {
         }
         if (unpadded) {
             option = option + " -D" + TexturePaddingRuntime.UNPADDED_PROPERTY + "=true";
+        }
+        if (singleChunkRecording) {
+            // JFR's ordinary 12 MiB chunk rotation is the source of the cross-chunk timestamp
+            // folding observed on the reviewed Zulu 17 runtime. maxchunksize cannot exceed the
+            // recorder memory size, so these are one policy and must move together.
+            option = option + " -XX:FlightRecorderOptions=memorysize=256m,maxchunksize=256m";
+        }
+        if (campaignEntityIndex) {
+            option = option + " -D" + EntityLookupRuntime.ENABLED_PROPERTY + "=true";
         }
         return current.isEmpty() ? option : current + " " + option;
     }

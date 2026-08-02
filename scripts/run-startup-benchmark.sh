@@ -70,9 +70,10 @@ Conditions:
             the same class and have not been composed. Without it the runtime fails closed
             and this condition just behaves like `prepared`. See
             docs/evidence/2026-07-31-half-an-invariant-kills-the-launcher.md.
-  profile   the same, plus --profile -- sampling only, for asking where the time goes.
-            Not a timing condition: it records, so it is slower than fast. Analyse its
-            recordings with `preflight analyze`; do not read its wall clock as a result.
+  profile   the same, plus --profile --single-chunk-recording -- sampling only, for asking
+            where the time goes with comparable timestamps across the full startup. Not a
+            timing condition: it records, so it is slower than fast. Analyse its recording
+            with `preflight analyze`; do not read its wall clock as a performance result.
 
 Each launch costs about 90 seconds plus your two clicks, so the default 5 rounds across
 four conditions is roughly 45 minutes. Ctrl-C is safe at any point: completed runs are
@@ -374,6 +375,33 @@ terminate() {
     done
 }
 
+# Stop only the launched game tree and leave the Preflight wrapper alive long enough to observe
+# the child exit, inspect the finished JFR, and finalize run.json. Killing the wrapper alongside
+# the game made unattended profile runs look accepted to the harness while their own receipts
+# remained permanently RUNNING and their single-chunk postcondition was never checked.
+terminate_descendants() {
+    local pid="$1" target
+    local tree
+    tree="$(descendants "$pid")"
+    for target in $tree; do
+        kill "$target" >/dev/null 2>&1 || true
+    done
+    for _ in $(seq 1 40); do
+        local live=false
+        for target in $tree; do
+            if kill -0 "$target" >/dev/null 2>&1; then
+                live=true
+                break
+            fi
+        done
+        [[ "$live" == false ]] && return 0
+        sleep 0.25
+    done
+    for target in $tree; do
+        kill -0 "$target" >/dev/null 2>&1 && kill -9 "$target" >/dev/null 2>&1 || true
+    done
+}
+
 # A fatal JVM error does not end the process. Starsector's launcher passes
 # -XX:+ShowMessageBoxOnError, so HotSpot prints its report and then waits on stdin for a
 # RETURN that never comes. The result looks exactly like a slow load: process alive, low
@@ -472,7 +500,7 @@ launch_once() {
         profile)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
-                     --profile) ;;
+                     --profile --single-chunk-recording) ;;
         prepared)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
@@ -558,10 +586,11 @@ launch_once() {
     local deliberate_stop=false
     if [[ "$auto" == true ]]; then
         # The measurement ended at the marker above, so there is nothing left to observe.
-        # SIGTERM first, which runs the JVM shutdown hooks that dump any recording.
+        # SIGTERM the game tree first, which runs the JVM shutdown hooks that dump any recording,
+        # but keep the Preflight wrapper alive so it can validate that dump and close its receipt.
         note "Main menu reached; stopping the game."
         deliberate_stop=true
-        terminate "$pid"
+        terminate_descendants "$pid"
     else
         act "QUIT from the main menu now  (close the launcher if it reappears)"
     fi

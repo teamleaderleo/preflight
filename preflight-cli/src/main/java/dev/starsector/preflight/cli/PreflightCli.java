@@ -173,7 +173,7 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",
@@ -189,7 +189,14 @@ public final class PreflightCli {
                 "    --profile records execution sampling and blocking only, dropping the stack-traced"
                         + " class loads and file reads that make up most of that cost. Use it to ask"
                         + " where startup time goes: the full recording lands hardest on class loading,"
-                        + " so it cannot answer whether class loading is worth attacking."));
+                        + " so it cannot answer whether class loading is worth attacking.",
+                "    --single-chunk-recording gives JFR 256 MiB for one timestamp-coherent chunk and"
+                        + " disables periodic sidecar dumps, which themselves rotate chunks. Use it"
+                        + " when the order and timing of startup events matters. It spends extra memory"
+                        + " and gives up crash/force-quit sidecar recovery; --no-record is incompatible.",
+                "    --campaign-entity-index enables the experimental BaseLocation.getEntityById"
+                        + " index. It requires --adapter, fails open to the original method on every"
+                        + " miss, and is intended for live-campaign validation before default use."));
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));

@@ -28,6 +28,22 @@ public final class PreparedTextureIO {
     }
 
     public static PreparedTexture read(Path source) throws IOException {
+        return read(source, true);
+    }
+
+    /**
+     * Reads a blob from a trusted local cache without recomputing its payload checksum.
+     *
+     * <p>All format, length, dimension, channel, codec, and trailing-data checks still run. The
+     * only check omitted is the SHA-256 pass over the payload. This is intended for a latency-
+     * sensitive consumer of blobs written atomically by Preflight and referenced by a verified
+     * manifest. Tools that build, inspect, or validate a cache must use {@link #read(Path)}.
+     */
+    public static PreparedTexture readTrusted(Path source) throws IOException {
+        return read(source, false);
+    }
+
+    private static PreparedTexture read(Path source, boolean verifyChecksum) throws IOException {
         long size = Files.size(source);
         if (size < minimumFileBytes()) {
             throw new IOException("Prepared texture blob is too small: " + source);
@@ -35,7 +51,7 @@ public final class PreparedTextureIO {
         if (size > MAX_FILE_BYTES) {
             throw new IOException("Prepared texture blob exceeds the " + MAX_FILE_BYTES + " byte safety limit: " + source);
         }
-        return fromBytes(Files.readAllBytes(source));
+        return fromBytes(Files.readAllBytes(source), verifyChecksum);
     }
 
     public static byte[] toBytes(PreparedTexture texture) throws IOException {
@@ -58,6 +74,10 @@ public final class PreparedTextureIO {
     }
 
     public static PreparedTexture fromBytes(byte[] bytes) throws IOException {
+        return fromBytes(bytes, true);
+    }
+
+    private static PreparedTexture fromBytes(byte[] bytes, boolean verifyChecksum) throws IOException {
         if (bytes.length < minimumFileBytes()) {
             throw new IOException("Prepared texture blob is too small");
         }
@@ -83,7 +103,7 @@ public final class PreparedTextureIO {
             if (payload.length != payloadLength || checksum.length != CHECKSUM_BYTES) {
                 throw new EOFException("Prepared texture ended before its checksum");
             }
-            if (!MessageDigest.isEqual(checksum, Hashes.sha256Bytes(payload))) {
+            if (verifyChecksum && !MessageDigest.isEqual(checksum, Hashes.sha256Bytes(payload))) {
                 throw new IOException("Prepared texture checksum mismatch");
             }
             return decodePayload(payload);
