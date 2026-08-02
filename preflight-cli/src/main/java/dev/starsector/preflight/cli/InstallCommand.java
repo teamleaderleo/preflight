@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.EnumSet;
-import java.util.Map;
 import java.util.Set;
 
 final class InstallCommand {
@@ -29,9 +28,9 @@ final class InstallCommand {
             return RunCommand.doctor(options);
         }
 
-        Path installDirectory = home.resolve(".starsector-preflight").resolve("bin");
-        Files.createDirectories(installDirectory);
-        Path installedJar = installDirectory.resolve("preflight.jar");
+        PreflightHome preflight = PreflightHome.resolve(platform, home, System.getenv());
+        Path installedJar = preflight.installedJar();
+        Files.createDirectories(installedJar.getParent());
         Path sourceJar = SelfJar.locate();
         if (!sourceJar.equals(installedJar)) {
             Files.copy(
@@ -42,9 +41,9 @@ final class InstallCommand {
         }
 
         return switch (platform) {
-            case MAC -> installMac(home, installedJar, target.installRoot());
-            case LINUX -> installLinux(home, installedJar, target.installRoot());
-            case WINDOWS -> installWindows(home, installedJar, target.installRoot(), System.getenv());
+            case MAC -> installMac(preflight, installedJar, target.installRoot());
+            case LINUX -> installLinux(preflight, installedJar, target.installRoot());
+            case WINDOWS -> installWindows(preflight, installedJar, target.installRoot());
             case OTHER -> {
                 System.err.println("Automatic launcher installation is unsupported on this operating system. Use: java -jar "
                         + installedJar + " run --game " + target.installRoot());
@@ -53,8 +52,8 @@ final class InstallCommand {
         };
     }
 
-    private static int installMac(Path home, Path jar, Path game) throws IOException {
-        Path app = home.resolve("Applications").resolve("Starsector Preflight.app");
+    private static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
+        Path app = preflight.pathOf(PreflightHome.Id.MAC_APP);
         Path macos = app.resolve("Contents").resolve("MacOS");
         Files.createDirectories(macos);
         Path executable = macos.resolve("starsector-preflight");
@@ -86,10 +85,9 @@ final class InstallCommand {
         return 0;
     }
 
-    private static int installLinux(Path home, Path jar, Path game) throws IOException {
-        Path localBin = home.resolve(".local").resolve("bin");
-        Files.createDirectories(localBin);
-        Path launcher = localBin.resolve("starsector-preflight");
+    private static int installLinux(PreflightHome preflight, Path jar, Path game) throws IOException {
+        Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        Files.createDirectories(launcher.getParent());
         String script = "#!/bin/sh\nexec "
                 + shellQuote(javaExecutable())
                 + " -jar "
@@ -100,9 +98,8 @@ final class InstallCommand {
         Files.writeString(launcher, script, StandardCharsets.UTF_8);
         makeExecutable(launcher);
 
-        Path applications = home.resolve(".local").resolve("share").resolve("applications");
-        Files.createDirectories(applications);
-        Path desktop = applications.resolve("starsector-preflight.desktop");
+        Path desktop = preflight.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY);
+        Files.createDirectories(desktop.getParent());
         String desktopFile = "[Desktop Entry]\n"
                 + "Type=Application\n"
                 + "Name=Starsector Preflight\n"
@@ -115,17 +112,10 @@ final class InstallCommand {
         return 0;
     }
 
-    private static int installWindows(
-            Path home,
-            Path jar,
-            Path game,
-            Map<String, String> environment) throws IOException {
-        String localAppData = environment.get("LOCALAPPDATA");
-        Path directory = localAppData == null || localAppData.isBlank()
-                ? home.resolve("AppData").resolve("Local").resolve("Starsector Preflight")
-                : Path.of(localAppData).resolve("Starsector Preflight");
-        Files.createDirectories(directory);
-        Path command = directory.resolve("Starsector Preflight.cmd");
+    private static int installWindows(PreflightHome preflight, Path jar, Path game)
+            throws IOException {
+        Path command = preflight.pathOf(PreflightHome.Id.WINDOWS_COMMAND);
+        Files.createDirectories(preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY));
         String content = "@echo off\r\n\""
                 + javaExecutable()
                 + "\" -jar \""
