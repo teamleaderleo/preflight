@@ -518,6 +518,65 @@ A per-file SHA-256 memo keyed by path, size, and modification time would take al
 any launch where the install did not change, which is every launch except the one after a mod update.
 Tracked as its own issue, because it is worth more than any single one of the caches it gates.
 
+### The memo was the wrong fix, and the measurement says so
+
+The paragraph above proposed a per-file digest memo. Measuring before building it showed that
+hashing was never the dominant term, so the memo would have bought very little in exchange for the
+one guarantee these identities exist to provide.
+
+Attribution of the 1,612.6ms:
+
+| | ms |
+| --- | ---: |
+| five redundant reads of the same 8 MB resource index | ~540 |
+| hashing 12,797 files, serially | ~293 |
+| 12,797 `toRealPath` containment calls | ~87 |
+| per-provider digest work, plus JIT warm-up in a JVM that runs once and exits | remainder |
+
+The duplication was the cost. Six caches each read the same index, each hashed the same game jar, and
+each resolved every provider independently.
+
+Three measurements decide the memo:
+
+| | ms |
+| --- | ---: |
+| hash all 12,797 files, serially | 293 |
+| the same hashing across 8 workers | 90 |
+| bare `stat` on all 12,797 files -- the memo's floor | 25 |
+
+So the memo is worth about **65ms** over parallel hashing. What it costs is the ability to notice a
+mod update that changes a file's bytes without changing its length or timestamp -- which for the rule
+command class cache is the exact failure mode its identity was built to catch, written down in that
+builder's own class comment. 65ms does not buy that, and the memo was not built.
+
+What was built instead is duplication removal only, with nothing weakened: read the index once, hash
+the game jar once, memoise `toRealPath` per parent directory (12,797 providers live in 694
+directories), and hash in parallel while returning results in request order.
+
+| profile | before | after |
+| --- | ---: | ---: |
+| index read | ×6, inside the rows below | 124.3ms, once |
+| variant JSON | 588.7ms | 144.6ms |
+| weapon JSON | 330.2ms | 69.8ms |
+| projectile JSON | 207.4ms | 31.7ms |
+| hull JSON | 199.6ms | 62.0ms |
+| rules CSV | 116.2ms | 3.0ms |
+| rule command classes | 170.5ms | 16.2ms |
+| **total, before the JVM starts** | **1,612.6ms** | **451.6ms** |
+
+All six identities are byte-identical to the values recorded beforehand, checked against the real
+install, and the launch that produced the "after" column reported `hit` for all six. The rule command
+class arithmetic that read as a wash above now reads **16ms of hashing to save 165ms of loading**.
+
+Order is the whole safety argument for hashing in parallel. Callers feed these digests into a
+`MessageDigest` one after another, so a permuted result would silently change every identity and
+orphan every artifact already on disk. The test checks the parallel result against a serial
+reference rather than against a recorded constant, because a recorded constant would only prove the
+two agreed on the day it was written.
+
+The largest remaining item is the 124.3ms index read itself: 8 MB holding 61,691 providers, where
+the time is object construction rather than I/O.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
