@@ -206,6 +206,24 @@ class AgentInjectionTest {
     }
 
     @Test
+    void hullJsonCacheRequiresAndReachesTheEnabledAdapter() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, null, null, Path.of("cache", "profile.sphj"));
+
+        assertTrue(enabled.contains(",hullJsonCache64="), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, Path.of("cache", "profile.sphj")));
+    }
+
+    @Test
     void includesProbeReportAndTargetPaths() {
         String value = AgentInjection.append(
                 "",

@@ -237,6 +237,27 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact reviewed ship-hull loader used by the strict-profile merged-JSON cache. */
+    static AdapterTarget hullJsonCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-ship-hull-loader-0.98a-rc8-json-cache",
+                ShipHullLoaderPhasePlan.TARGET_CLASS,
+                "88264bcb82e626aeab0ad8cc5a3d210a95b225d0ca5e3329e7982425a12b355c",
+                HullJsonCacheRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LOAD_ALL_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LOAD_ONE_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget textureTarget(String id, String planId) {
         return new AdapterTarget(
                 id,
@@ -306,6 +327,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withProjectileJsonCacheTarget() {
         return withTarget(projectileJsonCacheTarget());
+    }
+
+    AdapterTargetRegistry withHullJsonCacheTarget() {
+        return withTarget(hullJsonCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

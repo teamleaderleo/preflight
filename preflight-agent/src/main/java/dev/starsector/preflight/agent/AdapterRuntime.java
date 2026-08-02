@@ -25,6 +25,7 @@ final class AdapterRuntime {
         VariantJsonCacheRuntime.beginSession();
         WeaponJsonCacheRuntime.beginSession();
         ProjectileJsonCacheRuntime.beginSession();
+        HullJsonCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         AdapterReport report = new AdapterReport(
@@ -68,6 +69,7 @@ final class AdapterRuntime {
             VariantJsonCacheRuntime.configure(options.variantJsonCache());
             WeaponJsonCacheRuntime.configure(options.weaponJsonCache());
             ProjectileJsonCacheRuntime.configure(options.projectileJsonCache());
+            HullJsonCacheRuntime.configure(options.hullJsonCache());
         }
 
         AdapterTargetRegistry registry;
@@ -93,6 +95,11 @@ final class AdapterRuntime {
                     registry = registry.withProjectileJsonCacheTarget();
                     report.diagnostic("Loaded the exact projectile JSON cache target ("
                             + ProjectileJsonCacheRuntime.status() + ")");
+                }
+                if (HullJsonCacheRuntime.ready()) {
+                    registry = registry.withHullJsonCacheTarget();
+                    report.diagnostic("Loaded the exact hull JSON cache target ("
+                            + HullJsonCacheRuntime.status() + ")");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "
