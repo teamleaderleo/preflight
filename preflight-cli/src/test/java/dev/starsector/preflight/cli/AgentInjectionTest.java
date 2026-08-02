@@ -170,6 +170,24 @@ class AgentInjectionTest {
     }
 
     @Test
+    void weaponJsonCacheRequiresAndReachesTheEnabledAdapter() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, Path.of("cache", "profile.spwj"));
+
+        assertTrue(enabled.contains(",weaponJsonCache64="), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, Path.of("cache", "profile.spwj")));
+    }
+
+    @Test
     void includesProbeReportAndTargetPaths() {
         String value = AgentInjection.append(
                 "",

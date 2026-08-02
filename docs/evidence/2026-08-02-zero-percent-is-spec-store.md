@@ -112,6 +112,24 @@ vanilla object hydration and loop/logging overhead. As with variants, the safe s
 only the pure merged representation and leave duplicate gates, script registration, concrete weapon
 construction, and registry mutation on the original thread in their original order.
 
+A cold/warm exact-profile pair then consumed that boundary. The cold run captured 2,921 merged JSON
+values after vanilla produced them and published one 2.2 MiB checksummed artifact only after the full
+weapon loader returned normally. The warm run reconstructed a fresh `JSONObject` for every hit and
+kept 156 paths on the original loader:
+
+| boundary | cold learning | warm cache | change |
+| --- | ---: | ---: | ---: |
+| weapon-definition loader | 3.338s | **0.998s** | **-2.340s** |
+| merged JSON operation | 2.516s | **0.365s** | **-2.151s** |
+| script registration | 13ms | 19ms | noise |
+| registry insertion | 8ms | 7ms | noise |
+
+The narrow weapon dependency selector hashes the exact game JAR and every ordered `.wpn` provider
+under `data/weapons/` and `data/shipsystems/wpn/`. It took 322ms on the warm run, making the measured
+net launch improvement roughly 2.0 seconds. The identity names the artifact, so different mod
+profiles coexist and any relevant content, provider-order, or game-version change selects a new
+learning artifact instead of reusing stale data.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -205,6 +223,8 @@ The three run directories were:
 - `specstore-attribution-20260802` — 41 per-loader timings, vanilla audio
 - `variant-attribution-2-20260802` — aggregate variant merge/construct/register/post-pass timings
 - `20260802-040845-699-516fb794` — aggregate weapon merge/script/register timings
+- `20260802-042118-653-6bcc3fae` — cold weapon JSON learning run
+- `20260802-042235-465-fe4d1ef1` — warm weapon JSON cache run
 
 Command shape:
 

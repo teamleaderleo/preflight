@@ -25,6 +25,7 @@ record AgentOptions(
         Duration flushInterval,
         boolean startupPhaseProbe,
         Path variantJsonCache,
+        Path weaponJsonCache,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -95,6 +96,7 @@ record AgentOptions(
         Duration flushInterval = flushInterval(values.get("flush"));
         boolean startupPhaseProbe = "on".equalsIgnoreCase(values.get("startupPhases"));
         Path variantJsonCache = decodedPath(values, "variantJsonCache64");
+        Path weaponJsonCache = decodedPath(values, "weaponJsonCache64");
         return new AgentOptions(
                 destination,
                 settings,
@@ -110,6 +112,7 @@ record AgentOptions(
                 flushInterval,
                 startupPhaseProbe,
                 variantJsonCache,
+                weaponJsonCache,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 
