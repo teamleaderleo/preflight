@@ -22,6 +22,7 @@ final class AdapterRuntime {
         TextureCompatibilityRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
+        VariantJsonCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         AdapterReport report = new AdapterReport(
@@ -62,6 +63,7 @@ final class AdapterRuntime {
                     options.textureCacheDirectory(),
                     options.textureManifest(),
                     options.textureIndex());
+            VariantJsonCacheRuntime.configure(options.variantJsonCache());
         }
 
         AdapterTargetRegistry registry;
@@ -72,6 +74,11 @@ final class AdapterRuntime {
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
                     report.diagnostic("Loaded the exact ResourceLoaderState and SpecStore startup-phase probe targets");
+                }
+                if (VariantJsonCacheRuntime.ready()) {
+                    registry = registry.withVariantJsonCacheTarget();
+                    report.diagnostic("Loaded the exact SpecStore variant JSON cache target ("
+                            + VariantJsonCacheRuntime.status() + ")");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "

@@ -49,10 +49,21 @@ final class AdapterTransformationRegistry {
             try {
                 byte[] variantPhases = VariantLoaderPhasePlan.transform(
                         ClassSignature.parse(specStore), specStore);
-                return variantPhases == null ? specStore : variantPhases;
+                byte[] attributed = variantPhases == null ? specStore : variantPhases;
+                if (!VariantJsonCacheRuntime.ready()) {
+                    return attributed;
+                }
+                byte[] cached = VariantJsonCachePlan.transform(
+                        ClassSignature.parse(attributed), attributed);
+                return cached == null ? attributed : cached;
             } catch (java.io.IOException ignored) {
                 return specStore;
             }
+        }
+        if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return VariantJsonCacheRuntime.ready()
+                    ? VariantJsonCachePlan.transform(signature, originalBytes)
+                    : null;
         }
         return null;
     }
@@ -110,6 +121,9 @@ final class AdapterTransformationRegistry {
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(planId)) {
             return true;
+        }
+        if (VariantJsonCacheRuntime.PLAN_ID.equals(planId)) {
+            return VariantJsonCacheRuntime.ready();
         }
         return false;
     }

@@ -24,6 +24,7 @@ record AgentOptions(
         RecordingMode recordingMode,
         Duration flushInterval,
         boolean startupPhaseProbe,
+        Path variantJsonCache,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -93,6 +94,7 @@ record AgentOptions(
         // a sidecar as the run goes, so a force-quit or a crash still leaves something to read.
         Duration flushInterval = flushInterval(values.get("flush"));
         boolean startupPhaseProbe = "on".equalsIgnoreCase(values.get("startupPhases"));
+        Path variantJsonCache = decodedPath(values, "variantJsonCache64");
         return new AgentOptions(
                 destination,
                 settings,
@@ -107,6 +109,7 @@ record AgentOptions(
                 recordingMode,
                 flushInterval,
                 startupPhaseProbe,
+                variantJsonCache,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

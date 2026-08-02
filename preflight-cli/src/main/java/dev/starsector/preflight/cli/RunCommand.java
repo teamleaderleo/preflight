@@ -1,6 +1,9 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.ClasspathProfileIndex;
 import dev.starsector.preflight.core.Json;
+import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.ResourceIndexIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +40,7 @@ final class RunCommand {
             return 3;
         }
         TextureLaunchContext textureContext = textureContext(options, target);
+        VariantJsonCacheContext variantJsonCache = variantJsonCacheContext(options, target, textureContext);
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -67,7 +71,8 @@ final class RunCommand {
                 options.unpadded(),
                 options.singleChunkRecording(),
                 options.campaignEntityIndex(),
-                options.startupPhaseProbe());
+                options.startupPhaseProbe(),
+                variantJsonCache == null ? null : variantJsonCache.artifact());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -535,6 +540,43 @@ final class RunCommand {
                 0);
     }
 
+    private static VariantJsonCacheContext variantJsonCacheContext(
+            CommandLine options,
+            LaunchTarget target,
+            TextureLaunchContext textures) {
+        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
+                || textures == null || !textures.automatic()) {
+            return null;
+        }
+        long started = System.nanoTime();
+        try {
+            ResourceIndex resources = ResourceIndexIO.read(textures.index());
+            ClasspathIndexBuilder.Result classpathBuild = ClasspathIndexBuilder.build(
+                    target.installRoot(), textures.cacheDirectory());
+            if (!classpathBuild.profileWritten() || classpathBuild.failedArchives() != 0) {
+                System.err.println("Preflight variant JSON cache is unavailable because the current classpath "
+                        + "profile could not be indexed exactly; vanilla loading remains active.");
+                return null;
+            }
+            ClasspathProfileIndex classpath = classpathBuild.profile();
+            String identity = SpecStoreProfileIdentityBuilder.build(
+                    target.installRoot(), resources, classpath).identity().identitySha256();
+            Path artifact = textures.cacheDirectory()
+                    .resolve("spec-store/variant-json")
+                    .resolve(identity + ".spvj")
+                    .toAbsolutePath().normalize();
+            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
+            System.out.printf(Locale.ROOT,
+                    "Preflight matched variant JSON cache profile %s in %.1fms (%s).%n",
+                    identity, durationMillis, Files.isRegularFile(artifact) ? "hit" : "learning run");
+            return new VariantJsonCacheContext(artifact);
+        } catch (Exception error) {
+            System.err.println("Preflight variant JSON cache selection failed: " + message(error)
+                    + "; vanilla loading remains active.");
+            return null;
+        }
+    }
+
     private record TextureLaunchContext(
             Path cacheDirectory,
             Path manifest,
@@ -545,5 +587,8 @@ final class RunCommand {
             String indexSha256,
             long checkedProviders,
             double indexBuildMillis) {
+    }
+
+    private record VariantJsonCacheContext(Path artifact) {
     }
 }

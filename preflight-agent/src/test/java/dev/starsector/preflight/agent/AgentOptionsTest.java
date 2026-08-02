@@ -25,6 +25,7 @@ class AgentOptionsTest {
         assertNull(options.textureManifest());
         assertNull(options.textureIndex());
         assertEquals(TextureAdapterMode.COMPATIBILITY, options.textureAdapterMode());
+        assertNull(options.variantJsonCache());
     }
 
     @Test
@@ -112,6 +113,13 @@ class AgentOptionsTest {
     void startupPhaseProbeIsExplicitlyOptIn() {
         assertFalse(AgentOptions.parse("adapter=enabled").startupPhaseProbe());
         assertTrue(AgentOptions.parse("adapter=enabled,startupPhases=on").startupPhaseProbe());
+    }
+
+    @Test
+    void parsesVariantJsonCacheArtifact() {
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,variantJsonCache64=" + encoded("build/cache/profile.spvj"));
+        assertEquals(Path.of("build/cache/profile.spvj"), options.variantJsonCache());
     }
 
     private static String encoded(String value) {
