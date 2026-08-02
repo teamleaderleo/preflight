@@ -71,6 +71,34 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /**
+     * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
+     * graphics jar every other target lives in.
+     *
+     * <p>{@code BaseLocation} implements {@code com.fs.util.DoNotObfuscate}, so its name and members
+     * survive a rebuild that renames everything around them. The class hash is still pinned like
+     * every other target -- a stable name is not a stable body.
+     */
+    static AdapterTarget campaignEntityIndexTarget() {
+        return new AdapterTarget(
+                "vanilla-base-location-0.98a-rc8-entity-index",
+                EntityLookupPlan.TARGET_CLASS,
+                "ab16080b8c40d8f61d522089f3c3696fe3b7c8d8f8b287f9c12a47fa449bae24",
+                EntityLookupRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                EntityLookupPlan.LOOKUP_METHOD, EntityLookupPlan.LOOKUP_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                EntityLookupPlan.ENTITIES_METHOD, EntityLookupPlan.ENTITIES_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                EntityLookupPlan.OBJECTS_METHOD, EntityLookupPlan.OBJECTS_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget textureTarget(String id, String planId) {
         return new AdapterTarget(
                 id,
@@ -114,13 +142,23 @@ final class AdapterTargetRegistry {
         return withTarget(textureCompatibilityTarget());
     }
 
+    /**
+     * Registered unconditionally with the texture targets, because the rewrite it installs is inert
+     * until {@code preflight.campaign.entityIndex} is set. Weaving it costs one wrapper on one
+     * method; not weaving it means the property can never take effect.
+     */
+    AdapterTargetRegistry withCampaignEntityIndexTarget() {
+        return withTarget(campaignEntityIndexTarget());
+    }
+
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
         // Both cache-backed modes read through the same manifest, so both want the prefetcher to
         // stop queueing what that manifest can serve.
         return withTarget(mode == TextureAdapterMode.PREPARED_PIXELS
                 ? texturePreparedPixelTarget()
                 : textureCompatibilityTarget())
-                .withTarget(texturePrefetchBypassTarget());
+                .withTarget(texturePrefetchBypassTarget())
+                .withTarget(campaignEntityIndexTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {
