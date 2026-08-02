@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""How many distinct expression strings does a rules.csv profile actually contain?
+
+The campaign-rules loader constructs one expression object per non-empty line of the
+`conditions` and `script` columns of every merged rule. The exact-profile probe measured
+62,340 such constructions taking 1.575s on this install. An in-process memo is only worth
+building if those 62,340 strings collapse to far fewer distinct ones, so count them.
+
+Reads only what the game reads: core `data/campaign/rules.csv` plus the same file from every
+enabled mod, in enabled_mods.json order, merged by `id` with later providers winning.
+"""
+import csv
+import re
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+INSTALL = Path("/Applications/Starsector.app")
+CORE = INSTALL / "Contents/Resources/Java"
+MODS = INSTALL / "mods"
+RULES = "data/campaign/rules.csv"
+
+
+def enabled_mod_dirs():
+    enabled = json.loads((MODS / "enabled_mods.json").read_text())["enabledMods"]
+    by_id = {}
+    for entry in sorted(MODS.iterdir()):
+        info = entry / "mod_info.json"
+        if not info.is_file():
+            continue
+        raw = info.read_text(encoding="utf-8", errors="replace")
+        # mod_info.json is JSON5-ish in the wild: the key may be bare or quoted.
+        match = re.search(r'^\s*"?id"?\s*:\s*"([^"]*)"', raw, re.MULTILINE)
+        if match:
+            by_id.setdefault(match.group(1), entry)
+    missing = [m for m in enabled if m not in by_id]
+    return [by_id[m] for m in enabled if m in by_id], missing
+
+
+def read_rows(path):
+    with path.open(newline="", encoding="utf-8", errors="replace") as handle:
+        return [row for row in csv.DictReader(handle)]
+
+
+def expressions(value):
+    if not value:
+        return []
+    return [line.strip() for line in value.replace("\r", "").split("\n") if line.strip()]
+
+
+def main():
+    dirs, missing = enabled_mod_dirs()
+    providers = [CORE / RULES] + [d / RULES for d in dirs]
+    providers = [p for p in providers if p.is_file()]
+
+    merged = {}
+    order = []
+    provider_rows = 0
+    for provider in providers:
+        for row in read_rows(provider):
+            rule_id = (row.get("id") or "").strip()
+            if not rule_id or rule_id.startswith("#"):
+                continue
+            provider_rows += 1
+            if rule_id not in merged:
+                order.append(rule_id)
+            merged[rule_id] = row
+
+    total = Counter()
+    for rule_id in order:
+        row = merged[rule_id]
+        for column in ("conditions", "script"):
+            for expression in expressions(row.get(column)):
+                total[expression] += 1
+
+    occurrences = sum(total.values())
+    distinct = len(total)
+    print(f"enabled mods:            {len(dirs)} ({len(missing)} unresolved: {missing})")
+    print(f"rules.csv providers:     {len(providers)}")
+    print(f"rows across providers:   {provider_rows}")
+    print(f"merged rules:            {len(merged)}")
+    print(f"expression constructions:{occurrences}")
+    print(f"distinct expressions:    {distinct}")
+    if occurrences:
+        print(f"collapse ratio:          {occurrences / distinct:.2f}x")
+        repeated = occurrences - distinct
+        print(f"constructions avoidable: {repeated} ({100.0 * repeated / occurrences:.1f}%)")
+    lengths = sum(len(e) * c for e, c in total.items())
+    print(f"characters scanned:      {lengths}")
+    print(f"characters if memoized:  {sum(len(e) for e in total)}")
+    print()
+    print("most repeated expressions:")
+    for expression, count in total.most_common(25):
+        shown = expression if len(expression) <= 70 else expression[:67] + "..."
+        print(f"  {count:6d}  {shown}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())
