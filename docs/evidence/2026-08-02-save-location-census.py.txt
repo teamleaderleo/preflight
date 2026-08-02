@@ -1,0 +1,37 @@
+import xml.etree.ElementTree as ET, collections, sys
+
+path = sys.argv[1]
+stack = []           # open element tags
+saved_stack = []     # (depth_of_saved, counter, owner_tag)
+counts = []
+kinds = collections.Counter()
+
+for event, elem in ET.iterparse(path, events=("start", "end")):
+    if event == "start":
+        if saved_stack and len(stack) == saved_stack[-1][0] + 1:
+            saved_stack[-1][1][0] += 1
+            kinds[elem.tag] += 1
+        if elem.tag == "saved":
+            # owner: the element two levels up (<o> lives inside the location)
+            owner = stack[-2] if len(stack) >= 2 else "?"
+            saved_stack.append((len(stack), [0], owner))
+        stack.append(elem.tag)
+    else:
+        stack.pop()
+        if saved_stack and elem.tag == "saved" and len(stack) == saved_stack[-1][0]:
+            d, c, owner = saved_stack.pop()
+            counts.append((c[0], owner))
+        elem.clear()
+
+counts.sort(reverse=True)
+print("repositories:", len(counts), " total objects:", sum(c for c, _ in counts))
+print("\ntop 30 by size:")
+for c, owner in counts[:30]:
+    print("  %6d  %s" % (c, owner))
+sizes = [c for c, _ in counts]
+n = len(sizes)
+print("\nmax %d  p95 %d  median %d  mean %.1f" % (sizes[0], sizes[int(n*0.05)], sizes[n//2], sum(sizes)/n))
+by_owner = collections.Counter()
+for c, owner in counts: by_owner[owner] += 1
+print("\nowners:", by_owner.most_common(12))
+print("\ntop object kinds:", kinds.most_common(12))

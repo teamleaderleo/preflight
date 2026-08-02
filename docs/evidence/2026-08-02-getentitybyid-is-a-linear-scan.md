@@ -5,6 +5,25 @@
 **Save:** `save_LindseyEulalia_7487418333814238931`, 42.7 MB, Cycle 206
 **Recording:** `jcmd <pid> JFR.dump` taken while the game was live, after the save had loaded
 **Status:** measured with real execution samples, and the mechanism confirmed from bytecode.
+**Superseded in part** -- see the correction below.
+
+> ## Correction, same day
+>
+> This document identifies the right method and the right profile, and then names the wrong cost.
+> It says the expense is the O(1) map lookup validated by an O(n) `List.contains`. **That is only
+> the first half of the method.** `getEntityById` also has a *fallback*, reached on any failure of
+> the fast path including a plain map miss, which linearly scans every entity in the location and
+> allocates two lowercased `String`s per entity -- and `CampaignEngine.getEntityById` runs that
+> fallback over hyperspace and then over every star system in turn. A failed lookup scans the whole
+> sector. Measured at **1.49 ms** on a 100 MB save.
+>
+> The `contains` scan described below is real and was measured at 282 ns on hyperspace, but it is
+> two orders of magnitude smaller than the fallback it sits in front of. The mechanism, the sizes
+> counted from the saves, and the costs are in
+> [a failed lookup scans the sector](2026-08-02-a-failed-lookup-scans-the-sector.md).
+>
+> Cause of the error: the disassembly was read to the first `areturn` rather than to the end of the
+> method.
 
 This is the first thing this project has measured that is **not** load time. It was found while
 trying to profile a save load, and it is a bigger result than the thing it was looking for.
