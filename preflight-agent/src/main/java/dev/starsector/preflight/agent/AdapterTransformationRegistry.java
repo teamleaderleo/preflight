@@ -44,7 +44,17 @@ final class AdapterTransformationRegistry {
             }
             byte[] specStore = SpecStorePhasePlan.transform(signature, originalBytes);
             if (specStore == null) {
-                return WeaponLoaderPhasePlan.transform(signature, originalBytes);
+                byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
+                if (weaponPhases == null || !WeaponJsonCacheRuntime.ready()) {
+                    return weaponPhases;
+                }
+                try {
+                    byte[] cached = WeaponJsonCachePlan.transform(
+                            ClassSignature.parse(weaponPhases), weaponPhases);
+                    return cached == null ? weaponPhases : cached;
+                } catch (java.io.IOException ignored) {
+                    return weaponPhases;
+                }
             }
             try {
                 byte[] variantPhases = VariantLoaderPhasePlan.transform(
@@ -63,6 +73,11 @@ final class AdapterTransformationRegistry {
         if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
             return VariantJsonCacheRuntime.ready()
                     ? VariantJsonCachePlan.transform(signature, originalBytes)
+                    : null;
+        }
+        if (WeaponJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return WeaponJsonCacheRuntime.ready()
+                    ? WeaponJsonCachePlan.transform(signature, originalBytes)
                     : null;
         }
         return null;
@@ -124,6 +139,9 @@ final class AdapterTransformationRegistry {
         }
         if (VariantJsonCacheRuntime.PLAN_ID.equals(planId)) {
             return VariantJsonCacheRuntime.ready();
+        }
+        if (WeaponJsonCacheRuntime.PLAN_ID.equals(planId)) {
+            return WeaponJsonCacheRuntime.ready();
         }
         return false;
     }

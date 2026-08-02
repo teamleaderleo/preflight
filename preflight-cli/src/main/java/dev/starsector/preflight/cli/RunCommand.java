@@ -40,6 +40,7 @@ final class RunCommand {
         }
         TextureLaunchContext textureContext = textureContext(options, target);
         VariantJsonCacheContext variantJsonCache = variantJsonCacheContext(options, target, textureContext);
+        WeaponJsonCacheContext weaponJsonCache = weaponJsonCacheContext(options, target, textureContext);
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -71,7 +72,8 @@ final class RunCommand {
                 options.singleChunkRecording(),
                 options.campaignEntityIndex(),
                 options.startupPhaseProbe(),
-                variantJsonCache == null ? null : variantJsonCache.artifact());
+                variantJsonCache == null ? null : variantJsonCache.artifact(),
+                weaponJsonCache == null ? null : weaponJsonCache.artifact());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -574,6 +576,41 @@ final class RunCommand {
         }
     }
 
+    private static WeaponJsonCacheContext weaponJsonCacheContext(
+            CommandLine options,
+            LaunchTarget target,
+            TextureLaunchContext textures) {
+        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
+                || textures == null || !textures.automatic()) {
+            return null;
+        }
+        long started = System.nanoTime();
+        try {
+            ResourceIndex resources = ResourceIndexIO.read(textures.index());
+            WeaponJsonProfileIdentityBuilder.Result profile =
+                    WeaponJsonProfileIdentityBuilder.build(target.installRoot(), resources);
+            String identity = profile.identitySha256();
+            Path artifact = textures.cacheDirectory()
+                    .resolve("spec-store/weapon-json")
+                    .resolve(identity + ".spwj")
+                    .toAbsolutePath().normalize();
+            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
+            System.out.printf(Locale.ROOT,
+                    "Preflight matched weapon JSON dependency profile %s in %.1fms "
+                            + "(%d paths, %d providers, %s).%n",
+                    identity,
+                    durationMillis,
+                    profile.logicalPaths(),
+                    profile.providerCount(),
+                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+            return new WeaponJsonCacheContext(artifact);
+        } catch (Exception error) {
+            System.err.println("Preflight weapon JSON cache selection failed: " + message(error)
+                    + "; vanilla loading remains active.");
+            return null;
+        }
+    }
+
     private record TextureLaunchContext(
             Path cacheDirectory,
             Path manifest,
@@ -587,5 +624,8 @@ final class RunCommand {
     }
 
     private record VariantJsonCacheContext(Path artifact) {
+    }
+
+    private record WeaponJsonCacheContext(Path artifact) {
     }
 }
