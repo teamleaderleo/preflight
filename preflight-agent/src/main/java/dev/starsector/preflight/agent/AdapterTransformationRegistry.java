@@ -55,12 +55,17 @@ final class AdapterTransformationRegistry {
                             // attribution so the probe still sees a tokenize call to wrap.
                             byte[] expressionPhases =
                                     RuleExpressionPhasePlan.transform(signature, originalBytes);
-                            return ruleTokenCache(
+                            byte[] memoised = ruleTokenCache(
                                     expressionPhases == null ? originalBytes : expressionPhases,
                                     expressionPhases);
+                            byte[] shortcut = ruleCommandClassLookup(
+                                    memoised == null ? originalBytes : memoised);
+                            return shortcut == null ? memoised : shortcut;
                         }
                         byte[] optimized = rulesOptimizations(rulesPhases);
-                        return optimized == null ? rulesPhases : optimized;
+                        byte[] rules = optimized == null ? rulesPhases : optimized;
+                        byte[] published = ruleCommandClassPublish(rules);
+                        return published == null ? rules : published;
                     }
                     if (!HullJsonCacheRuntime.ready()) {
                         return hullPhases;
@@ -118,6 +123,17 @@ final class AdapterTransformationRegistry {
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
+        }
+        // Two classes share this plan: the expression class carries the shortcut, the rules loader
+        // carries the publish. Only one of them can match any given signature.
+        if (RuleCommandClassCacheRuntime.PLAN_ID.equals(target.planId())) {
+            if (!RuleCommandClassCacheRuntime.ready()) {
+                return null;
+            }
+            byte[] shortcut = RuleCommandClassCachePlan.transform(signature, originalBytes);
+            return shortcut != null
+                    ? shortcut
+                    : RuleCommandClassCachePlan.transformLoader(signature, originalBytes);
         }
         return null;
     }
@@ -191,6 +207,36 @@ final class AdapterTransformationRegistry {
         } catch (Throwable ignored) {
             // The attribution rewrite is already valid; losing the memo is the safe direction.
             return attributed;
+        }
+    }
+
+    /** Chains the command-name shortcut onto an expression class that may already be rewritten. */
+    private static byte[] ruleCommandClassLookup(byte[] current) {
+        if (!RuleCommandClassCacheRuntime.ready()) {
+            return null;
+        }
+        try {
+            return RuleCommandClassCachePlan.transform(ClassSignature.parse(current), current);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Losing the shortcut leaves vanilla's walk, which is the safe direction.
+            return null;
+        }
+    }
+
+    /** Chains the learning run's publish onto a rules loader that may already be rewritten. */
+    private static byte[] ruleCommandClassPublish(byte[] current) {
+        if (!RuleCommandClassCacheRuntime.ready()) {
+            return null;
+        }
+        try {
+            return RuleCommandClassCachePlan.transformLoader(ClassSignature.parse(current), current);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Without the publish the run simply learns nothing durable.
+            return null;
         }
     }
 
@@ -268,6 +314,9 @@ final class AdapterTransformationRegistry {
         }
         if (RuleTokenCacheRuntime.PLAN_ID.equals(planId)) {
             return RuleTokenCacheRuntime.ready();
+        }
+        if (RuleCommandClassCacheRuntime.PLAN_ID.equals(planId)) {
+            return RuleCommandClassCacheRuntime.ready();
         }
         return false;
     }

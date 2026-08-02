@@ -44,6 +44,8 @@ final class RunCommand {
         ProjectileJsonCacheContext projectileJsonCache = projectileJsonCacheContext(options, target, textureContext);
         HullJsonCacheContext hullJsonCache = hullJsonCacheContext(options, target, textureContext);
         RulesCsvCacheContext rulesCsvCache = rulesCsvCacheContext(options, target, textureContext);
+        RuleCommandCacheContext ruleCommandCache =
+                ruleCommandCacheContext(options, target, textureContext);
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -80,7 +82,8 @@ final class RunCommand {
                 projectileJsonCache == null ? null : projectileJsonCache.artifact(),
                 hullJsonCache == null ? null : hullJsonCache.artifact(),
                 rulesCsvCache == null ? null : rulesCsvCache.artifact(),
-                options.ruleTokenCache());
+                options.ruleTokenCache(),
+                ruleCommandCache == null ? null : ruleCommandCache.artifact());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -357,6 +360,7 @@ final class RunCommand {
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
         System.out.println("  startup phase probe: " + options.startupPhaseProbe());
         System.out.println("  rule token cache: " + options.ruleTokenCache());
+        System.out.println("  rule command class cache: " + options.ruleCommandClassCache());
         System.out.println("  launch: " + (directSettings == null
                 ? "launcher UI"
                 : "direct " + directSettings.resolution()
@@ -478,6 +482,7 @@ final class RunCommand {
         values.put("campaignEntityIndex", options.campaignEntityIndex());
         values.put("startupPhaseProbe", options.startupPhaseProbe());
         values.put("ruleTokenCache", options.ruleTokenCache());
+        values.put("ruleCommandClassCache", options.ruleCommandClassCache());
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
         values.put("adapterMode", options.adapterMode());
@@ -690,6 +695,43 @@ final class RunCommand {
         }
     }
 
+    private static RuleCommandCacheContext ruleCommandCacheContext(
+            CommandLine options,
+            LaunchTarget target,
+            TextureLaunchContext textures) {
+        if (!options.ruleCommandClassCache()
+                || options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
+                || textures == null || !textures.automatic()) {
+            return null;
+        }
+        long started = System.nanoTime();
+        try {
+            ResourceIndex resources = ResourceIndexIO.read(textures.index());
+            RuleCommandClassProfileIdentityBuilder.Result profile =
+                    RuleCommandClassProfileIdentityBuilder.build(target.installRoot(), resources);
+            String identity = profile.identitySha256();
+            Path artifact = textures.cacheDirectory()
+                    .resolve("spec-store/rule-command-classes")
+                    .resolve(identity + ".sprk")
+                    .toAbsolutePath().normalize();
+            double durationMillis = (System.nanoTime() - started) / 1_000_000.0;
+            System.out.printf(Locale.ROOT,
+                    "Preflight matched rule command class profile %s in %.1fms "
+                            + "(%d settings.json providers, %d jars, %.1f MB, %s).%n",
+                    identity,
+                    durationMillis,
+                    profile.settingsProviderCount(),
+                    profile.jarCount(),
+                    profile.jarBytes() / 1_048_576.0,
+                    Files.isRegularFile(artifact) ? "hit" : "learning run");
+            return new RuleCommandCacheContext(artifact);
+        } catch (Exception error) {
+            System.err.println("Preflight rule command class cache selection failed: " + message(error)
+                    + "; vanilla resolution remains active.");
+            return null;
+        }
+    }
+
     private static RulesCsvCacheContext rulesCsvCacheContext(
             CommandLine options,
             LaunchTarget target,
@@ -749,5 +791,8 @@ final class RunCommand {
     }
 
     private record RulesCsvCacheContext(Path artifact) {
+    }
+
+    private record RuleCommandCacheContext(Path artifact) {
     }
 }
