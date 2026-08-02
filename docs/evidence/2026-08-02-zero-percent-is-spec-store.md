@@ -371,8 +371,36 @@ shape matters more than it looks. The handle is resolved by the JVM at that call
 `invokestatic` it replaces was, so the runtime always has vanilla to fall back to and never guesses
 at a class loader, and a build that no longer offers that method fails to link there rather than
 silently losing its tokenizer. The rewrite adds two instructions and no branches, so the method
-keeps its original stack map -- which matters on a class whose obfuscated field names a modern
-verifier refuses to load.
+keeps its original stack map and needs no extra locals.
+
+### How this differs from the prepared-artifact caches
+
+Worth stating explicitly, because the two shapes are easy to confuse. The variant, weapon,
+projectile, hull, and rules-CSV caches all share one technique: spill the call's arguments into
+fresh locals, ask the runtime for a prepared value, branch past vanilla on a hit, and capture after
+vanilla on a miss. They all rewrite with `COMPUTE_FRAMES`, which is safe here because
+`SafeClassWriter` answers every supertype question with `java/lang/Object` without loading a class.
+
+The tokenizer memo does not use that technique, and the reason is the shape of the work rather than
+any safety limit:
+
+| | prepared-artifact caches | tokenizer memo |
+| --- | --- | --- |
+| calls per launch | 1 to a few thousand | 62,340 |
+| payload | one merged CSV, thousands of merged JSON documents | a handful of tokens |
+| where the repeats are | across launches | **within one launch** |
+| what removes the work | a content-keyed artifact on disk | a map in the process |
+| invalidation surface | game JAR, ordered providers, schema version | none |
+
+Half the tokenizer's calls repeat inside a single launch, so an in-process map captures that half
+with no artifact, no identity key, and nothing that can go stale. Persisting it was considered and
+not built: it would reach the other 51%, but it would also mean deserializing 31,614 token shapes
+and hashing a provider set at startup to earn a saving of the same order, and it would put a
+staleness surface in front of a function that currently cannot be wrong.
+
+Nothing about `COMPUTE_FRAMES` or branching was avoided for safety. A branch-free rewrite is simply
+smaller for a call of this shape, and it leaves the original frames as narrow as vanilla wrote them
+rather than widening them to `Object`.
 
 The equivalence argument is narrow and checkable: `tokenize` reads only its argument, and every
 token it emits is `new Misc$Token(String, TokenType)` with no later field write anywhere in the

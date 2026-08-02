@@ -18,8 +18,13 @@ import org.objectweb.asm.tree.MethodNode;
  * {@link RuleTokenCacheRuntime}.
  *
  * <p>The rewrite is one instruction wide and adds no branches, so the method keeps its original
- * stack map and needs no frame recomputation on a class whose obfuscated field names a modern
- * verifier will not load. Two constants are pushed ahead of the replaced call:
+ * stack map, needs no extra locals, and needs no frame recomputation. That is a simplicity choice
+ * rather than a safety requirement: {@link SafeClassWriter} answers every supertype question with
+ * {@code java/lang/Object} without loading anything, so {@code COMPUTE_FRAMES} is available here and
+ * every prepared-artifact plan in this package uses it. It is not needed for a call this shape, and
+ * skipping it leaves the original frames exactly as narrow as vanilla wrote them.
+ *
+ * <p>Two constants are pushed ahead of the replaced call:
  *
  * <ul>
  *   <li>a {@code MethodHandle} constant for {@code Misc.tokenize(String)}, which the JVM resolves at
