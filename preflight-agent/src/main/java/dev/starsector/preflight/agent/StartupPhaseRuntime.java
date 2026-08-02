@@ -19,6 +19,7 @@ public final class StartupPhaseRuntime {
     static final String PLAN_ID = "startup-phase-probe-v1";
     private static final int MAX_PHASES = 64;
     private static final int MAX_PLUGINS = 128;
+    private static final int MAX_SPEC_LOADERS = 64;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
     private static Path destination;
@@ -29,8 +30,11 @@ public final class StartupPhaseRuntime {
     private static String writeProblem;
     private static final List<Map<String, Object>> phases = new ArrayList<>();
     private static final List<Map<String, Object>> plugins = new ArrayList<>();
+    private static final List<Map<String, Object>> specLoaders = new ArrayList<>();
     private static String activePlugin;
     private static long activePluginNanos;
+    private static String activeSpecLoader;
+    private static long activeSpecLoaderNanos;
     private static long progressCalls;
     private static int lastProgressPermille;
     private static int nextProgressMilestone;
@@ -47,8 +51,11 @@ public final class StartupPhaseRuntime {
         writeProblem = null;
         phases.clear();
         plugins.clear();
+        specLoaders.clear();
         activePlugin = null;
         activePluginNanos = 0L;
+        activeSpecLoader = null;
+        activeSpecLoaderNanos = 0L;
         progressCalls = 0L;
         lastProgressPermille = -1;
         nextProgressMilestone = 0;
@@ -124,6 +131,37 @@ public final class StartupPhaseRuntime {
         }
     }
 
+    /** Starts timing one top-level loader called by {@code SpecStore}. */
+    public static synchronized void specLoaderStart(String label) {
+        try {
+            long now = System.nanoTime();
+            if (activeSpecLoader != null && specLoaders.size() < MAX_SPEC_LOADERS) {
+                specLoaders.add(specLoaderTiming(
+                        activeSpecLoader, activeSpecLoaderNanos, now, false));
+            }
+            activeSpecLoader = label == null ? "<null>" : label;
+            activeSpecLoaderNanos = now;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Completes the top-level {@code SpecStore} loader timing without adding file I/O to it. */
+    public static synchronized void specLoaderEnd() {
+        try {
+            if (activeSpecLoader != null && specLoaders.size() < MAX_SPEC_LOADERS) {
+                specLoaders.add(specLoaderTiming(
+                        activeSpecLoader, activeSpecLoaderNanos, System.nanoTime(), true));
+            }
+            activeSpecLoader = null;
+            activeSpecLoaderNanos = 0L;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+        }
+    }
+
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("installed", installed);
@@ -131,7 +169,9 @@ public final class StartupPhaseRuntime {
         output.put("startedAt", startedAt);
         output.put("phases", List.copyOf(phases));
         output.put("plugins", List.copyOf(plugins));
+        output.put("specLoaders", List.copyOf(specLoaders));
         output.put("activePlugin", activePlugin);
+        output.put("activeSpecLoader", activeSpecLoader);
         output.put("progressCalls", progressCalls);
         output.put("lastProgressPermille", lastProgressPermille);
         output.put("writeProblem", writeProblem);
@@ -159,6 +199,16 @@ public final class StartupPhaseRuntime {
             String className, long startNanos, long endNanos, boolean completed) {
         Map<String, Object> timing = new LinkedHashMap<>();
         timing.put("className", className);
+        timing.put("startedAtMillis", millis(startNanos - startedNanos));
+        timing.put("durationMillis", millis(endNanos - startNanos));
+        timing.put("completed", completed);
+        return timing;
+    }
+
+    private static Map<String, Object> specLoaderTiming(
+            String label, long startNanos, long endNanos, boolean completed) {
+        Map<String, Object> timing = new LinkedHashMap<>();
+        timing.put("label", label);
         timing.put("startedAtMillis", millis(startNanos - startedNanos));
         timing.put("durationMillis", millis(endNanos - startNanos));
         timing.put("completed", completed);

@@ -71,7 +71,7 @@ final class AdapterRuntime {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
-                    report.diagnostic("Loaded the exact ResourceLoaderState startup-phase probe target");
+                    report.diagnostic("Loaded the exact ResourceLoaderState and SpecStore startup-phase probe targets");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "
