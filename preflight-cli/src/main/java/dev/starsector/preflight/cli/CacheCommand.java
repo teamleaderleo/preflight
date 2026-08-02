@@ -8,6 +8,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /** Reports what Preflight is storing and which prepared profile the current install matches. */
 final class CacheCommand {
@@ -18,16 +19,134 @@ final class CacheCommand {
     }
 
     static int execute(String[] args, int from) throws Exception {
+        boolean prune = false;
+        boolean confirmed = false;
         for (int index = from; index < args.length; index++) {
-            String argument = args[index];
-            if ("--help".equals(argument) || "-h".equals(argument)) {
-                PreflightCli.commandUsage("cache", System.out);
-                return 0;
+            switch (args[index]) {
+                case "prune" -> prune = true;
+                case "--yes" -> confirmed = true;
+                case "--help", "-h" -> {
+                    PreflightCli.commandUsage("cache", System.out);
+                    return 0;
+                }
+                default -> {
+                    System.err.println("preflight cache: unknown option: " + args[index]);
+                    return 2;
+                }
             }
-            System.err.println("preflight cache: unknown option: " + argument);
-            return 2;
         }
-        return report(PreflightHome.current(), currentFingerprint(), System.out);
+        PreflightHome home = PreflightHome.current();
+        if (prune) {
+            return prune(home, confirmed, System.out);
+        }
+        return report(home, currentFingerprint(), System.out);
+    }
+
+    /**
+     * Removes every profile except the one the current install resolves to.
+     *
+     * <p>Refuses to plan anything if the current profile cannot be identified. Pruning "everything
+     * except the current one" when the current one is unknown would delete the entire cache, which
+     * is a legitimate thing to want and is spelled {@code preflight uninstall --purge}, not this.
+     */
+    static int prune(PreflightHome home, boolean confirmed, PrintStream out) throws Exception {
+        String current = currentFingerprint();
+        if (current == null) {
+            System.err.println("Cannot identify the current install's profile, so there is nothing");
+            System.err.println("safe to keep. Run `preflight doctor` to see why the install could");
+            System.err.println("not be read, or `preflight uninstall --purge` to remove everything.");
+            return 3;
+        }
+
+        Set<String> keepIdentities = liveSpecStoreIdentities(home, current);
+        CachePrune.Plan plan = CachePrune.plan(home, Set.of(current), keepIdentities);
+
+        if (!plan.safe()) {
+            System.err.println("Refusing to prune:");
+            for (String refusal : plan.refusals()) {
+                System.err.println("  " + refusal);
+            }
+            System.err.println();
+            System.err.println("Blobs are shared between profiles, so a manifest that cannot be read");
+            System.err.println("leaves the set of blobs still in use unknown. Nothing was removed.");
+            return 3;
+        }
+
+        if (plan.removals().isEmpty()) {
+            out.printf(Locale.ROOT, "Nothing to prune. Profile %s is the only one held.%n",
+                    current.substring(0, 16));
+            return 0;
+        }
+
+        long blobRemovals = plan.removals().stream()
+                .filter(removal -> "unreferenced blob".equals(removal.reason()))
+                .count();
+        out.printf(Locale.ROOT, "Keeping profile %s (the current install).%n%n",
+                current.substring(0, 16));
+        out.printf(Locale.ROOT, "%s %,d files, freeing %s:%n",
+                confirmed ? "Removing" : "Would remove",
+                plan.removals().size(),
+                CacheFootprint.humanBytes(plan.bytes()));
+        out.printf(Locale.ROOT, "  %,d unreferenced texture blobs (%,d stay, still referenced)%n",
+                blobRemovals, plan.reachableBlobs());
+        for (CachePrune.Removal removal : plan.removals()) {
+            if (!"unreferenced blob".equals(removal.reason())) {
+                out.printf(Locale.ROOT, "  %-28s %9s  %s%n",
+                        removal.reason(),
+                        CacheFootprint.humanBytes(removal.bytes()),
+                        removal.path().getFileName());
+            }
+        }
+
+        if (!confirmed) {
+            out.println();
+            out.println("Nothing was removed. Re-run with --yes to do it.");
+            return 0;
+        }
+
+        long freed = CachePrune.apply(plan);
+        out.println();
+        out.printf(Locale.ROOT, "Freed %s.%n", CacheFootprint.humanBytes(freed));
+        out.println("The kept profile is untouched, so the next launch is still a warm one.");
+        return 0;
+    }
+
+    /**
+     * The spec-store identities the surviving profile resolves to.
+     *
+     * <p>Spec-store artifacts are keyed by a per-corpus dependency identity rather than by the
+     * profile fingerprint, so the only way to know which are live is to build them. An install that
+     * cannot produce them yields an empty set, which leaves every spec-store artifact in place --
+     * keeping a stale 28 MB is the right failure here, not guessing.
+     */
+    private static Set<String> liveSpecStoreIdentities(PreflightHome home, String fingerprint) {
+        Path index = home.cache().resolve("resource-indexes").resolve(fingerprint + ".spfi");
+        if (!Files.isRegularFile(index)) {
+            return Set.of();
+        }
+        try {
+            DiscoveryResult discovery = StarsectorDiscovery.discover(
+                    Platform.current(),
+                    Path.of(System.getProperty("user.home")),
+                    Path.of(System.getProperty("user.dir")),
+                    System.getenv(), null, null);
+            LaunchTarget target = discovery.selected();
+            if (target == null) {
+                return Set.of();
+            }
+            try (ProfileIdentityContext context =
+                         ProfileIdentityContext.open(target.installRoot(), index)) {
+                return Set.of(
+                        VariantJsonProfileIdentityBuilder.build(context).identitySha256(),
+                        WeaponJsonProfileIdentityBuilder.build(context).identitySha256(),
+                        ProjectileJsonProfileIdentityBuilder.build(context).identitySha256(),
+                        HullJsonProfileIdentityBuilder.build(context).identitySha256(),
+                        RulesCsvProfileIdentityBuilder.build(context).identitySha256(),
+                        RuleCommandClassProfileIdentityBuilder.build(context).identitySha256());
+            }
+        } catch (Exception unreadable) {
+            return Set.of();
+        }
     }
 
     static int report(PreflightHome home, String currentFingerprint, PrintStream out)
