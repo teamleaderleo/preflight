@@ -18,6 +18,16 @@ java -jar preflight.jar install
 
 Preflight is an additional wrapper entry point. It does not replace the Starsector launcher and does not patch that launcher on disk.
 
+For an unattended launch that skips the launcher UI entirely, use the game's own direct path:
+
+```bash
+java -jar preflight.jar run --direct
+```
+
+`--direct` reads resolution, fullscreen, sound, and registration state from Starsector's saved
+launcher preferences. It refuses to launch when those values are unavailable or malformed rather
+than guessing a different configuration or leaving a modal error dialog behind.
+
 ```text
 Starsector Preflight
   -> discovers or receives the existing launcher path

@@ -39,6 +39,10 @@ class CommandLineAdapterTest {
         CommandLine defaults = CommandLine.parse(new String[] {"run"}, 1);
         assertEquals(AdapterMode.OFF, defaults.adapterMode());
         assertEquals(TextureAdapterMode.COMPATIBILITY, defaults.textureAdapterMode());
+        assertEquals(false, defaults.directLaunch());
+
+        CommandLine direct = CommandLine.parse(new String[] {"run", "--direct"}, 1);
+        assertEquals(true, direct.directLaunch());
 
         CommandLine probe = CommandLine.parse(
                 new String[] {"run", "--adapter-probe", "--adapter-targets", "targets.txt"}, 1);

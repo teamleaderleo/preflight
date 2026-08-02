@@ -1,14 +1,31 @@
 package dev.starsector.preflight.cli;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class RunCommandTest {
+    @Test
+    void directLaunchOptionsAppendWithoutDiscardingExistingLauncherOptions() {
+        var options = List.of(
+                "-DlaunchDirect=true",
+                "-DstartRes=1440x932",
+                "-DstartFS=false",
+                "-DstartSound=true");
+        assertEquals(
+                String.join(" ", options),
+                RunCommand.appendJavaOptions(null, options));
+        assertEquals(
+                "-Dexisting=true " + String.join(" ", options),
+                RunCommand.appendJavaOptions("-Dexisting=true", options));
+    }
+
     @Test
     void defaultRunDirectoriesRemainDistinctWithinOneMillisecond() {
         Path home = Path.of("synthetic-home");
