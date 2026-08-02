@@ -222,6 +222,23 @@ An exact `(trigger, ruleId)` set can preserve the same rejection and ordered reg
 removing that quadratic scan. CSV preparation is the next pure cache boundary. Parsed expression
 objects remain live game objects and should not be serialized without a stronger equivalence proof.
 
+An exact-build-gated runtime replacement then validated the indexed duplicate check in a real direct
+launch. It created one temporary set for the rules-loader invocation, checked all 21,059 ordered
+registrations, observed zero duplicates, and released the set after the original loader completed.
+The original trigger-list insertion remained in place, while the attributed linear-scan subphase
+disappeared entirely:
+
+| rules boundary | attributed baseline | indexed run | change |
+| --- | ---: | ---: | ---: |
+| complete rules loader | 3.989s | **3.428s** | **-561ms** |
+| duplicate-ID linear scan | 774ms | **removed** | **-774ms gross** |
+| expression/token parsing | 1.575s | 1.778s | +203ms run variance |
+
+The net result is directionally consistent with removing the scan despite a slower expression phase
+in the indexed sample. The adapter reported one completed load, 21,059 checks, zero duplicates, and
+zero shadowed targets. macOS again recorded no thermal, performance, or CPU-power warning; at 31°C
+ambient this remains a directional single-run comparison rather than a stable benchmark.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -325,6 +342,7 @@ The three run directories were:
 - `20260802-110845-534-fb8e9274` — warm hull JSON cache run
 - `20260802-112438-211-4b39a214` — first rules-loader inner attribution
 - `20260802-112637-599-df8c2752` — rules regex and duplicate-scan attribution
+- `20260802-113646-682-c1b1a287` — indexed rules duplicate check, real direct launch
 
 Command shape:
 
