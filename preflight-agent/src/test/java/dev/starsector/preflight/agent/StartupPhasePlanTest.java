@@ -31,6 +31,17 @@ class StartupPhasePlanTest {
         MethodNode init = init(rewritten);
         assertEquals(List.of(
                         "resource-init-enter",
+                        "loading-screen-ready",
+                        "resource-manifest-start",
+                        "resource-manifest-complete",
+                        "script-discovery-start",
+                        "script-discovery-core-complete",
+                        "script-plugin-registration-complete",
+                        "script-compile-complete",
+                        "script-store-prime-complete",
+                        "pre-progress-data-complete",
+                        "spec-store-start",
+                        "spec-store-complete",
                         "progress-100",
                         "audio-workers-complete",
                         "graphics-finalize-complete",
@@ -40,6 +51,7 @@ class StartupPhasePlanTest {
                         "mod-callbacks-complete",
                         "resource-init-complete"),
                 phaseNames(init));
+        assertEquals(1, runtimeCalls(progressMethod(rewritten), "progress"));
         assertEquals(1, runtimeCalls(init, "pluginStart"));
         assertEquals(1, runtimeCalls(init, "pluginEnd"));
         assertTrue(hasDupImmediatelyBeforePluginStart(init),
@@ -68,6 +80,27 @@ class StartupPhasePlanTest {
                 Opcodes.ACC_PUBLIC, StartupPhasePlan.INIT_METHOD, StartupPhasePlan.INIT_DESCRIPTOR,
                 null, new String[] {"java/lang/Exception"});
         method.visitCode();
+
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL, StartupPhasePlan.TARGET_CLASS,
+                "renderBg", "()V", false);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/settings/StarfarerSettings",
+                "o00000", "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V", false);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/loading/scripts/ScriptStore", "ô00000", "()V", false);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/loading/scripts/ScriptStore", "int", "()V", false);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/loading/scripts/ScriptStore", "ö00000", "()V", false);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/title/C/A/Object", "o00000",
+                "()Lcom/fs/starfarer/title/C/A/A;", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/loading/SpecStore", "ÓO0000",
+                "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V", false);
 
         method.visitInsn(Opcodes.ACONST_NULL);
         method.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/concurrent/ExecutorService",
@@ -104,6 +137,20 @@ class StartupPhasePlanTest {
         method.visitInsn(Opcodes.RETURN);
         method.visitMaxs(0, 0);
         method.visitEnd();
+
+        MethodVisitor background = writer.visitMethod(
+                Opcodes.ACC_PRIVATE, "renderBg", "()V", null, null);
+        background.visitCode();
+        background.visitInsn(Opcodes.RETURN);
+        background.visitMaxs(0, 0);
+        background.visitEnd();
+
+        MethodVisitor progress = writer.visitMethod(
+                Opcodes.ACC_PRIVATE, "renderProgress", "(F)V", null, null);
+        progress.visitCode();
+        progress.visitInsn(Opcodes.RETURN);
+        progress.visitMaxs(0, 0);
+        progress.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }
@@ -114,6 +161,14 @@ class StartupPhasePlanTest {
         return owner.methods.stream()
                 .filter(method -> StartupPhasePlan.INIT_METHOD.equals(method.name)
                         && StartupPhasePlan.INIT_DESCRIPTOR.equals(method.desc))
+                .findFirst().orElseThrow();
+    }
+
+    private static MethodNode progressMethod(byte[] bytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        return owner.methods.stream()
+                .filter(method -> "renderProgress".equals(method.name) && "(F)V".equals(method.desc))
                 .findFirst().orElseThrow();
     }
 
