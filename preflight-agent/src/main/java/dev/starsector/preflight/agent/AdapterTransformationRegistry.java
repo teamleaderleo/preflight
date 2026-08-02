@@ -51,8 +51,13 @@ final class AdapterTransformationRegistry {
                         byte[] rulesPhases = RulesLoaderPhasePlan.transform(signature, originalBytes);
                         if (rulesPhases == null) {
                             // A different class in the same plan: the expression constructor the
-                            // rules loader calls 62,340 times.
-                            return RuleExpressionPhasePlan.transform(signature, originalBytes);
+                            // rules loader calls 62,340 times. The token memo is chained after the
+                            // attribution so the probe still sees a tokenize call to wrap.
+                            byte[] expressionPhases =
+                                    RuleExpressionPhasePlan.transform(signature, originalBytes);
+                            return ruleTokenCache(
+                                    expressionPhases == null ? originalBytes : expressionPhases,
+                                    expressionPhases);
                         }
                         byte[] optimized = rulesOptimizations(rulesPhases);
                         return optimized == null ? rulesPhases : optimized;
@@ -110,6 +115,10 @@ final class AdapterTransformationRegistry {
                 || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())) {
             return rulesOptimizations(originalBytes);
         }
+        // The memo can install on its own, without the attribution probe in front of it.
+        if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return ruleTokenCache(originalBytes, null);
+        }
         return null;
     }
 
@@ -160,6 +169,28 @@ final class AdapterTransformationRegistry {
             return changed ? current : null;
         } catch (java.io.IOException ignored) {
             return changed ? current : null;
+        }
+    }
+
+    /**
+     * Chains the tokenizer memo onto the expression constructor.
+     *
+     * @param current the bytes to rewrite, already carrying the attribution probe when there is one
+     * @param attributed the attributed bytes, or null when only the memo applies -- returning null
+     *     for that case keeps "no plan matched this class" distinguishable from "nothing to add"
+     */
+    private static byte[] ruleTokenCache(byte[] current, byte[] attributed) {
+        if (!RuleTokenCacheRuntime.ready()) {
+            return attributed;
+        }
+        try {
+            byte[] cached = RuleTokenCachePlan.transform(ClassSignature.parse(current), current);
+            return cached == null ? attributed : cached;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The attribution rewrite is already valid; losing the memo is the safe direction.
+            return attributed;
         }
     }
 
@@ -234,6 +265,9 @@ final class AdapterTransformationRegistry {
         }
         if (RulesCsvCacheRuntime.PLAN_ID.equals(planId)) {
             return RulesCsvCacheRuntime.ready();
+        }
+        if (RuleTokenCacheRuntime.PLAN_ID.equals(planId)) {
+            return RuleTokenCacheRuntime.ready();
         }
         return false;
     }

@@ -213,6 +213,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Same expression constructor, used by the in-process tokenizer memo. */
+    static AdapterTarget ruleTokenCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-rule-expression-0.98a-rc8-token-cache",
+                RuleTokenCachePlan.TARGET_CLASS,
+                "8f628d7fece777d0b100d1fe526e12873f9c0bb533c4367dc015b81184660a95",
+                RuleTokenCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RuleTokenCachePlan.LOAD_METHOD,
+                        RuleTokenCachePlan.LOAD_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact campaign-rules loader used by the trigger-local duplicate index. */
     static AdapterTarget rulesDuplicateIndexTarget() {
         return new AdapterTarget(
@@ -409,6 +426,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withRulesCsvCacheTarget() {
         return withTarget(rulesCsvCacheTarget());
+    }
+
+    AdapterTargetRegistry withRuleTokenCacheTarget() {
+        return withTarget(ruleTokenCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

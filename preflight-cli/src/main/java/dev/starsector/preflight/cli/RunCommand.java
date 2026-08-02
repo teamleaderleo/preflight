@@ -79,7 +79,8 @@ final class RunCommand {
                 weaponJsonCache == null ? null : weaponJsonCache.artifact(),
                 projectileJsonCache == null ? null : projectileJsonCache.artifact(),
                 hullJsonCache == null ? null : hullJsonCache.artifact(),
-                rulesCsvCache == null ? null : rulesCsvCache.artifact());
+                rulesCsvCache == null ? null : rulesCsvCache.artifact(),
+                options.ruleTokenCache());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -355,6 +356,7 @@ final class RunCommand {
                 + (options.singleChunkRecording() ? " (single timestamp-coherent chunk)" : ""));
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
         System.out.println("  startup phase probe: " + options.startupPhaseProbe());
+        System.out.println("  rule token cache: " + options.ruleTokenCache());
         System.out.println("  launch: " + (directSettings == null
                 ? "launcher UI"
                 : "direct " + directSettings.resolution()
@@ -475,6 +477,7 @@ final class RunCommand {
                 options.recordingMode().records() && !options.singleChunkRecording());
         values.put("campaignEntityIndex", options.campaignEntityIndex());
         values.put("startupPhaseProbe", options.startupPhaseProbe());
+        values.put("ruleTokenCache", options.ruleTokenCache());
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
         values.put("adapterMode", options.adapterMode());

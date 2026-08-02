@@ -28,6 +28,7 @@ record CommandLine(
         boolean unpadded,
         boolean campaignEntityIndex,
         boolean startupPhaseProbe,
+        boolean ruleTokenCache,
         boolean directLaunch,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
@@ -44,6 +45,7 @@ record CommandLine(
         boolean unpadded = false;
         boolean campaignEntityIndex = false;
         boolean startupPhaseProbe = false;
+        boolean ruleTokenCache = false;
         boolean directLaunch = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
@@ -89,6 +91,7 @@ record CommandLine(
                 case "--prepared-unpadded" -> unpadded = true;
                 case "--campaign-entity-index" -> campaignEntityIndex = true;
                 case "--startup-phase-probe" -> startupPhaseProbe = true;
+                case "--rule-token-cache" -> ruleTokenCache = true;
                 case "--direct" -> directLaunch = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
@@ -147,6 +150,10 @@ record CommandLine(
         if (campaignEntityIndex && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--campaign-entity-index requires --adapter");
         }
+        if (ruleTokenCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException(
+                    "--rule-token-cache requires --adapter");
+        }
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
         }
@@ -177,6 +184,7 @@ record CommandLine(
                 unpadded,
                 campaignEntityIndex,
                 startupPhaseProbe,
+                ruleTokenCache,
                 directLaunch,
                 List.copyOf(forwarded));
     }

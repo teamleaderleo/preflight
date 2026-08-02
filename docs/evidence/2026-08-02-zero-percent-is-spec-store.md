@@ -362,6 +362,57 @@ Both halves are now worth building and neither is a serialization problem:
 The run reported 15 registry targets, 9 exact matches, 9 transformations applied, zero declined and
 zero shadowed.
 
+### The tokenizer memo, built and measured
+
+The first of those two halves is now in the agent. `RuleTokenCachePlan` replaces the constructor's
+single `Misc.tokenize` call with `RuleTokenCacheRuntime.tokenize`, pushing two constants ahead of it:
+a `MethodHandle` constant for `Misc.tokenize(String)` and a class constant for `Misc$Token`. That
+shape matters more than it looks. The handle is resolved by the JVM at that call site exactly as the
+`invokestatic` it replaces was, so the runtime always has vanilla to fall back to and never guesses
+at a class loader, and a build that no longer offers that method fails to link there rather than
+silently losing its tokenizer. The rewrite adds two instructions and no branches, so the method
+keeps its original stack map -- which matters on a class whose obfuscated field names a modern
+verifier refuses to load.
+
+The equivalence argument is narrow and checkable: `tokenize` reads only its argument, and every
+token it emits is `new Misc$Token(String, TokenType)` with no later field write anywhere in the
+method. The list is therefore fully determined by the ordered `(string, type)` pairs. Since
+`Misc$Token` carries four public non-final fields and the caller mutates the list it receives, a hit
+allocates a fresh `ArrayList` and a fresh token per element; only the character scan is skipped.
+
+Two real launches, against the same warm profile as the split above:
+
+| run | tokenize | rules loader | command-class (control) |
+| --- | ---: | ---: | ---: |
+| probe only | 742ms | 2,293ms | 641ms |
+| memo, generic `invoke` | 597ms | 2,149ms | 675ms |
+| memo, erased `invokeExact` | **578ms** | **2,098ms** | 626ms |
+
+The command-class label is untouched by this change and moved 641 -> 675 -> 626ms across the three
+runs, so roughly ±4% is this machine's run-to-run noise. The tokenizer's 742 -> 578ms is well
+outside it, but these are still single runs and the honest figure is **about 150ms**.
+
+The telemetry was byte-identical on both memo runs and is the fourth independent agreement with the
+offline census:
+
+| | census | runtime |
+| --- | ---: | ---: |
+| calls | 62,645 | 62,340 |
+| distinct expressions | 31,816 | 31,614 |
+| repeat rate | 49.2% | 49.3% |
+
+`declined` was zero: every token shape the game produced was capturable. The memo holds 31,614
+entries for the process lifetime and has no artifact, no identity key, and nothing to invalidate.
+
+It does not reach the 42% the offline benchmark set as a ceiling. That benchmark memoised into a
+plain `HashMap` and called the constructor directly; the agent pays a `ConcurrentHashMap` lookup, a
+`ClassValue` lookup, and a `MethodHandle` call per hit. Erasing the constructor handle once so the
+hot path can use `invokeExact` recovered 19ms of that, which is inside the noise band and is
+reported here as such rather than as a win.
+
+**Command-class resolution is now the larger half of the expression phase and the next thing to
+build.**
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -470,6 +521,8 @@ The three run directories were:
 - `20260802-115233-425-55898e14` — warm merged rules CSV cache hit
 
 - `20260802-122951-010-635c22d6` — rule-expression tokenize/command-class split
+- `20260802-125919-474-c0f105ea` — tokenizer memo, generic invoke
+- `20260802-130134-146-3dfa544f` — tokenizer memo, erased invokeExact
 
 The offline half of the expression investigation needs no run directory. Its three sources are
 archived beside this document:

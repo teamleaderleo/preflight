@@ -335,6 +335,40 @@ final class AgentInjection {
             Path projectileJsonCache,
             Path hullJsonCache,
             Path rulesCsvCache) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache) {
+        if (ruleTokenCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Rule token cache requires the enabled adapter");
+        }
         if (singleChunkRecording && !recordingMode.records()) {
             throw new IllegalArgumentException("Single-chunk recording requires recording to be enabled");
         }
@@ -394,6 +428,9 @@ final class AgentInjection {
         }
         if (startupPhaseProbe) {
             arguments.append(",startupPhases=on");
+        }
+        if (ruleTokenCache) {
+            arguments.append(",ruleTokens=on");
         }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())

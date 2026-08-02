@@ -275,6 +275,7 @@ final class AdapterReport {
         key(output, "hullJsonCache").append(Json.value(HullJsonCacheRuntime.telemetry())).append(',');
         key(output, "rulesCsvCache").append(Json.value(RulesCsvCacheRuntime.telemetry())).append(',');
         key(output, "rulesDuplicateIndex").append(Json.value(RulesDuplicateIndexRuntime.telemetry())).append(',');
+        key(output, "ruleTokenCache").append(Json.value(RuleTokenCacheRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

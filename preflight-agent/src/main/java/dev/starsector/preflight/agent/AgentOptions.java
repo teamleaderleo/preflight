@@ -24,6 +24,7 @@ record AgentOptions(
         RecordingMode recordingMode,
         Duration flushInterval,
         boolean startupPhaseProbe,
+        boolean ruleTokenCache,
         Path variantJsonCache,
         Path weaponJsonCache,
         Path projectileJsonCache,
@@ -98,6 +99,9 @@ record AgentOptions(
         // a sidecar as the run goes, so a force-quit or a crash still leaves something to read.
         Duration flushInterval = flushInterval(values.get("flush"));
         boolean startupPhaseProbe = "on".equalsIgnoreCase(values.get("startupPhases"));
+        // No path and no artifact: the memo lives and dies with the process, so a plain
+        // on/off is the whole of its configuration.
+        boolean ruleTokenCache = "on".equalsIgnoreCase(values.get("ruleTokens"));
         Path variantJsonCache = decodedPath(values, "variantJsonCache64");
         Path weaponJsonCache = decodedPath(values, "weaponJsonCache64");
         Path projectileJsonCache = decodedPath(values, "projectileJsonCache64");
@@ -117,6 +121,7 @@ record AgentOptions(
                 recordingMode,
                 flushInterval,
                 startupPhaseProbe,
+                ruleTokenCache,
                 variantJsonCache,
                 weaponJsonCache,
                 projectileJsonCache,
