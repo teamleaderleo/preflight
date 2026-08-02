@@ -89,6 +89,53 @@ class AgentInjectionTest {
     }
 
     @Test
+    void singleChunkModeDisablesDumpRotationAndRaisesTheJfrChunkLimit() {
+        String value = AgentInjection.append(
+                "",
+                Path.of("preflight.jar"),
+                Path.of("startup.jfr"),
+                AdapterMode.OFF,
+                null,
+                null,
+                null,
+                null,
+                null,
+                TextureAdapterMode.COMPATIBILITY,
+                false,
+                RecordingMode.SAMPLE,
+                false,
+                false,
+                true);
+
+        assertTrue(value.contains(",record=sample"), value);
+        assertTrue(value.contains(",flush=0"), value);
+        assertTrue(value.contains(
+                " -XX:FlightRecorderOptions=memorysize=256m,maxchunksize=256m"), value);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.OFF,
+                        null, null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, true));
+    }
+
+    @Test
+    void campaignEntityIndexBecomesAnEnabledAdapterSystemProperty() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, true);
+
+        assertTrue(enabled.contains(" -Dpreflight.campaign.entityIndex=true"), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, true));
+    }
+
+    @Test
     void includesProbeReportAndTargetPaths() {
         String value = AgentInjection.append(
                 "",

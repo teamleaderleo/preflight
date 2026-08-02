@@ -33,6 +33,8 @@ public final class TextureCompatibilityRuntime {
     static final String PLAN_ID = "texture-compatibility-v2";
     /** Opt back in to hashing every source file's contents on the loading thread. */
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
+    /** Opt back in to hashing every prepared blob's pixels on the loading thread. */
+    public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.texture.verifyBlobChecksum";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
     static final int MAX_INTERNAL_ERRORS = 8;
@@ -83,7 +85,12 @@ public final class TextureCompatibilityRuntime {
             for (ResourceIndex.Root root : index.roots()) {
                 sourceRoots.add(PathContainment.realDirectory(root.path()));
             }
-            state = new State(cacheRoot, manifest, index, List.copyOf(sourceRoots));
+            state = new State(
+                    cacheRoot,
+                    manifest,
+                    index,
+                    List.copyOf(sourceRoots),
+                    Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY));
             TELEMETRY.configured();
             return true;
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -243,7 +250,9 @@ public final class TextureCompatibilityRuntime {
 
             PreparedTexture texture;
             try {
-                texture = PreparedTextureIO.read(blob);
+                texture = current.verifyBlobChecksum
+                        ? PreparedTextureIO.read(blob)
+                        : PreparedTextureIO.readTrusted(blob);
             } catch (IOException error) {
                 TELEMETRY.corruption();
                 quarantine(current, blob, "corrupt");
@@ -349,6 +358,7 @@ public final class TextureCompatibilityRuntime {
 
     static Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>(TELEMETRY.snapshot(ready()));
+        values.put("blobChecksumVerification", state.verifyBlobChecksum);
         values.put("preparedPixels", TexturePreparedPixelRuntime.telemetry());
         return Map.copyOf(values);
     }
@@ -451,16 +461,23 @@ public final class TextureCompatibilityRuntime {
         private final TextureManifest manifest;
         private final ResourceIndex index;
         private final List<Path> sourceRoots;
+        private final boolean verifyBlobChecksum;
         private final boolean ready;
         private final AtomicInteger internalErrors = new AtomicInteger();
         private final AtomicInteger quarantines = new AtomicInteger();
         private final AtomicBoolean circuitBreaker = new AtomicBoolean();
 
-        private State(Path cacheRoot, TextureManifest manifest, ResourceIndex index, List<Path> sourceRoots) {
+        private State(
+                Path cacheRoot,
+                TextureManifest manifest,
+                ResourceIndex index,
+                List<Path> sourceRoots,
+                boolean verifyBlobChecksum) {
             this.cacheRoot = cacheRoot;
             this.manifest = manifest;
             this.index = index;
             this.sourceRoots = sourceRoots;
+            this.verifyBlobChecksum = verifyBlobChecksum;
             this.ready = true;
         }
 
@@ -469,6 +486,7 @@ public final class TextureCompatibilityRuntime {
             this.manifest = null;
             this.index = null;
             this.sourceRoots = List.of();
+            this.verifyBlobChecksum = false;
             this.ready = false;
         }
 

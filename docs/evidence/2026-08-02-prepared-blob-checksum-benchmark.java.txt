@@ -1,0 +1,49 @@
+import dev.starsector.preflight.core.PreparedTexture;
+import dev.starsector.preflight.core.PreparedTextureIO;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+
+public final class PreparedTextureReadBenchmark {
+    public static void main(String[] args) throws Exception {
+        int edge = 4096;
+        byte[] pixels = new byte[edge * edge * 4];
+        for (int i = 0; i < pixels.length; i += 4093) {
+            pixels[i] = (byte) i;
+        }
+        PreparedTexture texture = new PreparedTexture(
+                "ab".repeat(32),
+                PreparedTexture.Transformation.IDENTITY,
+                edge, edge, edge, edge, 4, 0, 0, 0, pixels);
+        Path directory = Files.createTempDirectory("spft-read-benchmark-");
+        Path blob = directory.resolve("texture.spft");
+        try {
+            PreparedTextureIO.write(blob, texture);
+            for (int i = 0; i < 3; i++) {
+                PreparedTextureIO.read(blob);
+                PreparedTextureIO.readTrusted(blob);
+            }
+            long[] verified = new long[7];
+            long[] trusted = new long[7];
+            long sink = 0;
+            for (int i = 0; i < verified.length; i++) {
+                long start = System.nanoTime();
+                sink += PreparedTextureIO.read(blob).pixelBytes();
+                verified[i] = System.nanoTime() - start;
+                start = System.nanoTime();
+                sink += PreparedTextureIO.readTrusted(blob).pixelBytes();
+                trusted[i] = System.nanoTime() - start;
+            }
+            Arrays.sort(verified);
+            Arrays.sort(trusted);
+            double verifiedMs = verified[verified.length / 2] / 1_000_000.0;
+            double trustedMs = trusted[trusted.length / 2] / 1_000_000.0;
+            System.out.printf(
+                    "blobBytes=%d verifiedMedianMs=%.3f trustedMedianMs=%.3f speedup=%.2fx sink=%d%n",
+                    Files.size(blob), verifiedMs, trustedMs, verifiedMs / trustedMs, sink);
+        } finally {
+            Files.deleteIfExists(blob);
+            Files.deleteIfExists(directory);
+        }
+    }
+}

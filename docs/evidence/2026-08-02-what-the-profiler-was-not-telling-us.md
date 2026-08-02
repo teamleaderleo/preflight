@@ -77,15 +77,28 @@ The root cause is not established. What follows from it, and holds regardless of
 - There is a real tension between the two fixes. More frequent flushing means more chunks, which
   means more sampling windows and *less* trustworthy cross-chunk time. A single-chunk recording with
   a large `maxchunksize` is the timestamp-accurate configuration and the worse-covered one.
-  Wiring `maxchunksize` into the launch flags, and choosing per question rather than globally, is
-  the next step and is not done.
+  Wiring `maxchunksize` into the launch flags, and choosing per question rather than globally, was
+  the next step.
+
+> **Update, same day:** `preflight run --profile --single-chunk-recording` now wires
+> `memorysize=256m,maxchunksize=256m` into the child JVM and sends `flush=0` to the agent as one
+> policy. The run receipt records the selection, and postprocessing verifies the actual chunk
+> count. It remains opt-in because it spends 256 MiB and gives up the periodic crash/force-quit
+> sidecar.
+
+> **Live update:** an unattended Starsector startup then produced exactly one 65-second chunk and
+> reached the main menu in 64.4 seconds. Recorded events spanned 26.060 seconds — 40.1% of the
+> physical chunk — so the real game reproduces the synthetic sampling-coverage hole. The harness
+> also now leaves the Preflight wrapper alive after signalling the game, allowing the wrapper to
+> finalize `run.json` and verify the one-chunk postcondition. See
+> [the live profile](2026-08-02-live-single-chunk-startup-profile.md).
 
 ## What is not established
 
 - **Why sampling stops within a window.** Buffer exhaustion is a hypothesis, contradicted at least
   in part by the large-buffer run.
-- **Whether the game's own recordings behave identically.** The reproduction is synthetic and
-  allocation-heavy; Starsector spends much of its time in native GL, which suppresses Java execution
-  samples for entirely legitimate reasons and is not the same effect.
+- **Why the game's live recording has the same roughly 40% event span.** One accepted startup now
+  reproduces the ratio, but Starsector spends substantial time in native GL, which can legitimately
+  suppress Java execution samples and may not share the synthetic workload's root cause.
 - **The sidecar does not fix truncation**, and was never going to — it truncates the same way,
   because it is the same recording. It fixes losing everything.

@@ -166,6 +166,55 @@ class RunCommandIT {
         assertFalse(injected.contains("prepared-pixels"), injected);
     }
 
+    @Test
+    void singleChunkRecordingPolicyReachesTheLauncherAndRunReceipt() throws Exception {
+        Path game = temporaryDirectory.resolve("Single Chunk Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("single-chunk-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--no-adapter", "--profile", "--single-chunk-recording"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals("SAMPLE", report.get("recordingMode"));
+        assertEquals(true, report.get("singleChunkRecording"));
+        assertEquals(256L * 1024L * 1024L, report.get("recordingMaxChunkBytes"));
+        assertEquals(false, report.get("recordingPeriodicFlush"));
+
+        String injected = Files.readString(game.resolve("java-tool-options.txt"));
+        assertTrue(injected.contains(",record=sample"), injected);
+        assertTrue(injected.contains(",flush=0"), injected);
+        assertTrue(injected.contains(
+                "-XX:FlightRecorderOptions=memorysize=256m,maxchunksize=256m"), injected);
+    }
+
+    @Test
+    void campaignEntityIndexGateReachesTheLauncherAndRunReceipt() throws Exception {
+        Path game = temporaryDirectory.resolve("Entity Index Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("entity-index-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--adapter", "--campaign-entity-index", "--no-record"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals("ENABLED", report.get("adapterMode"));
+        assertEquals(true, report.get("campaignEntityIndex"));
+        assertEquals("OFF", report.get("recordingMode"));
+        assertEquals(false, report.get("recordingPeriodicFlush"));
+
+        String injected = Files.readString(game.resolve("java-tool-options.txt"));
+        assertTrue(injected.contains("adapter=enabled"), injected);
+        assertTrue(injected.contains(" -Dpreflight.campaign.entityIndex=true"), injected);
+        assertTrue(injected.contains(",record=off"), injected);
+    }
+
     private static Path fakeLauncher(Path game, LauncherMode mode) throws Exception {
         boolean windows = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win");
         String clean = "100 [Thread-3] INFO com.fs.starfarer.combat.CombatMain  - synthetic clean exit";

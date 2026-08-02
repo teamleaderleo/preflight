@@ -23,6 +23,15 @@ class CommandLineAdapterTest {
                 CommandLine.parse(new String[] {"run", "--no-record", "--profile"}, 1).recordingMode());
         assertEquals(RecordingMode.OFF,
                 CommandLine.parse(new String[] {"run", "--profile", "--no-record"}, 1).recordingMode());
+
+        CommandLine coherent = CommandLine.parse(
+                new String[] {"run", "--profile", "--single-chunk-recording"}, 1);
+        assertEquals(RecordingMode.SAMPLE, coherent.recordingMode());
+        assertEquals(true, coherent.singleChunkRecording());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--single-chunk-recording", "--no-record"}, 1));
     }
 
     @Test
@@ -39,6 +48,7 @@ class CommandLineAdapterTest {
         CommandLine enabled = CommandLine.parse(new String[] {
                 "run",
                 "--adapter",
+                "--campaign-entity-index",
                 "--texture-mode", "prepared-pixels",
                 "--texture-cache-dir", "cache",
                 "--texture-manifest", "cache/manifests/profile.spfm",
@@ -46,6 +56,7 @@ class CommandLineAdapterTest {
         }, 1);
         assertEquals(AdapterMode.ENABLED, enabled.adapterMode());
         assertEquals(TextureAdapterMode.PREPARED_PIXELS, enabled.textureAdapterMode());
+        assertEquals(true, enabled.campaignEntityIndex());
         assertEquals(Path.of("cache"), enabled.textureCacheDirectory());
         assertEquals(Path.of("cache/manifests/profile.spfm"), enabled.textureManifest());
         assertEquals(Path.of("cache/indexes/profile.spfi"), enabled.textureIndex());
@@ -125,6 +136,13 @@ class CommandLineAdapterTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> CommandLine.parse(new String[] {"run", "--adapter-targets", "targets.txt"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--campaign-entity-index"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--campaign-entity-index"}, 1));
     }
 
     @Test

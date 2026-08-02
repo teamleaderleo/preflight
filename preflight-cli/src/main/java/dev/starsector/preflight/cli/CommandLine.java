@@ -23,8 +23,10 @@ record CommandLine(
         TextureAdapterMode textureAdapterMode,
         boolean exhaustiveFileReads,
         RecordingMode recordingMode,
+        boolean singleChunkRecording,
         boolean npotDirect,
         boolean unpadded,
+        boolean campaignEntityIndex,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -35,8 +37,10 @@ record CommandLine(
         boolean scan = true;
         boolean exhaustiveFileReads = false;
         RecordingMode recordingMode = RecordingMode.FULL;
+        boolean singleChunkRecording = false;
         boolean npotDirect = false;
         boolean unpadded = false;
+        boolean campaignEntityIndex = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -76,8 +80,10 @@ record CommandLine(
                 case "--trace-all-file-reads" -> exhaustiveFileReads = true;
                 case "--no-record" -> recordingMode = RecordingMode.OFF;
                 case "--profile" -> recordingMode = RecordingMode.SAMPLE;
+                case "--single-chunk-recording" -> singleChunkRecording = true;
                 case "--prepared-npot" -> npotDirect = true;
                 case "--prepared-unpadded" -> unpadded = true;
+                case "--campaign-entity-index" -> campaignEntityIndex = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -129,6 +135,12 @@ record CommandLine(
             throw new IllegalArgumentException(
                     "--prepared-npot and --prepared-unpadded are alternatives; pass only one");
         }
+        if (singleChunkRecording && !recordingMode.records()) {
+            throw new IllegalArgumentException("--single-chunk-recording cannot be used with --no-record");
+        }
+        if (campaignEntityIndex && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--campaign-entity-index requires --adapter");
+        }
         // --texture-auto and --texture-mode are independent: auto resolves which manifest and
         // index to use, the mode decides which TextureLoader target reads them. Both modes are
         // configured from the same TextureCompatibilityRuntime.configure call and the same SPFT
@@ -151,8 +163,10 @@ record CommandLine(
                 textureAdapterMode,
                 exhaustiveFileReads,
                 recordingMode,
+                singleChunkRecording,
                 npotDirect,
                 unpadded,
+                campaignEntityIndex,
                 List.copyOf(forwarded));
     }
 
