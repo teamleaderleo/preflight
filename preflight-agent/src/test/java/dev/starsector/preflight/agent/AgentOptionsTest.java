@@ -129,6 +129,13 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/cache/profile.spwj"), options.weaponJsonCache());
     }
 
+    @Test
+    void parsesProjectileJsonCacheArtifact() {
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,projectileJsonCache64=" + encoded("build/cache/profile.sppj"));
+        assertEquals(Path.of("build/cache/profile.sppj"), options.projectileJsonCache());
+    }
+
     private static String encoded(String value) {
         return Base64.getUrlEncoder()
                 .withoutPadding()

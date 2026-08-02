@@ -146,6 +146,25 @@ before and after this run, but the 31°C ambient and single sample make the abso
 directional rather than a benchmark claim. The subphase dominance is sufficient to justify the same
 pure-representation cache boundary while retaining all live projectile construction and side effects.
 
+A cold/warm exact-profile pair then validated that boundary in the shared class while the weapon
+cache remained hot. The cold run captured 1,159 reusable values, kept 104 calls on vanilla, and
+published an 853 KiB artifact only after the projectile loader returned normally. The warm run hit
+all 1,159 prepared entries with the same 104 fallbacks:
+
+| boundary | cold learning | warm cache | change |
+| --- | ---: | ---: | ---: |
+| projectile-definition loader | 2.349s | **1.004s** | **-1.345s** |
+| merged JSON operation | 1.563s | **0.304s** | **-1.259s** |
+| script registration | 9ms | 6ms | noise |
+| registry insertion | 8ms | 8ms | noise |
+
+The projectile dependency selector hashes the exact game JAR and every ordered `.proj` provider
+under `data/weapons/proj/` and `data/shipsystems/proj/`. It took 219ms on the warm run, making the
+directional net launch improvement roughly 1.1 seconds. Both warm telemetry blocks were active in
+the same `WeaponSpecLoader` transformation: 2,921 weapon hits and 1,159 projectile hits, with zero
+shadowed targets. macOS again reported no thermal or performance warning after both launches; the
+31°C ambient still makes these single-run absolute totals directional.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -242,6 +261,8 @@ The three run directories were:
 - `20260802-042118-653-6bcc3fae` — cold weapon JSON learning run
 - `20260802-042235-465-fe4d1ef1` — warm weapon JSON cache run
 - `20260802-102845-271-bd5752d6` — aggregate projectile merge/script/register timings
+- `20260802-104416-023-60a40044` — cold projectile JSON learning run
+- `20260802-104547-020-19e420a3` — warm projectile JSON cache run
 
 Command shape:
 

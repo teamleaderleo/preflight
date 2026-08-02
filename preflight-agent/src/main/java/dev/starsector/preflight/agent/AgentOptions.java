@@ -26,6 +26,7 @@ record AgentOptions(
         boolean startupPhaseProbe,
         Path variantJsonCache,
         Path weaponJsonCache,
+        Path projectileJsonCache,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -97,6 +98,7 @@ record AgentOptions(
         boolean startupPhaseProbe = "on".equalsIgnoreCase(values.get("startupPhases"));
         Path variantJsonCache = decodedPath(values, "variantJsonCache64");
         Path weaponJsonCache = decodedPath(values, "weaponJsonCache64");
+        Path projectileJsonCache = decodedPath(values, "projectileJsonCache64");
         return new AgentOptions(
                 destination,
                 settings,
@@ -113,6 +115,7 @@ record AgentOptions(
                 startupPhaseProbe,
                 variantJsonCache,
                 weaponJsonCache,
+                projectileJsonCache,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

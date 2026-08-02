@@ -195,6 +195,27 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact reviewed projectile loader used by the strict-profile merged-JSON cache. */
+    static AdapterTarget projectileJsonCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-projectile-loader-0.98a-rc8-json-cache",
+                WeaponLoaderPhasePlan.TARGET_CLASS,
+                "c1e7a8a4c33d7ee7f714b05ac94dfa20745142d72ce868e954e8e6a04dc0544c",
+                ProjectileJsonCacheRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                ProjectileLoaderPhasePlan.LOAD_ALL_METHOD,
+                                ProjectileLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ProjectileLoaderPhasePlan.LOAD_ONE_METHOD,
+                                ProjectileLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget textureTarget(String id, String planId) {
         return new AdapterTarget(
                 id,
@@ -259,6 +280,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withWeaponJsonCacheTarget() {
         return withTarget(weaponJsonCacheTarget());
+    }
+
+    AdapterTargetRegistry withProjectileJsonCacheTarget() {
+        return withTarget(projectileJsonCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
