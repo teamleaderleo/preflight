@@ -45,3 +45,9 @@ game's own log marker is the timing boundary used by the unattended benchmark ha
 The run was deliberately stopped after the main-menu preload marker. It was ordered after other
 live work and had no thermal cooldown, so the seconds are diagnostic. A shuffled cooled campaign is
 still required before treating the 54.262-second result as a stable performance claim.
+
+A second automatic launch exercised the final `--direct` implementation, including receipt of its
+exact saved settings. It reached the same marker in **53.819 seconds**, measured AshLib at **2.343
+seconds**, and measured `ResourceLoaderState.init` at **49.923 seconds**. The wrapper again completed
+with exit zero and no fatal lifecycle evidence. That repeat makes the attribution substantially
+stronger while remaining an ordered warm diagnostic rather than a cooled benchmark.
