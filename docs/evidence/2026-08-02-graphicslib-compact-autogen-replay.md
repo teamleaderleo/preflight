@@ -50,3 +50,9 @@ deltas are diagnostic. The exact callback entry/exit measurements are the direct
 The installed source is exactly Bitbucket commit `2e715f4` for `TextureData.java`. The same change
 was cherry-picked onto current upstream master and compiled as Java 17 against GraphicsLib 1.12.1,
 LazyLib, LunaLib, and the installed Starsector API.
+
+The final patch retains the original full traversal when automatic normal generation is enabled at
+runtime after an initial traversal that could not capture requests. A fresh build with that guard
+completed another full direct load: GraphicsLib 5.873 seconds, exact resource init 46.551 seconds,
+game-log start to preload 50.834 seconds, exit zero, no fatal evidence, 21,658 prepared hits, and all
+prepared-pixel error/fallback/live-buffer counters at zero.
