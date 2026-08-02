@@ -165,6 +165,21 @@ the same `WeaponSpecLoader` transformation: 2,921 weapon hits and 1,159 projecti
 shadowed targets. macOS again reported no thermal or performance warning after both launches; the
 31°C ambient still makes these single-run absolute totals directional.
 
+The next exact probe found the same pure boundary inside the ship-hull loader:
+
+| hull operation | calls | aggregate duration |
+| --- | ---: | ---: |
+| merged JSON lookup, overlay, and parse | 2,671 | **2.059s** |
+| file listing | 1 | 9ms |
+| live SpecStore dependency lookup | 17,200 | 12ms |
+| live hull registry insertion | 2,670 | 4ms |
+
+Merged JSON accounts for 81.0% of the 2.543s hull loader. The remaining roughly 459ms constructs
+the concrete hull, sprite, engine, weapon-slot, shield, and related live objects. The 17,200
+dependency lookups are numerous but collectively negligible, so replacing or indexing them would
+add risk without meaningful startup value. A hull cache should therefore retain those lookups and
+all live construction/registration while bypassing only the merged `.ship` JSON operation.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -263,6 +278,7 @@ The three run directories were:
 - `20260802-102845-271-bd5752d6` — aggregate projectile merge/script/register timings
 - `20260802-104416-023-60a40044` — cold projectile JSON learning run
 - `20260802-104547-020-19e420a3` — warm projectile JSON cache run
+- `20260802-105227-395-1366d474` — aggregate ship-hull merge/lookup/register timings
 
 Command shape:
 

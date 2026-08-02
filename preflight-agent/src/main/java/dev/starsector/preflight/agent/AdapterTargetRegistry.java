@@ -158,6 +158,27 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact ship-hull definition loader called during the initial zero-percent plateau. */
+    static AdapterTarget shipHullLoaderPhaseTarget() {
+        return new AdapterTarget(
+                "vanilla-ship-hull-loader-0.98a-rc8-startup-phases",
+                ShipHullLoaderPhasePlan.TARGET_CLASS,
+                "88264bcb82e626aeab0ad8cc5a3d210a95b225d0ca5e3329e7982425a12b355c",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LOAD_ALL_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ALL_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ShipHullLoaderPhasePlan.LOAD_ONE_METHOD,
+                                ShipHullLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact reviewed variant loader used by the strict-profile merged-JSON cache. */
     static AdapterTarget variantJsonCacheTarget() {
         return new AdapterTarget(
@@ -271,7 +292,8 @@ final class AdapterTargetRegistry {
     AdapterTargetRegistry withStartupPhaseTarget() {
         return withTarget(startupPhaseTarget())
                 .withTarget(specStorePhaseTarget())
-                .withTarget(weaponLoaderPhaseTarget());
+                .withTarget(weaponLoaderPhaseTarget())
+                .withTarget(shipHullLoaderPhaseTarget());
     }
 
     AdapterTargetRegistry withVariantJsonCacheTarget() {
