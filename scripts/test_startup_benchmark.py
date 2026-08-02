@@ -498,6 +498,15 @@ class UnattendedTest(unittest.TestCase):
     """Running without an operator removes the two things a human did. The ways it goes wrong
     quietly are measuring two protocols as one, and reading our own SIGTERM as a failed run."""
 
+    def test_profile_condition_requests_one_timestamp_coherent_chunk(self):
+        profile = re.search(
+            r"^        profile\)(?P<body>.*?) ;;",
+            SCRIPT_TEXT,
+            re.DOTALL | re.MULTILINE,
+        )
+        self.assertIsNotNone(profile, "profile launch condition not found")
+        self.assertIn("--profile --single-chunk-recording", profile.group("body"))
+
     def test_every_condition_is_driven_including_vanilla(self):
         # The properties travel through the game's own EXTRAARGS hook rather than through the
         # agent, so vanilla is unattended too. That is the whole difference from the button
@@ -573,6 +582,16 @@ class UnattendedTest(unittest.TestCase):
         fatal = SCRIPT_TEXT.index('if [[ -s "$fatal_flag" ]]; then\n        report_fatal_jvm_error')
         nonzero = SCRIPT_TEXT.index('reason="nonzero-exit-$exit_code"')
         self.assertLess(fatal, nonzero, "exit code is judged before the crash flag")
+
+    def test_an_unattended_stop_leaves_the_wrapper_alive_to_finalize_evidence(self):
+        direct_stop = re.search(
+            r'if \[\[ "\$auto" == true \]\]; then(?P<body>.*?)\n    else',
+            SCRIPT_TEXT,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(direct_stop, "unattended stop block not found")
+        self.assertIn('terminate_descendants "$pid"', direct_stop.group("body"))
+        self.assertNotIn('terminate "$pid"', direct_stop.group("body"))
 
 
 class SettlingLaunchTest(unittest.TestCase):
@@ -731,6 +750,16 @@ class ProcessTreeTest(unittest.TestCase):
         recursion = body.group("body").index("descendants \"$child\"")
         emit = body.group("body").index("printf '%s\\n' \"$child\"")
         self.assertLess(recursion, emit, "recursion must precede emitting the child")
+
+    def test_descendant_only_termination_preserves_the_wrapper(self):
+        body = re.search(
+            r"^terminate_descendants\(\) \{(?P<body>.*?)\n\}",
+            SCRIPT_TEXT,
+            re.DOTALL | re.M,
+        )
+        self.assertIsNotNone(body, "terminate_descendants not found")
+        self.assertIn('tree="$(descendants "$pid")"', body.group("body"))
+        self.assertNotIn('printf \'%s\\n\' "$pid"', body.group("body"))
 
     def test_descendants_finds_a_real_grandchild(self):
         source = re.search(r"^descendants\(\) \{.*?\n\}", SCRIPT_TEXT, re.DOTALL | re.M)

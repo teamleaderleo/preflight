@@ -85,6 +85,21 @@ The encoded destination avoids parsing problems with spaces and commas. Existing
 
 This environment change exists only for the launched child process. Preflight leaves all original launchers and VM parameter files untouched.
 
+### Timestamp-coherent startup recording
+
+Use the sampling profile with an intentionally single-chunk JFR when the question depends on
+*when* an event happened during startup:
+
+```bash
+java -jar preflight.jar run --profile --single-chunk-recording
+```
+
+This gives JFR a 256 MiB memory area and maximum chunk size and disables Preflight's periodic
+sidecar dumps, because each dump rotates the active chunk. The run receipt records the policy, and
+postprocessing reports whether the resulting recording actually contains one chunk. The trade is
+256 MiB of profiling headroom and no sidecar recovery after a crash or force-quit. Ordinary runs
+keep the bounded-memory, periodically flushed policy; `--no-record` is incompatible with this mode.
+
 ### Optional vanilla adapter probe
 
 The adapter is OFF by default. A normal run installs no adapter transformer and writes no `adapter.json`.
@@ -94,6 +109,17 @@ java -jar preflight.jar run --adapter-probe
 ```
 
 Probe mode installs a read-only class observer. It records candidate class hashes and method signatures while retaining every original class byte. `--adapter` selects the fail-closed enabled mode, which still requires an exact allowlisted target and a registered transformation plan.
+
+The campaign entity-lookup pilot is separately gated even when the adapter is enabled:
+
+```bash
+java -jar preflight.jar run --adapter --campaign-entity-index
+```
+
+It puts a size-invalidated index in front of `BaseLocation.getEntityById`, validates hits against
+the game's live repository set, and delegates every miss or failure to the preserved original
+method. The adapter report exposes `served`, `declined`, `rebuilds`, and `indexedEntities` counters
+for a long-session review. The flag is intentionally rejected in adapter-off and probe modes.
 
 See [vanilla runtime adapter](vanilla-adapter.md) for the activation gate, report format, kill switch, and the point where a real Starsector installation is required.
 

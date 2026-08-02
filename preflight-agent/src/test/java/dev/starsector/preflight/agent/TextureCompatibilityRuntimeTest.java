@@ -32,6 +32,8 @@ class TextureCompatibilityRuntimeTest {
     @AfterEach
     void resetRuntime() {
         TextureCompatibilityRuntime.beginSession();
+        System.clearProperty(TextureCompatibilityRuntime.VERIFY_SOURCE_HASH_PROPERTY);
+        System.clearProperty(TextureCompatibilityRuntime.VERIFY_BLOB_CHECKSUM_PROPERTY);
     }
 
     @Test
@@ -185,6 +187,37 @@ class TextureCompatibilityRuntimeTest {
         try (var files = Files.list(fixture.cache().resolve("quarantine"))) {
             assertEquals(1, files.count());
         }
+    }
+
+    /**
+     * Prepared blobs are content-addressed, written atomically by Preflight, and structurally
+     * checked while being read. The default runtime path therefore does not spend the loading
+     * thread hashing all of their pixels again. Full checksum verification remains available for
+     * diagnostics and continues to be the default everywhere outside this in-game hot path.
+     */
+    @Test
+    void sameLengthPixelCorruptionIsCaughtOnlyByTheOptInBlobChecksum() throws Exception {
+        Fixture fixture = fixture();
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        byte[] blob = Files.readAllBytes(fixture.blob());
+        blob[blob.length - 32 - 1] ^= 0x44;
+        Files.write(fixture.blob(), blob);
+
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        assertEquals(false, TextureCompatibilityRuntime.telemetry().get("blobChecksumVerification"));
+
+        TextureCompatibilityRuntime.beginSession();
+        System.setProperty(TextureCompatibilityRuntime.VERIFY_BLOB_CHECKSUM_PROPERTY, "true");
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        assertNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+
+        Map<String, Object> telemetry = TextureCompatibilityRuntime.telemetry();
+        assertEquals(true, telemetry.get("blobChecksumVerification"));
+        assertEquals(1L, telemetry.get("corruptions"));
+        assertEquals(1L, telemetry.get("quarantined"));
+        assertFalse(Files.exists(fixture.blob()));
     }
 
     @Test

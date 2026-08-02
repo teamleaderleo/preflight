@@ -63,7 +63,9 @@ final class RunCommand {
                 options.exhaustiveFileReads(),
                 options.recordingMode(),
                 options.npotDirect(),
-                options.unpadded());
+                options.unpadded(),
+                options.singleChunkRecording(),
+                options.campaignEntityIndex());
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
@@ -149,6 +151,12 @@ final class RunCommand {
                                 + coverage.eventSpan().toSeconds() + "s, which is not the run."
                                 + " Timestamps across chunks are not comparable -- split it first:"
                                 + " jfr disassemble --max-chunks 1 --output <dir> " + recording);
+                        if (options.singleChunkRecording()) {
+                            postprocessingFailures.add(
+                                    "single-chunk-recording: expected one JFR chunk, found " + coverage.chunks());
+                        }
+                    } else if (options.singleChunkRecording()) {
+                        System.out.println("Preflight recording is one chunk; timestamps are comparable across startup.");
                     }
                 } catch (Exception error) {
                     addPostprocessingFailure(postprocessingFailures, "recording-coverage", error);
@@ -312,6 +320,9 @@ final class RunCommand {
         System.out.println("  kind:     " + target.kind());
         System.out.println("  run data: " + runDirectory);
         System.out.println("  adapter:  " + options.adapterMode());
+        System.out.println("  recording: " + options.recordingMode()
+                + (options.singleChunkRecording() ? " (single timestamp-coherent chunk)" : ""));
+        System.out.println("  campaign entity index: " + options.campaignEntityIndex());
         System.out.println("  adapter report: " + adapterReport);
         if (options.adapterTargets() != null) {
             System.out.println("  adapter targets: " + options.adapterTargets().toAbsolutePath().normalize());
@@ -419,6 +430,12 @@ final class RunCommand {
         values.put("launcherKind", target.kind());
         values.put("command", renderCommand(command));
         values.put("profile", profile);
+        values.put("recordingMode", options.recordingMode());
+        values.put("singleChunkRecording", options.singleChunkRecording());
+        values.put("recordingMaxChunkBytes", options.singleChunkRecording() ? 256L * 1024L * 1024L : null);
+        values.put("recordingPeriodicFlush",
+                options.recordingMode().records() && !options.singleChunkRecording());
+        values.put("campaignEntityIndex", options.campaignEntityIndex());
         values.put("adapterMode", options.adapterMode());
         values.put("adapterReport", adapterReport);
         values.put("adapterAnalysis", Files.isRegularFile(adapterAnalysis) ? adapterAnalysis : null);

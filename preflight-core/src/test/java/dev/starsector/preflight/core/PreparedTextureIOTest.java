@@ -43,6 +43,24 @@ class PreparedTextureIOTest {
         assertThrows(IOException.class, () -> PreparedTextureIO.fromBytes(truncated));
     }
 
+    @Test
+    void trustedReadStillRejectsMalformedStructureButSkipsPayloadChecksum() throws Exception {
+        byte[] bytes = PreparedTextureIO.toBytes(fixture());
+        // The checksum is the final 32 bytes, so this changes the last pixel while preserving every
+        // structural field and the total file length.
+        bytes[bytes.length - 32 - 1] ^= 0x44;
+        Path sameLengthCorruption = temporaryDirectory.resolve("same-length-corruption.spft");
+        Files.write(sameLengthCorruption, bytes);
+
+        assertThrows(IOException.class, () -> PreparedTextureIO.read(sameLengthCorruption));
+        PreparedTexture trusted = PreparedTextureIO.readTrusted(sameLengthCorruption);
+        assertEquals(8, trusted.pixelBytes());
+
+        Path truncated = temporaryDirectory.resolve("truncated.spft");
+        Files.write(truncated, Arrays.copyOf(bytes, bytes.length - 7));
+        assertThrows(IOException.class, () -> PreparedTextureIO.readTrusted(truncated));
+    }
+
     private static PreparedTexture fixture() {
         return new PreparedTexture(
                 "ab".repeat(32),
