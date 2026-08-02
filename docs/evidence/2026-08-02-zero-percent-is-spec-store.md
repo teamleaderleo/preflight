@@ -258,6 +258,75 @@ After the warm selector cost, the directional net launch improvement from this c
 checks, zero duplicates, and zero shadowed targets. macOS again recorded no thermal, performance,
 or CPU-power warning; the 31°C ambient still limits these figures to directional evidence.
 
+### Inside the expression phase: two levers, not one
+
+`rules-expression-parse` is the largest remaining rules subphase at 1.575s over 62,340 calls, and
+until now it was one opaque number. The reviewed constructor does only two things that are not
+field stores and list access: it calls `Misc.tokenize(String)` exactly once, and for a command
+invocation it calls `getCommandClass`, which walks every declared rule-command package in order
+with `Class.forName` and `newInstance` until one resolves, memoising the winner per name.
+
+An offline census of the same 44 ordered `rules.csv` providers the cache identity already hashes
+reproduces the game's own counts, which is what makes the rest of this section trustworthy:
+
+| census | game |
+| --- | --- |
+| 44 rules.csv providers | 44 ordered providers |
+| **21,059** merged rules | **21,059** duplicate-index checks and trigger insertions |
+| 62,645 expression constructions | 62,340 measured constructions |
+
+The 305-construction gap is the census's cruder handling of commented lines inside cells; it is
+0.5% and does not move any conclusion below.
+
+That corpus contains **31,816 distinct expression strings out of 62,645 — 49.2% are exact
+repeats.** So a memo keyed by the expression string has a hard ceiling of about half the tokenizer,
+and no more.
+
+Replaying the exact corpus through the game's own `Misc.tokenize`, on the game's own JVM
+(Zulu 17.0.10 x86_64 under Rosetta), sizes that ceiling directly:
+
+| tokenizer over the 62,645-expression corpus | duration |
+| --- | ---: |
+| vanilla `Misc.tokenize` | **0.514s** |
+| memoised, rebuilding fresh `Misc.Token` objects on every hit | **0.297s** |
+
+Tokens carry public mutable fields, so no memo may ever hand out a shared `Token`; the measured
+variant caches only the character scan's result and allocates fresh tokens per call, which is the
+only shape that is safe without proving no mod writes to those fields.
+
+**The tokenizer is therefore about a third of the expression phase, and memoising it is worth
+roughly 0.2s.** That leaves roughly a second inside the constructor that is not tokenizing, and the
+only other candidate is command-class resolution. The same profile declares **41 rule command
+packages** across 28 `settings.json` providers and invokes **671 distinct command names**, so a
+command whose package is declared late pays up to 40 failed `Class.forName` calls, each of which
+scans the whole modded classpath. A standalone replay of exactly that walk resolves 665 of the 671
+names in **7,022 `forName` attempts, against 665 when the winning package is already known** — a
+10.5x reduction in classpath scans, and the shape a prepared `name -> winning package` map would
+have.
+
+That standalone replay took 5.7s versus 0.30s, but **those seconds are not a claim about the
+game**: the harness builds its own `URLClassLoader` over 182 entries and pays cold jar-index
+construction inside the timed region, and the game's mod loader is not that loader. The ratio is
+the transferable part; the seconds are not.
+
+So the split is measured on one side and only bounded on the other, and the next step is to measure
+it in the game rather than argue about it. `RuleExpressionPhasePlan` pins the expression class
+(`8f628d7f…`) and partitions its constructor into three exclusive subphases —
+`rules-expression-tokenize`, `rules-expression-command-class`, and `rules-expression-residual`.
+`StartupPhaseRuntime`'s subphase slot is flat rather than nested, so the plan switches labels
+instead of nesting them: the residual opens at method entry, each reviewed call is bracketed, and
+the residual reopens after. The three sum to the constructor.
+
+One consequence has to be read carefully. The outer `rules-expression-parse` label is opened by
+`RulesLoaderPhasePlan` at the `NEW` and is closed by this plan's first switch, so **with this probe
+installed that label measures argument evaluation only, not construction.** The two probes are
+readable together, not comparable, and the 1.575s baseline above is the number to compare the three
+new labels against.
+
+Applied offline to the installed class, the plan takes the constructor from 310 to 325
+instructions, keeps the single `tokenize` call and both `getCommandClass` calls, emits the seven
+label switches and one close in the expected order, and declines a second weave.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -364,6 +433,13 @@ The three run directories were:
 - `20260802-113646-682-c1b1a287` — indexed rules duplicate check, real direct launch
 - `20260802-115136-046-268dc24b` — cold merged rules CSV learning run
 - `20260802-115233-425-55898e14` — warm merged rules CSV cache hit
+
+The expression-phase investigation is offline and needs no run directory. Its three sources are
+archived beside this document:
+
+- `2026-08-02-rules-expression-census.py.txt` — merged-profile expression census
+- `2026-08-02-rules-tokenize-benchmark.java.txt` — `Misc.tokenize` on the game's JVM
+- `2026-08-02-rule-command-class-benchmark.java.txt` — the rule-command package walk
 
 Command shape:
 

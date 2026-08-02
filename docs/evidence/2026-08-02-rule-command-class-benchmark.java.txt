@@ -1,0 +1,121 @@
+import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * What does resolving a rule command's class cost on a modded classpath?
+ *
+ * <p>{@code Rules.super(...)} constructs one expression per non-empty conditions/script line. For a
+ * command invocation the expression constructor calls {@code getCommandClass(name)}, which -- on a
+ * miss in its static map -- walks every entry of {@code ruleCommandPackages} in order calling
+ * {@code Class.forName(pkg + "." + name, false, loader)} and {@code newInstance()}, catching and
+ * continuing until one succeeds. The result is memoised per name for the rest of the process.
+ *
+ * <p>On the measured profile that is 818 distinct command names against 41 packages, so a name
+ * whose package is declared late pays up to 40 failed lookups, and a failed lookup scans every URL
+ * on the loader. This benchmark replays exactly that walk, then replays the same resolutions when
+ * the winning package is already known -- the difference is what a prepared command-class map could
+ * remove.
+ *
+ * <p>{@code newInstance()} is deliberately not called: it runs arbitrary mod code. Both arms omit
+ * it equally, so the comparison holds, and the vanilla arm is a lower bound on the shipped cost.
+ */
+public class CommandClassBench {
+    public static void main(String[] args) throws Exception {
+        List<String> names = Files.readAllLines(Path.of(args[0]), StandardCharsets.UTF_8);
+        List<String> packages = Files.readAllLines(Path.of(args[1]), StandardCharsets.UTF_8);
+        URL[] classpath = classpath();
+        System.out.printf("jvm %s (%s)%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+        System.out.printf("classpath entries %d, command names %d, packages %d%n%n",
+                classpath.length, names.size(), packages.size());
+
+        Map<String, String> winners = new LinkedHashMap<>();
+        for (int round = 0; round < 2; round++) {
+            long attempts;
+            double vanillaSeconds;
+            try (URLClassLoader loader = new URLClassLoader(classpath, ClassLoader.getPlatformClassLoader())) {
+                long start = System.nanoTime();
+                attempts = 0;
+                winners.clear();
+                for (String name : names) {
+                    for (String each : packages) {
+                        String candidate = each + "." + name;
+                        attempts++;
+                        try {
+                            Class.forName(candidate, false, loader);
+                            winners.put(name, candidate);
+                            break;
+                        } catch (Throwable ignored) {
+                            // exactly what vanilla does: catch, try the next package
+                        }
+                    }
+                }
+                vanillaSeconds = (System.nanoTime() - start) / 1e9;
+            }
+
+            double preparedSeconds;
+            try (URLClassLoader loader = new URLClassLoader(classpath, ClassLoader.getPlatformClassLoader())) {
+                long start = System.nanoTime();
+                for (String candidate : winners.values()) {
+                    try {
+                        Class.forName(candidate, false, loader);
+                    } catch (Throwable ignored) {
+                        // a prepared entry that no longer resolves must fall back to the full walk
+                    }
+                }
+                preparedSeconds = (System.nanoTime() - start) / 1e9;
+            }
+
+            System.out.printf("round %d%n", round + 1);
+            System.out.printf("  resolved %d of %d names, %d forName attempts%n",
+                    winners.size(), names.size(), attempts);
+            System.out.printf("  vanilla package walk   %7.3f s%n", vanillaSeconds);
+            System.out.printf("  known winning package  %7.3f s%n", preparedSeconds);
+            System.out.printf("  removable              %7.3f s%n%n",
+                    vanillaSeconds - preparedSeconds);
+        }
+
+        List<String> unresolved = new ArrayList<>();
+        for (String name : names) {
+            if (!winners.containsKey(name)) {
+                unresolved.add(name);
+            }
+        }
+        System.out.printf("names no package resolves: %d%n", unresolved.size());
+        for (int i = 0; i < Math.min(15, unresolved.size()); i++) {
+            System.out.println("  " + unresolved.get(i));
+        }
+    }
+
+    /** The game's own jars plus every enabled mod's jars and mod root, in enabled order. */
+    private static URL[] classpath() throws Exception {
+        List<URL> urls = new ArrayList<>();
+        Path core = Path.of("/Applications/Starsector.app/Contents/Resources/Java");
+        try (var stream = Files.list(core)) {
+            for (Path jar : stream.filter(p -> p.toString().endsWith(".jar")).sorted().toList()) {
+                urls.add(jar.toUri().toURL());
+            }
+        }
+        for (String line : Files.readAllLines(Path.of("modroots.txt"), StandardCharsets.UTF_8)) {
+            Path root = Path.of(line);
+            urls.add(new File(root.toString() + "/").toURI().toURL());
+            Path jars = root.resolve("jars");
+            if (Files.isDirectory(jars)) {
+                try (var stream = Files.walk(jars)) {
+                    for (Path jar : stream.filter(p -> p.toString().endsWith(".jar")).sorted().toList()) {
+                        urls.add(jar.toUri().toURL());
+                    }
+                }
+            }
+        }
+        return urls.toArray(new URL[0]);
+    }
+}

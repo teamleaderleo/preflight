@@ -196,6 +196,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact rule-expression constructor, the 62,340-call interior of the rules loader. */
+    static AdapterTarget ruleExpressionPhaseTarget() {
+        return new AdapterTarget(
+                "vanilla-rule-expression-0.98a-rc8-startup-phases",
+                RuleExpressionPhasePlan.TARGET_CLASS,
+                "8f628d7fece777d0b100d1fe526e12873f9c0bb533c4367dc015b81184660a95",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RuleExpressionPhasePlan.LOAD_METHOD,
+                        RuleExpressionPhasePlan.LOAD_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact campaign-rules loader used by the trigger-local duplicate index. */
     static AdapterTarget rulesDuplicateIndexTarget() {
         return new AdapterTarget(
@@ -366,7 +383,8 @@ final class AdapterTargetRegistry {
                 .withTarget(specStorePhaseTarget())
                 .withTarget(weaponLoaderPhaseTarget())
                 .withTarget(shipHullLoaderPhaseTarget())
-                .withTarget(rulesLoaderPhaseTarget());
+                .withTarget(rulesLoaderPhaseTarget())
+                .withTarget(ruleExpressionPhaseTarget());
     }
 
     AdapterTargetRegistry withVariantJsonCacheTarget() {

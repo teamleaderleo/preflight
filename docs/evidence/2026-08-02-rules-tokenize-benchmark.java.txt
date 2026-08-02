@@ -1,0 +1,132 @@
+import com.fs.starfarer.api.util.Misc;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * How much of the campaign-rules expression phase is the tokenizer?
+ *
+ * <p>The exact-profile probe attributes 1.575s to 62,340 expression constructions. Each such
+ * construction calls {@code Misc.tokenize(String)} exactly once and, for command invocations, may
+ * also call {@code getCommandClass}, which walks 41 rule command packages doing
+ * {@code Class.forName}. This benchmark isolates the tokenizer half by replaying the real corpus --
+ * every expression string the merged 44-provider rules.csv produces, in construction order with
+ * repeats -- through the game's own {@code Misc.tokenize} on the game's own JVM.
+ *
+ * <p>The memoized variant caches the tokenizer's output per input string and rebuilds fresh
+ * {@code Misc.Token} objects on every hit. Tokens carry public mutable fields, so instances are
+ * never shared; only the character scan is skipped.
+ */
+public class TokenizeBench {
+    public static void main(String[] args) throws Exception {
+        installStubSettings();
+        List<String> corpus = Files.readAllLines(Path.of(args[0]), StandardCharsets.UTF_8);
+        System.out.printf("jvm %s (%s)%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+        System.out.printf("corpus %d expressions, %d distinct%n",
+                corpus.size(), corpus.stream().distinct().count());
+
+        int failures = 0;
+        for (String expression : corpus) {
+            try {
+                Misc.tokenize(expression);
+            } catch (RuntimeException error) {
+                failures++;
+            }
+        }
+        System.out.printf("expressions the tokenizer rejects: %d%n%n", failures);
+
+        for (int round = 0; round < 3; round++) {
+            System.out.printf("round %d%n", round + 1);
+            System.out.printf("  vanilla tokenize   %7.3f s%n", vanilla(corpus));
+            System.out.printf("  memoized tokenize  %7.3f s%n", memoized(corpus));
+        }
+    }
+
+    private static double vanilla(List<String> corpus) {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String expression : corpus) {
+            try {
+                sink += Misc.tokenize(expression).size();
+            } catch (RuntimeException ignored) {
+                // vanilla wraps these in RuleException; the loader's behaviour is not the subject
+            }
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double memoized(List<String> corpus) {
+        Map<String, Shape[]> cache = new HashMap<>();
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String expression : corpus) {
+            Shape[] shapes = cache.get(expression);
+            if (shapes == null) {
+                try {
+                    List<Misc.Token> tokens = Misc.tokenize(expression);
+                    shapes = new Shape[tokens.size()];
+                    for (int i = 0; i < shapes.length; i++) {
+                        shapes[i] = new Shape(tokens.get(i).string, tokens.get(i).type);
+                    }
+                } catch (RuntimeException ignored) {
+                    shapes = new Shape[0];
+                }
+                cache.put(expression, shapes);
+            }
+            // A hit still allocates a fresh mutable Token per element, exactly as vanilla does.
+            List<Misc.Token> rebuilt = new ArrayList<>(shapes.length);
+            for (Shape shape : shapes) {
+                rebuilt.add(new Misc.Token(shape.string, shape.type));
+            }
+            sink += rebuilt.size();
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double elapsed(long start, long sink) {
+        double seconds = (System.nanoTime() - start) / 1e9;
+        if (sink < 0) {
+            throw new AssertionError();
+        }
+        return seconds;
+    }
+
+    private record Shape(String string, Misc.TokenType type) {
+    }
+
+    /**
+     * {@code Misc.<clinit>} reads a float out of {@code Global.getSettings()}, which does not exist
+     * outside a running game. The tokenizer itself never touches settings, so a proxy returning
+     * zero/false/null is enough to let the class initialise and is not part of what is measured.
+     */
+    private static void installStubSettings() {
+        Object settings = java.lang.reflect.Proxy.newProxyInstance(
+                TokenizeBench.class.getClassLoader(),
+                new Class<?>[] {com.fs.starfarer.api.SettingsAPI.class},
+                (proxy, method, arguments) -> {
+                    Class<?> type = method.getReturnType();
+                    if (type == float.class) {
+                        return 0f;
+                    }
+                    if (type == double.class) {
+                        return 0d;
+                    }
+                    if (type == int.class) {
+                        return 0;
+                    }
+                    if (type == long.class) {
+                        return 0L;
+                    }
+                    if (type == boolean.class) {
+                        return false;
+                    }
+                    return null;
+                });
+        com.fs.starfarer.api.Global.setSettings((com.fs.starfarer.api.SettingsAPI) settings);
+    }
+}

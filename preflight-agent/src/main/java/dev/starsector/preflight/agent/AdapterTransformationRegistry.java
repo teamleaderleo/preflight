@@ -50,7 +50,9 @@ final class AdapterTransformationRegistry {
                     if (hullPhases == null) {
                         byte[] rulesPhases = RulesLoaderPhasePlan.transform(signature, originalBytes);
                         if (rulesPhases == null) {
-                            return rulesPhases;
+                            // A different class in the same plan: the expression constructor the
+                            // rules loader calls 62,340 times.
+                            return RuleExpressionPhasePlan.transform(signature, originalBytes);
                         }
                         byte[] optimized = rulesOptimizations(rulesPhases);
                         return optimized == null ? rulesPhases : optimized;
