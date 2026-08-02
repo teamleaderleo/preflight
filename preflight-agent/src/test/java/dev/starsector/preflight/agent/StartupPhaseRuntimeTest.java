@@ -44,6 +44,22 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"completed\":true"));
     }
 
+    @Test
+    void retainsLaterLoaderLabelsAfterTheFirstSixteenCategories() throws Exception {
+        Path report = temporaryDirectory.resolve("many-subphases.json");
+        StartupPhaseRuntime.beginSession(report);
+        StartupPhaseRuntime.installed();
+        for (int index = 0; index < 24; index++) {
+            StartupPhaseRuntime.specSubphaseStart("loader-category-" + index);
+            StartupPhaseRuntime.specSubphaseEnd();
+        }
+        StartupPhaseRuntime.mark("flush");
+
+        String json = Files.readString(report);
+        assertTrue(json.contains("\"label\":\"loader-category-0\""));
+        assertTrue(json.contains("\"label\":\"loader-category-23\""));
+    }
+
     private static final class ExamplePlugin {
     }
 }

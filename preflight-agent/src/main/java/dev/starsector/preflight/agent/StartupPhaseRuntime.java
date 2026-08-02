@@ -20,7 +20,7 @@ public final class StartupPhaseRuntime {
     private static final int MAX_PHASES = 64;
     private static final int MAX_PLUGINS = 128;
     private static final int MAX_SPEC_LOADERS = 64;
-    private static final int MAX_SPEC_SUBPHASES = 16;
+    private static final int MAX_SPEC_SUBPHASES = 32;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
     private static Path destination;

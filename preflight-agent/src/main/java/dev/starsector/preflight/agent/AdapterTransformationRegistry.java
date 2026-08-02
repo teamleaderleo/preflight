@@ -47,7 +47,10 @@ final class AdapterTransformationRegistry {
                 byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
                 if (weaponPhases == null) {
                     byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
-                    if (hullPhases == null || !HullJsonCacheRuntime.ready()) {
+                    if (hullPhases == null) {
+                        return RulesLoaderPhasePlan.transform(signature, originalBytes);
+                    }
+                    if (!HullJsonCacheRuntime.ready()) {
                         return hullPhases;
                     }
                     try {

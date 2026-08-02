@@ -200,6 +200,28 @@ still performed the original live construction, all SpecStore lookups, and all r
 There were zero shadowed targets. macOS reported no thermal or performance warning, but the 31°C
 ambient still makes the absolute single-run timings directional.
 
+The next exact probe split the campaign-rules loader. This probe raises its bounded subphase-label
+capacity from 16 to 32 because the four earlier loader probes legitimately consume the first 16
+categories; a regression test now ensures later labels remain visible.
+
+| rules operation | calls | aggregate duration |
+| --- | ---: | ---: |
+| expression/token parsing | 62,340 | **1.575s** |
+| merged `rules.csv` read, overlay, and parse | 1 | **830ms** |
+| duplicate-ID linear scan | 21,059 | **774ms** |
+| string regex replacement/splitting | 205,686 | 296ms |
+| script class registration | 23,339 | 6ms |
+| trigger-list insertion | 21,059 | 4ms |
+| option allocation | 16,155 | 3ms |
+
+The measured loader took 3.989s with the high-frequency probe enabled; an immediately preceding
+lighter probe measured 3.508s, so the absolute total includes visible instrumentation overhead.
+The ranking is still actionable. In particular, vanilla scans every previously registered rule
+under the same trigger only to reject a duplicate ID, then performs the actual insertion in 4ms.
+An exact `(trigger, ruleId)` set can preserve the same rejection and ordered registry mutation while
+removing that quadratic scan. CSV preparation is the next pure cache boundary. Parsed expression
+objects remain live game objects and should not be serialized without a stronger equivalence proof.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -301,6 +323,8 @@ The three run directories were:
 - `20260802-105227-395-1366d474` — aggregate ship-hull merge/lookup/register timings
 - `20260802-110641-398-e9514ce2` — cold hull JSON learning run
 - `20260802-110845-534-fb8e9274` — warm hull JSON cache run
+- `20260802-112438-211-4b39a214` — first rules-loader inner attribution
+- `20260802-112637-599-df8c2752` — rules regex and duplicate-scan attribution
 
 Command shape:
 
