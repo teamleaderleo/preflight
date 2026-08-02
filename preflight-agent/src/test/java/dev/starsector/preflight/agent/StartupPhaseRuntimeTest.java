@@ -16,6 +16,8 @@ class StartupPhaseRuntimeTest {
         Path report = temporaryDirectory.resolve("startup-phases.json");
         StartupPhaseRuntime.beginSession(report);
         StartupPhaseRuntime.installed();
+        StartupPhaseRuntime.progress(0.0004f);
+        StartupPhaseRuntime.progress(0.052f);
         StartupPhaseRuntime.mark("progress-100");
         StartupPhaseRuntime.pluginStart(new ExamplePlugin());
         StartupPhaseRuntime.pluginEnd();
@@ -23,6 +25,10 @@ class StartupPhaseRuntimeTest {
 
         String json = Files.readString(report);
         assertTrue(json.contains("\"installed\":true"));
+        assertTrue(json.contains("\"name\":\"progress-first-render\""));
+        assertTrue(json.contains("\"name\":\"progress-5-percent\""));
+        assertTrue(json.contains("\"progressPermille\":52"));
+        assertTrue(json.contains("\"progressCalls\":2"));
         assertTrue(json.contains("\"name\":\"progress-100\""));
         assertTrue(json.contains("\"name\":\"resource-init-complete\""));
         assertTrue(json.contains("StartupPhaseRuntimeTest$ExamplePlugin"));

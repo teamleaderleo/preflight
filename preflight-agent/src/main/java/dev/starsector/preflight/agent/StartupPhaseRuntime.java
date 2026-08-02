@@ -14,11 +14,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Direct, low-overhead timing for the work hidden behind the loading bar's 100% state. */
+/** Direct, low-overhead timing for work hidden before, during, and after loading progress. */
 public final class StartupPhaseRuntime {
     static final String PLAN_ID = "startup-phase-probe-v1";
     private static final int MAX_PHASES = 64;
     private static final int MAX_PLUGINS = 128;
+    private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
     private static Path destination;
     private static Instant startedAt;
@@ -30,6 +31,9 @@ public final class StartupPhaseRuntime {
     private static final List<Map<String, Object>> plugins = new ArrayList<>();
     private static String activePlugin;
     private static long activePluginNanos;
+    private static long progressCalls;
+    private static int lastProgressPermille;
+    private static int nextProgressMilestone;
 
     private StartupPhaseRuntime() {
     }
@@ -45,6 +49,9 @@ public final class StartupPhaseRuntime {
         plugins.clear();
         activePlugin = null;
         activePluginNanos = 0L;
+        progressCalls = 0L;
+        lastProgressPermille = -1;
+        nextProgressMilestone = 0;
     }
 
     static synchronized void installed() {
@@ -55,21 +62,33 @@ public final class StartupPhaseRuntime {
     /** Called from the reviewed game class. It must never let probe failure affect startup. */
     public static synchronized void mark(String name) {
         try {
-            if (phases.size() >= MAX_PHASES) {
-                return;
-            }
-            long now = System.nanoTime();
-            Map<String, Object> phase = new LinkedHashMap<>();
-            phase.put("name", name);
-            phase.put("elapsedMillis", millis(now - startedNanos));
-            phase.put("sincePreviousMillis", millis(now - lastPhaseNanos));
-            phases.add(phase);
-            lastPhaseNanos = now;
-            writeSafely();
+            recordPhase(name, null);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
             // This code is woven into startup. Diagnostics are never allowed to become startup.
+        }
+    }
+
+    /** Observes the value Starsector is about to render without changing it. */
+    public static synchronized void progress(float fraction) {
+        try {
+            progressCalls++;
+            int permille = Float.isFinite(fraction)
+                    ? Math.max(0, Math.min(1000, Math.round(fraction * 1000f)))
+                    : -1;
+            lastProgressPermille = permille;
+            if (progressCalls == 1L) {
+                recordPhase("progress-first-render", permille);
+            }
+            while (nextProgressMilestone < PROGRESS_MILESTONES.length
+                    && permille >= PROGRESS_MILESTONES[nextProgressMilestone] * 10) {
+                int percent = PROGRESS_MILESTONES[nextProgressMilestone++];
+                recordPhase("progress-" + percent + "-percent", permille);
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
         }
     }
 
@@ -113,8 +132,27 @@ public final class StartupPhaseRuntime {
         output.put("phases", List.copyOf(phases));
         output.put("plugins", List.copyOf(plugins));
         output.put("activePlugin", activePlugin);
+        output.put("progressCalls", progressCalls);
+        output.put("lastProgressPermille", lastProgressPermille);
         output.put("writeProblem", writeProblem);
         return output;
+    }
+
+    private static void recordPhase(String name, Integer progressPermille) {
+        if (phases.size() >= MAX_PHASES) {
+            return;
+        }
+        long now = System.nanoTime();
+        Map<String, Object> phase = new LinkedHashMap<>();
+        phase.put("name", name);
+        phase.put("elapsedMillis", millis(now - startedNanos));
+        phase.put("sincePreviousMillis", millis(now - lastPhaseNanos));
+        if (progressPermille != null) {
+            phase.put("progressPermille", progressPermille);
+        }
+        phases.add(phase);
+        lastPhaseNanos = now;
+        writeSafely();
     }
 
     private static Map<String, Object> pluginTiming(

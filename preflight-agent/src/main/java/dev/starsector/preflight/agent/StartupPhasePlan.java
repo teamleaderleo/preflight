@@ -13,7 +13,7 @@ import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Marks the exact boundaries after Starsector has already drawn loading progress at 100%. */
+/** Marks exact loading-screen, progress, audio, and mod-callback boundaries. */
 final class StartupPhasePlan {
     static final String TARGET_CLASS = "com/fs/starfarer/loading/ResourceLoaderState";
     static final String INIT_METHOD = "init";
@@ -31,10 +31,28 @@ final class StartupPhasePlan {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode init = uniqueMethod(owner, INIT_METHOD, INIT_DESCRIPTOR);
+        MethodNode renderProgress = uniqueMethod(owner, "renderProgress", "(F)V");
         if (init == null || calls(init, RUNTIME, "mark", "(Ljava/lang/String;)V").size() > 0) {
             return null;
         }
 
+        MethodInsnNode renderBackground = uniqueCall(init,
+                TARGET_CLASS, "renderBg", "()V");
+        MethodInsnNode resourceManifest = uniqueCall(init,
+                "com/fs/starfarer/settings/StarfarerSettings", "o00000",
+                "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V");
+        MethodInsnNode scriptDiscovery = uniqueCall(init,
+                "com/fs/starfarer/loading/scripts/ScriptStore", "ô00000", "()V");
+        MethodInsnNode scriptCompile = uniqueCall(init,
+                "com/fs/starfarer/loading/scripts/ScriptStore", "int", "()V");
+        MethodInsnNode scriptPrime = uniqueCall(init,
+                "com/fs/starfarer/loading/scripts/ScriptStore", "ö00000", "()V");
+        MethodInsnNode titleData = uniqueCall(init,
+                "com/fs/starfarer/title/C/A/Object", "o00000",
+                "()Lcom/fs/starfarer/title/C/A/A;");
+        MethodInsnNode specStore = uniqueCall(init,
+                "com/fs/starfarer/loading/SpecStore", "ÓO0000",
+                "(Lcom/fs/starfarer/loading/ResourceLoaderState;)V");
         MethodInsnNode shutdown = uniqueCall(init, "java/util/concurrent/ExecutorService",
                 "shutdown", "()V");
         MethodInsnNode await = uniqueCall(init, "java/util/concurrent/ExecutorService",
@@ -55,12 +73,27 @@ final class StartupPhasePlan {
                 || !"com/fs/starfarer/launcher/ModManager".equals(getInstance.owner)
                 || !"getInstance".equals(getInstance.name)
                 || !"()Lcom/fs/starfarer/launcher/ModManager;".equals(getInstance.desc)
-                || shutdown == null || awaitRetry == null || graphicsFinalize == null || scripts == null
+                || renderProgress == null || renderBackground == null || resourceManifest == null
+                || scriptDiscovery == null || scriptCompile == null || scriptPrime == null
+                || titleData == null || specStore == null
+                || shutdown == null || awaitRetry == null
+                || graphicsFinalize == null || scripts == null
                 || pluginCallback == null || pluginLoop == null || onlyReturn == null) {
             return null;
         }
 
         init.instructions.insertBefore(init.instructions.getFirst(), mark("resource-init-enter"));
+        init.instructions.insert(renderBackground, mark("loading-screen-ready"));
+        init.instructions.insertBefore(resourceManifest, mark("resource-manifest-start"));
+        init.instructions.insert(resourceManifest, mark("resource-manifest-complete"));
+        init.instructions.insertBefore(scriptDiscovery, mark("script-discovery-start"));
+        init.instructions.insert(scriptDiscovery, mark("script-discovery-core-complete"));
+        init.instructions.insertBefore(scriptCompile, mark("script-plugin-registration-complete"));
+        init.instructions.insert(scriptCompile, mark("script-compile-complete"));
+        init.instructions.insert(scriptPrime, mark("script-store-prime-complete"));
+        init.instructions.insert(titleData, mark("pre-progress-data-complete"));
+        init.instructions.insertBefore(specStore, mark("spec-store-start"));
+        init.instructions.insert(specStore, mark("spec-store-complete"));
         init.instructions.insertBefore(shutdown, mark("progress-100"));
         init.instructions.insert(awaitRetry, mark("audio-workers-complete"));
         init.instructions.insert(graphicsFinalize, mark("graphics-finalize-complete"));
@@ -77,6 +110,12 @@ final class StartupPhasePlan {
                 Opcodes.INVOKESTATIC, RUNTIME, "pluginEnd", "()V", false));
         init.instructions.insert(pluginLoop, mark("mod-callbacks-complete"));
         init.instructions.insertBefore(onlyReturn, mark("resource-init-complete"));
+
+        InsnList progress = new InsnList();
+        progress.add(new org.objectweb.asm.tree.VarInsnNode(Opcodes.FLOAD, 1));
+        progress.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "progress", "(F)V", false));
+        renderProgress.instructions.insertBefore(renderProgress.instructions.getFirst(), progress);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
