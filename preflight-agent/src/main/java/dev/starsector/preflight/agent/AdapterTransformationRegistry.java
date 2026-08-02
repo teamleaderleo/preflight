@@ -52,11 +52,7 @@ final class AdapterTransformationRegistry {
                     byte[] projectilePhases = ProjectileLoaderPhasePlan.transform(
                             ClassSignature.parse(weaponPhases), weaponPhases);
                     byte[] attributed = projectilePhases == null ? weaponPhases : projectilePhases;
-                    if (!WeaponJsonCacheRuntime.ready()) {
-                        return attributed;
-                    }
-                    byte[] cached = WeaponJsonCachePlan.transform(
-                            ClassSignature.parse(attributed), attributed);
+                    byte[] cached = weaponJsonCaches(attributed);
                     return cached == null ? attributed : cached;
                 } catch (java.io.IOException ignored) {
                     return weaponPhases;
@@ -81,12 +77,36 @@ final class AdapterTransformationRegistry {
                     ? VariantJsonCachePlan.transform(signature, originalBytes)
                     : null;
         }
-        if (WeaponJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return WeaponJsonCacheRuntime.ready()
-                    ? WeaponJsonCachePlan.transform(signature, originalBytes)
-                    : null;
+        if (WeaponJsonCacheRuntime.PLAN_ID.equals(target.planId())
+                || ProjectileJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return weaponJsonCaches(originalBytes);
         }
         return null;
+    }
+
+    /** Composes the two independent method-pair rewrites that share WeaponSpecLoader. */
+    private static byte[] weaponJsonCaches(byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+        try {
+            if (WeaponJsonCacheRuntime.ready()) {
+                byte[] weapon = WeaponJsonCachePlan.transform(ClassSignature.parse(current), current);
+                if (weapon != null) {
+                    current = weapon;
+                    changed = true;
+                }
+            }
+            if (ProjectileJsonCacheRuntime.ready()) {
+                byte[] projectile = ProjectileJsonCachePlan.transform(ClassSignature.parse(current), current);
+                if (projectile != null) {
+                    current = projectile;
+                    changed = true;
+                }
+            }
+            return changed ? current : null;
+        } catch (java.io.IOException ignored) {
+            return changed ? current : null;
+        }
     }
 
     /**
@@ -148,6 +168,9 @@ final class AdapterTransformationRegistry {
         }
         if (WeaponJsonCacheRuntime.PLAN_ID.equals(planId)) {
             return WeaponJsonCacheRuntime.ready();
+        }
+        if (ProjectileJsonCacheRuntime.PLAN_ID.equals(planId)) {
+            return ProjectileJsonCacheRuntime.ready();
         }
         return false;
     }
