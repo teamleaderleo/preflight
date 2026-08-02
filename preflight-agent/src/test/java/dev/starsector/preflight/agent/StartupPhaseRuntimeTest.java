@@ -20,6 +20,10 @@ class StartupPhaseRuntimeTest {
         StartupPhaseRuntime.progress(0.052f);
         StartupPhaseRuntime.mark("progress-100");
         StartupPhaseRuntime.specLoaderStart("1:SpecStore.new");
+        StartupPhaseRuntime.specSubphaseStart("variant-object-construction");
+        StartupPhaseRuntime.specSubphaseEnd();
+        StartupPhaseRuntime.specSubphaseStart("variant-object-construction");
+        StartupPhaseRuntime.specSubphaseEnd();
         StartupPhaseRuntime.specLoaderEnd();
         StartupPhaseRuntime.pluginStart(new ExamplePlugin());
         StartupPhaseRuntime.pluginEnd();
@@ -34,6 +38,8 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"name\":\"progress-100\""));
         assertTrue(json.contains("\"name\":\"resource-init-complete\""));
         assertTrue(json.contains("\"label\":\"1:SpecStore.new\""));
+        assertTrue(json.contains("\"label\":\"variant-object-construction\""));
+        assertTrue(json.contains("\"calls\":2"));
         assertTrue(json.contains("StartupPhaseRuntimeTest$ExamplePlugin"));
         assertTrue(json.contains("\"completed\":true"));
     }

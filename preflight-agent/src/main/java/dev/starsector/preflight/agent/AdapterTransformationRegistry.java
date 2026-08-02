@@ -39,9 +39,20 @@ final class AdapterTransformationRegistry {
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
             byte[] startupPhases = StartupPhasePlan.transform(signature, originalBytes);
-            return startupPhases != null
-                    ? startupPhases
-                    : SpecStorePhasePlan.transform(signature, originalBytes);
+            if (startupPhases != null) {
+                return startupPhases;
+            }
+            byte[] specStore = SpecStorePhasePlan.transform(signature, originalBytes);
+            if (specStore == null) {
+                return null;
+            }
+            try {
+                byte[] variantPhases = VariantLoaderPhasePlan.transform(
+                        ClassSignature.parse(specStore), specStore);
+                return variantPhases == null ? specStore : variantPhases;
+            } catch (java.io.IOException ignored) {
+                return specStore;
+            }
         }
         return null;
     }

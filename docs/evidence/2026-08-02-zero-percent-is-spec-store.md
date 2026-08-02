@@ -81,6 +81,23 @@ Those six calls account for 15.857s, or 80.7% of measured loader time. The first
 identifiable data domains and together account for 75.1%. This rules out a diffuse collection of
 tiny loaders: variants, weapons, hulls, and rules are the useful preparation/cache targets.
 
+The largest loader was then split around its exact repeated operations. In a second exact-profile
+run, the 4.051s ship/fighter-variant loader contained:
+
+| variant operation | calls | aggregate duration |
+| --- | ---: | ---: |
+| merged JSON lookup, overlay, and parse | 5,573 | **3.582s** |
+| live `HullVariantSpec` construction | 5,550 | 221ms |
+| file/directory enumeration | 229 | 108ms |
+| module/default-variant post-pass | 1 | 58ms |
+| registry insertion | 5,550 | 3ms |
+
+Twenty-three parsed variants were skipped before construction by the game's duplicate/total-
+conversion gates. The useful cache boundary is therefore now concrete: cache the ordered merged
+JSON representation, then retain the game's cheap constructor, registry insertion, skip behavior,
+and post-pass. Serializing mutable live `HullVariantSpec` instances would attack only 221ms while
+assuming responsibility for transient hull links and later fixups.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -172,6 +189,7 @@ The three run directories were:
 - `20260802-022231-406-5ceaed08` — exact `SpecStore`, four-audio-worker negative
 - `20260802-022644-286-6d60db3b` — exact `SpecStore`, JSON-reader negative
 - `specstore-attribution-20260802` — 41 per-loader timings, vanilla audio
+- `variant-attribution-2-20260802` — aggregate variant merge/construct/register/post-pass timings
 
 Command shape:
 
