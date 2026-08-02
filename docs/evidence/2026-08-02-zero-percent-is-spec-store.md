@@ -180,6 +180,26 @@ dependency lookups are numerous but collectively negligible, so replacing or ind
 add risk without meaningful startup value. A hull cache should therefore retain those lookups and
 all live construction/registration while bypassing only the merged `.ship` JSON operation.
 
+The strict-profile hull cache then exercised that boundary in two real direct launches. The cold
+run captured 2,471 reusable merged values into a 5.7 MiB artifact and retained 200 vanilla
+fallbacks. Those fallbacks are the core-game hull inputs for which capture did not produce a
+reusable serialized value; the cache deliberately leaves them on the original call rather than
+inventing a second representation. The warm run hit all 2,471 prepared entries:
+
+| boundary | cold learning | warm cache | change |
+| --- | ---: | ---: | ---: |
+| ship-hull loader | 2.653s | **0.754s** | **-1.899s** |
+| merged JSON operation | 2.130s | **0.344s** | **-1.786s** |
+| live SpecStore lookups | 16ms | retained | — |
+| live registry insertion | 5ms | retained | — |
+
+The hull dependency selector hashes the exact game JAR and every ordered `.ship` provider under
+`data/hulls/`; `.skin` and unrelated resources are intentionally excluded. Selection took 203ms on
+the warm run, making the directional net launch improvement about **1.7 seconds**. The warm loader
+still performed the original live construction, all SpecStore lookups, and all registry mutation.
+There were zero shadowed targets. macOS reported no thermal or performance warning, but the 31°C
+ambient still makes the absolute single-run timings directional.
+
 ## The rest of this load
 
 The first complete milestone run decomposed `ResourceLoaderState.init` as:
@@ -279,6 +299,8 @@ The three run directories were:
 - `20260802-104416-023-60a40044` — cold projectile JSON learning run
 - `20260802-104547-020-19e420a3` — warm projectile JSON cache run
 - `20260802-105227-395-1366d474` — aggregate ship-hull merge/lookup/register timings
+- `20260802-110641-398-e9514ce2` — cold hull JSON learning run
+- `20260802-110845-534-fb8e9274` — warm hull JSON cache run
 
 Command shape:
 

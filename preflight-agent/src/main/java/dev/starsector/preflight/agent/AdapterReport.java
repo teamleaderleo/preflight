@@ -272,6 +272,7 @@ final class AdapterReport {
         key(output, "variantJsonCache").append(Json.value(VariantJsonCacheRuntime.telemetry())).append(',');
         key(output, "weaponJsonCache").append(Json.value(WeaponJsonCacheRuntime.telemetry())).append(',');
         key(output, "projectileJsonCache").append(Json.value(ProjectileJsonCacheRuntime.telemetry())).append(',');
+        key(output, "hullJsonCache").append(Json.value(HullJsonCacheRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

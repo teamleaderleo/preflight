@@ -46,7 +46,17 @@ final class AdapterTransformationRegistry {
             if (specStore == null) {
                 byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
                 if (weaponPhases == null) {
-                    return ShipHullLoaderPhasePlan.transform(signature, originalBytes);
+                    byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
+                    if (hullPhases == null || !HullJsonCacheRuntime.ready()) {
+                        return hullPhases;
+                    }
+                    try {
+                        byte[] cached = HullJsonCachePlan.transform(
+                                ClassSignature.parse(hullPhases), hullPhases);
+                        return cached == null ? hullPhases : cached;
+                    } catch (java.io.IOException ignored) {
+                        return hullPhases;
+                    }
                 }
                 try {
                     byte[] projectilePhases = ProjectileLoaderPhasePlan.transform(
@@ -80,6 +90,11 @@ final class AdapterTransformationRegistry {
         if (WeaponJsonCacheRuntime.PLAN_ID.equals(target.planId())
                 || ProjectileJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
             return weaponJsonCaches(originalBytes);
+        }
+        if (HullJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return HullJsonCacheRuntime.ready()
+                    ? HullJsonCachePlan.transform(signature, originalBytes)
+                    : null;
         }
         return null;
     }
@@ -171,6 +186,9 @@ final class AdapterTransformationRegistry {
         }
         if (ProjectileJsonCacheRuntime.PLAN_ID.equals(planId)) {
             return ProjectileJsonCacheRuntime.ready();
+        }
+        if (HullJsonCacheRuntime.PLAN_ID.equals(planId)) {
+            return HullJsonCacheRuntime.ready();
         }
         return false;
     }

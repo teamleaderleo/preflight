@@ -136,6 +136,13 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/cache/profile.sppj"), options.projectileJsonCache());
     }
 
+    @Test
+    void parsesHullJsonCacheArtifact() {
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,hullJsonCache64=" + encoded("build/cache/profile.sphj"));
+        assertEquals(Path.of("build/cache/profile.sphj"), options.hullJsonCache());
+    }
+
     private static String encoded(String value) {
         return Base64.getUrlEncoder()
                 .withoutPadding()
