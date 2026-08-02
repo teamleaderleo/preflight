@@ -37,6 +37,7 @@ final class RunCommand {
             return 3;
         }
         TextureLaunchContext textureContext = textureContext(options, target);
+        DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
                 ? defaultRunDirectory(home, Instant.now(), UUID.randomUUID().toString().substring(0, 8))
@@ -67,10 +68,22 @@ final class RunCommand {
                 options.singleChunkRecording(),
                 options.campaignEntityIndex(),
                 options.startupPhaseProbe());
+        if (directSettings != null) {
+            javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
+        }
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
-        printPlan(target, runDirectory, adapterReport, command, javaToolOptions, discovery, options, textureContext);
+        printPlan(
+                target,
+                runDirectory,
+                adapterReport,
+                command,
+                javaToolOptions,
+                discovery,
+                options,
+                textureContext,
+                directSettings);
         if (options.dryRun()) {
             return 0;
         }
@@ -103,7 +116,7 @@ final class RunCommand {
         try {
             writeMetadata(
                     metadata, target, command, runIdentity, started, null, null, null, outcome, null,
-                    recordedProfile, options, textureContext, adapterReport, adapterAnalysis, console, null,
+                    recordedProfile, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
                     postprocessingFailures, null);
 
             ProcessBuilder builder = new ProcessBuilder(command);
@@ -211,7 +224,7 @@ final class RunCommand {
             try {
                 writeMetadata(
                         metadata, target, command, runIdentity, started, ended, exitCode, launcherExitCode, outcome,
-                        lifecycleEvidence, recordedProfile, options, textureContext, adapterReport, adapterAnalysis,
+                        lifecycleEvidence, recordedProfile, options, directSettings, textureContext, adapterReport, adapterAnalysis,
                         console, childOutput, postprocessingFailures, executionFailure);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
@@ -318,7 +331,8 @@ final class RunCommand {
             String javaToolOptions,
             DiscoveryResult discovery,
             CommandLine options,
-            TextureLaunchContext textureContext) {
+            TextureLaunchContext textureContext,
+            DirectLaunchSettings directSettings) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
         System.out.println("  launcher: " + target.launcher());
@@ -329,6 +343,11 @@ final class RunCommand {
                 + (options.singleChunkRecording() ? " (single timestamp-coherent chunk)" : ""));
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
         System.out.println("  startup phase probe: " + options.startupPhaseProbe());
+        System.out.println("  launch: " + (directSettings == null
+                ? "launcher UI"
+                : "direct " + directSettings.resolution()
+                        + " fullscreen=" + directSettings.fullscreen()
+                        + " sound=" + directSettings.sound()));
         System.out.println("  adapter report: " + adapterReport);
         if (options.adapterTargets() != null) {
             System.out.println("  adapter targets: " + options.adapterTargets().toAbsolutePath().normalize());
@@ -407,6 +426,7 @@ final class RunCommand {
             StarsectorRunLogEvidence.Evidence lifecycleEvidence,
             Path profile,
             CommandLine options,
+            DirectLaunchSettings directSettings,
             TextureLaunchContext textureContext,
             Path adapterReport,
             Path adapterAnalysis,
@@ -443,6 +463,8 @@ final class RunCommand {
                 options.recordingMode().records() && !options.singleChunkRecording());
         values.put("campaignEntityIndex", options.campaignEntityIndex());
         values.put("startupPhaseProbe", options.startupPhaseProbe());
+        values.put("directLaunch", options.directLaunch());
+        values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
         values.put("adapterMode", options.adapterMode());
         values.put("adapterReport", adapterReport);
         values.put("adapterAnalysis", Files.isRegularFile(adapterAnalysis) ? adapterAnalysis : null);
@@ -460,6 +482,26 @@ final class RunCommand {
         values.put("adapterKillSwitchProperty", "preflight.adapter.disabled");
         values.put("adapterKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER");
         Files.writeString(path, Json.object(values) + System.lineSeparator());
+    }
+
+    private static DirectLaunchSettings directLaunchSettings(CommandLine options) {
+        if (!options.directLaunch()) {
+            return null;
+        }
+        DirectLaunchSettings.Availability availability = DirectLaunchSettings.preferencesReadable()
+                ? DirectLaunchSettings.resolve(DirectLaunchSettings.installedPreferences())
+                : DirectLaunchSettings.Availability.unavailable(
+                        "The game's launcher preferences (" + DirectLaunchSettings.PREFERENCES_NODE
+                                + ") are unavailable on this machine.");
+        if (!availability.available()) {
+            throw new IllegalArgumentException("--direct is unavailable: " + availability.reason());
+        }
+        return availability.settings();
+    }
+
+    static String appendJavaOptions(String existing, List<String> directOptions) {
+        String options = String.join(" ", directOptions);
+        return existing == null || existing.isBlank() ? options : existing + " " + options;
     }
 
     private static TextureLaunchContext textureContext(CommandLine options, LaunchTarget target) throws IOException {

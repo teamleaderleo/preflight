@@ -28,6 +28,7 @@ record CommandLine(
         boolean unpadded,
         boolean campaignEntityIndex,
         boolean startupPhaseProbe,
+        boolean directLaunch,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -43,6 +44,7 @@ record CommandLine(
         boolean unpadded = false;
         boolean campaignEntityIndex = false;
         boolean startupPhaseProbe = false;
+        boolean directLaunch = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -87,6 +89,7 @@ record CommandLine(
                 case "--prepared-unpadded" -> unpadded = true;
                 case "--campaign-entity-index" -> campaignEntityIndex = true;
                 case "--startup-phase-probe" -> startupPhaseProbe = true;
+                case "--direct" -> directLaunch = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -174,6 +177,7 @@ record CommandLine(
                 unpadded,
                 campaignEntityIndex,
                 startupPhaseProbe,
+                directLaunch,
                 List.copyOf(forwarded));
     }
 
