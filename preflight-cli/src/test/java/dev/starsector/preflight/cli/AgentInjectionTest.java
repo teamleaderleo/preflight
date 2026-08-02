@@ -152,6 +152,24 @@ class AgentInjectionTest {
     }
 
     @Test
+    void variantJsonCacheRequiresAndReachesTheEnabledAdapter() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                Path.of("cache", "profile.spvj"));
+
+        assertTrue(enabled.contains(",variantJsonCache64="), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        Path.of("cache", "profile.spvj")));
+    }
+
+    @Test
     void includesProbeReportAndTargetPaths() {
         String value = AgentInjection.append(
                 "",

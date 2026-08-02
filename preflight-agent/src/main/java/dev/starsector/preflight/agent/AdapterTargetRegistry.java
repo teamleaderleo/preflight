@@ -131,6 +131,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact reviewed variant loader used by the strict-profile merged-JSON cache. */
+    static AdapterTarget variantJsonCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-spec-store-0.98a-rc8-variant-json-cache",
+                SpecStorePhasePlan.TARGET_CLASS,
+                "1947fee1403e93b27ae89b4995fcfde5f65b8ffe1ef3f564b4daaed3a5e69821",
+                VariantJsonCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        VariantLoaderPhasePlan.METHOD, VariantLoaderPhasePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget textureTarget(String id, String planId) {
         return new AdapterTarget(
                 id,
@@ -185,6 +201,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withStartupPhaseTarget() {
         return withTarget(startupPhaseTarget()).withTarget(specStorePhaseTarget());
+    }
+
+    AdapterTargetRegistry withVariantJsonCacheTarget() {
+        return withTarget(variantJsonCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

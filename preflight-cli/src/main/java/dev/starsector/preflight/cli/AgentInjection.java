@@ -198,6 +198,31 @@ final class AgentInjection {
             boolean singleChunkRecording,
             boolean campaignEntityIndex,
             boolean startupPhaseProbe) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, null);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache) {
         if (singleChunkRecording && !recordingMode.records()) {
             throw new IllegalArgumentException("Single-chunk recording requires recording to be enabled");
         }
@@ -206,6 +231,9 @@ final class AgentInjection {
         }
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Startup phase probe requires the enabled adapter");
+        }
+        if (variantJsonCache != null && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Variant JSON cache requires the enabled adapter");
         }
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
@@ -224,6 +252,7 @@ final class AgentInjection {
         appendPath(arguments, "textureCache64", textureCacheDirectory);
         appendPath(arguments, "textureManifest64", textureManifest);
         appendPath(arguments, "textureIndex64", textureIndex);
+        appendPath(arguments, "variantJsonCache64", variantJsonCache);
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
         }

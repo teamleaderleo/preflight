@@ -1,0 +1,217 @@
+package dev.starsector.preflight.agent;
+
+import dev.starsector.preflight.core.PreparedVariantJsonCache;
+import dev.starsector.preflight.core.PreparedVariantJsonCacheIO;
+import dev.starsector.preflight.core.ResourceIndex;
+import java.lang.reflect.Constructor;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+/** Learns merged variant JSON once and reconstructs fresh JSON objects on an exact-profile hit. */
+public final class VariantJsonCacheRuntime {
+    public static final String PLAN_ID = "vanilla-variant-merged-json-cache-v1";
+
+    private static volatile State state = State.disabled();
+    private static volatile Constructor<?> jsonConstructor;
+
+    private VariantJsonCacheRuntime() {
+    }
+
+    static void beginSession() {
+        state = State.disabled();
+        jsonConstructor = null;
+    }
+
+    static void configure(Path artifact) {
+        if (artifact == null) {
+            state = State.disabled();
+            return;
+        }
+        Path absolute = artifact.toAbsolutePath().normalize();
+        String fileName = absolute.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (!fileName.matches("[0-9a-f]{64}\\.spvj")) {
+            state = State.disabled();
+            return;
+        }
+        String profile = fileName.substring(0, 64);
+        Map<String, String> entries = Map.of();
+        String diagnostic = "capture";
+        if (Files.isRegularFile(absolute)) {
+            try {
+                PreparedVariantJsonCache stored = PreparedVariantJsonCacheIO.read(absolute);
+                if (profile.equals(stored.profileIdentitySha256())) {
+                    entries = stored.entries();
+                    diagnostic = "hit:" + entries.size();
+                } else {
+                    diagnostic = "profile-mismatch";
+                }
+            } catch (Exception error) {
+                diagnostic = "rejected:" + message(error);
+            }
+        }
+        state = new State(absolute, profile, entries, diagnostic);
+    }
+
+    static boolean ready() {
+        return state.artifact != null;
+    }
+
+    static String status() {
+        return state.diagnostic;
+    }
+
+    /** Returns a fresh game JSON object, or null so the woven call site executes vanilla. */
+    public static Object cached(String rawPath) {
+        State current = state;
+        if (current.artifact == null) {
+            return null;
+        }
+        String path = normalizeVariantPath(rawPath);
+        if (path == null || current.badEntries.contains(path)) {
+            current.misses.incrementAndGet();
+            return null;
+        }
+        String json = current.entries.get(path);
+        if (json == null) {
+            current.misses.incrementAndGet();
+            return null;
+        }
+        try {
+            Object result = constructor().newInstance(json);
+            current.hits.incrementAndGet();
+            return result;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            current.badEntries.add(path);
+            current.misses.incrementAndGet();
+            current.diagnose("cached JSON could not be reconstructed for " + path + ": " + message(error));
+            return null;
+        }
+    }
+
+    /** Captures only values produced by the original loader on a miss. */
+    public static void capture(Object json, String rawPath) {
+        State current = state;
+        if (current.artifact == null || json == null) {
+            return;
+        }
+        String path = normalizeVariantPath(rawPath);
+        if (path == null) {
+            return;
+        }
+        try {
+            String encoded = json.toString();
+            if (encoded != null && !encoded.isBlank()) {
+                current.learned.put(path, encoded);
+                current.captures.incrementAndGet();
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            current.diagnose("vanilla JSON could not be captured for " + path + ": " + message(error));
+        }
+    }
+
+    /** Publishes only after vanilla finishes the entire variant loader normally. */
+    public static void complete() {
+        State current = state;
+        if (current.artifact == null || current.learned.isEmpty()
+                || !current.completed.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            Map<String, String> combined = new LinkedHashMap<>(current.entries);
+            combined.putAll(current.learned);
+            PreparedVariantJsonCacheIO.write(
+                    current.artifact,
+                    new PreparedVariantJsonCache(current.profileIdentity, combined));
+            current.writes.incrementAndGet();
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            current.diagnose("merged variant JSON cache could not be written: " + message(error));
+        }
+    }
+
+    private static Constructor<?> constructor() throws ReflectiveOperationException {
+        Constructor<?> existing = jsonConstructor;
+        if (existing != null) {
+            return existing;
+        }
+        ClassLoader context = Thread.currentThread().getContextClassLoader();
+        Class<?> type = Class.forName("org.json.JSONObject", true, context);
+        Constructor<?> resolved = type.getConstructor(String.class);
+        jsonConstructor = resolved;
+        return resolved;
+    }
+
+    static Map<String, Object> telemetry() {
+        State current = state;
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("status", current.diagnostic);
+        values.put("profileIdentity", current.profileIdentity);
+        values.put("artifact", current.artifact);
+        values.put("preparedEntries", current.entries.size());
+        values.put("hits", current.hits.get());
+        values.put("misses", current.misses.get());
+        values.put("captures", current.captures.get());
+        values.put("writes", current.writes.get());
+        return values;
+    }
+
+    private static String normalizeVariantPath(String rawPath) {
+        try {
+            String path = ResourceIndex.normalizeLogicalPath(rawPath);
+            return path.startsWith("data/variants/") && path.endsWith(".variant") ? path : null;
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static String message(Throwable error) {
+        Throwable cause = error instanceof java.lang.reflect.InvocationTargetException invocation
+                && invocation.getCause() != null ? invocation.getCause() : error;
+        String text = cause.getMessage();
+        return text == null || text.isBlank() ? cause.getClass().getSimpleName() : text;
+    }
+
+    private static final class State {
+        private final Path artifact;
+        private final String profileIdentity;
+        private final Map<String, String> entries;
+        private final String diagnostic;
+        private final Map<String, String> learned = new ConcurrentHashMap<>();
+        private final Set<String> badEntries = ConcurrentHashMap.newKeySet();
+        private final AtomicBoolean completed = new AtomicBoolean();
+        private final AtomicBoolean diagnosed = new AtomicBoolean();
+        private final AtomicLong hits = new AtomicLong();
+        private final AtomicLong misses = new AtomicLong();
+        private final AtomicLong captures = new AtomicLong();
+        private final AtomicLong writes = new AtomicLong();
+
+        private State(Path artifact, String profileIdentity, Map<String, String> entries, String diagnostic) {
+            this.artifact = artifact;
+            this.profileIdentity = profileIdentity;
+            this.entries = entries;
+            this.diagnostic = diagnostic;
+        }
+
+        private static State disabled() {
+            return new State(null, "", Map.of(), "disabled");
+        }
+
+        private void diagnose(String problem) {
+            if (diagnosed.compareAndSet(false, true)) {
+                System.err.println("[Preflight] " + problem + "; vanilla fallback remains active");
+            }
+        }
+    }
+}
