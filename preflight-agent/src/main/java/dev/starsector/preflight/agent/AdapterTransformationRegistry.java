@@ -44,7 +44,7 @@ final class AdapterTransformationRegistry {
             }
             byte[] specStore = SpecStorePhasePlan.transform(signature, originalBytes);
             if (specStore == null) {
-                return null;
+                return WeaponLoaderPhasePlan.transform(signature, originalBytes);
             }
             try {
                 byte[] variantPhases = VariantLoaderPhasePlan.transform(
