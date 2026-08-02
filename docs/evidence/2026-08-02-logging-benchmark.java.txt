@@ -1,0 +1,98 @@
+import java.io.File;
+import java.util.Properties;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+
+/**
+ * What Starsector's own logging costs during a startup.
+ *
+ * <p>The configuration is {@code log4j.properties} inside {@code starfarer_obf.jar}:
+ *
+ * <pre>
+ *   log4j.rootLogger=INFO, ConsoleAppender, file
+ *   log4j.appender.file=org.apache.log4j.RollingFileAppender
+ * </pre>
+ *
+ * <p>Two appenders, both at INFO. {@code FileAppender} defaults to {@code immediateFlush=true} and
+ * {@code bufferedIO=false}, so every line is laid out and flushed to disk, and laid out again for
+ * stdout. A measured startup on this install emitted <b>65,305 INFO lines before the main menu</b>:
+ * 43,642 "Loading JSON from", 21,663 "Cleaned buffer (using reflection)", and the rest.
+ */
+public class LoggingBench {
+    private static final int JSON_LINES = 43_642;
+    private static final int BUFFER_LINES = 21_663;
+
+    public static void main(String[] args) throws Exception {
+        System.out.printf("jvm %s (%s)%n%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+
+        String[] names = {
+            "shipped (console + unbuffered file)",
+            "file only, unbuffered",
+            "file only, bufferedIO",
+            "console + bufferedIO file",
+            "nothing emitted (level raised)",
+        };
+        double[] seconds = new double[names.length];
+        for (int i = 0; i < names.length; i++) {
+            seconds[i] = run(i);
+        }
+        for (int i = 0; i < names.length; i++) {
+            System.out.printf("%-38s %7.3f s   %+7.3f s%n", names[i], seconds[i],
+                    seconds[i] - seconds[0]);
+        }
+    }
+
+    private static double run(int mode) throws Exception {
+        File log = File.createTempFile("preflight-logging-bench", ".log");
+        log.deleteOnExit();
+        Properties config = new Properties();
+        String appenders = switch (mode) {
+            case 0 -> "ConsoleAppender, file";
+            case 1, 2 -> "file";
+            case 3 -> "ConsoleAppender, file";
+            default -> "file";
+        };
+        config.setProperty("log4j.rootLogger", (mode == 4 ? "ERROR, " : "INFO, ") + appenders);
+        config.setProperty("log4j.appender.ConsoleAppender", "org.apache.log4j.ConsoleAppender");
+        config.setProperty("log4j.appender.ConsoleAppender.layout", "org.apache.log4j.PatternLayout");
+        config.setProperty("log4j.appender.ConsoleAppender.layout.ConversionPattern",
+                "%-4r [%t] %-5p %c %x - %m%n");
+        config.setProperty("log4j.appender.file", "org.apache.log4j.RollingFileAppender");
+        config.setProperty("log4j.appender.file.File", log.getAbsolutePath());
+        config.setProperty("log4j.appender.file.layout", "org.apache.log4j.PatternLayout");
+        config.setProperty("log4j.appender.file.layout.ConversionPattern",
+                "%-4r [%t] %-5p %c %x - %m%n");
+        config.setProperty("log4j.appender.file.MaxFileSize", "50000KB");
+        config.setProperty("log4j.appender.file.MaxBackupIndex", "3");
+        if (mode == 2 || mode == 3) {
+            config.setProperty("log4j.appender.file.BufferedIO", "true");
+            config.setProperty("log4j.appender.file.BufferSize", "65536");
+        }
+        org.apache.log4j.LogManager.resetConfiguration();
+        PropertyConfigurator.configure(config);
+
+        Logger loading = Logger.getLogger("com.fs.starfarer.loading.LoadingUtils");
+        Logger misc = Logger.getLogger("com.fs.starfarer.api.util.Misc");
+
+        // Warm the appenders and the JIT before timing.
+        emit(loading, misc, 2_000, 1_000);
+
+        long t0 = System.nanoTime();
+        emit(loading, misc, JSON_LINES, BUFFER_LINES);
+        org.apache.log4j.LogManager.shutdown();
+        return (System.nanoTime() - t0) / 1e9;
+    }
+
+    /** The two message shapes that make up 99% of a startup's log, including their formatting. */
+    private static void emit(Logger loading, Logger misc, int json, int buffers) {
+        for (int i = 0; i < json; i++) {
+            loading.info("Loading JSON from [data/hulls/skins/some_ship_variant_" + i + ".skin]");
+        }
+        for (int i = 0; i < buffers; i++) {
+            misc.info(String.format(
+                    "Cleaned buffer for texture %s (using reflection)",
+                    "graphics/ships/some_faction/some_ship_" + i + "_SHIP_normal.png"));
+        }
+    }
+}
