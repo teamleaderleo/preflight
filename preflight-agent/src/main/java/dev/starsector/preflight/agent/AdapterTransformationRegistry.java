@@ -38,7 +38,10 @@ final class AdapterTransformationRegistry {
             return EntityLookupPlan.transform(signature, originalBytes);
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
-            return StartupPhasePlan.transform(signature, originalBytes);
+            byte[] startupPhases = StartupPhasePlan.transform(signature, originalBytes);
+            return startupPhases != null
+                    ? startupPhases
+                    : SpecStorePhasePlan.transform(signature, originalBytes);
         }
         return null;
     }

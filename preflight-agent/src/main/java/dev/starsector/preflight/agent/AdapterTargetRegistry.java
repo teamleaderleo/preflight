@@ -115,6 +115,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The exact coordinator for the data loaders hidden before the first progress update. */
+    static AdapterTarget specStorePhaseTarget() {
+        return new AdapterTarget(
+                "vanilla-spec-store-0.98a-rc8-startup-phases",
+                SpecStorePhasePlan.TARGET_CLASS,
+                "1947fee1403e93b27ae89b4995fcfde5f65b8ffe1ef3f564b4daaed3a5e69821",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        SpecStorePhasePlan.INIT_METHOD, SpecStorePhasePlan.INIT_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget textureTarget(String id, String planId) {
         return new AdapterTarget(
                 id,
@@ -168,7 +184,7 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withStartupPhaseTarget() {
-        return withTarget(startupPhaseTarget());
+        return withTarget(startupPhaseTarget()).withTarget(specStorePhaseTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

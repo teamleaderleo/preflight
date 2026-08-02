@@ -3,7 +3,7 @@
 - **Date:** 2026-08-02
 - **Install:** Starsector 0.98a-RC8, current 83-mod profile, macOS 26
 - **Mode:** direct launch, prepared-pixel adapter, prepared NPOT textures, no JFR
-- **Status:** exact phase boundaries measured; two plausible shortcuts measured and rejected
+- **Status:** exact phase and per-loader boundaries measured; two plausible shortcuts measured and rejected
 
 ## Result
 
@@ -63,6 +63,23 @@ Two later runs wrapped that exact call:
 The extra ~1.2s between `SpecStore` return and 1% is the next vanilla spec/sprite-queue step. The
 large claim is stable: roughly eighteen to nineteen seconds are in `SpecStore`, and the visible
 zero plateau is roughly twenty seconds.
+
+An exact 83-mod run then timed all 41 top-level static loader calls inside the reviewed coordinator.
+`SpecStore` took 19.818s wall-clock; the calls themselves accounted for 19.659s. The dominant work
+was:
+
+| top-level loader | duration | share of measured calls |
+| --- | ---: | ---: |
+| ship and fighter variants (`SpecStore.oO0000()`) | **4.145s** | 21.1% |
+| weapon-spec post-processing (`WeaponSpecLoader.new()`) | **3.183s** | 16.2% |
+| campaign rules (`Rules.super(...)`) | **3.031s** | 15.4% |
+| weapon specs (`WeaponSpecLoader.o00000()`) | **2.273s** | 11.6% |
+| ship hull specs (`ShipHullSpecLoader.Ò00000()`) | **2.138s** | 10.9% |
+| `SpecStore.oo0000(...)` | **1.087s** | 5.5% |
+
+Those six calls account for 15.857s, or 80.7% of measured loader time. The first five are already
+identifiable data domains and together account for 75.1%. This rules out a diffuse collection of
+tiny loaders: variants, weapons, hulls, and rules are the useful preparation/cache targets.
 
 ## The rest of this load
 
@@ -132,10 +149,10 @@ The safe concurrency pattern is narrower:
 5. run vanilla on every miss or mismatch.
 
 That is closer to SWC's ahead-of-time transform cache or a persistent query cache than React's
-`useRef`, which only avoids repeat work inside one process. The follow-up is
-[issue #263](https://github.com/teamleaderleo/starsector-preflight/issues/263): time every top-level
-`SpecStore` loader, prepare the dominant pure representation, and deterministically rehydrate the
-live objects. The reversible, version-aware optimized-mod manager is tracked separately in
+`useRef`, which only avoids repeat work inside one process. The follow-up in
+[issue #263](https://github.com/teamleaderleo/starsector-preflight/issues/263) is now narrowed to
+preparing the dominant pure representations and deterministically rehydrating the live objects. The
+reversible, version-aware optimized-mod manager is tracked separately in
 [issue #262](https://github.com/teamleaderleo/starsector-preflight/issues/262).
 
 ## Reproduction
@@ -145,6 +162,7 @@ The three run directories were:
 - `20260802-021753-397-09966e53` — real progress milestones, vanilla audio
 - `20260802-022231-406-5ceaed08` — exact `SpecStore`, four-audio-worker negative
 - `20260802-022644-286-6d60db3b` — exact `SpecStore`, JSON-reader negative
+- `specstore-attribution-20260802` — 41 per-loader timings, vanilla audio
 
 Command shape:
 
