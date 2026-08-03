@@ -34,6 +34,7 @@ final class AdapterRuntime {
         GraphicsLibCompactReplayPlan.beginSession();
         JaninoBytecodeCacheRuntime.beginSession();
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
+        EntityLookupRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
