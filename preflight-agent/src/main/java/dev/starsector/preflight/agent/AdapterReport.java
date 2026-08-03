@@ -282,6 +282,8 @@ final class AdapterReport {
         key(output, "campaignEntityIndex").append(Json.value(EntityLookupRuntime.counters())).append(',');
         key(output, "deploymentIconCache")
                 .append(Json.value(DeploymentIconCacheRuntime.telemetry())).append(',');
+        key(output, "simOpponentSafety")
+                .append(Json.value(SimOpponentSafetyRuntime.telemetry())).append(',');
         // These three kept their counters to themselves until now, which meant a launch could not
         // be asked afterwards how much any of them actually did.
         key(output, "resourceProbeCache").append(Json.value(ResourceProbeRuntime.report())).append(',');

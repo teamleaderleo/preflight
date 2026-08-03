@@ -41,6 +41,11 @@ final class AdapterTransformationRegistry {
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {
             return DeploymentIconCachePlan.transform(signature, originalBytes);
         }
+        // Always-on inside adapter mode. The exact refit UI target returns the shipped list unless
+        // Starsector's own variant registry proves that one of its merged CSV ids is invalid.
+        if (SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())) {
+            return SimOpponentSafetyPlan.transform(signature, originalBytes);
+        }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
             // LoadingUtils is reached by this plan, by the merged-read cache's and by the loadJSON
             // memo's, and only one target per class ever transforms, so every branch composes all
@@ -430,6 +435,9 @@ final class AdapterTransformationRegistry {
         }
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {
             return DeploymentIconCacheRuntime.ready();
+        }
+        if (SimOpponentSafetyRuntime.PLAN_ID.equals(planId)) {
+            return SimOpponentSafetyRuntime.ready();
         }
         return false;
     }

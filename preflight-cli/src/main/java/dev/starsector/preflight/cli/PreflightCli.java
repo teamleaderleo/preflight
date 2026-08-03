@@ -197,6 +197,10 @@ public final class PreflightCli {
                 "    --graphicslib-insignia-cache memoizes getFleetManager results only within one"
                         + " exact GraphicsLib 1.12.1 insignia UI render. It changes no render math"
                         + " and remains an explicit beta outside --fast.",
+                "    --adapter also validates the exact refit simulator's merged opponent list"
+                        + " against Starsector's loaded ship and fighter registries. Nonexistent"
+                        + " mod entries are omitted from that simulator invocation and reported;"
+                        + " registry uncertainty retains the original list.",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",

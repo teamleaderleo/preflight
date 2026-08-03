@@ -36,6 +36,7 @@ final class AdapterRuntime {
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         EntityLookupRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
+        SimOpponentSafetyRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -106,6 +107,7 @@ final class AdapterRuntime {
             registry = loadRegistry(options.adapterTargets(), report);
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
+                report.diagnostic("Loaded the exact refit simulator opponent-safety target");
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
                     report.diagnostic("Loaded the exact ResourceLoaderState and SpecStore startup-phase probe targets");

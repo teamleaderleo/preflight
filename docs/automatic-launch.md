@@ -138,6 +138,13 @@ that cache validates both backing list sequences and the icon's current member b
 reports separately under `deploymentIconCache`. The flag is intentionally rejected in adapter-off
 and probe modes.
 
+Enabled adapter mode also protects the exact reviewed refit simulator from stale merged
+`sim_opponents.csv` rows. Immediately before vanilla constructs either simulator fleet, Preflight
+asks Starsector's own loaded ship or fighter registry whether each id exists. It returns the
+original shared list unchanged when every row is valid, a filtered copy when a row is authoritatively
+absent, and the original list on any reflection, list, or registry uncertainty. Results appear under
+`simOpponentSafety`; `-Dpreflight.simOpponentSafety.disabled=true` is the narrow kill switch.
+
 See [vanilla runtime adapter](vanilla-adapter.md) for the activation gate, report format, kill switch, and the point where a real Starsector installation is required.
 
 ## Run output

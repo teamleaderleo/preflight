@@ -232,6 +232,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The exact refit simulator method that consumes the merged simulation-opponent id list. */
+    static AdapterTarget simOpponentSafetyTarget() {
+        return new AdapterTarget(
+                "vanilla-refit-simulator-opponent-safety-0.98a-rc8",
+                SimOpponentSafetyPlan.TARGET_CLASS,
+                SimOpponentSafetyPlan.ORIGINAL_SHA256,
+                SimOpponentSafetyRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        SimOpponentSafetyPlan.SIMULATION_METHOD,
+                        SimOpponentSafetyPlan.SIMULATION_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The loading bar reaches 100% before this class waits for audio and runs final callbacks. */
     static AdapterTarget startupPhaseTarget() {
         return new AdapterTarget(
@@ -566,6 +583,10 @@ final class AdapterTargetRegistry {
         return withTarget(deploymentIconCacheTarget());
     }
 
+    AdapterTargetRegistry withSimOpponentSafetyTarget() {
+        return withTarget(simOpponentSafetyTarget());
+    }
+
     AdapterTargetRegistry withStartupPhaseTarget() {
         return withTarget(startupPhaseTarget())
                 .withTarget(specStorePhaseTarget())
@@ -718,7 +739,8 @@ final class AdapterTargetRegistry {
                 : textureCompatibilityTarget())
                 .withTarget(texturePrefetchBypassTarget())
                 .withTarget(campaignEntityIndexTarget())
-                .withTarget(deploymentIconCacheTarget());
+                .withTarget(deploymentIconCacheTarget())
+                .withTarget(simOpponentSafetyTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {
