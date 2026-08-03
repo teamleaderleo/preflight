@@ -1,11 +1,19 @@
 package dev.starsector.preflight.agent;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
+import java.nio.file.Path;
 import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -67,7 +75,10 @@ public final class ResourceProbeRuntime {
     private static final Map<String, Listing> directories = new ConcurrentHashMap<>();
 
     /** Listing a directory that does not exist and one that is empty are the same answer here. */
-    private static final Listing ABSENT = new Listing(Set.of(), Set.of());
+    private static final Listing ABSENT = new Listing(Set.of(), Set.of(), true);
+
+    /** A directory that could not be listed cannot prove that any requested child is absent. */
+    private static final Listing UNKNOWN = new Listing(Set.of(), Set.of(), false);
 
     /**
      * Root directory to the listings under it, keyed by the path's own directory rather than by a
@@ -87,6 +98,7 @@ public final class ResourceProbeRuntime {
     private static final AtomicLong deferred = new AtomicLong();
     private static final AtomicLong skipped = new AtomicLong();
     private static final AtomicLong failures = new AtomicLong();
+    private static final AtomicLong listingFailures = new AtomicLong();
 
     private static volatile boolean rootAccessResolved;
     private static volatile Field kindField;
@@ -261,15 +273,46 @@ public final class ResourceProbeRuntime {
     }
 
     private static Listing read(String directory) {
-        String[] listed = new File(directory).list();
-        if (listed == null) {
-            return ABSENT;
+        String[] snapshot = new File(directory).list();
+        if (snapshot != null) {
+            return listing(snapshot, true);
         }
+
+        // File.list() deliberately collapses both absence and an I/O failure into null. Retry the
+        // exceptional path through NIO so only a positively identified absence becomes cacheable.
+        ArrayList<String> listed = new ArrayList<>();
+        try (DirectoryStream<Path> entries = Files.newDirectoryStream(Path.of(directory))) {
+            for (Path entry : entries) {
+                Path name = entry.getFileName();
+                if (name != null) {
+                    listed.add(name.toString());
+                }
+            }
+        } catch (NoSuchFileException | NotDirectoryException absent) {
+            return ABSENT;
+        } catch (IOException | DirectoryIteratorException | SecurityException unavailable) {
+            // File.list() reports both a missing directory and an I/O failure as null. Treating
+            // that ambiguous result as an empty directory can make a real resource disappear for
+            // the rest of the launch. NIO distinguishes proven absence; everything else is an
+            // unknown listing and therefore defers every child probe to vanilla.
+            listingFailures.incrementAndGet();
+            return UNKNOWN;
+        }
+        return listing(listed.toArray(String[]::new), true);
+    }
+
+    private static Listing listing(String[] listed, boolean complete) {
+        Set<String> exact = Set.of(listed);
         Set<String> folded = new HashSet<>(Math.max(4, listed.length * 2));
         for (String name : listed) {
             folded.add(fold(name));
         }
-        return new Listing(Set.of(listed), Set.copyOf(folded));
+        return new Listing(exact, Set.copyOf(folded), complete);
+    }
+
+    /** Exposes the safety rule to tests without exposing or performing filesystem I/O. */
+    static boolean listingClaimsAbsent(String[] listed, boolean complete, String requestedName) {
+        return listing(listed, complete).verdictFor(requestedName) == Verdict.ABSENT;
     }
 
     /** What a remembered listing can say about a name on its own. */
@@ -291,10 +334,13 @@ public final class ResourceProbeRuntime {
     }
 
     /** One directory's names, by exact spelling and by the key case-insensitive disks compare. */
-    private record Listing(Set<String> exact, Set<String> folded) {
+    private record Listing(Set<String> exact, Set<String> folded, boolean complete) {
         Verdict verdictFor(String name) {
             if (exact.contains(name)) {
                 return Verdict.PRESENT;
+            }
+            if (!complete) {
+                return Verdict.ASK;
             }
             // Nothing here folds to this name, so no filesystem -- however case-insensitive -- has
             // a file to offer. This is the answer for the overwhelming majority of probes.
@@ -311,6 +357,7 @@ public final class ResourceProbeRuntime {
         report.put("rootOpensSkippedWholesale", skipped.get());
         report.put("directoriesRemembered", directories.size() + rootDirectories());
         report.put("failures", failures.get());
+        report.put("listingFailures", listingFailures.get());
         return report;
     }
 
@@ -335,5 +382,6 @@ public final class ResourceProbeRuntime {
         deferred.set(0);
         skipped.set(0);
         failures.set(0);
+        listingFailures.set(0);
     }
 }

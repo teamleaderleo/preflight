@@ -92,3 +92,22 @@ and it took a benchmark that happened to print a total to notice.
 That is the lesson worth keeping: the arm that is supposed to be equivalent should be **diffed
 against the arm it replaces**, not just timed against it. The timing was right the whole way
 through. The parity check was the thing that had never been run.
+
+## Follow-up: a failed listing is not an empty directory
+
+On 2026-08-04, `combat-reserves-20260804-055653` aborted while loading
+`data/missions/ii_test1/descriptor.json`. Interstellar Imperium's merged mission list referenced the
+file, the enabled mod root was in the resolver walk, and the file existed on disk with the exact
+requested spelling. The probe cache nevertheless skipped every root and vanilla reported the
+resource missing. This was not the game's fast-relaunch failure.
+
+The second ambiguity was `File.list()`: it returns `null` both for a directory that does not exist
+and for an I/O or permissions failure while listing a real directory. The cache treated either as a
+complete empty listing and retained that answer for the launch. Its report consequently claimed
+zero failures even though it had made a real file disappear.
+
+Directory snapshots now use the NIO directory-stream API, which distinguishes a proven missing or
+non-directory path from other failures. Proven absence remains cacheable. Any I/O, iteration, or
+security failure creates an incomplete listing whose every lookup defers to the vanilla resolver.
+The report records these as `listingFailures`, and a regression test pins the rule that an
+incomplete listing can never claim a child is absent.

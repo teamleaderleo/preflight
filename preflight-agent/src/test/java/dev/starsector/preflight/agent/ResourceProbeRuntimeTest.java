@@ -104,6 +104,16 @@ class ResourceProbeRuntimeTest {
     }
 
     @Test
+    void anIncompleteDirectoryListingNeverClaimsThatAChildIsAbsent() {
+        assertFalse(ResourceProbeRuntime.listingClaimsAbsent(
+                new String[0], false, "descriptor.json"));
+        assertTrue(ResourceProbeRuntime.listingClaimsAbsent(
+                new String[0], true, "descriptor.json"));
+        assertFalse(ResourceProbeRuntime.listingClaimsAbsent(
+                new String[] {"descriptor.json"}, true, "descriptor.json"));
+    }
+
+    @Test
     void aDisabledRuntimeIsExactlyFileExists() throws Exception {
         ResourceProbeRuntime.enable(false);
         Files.createDirectories(root.resolve("data"));
