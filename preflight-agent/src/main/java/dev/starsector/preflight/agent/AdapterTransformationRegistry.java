@@ -120,6 +120,16 @@ final class AdapterTransformationRegistry {
                 || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())) {
             return rulesOptimizations(originalBytes);
         }
+        if (LoadJsonMemoRuntime.PLAN_ID.equals(target.planId())) {
+            return LoadJsonMemoRuntime.ready()
+                    ? LoadJsonMemoPlan.transform(signature, originalBytes)
+                    : null;
+        }
+        if (ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
+            return ResourceProbeRuntime.ready()
+                    ? ResourceProbePlan.transform(signature, originalBytes)
+                    : null;
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -317,6 +327,12 @@ final class AdapterTransformationRegistry {
         }
         if (RuleCommandClassCacheRuntime.PLAN_ID.equals(planId)) {
             return RuleCommandClassCacheRuntime.ready();
+        }
+        if (ResourceProbeRuntime.PLAN_ID.equals(planId)) {
+            return ResourceProbeRuntime.ready();
+        }
+        if (LoadJsonMemoRuntime.PLAN_ID.equals(planId)) {
+            return LoadJsonMemoRuntime.ready();
         }
         return false;
     }

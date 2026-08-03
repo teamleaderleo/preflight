@@ -398,6 +398,81 @@ final class AgentInjection {
             Path rulesCsvCache,
             boolean ruleTokenCache,
             Path ruleCommandClassCache) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo) {
+        if (loadJsonMemo && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("loadJSON memo requires the enabled adapter");
+        }
+        if (resourceProbeCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Resource probe cache requires the enabled adapter");
+        }
         if (ruleCommandClassCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Rule command class cache requires the enabled adapter");
         }
@@ -467,6 +542,12 @@ final class AgentInjection {
         }
         if (ruleTokenCache) {
             arguments.append(",ruleTokens=on");
+        }
+        if (resourceProbeCache) {
+            arguments.append(",resourceProbes=on");
+        }
+        if (loadJsonMemo) {
+            arguments.append(",loadJsonMemo=on");
         }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())

@@ -1,0 +1,108 @@
+import com.fs.util.C;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * What does it cost to find a file, as opposed to read it?
+ *
+ * <p>{@code LoadingUtils.ô00000(path)} does not open a path. It asks {@code com.fs.util.C}, which
+ * walks its ordered list of roots -- one per enabled mod, plus the core directory -- and returns
+ * the first root that has the file. On this profile that list is 84 entries long, so a path
+ * belonging to the last mod in the order costs 84 filesystem probes before it is found, and the
+ * whole method is {@code synchronized}.
+ *
+ * <p>That makes the cost of the search proportional to (number of loads) x (number of mods), which
+ * is the shape that matters: it gets worse for exactly the people who need it to get better. A
+ * companion benchmark already prices read, strip and parse by opening the resolved absolute path
+ * directly. This one prices the part that benchmark skipped, by replaying the same call sequence
+ * through the real resolver on the real root list.
+ */
+public class ResolveBench {
+    public static void main(String[] args) throws Exception {
+        List<String[]> corpus = new ArrayList<>();
+        for (String line : Files.readAllLines(Path.of(args[0]), StandardCharsets.UTF_8)) {
+            if (!line.isBlank()) {
+                corpus.add(line.split("\t", 2));
+            }
+        }
+        List<String> roots = Files.readAllLines(Path.of(args[1]), StandardCharsets.UTF_8);
+        System.out.printf("jvm %s (%s)%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+        System.out.printf("corpus %d calls, %d roots on the search path%n",
+                corpus.size(), roots.size());
+
+        C resolver = C.Object();
+        for (String root : roots) {
+            resolver.Õ00000(root);
+        }
+
+        // Where in the list does each path actually live? The search is first-match, so this is
+        // the number of probes each call pays, and its shape decides whether the cost is real.
+        Map<String, Integer> depth = new HashMap<>();
+        long probes = 0;
+        for (String[] entry : corpus) {
+            Integer found = depth.get(entry[0]);
+            if (found == null) {
+                found = roots.size();
+                for (int index = 0; index < roots.size(); index++) {
+                    if (new File(roots.get(index), entry[0]).isFile()) {
+                        found = index + 1;
+                        break;
+                    }
+                }
+                depth.put(entry[0], found);
+            }
+            probes += found;
+        }
+        System.out.printf("filesystem probes the search performs: %,d for %,d calls (%.1f per call)%n%n",
+                probes, corpus.size(), (double) probes / corpus.size());
+
+        for (int round = 1; round <= 3; round++) {
+            System.out.printf("round %d%n", round);
+            System.out.printf("  open by resolved absolute path   %7.3f s%n", direct(corpus));
+            System.out.printf("  open through the game's resolver %7.3f s   <- what the game does%n",
+                    throughResolver(corpus, resolver));
+            System.out.println();
+        }
+    }
+
+    private static double direct(List<String[]> corpus) throws Exception {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            try (InputStream stream = new FileInputStream(entry[1])) {
+                sink += stream.read();
+            }
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double throughResolver(List<String[]> corpus, C resolver) throws Exception {
+        long start = System.nanoTime();
+        long sink = 0;
+        for (String[] entry : corpus) {
+            try (InputStream stream = resolver.Ô00000(entry[0])) {
+                sink += stream.read();
+            } catch (Exception missing) {
+                sink += 1;
+            }
+        }
+        return elapsed(start, sink);
+    }
+
+    private static double elapsed(long start, long sink) {
+        double seconds = (System.nanoTime() - start) / 1e9;
+        if (sink < -1_000_000_000L) {
+            throw new AssertionError();
+        }
+        return seconds;
+    }
+}

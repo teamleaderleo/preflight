@@ -511,7 +511,8 @@ launch_once() {
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --texture-mode prepared-pixels --prepared-npot
-                     --rule-token-cache --rule-command-cache --no-record) ;;
+                     --rule-token-cache --rule-command-cache
+                     --resource-probe-cache --loadjson-memo --no-record) ;;
         prepared)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
