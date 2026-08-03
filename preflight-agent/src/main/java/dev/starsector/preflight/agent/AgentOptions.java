@@ -37,6 +37,7 @@ record AgentOptions(
         Path mergedReadCache,
         Path preparedAudioCache,
         String audioDecoderIdentity,
+        boolean graphicsLibCompactReplay,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -127,6 +128,7 @@ record AgentOptions(
         // decoder's output if it was baked by this decoder; without it nothing is served.
         Path preparedAudioCache = decodedPath(values, "preparedAudioCache64");
         String audioDecoderIdentity = values.get("audioDecoder");
+        boolean graphicsLibCompactReplay = "on".equalsIgnoreCase(values.get("graphicsLibCompactReplay"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -154,6 +156,7 @@ record AgentOptions(
                 mergedReadCache,
                 preparedAudioCache,
                 audioDecoderIdentity,
+                graphicsLibCompactReplay,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

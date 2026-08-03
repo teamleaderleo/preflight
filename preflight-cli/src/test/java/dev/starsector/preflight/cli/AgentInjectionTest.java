@@ -260,6 +260,27 @@ class AgentInjectionTest {
     }
 
     @Test
+    void graphicsLibCompactReplayRequiresAndReachesTheEnabledAdapter() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, null, null, null, null, false, null, false, false,
+                null, null, null, false, true);
+
+        assertTrue(enabled.contains(",graphicsLibCompactReplay=on"), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, true));
+    }
+
+    @Test
     void includesProbeReportAndTargetPaths() {
         String value = AgentInjection.append(
                 "",

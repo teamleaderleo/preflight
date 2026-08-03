@@ -284,6 +284,8 @@ final class AdapterReport {
         key(output, "resourceProbeCache").append(Json.value(ResourceProbeRuntime.report())).append(',');
         key(output, "loadJsonMemo").append(Json.value(LoadJsonMemoRuntime.report())).append(',');
         key(output, "preparedAudio").append(Json.value(PreparedAudioRuntime.report())).append(',');
+        key(output, "graphicsLibCompactReplay")
+                .append(Json.value(GraphicsLibCompactReplayPlan.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

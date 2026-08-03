@@ -122,6 +122,13 @@ class AgentOptionsTest {
     }
 
     @Test
+    void graphicsLibCompactReplayIsExplicitlyOptIn() {
+        assertFalse(AgentOptions.parse("adapter=enabled").graphicsLibCompactReplay());
+        assertTrue(AgentOptions.parse(
+                "adapter=enabled,graphicsLibCompactReplay=on").graphicsLibCompactReplay());
+    }
+
+    @Test
     void parsesVariantJsonCacheArtifact() {
         AgentOptions options = AgentOptions.parse(
                 "adapter=enabled,variantJsonCache64=" + encoded("build/cache/profile.spvj"));

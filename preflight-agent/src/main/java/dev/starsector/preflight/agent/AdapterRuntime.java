@@ -31,6 +31,7 @@ final class AdapterRuntime {
         RuleTokenCacheRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
+        GraphicsLibCompactReplayPlan.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -79,6 +80,7 @@ final class AdapterRuntime {
             RulesCsvCacheRuntime.configure(options.rulesCsvCache());
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             MergedReadCacheRuntime.configure(options.mergedReadCache());
+            GraphicsLibCompactReplayPlan.configure(options.graphicsLibCompactReplay());
             if (options.ruleTokenCache()) {
                 RuleTokenCacheRuntime.enable();
             }
@@ -154,6 +156,14 @@ final class AdapterRuntime {
                     registry = registry.withMergedReadCacheTarget();
                     report.diagnostic("Loaded the exact merged-read cache target ("
                             + MergedReadCacheRuntime.status() + ")");
+                }
+                if (GraphicsLibCompactReplayPlan.ready()) {
+                    registry = registry.withGraphicsLibCompactReplayTarget();
+                    report.diagnostic("Loaded the exact GraphicsLib compact auto-generation replay target ("
+                            + GraphicsLibCompactReplayPlan.status() + ")");
+                } else if (options.graphicsLibCompactReplay()) {
+                    report.diagnostic("GraphicsLib compact replay was requested but is unavailable ("
+                            + GraphicsLibCompactReplayPlan.status() + ")");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "

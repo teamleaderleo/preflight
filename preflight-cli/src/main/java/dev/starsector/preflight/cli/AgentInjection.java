@@ -545,6 +545,47 @@ final class AgentInjection {
             String audioDecoderIdentity,
             Path mergedReadCache,
             boolean quietLogs) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, mergedReadCache, quietLogs, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay) {
         if (mergedReadCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Merged read cache requires the enabled adapter");
         }
@@ -586,6 +627,9 @@ final class AgentInjection {
         }
         if (rulesCsvCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Rules CSV cache requires the enabled adapter");
+        }
+        if (graphicsLibCompactReplay && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("GraphicsLib compact replay requires the enabled adapter");
         }
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
@@ -636,6 +680,9 @@ final class AgentInjection {
         }
         if (quietLogs) {
             arguments.append(",quietLogs=on");
+        }
+        if (graphicsLibCompactReplay) {
+            arguments.append(",graphicsLibCompactReplay=on");
         }
         // Both or neither: a cache with no decoder identity cannot be trusted to hold this
         // decoder's output, and an identity with no cache has nothing to check it against.
