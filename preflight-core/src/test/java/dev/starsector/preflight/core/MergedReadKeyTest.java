@@ -67,4 +67,22 @@ class MergedReadKeyTest {
                 java.util.Arrays.asList("id", null)));
         assertNull(MergedReadKey.json("data/config/engine_styles.json", List.of("bad\u0000key")));
     }
+
+    @Test
+    void identifiesOnlyJsonDomainsAlreadyOwnedByDedicatedCaches() {
+        assertTrue(MergedReadKey.ownedBySpecJsonCache(
+                MergedReadKey.json("data/variants/wolf.variant", List.of())));
+        assertTrue(MergedReadKey.ownedBySpecJsonCache(MergedReadKey.json(
+                "/Applications/Starsector.app/data/hulls/wolf.ship", List.of())));
+        assertTrue(MergedReadKey.ownedBySpecJsonCache(
+                MergedReadKey.json("data/shipsystems/wpn/system.wpn", List.of())));
+        assertTrue(MergedReadKey.ownedBySpecJsonCache(
+                MergedReadKey.json("data/weapons/proj/shot.proj", List.of())));
+
+        assertTrue(!MergedReadKey.ownedBySpecJsonCache(
+                MergedReadKey.json("data/config/engine_styles.json", List.of())));
+        assertTrue(!MergedReadKey.ownedBySpecJsonCache(MergedReadKey.csv(
+                "data/hulls/ship_data.csv", true, false, List.of("id"))));
+        assertTrue(!MergedReadKey.ownedBySpecJsonCache("not-a-key"));
+    }
 }

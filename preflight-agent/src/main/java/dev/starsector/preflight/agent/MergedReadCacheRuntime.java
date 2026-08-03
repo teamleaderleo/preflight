@@ -79,12 +79,16 @@ public final class MergedReadCacheRuntime {
         }
         String profile = fileName.substring(0, 64);
         Map<String, byte[]> entries = Map.of();
+        int prunableEntries = 0;
         String diagnostic = "capture";
         if (Files.isRegularFile(absolute)) {
             try {
                 PreparedMergedReadCache stored = PreparedMergedReadCacheIO.read(absolute);
                 if (profile.equals(stored.profileIdentitySha256())) {
                     entries = stored.entries();
+                    prunableEntries = (int) entries.keySet().stream()
+                            .filter(MergedReadKey::ownedBySpecJsonCache)
+                            .count();
                     diagnostic = "hit:" + entries.size();
                 } else {
                     diagnostic = "profile-mismatch";
@@ -93,7 +97,7 @@ public final class MergedReadCacheRuntime {
                 diagnostic = "rejected:" + message(error);
             }
         }
-        state = new State(absolute, profile, entries, diagnostic);
+        state = new State(absolute, profile, entries, prunableEntries, diagnostic);
     }
 
     static boolean ready() {
@@ -166,7 +170,8 @@ public final class MergedReadCacheRuntime {
     /** Publishes what this launch learned, once startup has finished loading normally. */
     public static void complete() {
         State current = state;
-        if (current.artifact == null || current.learned.isEmpty()
+        if (current.artifact == null
+                || current.learned.isEmpty() && current.prunableEntries == 0
                 || !current.completed.compareAndSet(false, true)) {
             return;
         }
@@ -174,6 +179,7 @@ public final class MergedReadCacheRuntime {
             Map<String, byte[]> combined = new LinkedHashMap<>(current.entries);
             combined.putAll(current.learned);
             combined.keySet().removeAll(current.collidingKeys);
+            combined.keySet().removeIf(MergedReadKey::ownedBySpecJsonCache);
             PreparedMergedReadCacheIO.write(
                     current.artifact,
                     new PreparedMergedReadCache(current.profileIdentity, combined));
@@ -218,6 +224,13 @@ public final class MergedReadCacheRuntime {
 
     private static void capture(State current, String key, Object produced) {
         if (key == null || produced == null || current.learned.size() >= MAX_LEARNED) {
+            return;
+        }
+        // Four higher caches own these domains. Retaining one from an older artifact lets a miss
+        // still fall through to this cache for the current run, but publishing a second permanent
+        // copy only bloats the lower artifact: warm launches always stop at the dedicated cache.
+        if (MergedReadKey.ownedBySpecJsonCache(key)) {
+            current.dedicatedSpecCapturesSkipped.incrementAndGet();
             return;
         }
         try {
@@ -287,6 +300,8 @@ public final class MergedReadCacheRuntime {
         values.put("unstorableReads", current.unstorable.get());
         values.put("writes", current.writes.get());
         values.put("keyCollisions", current.collisions.get());
+        values.put("dedicatedSpecEntriesPruned", current.prunableEntries);
+        values.put("dedicatedSpecCapturesSkipped", current.dedicatedSpecCapturesSkipped.get());
         values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
         return values;
     }
@@ -307,6 +322,7 @@ public final class MergedReadCacheRuntime {
         private final Path artifact;
         private final String profileIdentity;
         private final Map<String, byte[]> entries;
+        private final int prunableEntries;
         private final String diagnostic;
         private final Map<String, byte[]> learned = new ConcurrentHashMap<>();
         private final Set<String> badEntries = ConcurrentHashMap.newKeySet();
@@ -320,17 +336,19 @@ public final class MergedReadCacheRuntime {
         private final AtomicLong unstorable = new AtomicLong();
         private final AtomicLong writes = new AtomicLong();
         private final AtomicLong collisions = new AtomicLong();
+        private final AtomicLong dedicatedSpecCapturesSkipped = new AtomicLong();
 
         private State(Path artifact, String profileIdentity, Map<String, byte[]> entries,
-                String diagnostic) {
+                int prunableEntries, String diagnostic) {
             this.artifact = artifact;
             this.profileIdentity = profileIdentity;
             this.entries = entries;
+            this.prunableEntries = prunableEntries;
             this.diagnostic = diagnostic;
         }
 
         private static State disabled() {
-            return new State(null, "", Map.of(), "disabled");
+            return new State(null, "", Map.of(), 0, "disabled");
         }
 
         private void diagnose(String problem) {

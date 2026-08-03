@@ -2,8 +2,6 @@ package dev.starsector.preflight.agent;
 
 import dev.starsector.preflight.core.PreparedProjectileJsonCache;
 import dev.starsector.preflight.core.PreparedProjectileJsonCacheIO;
-import dev.starsector.preflight.core.ResourceIndex;
-import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -20,13 +18,12 @@ public final class ProjectileJsonCacheRuntime {
     public static final String PLAN_ID = "vanilla-projectile-merged-json-cache-v1";
 
     private static volatile State state = State.disabled();
-    private static volatile Constructor<?> jsonConstructor;
     /**
      * How long a hit spends rebuilding the object, separated from finding it.
      *
      * <p>The loader's own subphase label charges a hit the whole call, and an offline replay of
-     * these exact artifacts parses all 11,689 of them in 0.16s -- against 1.50s measured in the
-     * game. One of those two numbers is not measuring what it is named after, and this says which.
+     * these exact artifacts parses all 12,584 values in about 0.16s. The same seam measured 394ms
+     * in the game, and tagged-tree replay reduces its own rebuild work by roughly five to six times.
      */
     private static final SeamTimer REHYDRATE_CLOCK = new SeamTimer();
 
@@ -35,8 +32,8 @@ public final class ProjectileJsonCacheRuntime {
 
     static void beginSession() {
         state = State.disabled();
-        jsonConstructor = null;
         REHYDRATE_CLOCK.reset();
+        GameJson.forget();
     }
 
     static void configure(Path artifact) {
@@ -51,7 +48,7 @@ public final class ProjectileJsonCacheRuntime {
             return;
         }
         String profile = fileName.substring(0, 64);
-        Map<String, String> entries = Map.of();
+        Map<String, byte[]> entries = Map.of();
         String diagnostic = "capture";
         if (Files.isRegularFile(absolute)) {
             try {
@@ -88,8 +85,8 @@ public final class ProjectileJsonCacheRuntime {
             current.misses.incrementAndGet();
             return null;
         }
-        String json = current.entries.get(path);
-        if (json == null) {
+        byte[] tree = current.entries.get(path);
+        if (tree == null) {
             current.misses.incrementAndGet();
             return null;
         }
@@ -97,7 +94,7 @@ public final class ProjectileJsonCacheRuntime {
             long entry = REHYDRATE_CLOCK.enter();
             Object result;
             try {
-                result = constructor().newInstance(json);
+                result = GameJson.bridge().decode(tree);
             } finally {
                 REHYDRATE_CLOCK.exit(entry);
             }
@@ -125,13 +122,14 @@ public final class ProjectileJsonCacheRuntime {
             return;
         }
         try {
-            String encoded = json.toString();
-            if (encoded != null && !encoded.isBlank()) {
+            GameJson bridge = GameJson.bridge();
+            if (bridge.isGameJson(json)) {
+                byte[] encoded = bridge.encode(json);
                 // Dropping the install prefix from an absolute key means two different files could
                 // in principle claim it. Nothing observed does, so this refuses the key rather than
                 // picking a winner: a collision that is never served cannot serve the wrong spec.
-                String previous = current.learned.putIfAbsent(path, encoded);
-                if (previous != null && !previous.equals(encoded)) {
+                byte[] previous = current.learned.putIfAbsent(path, encoded);
+                if (previous != null && !java.util.Arrays.equals(previous, encoded)) {
                     current.learned.remove(path);
                     current.collidingKeys.add(path);
                     current.badEntries.add(path);
@@ -157,7 +155,7 @@ public final class ProjectileJsonCacheRuntime {
             return;
         }
         try {
-            Map<String, String> combined = new LinkedHashMap<>(current.entries);
+            Map<String, byte[]> combined = new LinkedHashMap<>(current.entries);
             combined.putAll(current.learned);
             combined.keySet().removeAll(current.collidingKeys);
             PreparedProjectileJsonCacheIO.write(
@@ -169,18 +167,6 @@ public final class ProjectileJsonCacheRuntime {
         } catch (Throwable error) {
             current.diagnose("merged projectile JSON cache could not be written: " + message(error));
         }
-    }
-
-    private static Constructor<?> constructor() throws ReflectiveOperationException {
-        Constructor<?> existing = jsonConstructor;
-        if (existing != null) {
-            return existing;
-        }
-        ClassLoader context = Thread.currentThread().getContextClassLoader();
-        Class<?> type = Class.forName("org.json.JSONObject", true, context);
-        Constructor<?> resolved = type.getConstructor(String.class);
-        jsonConstructor = resolved;
-        return resolved;
     }
 
     static Map<String, Object> telemetry() {
@@ -218,9 +204,9 @@ public final class ProjectileJsonCacheRuntime {
     private static final class State {
         private final Path artifact;
         private final String profileIdentity;
-        private final Map<String, String> entries;
+        private final Map<String, byte[]> entries;
         private final String diagnostic;
-        private final Map<String, String> learned = new ConcurrentHashMap<>();
+        private final Map<String, byte[]> learned = new ConcurrentHashMap<>();
         private final Set<String> badEntries = ConcurrentHashMap.newKeySet();
         private final AtomicBoolean completed = new AtomicBoolean();
         private final AtomicBoolean diagnosed = new AtomicBoolean();
@@ -231,7 +217,8 @@ public final class ProjectileJsonCacheRuntime {
         private final AtomicLong collisions = new AtomicLong();
         private final Set<String> collidingKeys = ConcurrentHashMap.newKeySet();
 
-        private State(Path artifact, String profileIdentity, Map<String, String> entries, String diagnostic) {
+        private State(Path artifact, String profileIdentity, Map<String, byte[]> entries,
+                String diagnostic) {
             this.artifact = artifact;
             this.profileIdentity = profileIdentity;
             this.entries = entries;

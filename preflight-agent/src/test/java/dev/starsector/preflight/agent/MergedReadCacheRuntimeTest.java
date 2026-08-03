@@ -13,6 +13,7 @@ import java.lang.invoke.MethodType;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONArray;
@@ -100,6 +101,37 @@ class MergedReadCacheRuntimeTest {
         assertEquals(1L, telemetry("unstorableReads"));
         MergedReadCacheRuntime.complete();
         assertFalse(Files.exists(artifact));
+    }
+
+    @Test
+    void skipsNewDedicatedSpecCopiesAndPrunesOnesFromAnOlderArtifact() throws Throwable {
+        Path fresh = artifact('d');
+        MergedReadCacheRuntime.configure(fresh);
+        MergedReadCacheRuntime.mergedJsonRead(
+                "data/variants/example.variant", Set.of(), JSON_VANILLA);
+        MergedReadCacheRuntime.complete();
+        assertFalse(Files.exists(fresh));
+        assertEquals(1L, telemetry("dedicatedSpecCapturesSkipped"));
+
+        Path polluted = artifact('e');
+        String generalKey = dev.starsector.preflight.core.MergedReadKey.json(
+                "data/config/engine_styles.json", java.util.List.of());
+        String specKey = dev.starsector.preflight.core.MergedReadKey.json(
+                "data/variants/example.variant", java.util.List.of());
+        GameJson bridge = GameJson.bridge();
+        PreparedMergedReadCacheIO.write(polluted, new PreparedMergedReadCache(
+                "e".repeat(64), Map.of(
+                        generalKey, bridge.encode(new JSONObject().put("kind", "general")),
+                        specKey, bridge.encode(new JSONObject().put("kind", "spec")))));
+
+        MergedReadCacheRuntime.beginSession();
+        MergedReadCacheRuntime.configure(polluted);
+        assertEquals(1, telemetry("dedicatedSpecEntriesPruned"));
+        MergedReadCacheRuntime.complete();
+
+        PreparedMergedReadCache cleaned = PreparedMergedReadCacheIO.read(polluted);
+        assertEquals(Set.of(generalKey), cleaned.entries().keySet());
+        assertEquals(1L, telemetry("writes"));
     }
 
     private Path artifact(char digit) {
