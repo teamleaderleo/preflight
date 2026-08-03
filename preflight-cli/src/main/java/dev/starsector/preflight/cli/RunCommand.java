@@ -56,6 +56,7 @@ final class RunCommand {
         Path recording = runDirectory.resolve("startup.jfr");
         Path report = runDirectory.resolve("summary.json");
         Path adapterReport = runDirectory.resolve("adapter.json");
+        Path adapterHealth = runDirectory.resolve("adapter-health.json");
         Path adapterAnalysis = runDirectory.resolve("adapter-analysis.json");
         Path metadata = runDirectory.resolve("run.json");
         Path profile = runDirectory.resolve("profile.json");
@@ -244,6 +245,14 @@ final class RunCommand {
             }
             if (Files.isRegularFile(adapterReport)) {
                 System.out.println("Preflight adapter report: " + adapterReport);
+                try {
+                    AdapterHealthReport.Result health = AdapterHealthReport.analyze(adapterReport, adapterHealth);
+                    System.out.println("Preflight adapter health: " + health.status() + " — " + health.summary());
+                    System.out.println("Preflight adapter health report: " + adapterHealth);
+                } catch (Exception error) {
+                    addPostprocessingFailure(postprocessingFailures, "adapter-health", error);
+                    System.err.println("Preflight adapter health skipped: " + message(error));
+                }
                 Path startupPhases = adapterReport.resolveSibling("adapter-startup-phases.json");
                 if (Files.isRegularFile(startupPhases)) {
                     System.out.println("Preflight startup phase report: " + startupPhases);
@@ -581,6 +590,8 @@ final class RunCommand {
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
         values.put("adapterMode", options.adapterMode());
         values.put("adapterReport", adapterReport);
+        Path adapterHealth = adapterReport.resolveSibling("adapter-health.json");
+        values.put("adapterHealthReport", Files.isRegularFile(adapterHealth) ? adapterHealth : null);
         values.put("adapterAnalysis", Files.isRegularFile(adapterAnalysis) ? adapterAnalysis : null);
         values.put("adapterTargets", options.adapterTargets());
         values.put("textureAdapterMode", options.textureAdapterMode());

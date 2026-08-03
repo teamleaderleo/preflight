@@ -241,6 +241,15 @@ Its nested `textureCompatibility.preparedPixels` object records:
 - active and pending buffers;
 - releases and internal errors.
 
+After every probe or enabled run, the wrapper also converts this raw telemetry into
+`adapter-health.json`. Its status is one of `ACTIVE`, `PARTIAL`, `SAFE_FALLBACK`, `DISABLED`,
+`PROBE_ONLY`, `NO_TARGETS`, or `ERROR`. In particular, a game update, modified source archive, or
+another agent owning a target becomes a visible `PARTIAL`/`SAFE_FALLBACK` result instead of a
+silent loss of acceleration. The report records whether any acceleration remained active, whether
+original bytecode was retained, the bounded exact-match problems, and the two files needed for
+compatibility review. Generating this verdict is post-processing: failure to write it cannot turn a
+successful game run into a failed one.
+
 ## Manual acceptance sequence
 
 A useful real-install check exists once the prepared manifest contains startup images:
