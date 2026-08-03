@@ -137,12 +137,13 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 
 ### What is left, in order
 
-1. Merge quiet-log PR #315 when its CI finishes.
-2. Rebase the stacked `codex/tagged-spec-json` branch onto that merge, then open its PR. It is
-   implemented, fidelity-replayed, learned, and measured in two warm launches; evidence is in
+1. Quiet-log PR #315 merged as `eb008e8` with every Linux, macOS, and Windows check green.
+2. Tagged-spec PR #316 is open after a clean rebase onto #315 and a fresh full `mvn verify`. It was
+   already fidelity-replayed, learned, and measured in two warm launches; evidence is in
    `docs/evidence/2026-08-04-tagged-spec-json.md`. Its real migration also proved the merged cache's
    12,584 shadowed spec entries are pruned transactionally (17MB back to 8.0MB).
-3. Re-price the remaining profile. Quiet logs and tagged spec trees together remove 0.664s at their
+3. Merge #316 after its required checks pass.
+4. Re-price the remaining profile. Quiet logs and tagged spec trees together remove 0.664s at their
    direct seams, leaving only about 0.12s of the prior pair-mean gap to 33.0s; launch noise is ±1.4s.
 
 ### The traps, from the ones already hit
@@ -166,8 +167,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | | worth | notes |
 | --- | ---: | --- |
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
-| `--quiet-logs` | **0.403s** | implemented on stacked branch; replay + real smoke pass |
-| tagged-tree rehydration for the four spec caches | **0.261s** | implemented; 394ms -> 132/134ms exact seam |
+| `--quiet-logs` | **0.403s** | merged in #315; replay + real smoke pass |
+| tagged-tree rehydration for the four spec caches | **0.261s** | PR #316; 394ms -> 132/134ms exact seam |
 | GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
