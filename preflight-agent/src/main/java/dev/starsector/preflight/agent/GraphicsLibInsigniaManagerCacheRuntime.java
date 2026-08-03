@@ -10,6 +10,8 @@ public final class GraphicsLibInsigniaManagerCacheRuntime {
     private static volatile boolean enabled;
     private static long hits;
     private static long misses;
+    private static long hitInsideNanos;
+    private static long missInsideNanos;
 
     private GraphicsLibInsigniaManagerCacheRuntime() {
     }
@@ -18,6 +20,8 @@ public final class GraphicsLibInsigniaManagerCacheRuntime {
         enabled = false;
         hits = 0;
         misses = 0;
+        hitInsideNanos = 0;
+        missInsideNanos = 0;
     }
 
     static void configure(boolean requested) {
@@ -29,13 +33,15 @@ public final class GraphicsLibInsigniaManagerCacheRuntime {
     }
 
     /** The renderer and shutdown report are single-writer/read-after-join in ordinary play. */
-    public static void hit() {
+    public static void hit(long startedNanos) {
         hits++;
+        hitInsideNanos += elapsedSince(startedNanos);
     }
 
     /** The renderer and shutdown report are single-writer/read-after-join in ordinary play. */
-    public static void miss() {
+    public static void miss(long startedNanos) {
         misses++;
+        missInsideNanos += elapsedSince(startedNanos);
     }
 
     static Map<String, Object> telemetry() {
@@ -45,6 +51,27 @@ public final class GraphicsLibInsigniaManagerCacheRuntime {
         values.put("hits", hits);
         values.put("misses", misses);
         values.put("requests", hits + misses);
+        values.put("hitInsideNanos", hitInsideNanos);
+        values.put("missInsideNanos", missInsideNanos);
+        values.put("meanHitMicros", meanMicros(hitInsideNanos, hits));
+        values.put("meanMissMicros", meanMicros(missInsideNanos, misses));
+        values.put("estimatedAvoidedMillisFromSessionMeans", estimatedAvoidedMillis());
         return values;
+    }
+
+    private static long elapsedSince(long startedNanos) {
+        return Math.max(0L, System.nanoTime() - startedNanos);
+    }
+
+    private static double meanMicros(long nanos, long calls) {
+        return calls == 0 ? 0.0 : nanos / (calls * 1_000.0);
+    }
+
+    private static double estimatedAvoidedMillis() {
+        if (hits == 0 || misses == 0) {
+            return 0.0;
+        }
+        double projectedVanillaHitNanos = (missInsideNanos / (double) misses) * hits;
+        return Math.max(0.0, projectedVanillaHitNanos - hitInsideNanos) / 1_000_000.0;
     }
 }

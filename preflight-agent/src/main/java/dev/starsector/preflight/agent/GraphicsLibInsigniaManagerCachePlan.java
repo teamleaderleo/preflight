@@ -143,6 +143,9 @@ final class GraphicsLibInsigniaManagerCachePlan {
         LabelNode miss = new LabelNode();
         InsnList instructions = method.instructions;
 
+        instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, "java/lang/System", "nanoTime", "()J", false));
+        instructions.add(new VarInsnNode(Opcodes.LSTORE, 5));
         instructions.add(new VarInsnNode(Opcodes.ILOAD, 2));
         instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false));
@@ -157,7 +160,6 @@ final class GraphicsLibInsigniaManagerCachePlan {
                 "(Ljava/lang/Object;)Z",
                 true));
         instructions.add(new JumpInsnNode(Opcodes.IFEQ, miss));
-        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "hit", "()V", false));
         instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         instructions.add(new FieldInsnNode(Opcodes.GETFIELD, owner, CACHE_FIELD, CACHE_DESCRIPTOR));
         instructions.add(new VarInsnNode(Opcodes.ALOAD, 3));
@@ -168,6 +170,10 @@ final class GraphicsLibInsigniaManagerCachePlan {
                 "(Ljava/lang/Object;)Ljava/lang/Object;",
                 true));
         instructions.add(new TypeInsnNode(Opcodes.CHECKCAST, MANAGER));
+        instructions.add(new VarInsnNode(Opcodes.ASTORE, 4));
+        instructions.add(new VarInsnNode(Opcodes.LLOAD, 5));
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "hit", "(J)V", false));
+        instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
         instructions.add(new InsnNode(Opcodes.ARETURN));
 
         instructions.add(miss);
@@ -191,7 +197,8 @@ final class GraphicsLibInsigniaManagerCachePlan {
                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                 true));
         instructions.add(new InsnNode(Opcodes.POP));
-        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "miss", "()V", false));
+        instructions.add(new VarInsnNode(Opcodes.LLOAD, 5));
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, "miss", "(J)V", false));
         instructions.add(new VarInsnNode(Opcodes.ALOAD, 4));
         instructions.add(new InsnNode(Opcodes.ARETURN));
         return method;

@@ -91,13 +91,17 @@ class GraphicsLibInsigniaManagerCachePlanTest {
     @Test
     void telemetrySeparatesReusedAndRealManagerRequests() {
         GraphicsLibInsigniaManagerCacheRuntime.configure(true);
-        GraphicsLibInsigniaManagerCacheRuntime.miss();
-        GraphicsLibInsigniaManagerCacheRuntime.hit();
-        GraphicsLibInsigniaManagerCacheRuntime.hit();
+        GraphicsLibInsigniaManagerCacheRuntime.miss(System.nanoTime());
+        GraphicsLibInsigniaManagerCacheRuntime.hit(System.nanoTime());
+        GraphicsLibInsigniaManagerCacheRuntime.hit(System.nanoTime());
 
         assertEquals(2L, GraphicsLibInsigniaManagerCacheRuntime.telemetry().get("hits"));
         assertEquals(1L, GraphicsLibInsigniaManagerCacheRuntime.telemetry().get("misses"));
         assertEquals(3L, GraphicsLibInsigniaManagerCacheRuntime.telemetry().get("requests"));
+        assertTrue((Long) GraphicsLibInsigniaManagerCacheRuntime.telemetry().get("hitInsideNanos") >= 0L);
+        assertTrue((Long) GraphicsLibInsigniaManagerCacheRuntime.telemetry().get("missInsideNanos") >= 0L);
+        assertTrue((Double) GraphicsLibInsigniaManagerCacheRuntime.telemetry()
+                .get("estimatedAvoidedMillisFromSessionMeans") >= 0.0);
     }
 
     @Test
