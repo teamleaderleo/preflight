@@ -111,3 +111,24 @@ non-directory path from other failures. Proven absence remains cacheable. Any I/
 security failure creates an incomplete listing whose every lookup defers to the vanilla resolver.
 The report records these as `listingFailures`, and a regression test pins the rule that an
 incomplete listing can never claim a child is absent.
+
+## Follow-up: whole-root absence is disabled
+
+The NIO distinction was necessary but insufficient. The next live launch, recorded as
+`dialog-grid-20260804-062621`, failed on a different exactly named file:
+
+```
+data/missions/randyforrandis/descriptor.json
+```
+
+The file existed in the enabled Everybody Loves KoC mod, its `mission_list.csv` was the source of
+the request, and the cache reported no listing failures. It nevertheless skipped 17,484 root opens
+wholesale and the vanilla loader exhausted the resolver walk. That proves the whole-root shortcut
+has another false-negative mode which its telemetry cannot currently distinguish from a real miss.
+
+`resource-probe-cache-v3` therefore never answers the per-root open itself. It always invokes the
+original resolver method, whose internal `File.exists()` calls still use the narrower directory
+memo. This gives back the path-construction portion of the optimization, but restores the game's
+own resource-selection boundary and removes the failure mode entirely. Restoring wholesale skips
+requires an exhaustive parity replay of the actual per-root open contract, not another live-launch
+guess.
