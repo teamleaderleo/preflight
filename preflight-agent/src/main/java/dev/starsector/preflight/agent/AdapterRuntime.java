@@ -32,6 +32,7 @@ final class AdapterRuntime {
         RuleCommandClassCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
+        StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
         AdapterReport report = new AdapterReport(
                 options.adapterMode(),
                 options.adapterReport(),

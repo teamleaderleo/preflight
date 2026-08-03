@@ -484,7 +484,8 @@ final class AdapterTargetRegistry {
                 .withTarget(weaponLoaderPhaseTarget())
                 .withTarget(shipHullLoaderPhaseTarget())
                 .withTarget(rulesLoaderPhaseTarget())
-                .withTarget(ruleExpressionPhaseTarget());
+                .withTarget(ruleExpressionPhaseTarget())
+                .withTarget(mergedReadProbeTarget());
     }
 
     AdapterTargetRegistry withVariantJsonCacheTarget() {
@@ -518,6 +519,32 @@ final class AdapterTargetRegistry {
     AdapterTargetRegistry withRuleCommandClassCacheTarget() {
         return withTarget(ruleCommandClassLookupTarget())
                 .withTarget(ruleCommandClassPublishTarget());
+    }
+
+    /**
+     * The same class, pinned for the merged-read timing rather than the single-file memo.
+     *
+     * <p>Two targets on one class is deliberate. They gate on different things -- this one on the
+     * startup phase probe, the memo on its own flag -- and only one of them can transform, because
+     * the transformer returns on the first plan that produces bytes. Both plan branches therefore
+     * chain the other's rewrite, so the pair composes whichever target the loop reaches first.
+     */
+    static AdapterTarget mergedReadProbeTarget() {
+        return new AdapterTarget(
+                "vanilla-loading-utils-0.98a-rc8-merged-reads",
+                MergedReadProbePlan.TARGET_CLASS,
+                "aa9f88ee76576894432503103de2979f297c01b399e528c096d1905f5a59f89d",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                MergedReadProbePlan.MERGED_METHOD, MergedReadProbePlan.CSV_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                MergedReadProbePlan.MERGED_METHOD, MergedReadProbePlan.JSON_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
     }
 
     /**

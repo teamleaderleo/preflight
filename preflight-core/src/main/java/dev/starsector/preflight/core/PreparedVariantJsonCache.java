@@ -15,8 +15,9 @@ public record PreparedVariantJsonCache(
         profileIdentitySha256 = profileIdentitySha256.toLowerCase(java.util.Locale.ROOT);
         TreeMap<String, String> copy = new TreeMap<>();
         for (Map.Entry<String, String> item : entries.entrySet()) {
-            String path = ResourceIndex.normalizeLogicalPath(item.getKey());
-            if (!path.startsWith("data/variants/") || !path.endsWith(".variant")) {
+            String path = SpecCachePaths.normalizeKey(item.getKey());
+            String logical = SpecCachePaths.logicalPath(path);
+            if (!logical.startsWith("data/variants/") || !logical.endsWith(".variant")) {
                 throw new IllegalArgumentException("Not a ship variant path: " + path);
             }
             String json = item.getValue();

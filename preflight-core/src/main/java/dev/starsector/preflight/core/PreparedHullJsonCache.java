@@ -15,8 +15,9 @@ public record PreparedHullJsonCache(
         profileIdentitySha256 = profileIdentitySha256.toLowerCase(java.util.Locale.ROOT);
         TreeMap<String, String> copy = new TreeMap<>();
         for (Map.Entry<String, String> item : entries.entrySet()) {
-            String path = ResourceIndex.normalizeLogicalPath(item.getKey());
-            if (!path.startsWith("data/hulls/") || !path.endsWith(".ship")) {
+            String path = SpecCachePaths.normalizeKey(item.getKey());
+            String logical = SpecCachePaths.logicalPath(path);
+            if (!logical.startsWith("data/hulls/") || !logical.endsWith(".ship")) {
                 throw new IllegalArgumentException("Not a ship hull definition path: " + path);
             }
             String json = item.getValue();

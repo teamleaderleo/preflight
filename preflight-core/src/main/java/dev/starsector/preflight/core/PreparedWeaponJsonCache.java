@@ -15,10 +15,11 @@ public record PreparedWeaponJsonCache(
         profileIdentitySha256 = profileIdentitySha256.toLowerCase(java.util.Locale.ROOT);
         TreeMap<String, String> copy = new TreeMap<>();
         for (Map.Entry<String, String> item : entries.entrySet()) {
-            String path = ResourceIndex.normalizeLogicalPath(item.getKey());
-            boolean weapon = path.startsWith("data/weapons/");
-            boolean shipSystem = path.startsWith("data/shipsystems/wpn/");
-            if ((!weapon && !shipSystem) || !path.endsWith(".wpn")) {
+            String path = SpecCachePaths.normalizeKey(item.getKey());
+            String logical = SpecCachePaths.logicalPath(path);
+            boolean weapon = logical.startsWith("data/weapons/");
+            boolean shipSystem = logical.startsWith("data/shipsystems/wpn/");
+            if ((!weapon && !shipSystem) || !logical.endsWith(".wpn")) {
                 throw new IllegalArgumentException("Not a weapon definition path: " + path);
             }
             String json = item.getValue();

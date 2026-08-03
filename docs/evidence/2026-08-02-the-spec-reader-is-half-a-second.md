@@ -88,6 +88,38 @@ The `Cleaned buffer (using reflection)` line comes from `Misc.cleanBuffer(Buffer
 reflective `cleaner`/`clean` handles in maps and so pays two `Map.get` and two `Method.invoke` per
 texture rather than a lookup -- also small, and not separately measured.
 
+### Re-measured 2026-08-03: 0.49s, and 0.40s of it is free
+
+Two things changed. The launch now emits **122,437 lines**, not 65,305 -- the earlier count missed
+the 28,963 `ScriptStore` lines a background thread emits while the loading thread is logging, and
+log4j 1.2 synchronises every append, so they contend. The mix is also different now that five caches
+removed most of the `Loading JSON from` lines. Replaying the current mix from two threads, on the
+game's own JVM and log4j jar, and reporting what the *loading* thread paid:
+
+| configuration | loading thread |
+| --- | ---: |
+| shipped: console + unbuffered file | **0.488 s** |
+| console + buffered file | 0.225 s |
+| no console, unbuffered file | 0.245 s |
+| **no console, buffered file** | **0.085 s** |
+| level raised, nothing emitted | 0.008 s |
+
+So the earlier conclusion -- "0.24s at best, and it costs everyone their diagnostics" -- was wrong
+about the second half. **Dropping the console appender and buffering the file is worth 0.40s and
+loses no line**: the file appender already receives everything the console does, and our own wrapper
+log is a duplicate of `starsector.log`. Silencing the logger entirely buys 0.08s more than that,
+which is not worth the diagnostics.
+
+What buffering does cost is the *tail* on a hard crash, which is exactly the case a bug report needs,
+so it belongs behind a flag rather than in the default.
+
+None of this is measurable by launching the game: single-launch variance on this profile is about
+±4%, or ±1.4s, so a 0.4s change is an order of magnitude below the noise floor. The replay is the
+only instrument that can see it.
+
+Benchmark: `2026-08-03-logging-two-thread-benchmark.java.txt`, line counts from
+`~/.starsector-preflight/runs/merged-reads-20260803-215048`.
+
 ## What is not established
 
 - **No claim that 0.475 s appears at startup.** The benchmark reads every spec file once with the

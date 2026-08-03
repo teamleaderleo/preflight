@@ -7,6 +7,7 @@ import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -20,6 +21,14 @@ public final class WeaponJsonCacheRuntime {
 
     private static volatile State state = State.disabled();
     private static volatile Constructor<?> jsonConstructor;
+    /**
+     * How long a hit spends rebuilding the object, separated from finding it.
+     *
+     * <p>The loader's own subphase label charges a hit the whole call, and an offline replay of
+     * these exact artifacts parses all 11,689 of them in 0.16s -- against 1.50s measured in the
+     * game. One of those two numbers is not measuring what it is named after, and this says which.
+     */
+    private static final SeamTimer REHYDRATE_CLOCK = new SeamTimer();
 
     private WeaponJsonCacheRuntime() {
     }
@@ -27,6 +36,7 @@ public final class WeaponJsonCacheRuntime {
     static void beginSession() {
         state = State.disabled();
         jsonConstructor = null;
+        REHYDRATE_CLOCK.reset();
     }
 
     static void configure(Path artifact) {
@@ -84,7 +94,13 @@ public final class WeaponJsonCacheRuntime {
             return null;
         }
         try {
-            Object result = constructor().newInstance(json);
+            long entry = REHYDRATE_CLOCK.enter();
+            Object result;
+            try {
+                result = constructor().newInstance(json);
+            } finally {
+                REHYDRATE_CLOCK.exit(entry);
+            }
             current.hits.incrementAndGet();
             return result;
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -111,7 +127,18 @@ public final class WeaponJsonCacheRuntime {
         try {
             String encoded = json.toString();
             if (encoded != null && !encoded.isBlank()) {
-                current.learned.put(path, encoded);
+                // Dropping the install prefix from an absolute key means two different files could
+                // in principle claim it. Nothing observed does, so this refuses the key rather than
+                // picking a winner: a collision that is never served cannot serve the wrong spec.
+                String previous = current.learned.putIfAbsent(path, encoded);
+                if (previous != null && !previous.equals(encoded)) {
+                    current.learned.remove(path);
+                    current.collidingKeys.add(path);
+                    current.badEntries.add(path);
+                    current.collisions.incrementAndGet();
+                    current.diagnose("two different merged values claim the cache key " + path);
+                    return;
+                }
                 current.captures.incrementAndGet();
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -132,6 +159,7 @@ public final class WeaponJsonCacheRuntime {
         try {
             Map<String, String> combined = new LinkedHashMap<>(current.entries);
             combined.putAll(current.learned);
+            combined.keySet().removeAll(current.collidingKeys);
             PreparedWeaponJsonCacheIO.write(
                     current.artifact,
                     new PreparedWeaponJsonCache(current.profileIdentity, combined));
@@ -166,18 +194,18 @@ public final class WeaponJsonCacheRuntime {
         values.put("misses", current.misses.get());
         values.put("captures", current.captures.get());
         values.put("writes", current.writes.get());
+        values.put("keyCollisions", current.collisions.get());
+        values.put("absoluteEntries", current.entries.keySet().stream()
+                .filter(key -> key.startsWith(SpecCacheKey.ABSOLUTE_PREFIX)).count());
+        values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
         return values;
     }
 
+    /** The directories and extension this cache may answer for. */
+    private static final List<String> DIRECTORIES = List.of("data/weapons/", "data/shipsystems/wpn/");
+
     private static String normalizeWeaponPath(String rawPath) {
-        try {
-            String path = ResourceIndex.normalizeLogicalPath(rawPath);
-            boolean weapon = path.startsWith("data/weapons/");
-            boolean shipSystem = path.startsWith("data/shipsystems/wpn/");
-            return (weapon || shipSystem) && path.endsWith(".wpn") ? path : null;
-        } catch (RuntimeException ignored) {
-            return null;
-        }
+        return SpecCacheKey.of(rawPath, DIRECTORIES, ".wpn");
     }
 
     private static String message(Throwable error) {
@@ -200,6 +228,8 @@ public final class WeaponJsonCacheRuntime {
         private final AtomicLong misses = new AtomicLong();
         private final AtomicLong captures = new AtomicLong();
         private final AtomicLong writes = new AtomicLong();
+        private final AtomicLong collisions = new AtomicLong();
+        private final Set<String> collidingKeys = ConcurrentHashMap.newKeySet();
 
         private State(Path artifact, String profileIdentity, Map<String, String> entries, String diagnostic) {
             this.artifact = artifact;
