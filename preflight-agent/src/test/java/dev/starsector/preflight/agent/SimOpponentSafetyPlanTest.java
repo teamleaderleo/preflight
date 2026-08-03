@@ -45,6 +45,14 @@ public class SimOpponentSafetyPlanTest {
         assertNotNull(simulation);
         assertEquals(2, calls(simulation,
                 SimOpponentSafetyRuntime.class.getName().replace('.', '/'), "filter"));
+        assertEquals(4, calls(simulation,
+                SimOpponentSafetyRuntime.class.getName().replace('.', '/'), "recordAdded"));
+        assertEquals(1, calls(simulation,
+                SimOpponentSafetyRuntime.class.getName().replace('.', '/'), "recordMission"));
+        MethodNode launch = method(read(transformed), SimOpponentSafetyPlan.LAUNCH_METHOD);
+        assertNotNull(launch);
+        assertEquals(1, calls(launch,
+                SimOpponentSafetyRuntime.class.getName().replace('.', '/'), "recordMission"));
     }
 
     @Test
@@ -171,7 +179,11 @@ public class SimOpponentSafetyPlanTest {
                 List.of(new ClassSignature.Method(
                         SimOpponentSafetyPlan.SIMULATION_METHOD,
                         SimOpponentSafetyPlan.SIMULATION_DESCRIPTOR,
-                        Opcodes.ACC_PRIVATE)));
+                        Opcodes.ACC_PRIVATE),
+                        new ClassSignature.Method(
+                                SimOpponentSafetyPlan.LAUNCH_METHOD,
+                                SimOpponentSafetyPlan.LAUNCH_DESCRIPTOR,
+                                Opcodes.ACC_PRIVATE)));
     }
 
     private static byte[] fixture(int opponentCalls) {
@@ -188,9 +200,34 @@ public class SimOpponentSafetyPlanTest {
                     "o00000", "()Ljava/util/List;", false));
             simulation.instructions.add(new InsnNode(Opcodes.POP));
         }
+        for (int i = 0; i < 4; i++) {
+            simulation.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+            simulation.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+            simulation.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+            simulation.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+            simulation.instructions.add(new InsnNode(Opcodes.ICONST_0));
+            simulation.instructions.add(new MethodInsnNode(
+                    Opcodes.INVOKEVIRTUAL,
+                    "com/fs/starfarer/title/C/OO0O",
+                    "addToFleet",
+                    "(Lcom/fs/starfarer/api/mission/FleetSide;Ljava/lang/String;"
+                            + "Lcom/fs/starfarer/api/fleet/FleetMemberType;Z)"
+                            + "Lcom/fs/starfarer/api/fleet/FleetMemberAPI;",
+                    false));
+            simulation.instructions.add(new InsnNode(Opcodes.POP));
+        }
         simulation.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
         simulation.instructions.add(new InsnNode(Opcodes.ARETURN));
         simulation.accept(writer);
+        MethodNode launch = new MethodNode(Opcodes.ACC_PRIVATE,
+                SimOpponentSafetyPlan.LAUNCH_METHOD,
+                SimOpponentSafetyPlan.LAUNCH_DESCRIPTOR, null, null);
+        launch.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+        launch.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL,
+                "com/fs/starfarer/title/C/OO0O", "load", "()V", false));
+        launch.instructions.add(new InsnNode(Opcodes.RETURN));
+        launch.accept(writer);
         writer.visitEnd();
         return writer.toByteArray();
     }

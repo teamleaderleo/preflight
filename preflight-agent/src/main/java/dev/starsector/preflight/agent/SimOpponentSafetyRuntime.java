@@ -26,6 +26,11 @@ public final class SimOpponentSafetyRuntime {
     private static final AtomicLong CANDIDATES = new AtomicLong();
     private static final AtomicLong REMOVED = new AtomicLong();
     private static final AtomicLong FAIL_OPEN = new AtomicLong();
+    private static final AtomicLong ADD_RESULTS = new AtomicLong();
+    private static final AtomicLong NULL_ADD_RESULTS = new AtomicLong();
+    private static final AtomicLong BEFORE_LOAD_FLEET_SIZE = new AtomicLong(-1L);
+    private static final AtomicLong AFTER_LOAD_FLEET_SIZE = new AtomicLong(-1L);
+    private static final AtomicLong FLEET_INSPECTION_FAILURES = new AtomicLong();
     private static final Map<String, Long> INVALID_IDS = new LinkedHashMap<>();
     private static final AtomicBoolean INVALID_IDS_TRUNCATED = new AtomicBoolean();
 
@@ -122,6 +127,54 @@ public final class SimOpponentSafetyRuntime {
         }
     }
 
+    /** Records whether vanilla produced a member for a validated simulation-opponent row. */
+    public static void recordAdded(Object member) {
+        ADD_RESULTS.incrementAndGet();
+        if (member == null) {
+            NULL_ADD_RESULTS.incrementAndGet();
+        }
+    }
+
+    /** Records the enemy mission-fleet size immediately before or after vanilla mission loading. */
+    public static void recordMission(Object mission, boolean afterLoad) {
+        if (mission == null) {
+            FLEET_INSPECTION_FAILURES.incrementAndGet();
+            return;
+        }
+        try {
+            ClassLoader loader = mission.getClass().getClassLoader();
+            Class<?> fleetSide = Class.forName(
+                    "com.fs.starfarer.api.mission.FleetSide", false, loader);
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Object enemy = Enum.valueOf((Class<? extends Enum>) fleetSide.asSubclass(Enum.class),
+                    "ENEMY");
+            Method getFleet = mission.getClass().getMethod("getFleet", fleetSide);
+            Object fleet = invoke(getFleet, mission, enemy);
+            if (fleet == null) {
+                throw new IllegalStateException("Simulation enemy fleet is null");
+            }
+            Method getMembers = fleet.getClass().getMethod("Ó00000");
+            Object members = invoke(getMembers, fleet);
+            if (!(members instanceof List<?> list)) {
+                throw new IllegalStateException("Simulation enemy fleet members are unavailable");
+            }
+            (afterLoad ? AFTER_LOAD_FLEET_SIZE : BEFORE_LOAD_FLEET_SIZE).set(list.size());
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            FLEET_INSPECTION_FAILURES.incrementAndGet();
+        }
+    }
+
+    private static Object invoke(Method method, Object receiver, Object... arguments)
+            throws Throwable {
+        try {
+            return method.invoke(receiver, arguments);
+        } catch (InvocationTargetException error) {
+            throw error.getCause();
+        }
+    }
+
     private static void recordInvalid(String id) {
         synchronized (INVALID_IDS) {
             Long prior = INVALID_IDS.get(id);
@@ -144,6 +197,11 @@ public final class SimOpponentSafetyRuntime {
         values.put("candidates", CANDIDATES.get());
         values.put("removed", REMOVED.get());
         values.put("failOpen", FAIL_OPEN.get());
+        values.put("addResults", ADD_RESULTS.get());
+        values.put("nullAddResults", NULL_ADD_RESULTS.get());
+        values.put("beforeLoadEnemyFleetSize", BEFORE_LOAD_FLEET_SIZE.get());
+        values.put("afterLoadEnemyFleetSize", AFTER_LOAD_FLEET_SIZE.get());
+        values.put("fleetInspectionFailures", FLEET_INSPECTION_FAILURES.get());
         synchronized (INVALID_IDS) {
             values.put("invalidVariantIds", new LinkedHashMap<>(INVALID_IDS));
             values.put("invalidVariantIdsTruncated", INVALID_IDS_TRUNCATED.get());
@@ -157,6 +215,11 @@ public final class SimOpponentSafetyRuntime {
         CANDIDATES.set(0L);
         REMOVED.set(0L);
         FAIL_OPEN.set(0L);
+        ADD_RESULTS.set(0L);
+        NULL_ADD_RESULTS.set(0L);
+        BEFORE_LOAD_FLEET_SIZE.set(-1L);
+        AFTER_LOAD_FLEET_SIZE.set(-1L);
+        FLEET_INSPECTION_FAILURES.set(0L);
         INVALID_IDS_TRUNCATED.set(false);
         synchronized (INVALID_IDS) {
             INVALID_IDS.clear();

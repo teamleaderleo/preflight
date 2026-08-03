@@ -239,9 +239,13 @@ final class AdapterTargetRegistry {
                 SimOpponentSafetyPlan.TARGET_CLASS,
                 SimOpponentSafetyPlan.ORIGINAL_SHA256,
                 SimOpponentSafetyRuntime.PLAN_ID,
-                List.of(new AdapterTarget.RequiredMethod(
-                        SimOpponentSafetyPlan.SIMULATION_METHOD,
-                        SimOpponentSafetyPlan.SIMULATION_DESCRIPTOR)),
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                SimOpponentSafetyPlan.SIMULATION_METHOD,
+                                SimOpponentSafetyPlan.SIMULATION_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                SimOpponentSafetyPlan.LAUNCH_METHOD,
+                                SimOpponentSafetyPlan.LAUNCH_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
