@@ -57,6 +57,26 @@ final class RunCommand {
         Path profile = runDirectory.resolve("profile.json");
         Path console = runDirectory.resolve("console.txt");
         Path agentJar = SelfJar.locate();
+
+        // Prepared audio is served only when the cache the bake wrote is present *and* the decoder
+        // that baked it is still the decoder installed. Neither is worth guessing at: if the bake
+        // has not been run, or the game has been updated since, nothing is passed and the launch
+        // decodes exactly as it always did.
+        Path preparedAudioCache = null;
+        String audioDecoderIdentity = null;
+        if (options.preparedAudio()) {
+            Path candidate = Path.of(System.getProperty("user.home"))
+                    .resolve(".starsector-preflight").resolve("cache")
+                    .toAbsolutePath().normalize();
+            if (Files.isDirectory(candidate.resolve("prepared-audio"))) {
+                preparedAudioCache = candidate;
+                audioDecoderIdentity = PrepareAudioCommand.decoderPolicyIdentity(
+                        PrepareAudioCommand.jars(InstallRoot.resolve(options.game())));
+            } else {
+                System.out.println("No prepared audio for this installation yet; "
+                        + "run `preflight audio prepare` to build it.");
+            }
+        }
         String javaToolOptions = AgentInjection.append(
                 System.getenv("JAVA_TOOL_OPTIONS"),
                 agentJar,
@@ -83,7 +103,9 @@ final class RunCommand {
                 options.ruleTokenCache(),
                 ruleCommandCache == null ? null : ruleCommandCache.artifact(),
                 options.resourceProbeCache(),
-                options.loadJsonMemo());
+                options.loadJsonMemo(),
+                preparedAudioCache,
+                audioDecoderIdentity);
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }

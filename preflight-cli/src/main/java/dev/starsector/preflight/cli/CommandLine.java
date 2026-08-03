@@ -30,6 +30,7 @@ record CommandLine(
         boolean startupPhaseProbe,
         boolean ruleTokenCache,
         boolean resourceProbeCache,
+        boolean preparedAudio,
         boolean loadJsonMemo,
         boolean ruleCommandClassCache,
         boolean directLaunch,
@@ -50,6 +51,7 @@ record CommandLine(
         boolean startupPhaseProbe = false;
         boolean ruleTokenCache = false;
         boolean resourceProbeCache = false;
+        boolean preparedAudio = false;
         boolean loadJsonMemo = false;
         boolean ruleCommandClassCache = false;
         boolean directLaunch = false;
@@ -99,6 +101,7 @@ record CommandLine(
                 case "--startup-phase-probe" -> startupPhaseProbe = true;
                 case "--rule-token-cache" -> ruleTokenCache = true;
                 case "--resource-probe-cache" -> resourceProbeCache = true;
+                case "--prepared-audio" -> preparedAudio = true;
                 case "--loadjson-memo" -> loadJsonMemo = true;
                 case "--rule-command-cache" -> ruleCommandClassCache = true;
                 case "--direct" -> directLaunch = true;
@@ -114,6 +117,7 @@ record CommandLine(
                     ruleTokenCache = true;
                     ruleCommandClassCache = true;
                     resourceProbeCache = true;
+                    preparedAudio = true;
                     loadJsonMemo = true;
                     recordingMode = RecordingMode.OFF;
                 }
@@ -177,6 +181,9 @@ record CommandLine(
         if (loadJsonMemo && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--loadjson-memo requires --adapter");
         }
+        if (preparedAudio && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--prepared-audio requires --adapter");
+        }
         if (resourceProbeCache && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException(
                     "--resource-probe-cache requires --adapter");
@@ -220,6 +227,7 @@ record CommandLine(
                 startupPhaseProbe,
                 ruleTokenCache,
                 resourceProbeCache,
+                preparedAudio,
                 loadJsonMemo,
                 ruleCommandClassCache,
                 directLaunch,
