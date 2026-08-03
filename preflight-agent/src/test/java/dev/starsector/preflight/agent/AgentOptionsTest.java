@@ -116,6 +116,12 @@ class AgentOptionsTest {
     }
 
     @Test
+    void quietLogShutdownIsExplicitlyOptIn() {
+        assertFalse(AgentOptions.parse("").quietLogs());
+        assertTrue(AgentOptions.parse("quietLogs=on").quietLogs());
+    }
+
+    @Test
     void parsesVariantJsonCacheArtifact() {
         AgentOptions options = AgentOptions.parse(
                 "adapter=enabled,variantJsonCache64=" + encoded("build/cache/profile.spvj"));

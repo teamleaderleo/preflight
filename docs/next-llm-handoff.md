@@ -137,9 +137,11 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 
 ### What is left, in order
 
-1. Commit and push the launch evidence.
-2. Open the PR for the merged-read cache.
-3. Continue below; the measured launch still needs 0.42s on its best run or 0.79s on its pair mean.
+1. Merge PR #314 when its CI finishes.
+2. Rebase the stacked `codex/quiet-logs` branch onto that merge, then open its PR. It is implemented,
+   replayed, and real-game smoked; evidence is in `docs/evidence/2026-08-04-quiet-logs.md`.
+3. Apply tagged-tree rehydration to the four older spec caches. After the measured 0.403s quiet-log
+   win, the launch still needs about 0.38s on its pair mean; that replay-priced work is ~0.33s.
 
 ### The traps, from the ones already hit
 
@@ -162,20 +164,22 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | | worth | notes |
 | --- | ---: | --- |
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
-| `--quiet-logs` | **0.40s** | measured by replay; below the launch noise floor |
+| `--quiet-logs` | **0.403s** | implemented on stacked branch; replay + real smoke pass |
 | tagged-tree rehydration for the four spec caches | **~0.33s** | `JsonTree` already exists; this is applying it to `.spvj`/`.spwj`/`.sppj`/`.sphj` |
 | GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |
 
-**`--quiet-logs`.** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
+**`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
 jar, the loading thread pays 0.488s as shipped and **0.085s** with the console appender dropped and
 the file appender buffered — and that loses no line, because the file appender already receives
 everything the console does. Route: write a `log4j.properties` override and pass
 `-Dlog4j.configuration=file:...`; the game's config is a classpath resource inside
 `starfarer_obf.jar`, so log4j 1.2's `LogManager` honours the property without touching the jar.
-Buffering costs the tail on a hard crash, so it belongs behind a flag rather than in the default. The
-work is CLI plumbing, not cleverness. See
-`docs/evidence/2026-08-02-the-spec-reader-is-half-a-second.md`.
+Buffering costs the tail on a hard crash, so it is an explicit flag and is not folded into `--fast`.
+Normal exit and SIGTERM flush through the existing agent shutdown hook. Current replay measured
+0.491s shipped versus 0.088s quiet, the installed-log4j fidelity probe retained all 10,001 lines,
+and a real 83-mod smoke reached the main-menu marker with a complete newline-terminated log. See
+`docs/evidence/2026-08-04-quiet-logs.md`.
 
 **GraphicsLib.** Deliberately deferred by Leo ("but later"). Grounding already gathered: its
 `loadJSON` path prices at 0.85s with a 0.22s memo ceiling, already taken by the live memo. The probe

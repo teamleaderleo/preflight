@@ -119,7 +119,41 @@ java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
     ${EXTRA[@]+"${EXTRA[@]}"} >"$OUT/wrapper.log" 2>&1 &
 WRAPPER_PID=$!
 
-if python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$OUT/before.json" \
+QUIET_LOGS=false
+for flag in "${EXTRA[@]}"; do
+    if [[ "$flag" == "--quiet-logs" ]]; then
+        QUIET_LOGS=true
+    fi
+done
+
+if [[ "$QUIET_LOGS" == true ]]; then
+    # The main-menu log marker can legitimately remain in log4j's final 64 KiB buffer until the
+    # JVM shuts down. Waiting for it would deadlock the probe: this script is what shuts the game
+    # down. The startup probe writes each phase transactionally, and resource-init-complete lands
+    # about 0.1s before the ordinary GraphicsLib menu marker on the measured warm pair, so give the
+    # UI five seconds after that exact phase before stopping it. The flushed log is checked below;
+    # this phase alone is deliberately not called the main menu.
+    detected=false
+    deadline=$((SECONDS + TIMEOUT_SECONDS))
+    phase_report="$OUT/adapter-startup-phases.json"
+    while (( SECONDS < deadline )); do
+        if [[ -f "$phase_report" ]] \
+                && jq -e '.phases | any(.name == "resource-init-complete")' "$phase_report" \
+                    >/dev/null 2>&1; then
+            sleep 5
+            detected=true
+            break
+        fi
+        kill -0 "$WRAPPER_PID" 2>/dev/null || break
+        sleep 0.2
+    done
+    if [[ "$detected" == true ]]; then
+        echo "resource initialization complete (quiet-log startup phase)"
+    else
+        echo "MAIN MENU NOT DETECTED -- see $OUT/wrapper.log" >&2
+        tail -5 "$OUT/wrapper.log" >&2 || true
+    fi
+elif python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$OUT/before.json" \
         --output "$OUT/menu.json" --pid "$WRAPPER_PID" \
         --timeout-seconds "$TIMEOUT_SECONDS" --quiet-seconds "$QUIET_SECONDS"; then
     echo "main menu reached"
@@ -132,5 +166,19 @@ fi
 # the machine while it happens.
 cleanup
 trap - EXIT INT TERM
+
+if [[ "$QUIET_LOGS" == true && "$detected" == true ]]; then
+    # SIGTERM ran Preflight's log4j shutdown hook, so the final buffer is visible now. Observe the
+    # ordinary marker as a compatibility check, but keep it out of menu.json: reading the whole
+    # flushed delta at once gives every line the same observation timestamp and is not a launch
+    # measurement. The log's own millisecond delta remains in menu-flushed.json as evidence.
+    if python3 "$DETECTOR" watch-main-menu --log-dir "$LOG_DIR" --snapshot "$OUT/before.json" \
+            --output "$OUT/menu-flushed.json" --pid "$WRAPPER_PID" \
+            --timeout-seconds 1 --quiet-seconds 0; then
+        echo "main menu marker present after quiet-log shutdown flush"
+    else
+        echo "MAIN MENU MARKER ABSENT AFTER SHUTDOWN -- see $OUT/wrapper.log" >&2
+    fi
+fi
 
 python3 scripts/summarize_startup_probe.py "$OUT"

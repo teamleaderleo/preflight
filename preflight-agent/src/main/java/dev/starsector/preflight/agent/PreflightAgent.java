@@ -47,6 +47,7 @@ public final class PreflightAgent {
                         markStopping(recording);
                         closeFlusher(flusher);
                         closeAdapter(adapterSession);
+                        closeQuietLogs(options.quietLogs());
                     },
                     "Preflight-Shutdown"));
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -56,6 +57,7 @@ public final class PreflightAgent {
             closeFlusher(flusher);
             stopRecording(recording, options.destination());
             closeAdapter(adapterSession);
+            closeQuietLogs(options.quietLogs());
         }
     }
 
@@ -95,12 +97,21 @@ public final class PreflightAgent {
         });
     }
 
+    private static void closeQuietLogs(boolean enabled) {
+        contain("Quiet log flush", () -> {
+            QuietLogShutdown.close(enabled);
+            return null;
+        });
+    }
+
     private static Recording startRecording(AgentOptions options) {
         if (!options.recordingMode().records()) {
             // The adapter still runs and still writes its report; only the profile is skipped.
             if (options.adapterMode() != AdapterMode.OFF) {
                 log("Recording off; adapter mode " + options.adapterMode() + ", report "
                         + options.adapterReport().toAbsolutePath().normalize());
+            } else if (options.quietLogs()) {
+                log("Recording off and adapter off; quiet-log shutdown flush is active.");
             } else {
                 log("Recording off and adapter off; this agent will do nothing.");
             }

@@ -60,6 +60,9 @@ final class RunCommand {
         Path metadata = runDirectory.resolve("run.json");
         Path profile = runDirectory.resolve("profile.json");
         Path console = runDirectory.resolve("console.txt");
+        Path quietLogConfiguration = options.quietLogs()
+                ? QuietLogConfiguration.path(runDirectory)
+                : null;
         Path agentJar = SelfJar.locate();
 
         // Prepared audio is served only when the cache the bake wrote is present *and* the decoder
@@ -110,9 +113,15 @@ final class RunCommand {
                 options.loadJsonMemo(),
                 preparedAudioCache,
                 audioDecoderIdentity,
-                mergedReadCache == null ? null : mergedReadCache.artifact());
+                mergedReadCache == null ? null : mergedReadCache.artifact(),
+                options.quietLogs());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
+        }
+        if (quietLogConfiguration != null) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of(QuietLogConfiguration.javaOption(quietLogConfiguration)));
         }
 
         List<String> command = new ArrayList<>(target.command());
@@ -133,6 +142,9 @@ final class RunCommand {
 
         RunIdentity runIdentity = RunIdentity.capture(agentJar);
         Files.createDirectories(runDirectory);
+        if (quietLogConfiguration != null) {
+            QuietLogConfiguration.write(quietLogConfiguration);
+        }
         // The census is a third full walk of the same 61,693 files -- 854ms on the reviewed profile
         // -- and nothing about the launch reads its output. It writes profile.json, which is a
         // report a human looks at afterwards. Leaving it here meant the game could not start until
@@ -389,6 +401,9 @@ final class RunCommand {
         System.out.println("  resource probe cache: " + options.resourceProbeCache());
         System.out.println("  loadJSON memo: " + options.loadJsonMemo());
         System.out.println("  rule command class cache: " + options.ruleCommandClassCache());
+        System.out.println("  quiet logs: " + (options.quietLogs()
+                ? QuietLogConfiguration.path(runDirectory)
+                : "off"));
         System.out.println("  launch: " + (directSettings == null
                 ? "launcher UI"
                 : "direct " + directSettings.resolution()
@@ -558,6 +573,10 @@ final class RunCommand {
         values.put("resourceProbeCache", options.resourceProbeCache());
         values.put("loadJsonMemo", options.loadJsonMemo());
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
+        values.put("quietLogs", options.quietLogs());
+        values.put("quietLogConfiguration", options.quietLogs()
+                ? QuietLogConfiguration.path(path.getParent())
+                : null);
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
         values.put("adapterMode", options.adapterMode());
