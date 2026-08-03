@@ -286,6 +286,8 @@ final class AdapterReport {
         key(output, "preparedAudio").append(Json.value(PreparedAudioRuntime.report())).append(',');
         key(output, "graphicsLibCompactReplay")
                 .append(Json.value(GraphicsLibCompactReplayPlan.telemetry())).append(',');
+        key(output, "graphicsLibInsigniaManagerCache")
+                .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

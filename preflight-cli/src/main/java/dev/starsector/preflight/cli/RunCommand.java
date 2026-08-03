@@ -117,7 +117,8 @@ final class RunCommand {
                 audioDecoderIdentity,
                 mergedReadCache == null ? null : mergedReadCache.artifact(),
                 options.quietLogs(),
-                options.graphicsLibCompactReplay());
+                options.graphicsLibCompactReplay(),
+                options.graphicsLibInsigniaManagerCache());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -424,6 +425,8 @@ final class RunCommand {
         System.out.println("  loadJSON memo: " + options.loadJsonMemo());
         System.out.println("  rule command class cache: " + options.ruleCommandClassCache());
         System.out.println("  GraphicsLib compact replay: " + options.graphicsLibCompactReplay());
+        System.out.println("  GraphicsLib insignia manager cache: "
+                + options.graphicsLibInsigniaManagerCache());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -603,6 +606,7 @@ final class RunCommand {
         values.put("loadJsonMemo", options.loadJsonMemo());
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
         values.put("graphicsLibCompactReplay", options.graphicsLibCompactReplay());
+        values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
         values.put("quietLogs", options.quietLogs());
         values.put("heapPretouchDisabled", options.disableHeapPretouch());
         values.put("quietLogConfiguration", options.quietLogs()

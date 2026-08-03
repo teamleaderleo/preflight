@@ -168,7 +168,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
 | `--quiet-logs` | **0.403s** | implemented on stacked branch; replay + real smoke pass |
 | tagged-tree rehydration for the four spec caches | **0.261s** | implemented; 394ms -> 132/134ms exact seam |
-| GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |
+| GraphicsLib compact startup replay | 3.97s callback, traversal share unpriced | exact 1.12.1 adapter built; live launch pending |
+| GraphicsLib insignia manager cache | 4.40% of long-session game-thread samples is all GraphicsLib | exact per-render adapter built; combat pilot pending |
 | Windows heap pre-touch | unmeasured on Windows | explicit `--no-heap-pretouch` experiment on `codex/windows-pretouch-experiment`; Mac precedent only, not in `--fast` |
 
 Windows-specific research, primary sources, and the ordered measurement plan are in
@@ -188,11 +189,15 @@ Normal exit and SIGTERM flush through the existing agent shutdown hook. Current 
 and a real 83-mod smoke reached the main-menu marker with a complete newline-terminated log. See
 `docs/evidence/2026-08-04-quiet-logs.md`.
 
-**GraphicsLib.** Deliberately deferred by Leo ("but later"). Grounding already gathered: its
-`loadJSON` path prices at 0.85s with a 0.22s memo ceiling, already taken by the live memo. The probe
-covering that callback recorded 7,759 JSON-load lines against 6,191 texture-buffer cleanups, so it
-loads textures in `onApplicationLoad` and those already go through the texture cache. What it does
-with them *afterwards* is unmeasured, and that is where the next probe goes.
+**GraphicsLib.** The exact 1.12.1 compact startup replay is on
+`codex/graphicslib-compact-replay`; it passed an installed-archive transform and still needs a live
+launch. A separate long-session JFR review found GraphicsLib on 1,141 of 25,951 game-thread samples
+(4.40%). Its largest Java-owned frame is `InsigniaPlugin.renderInUICoords`: 105 samples land in
+`CombatFleetManager.<init>` because the plugin asks for the same absent owner once per ship and the
+game constructs a fresh unattached manager on every miss. `codex/graphicslib-insignia-cache` caches
+that accessor only within one render invocation, changes no render math, passed exact installed-JAR
+and dry-run gates, and awaits a controlled combat visual/frame-time pilot. Evidence:
+`docs/evidence/2026-08-04-graphicslib-insignia-manager-cache.md`.
 
 ## Environment notes that cost time to rediscover
 

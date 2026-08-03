@@ -129,6 +129,14 @@ class AgentOptionsTest {
     }
 
     @Test
+    void graphicsLibInsigniaManagerCacheIsExplicitlyOptIn() {
+        assertFalse(AgentOptions.parse("adapter=enabled").graphicsLibInsigniaManagerCache());
+        assertTrue(AgentOptions.parse(
+                "adapter=enabled,graphicsLibInsigniaManagerCache=on")
+                .graphicsLibInsigniaManagerCache());
+    }
+
+    @Test
     void parsesVariantJsonCacheArtifact() {
         AgentOptions options = AgentOptions.parse(
                 "adapter=enabled,variantJsonCache64=" + encoded("build/cache/profile.spvj"));
