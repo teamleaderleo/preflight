@@ -129,7 +129,9 @@ java -jar preflight.jar run --adapter --campaign-entity-index
 It puts a size-invalidated index in front of `BaseLocation.getEntityById`, validates hits against
 the game's live repository set, and delegates every miss or failure to the preserved original
 method. The adapter report exposes `served`, `declined`, `rebuilds`, and `indexedEntities` counters
-for a long-session review. The flag is intentionally rejected in adapter-off and probe modes.
+under `campaignEntityIndex` for a long-session review. A pilot has not proved activation unless
+`installed` and `enabled` are both true and `served` is nonzero. The flag is intentionally rejected
+in adapter-off and probe modes.
 
 See [vanilla runtime adapter](vanilla-adapter.md) for the activation gate, report format, kill switch, and the point where a real Starsector installation is required.
 

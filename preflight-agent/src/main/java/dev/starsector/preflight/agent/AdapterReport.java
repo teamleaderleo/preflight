@@ -279,6 +279,7 @@ final class AdapterReport {
         key(output, "rulesDuplicateIndex").append(Json.value(RulesDuplicateIndexRuntime.telemetry())).append(',');
         key(output, "ruleTokenCache").append(Json.value(RuleTokenCacheRuntime.telemetry())).append(',');
         key(output, "mergedReadCache").append(Json.value(MergedReadCacheRuntime.telemetry())).append(',');
+        key(output, "campaignEntityIndex").append(Json.value(EntityLookupRuntime.counters())).append(',');
         // These three kept their counters to themselves until now, which meant a launch could not
         // be asked afterwards how much any of them actually did.
         key(output, "resourceProbeCache").append(Json.value(ResourceProbeRuntime.report())).append(',');
