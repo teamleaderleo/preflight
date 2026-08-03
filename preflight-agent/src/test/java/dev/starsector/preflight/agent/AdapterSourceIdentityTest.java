@@ -75,6 +75,26 @@ class AdapterSourceIdentityTest {
     }
 
     @Test
+    void hashesLiveModFileUrlsWhoseSpacesWereNotEscaped() throws Exception {
+        Path archive = temporaryDirectory.resolve("game/mods/zz GraphicsLib-1.12.1/jars/Graphics.jar");
+        Files.createDirectories(archive.getParent());
+        byte[] content = "graphicslib-archive".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(archive, content);
+        URL rawFileUrl = new URL("file:" + archive.toAbsolutePath());
+        assertTrue(rawFileUrl.toString().contains(" "));
+
+        ProtectionDomain domain = new ProtectionDomain(
+                new CodeSource(rawFileUrl, (Certificate[]) null), null);
+        AdapterSourceIdentity identity = AdapterSourceIdentity.capture(
+                getClass().getClassLoader(), domain, true);
+
+        assertEquals("MOD", identity.sourceKind());
+        assertTrue(identity.sourceEndsWith("zz GraphicsLib-1.12.1/jars/Graphics.jar"));
+        assertEquals(sha256(content), identity.sourceSha256());
+        assertEquals("", identity.sourceHashProblem());
+    }
+
+    @Test
     void identicalClassBytesFromDifferentSourcesRemainDistinctInReport() throws Exception {
         ClassSignature signature = ClassSignature.parse(classBytes());
         AdapterSourceIdentity first = new AdapterSourceIdentity(
