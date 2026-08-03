@@ -42,6 +42,7 @@ public final class TextureCompatibilityRuntime {
     static final long MAX_RECONSTRUCTED_PIXELS = 16_777_216L;
 
     private static final Telemetry TELEMETRY = new Telemetry();
+    private static final SeamTimer SERVE_CLOCK = new SeamTimer();
     private static volatile State state = State.disabled();
 
     private TextureCompatibilityRuntime() {
@@ -50,6 +51,7 @@ public final class TextureCompatibilityRuntime {
     static synchronized void beginSession() {
         state = State.disabled();
         TELEMETRY.reset();
+        SERVE_CLOCK.reset();
     }
 
     static synchronized boolean configure(Path cacheDirectory, Path manifestPath, Path indexPath) {
@@ -113,6 +115,15 @@ public final class TextureCompatibilityRuntime {
 
     /** Returns a verified cache-backed image, or {@code null} so the caller can run the original method. */
     public static BufferedImage load(String logicalPath) {
+        long entry = SERVE_CLOCK.enter();
+        try {
+            return serve(logicalPath);
+        } finally {
+            SERVE_CLOCK.exit(entry);
+        }
+    }
+
+    private static BufferedImage serve(String logicalPath) {
         PreparedTexture texture = lookup(logicalPath);
         if (texture == null) {
             return null;
@@ -359,6 +370,10 @@ public final class TextureCompatibilityRuntime {
     static Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>(TELEMETRY.snapshot(ready()));
         values.put("blobChecksumVerification", state.verifyBlobChecksum);
+        // How long the game took over the textures, and how much of that was this seam. The
+        // difference is the game's own per-texture work -- the decode this replaces is gone, but the
+        // upload, the buffer teardown, and whatever else it does between two textures are not.
+        values.putAll(SERVE_CLOCK.snapshot("serve"));
         values.put("preparedPixels", TexturePreparedPixelRuntime.telemetry());
         return Map.copyOf(values);
     }
