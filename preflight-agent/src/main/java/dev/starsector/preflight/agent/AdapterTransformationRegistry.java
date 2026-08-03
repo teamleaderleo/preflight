@@ -130,6 +130,11 @@ final class AdapterTransformationRegistry {
                     ? ResourceProbePlan.transform(signature, originalBytes)
                     : null;
         }
+        if (PreparedAudioRuntime.PLAN_ID.equals(target.planId())) {
+            return PreparedAudioRuntime.ready()
+                    ? PreparedAudioPlan.transform(signature, originalBytes)
+                    : null;
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -330,6 +335,9 @@ final class AdapterTransformationRegistry {
         }
         if (ResourceProbeRuntime.PLAN_ID.equals(planId)) {
             return ResourceProbeRuntime.ready();
+        }
+        if (PreparedAudioRuntime.PLAN_ID.equals(planId)) {
+            return PreparedAudioRuntime.ready();
         }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(planId)) {
             return LoadJsonMemoRuntime.ready();

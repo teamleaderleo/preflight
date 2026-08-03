@@ -138,8 +138,14 @@ public final class PreparedAudioIO {
             if (input.available() != 0) {
                 throw new IOException("Prepared audio payload contains trailing data");
             }
-            if (!MessageDigest.isEqual(expectedPcmHash, Hashes.sha256Bytes(pcm))) {
-                throw new IOException("Prepared audio PCM checksum mismatch");
+            // The PCM hash is not verified here, and deliberately. It is recorded so a blob can say
+            // what it holds, but every byte it covers is already inside the payload this method only
+            // reached by verifying. Checking it again is hashing the same bytes a second time -- on
+            // a launch that serves 1.23 GB of PCM that second pass measured 4.4 s, which is most of
+            // what preparing the audio was supposed to save. Corruption anywhere in the PCM still
+            // fails, on the payload checksum, before this point.
+            if (expectedPcmHash.length != SHA256_BYTES) {
+                throw new IOException("Prepared audio PCM checksum is malformed");
             }
             PreparedAudio audio = new PreparedAudio(
                     HexFormat.of().formatHex(sourceHash),

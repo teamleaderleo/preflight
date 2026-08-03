@@ -99,6 +99,28 @@ final class AdapterTargetRegistry {
     }
 
     /**
+     * The game's Ogg Vorbis decode, in the sound jar.
+     *
+     * <p>Pure decode: the sound loader constructs one of these per file and does everything that
+     * touches OpenAL after it returns. That is why this is the seam and the loader is not.
+     */
+    static AdapterTarget preparedAudioTarget() {
+        return new AdapterTarget(
+                "vanilla-ogg-decoder-0.98a-rc8-prepared-audio",
+                PreparedAudioPlan.TARGET_CLASS,
+                "d99e37bfedd0510418fa171ae1861918f8ef72d0c0c3084df669f1d195b18733",
+                PreparedAudioRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        PreparedAudioPlan.DECODE_METHOD,
+                        PreparedAudioPlan.DECODE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.sound_obf.jar",
+                "79e5bc71236333541674e2b9093642ac5a2d68d9e55cb8a71f299fd389ba1573",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
      *
@@ -525,6 +547,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withResourceProbeCacheTarget() {
         return withTarget(resourceProbeCacheTarget());
+    }
+
+    AdapterTargetRegistry withPreparedAudioTarget() {
+        return withTarget(preparedAudioTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

@@ -33,6 +33,8 @@ record AgentOptions(
         Path hullJsonCache,
         Path rulesCsvCache,
         Path ruleCommandClassCache,
+        Path preparedAudioCache,
+        String audioDecoderIdentity,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -115,6 +117,10 @@ record AgentOptions(
         Path hullJsonCache = decodedPath(values, "hullJsonCache64");
         Path rulesCsvCache = decodedPath(values, "rulesCsvCache64");
         Path ruleCommandClassCache = decodedPath(values, "ruleCommandCache64");
+        // The decoder identity travels next to the cache because a prepared blob is only this
+        // decoder's output if it was baked by this decoder; without it nothing is served.
+        Path preparedAudioCache = decodedPath(values, "preparedAudioCache64");
+        String audioDecoderIdentity = values.get("audioDecoder");
         return new AgentOptions(
                 destination,
                 settings,
@@ -138,6 +144,8 @@ record AgentOptions(
                 hullJsonCache,
                 rulesCsvCache,
                 ruleCommandClassCache,
+                preparedAudioCache,
+                audioDecoderIdentity,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

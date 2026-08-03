@@ -81,6 +81,11 @@ final class AdapterRuntime {
             }
             ResourceProbeRuntime.enable(options.resourceProbeCache());
             LoadJsonMemoRuntime.enable(options.loadJsonMemo());
+            if (options.preparedAudioCache() != null && options.audioDecoderIdentity() != null) {
+                PreparedAudioRuntime.enable(true);
+                PreparedAudioRuntime.configure(
+                        options.preparedAudioCache(), options.audioDecoderIdentity());
+            }
         }
 
         AdapterTargetRegistry registry;
@@ -132,6 +137,10 @@ final class AdapterRuntime {
                 if (ResourceProbeRuntime.ready()) {
                     registry = registry.withResourceProbeCacheTarget();
                     report.diagnostic("Loaded the exact resource-resolver probe cache target");
+                }
+                if (PreparedAudioRuntime.ready()) {
+                    registry = registry.withPreparedAudioTarget();
+                    report.diagnostic("Loaded the exact Ogg Vorbis decoder target");
                 }
                 if (RuleCommandClassCacheRuntime.ready()) {
                     registry = registry.withRuleCommandClassCacheTarget();
