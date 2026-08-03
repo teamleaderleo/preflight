@@ -65,10 +65,16 @@ Reviewing the installed stock UI bytecode rules out an intentionally empty oppon
 simulator sets `CombatEngine.setShowEnemyDeploymentDialog(true)`. `CombatState.showDeployDialog()`
 therefore constructs the deployment dialog for owner 1. That dialog has an explicit `Opponents`
 tab, selects it for simulator mode, and builds its icon grid from
-`CombatEngine.getFleetManager(1).getReserves()`, excluding only members marked as allies. The next
-diagnostic records that exact reserve collection immediately after `CombatEngine.init()`, including
-ally/non-ally and deployed counts. This separates a mission-to-combat transfer loss from a later UI
-construction problem without changing either path.
+`CombatEngine.getFleetManager(1).getReserves()`, excluding only members marked as allies.
+
+The `combat-reserves-retry-20260804-061434` pilot closed that boundary. Immediately after
+`CombatEngine.init()`, the enemy manager held all 510 members in reserves, all 510 were non-allies,
+zero were already deployed, and inspection had zero failures. Both gameplay caches were disabled
+and recorded zero calls. The empty view is therefore neither a stale save nor prepared game data:
+the complete source collection reaches the exact manager read by the stock dialog. The remaining
+boundary is inside the dialog itself -- either its reserve grid receives no icons or a different
+panel is being presented. A separately pinned probe now records the dialog's `getReserves()` result
+and both grid member counts immediately after the stock reserve-grid builder returns.
 
 There remains a separate roster-scope distinction: the variant cache rehydrated 5,573 variant
 definitions, while merged `sim_opponents.csv` files opted in only 535 rows. The guard repairs safety

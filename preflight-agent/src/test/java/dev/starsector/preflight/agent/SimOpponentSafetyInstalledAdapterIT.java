@@ -58,4 +58,42 @@ class SimOpponentSafetyInstalledAdapterIT {
         }
         assertEquals(2, filters);
     }
+
+    @Test
+    void installedOpponentDialogHasTheReviewedGridBoundary() throws Exception {
+        String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
+        Assumptions.assumeTrue(!configured.isEmpty(),
+                "set -Dpreflight.starsector.core.jar=<starfarer_obf.jar>");
+        Path archive = Path.of(configured).toAbsolutePath().normalize();
+        Assumptions.assumeTrue(Files.isRegularFile(archive));
+
+        byte[] original;
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            var entry = jar.getJarEntry(SimOpponentDialogProbePlan.TARGET_CLASS + ".class");
+            assertNotNull(entry);
+            try (var input = jar.getInputStream(entry)) {
+                original = input.readAllBytes();
+            }
+        }
+        ClassSignature signature = ClassSignature.parse(original);
+        assertEquals(SimOpponentDialogProbePlan.ORIGINAL_SHA256, signature.sha256());
+        byte[] transformed = SimOpponentDialogProbePlan.transform(signature, original);
+        assertNotNull(transformed);
+
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
+        var grid = owner.methods.stream()
+                .filter(method -> SimOpponentDialogProbePlan.GRID_METHOD.equals(method.name)
+                        && SimOpponentDialogProbePlan.GRID_DESCRIPTOR.equals(method.desc))
+                .findFirst().orElseThrow();
+        int observations = 0;
+        for (var instruction : grid.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && SimOpponentSafetyRuntime.class.getName().replace('.', '/').equals(call.owner)
+                    && "recordDialog".equals(call.name)) {
+                observations++;
+            }
+        }
+        assertEquals(1, observations);
+    }
 }

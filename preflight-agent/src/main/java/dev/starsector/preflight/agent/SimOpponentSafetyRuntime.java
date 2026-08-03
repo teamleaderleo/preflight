@@ -1,6 +1,7 @@
 package dev.starsector.preflight.agent;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -37,6 +38,13 @@ public final class SimOpponentSafetyRuntime {
     private static final AtomicLong POST_INIT_ENEMY_ALLY_RESERVES = new AtomicLong(-1L);
     private static final AtomicLong POST_INIT_ENEMY_DEPLOYED = new AtomicLong(-1L);
     private static final AtomicLong COMBAT_INSPECTION_FAILURES = new AtomicLong();
+    private static final AtomicLong DIALOG_OBSERVATIONS = new AtomicLong();
+    private static final AtomicLong DIALOG_GRID_BUILDS = new AtomicLong();
+    private static final AtomicLong DIALOG_OWNER_ID = new AtomicLong(-1L);
+    private static final AtomicLong DIALOG_RESERVES = new AtomicLong(-1L);
+    private static final AtomicLong DIALOG_RESERVE_GRID_MEMBERS = new AtomicLong(-1L);
+    private static final AtomicLong DIALOG_DEPLOYED_GRID_MEMBERS = new AtomicLong(-1L);
+    private static final AtomicLong DIALOG_INSPECTION_FAILURES = new AtomicLong();
     private static final Map<String, Long> INVALID_IDS = new LinkedHashMap<>();
     private static final AtomicBoolean INVALID_IDS_TRUNCATED = new AtomicBoolean();
 
@@ -207,6 +215,47 @@ public final class SimOpponentSafetyRuntime {
         }
     }
 
+    /** Records the stock dialog's source collection and both grids after a rebuild. */
+    public static void recordDialog(Object dialog, int phase) {
+        DIALOG_OBSERVATIONS.incrementAndGet();
+        if (phase == 0) {
+            DIALOG_GRID_BUILDS.incrementAndGet();
+        }
+        if (dialog == null) {
+            DIALOG_INSPECTION_FAILURES.incrementAndGet();
+            return;
+        }
+        try {
+            Method getOwnerId = dialog.getClass().getMethod("getOwnerId");
+            Method getReserves = dialog.getClass().getMethod("getReserves");
+            Object owner = invoke(getOwnerId, dialog);
+            Object reserves = invoke(getReserves, dialog);
+            if (!(owner instanceof Number number) || !(reserves instanceof Collection<?> source)) {
+                throw new IllegalStateException("Simulation dialog source is unavailable");
+            }
+            Object reserveGrid = field(dialog, "OÒÖ000");
+            Object deployedGrid = field(dialog, "void.null$Object");
+            DIALOG_OWNER_ID.set(number.longValue());
+            DIALOG_RESERVES.set(source.size());
+            DIALOG_RESERVE_GRID_MEMBERS.set(collection(reserveGrid, "getMembers").size());
+            DIALOG_DEPLOYED_GRID_MEMBERS.set(collection(deployedGrid, "getMembers").size());
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            DIALOG_INSPECTION_FAILURES.incrementAndGet();
+        }
+    }
+
+    private static Object field(Object receiver, String name) throws ReflectiveOperationException {
+        Field field = receiver.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        Object value = field.get(receiver);
+        if (value == null) {
+            throw new IllegalStateException(name + " is null");
+        }
+        return value;
+    }
+
     private static Collection<?> collection(Object receiver, String methodName) throws Throwable {
         Method method = receiver.getClass().getMethod(methodName);
         Object value = invoke(method, receiver);
@@ -257,6 +306,13 @@ public final class SimOpponentSafetyRuntime {
         values.put("postInitEnemyAllyReserves", POST_INIT_ENEMY_ALLY_RESERVES.get());
         values.put("postInitEnemyDeployed", POST_INIT_ENEMY_DEPLOYED.get());
         values.put("combatInspectionFailures", COMBAT_INSPECTION_FAILURES.get());
+        values.put("dialogObservations", DIALOG_OBSERVATIONS.get());
+        values.put("dialogGridBuilds", DIALOG_GRID_BUILDS.get());
+        values.put("dialogOwnerId", DIALOG_OWNER_ID.get());
+        values.put("dialogReserves", DIALOG_RESERVES.get());
+        values.put("dialogReserveGridMembers", DIALOG_RESERVE_GRID_MEMBERS.get());
+        values.put("dialogDeployedGridMembers", DIALOG_DEPLOYED_GRID_MEMBERS.get());
+        values.put("dialogInspectionFailures", DIALOG_INSPECTION_FAILURES.get());
         synchronized (INVALID_IDS) {
             values.put("invalidVariantIds", new LinkedHashMap<>(INVALID_IDS));
             values.put("invalidVariantIdsTruncated", INVALID_IDS_TRUNCATED.get());
@@ -280,6 +336,13 @@ public final class SimOpponentSafetyRuntime {
         POST_INIT_ENEMY_ALLY_RESERVES.set(-1L);
         POST_INIT_ENEMY_DEPLOYED.set(-1L);
         COMBAT_INSPECTION_FAILURES.set(0L);
+        DIALOG_OBSERVATIONS.set(0L);
+        DIALOG_GRID_BUILDS.set(0L);
+        DIALOG_OWNER_ID.set(-1L);
+        DIALOG_RESERVES.set(-1L);
+        DIALOG_RESERVE_GRID_MEMBERS.set(-1L);
+        DIALOG_DEPLOYED_GRID_MEMBERS.set(-1L);
+        DIALOG_INSPECTION_FAILURES.set(0L);
         INVALID_IDS_TRUNCATED.set(false);
         synchronized (INVALID_IDS) {
             INVALID_IDS.clear();

@@ -44,7 +44,9 @@ final class AdapterTransformationRegistry {
         // Always-on inside adapter mode. The exact refit UI target returns the shipped list unless
         // Starsector's own variant registry proves that one of its merged CSV ids is invalid.
         if (SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())) {
-            return SimOpponentSafetyPlan.transform(signature, originalBytes);
+            byte[] safety = SimOpponentSafetyPlan.transform(signature, originalBytes);
+            return safety != null
+                    ? safety : SimOpponentDialogProbePlan.transform(signature, originalBytes);
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
             // LoadingUtils is reached by this plan, by the merged-read cache's and by the loadJSON

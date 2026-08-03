@@ -253,6 +253,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The exact stock dialog that turns simulator reserves into the visible opponent grid. */
+    static AdapterTarget simOpponentDialogProbeTarget() {
+        return new AdapterTarget(
+                "vanilla-simulator-opponent-dialog-probe-0.98a-rc8",
+                SimOpponentDialogProbePlan.TARGET_CLASS,
+                SimOpponentDialogProbePlan.ORIGINAL_SHA256,
+                SimOpponentSafetyRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        SimOpponentDialogProbePlan.GRID_METHOD,
+                        SimOpponentDialogProbePlan.GRID_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The loading bar reaches 100% before this class waits for audio and runs final callbacks. */
     static AdapterTarget startupPhaseTarget() {
         return new AdapterTarget(
@@ -588,7 +605,7 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withSimOpponentSafetyTarget() {
-        return withTarget(simOpponentSafetyTarget());
+        return withTarget(simOpponentSafetyTarget()).withTarget(simOpponentDialogProbeTarget());
     }
 
     AdapterTargetRegistry withStartupPhaseTarget() {
@@ -744,7 +761,8 @@ final class AdapterTargetRegistry {
                 .withTarget(texturePrefetchBypassTarget())
                 .withTarget(campaignEntityIndexTarget())
                 .withTarget(deploymentIconCacheTarget())
-                .withTarget(simOpponentSafetyTarget());
+                .withTarget(simOpponentSafetyTarget())
+                .withTarget(simOpponentDialogProbeTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {
