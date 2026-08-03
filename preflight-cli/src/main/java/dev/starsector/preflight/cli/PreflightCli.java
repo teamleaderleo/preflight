@@ -108,6 +108,9 @@ public final class PreflightCli {
         if (args.length > 1 && "sound-wrapper-observe".equals(args[1])) {
             return SoundWrapperObservationCommand.execute(args, 2);
         }
+        if (args.length > 1 && "prepare".equals(args[1])) {
+            return PrepareAudioCommand.execute(args, 2);
+        }
         if (args.length > 1 && "census".equals(args[1])) {
             return AudioCensusCommand.execute(args, 2);
         }
@@ -351,7 +354,7 @@ public final class PreflightCli {
             case "font" -> "List fonts or generate a drop-in bitmap-font pack.";
             case "assets" -> "Measure or generate opt-in asset overlays and block caches.";
             case "lint" -> "Report actionable asset problems without modifying mods.";
-            case "audio" -> "Measure audio, probe decode timing, or run decoder evidence checks.";
+            case "audio" -> "Measure audio, prepare decoded PCM, probe decode timing, or run decoder evidence checks.";
             case "classpath" -> "Audit and index enabled mod JARs and classes.";
             case "benchmark" -> "Record, collect, and compare controlled startup runs.";
             case "analyze" -> "Join adapter probes with trace evidence.";

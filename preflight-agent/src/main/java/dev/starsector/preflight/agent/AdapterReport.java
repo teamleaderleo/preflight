@@ -278,6 +278,11 @@ final class AdapterReport {
                 .append(Json.value(RuleCommandClassCacheRuntime.telemetry())).append(',');
         key(output, "rulesDuplicateIndex").append(Json.value(RulesDuplicateIndexRuntime.telemetry())).append(',');
         key(output, "ruleTokenCache").append(Json.value(RuleTokenCacheRuntime.telemetry())).append(',');
+        // These three kept their counters to themselves until now, which meant a launch could not
+        // be asked afterwards how much any of them actually did.
+        key(output, "resourceProbeCache").append(Json.value(ResourceProbeRuntime.report())).append(',');
+        key(output, "loadJsonMemo").append(Json.value(LoadJsonMemoRuntime.report())).append(',');
+        key(output, "preparedAudio").append(Json.value(PreparedAudioRuntime.report())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {
