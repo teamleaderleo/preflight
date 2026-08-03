@@ -1,5 +1,6 @@
 package dev.starsector.preflight.core;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -19,7 +20,7 @@ public final class PreparedTexture {
     private final int color2Rgba;
     private final byte[] pixels;
 
-    public PreparedTexture(
+    private PreparedTexture(
             String sourceSha256,
             Transformation transformation,
             int originalWidth,
@@ -30,7 +31,8 @@ public final class PreparedTexture {
             int color0Rgba,
             int color1Rgba,
             int color2Rgba,
-            byte[] pixels) {
+            byte[] pixels,
+            boolean adopt) {
         Hashes.decodeSha256(sourceSha256);
         this.sourceSha256 = sourceSha256.toLowerCase(java.util.Locale.ROOT);
         this.transformation = Objects.requireNonNull(transformation, "transformation");
@@ -53,7 +55,47 @@ public final class PreparedTexture {
         this.color0Rgba = color0Rgba;
         this.color1Rgba = color1Rgba;
         this.color2Rgba = color2Rgba;
-        this.pixels = pixels.clone();
+        this.pixels = adopt ? pixels : pixels.clone();
+    }
+
+    public PreparedTexture(
+            String sourceSha256,
+            Transformation transformation,
+            int originalWidth,
+            int originalHeight,
+            int uploadWidth,
+            int uploadHeight,
+            int channels,
+            int color0Rgba,
+            int color1Rgba,
+            int color2Rgba,
+            byte[] pixels) {
+        this(sourceSha256, transformation, originalWidth, originalHeight, uploadWidth, uploadHeight,
+                channels, color0Rgba, color1Rgba, color2Rgba, pixels, false);
+    }
+
+    /**
+     * Takes ownership of {@code pixels} instead of copying it.
+     *
+     * <p>Only for a caller that just allocated the array and will not touch it again -- reading a
+     * blob is the case this exists for, where the array comes straight off the stream and the clone
+     * is a second full copy of a texture nothing else can reach. Package-private because the
+     * promise cannot be checked, only kept.
+     */
+    static PreparedTexture adopting(
+            String sourceSha256,
+            Transformation transformation,
+            int originalWidth,
+            int originalHeight,
+            int uploadWidth,
+            int uploadHeight,
+            int channels,
+            int color0Rgba,
+            int color1Rgba,
+            int color2Rgba,
+            byte[] pixels) {
+        return new PreparedTexture(sourceSha256, transformation, originalWidth, originalHeight,
+                uploadWidth, uploadHeight, channels, color0Rgba, color1Rgba, color2Rgba, pixels, true);
     }
 
     public String sourceSha256() {
@@ -106,6 +148,23 @@ public final class PreparedTexture {
 
     public byte[] pixels() {
         return pixels.clone();
+    }
+
+    /**
+     * The stored pixels without a defensive copy, as a buffer that cannot write through to them.
+     *
+     * <p>{@link #pixels()} clones, which is right for a caller that wants an array it owns and wrong
+     * for the serving path, where every clone is a second copy of a texture that is about to be
+     * copied again into the upload buffer. A launch of the reviewed profile serves 2.53 GB of
+     * pixels, and clones them twice on the way -- once to build the readable raster, once to fill
+     * the upload buffer -- for 5.06 GB of allocation and copying that nothing ever reads twice.
+     *
+     * <p>Read-only rather than a bare array reference: immutability is what makes this class safe to
+     * share, and handing out something that can write through to the backing store would trade a
+     * copy for the ability to corrupt a cached texture in place.
+     */
+    public ByteBuffer pixelsView() {
+        return ByteBuffer.wrap(pixels).asReadOnlyBuffer();
     }
 
     public void copyPixelsTo(byte[] destination, int offset) {

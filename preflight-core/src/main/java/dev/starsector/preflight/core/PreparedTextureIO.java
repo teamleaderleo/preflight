@@ -169,7 +169,10 @@ public final class PreparedTextureIO {
             if (input.available() != 0) {
                 throw new IOException("Prepared texture payload contains trailing data");
             }
-            return new PreparedTexture(
+            // The array was just read from this stream and no other reference to it exists, so
+            // the constructor's defensive copy would only duplicate the pixels the blob was read
+            // for -- 2.53 GB of them across one launch of the reviewed profile.
+            return PreparedTexture.adopting(
                     java.util.HexFormat.of().formatHex(sourceHash),
                     transformation,
                     originalWidth,
