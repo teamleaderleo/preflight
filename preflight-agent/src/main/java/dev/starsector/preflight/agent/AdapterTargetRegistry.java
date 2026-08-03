@@ -84,9 +84,13 @@ final class AdapterTargetRegistry {
                 ResourceProbePlan.TARGET_CLASS,
                 "ee81369a75dfa518ddbbf1bfb83c96845effc2cf9189179fc08a17863837d0fd",
                 ResourceProbeRuntime.PLAN_ID,
-                List.of(new AdapterTarget.RequiredMethod(
-                        ResourceProbePlan.RESOLVE_METHOD,
-                        ResourceProbePlan.RESOLVE_DESCRIPTOR)),
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                ResourceProbePlan.RESOLVE_METHOD,
+                                ResourceProbePlan.RESOLVE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                ResourceProbePlan.OPEN_METHOD,
+                                ResourceProbePlan.OPEN_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/fs.common_obf.jar",
                 "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
