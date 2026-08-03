@@ -147,14 +147,25 @@ then sets its `restored` flag, explaining the observed "slow at first, then gets
 map. This is platform-independent single-threaded work; Rosetta can magnify it but does not create
 it.
 
-The follow-up implementation can return a negative answer only after comparing the live entity
+The follow-up implementation returns a negative answer only after comparing the live entity
 sequence and every live id with the index snapshot. This deliberately retains O(n) validation for
 misses, but replaces the shipped fallback's repeated locale lowercasing and allocation. It also
 repairs two correctness gaps in the first pilot: same-size `List.set` replacement and entity-id
 mutation now invalidate the snapshot, and exact candidates use the shipped containing-location
 validity split instead of repository membership. A small development microbenchmark measured the
-new missing path at roughly 0.63-0.66x the shipped fallback's time; that is directional evidence,
-not a game result.
+new missing path at roughly 0.63-0.66x the shipped fallback's time.
+
+## What the second live pilot added
+
+The follow-up pilot served 7,679 positive answers and 229,789 snapshot-proven negative answers. It
+delegated 8,888 calls while taking 1,002 snapshots and indexing 185,401 entities in total. All 15
+reviewed transformations applied, with no decline, contained failure, or health mismatch.
+
+Using the same JFR execution/native event scan, the first pilot had 500 sampled events whose stacks
+contained `BaseLocation.getEntityById`. The follow-up had 20 such events plus 40 containing
+`EntityLookupRuntime`: 60 combined. The runs had different lengths and user actions, so this is not
+wall-clock attribution, but an 88% stack-sample reduction is much larger than the recording-length
+difference and confirms that the cache removed the observed campaign-entry concentration.
 
 ## What is not established
 
@@ -169,9 +180,10 @@ not a game result.
   11,886 indexed hits and 228,053 index misses, but a miss meant delegation; it did not record
   whether the preserved method subsequently found a case-folded entity.
 - **Whether a mod already patches this was not checked**, and neither was Fast Rendering.
-- **The snapshot-validated miss path has not run in the game yet.** Unit tests cover direct
-  same-size replacement, id mutation, duplicate precedence, gate-off delegation, and fail-open
-  behavior; the next gameplay pilot must establish the live wall-clock and compatibility result.
+- **A live pilot establishes activation and a strong sample-count reduction, not exact saved
+  wall-clock time.** Unit tests cover direct same-size replacement, id mutation, duplicate
+  precedence, gate-off delegation, and fail-open behavior; longer beta use remains the compatibility
+  check for mod behavior not represented in those tests.
 
 ## Method note
 

@@ -2,8 +2,9 @@
 
 **Date:** 2026-08-04
 
-**Input:** combined gameplay pilot `gameplay-pilot-20260804-033528`
-**Status:** bytecode mechanism established; exact positive-only cache built, not yet run in game
+**Input:** combined gameplay pilots `gameplay-pilot-20260804-033528` and
+`gameplay-pilot-20260804-042009`
+**Status:** exact positive-only cache live-validated; no adapter fallback or mismatch
 
 The gameplay recording's second concentrated warm-session hotspot was not rendering. Vanilla
 `supersuper.getIconForMember(FleetMember)` iterates the deployment grid's complete item list and,
@@ -26,6 +27,12 @@ answers are never cached.
 This deliberately retains linear reference validation. It removes the per-item `HashMap.get` and
 icon-member calls that dominate the observed scan without assuming that a mod respects the grid's
 mutation methods. A small development microbenchmark with 120 entries and a last-entry hit measured
-the cached shape at 0.23-0.32x the original scan across three clean JVM forks. That is directional,
-not a game result. The next combined gameplay pilot must establish the actual hit rate and avoided
-time before this leaves beta.
+the cached shape at 0.23-0.32x the original scan across three clean JVM forks.
+
+The follow-up live pilot served 5,197 cached answers and delegated 2,190 calls, taking 1,097
+snapshots and validating 5,726,882 cheap identity references. Comparable JFR execution/native
+sample scans found 504 events containing the original icon lookup in the first pilot, versus one
+event containing the preserved lookup and one containing the cache runtime in the follow-up. The
+runs had different lengths and user actions, so these are statistical sample counts rather than
+wall-clock timing, but the reduction is far larger than the workload difference. All 15 reviewed
+transformations applied with no decline, contained failure, or health mismatch.
