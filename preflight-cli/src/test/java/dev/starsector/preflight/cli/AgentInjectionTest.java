@@ -281,6 +281,41 @@ class AgentInjectionTest {
     }
 
     @Test
+    void janinoBytecodeCacheRequiresAnExactContextAndReachesTheEnabledAdapter() {
+        String token = String.join(".",
+                "01".repeat(32), "02".repeat(32), "03".repeat(32), "04".repeat(32),
+                "05".repeat(32), "06".repeat(32), "07".repeat(32));
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null,
+                TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, null, null, null, null, false, null, false, false,
+                null, null, null, false, false, Path.of("cache"), token);
+
+        assertTrue(enabled.contains(",janinoBytecodeCache64="), enabled);
+        assertTrue(enabled.contains(",janinoBytecodeContext=" + token), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, false, Path.of("cache"), token));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, false, Path.of("cache"), null));
+    }
+
+    @Test
     void includesProbeReportAndTargetPaths() {
         String value = AgentInjection.append(
                 "",

@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
+import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,8 +41,15 @@ final class RunCommand {
             printDiscovery(discovery);
             return 3;
         }
+        LaunchOwnership ownership = LaunchOwnership.detect(target);
+        boolean janinoCacheOwned = options.janinoBytecodeCache() && !ownership.fastRendering();
+        if (options.janinoBytecodeCache() && ownership.fastRendering()) {
+            System.out.println("Preflight left Janino compilation to Fast Rendering's custom "
+                    + "system classloader (" + String.join(", ", ownership.evidence()) + ").");
+        }
         TextureLaunchContext textureContext = textureContext(options, target);
-        SpecStoreCacheContexts specStoreCaches = specStoreCacheContexts(options, target, textureContext);
+        SpecStoreCacheContexts specStoreCaches =
+                specStoreCacheContexts(options, target, textureContext, janinoCacheOwned);
         VariantJsonCacheContext variantJsonCache = specStoreCaches.variantJson();
         WeaponJsonCacheContext weaponJsonCache = specStoreCaches.weaponJson();
         ProjectileJsonCacheContext projectileJsonCache = specStoreCaches.projectileJson();
@@ -49,6 +57,7 @@ final class RunCommand {
         RulesCsvCacheContext rulesCsvCache = specStoreCaches.rulesCsv();
         RuleCommandCacheContext ruleCommandCache = specStoreCaches.ruleCommand();
         MergedReadCacheContext mergedReadCache = specStoreCaches.mergedRead();
+        JaninoBytecodeCacheContext janinoBytecodeCache = specStoreCaches.janino();
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -117,7 +126,9 @@ final class RunCommand {
                 audioDecoderIdentity,
                 mergedReadCache == null ? null : mergedReadCache.artifact(),
                 options.quietLogs(),
-                options.graphicsLibCompactReplay());
+                options.graphicsLibCompactReplay(),
+                janinoBytecodeCache == null ? null : janinoBytecodeCache.cacheRoot(),
+                janinoBytecodeCache == null ? null : janinoBytecodeCache.contextToken());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -142,7 +153,8 @@ final class RunCommand {
                 options,
                 textureContext,
                 directSettings,
-                javaOptionsOverride);
+                javaOptionsOverride,
+                janinoBytecodeCache);
         if (options.dryRun()) {
             return 0;
         }
@@ -408,11 +420,15 @@ final class RunCommand {
             CommandLine options,
             TextureLaunchContext textureContext,
             DirectLaunchSettings directSettings,
-            String javaOptionsOverride) {
+            String javaOptionsOverride,
+            JaninoBytecodeCacheContext janinoBytecodeCache) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
         System.out.println("  launcher: " + target.launcher());
         System.out.println("  kind:     " + target.kind());
+        LaunchOwnership ownership = LaunchOwnership.detect(target);
+        System.out.println("  runtime owner: " + ownership.owner()
+                + (ownership.evidence().isEmpty() ? "" : " " + ownership.evidence()));
         System.out.println("  run data: " + runDirectory);
         System.out.println("  adapter:  " + options.adapterMode());
         System.out.println("  recording: " + options.recordingMode()
@@ -424,6 +440,9 @@ final class RunCommand {
         System.out.println("  loadJSON memo: " + options.loadJsonMemo());
         System.out.println("  rule command class cache: " + options.ruleCommandClassCache());
         System.out.println("  GraphicsLib compact replay: " + options.graphicsLibCompactReplay());
+        System.out.println("  Janino bytecode cache: "
+                + (janinoBytecodeCache != null ? "active"
+                : options.janinoBytecodeCache() ? "suppressed or unavailable" : "off"));
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -589,6 +608,9 @@ final class RunCommand {
         values.put("installRoot", target.installRoot());
         values.put("launcher", target.launcher());
         values.put("launcherKind", target.kind());
+        LaunchOwnership ownership = LaunchOwnership.detect(target);
+        values.put("runtimeOwner", ownership.owner());
+        values.put("runtimeOwnershipEvidence", ownership.evidence());
         values.put("command", renderCommand(command));
         values.put("profile", profile);
         values.put("recordingMode", options.recordingMode());
@@ -603,6 +625,7 @@ final class RunCommand {
         values.put("loadJsonMemo", options.loadJsonMemo());
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
         values.put("graphicsLibCompactReplay", options.graphicsLibCompactReplay());
+        values.put("janinoBytecodeCache", options.janinoBytecodeCache());
         values.put("quietLogs", options.quietLogs());
         values.put("heapPretouchDisabled", options.disableHeapPretouch());
         values.put("quietLogConfiguration", options.quietLogs()
@@ -700,33 +723,105 @@ final class RunCommand {
     private static SpecStoreCacheContexts specStoreCacheContexts(
             CommandLine options,
             LaunchTarget target,
-            TextureLaunchContext textures) {
+            TextureLaunchContext textures,
+            boolean janinoCacheOwned) {
+        boolean textureProfiles = textures != null && textures.automatic();
         if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || textures == null || !textures.automatic()) {
+                || (!textureProfiles && !janinoCacheOwned)) {
             return SpecStoreCacheContexts.none();
         }
         long opened = System.nanoTime();
-        try (ProfileIdentityContext context =
-                     ProfileIdentityContext.of(target.installRoot(), textures.resourceIndex())) {
+        try {
+            ResourceIndex resources = textureProfiles
+                    ? textures.resourceIndex()
+                    : ResourceIndexBuilder.build(target.installRoot()).index();
+            Path cacheRoot = textureProfiles
+                    ? textures.cacheDirectory()
+                    : PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize();
+            try (ProfileIdentityContext context =
+                         ProfileIdentityContext.of(target.installRoot(), resources)) {
             System.out.printf(Locale.ROOT,
                     "Preflight read the launch profile in %.1fms (%d providers).%n",
                     (System.nanoTime() - opened) / 1_000_000.0,
                     context.resources().providerCount());
             return new SpecStoreCacheContexts(
-                    variantJsonCacheContext(context, textures),
-                    weaponJsonCacheContext(context, textures),
-                    projectileJsonCacheContext(context, textures),
-                    hullJsonCacheContext(context, textures),
-                    rulesCsvCacheContext(context, textures),
-                    options.ruleCommandClassCache()
+                    textureProfiles ? variantJsonCacheContext(context, textures) : null,
+                    textureProfiles ? weaponJsonCacheContext(context, textures) : null,
+                    textureProfiles ? projectileJsonCacheContext(context, textures) : null,
+                    textureProfiles ? hullJsonCacheContext(context, textures) : null,
+                    textureProfiles ? rulesCsvCacheContext(context, textures) : null,
+                    textureProfiles && options.ruleCommandClassCache()
                             ? ruleCommandCacheContext(context, textures)
                             : null,
-                    mergedReadCacheContext(context, textures));
+                    textureProfiles ? mergedReadCacheContext(context, textures) : null,
+                    janinoCacheOwned
+                            ? janinoBytecodeCacheContext(context, target, cacheRoot)
+                            : null);
+            }
         } catch (Exception error) {
             System.err.println("Preflight launch profile identity failed: " + message(error)
                     + "; vanilla loading remains active.");
             return SpecStoreCacheContexts.none();
         }
+    }
+
+    private static JaninoBytecodeCacheContext janinoBytecodeCacheContext(
+            ProfileIdentityContext context, LaunchTarget target, Path cacheRoot) {
+        long started = System.nanoTime();
+        try {
+            List<JaninoProfileIdentityBuilder.OrderedArchive> archives =
+                    JaninoProfileIdentityBuilder.discoverOrderedArchives(context);
+            String launchContract = janinoLaunchContract(context, target);
+            long classpathFinished = System.nanoTime();
+            JaninoProfileIdentityBuilder.Result profile =
+                    JaninoProfileIdentityBuilder.build(context, archives, launchContract);
+            System.out.printf(Locale.ROOT,
+                    "Preflight matched Janino compilation profile %s in %.1fms "
+                            + "(archive ordering %.1fms, identity %.1fms; %d archives/%.1f MB, "
+                            + "%d loose providers/%.1f MB, %d core jars).%n",
+                    profile.context().keySha256(),
+                    (System.nanoTime() - started) / 1_000_000.0,
+                    (classpathFinished - started) / 1_000_000.0,
+                    (System.nanoTime() - classpathFinished) / 1_000_000.0,
+                    profile.archiveCount(),
+                    profile.archiveBytes() / 1_048_576.0,
+                    profile.looseProviderCount(),
+                    profile.looseProviderBytes() / 1_048_576.0,
+                    profile.coreJarCount());
+            return new JaninoBytecodeCacheContext(
+                    cacheRoot.toAbsolutePath().normalize(), profile.context().portableToken());
+        } catch (Exception error) {
+            declined("Janino bytecode", error);
+            return null;
+        }
+    }
+
+    private static String janinoLaunchContract(
+            ProfileIdentityContext context, LaunchTarget target) throws IOException {
+        List<Path> candidates = List.of(
+                target.launcher(),
+                target.launcher().resolveSibling("fr.vmparams"),
+                target.launcher().resolveSibling("starsector.vmparams"),
+                target.launcher().resolveSibling("vmparams"),
+                target.installRoot().resolve("Contents/MacOS/compiler_directives.txt"),
+                target.installRoot().resolve("starsector-core/vmparams"));
+        List<Path> files = candidates.stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .distinct()
+                .filter(Files::isRegularFile)
+                .toList();
+        List<String> hashes = context.sha256All(files);
+        StringBuilder canonical = new StringBuilder("starsector-preflight-janino-launch-contract-v1\n")
+                .append("launcher-kind=").append(target.kind()).append('\n');
+        Path install = target.installRoot().toAbsolutePath().normalize();
+        for (int index = 0; index < files.size(); index++) {
+            Path file = files.get(index);
+            String name = file.startsWith(install)
+                    ? install.relativize(file).toString().replace('\\', '/')
+                    : file.getFileName().toString();
+            canonical.append(name).append('=').append(hashes.get(index)).append('\n');
+        }
+        return Hashes.sha256(canonical.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private static VariantJsonCacheContext variantJsonCacheContext(
@@ -880,10 +975,11 @@ final class RunCommand {
             HullJsonCacheContext hullJson,
             RulesCsvCacheContext rulesCsv,
             RuleCommandCacheContext ruleCommand,
-            MergedReadCacheContext mergedRead) {
+            MergedReadCacheContext mergedRead,
+            JaninoBytecodeCacheContext janino) {
 
         static SpecStoreCacheContexts none() {
-            return new SpecStoreCacheContexts(null, null, null, null, null, null, null);
+            return new SpecStoreCacheContexts(null, null, null, null, null, null, null, null);
         }
     }
 
@@ -919,5 +1015,8 @@ final class RunCommand {
     }
 
     private record MergedReadCacheContext(Path artifact) {
+    }
+
+    private record JaninoBytecodeCacheContext(Path cacheRoot, String contextToken) {
     }
 }

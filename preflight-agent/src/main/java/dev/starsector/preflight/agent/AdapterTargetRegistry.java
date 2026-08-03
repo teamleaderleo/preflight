@@ -141,6 +141,28 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Janino 2.7.8's exact complete-map compiler seam in Starsector 0.98a-RC8. */
+    static AdapterTarget janinoBytecodeCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-janino-2.7.8-complete-map-bytecode-cache",
+                JaninoBytecodeCachePlan.TARGET_CLASS,
+                "6b0eea7994ab4c314f1bc7cdefaa99b66897d500c2cad6fd2d97cd08b134c4b8",
+                JaninoBytecodeCacheRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                JaninoBytecodeCachePlan.GENERATE_METHOD,
+                                JaninoBytecodeCachePlan.GENERATE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                "defineBytecode", "(Ljava/lang/String;[B)Ljava/lang/Class;"),
+                        new AdapterTarget.RequiredMethod(
+                                "findClass", "(Ljava/lang/String;)Ljava/lang/Class;")),
+                "STARSECTOR_CORE",
+                "contents/resources/java/janino.jar",
+                "60f05562c22b6de06641a1f76148692ef336ad1f6712fe6a76f9e2611f766344",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -633,6 +655,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withGraphicsLibCompactReplayTarget() {
         return withTarget(graphicsLibCompactReplayTarget());
+    }
+
+    AdapterTargetRegistry withJaninoBytecodeCacheTarget() {
+        return withTarget(janinoBytecodeCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

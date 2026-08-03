@@ -38,6 +38,8 @@ record AgentOptions(
         Path preparedAudioCache,
         String audioDecoderIdentity,
         boolean graphicsLibCompactReplay,
+        Path janinoBytecodeCache,
+        String janinoBytecodeContext,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -129,6 +131,8 @@ record AgentOptions(
         Path preparedAudioCache = decodedPath(values, "preparedAudioCache64");
         String audioDecoderIdentity = values.get("audioDecoder");
         boolean graphicsLibCompactReplay = "on".equalsIgnoreCase(values.get("graphicsLibCompactReplay"));
+        Path janinoBytecodeCache = decodedPath(values, "janinoBytecodeCache64");
+        String janinoBytecodeContext = values.get("janinoBytecodeContext");
         return new AgentOptions(
                 destination,
                 settings,
@@ -157,6 +161,8 @@ record AgentOptions(
                 preparedAudioCache,
                 audioDecoderIdentity,
                 graphicsLibCompactReplay,
+                janinoBytecodeCache,
+                janinoBytecodeContext,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

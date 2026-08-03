@@ -183,6 +183,17 @@ class ProfileIdentityContextTest {
         }
     }
 
+    @Test
+    void theConstructorSeedsTheGameJarIntoTheSharedContentMemo() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("seeded-jar"), 4);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, layout.index())) {
+            String initial = context.gameJarSha256();
+            Files.writeString(context.gameJar(), "changed-during-the-same-preparation");
+            assertEquals(initial, context.sha256All(List.of(context.gameJar())).get(0),
+                    "Janino and other identities must reuse the digest preparation already paid for");
+        }
+    }
+
     private record Layout(Path game, Path core, Path mod) {
         static Layout create(Path game, int files) throws IOException {
             Path core = game.resolve("Contents/Resources/Java");

@@ -6,7 +6,7 @@ The real startup profile shows substantial repeated Janino work for loose mod so
 
 `JavaSourceClassLoader.findClass(name)` uses an in-memory `precompiledClasses` map. On a miss it calls `generateBytecodes(name)`, which may compile multiple units and returns a complete map of class names to classfile bytes. The requested class is then defined through Janino's original class-definition path.
 
-The intended future adapter therefore wraps the exact `generateBytecodes(String) -> Map` boundary:
+The live opt-in adapter wraps the exact `generateBytecodes(String) -> Map` boundary:
 
 1. Validate a complete compilation-context key.
 2. Return a cached complete class map on an exact hit.
@@ -84,10 +84,33 @@ Each class record also contains its own SHA-256. Class names are stored in stric
 
 Lookup failures are data. They are not thrown into the future game loading path. Writing remains explicit and atomic.
 
-## Current boundary
+## Live exact-profile adapter
 
-The reviewed installation has exact Janino and commons-compiler archive/class/loader evidence, and the unified contract collector retains the structural `JavaSourceClassLoader` seams. The repository now also has a bounded evidence-to-SPJB key gate and a proven incomplete-context bypass.
+`--janino-bytecode-cache` is an explicit beta for the reviewed Starsector 0.98a-RC8 Janino class.
+The target pins the exact `JavaSourceClassLoader` class, `janino.jar`, method set, code source, and JDK
+application classloader. The rewrite renames only `generateBytecodes`; `findClass`, Janino's
+`precompiledClasses` map, and `defineBytecode` remain original.
 
-It still does not intercept the real installation's source/resource provider calls, prove transitive dependency closure, or activate a live Janino target. The next real-Janino slice must populate this evidence from the exact installed lookup behavior and prove cold, warm, corrupt, duplicate-name, inner/anonymous-class, parent-loader, protection-domain, and original-error behavior in packaged child JVMs. Any incomplete real observation must remain `ORIGINAL_CONTEXT_INCOMPLETE`.
+The launch identity deliberately over-invalidates instead of trying to infer a per-request transitive
+closure. It content-hashes every ordered enabled-mod archive, every loose `.java` and `.class`
+provider, every core JAR, the exact game and Janino JARs, and the bundled JVM modules image. It also
+binds UTF-8, all three debug flags, the parent loader/classpath identity, the exact loader class, and
+the null protection-domain factory policy. Any input change moves the context; no timestamp is
+trusted as content identity.
 
-No startup improvement is claimed until a manually allowlisted target-specific adapter consumes this cache and real OFF-versus-ENABLED launches demonstrate it.
+At the live call site the runtime rechecks the exact loader class, all three debug flags, and the
+protection-domain factory before touching SPJB. A policy difference or subclass calls the renamed
+original. Fast Rendering's `com.genir.renderer` system classloader is detected at launch, reported as
+the runtime owner, and suppresses Janino preparation while leaving independent Preflight caches
+available.
+
+The opt-in installed-JAR harness uses Starsector's own `janino.jar` and `commons-compiler.jar` to
+compile an outer and nested class, stores the complete map, creates a fresh Janino loader, replays the
+map, and defines and executes both classes. Synthetic tests additionally cover corrupt repair,
+mutable hit maps, policy mismatch, subclass fail-open behavior, and exact archive/loader binding.
+
+On the reviewed 83-mod profile, launch-free `--fast --janino-bytecode-cache --dry-run` preparation
+measured 181.1ms for Janino: 15.9ms to reconstruct exact archive/launcher policy from the resource
+index and selected launcher, and 165.3ms for the conservative identity. The recovered archive order produces the same
+context as the older complete class-entry index. No game-start improvement is claimed until a real
+cold/warm launch demonstrates calls, stores, hits, and clean shutdown telemetry.

@@ -16,6 +16,7 @@ public record GeneratedBytecodeContext(
         String parentLoaderIdentitySha256,
         String protectionDomainPolicySha256) {
     private static final String SCHEMA = "starsector-preflight-generated-bytecode-context-v1";
+    private static final int COMPONENTS = 7;
 
     public GeneratedBytecodeContext {
         starsectorBuildSha256 = hash(starsectorBuildSha256, "starsectorBuildSha256");
@@ -51,6 +52,29 @@ public record GeneratedBytecodeContext(
         values.put("protectionDomainPolicySha256", protectionDomainPolicySha256);
         values.put("keySha256", keySha256());
         return Map.copyOf(values);
+    }
+
+    /** Compact agent-option form containing only the seven already-validated SHA-256 components. */
+    public String portableToken() {
+        return String.join(".",
+                starsectorBuildSha256,
+                janinoImplementationSha256,
+                orderedClasspathSha256,
+                orderedSourceGraphSha256,
+                compilerOptionsSha256,
+                parentLoaderIdentitySha256,
+                protectionDomainPolicySha256);
+    }
+
+    public static GeneratedBytecodeContext fromPortableToken(String token) {
+        Objects.requireNonNull(token, "token");
+        String[] values = token.split("\\.", -1);
+        if (values.length != COMPONENTS) {
+            throw new IllegalArgumentException(
+                    "Generated-bytecode context token requires " + COMPONENTS + " SHA-256 components");
+        }
+        return new GeneratedBytecodeContext(
+                values[0], values[1], values[2], values[3], values[4], values[5], values[6]);
     }
 
     private static String hash(String value, String name) {

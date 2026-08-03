@@ -586,6 +586,57 @@ final class AgentInjection {
             Path mergedReadCache,
             boolean quietLogs,
             boolean graphicsLibCompactReplay) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, mergedReadCache, quietLogs, graphicsLibCompactReplay,
+                null, null);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay,
+            Path janinoBytecodeCache,
+            String janinoBytecodeContext) {
+        if ((janinoBytecodeCache == null) != (janinoBytecodeContext == null)) {
+            throw new IllegalArgumentException(
+                    "Janino bytecode cache and compilation context must be supplied together");
+        }
+        if (janinoBytecodeCache != null && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Janino bytecode cache requires the enabled adapter");
+        }
         if (mergedReadCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Merged read cache requires the enabled adapter");
         }
@@ -655,6 +706,10 @@ final class AgentInjection {
         appendPath(arguments, "rulesCsvCache64", rulesCsvCache);
         appendPath(arguments, "ruleCommandCache64", ruleCommandClassCache);
         appendPath(arguments, "mergedReadCache64", mergedReadCache);
+        appendPath(arguments, "janinoBytecodeCache64", janinoBytecodeCache);
+        if (janinoBytecodeContext != null) {
+            arguments.append(",janinoBytecodeContext=").append(janinoBytecodeContext);
+        }
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
         }

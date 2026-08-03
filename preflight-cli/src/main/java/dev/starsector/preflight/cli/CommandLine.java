@@ -34,6 +34,7 @@ record CommandLine(
         boolean loadJsonMemo,
         boolean ruleCommandClassCache,
         boolean graphicsLibCompactReplay,
+        boolean janinoBytecodeCache,
         boolean directLaunch,
         boolean quietLogs,
         boolean disableHeapPretouch,
@@ -58,6 +59,7 @@ record CommandLine(
         boolean loadJsonMemo = false;
         boolean ruleCommandClassCache = false;
         boolean graphicsLibCompactReplay = false;
+        boolean janinoBytecodeCache = false;
         boolean directLaunch = false;
         boolean quietLogs = false;
         boolean disableHeapPretouch = false;
@@ -111,6 +113,7 @@ record CommandLine(
                 case "--loadjson-memo" -> loadJsonMemo = true;
                 case "--rule-command-cache" -> ruleCommandClassCache = true;
                 case "--graphicslib-compact-replay" -> graphicsLibCompactReplay = true;
+                case "--janino-bytecode-cache" -> janinoBytecodeCache = true;
                 case "--direct" -> directLaunch = true;
                 case "--quiet-logs" -> quietLogs = true;
                 case "--no-heap-pretouch" -> disableHeapPretouch = true;
@@ -207,6 +210,9 @@ record CommandLine(
         if (graphicsLibCompactReplay && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--graphicslib-compact-replay requires --adapter");
         }
+        if (janinoBytecodeCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--janino-bytecode-cache requires --adapter");
+        }
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
         }
@@ -243,6 +249,7 @@ record CommandLine(
                 loadJsonMemo,
                 ruleCommandClassCache,
                 graphicsLibCompactReplay,
+                janinoBytecodeCache,
                 directLaunch,
                 quietLogs,
                 disableHeapPretouch,

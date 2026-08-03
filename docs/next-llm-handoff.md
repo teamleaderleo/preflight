@@ -144,6 +144,10 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
    12,584 shadowed spec entries are pruned transactionally (17MB back to 8.0MB).
 3. Re-price the remaining profile. Quiet logs and tagged spec trees together remove 0.664s at their
    direct seams, leaving only about 0.12s of the prior pair-mean gap to 33.0s; launch noise is ±1.4s.
+4. Pilot `--janino-bytecode-cache` once with `--direct`, inspect stores/hits and shutdown telemetry,
+   then do one warm run. Its installed-JAR outer/nested-class replay passes and its additional
+   `--fast` preparation is 181.1ms with launcher-policy binding, but it has not launched the game yet
+   and stays explicit beta.
 
 ### The traps, from the ones already hit
 
@@ -168,7 +172,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
 | `--quiet-logs` | **0.403s** | implemented on stacked branch; replay + real smoke pass |
 | tagged-tree rehydration for the four spec caches | **0.261s** | implemented; 394ms -> 132/134ms exact seam |
-| GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |
+| persisted Janino complete maps | **5.46–5.87s aggregate compiler events** | exact full-profile identity + real installed-JAR replay; live launch pending |
+| GraphicsLib compact normal-map replay | 3.97s callback, traversal share unpriced | exact 1.12.1 replacement built and archive-transform tested; live launch pending |
 | Windows heap pre-touch | unmeasured on Windows | explicit `--no-heap-pretouch` experiment on `codex/windows-pretouch-experiment`; Mac precedent only, not in `--fast` |
 
 Windows-specific research, primary sources, and the ordered measurement plan are in
@@ -188,11 +193,20 @@ Normal exit and SIGTERM flush through the existing agent shutdown hook. Current 
 and a real 83-mod smoke reached the main-menu marker with a complete newline-terminated log. See
 `docs/evidence/2026-08-04-quiet-logs.md`.
 
-**GraphicsLib.** Deliberately deferred by Leo ("but later"). Grounding already gathered: its
-`loadJSON` path prices at 0.85s with a 0.22s memo ceiling, already taken by the live memo. The probe
-covering that callback recorded 7,759 JSON-load lines against 6,191 texture-buffer cleanups, so it
-loads textures in `onApplicationLoad` and those already go through the texture cache. What it does
-with them *afterwards* is unmeasured, and that is where the next probe goes.
+**GraphicsLib.** The exact 1.12.1 `TextureData` compact auto-generation replay is now on
+`codex/graphicslib-compact-replay` at `890d22d`. It replaces only the reviewed class/archive/loader,
+uses no extra nested class, passed an actual installed-archive dry transform, and remains outside
+`--fast` until a live launch. The broader `ShaderModPlugin` callback still needs attribution: its
+`loadJSON` share is already covered by the live memo, and texture loads already reach Preflight's
+texture path, so neither may be counted again.
+
+**Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
+leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and
+class providers, core JARs, the game/Janino JARs, and bundled JVM modules, plus compiler/loader/
+protection policy. Hashes overlap through `ProfileIdentityContext`; archive order is recovered from
+the in-memory resource index rather than decoding a full class-entry index. Fast Rendering's custom
+system classloader is detected and owns this seam, so Janino preparation is suppressed there while
+independent Preflight caches remain available.
 
 ## Environment notes that cost time to rediscover
 
