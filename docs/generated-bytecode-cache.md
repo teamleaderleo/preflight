@@ -86,7 +86,8 @@ Lookup failures are data. They are not thrown into the future game loading path.
 
 ## Live exact-profile adapter
 
-`--janino-bytecode-cache` is an explicit beta for the reviewed Starsector 0.98a-RC8 Janino class.
+`--janino-bytecode-cache` is the individually selectable form of the reviewed Starsector 0.98a-RC8
+Janino cache and is also included by `--fast` after its clean cold/learn and warm/hit live gate.
 The target pins the exact `JavaSourceClassLoader` class, `janino.jar`, method set, code source, and JDK
 application classloader. The rewrite renames only `generateBytecodes`; `findClass`, Janino's
 `precompiledClasses` map, and `defineBytecode` remain original.

@@ -4,8 +4,8 @@
 
 **Install:** Starsector 0.98a-RC8, GraphicsLib 1.12.1, current mod profile
 
-**Status:** measured from an existing gameplay JFR, mechanism confirmed from installed source and
-game bytecode, exact adapter built and replayed against the installed archive; no new game launch.
+**Status:** measured from an existing gameplay JFR, exact adapter built and replayed against the
+installed archive, then exercised successfully in a live combat pilot.
 
 ## The runtime lead
 
@@ -42,7 +42,7 @@ The returned empty manager cannot resolve a deployed member, so the plugin disca
 
 ## The adapter
 
-`--graphicslib-insignia-cache` is an explicit beta and is not implied by `--fast`. It transforms
+`--graphicslib-insignia-cache` transforms
 only the exact reviewed `InsigniaPlugin` class from the exact GraphicsLib 1.12.1 archive and the mod's
 URL classloader. The rewrite leaves the original render body and all coordinate/shader calls in
 place. It inserts a four-entry map that is cleared at the start of each render invocation and routes
@@ -71,14 +71,15 @@ but it lets an ordinary beta session price the lead without asking its player to
 - changed hashes, changed archives, foreign loaders, and a second rewrite fail closed;
 - the opt-in installed-archive test transforms the actual `Graphics.jar` and declines a byte-changed
   copy;
-- CLI parsing and agent injection tests keep the option outside `--fast` and reject adapter-off or
-  probe-only use;
+- CLI parsing and agent injection tests reject adapter-off or probe-only use;
 - an installed `--dry-run` selected the flag and emitted the exact agent option without starting the
   game.
 
-No frame-time claim exists yet. The required next evidence is a controlled GraphicsLib combat with
-insignias visible, first unmodified and then enabled, checking visual placement, adapter counters,
-frame-time distribution, and clean shutdown.
+The first live combat pilot served 58,945 hits and 7,303 misses with no adapter failure. The mean
+observed miss was 1.245 microseconds and the session's hit/miss mix estimates 70.3 ms avoided inside
+this narrow accessor. That is activation and compatibility evidence, not a controlled frame-time
+A/B. After this gate the cache is included by `--fast`; the exact adapter still declines on any
+class, archive, loader, or method-shape drift.
 
 ## What this says about mod-specific work
 

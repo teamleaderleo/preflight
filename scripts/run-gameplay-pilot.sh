@@ -111,15 +111,14 @@ RUN_ARGS=(run \
     --direct \
     --adapter)
 if [[ "$STARTUP_CACHES" == true ]]; then
-    RUN_ARGS+=(
-        --fast
-        --graphicslib-compact-replay
-        --janino-bytecode-cache
-        --graphicslib-insignia-cache)
+    RUN_ARGS+=(--fast)
 fi
 RUN_ARGS+=(--profile --single-chunk-recording)
-if [[ "$GAMEPLAY_CACHES" == true ]]; then
+if [[ "$GAMEPLAY_CACHES" == true && "$STARTUP_CACHES" != true ]]; then
+    # --fast already includes this; the explicit flag keeps gameplay-only isolation available.
     RUN_ARGS+=(--campaign-entity-index)
+elif [[ "$GAMEPLAY_CACHES" != true && "$STARTUP_CACHES" == true ]]; then
+    RUN_ARGS+=(--no-campaign-entity-index)
 fi
 
 java -jar "$JAR" "${RUN_ARGS[@]}" \

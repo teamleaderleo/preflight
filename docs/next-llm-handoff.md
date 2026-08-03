@@ -145,7 +145,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 3. Adapter-health PR #317 is open, with GraphicsLib compact-replay PR #318 stacked on it. Both are
    mergeable and their Linux, macOS, and Windows checks are green.
 4. Janino complete-map cache PR #319 is stacked on #318. Its clean cold/warm pilot moved the direct
-   aggregate from 18.014s to 2.364s and the whole launch from 34.83s to 29.46s; it stays explicit beta.
+   aggregate from 18.014s to 2.364s and the whole launch from 34.83s to 29.46s; it is included by
+   `--fast` after that clean live gate.
 5. GraphicsLib insignia manager-cache PR #320 is launch-free verified and now records passive
    hit/miss path timings; it awaits a controlled combat visual/counter/frame-time pilot before any
    speed claim or default enablement. Campaign entity-index activity reporting is open as PR #321.
@@ -173,7 +174,7 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
 | `--quiet-logs` | **0.403s** | merged in #315; replay + real smoke pass |
 | tagged-tree rehydration for the four spec caches | **0.261s** | merged in #316; 394ms -> 132/134ms exact seam |
-| persisted Janino complete maps | **15.650s direct aggregate / 5.37s whole launch** | exact full-profile identity; clean cold/warm live pilot, explicit beta |
+| persisted Janino complete maps | **15.650s direct aggregate / 5.37s whole launch** | exact full-profile identity; clean cold/warm live pilot; included by `--fast` |
 | GraphicsLib compact startup replay | **3.038s exact callback** | clean live adapter application; PR #318 |
 | GraphicsLib insignia manager cache | 4.40% of long-session game-thread samples is all GraphicsLib | exact per-render adapter built; combat pilot pending |
 

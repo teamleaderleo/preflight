@@ -147,3 +147,16 @@ memoised JSON through the shared `LoadingUtils` transform. Since merged mission 
 context used by the following per-mission loads, visible JSON-tree equivalence alone is not enough
 to clear that layer. The next isolation arm disables every startup cache while retaining only the
 exact simulation/dialog telemetry.
+
+## Follow-up: the conservative memo returns to the fast preset
+
+The later simulator investigation established that its blank opponent grid was unrelated to any
+startup cache: Starsector had persisted `cat_custom` as the selected simulator category while the
+saved custom-opponent list was empty. With the resource cache disabled, the remaining intermittent
+resource failures also reproduced independently of its transform.
+
+`--fast` therefore enables resource-probe-cache-v3 again. This does **not** restore the disproven
+whole-root shortcut: every per-root open still invokes vanilla. Only the lower `File.exists()` memo
+is active, with case/Unicode ambiguity and failed listings delegated to the filesystem. The known
+trade remains explicit and tested: a data file generated after its directory was first observed is
+not visible through that launch's memo.

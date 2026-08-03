@@ -89,12 +89,16 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void fastDoesNotEnableTheResourceProbeCacheAfterLiveFalseNegatives() {
+    void fastEnablesTheConservativeResourceProbeCacheWithoutWholesaleSkips() {
         CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
         CommandLine explicit = CommandLine.parse(
                 new String[] {"run", "--adapter", "--resource-probe-cache"}, 1);
 
-        assertEquals(false, fast.resourceProbeCache());
+        assertEquals(true, fast.resourceProbeCache());
+        assertEquals(true, fast.campaignEntityIndex());
+        assertEquals(false, CommandLine.parse(
+                new String[] {"run", "--fast", "--no-campaign-entity-index"}, 1)
+                .campaignEntityIndex());
         assertEquals(true, explicit.resourceProbeCache());
     }
 
@@ -113,11 +117,11 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void graphicsLibCompactReplayRequiresTheEnabledAdapterAndStaysOutOfFastForBeta() {
+    void graphicsLibCompactReplayRequiresTheEnabledAdapterAndIsIncludedInFast() {
         CommandLine enabled = CommandLine.parse(
                 new String[] {"run", "--adapter", "--graphicslib-compact-replay"}, 1);
         assertEquals(true, enabled.graphicsLibCompactReplay());
-        assertEquals(false,
+        assertEquals(true,
                 CommandLine.parse(new String[] {"run", "--fast"}, 1).graphicsLibCompactReplay());
         assertThrows(
                 IllegalArgumentException.class,
@@ -129,11 +133,11 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void janinoBytecodeCacheRequiresTheEnabledAdapterAndStaysOutOfFastForBeta() {
+    void janinoBytecodeCacheRequiresTheEnabledAdapterAndIsIncludedInFast() {
         CommandLine enabled = CommandLine.parse(
                 new String[] {"run", "--adapter", "--janino-bytecode-cache"}, 1);
         assertEquals(true, enabled.janinoBytecodeCache());
-        assertEquals(false,
+        assertEquals(true,
                 CommandLine.parse(new String[] {"run", "--fast"}, 1).janinoBytecodeCache());
         assertThrows(
                 IllegalArgumentException.class,
@@ -145,11 +149,11 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void graphicsLibInsigniaCacheRequiresTheEnabledAdapterAndStaysOutOfFastForBeta() {
+    void graphicsLibInsigniaCacheRequiresTheEnabledAdapterAndIsIncludedInFast() {
         CommandLine enabled = CommandLine.parse(
                 new String[] {"run", "--adapter", "--graphicslib-insignia-cache"}, 1);
         assertEquals(true, enabled.graphicsLibInsigniaManagerCache());
-        assertEquals(false,
+        assertEquals(true,
                 CommandLine.parse(new String[] {"run", "--fast"}, 1)
                         .graphicsLibInsigniaManagerCache());
         assertThrows(

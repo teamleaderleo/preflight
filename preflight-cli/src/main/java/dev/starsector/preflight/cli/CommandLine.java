@@ -106,6 +106,7 @@ record CommandLine(
                 case "--prepared-npot" -> npotDirect = true;
                 case "--prepared-unpadded" -> unpadded = true;
                 case "--campaign-entity-index" -> campaignEntityIndex = true;
+                case "--no-campaign-entity-index" -> campaignEntityIndex = false;
                 case "--startup-phase-probe" -> startupPhaseProbe = true;
                 case "--rule-token-cache" -> ruleTokenCache = true;
                 case "--resource-probe-cache" -> resourceProbeCache = true;
@@ -126,10 +127,15 @@ record CommandLine(
                     textureAdapterMode = TextureAdapterMode.PREPARED_PIXELS;
                     textureModeSpecified = true;
                     npotDirect = true;
+                    campaignEntityIndex = true;
                     ruleTokenCache = true;
                     ruleCommandClassCache = true;
+                    resourceProbeCache = true;
                     preparedAudio = true;
                     loadJsonMemo = true;
+                    graphicsLibCompactReplay = true;
+                    janinoBytecodeCache = true;
+                    graphicsLibInsigniaManagerCache = true;
                     recordingMode = RecordingMode.OFF;
                 }
                 case "--texture-mode" -> {

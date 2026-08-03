@@ -120,7 +120,21 @@ java -jar preflight.jar run --adapter-probe
 
 Probe mode installs a read-only class observer. It records candidate class hashes and method signatures while retaining every original class byte. `--adapter` selects the fail-closed enabled mode, which still requires an exact allowlisted target and a registered transformation plan.
 
-The campaign entity-lookup pilot is separately gated even when the adapter is enabled:
+The normal optimized launch enables every reviewed startup and gameplay cache that has passed its
+live gate:
+
+```bash
+java -jar preflight.jar run --direct --fast
+```
+
+This includes the campaign entity and deployment-icon caches, GraphicsLib's compact startup replay
+and per-render insignia memo when the exact reviewed GraphicsLib is installed, the Janino generated
+bytecode cache unless Fast Rendering owns that compiler path, and the conservative resource-probe
+memo. Every adapter remains exact-version-gated and retains original behavior on drift or internal
+failure. The resource memo never skips a resolver root wholesale; that earlier optimization was
+removed after live false negatives.
+
+The campaign entity cache can still be selected separately for isolation:
 
 ```bash
 java -jar preflight.jar run --adapter --campaign-entity-index
@@ -135,8 +149,8 @@ exposes `served`, `missingServed`, `declined`, `rebuilds`, and `indexedEntities`
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
 also enables a positive-only deployment member-icon cache for the exact reviewed vanilla UI class;
 that cache validates both backing list sequences and the icon's current member before reuse, and
-reports separately under `deploymentIconCache`. The flag is intentionally rejected in adapter-off
-and probe modes.
+reports separately under `deploymentIconCache`. The flag is rejected in adapter-off and probe
+modes and is implied by `--fast`.
 
 Enabled adapter mode also protects the exact reviewed refit simulator from stale merged
 `sim_opponents.csv` rows. Immediately before vanilla constructs either simulator fleet, Preflight
@@ -173,7 +187,8 @@ The default location is `~/.starsector-preflight/runs/`.
 ~/Applications/Starsector Preflight.app
 ```
 
-The wrapper uses the Java runtime that executed the installer and invokes the copied Preflight JAR. The original Starsector app remains unchanged.
+The wrapper uses the Java runtime that executed the installer and invokes the copied Preflight JAR
+with `--fast`. The original Starsector app remains unchanged.
 
 ### Linux
 
@@ -186,7 +201,8 @@ The wrapper uses the Java runtime that executed the installer and invokes the co
 
 ### Windows
 
-`install` creates a command launcher under Local AppData. Desktop and Start Menu shortcut generation can be added after native Windows validation.
+`install` creates a command launcher under Local AppData with `--fast`. Desktop and Start Menu
+shortcut generation can be added after native Windows validation.
 
 ## Troubleshooting
 

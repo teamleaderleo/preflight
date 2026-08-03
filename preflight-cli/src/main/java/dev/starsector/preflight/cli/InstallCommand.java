@@ -46,7 +46,7 @@ final class InstallCommand {
             case WINDOWS -> installWindows(preflight, installedJar, target.installRoot());
             case OTHER -> {
                 System.err.println("Automatic launcher installation is unsupported on this operating system. Use: java -jar "
-                        + installedJar + " run --game " + target.installRoot());
+                        + installedJar + " run --fast --game " + target.installRoot());
                 yield 4;
             }
         };
@@ -61,7 +61,7 @@ final class InstallCommand {
                 + shellQuote(javaExecutable())
                 + " -jar "
                 + shellQuote(jar.toString())
-                + " run --game "
+                + " run --fast --game "
                 + shellQuote(game.toString())
                 + " \"$@\"\n";
         Files.writeString(executable, script, StandardCharsets.UTF_8);
@@ -92,7 +92,7 @@ final class InstallCommand {
                 + shellQuote(javaExecutable())
                 + " -jar "
                 + shellQuote(jar.toString())
-                + " run --game "
+                + " run --fast --game "
                 + shellQuote(game.toString())
                 + " \"$@\"\n";
         Files.writeString(launcher, script, StandardCharsets.UTF_8);
@@ -120,7 +120,7 @@ final class InstallCommand {
                 + javaExecutable()
                 + "\" -jar \""
                 + jar
-                + "\" run --game \""
+                + "\" run --fast --game \""
                 + game
                 + "\" %*\r\n";
         Files.writeString(command, content, StandardCharsets.UTF_8);

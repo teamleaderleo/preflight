@@ -29,13 +29,13 @@ The current live texture plans are:
 - `texture-prepared-pixels-v2`: retains Starsector's upload and lifetime path while aiming to bypass decode and pixel conversion. It remains fail-closed until the installed color-transfer dataflow is represented exactly.
 
 The generated-bytecode wrapper remains fail-open: incomplete evidence calls the original generator
-and bypasses storage. Its explicit-beta live Janino plan uses a conservative whole-profile identity,
-then rechecks the live compiler policy before serving a complete mutable class map.
+and bypasses storage. Its live-gated Janino plan uses a conservative whole-profile identity, then
+rechecks the live compiler policy before serving a complete mutable class map.
 
 Mod-owned adapters use the same boundary as game-owned ones. The two GraphicsLib 1.12.1 pilots pin
 the exact class, whole mod archive, and URL classloader. Compact replay replaces one reviewed class;
-the insignia pilot splices one accessor while preserving the original render body. Neither is part
-of `--fast` until its separate live startup or combat acceptance gate passes.
+the insignia pilot splices one accessor while preserving the original render body. Both passed
+their separate live startup or combat acceptance gates and are included by `--fast`.
 
 ### `preflight-cli`
 

@@ -178,10 +178,13 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--direct] [--quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--direct] [--fast] [--quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index | --no-campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
                 "    --direct starts Starsector through its own launchDirect path without showing the"
                         + " launcher. Resolution, fullscreen and sound come from the launcher's saved"
                         + " preferences; the run fails closed if those settings are unavailable or unsafe.",
+                "    --fast enables every startup and gameplay cache that has passed its live gate,"
+                        + " disables profiling overhead, and leaves each exact adapter fail-closed."
+                        + " Installed Preflight launchers use this preset by default.",
                 "    --quiet-logs keeps every INFO line in the rolling starsector.log, removes the"
                         + " duplicate console appender, and buffers file writes. It saves about 0.40s"
                         + " on the reviewed profile but a hard crash can lose the final 64 KiB, so it"
@@ -192,11 +195,12 @@ public final class PreflightCli {
                         + " original bytes and is reported in adapter-health.json.",
                 "    --janino-bytecode-cache reuses Janino's complete generated-class map only"
                         + " under the exact reviewed compiler, classpath, source graph, JVM, debug,"
-                        + " parent-loader, and protection-domain policy. It is explicit beta and"
-                        + " is not implied by --fast.",
+                        + " parent-loader, and protection-domain policy. It is included by --fast"
+                        + " after a clean cold/learn and warm/hit live gate.",
                 "    --graphicslib-insignia-cache memoizes getFleetManager results only within one"
                         + " exact GraphicsLib 1.12.1 insignia UI render. It changes no render math"
-                        + " and remains an explicit beta outside --fast.",
+                        + " and is included by --fast after a live combat pilot served repeated"
+                        + " owners without an adapter failure.",
                 "    --adapter also validates the exact refit simulator's merged opponent list"
                         + " against Starsector's loaded ship and fighter registries. Nonexistent"
                         + " mod entries are omitted from that simulator invocation and reported;"
@@ -221,11 +225,11 @@ public final class PreflightCli {
                         + " disables periodic sidecar dumps, which themselves rotate chunks. Use it"
                         + " when the order and timing of startup events matters. It spends extra memory"
                         + " and gives up crash/force-quit sidecar recovery; --no-record is incompatible.",
-                "    --campaign-entity-index enables the experimental BaseLocation.getEntityById"
-                        + " index. It requires --adapter, serves only snapshot-validated hits and"
-                        + " misses, fails open on any validation error, and is intended for"
-                        + " live-campaign validation before default use. The same gameplay pilot"
-                        + " also enables the exact snapshot-validated deployment icon cache."));
+                "    --campaign-entity-index enables the BaseLocation.getEntityById index. It"
+                        + " requires --adapter, serves only snapshot-validated hits and misses, and"
+                        + " fails open on any validation error. It and the exact snapshot-validated"
+                        + " deployment icon cache are included by --fast after two clean gameplay"
+                        + " pilots."));
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
