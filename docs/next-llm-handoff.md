@@ -12,25 +12,27 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | --- | ---: |
 | baseline before this project | 62.6 |
 | 2026-08-03 morning | 40.52 |
-| **2026-08-03 latest, `main` @ `d29ba17`** | **34.66 / 35.54** |
+| 2026-08-03 `main` @ `d29ba17` | 34.66 / 35.54 |
+| **2026-08-04 merged-read cache warm** | **33.42 / 34.15** |
 
 Two runs, because single-launch variance on this profile is about **±1.4s**. Anything worth less than
 that cannot be measured by launching the game and has to be measured by replay instead.
 
-**The goal is a measured 33.0s or below.** The backlog below adds up to about 2.6s, which clears it
-if the merged-read cache lands near its estimate.
+**The goal is a measured 33.0s or below.** The merged-read cache pair averages 33.79s, so the target
+is not met yet. Its direct seam timer confirms the predicted win; whole-launch noise hides part of it.
 
 Preparation before the JVM starts is a further **1.19s** and is *not* inside any number above:
 `run.json`'s `started` is captured immediately before the child process is spawned, so preparation
 sits outside every figure the harness records. See
 `docs/evidence/2026-08-03-four-seconds-before-the-jvm-logs-anything.md`.
 
-## In flight: the general merged-read cache
+## Verified in flight: the general merged-read cache
 
 Branch `perf/merged-read-cache`; implementation commit `752e94f`, handoff commit `4c85ec4`, followed
-by the current pre-launch completion work. **It compiles, is wired end to end, has unit/runtime/weave
-coverage, and passed offline fidelity against the game's real JSON implementation. It has never been
-launched. Do not open a PR until the learning and warm launches below are done.**
+by the completion work on this branch. **It compiles, is wired end to end, has unit/runtime/weave
+coverage, passed offline fidelity against the game's real JSON implementation, and passed one clean
+learning plus two clean warm launches.** Launch evidence is in
+`docs/evidence/2026-08-04-merged-read-cache-launch.md`.
 
 ### Why it exists
 
@@ -115,15 +117,29 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
   **632.543ms to 357.934ms (-274.609ms)**; the merged-read phase itself fell from 208.409ms to
   86.311ms. Evidence: `docs/evidence/2026-08-03-profile-hash-memo-benchmark.md`.
 - Full `mvn verify` passed after these changes, including failsafe and synthetic cross-process tests.
+- Full `mvn verify` passed again after the real-launch settings safety fix: core 192 tests, CLI unit
+  348, failsafe 35, and synthetic 22 with one expected skip.
+
+### Real-launch result
+
+- The first exploratory learning launch caught a real collision: `data/config/settings.json` is read
+  before and after mod resource roots come online, so identical request arguments produce different
+  overlays. `MergedReadKey` now leaves that one dynamic relative path vanilla. The corrected learning
+  launch captured 1,469 calls, wrote one 8.0MB artifact, deliberately left two settings reads
+  unkeyed, and had zero collisions or unstorable values.
+- Two warm launches served 1,469 calls from 1,468 entries with zero misses, collisions, writes, or
+  unstorable values. Tagged-tree rebuilding cost 188ms / 215ms.
+- Direct seam cost fell from a 2,171.5ms baseline mean to 300.0ms warm (**-1,871.5ms**). SpecStore
+  fell 1,415.5ms. Whole launch moved from 34.66 / 35.54s to 33.42 / 34.15s, a paired-mean win of
+  **1.314s**. The 33.0s target is still 0.42s below the faster run and 0.79s below the warm mean.
+- The full cache is currently 6.4GB. Spec-store is 33MB, indexes 15MB, manifests 15MB, and this new
+  artifact is 8.0MB.
 
 ### What is left, in order
 
-1. **One learning launch, then two warm launches.** Expect `mergedReadCache.writes: 1` and a large
-   `preparedEntries` on the second. Watch `keyCollisions` (must be 0), `unkeyedReads`, and
-   `unstorableReads` — a large `unstorableReads` means `GameJson.toTree` is meeting a type the format
-   refuses, and the diagnostic names it.
-2. Check artifact size on disk and fold it into the storage disclosure (currently: cache 6.2 GB =
-   2.2x the 2.8 GB install; spec-store + indexes + manifests are only 63 MB of that and buy ~10s).
+1. Commit and push the launch evidence.
+2. Open the PR for the merged-read cache.
+3. Continue below; the measured launch still needs 0.42s on its best run or 0.79s on its pair mean.
 
 ### The traps, from the ones already hit
 
@@ -145,7 +161,7 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 
 | | worth | notes |
 | --- | ---: | --- |
-| general merged-read cache | **~1.9s** | in flight, above |
+| general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
 | `--quiet-logs` | **0.40s** | measured by replay; below the launch noise floor |
 | tagged-tree rehydration for the four spec caches | **~0.33s** | `JsonTree` already exists; this is applying it to `.spvj`/`.spwj`/`.sppj`/`.sphj` |
 | GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |

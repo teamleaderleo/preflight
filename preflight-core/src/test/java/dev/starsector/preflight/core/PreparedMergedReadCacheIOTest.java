@@ -21,7 +21,7 @@ class PreparedMergedReadCacheIOTest {
     @Test
     void roundTripsDeterministicallyAndAtomically() throws Exception {
         String csv = MergedReadKey.csv("data/hulls/ship_data.csv", true, false, List.of("id"));
-        String json = MergedReadKey.json("data/config/settings.json", List.of());
+        String json = MergedReadKey.json("data/config/engine_styles.json", List.of());
         byte[] csvTree = JsonTree.encode(List.of(Map.of("id", "wolf")));
         byte[] jsonTree = JsonTree.encode(Map.of("volume", 0.8d));
         Map<String, byte[]> reversed = new LinkedHashMap<>();
@@ -46,7 +46,7 @@ class PreparedMergedReadCacheIOTest {
 
     @Test
     void rejectsCorruptionTruncationAndInvalidRecords() throws Exception {
-        String key = MergedReadKey.json("data/config/settings.json", List.of());
+        String key = MergedReadKey.json("data/config/engine_styles.json", List.of());
         PreparedMergedReadCache cache = new PreparedMergedReadCache(
                 "b".repeat(64), Map.of(key, JsonTree.encode(Map.of("value", true))));
         byte[] bytes = PreparedMergedReadCacheIO.toBytes(cache);

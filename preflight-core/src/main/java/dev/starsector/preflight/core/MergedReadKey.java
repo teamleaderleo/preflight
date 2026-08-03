@@ -40,6 +40,13 @@ public final class MergedReadKey {
     public static final String CSV = "csv";
     public static final String JSON = "json";
 
+    /*
+     * The game reads settings once before mod resource roots are active and again after registering
+     * them. Those calls have identical LoadingUtils arguments but intentionally produce different
+     * overlays, so no request-only key can safely name either result.
+     */
+    private static final String DYNAMIC_SETTINGS = "data/config/settings.json";
+
     // Written as casts because a unicode escape for either would be decoded before the source
     // is even tokenized, and a raw control character inside a literal is not readable.
     private static final char FIELD = (char) 0;
@@ -52,7 +59,7 @@ public final class MergedReadKey {
     /** The key for one merged JSON read, or null if this cache may not answer for it. */
     public static String json(String rawPath, List<String> mergeKeys) {
         String path = path(rawPath);
-        if (path == null) {
+        if (path == null || DYNAMIC_SETTINGS.equals(path)) {
             return null;
         }
         String items = items(mergeKeys);

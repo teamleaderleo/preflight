@@ -43,7 +43,7 @@ class MergedReadCacheRuntimeTest {
         MergedReadCacheRuntime.configure(artifact);
 
         JSONObject learned = (JSONObject) MergedReadCacheRuntime.mergedJsonRead(
-                "data/config/settings.json", Set.of("z", "a"), JSON_VANILLA);
+                "data/config/engine_styles.json", Set.of("z", "a"), JSON_VANILLA);
         assertEquals(1, VANILLA_CALLS.get());
         assertSame(JSONObject.NULL, learned.get("presentNull"));
         assertEquals(1L, telemetry("captures"));
@@ -58,13 +58,13 @@ class MergedReadCacheRuntimeTest {
         MergedReadCacheRuntime.beginSession();
         MergedReadCacheRuntime.configure(artifact);
         JSONObject restored = (JSONObject) MergedReadCacheRuntime.mergedJsonRead(
-                "data/config/settings.json", Set.of("a", "z"), JSON_VANILLA);
+                "data/config/engine_styles.json", Set.of("a", "z"), JSON_VANILLA);
 
         assertEquals(1, VANILLA_CALLS.get(), "a warm hit must not enter vanilla");
         assertTrue(restored != learned, "each hit must return a fresh mutable container");
         assertTrue(restored.has("presentNull"));
         assertSame(JSONObject.NULL, restored.get("presentNull"));
-        assertEquals("data/config/settings.json", restored.get("path"));
+        assertEquals("data/config/engine_styles.json", restored.get("path"));
         JSONArray nested = (JSONArray) restored.get("nested");
         assertEquals(2, nested.length());
         assertEquals(1L, telemetry("hits"));
@@ -93,7 +93,7 @@ class MergedReadCacheRuntimeTest {
         MergedReadCacheRuntime.configure(artifact);
 
         JSONObject result = (JSONObject) MergedReadCacheRuntime.mergedJsonRead(
-                "data/config/settings.json", Set.of(), UNSTORABLE_VANILLA);
+                "data/config/engine_styles.json", Set.of(), UNSTORABLE_VANILLA);
 
         assertEquals(BigDecimal.ONE, result.get("decimal"));
         assertEquals(1, VANILLA_CALLS.get());

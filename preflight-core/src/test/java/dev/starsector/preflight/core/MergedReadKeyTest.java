@@ -16,7 +16,7 @@ class MergedReadKeyTest {
         String csv = MergedReadKey.csv(
                 "data/hulls/ship_data.csv", true, false, List.of("id", "name"));
         String json = MergedReadKey.json(
-                "data/config/settings.json", List.of("protected", "alsoProtected"));
+                "data/config/engine_styles.json", List.of("protected", "alsoProtected"));
 
         assertNotNull(csv);
         assertNotNull(json);
@@ -27,11 +27,17 @@ class MergedReadKeyTest {
         assertNotEquals(csv, MergedReadKey.csv(
                 "data/hulls/ship_data.csv", true, false, List.of("name", "id")));
         assertNotEquals(json, MergedReadKey.json(
-                "data/config/settings.json", List.of("alsoProtected", "protected")));
+                "data/config/engine_styles.json", List.of("alsoProtected", "protected")));
 
         assertNull(MergedReadKey.json("graphics/settings.json", List.of()));
         assertNull(MergedReadKey.csv("ship_data.csv", true, false, List.of()));
         assertNull(MergedReadKey.json("data/config/../settings.json", List.of()));
+    }
+
+    @Test
+    void refusesSettingsWhoseOverlayChangesAsResourceRootsComeOnline() {
+        assertNull(MergedReadKey.json("data/config/settings.json", List.of()));
+        assertNull(MergedReadKey.json("data/config/settings.json", List.of("protected")));
     }
 
     @Test
@@ -56,9 +62,9 @@ class MergedReadKeyTest {
     void refusesBackslashesAndUnnameableArguments() {
         assertNull(MergedReadKey.json("data\\config\\settings.json", List.of()));
         assertNull(MergedReadKey.json("C:\\Games\\Starsector\\data/config/settings.json", List.of()));
-        assertNull(MergedReadKey.json("data/config/settings.json", null));
+        assertNull(MergedReadKey.json("data/config/engine_styles.json", null));
         assertNull(MergedReadKey.csv("data/hulls/ship_data.csv", true, false,
                 java.util.Arrays.asList("id", null)));
-        assertNull(MergedReadKey.json("data/config/settings.json", List.of("bad\u0000key")));
+        assertNull(MergedReadKey.json("data/config/engine_styles.json", List.of("bad\u0000key")));
     }
 }
