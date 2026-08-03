@@ -132,6 +132,29 @@ public final class MergedReadKey {
                 && !logical.contains("/../") && !logical.contains("/./") && !logical.endsWith("/..");
     }
 
+    /** Whether one of the four dedicated spec JSON caches owns this merged-read key. */
+    public static boolean ownedBySpecJsonCache(String key) {
+        if (!wellFormed(key)) {
+            return false;
+        }
+        int first = key.indexOf(FIELD);
+        int second = key.indexOf(FIELD, first + 1);
+        if (!JSON.equals(key.substring(0, first))) {
+            return false;
+        }
+        String path = key.substring(first + 1, second);
+        String logical = path.startsWith(ABSOLUTE_PREFIX)
+                ? path.substring(ABSOLUTE_PREFIX.length()) : path;
+        return logical.startsWith("data/variants/") && logical.endsWith(".variant")
+                || logical.startsWith("data/hulls/") && logical.endsWith(".ship")
+                || (logical.startsWith("data/weapons/")
+                        || logical.startsWith("data/shipsystems/wpn/"))
+                        && logical.endsWith(".wpn")
+                || (logical.startsWith("data/weapons/proj/")
+                        || logical.startsWith("data/shipsystems/proj/"))
+                        && logical.endsWith(".proj");
+    }
+
     private static boolean absolute(String path) {
         if (path.charAt(0) == '/') {
             return true;

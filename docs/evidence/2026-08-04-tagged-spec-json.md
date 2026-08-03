@@ -23,6 +23,13 @@ not change. It also composes with the general merged-read cache. On the V2 learn
 spec caches rejected V1 and missed while the lower merged-read cache supplied the merged objects;
 the spec caches then captured those exact objects into V2.
 
+That learning launch also exposed a storage inefficiency: the lower cache published 12,584 copies
+that warm launches would always resolve in the four upper caches, growing its artifact from 8MB to
+17MB. The final implementation recognizes only those four exact JSON domains, declines to capture
+new lower copies, and transactionally prunes existing copies at startup completion. Entries already
+loaded remain available as same-run fallback until then; CSV and every other JSON domain are
+unchanged.
+
 ## Installed-json fidelity and replay
 
 `docs/evidence/2026-08-04-tagged-spec-json-fidelity.java` reads the checksummed V1 corpus directly,
@@ -77,8 +84,15 @@ logs, reported run/launcher exit code 0, and left no game JVM alive. Their log d
 and 32.556s, but that whole-launch number is not the performance claim: ±1.4s launch noise is much
 larger than a 261ms effect.
 
+Run `tagged-spec-prune-20260804-004550` then exercised the cleanup against the real polluted merged
+artifact. It identified and removed exactly 12,584 dedicated-spec entries, wrote once at normal
+startup completion, and shrank the file from 17MB to 8.0MB. The four upper caches still served all
+12,584 reads with zero misses and 125ms total rehydration. The run reached
+`resource-init-complete`, exited 0, and left no game JVM alive; as on the learning run, its optional
+GraphicsLib text marker was absent and is not used as menu evidence.
+
 ## Verification
 
-After the real launches and final review, full `mvn verify` passed: core 193, CLI unit 352, failsafe 36, and
+After the real launches and final review, full `mvn verify` passed: core 194, CLI unit 352, failsafe 36, and
 synthetic 22 with one expected skip. The core/agent tests cover deterministic persistence, V1
 rejection, fresh-object reconstruction, bad-tree fallback, and all four path domains.
