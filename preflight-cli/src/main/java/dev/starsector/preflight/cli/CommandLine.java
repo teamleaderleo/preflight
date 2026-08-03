@@ -35,6 +35,7 @@ record CommandLine(
         boolean ruleCommandClassCache,
         boolean graphicsLibCompactReplay,
         boolean janinoBytecodeCache,
+        boolean graphicsLibInsigniaManagerCache,
         boolean directLaunch,
         boolean quietLogs,
         List<String> forwardedArgs) {
@@ -59,6 +60,7 @@ record CommandLine(
         boolean ruleCommandClassCache = false;
         boolean graphicsLibCompactReplay = false;
         boolean janinoBytecodeCache = false;
+        boolean graphicsLibInsigniaManagerCache = false;
         boolean directLaunch = false;
         boolean quietLogs = false;
         AdapterMode adapterMode = AdapterMode.OFF;
@@ -112,6 +114,7 @@ record CommandLine(
                 case "--rule-command-cache" -> ruleCommandClassCache = true;
                 case "--graphicslib-compact-replay" -> graphicsLibCompactReplay = true;
                 case "--janino-bytecode-cache" -> janinoBytecodeCache = true;
+                case "--graphicslib-insignia-cache" -> graphicsLibInsigniaManagerCache = true;
                 case "--direct" -> directLaunch = true;
                 case "--quiet-logs" -> quietLogs = true;
                 // One flag for "everything that has landed and is safe to turn on". The individual
@@ -210,6 +213,9 @@ record CommandLine(
         if (janinoBytecodeCache && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--janino-bytecode-cache requires --adapter");
         }
+        if (graphicsLibInsigniaManagerCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--graphicslib-insignia-cache requires --adapter");
+        }
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
         }
@@ -247,6 +253,7 @@ record CommandLine(
                 ruleCommandClassCache,
                 graphicsLibCompactReplay,
                 janinoBytecodeCache,
+                graphicsLibInsigniaManagerCache,
                 directLaunch,
                 quietLogs,
                 List.copyOf(forwarded));

@@ -288,6 +288,8 @@ final class AdapterReport {
                 .append(Json.value(GraphicsLibCompactReplayPlan.telemetry())).append(',');
         key(output, "janinoBytecodeCache")
                 .append(Json.value(JaninoBytecodeCacheRuntime.telemetry())).append(',');
+        key(output, "graphicsLibInsigniaManagerCache")
+                .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

@@ -33,6 +33,7 @@ final class AdapterRuntime {
         MergedReadCacheRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
         JaninoBytecodeCacheRuntime.beginSession();
+        GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -84,6 +85,8 @@ final class AdapterRuntime {
             GraphicsLibCompactReplayPlan.configure(options.graphicsLibCompactReplay());
             JaninoBytecodeCacheRuntime.configure(
                     options.janinoBytecodeCache(), options.janinoBytecodeContext());
+            GraphicsLibInsigniaManagerCacheRuntime.configure(
+                    options.graphicsLibInsigniaManagerCache());
             if (options.ruleTokenCache()) {
                 RuleTokenCacheRuntime.enable();
             }
@@ -175,6 +178,10 @@ final class AdapterRuntime {
                 } else if (options.janinoBytecodeCache() != null) {
                     report.diagnostic("Janino bytecode cache was requested but is unavailable ("
                             + JaninoBytecodeCacheRuntime.status() + ")");
+                }
+                if (GraphicsLibInsigniaManagerCacheRuntime.ready()) {
+                    registry = registry.withGraphicsLibInsigniaManagerCacheTarget();
+                    report.diagnostic("Loaded the exact GraphicsLib insignia manager-cache target");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "

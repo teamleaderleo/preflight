@@ -135,6 +135,23 @@ class CommandLineAdapterTest {
     }
 
     @Test
+    void graphicsLibInsigniaCacheRequiresTheEnabledAdapterAndStaysOutOfFastForBeta() {
+        CommandLine enabled = CommandLine.parse(
+                new String[] {"run", "--adapter", "--graphicslib-insignia-cache"}, 1);
+        assertEquals(true, enabled.graphicsLibInsigniaManagerCache());
+        assertEquals(false,
+                CommandLine.parse(new String[] {"run", "--fast"}, 1)
+                        .graphicsLibInsigniaManagerCache());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--graphicslib-insignia-cache"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--graphicslib-insignia-cache"}, 1));
+    }
+
+    @Test
     void textureAutoResolvesTheCacheForEitherTextureMode() {
         // Auto decides *which* manifest and index to use; the mode decides which TextureLoader
         // target reads them. They are independent -- both modes configure from the same call and

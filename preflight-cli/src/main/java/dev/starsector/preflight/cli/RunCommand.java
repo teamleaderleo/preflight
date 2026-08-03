@@ -127,7 +127,8 @@ final class RunCommand {
                 options.quietLogs(),
                 options.graphicsLibCompactReplay(),
                 janinoBytecodeCache == null ? null : janinoBytecodeCache.cacheRoot(),
-                janinoBytecodeCache == null ? null : janinoBytecodeCache.contextToken());
+                janinoBytecodeCache == null ? null : janinoBytecodeCache.contextToken(),
+                options.graphicsLibInsigniaManagerCache());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -431,6 +432,8 @@ final class RunCommand {
         System.out.println("  Janino bytecode cache: "
                 + (janinoBytecodeCache != null ? "active"
                 : options.janinoBytecodeCache() ? "suppressed or unavailable" : "off"));
+        System.out.println("  GraphicsLib insignia manager cache: "
+                + options.graphicsLibInsigniaManagerCache());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -608,6 +611,7 @@ final class RunCommand {
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
         values.put("graphicsLibCompactReplay", options.graphicsLibCompactReplay());
         values.put("janinoBytecodeCache", options.janinoBytecodeCache());
+        values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
         values.put("quietLogs", options.quietLogs());
         values.put("quietLogConfiguration", options.quietLogs()
                 ? QuietLogConfiguration.path(path.getParent())

@@ -151,6 +151,11 @@ final class AdapterTransformationRegistry {
                     ? JaninoBytecodeCachePlan.transform(signature, originalBytes)
                     : null;
         }
+        if (GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return GraphicsLibInsigniaManagerCacheRuntime.ready()
+                    ? GraphicsLibInsigniaManagerCachePlan.transform(signature, originalBytes)
+                    : null;
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -415,6 +420,9 @@ final class AdapterTransformationRegistry {
         }
         if (JaninoBytecodeCacheRuntime.PLAN_ID.equals(planId)) {
             return JaninoBytecodeCacheRuntime.ready();
+        }
+        if (GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID.equals(planId)) {
+            return GraphicsLibInsigniaManagerCacheRuntime.ready();
         }
         return false;
     }

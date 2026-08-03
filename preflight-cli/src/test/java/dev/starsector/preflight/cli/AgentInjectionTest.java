@@ -266,7 +266,7 @@ class AgentInjectionTest {
                 Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
                 false, RecordingMode.OFF, false, false, false, false, false,
                 null, null, null, null, null, false, null, false, false,
-                null, null, null, false, true);
+                null, null, null, false, true, false);
 
         assertTrue(enabled.contains(",graphicsLibCompactReplay=on"), enabled);
         assertThrows(
@@ -277,7 +277,28 @@ class AgentInjectionTest {
                         TextureAdapterMode.COMPATIBILITY,
                         false, RecordingMode.OFF, false, false, false, false, false,
                         null, null, null, null, null, false, null, false, false,
-                        null, null, null, false, true));
+                        null, null, null, false, true, false));
+    }
+
+    @Test
+    void graphicsLibInsigniaCacheRequiresAndReachesTheEnabledAdapter() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, null, null, null, null, false, null, false, false,
+                null, null, null, false, false, true);
+
+        assertTrue(enabled.contains(",graphicsLibInsigniaManagerCache=on"), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, false, true));
     }
 
     @Test

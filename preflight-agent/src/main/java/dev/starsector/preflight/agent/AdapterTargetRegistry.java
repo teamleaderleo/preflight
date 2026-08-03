@@ -163,6 +163,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** GraphicsLib 1.12.1's exact per-frame insignia renderer and owning mod archive. */
+    static AdapterTarget graphicsLibInsigniaManagerCacheTarget() {
+        return new AdapterTarget(
+                "graphicslib-1.12.1-insignia-manager-cache",
+                GraphicsLibInsigniaManagerCachePlan.TARGET_CLASS,
+                GraphicsLibInsigniaManagerCachePlan.ORIGINAL_SHA256,
+                GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        GraphicsLibInsigniaManagerCachePlan.RENDER_METHOD,
+                        GraphicsLibInsigniaManagerCachePlan.RENDER_DESCRIPTOR)),
+                "MOD",
+                "graphics.jar",
+                "832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -659,6 +676,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withJaninoBytecodeCacheTarget() {
         return withTarget(janinoBytecodeCacheTarget());
+    }
+
+    AdapterTargetRegistry withGraphicsLibInsigniaManagerCacheTarget() {
+        return withTarget(graphicsLibInsigniaManagerCacheTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

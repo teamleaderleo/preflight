@@ -142,12 +142,13 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
    warm launches; evidence is in
    `docs/evidence/2026-08-04-tagged-spec-json.md`. Its real migration also proved the merged cache's
    12,584 shadowed spec entries are pruned transactionally (17MB back to 8.0MB).
-3. Adapter-health PR #317 is open, with the GraphicsLib compact-replay PR #318 stacked on it.
-4. The Janino complete-map cache is live-piloted and restacked on #318. Its cold/warm direct aggregate
-   fell from 18.014s to 2.364s (-15.650s, 86.9%); the same launches moved from 34.83s to 29.46s whole,
-   within the existing ±1.4s launch noise. It remains explicit beta.
-5. After the stack lands, re-price the remaining profile and continue with the combat-side
-   GraphicsLib work behind the same exact-owner, fail-open adapter boundaries.
+3. Adapter-health PR #317 is open, with GraphicsLib compact-replay PR #318 stacked on it. Both are
+   mergeable and their Linux, macOS, and Windows checks are green.
+4. Janino complete-map cache PR #319 is stacked on #318. Its clean cold/warm pilot moved the direct
+   aggregate from 18.014s to 2.364s and the whole launch from 34.83s to 29.46s; it stays explicit beta.
+5. GraphicsLib insignia manager-cache PR #320 is launch-free verified and now records passive
+   hit/miss path timings; it awaits a controlled combat visual/counter/frame-time pilot before any
+   speed claim or default enablement. Campaign entity-index activity reporting is open as PR #321.
 
 ### The traps, from the ones already hit
 
@@ -173,8 +174,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | `--quiet-logs` | **0.403s** | merged in #315; replay + real smoke pass |
 | tagged-tree rehydration for the four spec caches | **0.261s** | merged in #316; 394ms -> 132/134ms exact seam |
 | persisted Janino complete maps | **15.650s direct aggregate / 5.37s whole launch** | exact full-profile identity; clean cold/warm live pilot, explicit beta |
-| GraphicsLib compact normal-map replay | **3.038s exact callback** | clean live adapter application; PR #318 |
-| GraphicsLib `ShaderModPlugin` | traversal share unpriced | see below |
+| GraphicsLib compact startup replay | **3.038s exact callback** | clean live adapter application; PR #318 |
+| GraphicsLib insignia manager cache | 4.40% of long-session game-thread samples is all GraphicsLib | exact per-render adapter built; combat pilot pending |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
@@ -189,12 +190,15 @@ Normal exit and SIGTERM flush through the existing agent shutdown hook. Current 
 and a real 83-mod smoke reached the main-menu marker with a complete newline-terminated log. See
 `docs/evidence/2026-08-04-quiet-logs.md`.
 
-**GraphicsLib.** The exact 1.12.1 `TextureData` compact auto-generation replay is now on
-`codex/graphicslib-compact-replay` at `890d22d`. It replaces only the reviewed class/archive/loader,
-uses no extra nested class, passed an actual installed-archive dry transform, and remains outside
-`--fast` until a live launch. The broader `ShaderModPlugin` callback still needs attribution: its
-`loadJSON` share is already covered by the live memo, and texture loads already reach Preflight's
-texture path, so neither may be counted again.
+**GraphicsLib.** The exact 1.12.1 compact startup replay is live-gated and open as #318. A separate
+long-session JFR review found GraphicsLib on 1,141 of 25,951 game-thread samples (4.40%). Its largest
+Java-owned frame is `InsigniaPlugin.renderInUICoords`: 105 samples land in
+`CombatFleetManager.<init>` because the plugin asks for the same absent owner once per ship and the
+game constructs a fresh unattached manager on every miss. `codex/graphicslib-insignia-cache-pr`
+caches that accessor only within one render invocation, changes no render math, passed exact
+installed-JAR, dry-run, and woven-execution gates, and awaits a controlled combat visual/frame-time
+pilot. Evidence:
+`docs/evidence/2026-08-04-graphicslib-insignia-manager-cache.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and

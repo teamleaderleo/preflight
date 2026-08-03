@@ -40,6 +40,7 @@ record AgentOptions(
         boolean graphicsLibCompactReplay,
         Path janinoBytecodeCache,
         String janinoBytecodeContext,
+        boolean graphicsLibInsigniaManagerCache,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -133,6 +134,8 @@ record AgentOptions(
         boolean graphicsLibCompactReplay = "on".equalsIgnoreCase(values.get("graphicsLibCompactReplay"));
         Path janinoBytecodeCache = decodedPath(values, "janinoBytecodeCache64");
         String janinoBytecodeContext = values.get("janinoBytecodeContext");
+        boolean graphicsLibInsigniaManagerCache =
+                "on".equalsIgnoreCase(values.get("graphicsLibInsigniaManagerCache"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -163,6 +166,7 @@ record AgentOptions(
                 graphicsLibCompactReplay,
                 janinoBytecodeCache,
                 janinoBytecodeContext,
+                graphicsLibInsigniaManagerCache,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

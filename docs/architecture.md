@@ -32,6 +32,11 @@ The generated-bytecode wrapper remains fail-open: incomplete evidence calls the 
 and bypasses storage. Its explicit-beta live Janino plan uses a conservative whole-profile identity,
 then rechecks the live compiler policy before serving a complete mutable class map.
 
+Mod-owned adapters use the same boundary as game-owned ones. The two GraphicsLib 1.12.1 pilots pin
+the exact class, whole mod archive, and URL classloader. Compact replay replaces one reviewed class;
+the insignia pilot splices one accessor while preserving the original render body. Neither is part
+of `--fast` until its separate live startup or combat acceptance gate passes.
+
 ### `preflight-cli`
 
 The runnable wrapper and cache builder. It discovers the existing launcher, inventories the enabled profile, builds and validates caches, injects the agent, records run evidence, summarizes JFR, and exposes deterministic benchmark scenario records.
