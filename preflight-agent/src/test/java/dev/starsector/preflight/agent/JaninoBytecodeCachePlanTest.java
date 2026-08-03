@@ -61,6 +61,11 @@ class JaninoBytecodeCachePlanTest {
         assertEquals(1, loader.getClass().getField("originalCalls").getInt(loader));
         assertEquals(1L, JaninoBytecodeCacheRuntime.telemetry().get("hits"));
         assertFalse(hit.getClass().getName().contains("Immutable"), "Janino removes entries from this map");
+        Map<String, Object> telemetry = JaninoBytecodeCacheRuntime.telemetry();
+        long insideMillis = (Long) telemetry.get("insideMillis");
+        assertTrue(insideMillis >= (Long) telemetry.get("hitInsideMillis"));
+        assertTrue(insideMillis >= (Long) telemetry.get("originalInsideMillis"));
+        assertEquals(0L, telemetry.get("livePolicyDeclinedInsideMillis"));
 
         Path bundle = GeneratedBytecodeCache.bundlePath(
                 temporaryDirectory, context.keySha256(), "scripts.Example");
