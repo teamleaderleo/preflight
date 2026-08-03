@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 final class RunCommand {
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("uuuuMMdd-HHmmss-SSS")
@@ -128,18 +130,16 @@ final class RunCommand {
 
         RunIdentity runIdentity = RunIdentity.capture(agentJar);
         Files.createDirectories(runDirectory);
-        if (options.scan()) {
-            try {
-                System.out.println("Preflight is scanning the enabled mod profile...");
-                ProfileCensus.Result census = ProfileCensus.scan(target.installRoot());
-                Files.writeString(profile, census.toJson() + System.lineSeparator());
-                System.out.println("Preflight profile: " + profile);
-            } catch (Exception error) {
-                System.err.println("Preflight profile scan skipped: " + message(error));
-            }
-        }
+        // The census is a third full walk of the same 61,693 files -- 854ms on the reviewed profile
+        // -- and nothing about the launch reads its output. It writes profile.json, which is a
+        // report a human looks at afterwards. Leaving it here meant the game could not start until
+        // a diagnostic had finished, so it runs beside the game instead and is collected when the
+        // run is written up. A census that fails, or that is still running when the game exits,
+        // costs the run its profile.json and nothing else.
+        Future<Path> census = options.scan()
+                ? censusInBackground(target.installRoot(), profile)
+                : CompletableFuture.completedFuture(null);
 
-        Path recordedProfile = Files.isRegularFile(profile) ? profile : null;
         Instant started = Instant.now();
         Instant ended = null;
         Integer exitCode = null;
@@ -154,7 +154,7 @@ final class RunCommand {
         try {
             writeMetadata(
                     metadata, target, command, runIdentity, started, null, null, null, outcome, null,
-                    recordedProfile, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
+                    null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
                     postprocessingFailures, null);
 
             ProcessBuilder builder = new ProcessBuilder(command);
@@ -262,7 +262,8 @@ final class RunCommand {
             try {
                 writeMetadata(
                         metadata, target, command, runIdentity, started, ended, exitCode, launcherExitCode, outcome,
-                        lifecycleEvidence, recordedProfile, options, directSettings, textureContext, adapterReport, adapterAnalysis,
+                        lifecycleEvidence, collectCensus(census, postprocessingFailures),
+                        options, directSettings, textureContext, adapterReport, adapterAnalysis,
                         console, childOutput, postprocessingFailures, executionFailure);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
@@ -442,6 +443,51 @@ final class RunCommand {
             return '"' + value.replace("\"", "\\\"") + '"';
         }
         return value;
+    }
+
+    /**
+     * Walks the enabled profile beside the game rather than in front of it.
+     *
+     * <p>Daemon so that a census still running when the run ends cannot hold the process open, and
+     * uncaught failure is reported through {@link #collectCensus} rather than thrown here, because
+     * a missing report is never a reason to fail a launch that otherwise worked.
+     */
+    private static Future<Path> censusInBackground(Path installRoot, Path profile) {
+        CompletableFuture<Path> result = new CompletableFuture<>();
+        Thread worker = new Thread(() -> {
+            try {
+                ProfileCensus.Result census = ProfileCensus.scan(installRoot);
+                Files.writeString(profile, census.toJson() + System.lineSeparator());
+                result.complete(profile);
+            } catch (Exception error) {
+                result.completeExceptionally(error);
+            }
+        }, "preflight-profile-census");
+        worker.setDaemon(true);
+        worker.start();
+        return result;
+    }
+
+    /** The written profile, or null with the reason recorded, once the game has finished with it. */
+    private static Path collectCensus(Future<Path> census, List<String> failures) {
+        try {
+            Path written = census.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            if (written != null) {
+                System.out.println("Preflight profile: " + written);
+            }
+            return written;
+        } catch (java.util.concurrent.ExecutionException failed) {
+            System.err.println("Preflight profile scan skipped: " + message(failed.getCause()));
+            failures.add("profile-census: " + message(failed.getCause()));
+            return null;
+        } catch (java.util.concurrent.TimeoutException | InterruptedException stopped) {
+            if (stopped instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            census.cancel(true);
+            failures.add("profile-census: did not finish");
+            return null;
+        }
     }
 
     private static void addPostprocessingFailure(List<String> failures, String stage, Exception error) {

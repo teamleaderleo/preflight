@@ -56,6 +56,62 @@ class ResourceIndexBuilderTest {
     }
 
     @Test
+    void walkingRootsInParallelProducesTheSameIndexAsWalkingThemInOrder() throws Exception {
+        Path installRoot = profileWithManyRoots(12, 8);
+
+        ResourceIndexBuilder.BuildResult serial = ResourceIndexBuilder.build(installRoot, 1);
+        ResourceIndexBuilder.BuildResult parallel = ResourceIndexBuilder.build(installRoot, 8);
+
+        // Against a serial reference rather than a recorded constant: a constant would only prove
+        // the two agreed on the day it was written. The fingerprint is the load-bearing assertion --
+        // it names every prepared artifact on disk, so a single reordered byte anywhere in the walk
+        // would orphan the whole cache rather than fail visibly.
+        assertEquals(serial.index().profileFingerprint(), parallel.index().profileFingerprint());
+        assertEquals(serial.index().roots(), parallel.index().roots());
+        assertEquals(serial.index().entries(), parallel.index().entries());
+        assertEquals(serial.diagnostics(), parallel.diagnostics());
+    }
+
+    @Test
+    void keepsResolutionOrderAcrossRootsWhenTheyAreWalkedAtOnce() throws Exception {
+        Path installRoot = profileWithManyRoots(12, 2);
+
+        ResourceIndex index = ResourceIndexBuilder.build(installRoot, 8).index();
+
+        // Every root provides shared.png, so the winner is whichever mod is last in enabled order.
+        // This is the property a permuted merge would break silently: the index would still be
+        // well-formed and would name a different mod's file for every shared path.
+        List<ResourceIndex.Provider> providers = index.providers("graphics/shared.png");
+        assertEquals(13, providers.size());
+        assertEquals(
+                List.copyOf(index.roots().stream().map(ResourceIndex.Root::id).toList()),
+                providers.stream().map(provider -> index.roots().get(provider.rootIndex()).id()).toList());
+    }
+
+    /** A core root plus {@code mods} enabled mods, each holding one shared and several own files. */
+    private Path profileWithManyRoots(int mods, int filesPerMod) throws IOException {
+        Path core = temporaryDirectory.resolve("starsector-core");
+        Files.createDirectories(core.resolve("graphics"));
+        Files.writeString(core.resolve("graphics/shared.png"), "core");
+        Path modsDirectory = temporaryDirectory.resolve("mods");
+        StringBuilder enabled = new StringBuilder("{\"enabledMods\":[");
+        for (int i = 0; i < mods; i++) {
+            String id = "mod" + i;
+            Path directory = modsDirectory.resolve(id);
+            Files.createDirectories(directory.resolve("graphics/nested/deeper"));
+            Files.writeString(directory.resolve("mod_info.json"), "{\"id\":\"" + id + "\"}");
+            Files.writeString(directory.resolve("graphics/shared.png"), id);
+            for (int f = 0; f < filesPerMod; f++) {
+                Files.writeString(directory.resolve("graphics/nested/deeper/file" + f + ".png"), id + f);
+            }
+            enabled.append(i == 0 ? "" : ",").append('"').append(id).append('"');
+        }
+        enabled.append("]}");
+        Files.writeString(modsDirectory.resolve("enabled_mods.json"), enabled.toString());
+        return temporaryDirectory;
+    }
+
+    @Test
     void reportsMissingModsAndBuildsAvailableRoots() throws Exception {
         Path mods = temporaryDirectory.resolve("mods");
         Path alpha = mods.resolve("Alpha");

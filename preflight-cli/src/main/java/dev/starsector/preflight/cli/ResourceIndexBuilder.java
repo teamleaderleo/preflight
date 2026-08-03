@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.PathContainment;
 import dev.starsector.preflight.core.ResourceIndex;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,13 +20,38 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
 final class ResourceIndexBuilder {
     private ResourceIndexBuilder() {
     }
 
+    /**
+     * The default width of the root scan.
+     *
+     * <p>The walk is two syscalls per file -- a {@code toRealPath} containment check and a
+     * {@code readAttributes} -- across 61,693 files on the reviewed profile, and it was the single
+     * largest thing Preflight did before the game's JVM started. It is latency-bound rather than
+     * CPU-bound, so the useful width is the number of roots that can have a syscall outstanding at
+     * once rather than the number of cores.
+     */
+    private static final int DEFAULT_SCAN_WORKERS =
+            Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors()));
+
     static BuildResult build(Path installRoot) throws IOException {
+        return build(installRoot, DEFAULT_SCAN_WORKERS);
+    }
+
+    /**
+     * @param scanWorkers how many roots to walk at once; 1 is the serial reference the test compares
+     *     against, because a recorded constant would only prove the two agreed on the day it was
+     *     written
+     */
+    static BuildResult build(Path installRoot, int scanWorkers) throws IOException {
         long started = System.nanoTime();
         GameLayout layout = GameLayout.locate(installRoot);
         List<String> diagnostics = new ArrayList<>(layout.diagnostics());
@@ -64,12 +90,24 @@ final class ResourceIndexBuilder {
             update(fingerprint, enabledId);
         }
 
+        // Each root is walked into its own scan, then folded in root order. The fold is what keeps
+        // the fingerprint identical to the serial one: a worker records the exact bytes the digest
+        // would have been fed rather than digesting them, so the digest still sees one root's worth
+        // of bytes after another in the original order. Provider lists are appended in the same
+        // order for the same reason -- resolution order across roots is the whole point of the
+        // index, and a permuted merge would silently change which mod wins every path.
+        List<RootScan> scans = scanRoots(sourceRoots, scanWorkers);
         for (int rootIndex = 0; rootIndex < sourceRoots.size(); rootIndex++) {
             SourceRoot root = sourceRoots.get(rootIndex);
+            RootScan scan = scans.get(rootIndex);
             update(fingerprint, "root");
             update(fingerprint, root.id());
             update(fingerprint, Boolean.toString(root.core()));
-            scanRoot(root, rootIndex, entries, fingerprint, diagnostics);
+            fingerprint.update(scan.digestInput());
+            for (Map.Entry<String, List<ResourceIndex.Provider>> entry : scan.entries().entrySet()) {
+                entries.computeIfAbsent(entry.getKey(), ignored -> new ArrayList<>()).addAll(entry.getValue());
+            }
+            diagnostics.addAll(scan.diagnostics());
         }
 
         ResourceIndex index = new ResourceIndex(
@@ -100,7 +138,10 @@ final class ResourceIndexBuilder {
         MessageDigest fingerprint = sha256();
         update(fingerprint, "preflight-standalone-index-v1");
         update(fingerprint, id);
-        scanRoot(source, 0, entries, fingerprint, diagnostics);
+        RootScan scan = scanRoot(source, 0);
+        fingerprint.update(scan.digestInput());
+        entries.putAll(scan.entries());
+        diagnostics.addAll(scan.diagnostics());
 
         ResourceIndex index = new ResourceIndex(
                 HexFormat.of().formatHex(fingerprint.digest()),
@@ -178,13 +219,66 @@ final class ResourceIndexBuilder {
                         && Files.isDirectory(candidate.resolve("data")));
     }
 
-    private static void scanRoot(
-            SourceRoot root,
-            int rootIndex,
-            Map<String, List<ResourceIndex.Provider>> entries,
-            MessageDigest fingerprint,
-            List<String> diagnostics) throws IOException {
-        scanDirectory(root, rootIndex, root.directory(), entries, fingerprint, diagnostics, new LinkedHashSet<>());
+    /** Walks every root, up to {@code workers} at a time, and returns the scans in root order. */
+    private static List<RootScan> scanRoots(List<SourceRoot> sourceRoots, int workers) throws IOException {
+        if (workers <= 1 || sourceRoots.size() == 1) {
+            List<RootScan> scans = new ArrayList<>(sourceRoots.size());
+            for (int rootIndex = 0; rootIndex < sourceRoots.size(); rootIndex++) {
+                scans.add(scanRoot(sourceRoots.get(rootIndex), rootIndex));
+            }
+            return scans;
+        }
+        ExecutorService pool = Executors.newFixedThreadPool(
+                Math.min(workers, sourceRoots.size()),
+                runnable -> {
+                    Thread thread = new Thread(runnable, "preflight-index-scan");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        try {
+            List<Future<RootScan>> pending = new ArrayList<>(sourceRoots.size());
+            for (int rootIndex = 0; rootIndex < sourceRoots.size(); rootIndex++) {
+                SourceRoot root = sourceRoots.get(rootIndex);
+                int index = rootIndex;
+                pending.add(pool.submit(() -> scanRoot(root, index)));
+            }
+            List<RootScan> scans = new ArrayList<>(pending.size());
+            for (Future<RootScan> future : pending) {
+                try {
+                    scans.add(future.get());
+                } catch (ExecutionException failed) {
+                    Throwable cause = failed.getCause();
+                    if (cause instanceof IOException io) {
+                        throw io;
+                    }
+                    if (cause instanceof RuntimeException runtime) {
+                        throw runtime;
+                    }
+                    throw new IOException("Resource root scan failed", cause);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Resource root scan was interrupted", interrupted);
+                }
+            }
+            return scans;
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private static RootScan scanRoot(SourceRoot root, int rootIndex) throws IOException {
+        TreeMap<String, List<ResourceIndex.Provider>> entries = new TreeMap<>();
+        ByteArrayOutputStream digestInput = new ByteArrayOutputStream(1 << 16);
+        List<String> diagnostics = new ArrayList<>();
+        scanDirectory(root, rootIndex, root.directory(), entries, digestInput, diagnostics, new LinkedHashSet<>());
+        return new RootScan(entries, digestInput.toByteArray(), diagnostics);
+    }
+
+    /** One root's contribution: its providers, the digest bytes it owes, and what it noticed. */
+    private record RootScan(
+            TreeMap<String, List<ResourceIndex.Provider>> entries,
+            byte[] digestInput,
+            List<String> diagnostics) {
     }
 
     private static void scanDirectory(
@@ -192,7 +286,7 @@ final class ResourceIndexBuilder {
             int rootIndex,
             Path directory,
             Map<String, List<ResourceIndex.Provider>> entries,
-            MessageDigest fingerprint,
+            ByteArrayOutputStream fingerprint,
             List<String> diagnostics,
             Set<Path> visited) throws IOException {
         Path realDirectory;
@@ -279,6 +373,12 @@ final class ResourceIndexBuilder {
             return !suffix.isEmpty() && suffix.chars().allMatch(character -> character >= '0' && character <= '9');
         }
         return false;
+    }
+
+    private static void update(ByteArrayOutputStream recorded, String value) {
+        byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
+        recorded.write(utf8, 0, utf8.length);
+        recorded.write(0);
     }
 
     private static void update(MessageDigest digest, String value) {

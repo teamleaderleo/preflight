@@ -4,7 +4,6 @@ import dev.starsector.preflight.agent.TextureCompatibilityRuntime;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
-import dev.starsector.preflight.core.ResourceIndexValidator;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
@@ -53,11 +52,20 @@ final class CurrentTextureCache {
         if (!stored.roots().equals(current.roots()) || !stored.entries().equals(current.entries())) {
             throw new IOException("Prepared texture index does not exactly describe the selected installation");
         }
-        ResourceIndexValidator.Result validation = ResourceIndexValidator.validate(stored);
-        if (!validation.valid()) {
-            throw new IOException("Prepared texture index is stale: " + validation.invalidProviders()
-                    + " provider entries differ from disk");
-        }
+        // No second pass over the files. `current` was just built by walking this installation and
+        // reading each file's attributes, and the comparison above proves `stored` holds exactly the
+        // same roots and the same providers -- same relative path, same size, same modification
+        // time, in the same resolution order. Validating `stored` against disk after that is asking
+        // the filesystem a question it has already answered: 61,693 more toRealPath and
+        // readAttributes calls for 513ms, in the window before the game's JVM even starts.
+        //
+        // The check is not weakened, only deduplicated. A file that vanished, changed size, was
+        // touched, stopped being a regular file, or escaped its root cannot survive the equality
+        // above, because the build would not have produced the same provider for it.
+        //
+        // ResourceIndexValidator still exists and is still used where there is no freshly built
+        // index to compare against -- `doctor`, and the preparation path that checks an artifact
+        // long after it was written.
         return new Resolution(
                 realCache,
                 manifest,
@@ -65,7 +73,7 @@ final class CurrentTextureCache {
                 fingerprint,
                 Hashes.sha256(manifest),
                 Hashes.sha256(index),
-                validation.checkedProviders(),
+                current.providerCount(),
                 currentBuild.durationMillis());
     }
 
