@@ -38,6 +38,12 @@ final class AdapterTransformationRegistry {
             return EntityLookupPlan.transform(signature, originalBytes);
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
+            // LoadingUtils is reached by this plan and by the loadJSON memo's, and only one target
+            // per class ever transforms, so each branch chains the other's rewrite.
+            byte[] mergedReads = MergedReadProbePlan.transform(signature, originalBytes);
+            if (mergedReads != null) {
+                return loadJsonMemo(mergedReads);
+            }
             byte[] startupPhases = StartupPhasePlan.transform(signature, originalBytes);
             if (startupPhases != null) {
                 return startupPhases;
@@ -121,9 +127,19 @@ final class AdapterTransformationRegistry {
             return rulesOptimizations(originalBytes);
         }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(target.planId())) {
-            return LoadJsonMemoRuntime.ready()
+            byte[] memoised = LoadJsonMemoRuntime.ready()
                     ? LoadJsonMemoPlan.transform(signature, originalBytes)
                     : null;
+            if (!StartupPhaseRuntime.mergedReadProbeEnabled()) {
+                return memoised;
+            }
+            try {
+                byte[] current = memoised == null ? originalBytes : memoised;
+                byte[] probed = MergedReadProbePlan.transform(ClassSignature.parse(current), current);
+                return probed == null ? memoised : probed;
+            } catch (java.io.IOException ignored) {
+                return memoised;
+            }
         }
         if (ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
             return ResourceProbeRuntime.ready()
@@ -151,6 +167,22 @@ final class AdapterTransformationRegistry {
                     : RuleCommandClassCachePlan.transformLoader(signature, originalBytes);
         }
         return null;
+    }
+
+    /** Chains the single-file loadJSON memo onto a LoadingUtils that already carries the probe. */
+    private static byte[] loadJsonMemo(byte[] current) {
+        if (!LoadJsonMemoRuntime.ready()) {
+            return current;
+        }
+        try {
+            byte[] memoised = LoadJsonMemoPlan.transform(ClassSignature.parse(current), current);
+            return memoised == null ? current : memoised;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The probe rewrite is already valid; losing the memo is the safe direction.
+            return current;
+        }
     }
 
     /** Composes the two independent method-pair rewrites that share WeaponSpecLoader. */

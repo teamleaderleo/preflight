@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -21,6 +22,7 @@ public final class StartupPhaseRuntime {
     private static final int MAX_PLUGINS = 128;
     private static final int MAX_SPEC_LOADERS = 64;
     private static final int MAX_SPEC_SUBPHASES = 32;
+    private static final int MAX_MERGED_READ_GROUPS = 512;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
     private static Path destination;
@@ -33,6 +35,8 @@ public final class StartupPhaseRuntime {
     private static final List<Map<String, Object>> plugins = new ArrayList<>();
     private static final List<Map<String, Object>> specLoaders = new ArrayList<>();
     private static final Map<String, SpecSubphase> specSubphases = new LinkedHashMap<>();
+    private static final Map<String, MergedRead> mergedReads = new LinkedHashMap<>();
+    private static volatile boolean mergedReadProbe;
     private static String activePlugin;
     private static long activePluginNanos;
     private static String activeSpecLoader;
@@ -57,6 +61,7 @@ public final class StartupPhaseRuntime {
         plugins.clear();
         specLoaders.clear();
         specSubphases.clear();
+        mergedReads.clear();
         activePlugin = null;
         activePluginNanos = 0L;
         activeSpecLoader = null;
@@ -199,6 +204,51 @@ public final class StartupPhaseRuntime {
         }
     }
 
+    /** Turns on the {@code LoadingUtils} merged-read timing woven by {@link MergedReadProbePlan}. */
+    static void enableMergedReadProbe(boolean enabled) {
+        mergedReadProbe = enabled;
+    }
+
+    static boolean mergedReadProbeEnabled() {
+        return mergedReadProbe;
+    }
+
+    /**
+     * Times one merged CSV read and returns exactly what the original returned.
+     *
+     * <p>The handle is invoked whether or not the probe is on, so an installed-but-disabled probe
+     * is the original call with one extra branch. Timing brackets the invocation only; the
+     * aggregation behind it takes a lock, and holding that lock across the read would make the
+     * probe part of what it measures.
+     */
+    public static Object mergedCsvRead(
+            Object roots, String path, boolean first, boolean second, MethodHandle vanilla)
+            throws Throwable {
+        if (!mergedReadProbe) {
+            return vanilla.invoke(roots, path, first, second);
+        }
+        long start = System.nanoTime();
+        try {
+            return vanilla.invoke(roots, path, first, second);
+        } finally {
+            recordMergedRead("csv", path, System.nanoTime() - start);
+        }
+    }
+
+    /** Times one merged JSON read and returns exactly what the original returned. */
+    public static Object mergedJsonRead(String path, Object keys, MethodHandle vanilla)
+            throws Throwable {
+        if (!mergedReadProbe) {
+            return vanilla.invoke(path, keys);
+        }
+        long start = System.nanoTime();
+        try {
+            return vanilla.invoke(path, keys);
+        } finally {
+            recordMergedRead("json", path, System.nanoTime() - start);
+        }
+    }
+
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("installed", installed);
@@ -209,6 +259,7 @@ public final class StartupPhaseRuntime {
         output.put("specLoaders", List.copyOf(specLoaders));
         output.put("specSubphases", specSubphases.values().stream()
                 .map(SpecSubphase::toMap).toList());
+        output.put("mergedReads", mergedReads.values().stream().map(MergedRead::toMap).toList());
         output.put("activePlugin", activePlugin);
         output.put("activeSpecLoader", activeSpecLoader);
         output.put("activeSpecSubphase", activeSpecSubphase);
@@ -268,6 +319,53 @@ public final class StartupPhaseRuntime {
         timing.record(Math.max(0L, endNanos - startNanos), completed);
     }
 
+    private static void recordMergedRead(String kind, String path, long durationNanos) {
+        try {
+            record(kind, mergedReadGroup(path), durationNanos);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Woven into startup. Diagnostics are never allowed to become startup.
+        }
+    }
+
+    /**
+     * Names the row a path is counted under.
+     *
+     * <p>A spreadsheet is its own subject -- {@code ship_data.csv} and {@code rules.csv} are read
+     * once each and want their own line. A spec file is one of thousands in a directory and is only
+     * interesting in aggregate, so {@code data/hulls/afflictor.ship} counts under
+     * {@code data/hulls/*}. Without that split the report is either five rows of nothing or five
+     * thousand rows of one read each.
+     */
+    static String mergedReadGroup(String path) {
+        if (path == null || path.isEmpty()) {
+            return "<null>";
+        }
+        String normalized = path.replace('\\', '/');
+        if (normalized.endsWith(".csv") || normalized.endsWith(".json")) {
+            return normalized;
+        }
+        int lastSlash = normalized.lastIndexOf('/');
+        return lastSlash < 0 ? "*" : normalized.substring(0, lastSlash + 1) + "*";
+    }
+
+    private static synchronized void record(String kind, String group, long durationNanos) {
+        String key = kind + " " + group;
+        MergedRead timing = mergedReads.get(key);
+        if (timing == null) {
+            if (mergedReads.size() >= MAX_MERGED_READ_GROUPS) {
+                key = kind + " <overflow>";
+                timing = mergedReads.get(key);
+            }
+            if (timing == null) {
+                timing = new MergedRead(kind, key.substring(kind.length() + 1));
+                mergedReads.put(key, timing);
+            }
+        }
+        timing.record(Math.max(0L, durationNanos));
+    }
+
     private static long millis(long nanos) {
         return Math.max(0L, nanos / 1_000_000L);
     }
@@ -297,6 +395,35 @@ public final class StartupPhaseRuntime {
             timing.put("label", label);
             timing.put("calls", calls);
             timing.put("completedCalls", completedCalls);
+            timing.put("durationMillis", millis(totalNanos));
+            timing.put("maxCallMillis", millis(maxNanos));
+            return timing;
+        }
+    }
+
+    private static final class MergedRead {
+        private final String kind;
+        private final String group;
+        private long calls;
+        private long totalNanos;
+        private long maxNanos;
+
+        private MergedRead(String kind, String group) {
+            this.kind = kind;
+            this.group = group;
+        }
+
+        private void record(long durationNanos) {
+            calls++;
+            totalNanos = Math.addExact(totalNanos, durationNanos);
+            maxNanos = Math.max(maxNanos, durationNanos);
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> timing = new LinkedHashMap<>();
+            timing.put("kind", kind);
+            timing.put("group", group);
+            timing.put("calls", calls);
             timing.put("durationMillis", millis(totalNanos));
             timing.put("maxCallMillis", millis(maxNanos));
             return timing;
