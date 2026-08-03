@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
+import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,6 +47,7 @@ final class RunCommand {
         HullJsonCacheContext hullJsonCache = specStoreCaches.hullJson();
         RulesCsvCacheContext rulesCsvCache = specStoreCaches.rulesCsv();
         RuleCommandCacheContext ruleCommandCache = specStoreCaches.ruleCommand();
+        MergedReadCacheContext mergedReadCache = specStoreCaches.mergedRead();
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -107,7 +109,8 @@ final class RunCommand {
                 options.resourceProbeCache(),
                 options.loadJsonMemo(),
                 preparedAudioCache,
-                audioDecoderIdentity);
+                audioDecoderIdentity,
+                mergedReadCache == null ? null : mergedReadCache.artifact());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -605,6 +608,7 @@ final class RunCommand {
                     resolved.cacheDirectory(),
                     resolved.manifest(),
                     resolved.index(),
+                    resolved.resourceIndex(),
                     true,
                     resolved.profileFingerprint(),
                     resolved.manifestSha256(),
@@ -619,6 +623,7 @@ final class RunCommand {
                 options.textureCacheDirectory().toAbsolutePath().normalize(),
                 options.textureManifest().toAbsolutePath().normalize(),
                 options.textureIndex().toAbsolutePath().normalize(),
+                null,
                 false,
                 null,
                 null,
@@ -630,10 +635,12 @@ final class RunCommand {
     /**
      * Selects every spec-store cache artifact from one pass over the launch profile.
      *
-     * <p>These six identities used to be built independently, which meant six reads of the same
+     * <p>These identities used to be built independently, which meant six reads of the same
      * 8&nbsp;MB resource index, six hashes of the same game jar, and 12,797 separate {@code
      * toRealPath} resolutions -- 1,612ms in the launcher before the JVM started. Sharing one
-     * {@link ProfileIdentityContext} removes the duplication without changing a single digest.
+     * {@link ProfileIdentityContext} removes the duplication without changing a single digest, and
+     * the context starts from the checksummed index {@link CurrentTextureCache} just read and
+     * equality-checked instead of decoding that 8&nbsp;MB artifact again.
      *
      * <p>Each cache still fails independently: an identity that cannot be built leaves that one
      * context null and vanilla loading handles that corpus, exactly as before.
@@ -648,7 +655,7 @@ final class RunCommand {
         }
         long opened = System.nanoTime();
         try (ProfileIdentityContext context =
-                     ProfileIdentityContext.open(target.installRoot(), textures.index())) {
+                     ProfileIdentityContext.of(target.installRoot(), textures.resourceIndex())) {
             System.out.printf(Locale.ROOT,
                     "Preflight read the launch profile in %.1fms (%d providers).%n",
                     (System.nanoTime() - opened) / 1_000_000.0,
@@ -661,7 +668,8 @@ final class RunCommand {
                     rulesCsvCacheContext(context, textures),
                     options.ruleCommandClassCache()
                             ? ruleCommandCacheContext(context, textures)
-                            : null);
+                            : null,
+                    mergedReadCacheContext(context, textures));
         } catch (Exception error) {
             System.err.println("Preflight launch profile identity failed: " + message(error)
                     + "; vanilla loading remains active.");
@@ -772,6 +780,23 @@ final class RunCommand {
         }
     }
 
+    private static MergedReadCacheContext mergedReadCacheContext(
+            ProfileIdentityContext context, TextureLaunchContext textures) {
+        long started = System.nanoTime();
+        try {
+            MergedReadProfileIdentityBuilder.Result profile =
+                    MergedReadProfileIdentityBuilder.build(context);
+            Path artifact = artifact(textures, "merged-reads", profile.identitySha256(), ".spmr");
+            report("merged read", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d paths, %d providers",
+                            profile.logicalPaths(), profile.providerCount()));
+            return new MergedReadCacheContext(artifact);
+        } catch (Exception error) {
+            declined("merged read", error);
+            return null;
+        }
+    }
+
     private static Path artifact(
             TextureLaunchContext textures, String store, String identity, String extension) {
         return textures.cacheDirectory()
@@ -802,10 +827,11 @@ final class RunCommand {
             ProjectileJsonCacheContext projectileJson,
             HullJsonCacheContext hullJson,
             RulesCsvCacheContext rulesCsv,
-            RuleCommandCacheContext ruleCommand) {
+            RuleCommandCacheContext ruleCommand,
+            MergedReadCacheContext mergedRead) {
 
         static SpecStoreCacheContexts none() {
-            return new SpecStoreCacheContexts(null, null, null, null, null, null);
+            return new SpecStoreCacheContexts(null, null, null, null, null, null, null);
         }
     }
 
@@ -813,6 +839,7 @@ final class RunCommand {
             Path cacheDirectory,
             Path manifest,
             Path index,
+            ResourceIndex resourceIndex,
             boolean automatic,
             String profileFingerprint,
             String manifestSha256,
@@ -837,5 +864,8 @@ final class RunCommand {
     }
 
     private record RuleCommandCacheContext(Path artifact) {
+    }
+
+    private record MergedReadCacheContext(Path artifact) {
     }
 }

@@ -38,11 +38,12 @@ final class AdapterTransformationRegistry {
             return EntityLookupPlan.transform(signature, originalBytes);
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
-            // LoadingUtils is reached by this plan and by the loadJSON memo's, and only one target
-            // per class ever transforms, so each branch chains the other's rewrite.
-            byte[] mergedReads = MergedReadProbePlan.transform(signature, originalBytes);
-            if (mergedReads != null) {
-                return loadJsonMemo(mergedReads);
+            // LoadingUtils is reached by this plan, by the merged-read cache's and by the loadJSON
+            // memo's, and only one target per class ever transforms, so every branch composes all
+            // three.
+            byte[] loadingUtils = loadingUtilsPlans(signature, originalBytes);
+            if (loadingUtils != null) {
+                return loadingUtils;
             }
             byte[] startupPhases = StartupPhasePlan.transform(signature, originalBytes);
             if (startupPhases != null) {
@@ -126,20 +127,9 @@ final class AdapterTransformationRegistry {
                 || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())) {
             return rulesOptimizations(originalBytes);
         }
-        if (LoadJsonMemoRuntime.PLAN_ID.equals(target.planId())) {
-            byte[] memoised = LoadJsonMemoRuntime.ready()
-                    ? LoadJsonMemoPlan.transform(signature, originalBytes)
-                    : null;
-            if (!StartupPhaseRuntime.mergedReadProbeEnabled()) {
-                return memoised;
-            }
-            try {
-                byte[] current = memoised == null ? originalBytes : memoised;
-                byte[] probed = MergedReadProbePlan.transform(ClassSignature.parse(current), current);
-                return probed == null ? memoised : probed;
-            } catch (java.io.IOException ignored) {
-                return memoised;
-            }
+        if (LoadJsonMemoRuntime.PLAN_ID.equals(target.planId())
+                || MergedReadCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return loadingUtilsPlans(signature, originalBytes);
         }
         if (ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
             return ResourceProbeRuntime.ready()
@@ -169,19 +159,52 @@ final class AdapterTransformationRegistry {
         return null;
     }
 
-    /** Chains the single-file loadJSON memo onto a LoadingUtils that already carries the probe. */
-    private static byte[] loadJsonMemo(byte[] current) {
-        if (!LoadJsonMemoRuntime.ready()) {
-            return current;
-        }
+    /**
+     * Composes the three independent rewrites that share {@code LoadingUtils}.
+     *
+     * <p>The cache goes first because it and the probe weave the same pair of merged readers and
+     * only one of them can: each declines a class already carrying the other's renamed methods.
+     * Serving a launch is worth more than timing one, and the cache reports the same per-path timing
+     * the probe does, so going first costs the measurement nothing. The single-file memo touches a
+     * different method and composes with whichever of the two installed.
+     *
+     * <p>Returning null means no rewrite applied, which is how the caller tells "this class is not
+     * mine" from "nothing left to add".
+     */
+    private static byte[] loadingUtilsPlans(ClassSignature signature, byte[] originalBytes) {
+        byte[] current = originalBytes;
+        ClassSignature currentSignature = signature;
+        boolean changed = false;
         try {
-            byte[] memoised = LoadJsonMemoPlan.transform(ClassSignature.parse(current), current);
-            return memoised == null ? current : memoised;
+            if (MergedReadCacheRuntime.ready()) {
+                byte[] cached = MergedReadCachePlan.transform(currentSignature, current);
+                if (cached != null) {
+                    current = cached;
+                    currentSignature = ClassSignature.parse(current);
+                    changed = true;
+                }
+            }
+            if (StartupPhaseRuntime.mergedReadProbeEnabled()) {
+                byte[] probed = MergedReadProbePlan.transform(currentSignature, current);
+                if (probed != null) {
+                    current = probed;
+                    currentSignature = ClassSignature.parse(current);
+                    changed = true;
+                }
+            }
+            if (LoadJsonMemoRuntime.ready()) {
+                byte[] memoised = LoadJsonMemoPlan.transform(currentSignature, current);
+                if (memoised != null) {
+                    current = memoised;
+                    changed = true;
+                }
+            }
+            return changed ? current : null;
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
-            // The probe rewrite is already valid; losing the memo is the safe direction.
-            return current;
+            // Whatever already applied is valid bytecode; losing the rest is the safe direction.
+            return changed ? current : null;
         }
     }
 
@@ -373,6 +396,9 @@ final class AdapterTransformationRegistry {
         }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(planId)) {
             return LoadJsonMemoRuntime.ready();
+        }
+        if (MergedReadCacheRuntime.PLAN_ID.equals(planId)) {
+            return MergedReadCacheRuntime.ready();
         }
         return false;
     }

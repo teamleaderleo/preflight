@@ -13,44 +13,36 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /**
- * Times the two methods every merged data read in the game funnels through.
+ * Puts the general merged-read cache in front of {@code LoadingUtils}' two merged readers.
  *
- * <p>{@code LoadingUtils} has ten public read entry points, but only two of them do the merging:
- * {@code super(List, String, boolean, boolean)} builds a {@code JSONArray} from one CSV per enabled
- * root, and {@code super(String, Set)} builds a {@code JSONObject} by overlaying one JSON file per
- * enabled root. Every other CSV or merged-JSON overload delegates into one of those two, so wrapping
- * the pair counts each merged read exactly once no matter which overload the caller used.
+ * <p>The rewrite is {@link MergedReadProbePlan}'s, with a cache behind it instead of a stopwatch:
+ * rename the original, then give its name to a fresh method that pushes the arguments and an
+ * {@code LDC} handle for the renamed original and calls the runtime. Vanilla keeps its own code,
+ * frames and exception table, one rename away, and every delegating overload inside
+ * {@code LoadingUtils} resolves the new entry by name -- which is what makes a cache installed here
+ * cover the callers nobody enumerated.
  *
- * <p>Why this exists at all: the five caches that removed nine seconds from {@code SpecStore} each
- * pinned one loader and cached that loader's own merged reads. That answers "how expensive is the
- * hull loader" and cannot answer "how much merged reading is left anywhere", which is the question
- * that decides whether the next cache should be a sixth pinned loader or one general one. The seven
- * largest untouched spec loaders -- factions, ship systems, descriptions, hull mods, missions, sound
- * sets, and the two spreadsheet loaders -- all read through here, and so does every mod callback.
- *
- * <p>The rewrite is the {@link LoadJsonMemoPlan} shape: rename the original, give its name to a
- * fresh method that hands the arguments and a {@code MethodHandle} for the original to the runtime.
- * Vanilla stays exactly as compiled, one rename away, with its own code, frames, and exception table
- * untouched. Callers inside {@code LoadingUtils} resolve by name and so reach the new entry too,
- * which is what keeps the delegating overloads counted rather than counted twice.
+ * <p>This plan and the probe cannot both weave the same pair, and neither should have to know which
+ * ran: each declines a class that already carries the other's renamed methods, so whichever the
+ * dispatch reaches first is the one that installs. The runtime the cache calls reports the same
+ * per-path timing the probe did, so choosing the cache does not cost the measurement.
  */
-final class MergedReadProbePlan {
-    static final String TARGET_CLASS = "com/fs/starfarer/loading/LoadingUtils";
-    /** Both merged readers are named {@code super}; only the descriptor tells them apart. */
-    static final String MERGED_METHOD = "super";
-    static final String CSV_DESCRIPTOR = "(Ljava/util/List;Ljava/lang/String;ZZ)Lorg/json/JSONArray;";
-    static final String JSON_DESCRIPTOR = "(Ljava/lang/String;Ljava/util/Set;)Lorg/json/JSONObject;";
-    static final String CSV_VANILLA_METHOD = "preflightVanillaMergedCsv";
-    static final String JSON_VANILLA_METHOD = "preflightVanillaMergedJson";
+final class MergedReadCachePlan {
+    static final String TARGET_CLASS = MergedReadProbePlan.TARGET_CLASS;
+    static final String MERGED_METHOD = MergedReadProbePlan.MERGED_METHOD;
+    static final String CSV_DESCRIPTOR = MergedReadProbePlan.CSV_DESCRIPTOR;
+    static final String JSON_DESCRIPTOR = MergedReadProbePlan.JSON_DESCRIPTOR;
+    static final String CSV_VANILLA_METHOD = "preflightUncachedMergedCsv";
+    static final String JSON_VANILLA_METHOD = "preflightUncachedMergedJson";
 
-    private static final String RUNTIME = "dev/starsector/preflight/agent/StartupPhaseRuntime";
+    private static final String RUNTIME = "dev/starsector/preflight/agent/MergedReadCacheRuntime";
     private static final String CSV_RUNTIME_DESCRIPTOR =
             "(Ljava/lang/Object;Ljava/lang/String;ZZLjava/lang/invoke/MethodHandle;)Ljava/lang/Object;";
     private static final String JSON_RUNTIME_DESCRIPTOR =
             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/invoke/MethodHandle;)Ljava/lang/Object;";
     private static final String[] THROWN = {"java/io/IOException", "org/json/JSONException"};
 
-    private MergedReadProbePlan() {
+    private MergedReadCachePlan() {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
@@ -61,8 +53,8 @@ final class MergedReadProbePlan {
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        // A class file older than 51 cannot carry a MethodHandle constant, and raising its version
-        // to make room would change how it is verified. Decline instead.
+        // A class file older than 51 cannot carry a MethodHandle constant, and raising its version to
+        // make room would change how it is verified. Decline instead.
         if ((owner.version & 0xFFFF) < Opcodes.V1_7) {
             return null;
         }
@@ -71,9 +63,9 @@ final class MergedReadProbePlan {
         MethodNode json = null;
         for (MethodNode method : owner.methods) {
             if (CSV_VANILLA_METHOD.equals(method.name) || JSON_VANILLA_METHOD.equals(method.name)
-                    || MergedReadCachePlan.CSV_VANILLA_METHOD.equals(method.name)
-                    || MergedReadCachePlan.JSON_VANILLA_METHOD.equals(method.name)) {
-                // Already rewritten, by this plan or by the cache that serves the same pair.
+                    || MergedReadProbePlan.CSV_VANILLA_METHOD.equals(method.name)
+                    || MergedReadProbePlan.JSON_VANILLA_METHOD.equals(method.name)) {
+                // Already rewritten, by this plan or by the probe.
                 return null;
             }
             if (!MERGED_METHOD.equals(method.name)) {

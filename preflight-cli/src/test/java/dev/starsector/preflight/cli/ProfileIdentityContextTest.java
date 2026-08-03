@@ -83,8 +83,8 @@ class ProfileIdentityContextTest {
 
     @Test
     void aContentChangeStillMovesTheIdentity() throws Exception {
-        // The memoised parent directory must never become a memo of the file's content: every
-        // launch still hashes every byte, which is what lets a mod update invalidate a cache.
+        // The content memo belongs to one preparation context only: every new launch still hashes
+        // every byte, which is what lets a mod update invalidate a cache.
         Layout layout = Layout.create(temporaryDirectory.resolve("content"), 8);
         String before = VariantJsonProfileIdentityBuilder
                 .build(layout.game, layout.index()).identitySha256();
@@ -93,6 +93,31 @@ class ProfileIdentityContextTest {
         Files.writeString(edited, Files.readString(edited).toUpperCase(java.util.Locale.ROOT));
         assertNotEquals(before, VariantJsonProfileIdentityBuilder
                 .build(layout.game, layout.index()).identitySha256());
+    }
+
+    @Test
+    void memoisesAResolvedFilesHashAcrossCorporaForOnePreparation() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("hash-memo"), 8);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-3.variant").get(0);
+        Path source;
+        String first;
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, resources)) {
+            source = context.resolve(provider);
+            first = context.sha256All(List.of(source, source)).get(0);
+            assertEquals(first, context.sha256All(List.of(source, source)).get(1));
+
+            Files.writeString(source, "{\"variantId\":\"changed-during-preparation\"}");
+            assertEquals(first, context.sha256All(List.of(source)).get(0),
+                    "overlapping identities must reuse the digest already computed this launch");
+        }
+
+        try (ProfileIdentityContext nextLaunch =
+                     ProfileIdentityContext.of(layout.game, resources)) {
+            assertNotEquals(first, nextLaunch.sha256All(List.of(source)).get(0),
+                    "a new launch must observe the changed bytes");
+        }
     }
 
     @Test
@@ -106,6 +131,26 @@ class ProfileIdentityContextTest {
                         context.resources().resolve(provider));
                 assertEquals(direct, memoised);
             }
+        }
+    }
+
+    @Test
+    void memoisesAProviderResolutionForOnePreparation() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("resolve-memo"), 4);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-2.variant").get(0);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, resources)) {
+            Path resolved = context.resolve(provider);
+            Files.delete(resolved);
+            assertEquals(resolved, context.resolve(provider),
+                    "overlapping identities must reuse the containment decision this launch");
+        }
+
+        try (ProfileIdentityContext nextLaunch =
+                     ProfileIdentityContext.of(layout.game, resources)) {
+            assertThrows(IOException.class, () -> nextLaunch.resolve(provider),
+                    "a new launch must revalidate the provider");
         }
     }
 
