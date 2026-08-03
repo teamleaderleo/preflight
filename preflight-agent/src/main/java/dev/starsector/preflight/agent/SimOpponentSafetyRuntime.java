@@ -48,7 +48,10 @@ public final class SimOpponentSafetyRuntime {
     private static final AtomicLong DIALOG_RESERVE_GRID_MEMBERS = new AtomicLong(-1L);
     private static final AtomicLong DIALOG_DEPLOYED_GRID_MEMBERS = new AtomicLong(-1L);
     private static final AtomicLong DIALOG_INSPECTION_FAILURES = new AtomicLong();
+    private static final AtomicLong CATEGORY_UPDATE_CALLS = new AtomicLong();
+    private static final AtomicLong CATEGORY_UPDATE_FAILURES = new AtomicLong();
     private static final Map<String, Object> DIALOG_PRESENTATION = new LinkedHashMap<>();
+    private static final List<Map<String, Object>> DIALOG_TRANSITIONS = new ArrayList<>();
     private static final Map<String, Long> INVALID_IDS = new LinkedHashMap<>();
     private static final AtomicBoolean INVALID_IDS_TRUNCATED = new AtomicBoolean();
 
@@ -250,6 +253,8 @@ public final class SimOpponentSafetyRuntime {
             DIALOG_RESERVES.set(source.size());
             DIALOG_RESERVE_GRID_MEMBERS.set(collection(reserveGrid, "getMembers").size());
             DIALOG_DEPLOYED_GRID_MEMBERS.set(collection(deployedGrid, "getMembers").size());
+            transition("dialog", phase, source.size(),
+                    collection(reserveGrid, "getMembers").size(), null, -1L);
             if (phase == 1 || phase == 2) {
                 recordPresentation(dialog, reserveGrid, deployedGrid, phase);
             }
@@ -258,6 +263,71 @@ public final class SimOpponentSafetyRuntime {
         } catch (Throwable ignored) {
             DIALOG_INSPECTION_FAILURES.incrementAndGet();
         }
+    }
+
+    /** Records the category refresh immediately before vanilla mutates the reserve grid. */
+    public static void recordCategoryUpdate(Object dialog, Object variants, Object category) {
+        CATEGORY_UPDATE_CALLS.incrementAndGet();
+        try {
+            long variantCount = variants instanceof Collection<?> values ? values.size() : -1L;
+            String categoryId = stringField(category, "id");
+            String categoryName = stringField(category, "name");
+            boolean custom = publicBooleanField(category, "custom");
+            boolean nonFaction = publicBooleanField(category, "nonFactionCategory");
+            long reserves = collection(dialog, "getReserves").size();
+            Object reserveGrid = field(dialog, "OÒÖ000");
+            long gridMembers = collection(reserveGrid, "getMembers").size();
+            synchronized (DIALOG_PRESENTATION) {
+                DIALOG_PRESENTATION.put("dialogLastCategoryId", categoryId);
+                DIALOG_PRESENTATION.put("dialogLastCategoryName", categoryName);
+                DIALOG_PRESENTATION.put("dialogLastCategoryVariants", variantCount);
+                DIALOG_PRESENTATION.put("dialogLastCategoryCustom", custom);
+                DIALOG_PRESENTATION.put("dialogLastCategoryNonFaction", nonFaction);
+            }
+            transition("category-update", -1, reserves, gridMembers, categoryId, variantCount);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            CATEGORY_UPDATE_FAILURES.incrementAndGet();
+        }
+    }
+
+    private static void transition(
+            String kind, int phase, long reserves, long gridMembers,
+            String categoryId, long categoryVariants) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("kind", kind);
+        if (phase >= 0) event.put("phase", phase);
+        event.put("reserves", reserves);
+        event.put("gridMembers", gridMembers);
+        if (categoryId != null) event.put("categoryId", categoryId);
+        if (categoryVariants >= 0L) event.put("categoryVariants", categoryVariants);
+        synchronized (DIALOG_TRANSITIONS) {
+            if (DIALOG_TRANSITIONS.size() < 32) {
+                DIALOG_TRANSITIONS.add(event);
+            }
+        }
+    }
+
+    private static String stringField(Object receiver, String name)
+            throws ReflectiveOperationException {
+        Object value = publicFieldValue(receiver, name);
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static boolean publicBooleanField(Object receiver, String name)
+            throws ReflectiveOperationException {
+        Object value = publicFieldValue(receiver, name);
+        if (!(value instanceof Boolean result)) {
+            throw new IllegalStateException(name + " is not boolean");
+        }
+        return result;
+    }
+
+    private static Object publicFieldValue(Object receiver, String name)
+            throws ReflectiveOperationException {
+        if (receiver == null) throw new IllegalStateException("Category is null");
+        return receiver.getClass().getField(name).get(receiver);
     }
 
     private static void recordPresentation(
@@ -440,12 +510,17 @@ public final class SimOpponentSafetyRuntime {
         values.put("dialogReserveGridMembers", DIALOG_RESERVE_GRID_MEMBERS.get());
         values.put("dialogDeployedGridMembers", DIALOG_DEPLOYED_GRID_MEMBERS.get());
         values.put("dialogInspectionFailures", DIALOG_INSPECTION_FAILURES.get());
+        values.put("categoryUpdateCalls", CATEGORY_UPDATE_CALLS.get());
+        values.put("categoryUpdateFailures", CATEGORY_UPDATE_FAILURES.get());
         synchronized (DIALOG_PRESENTATION) {
             values.putAll(DIALOG_PRESENTATION);
         }
         synchronized (INVALID_IDS) {
             values.put("invalidVariantIds", new LinkedHashMap<>(INVALID_IDS));
             values.put("invalidVariantIdsTruncated", INVALID_IDS_TRUNCATED.get());
+        }
+        synchronized (DIALOG_TRANSITIONS) {
+            values.put("dialogTransitions", new ArrayList<>(DIALOG_TRANSITIONS));
         }
         return values;
     }
@@ -476,8 +551,13 @@ public final class SimOpponentSafetyRuntime {
         DIALOG_RESERVE_GRID_MEMBERS.set(-1L);
         DIALOG_DEPLOYED_GRID_MEMBERS.set(-1L);
         DIALOG_INSPECTION_FAILURES.set(0L);
+        CATEGORY_UPDATE_CALLS.set(0L);
+        CATEGORY_UPDATE_FAILURES.set(0L);
         synchronized (DIALOG_PRESENTATION) {
             DIALOG_PRESENTATION.clear();
+        }
+        synchronized (DIALOG_TRANSITIONS) {
+            DIALOG_TRANSITIONS.clear();
         }
         INVALID_IDS_TRUNCATED.set(false);
         synchronized (INVALID_IDS) {

@@ -24,10 +24,15 @@ final class SimOpponentDialogProbePlan {
     static final String LAYOUT_DESCRIPTOR = "(Z)V";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
+    static final String UPDATE_METHOD = "updateReserves";
+    static final String UPDATE_DESCRIPTOR =
+            "(Ljava/util/List;Lcom/fs/starfarer/api/plugins/SimulatorPlugin$SimCategoryData;)V";
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/SimOpponentSafetyRuntime";
     private static final String RECORD_DESCRIPTOR = "(Ljava/lang/Object;I)V";
+    private static final String RECORD_UPDATE_DESCRIPTOR =
+            "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V";
 
     private SimOpponentDialogProbePlan() {
     }
@@ -38,7 +43,8 @@ final class SimOpponentDialogProbePlan {
                 || signature.majorVersion() != 61
                 || !signature.hasMethod(GRID_METHOD, GRID_DESCRIPTOR)
                 || !signature.hasMethod(LAYOUT_METHOD, LAYOUT_DESCRIPTOR)
-                || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
+                || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)
+                || !signature.hasMethod(UPDATE_METHOD, UPDATE_DESCRIPTOR)) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
@@ -46,14 +52,19 @@ final class SimOpponentDialogProbePlan {
         MethodNode grid = uniqueMethod(owner, GRID_METHOD, GRID_DESCRIPTOR);
         MethodNode layout = uniqueMethod(owner, LAYOUT_METHOD, LAYOUT_DESCRIPTOR);
         MethodNode advance = uniqueMethod(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+        MethodNode update = uniqueMethod(owner, UPDATE_METHOD, UPDATE_DESCRIPTOR);
         if (!TARGET_CLASS.equals(owner.name) || grid == null || layout == null || advance == null
+                || update == null
                 || (grid.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT
                 | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) != 0
                 || (layout.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT
                 | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) != 0
                 || (advance.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT
                 | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) != 0
-                || hasRecordCall(grid) || hasRecordCall(layout) || hasRecordCall(advance)) {
+                || (update.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT
+                | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) != 0
+                || hasRecordCall(grid) || hasRecordCall(layout) || hasRecordCall(advance)
+                || hasUpdateRecordCall(update)) {
             return null;
         }
         List<AbstractInsnNode> gridReturns = opcodes(grid, Opcodes.RETURN);
@@ -65,10 +76,22 @@ final class SimOpponentDialogProbePlan {
         insertObservation(grid, gridReturns.get(0), 0);
         insertObservation(layout, layoutReturns.get(0), 1);
         insertObservation(advance, advanceReturns.get(0), 2);
+        insertUpdateObservation(update);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
+    }
+
+    private static void insertUpdateObservation(MethodNode method) {
+        InsnList observation = new InsnList();
+        observation.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        observation.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        observation.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        observation.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "recordCategoryUpdate",
+                RECORD_UPDATE_DESCRIPTOR, false));
+        method.instructions.insert(observation);
     }
 
     private static void insertObservation(MethodNode method, AbstractInsnNode before, int phase) {
@@ -100,6 +123,16 @@ final class SimOpponentDialogProbePlan {
         for (AbstractInsnNode instruction : method.instructions) {
             if (instruction instanceof MethodInsnNode call
                     && RUNTIME.equals(call.owner) && "recordDialog".equals(call.name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasUpdateRecordCall(MethodNode method) {
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && RUNTIME.equals(call.owner) && "recordCategoryUpdate".equals(call.name)) {
                 return true;
             }
         }

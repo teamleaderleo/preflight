@@ -94,9 +94,22 @@ class SimOpponentSafetyInstalledAdapterIT {
                 .filter(method -> SimOpponentDialogProbePlan.ADVANCE_METHOD.equals(method.name)
                         && SimOpponentDialogProbePlan.ADVANCE_DESCRIPTOR.equals(method.desc))
                 .findFirst().orElseThrow();
+        var update = owner.methods.stream()
+                .filter(method -> SimOpponentDialogProbePlan.UPDATE_METHOD.equals(method.name)
+                        && SimOpponentDialogProbePlan.UPDATE_DESCRIPTOR.equals(method.desc))
+                .findFirst().orElseThrow();
         assertEquals(1, dialogObservations(grid));
         assertEquals(1, dialogObservations(layout));
         assertEquals(1, dialogObservations(advance));
+        int updateObservations = 0;
+        for (var instruction : update.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && SimOpponentSafetyRuntime.class.getName().replace('.', '/').equals(call.owner)
+                    && "recordCategoryUpdate".equals(call.name)) {
+                updateObservations++;
+            }
+        }
+        assertEquals(1, updateObservations);
     }
 
     private static int dialogObservations(org.objectweb.asm.tree.MethodNode method) {

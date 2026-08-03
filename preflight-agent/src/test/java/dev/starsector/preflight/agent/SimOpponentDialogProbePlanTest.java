@@ -23,12 +23,13 @@ class SimOpponentDialogProbePlanTest {
 
     @Test
     void observesTheCompletedReserveGridAndConstructor() {
-        byte[] transformed = SimOpponentDialogProbePlan.transform(signature(), fixture(1, 1, 1));
+        byte[] transformed = SimOpponentDialogProbePlan.transform(signature(), fixture(1, 1, 1, 1));
         assertNotNull(transformed);
         ClassNode owner = read(transformed);
         assertEquals(1, recordCalls(method(owner, SimOpponentDialogProbePlan.GRID_METHOD)));
         assertEquals(1, recordCalls(method(owner, SimOpponentDialogProbePlan.LAYOUT_METHOD)));
         assertEquals(1, recordCalls(method(owner, SimOpponentDialogProbePlan.ADVANCE_METHOD)));
+        assertEquals(1, updateRecordCalls(method(owner, SimOpponentDialogProbePlan.UPDATE_METHOD)));
     }
 
     @Test
@@ -36,11 +37,11 @@ class SimOpponentDialogProbePlanTest {
         ClassSignature exact = signature();
         assertNull(SimOpponentDialogProbePlan.transform(new ClassSignature(
                 exact.internalName(), "0".repeat(64), exact.majorVersion(), exact.access(),
-                exact.methods()), fixture(1, 1, 1)));
-        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(2, 1, 1)));
-        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(1, 2, 1)));
-        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(1, 1, 2)));
-        byte[] once = SimOpponentDialogProbePlan.transform(exact, fixture(1, 1, 1));
+                exact.methods()), fixture(1, 1, 1, 1)));
+        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(2, 1, 1, 1)));
+        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(1, 2, 1, 1)));
+        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(1, 1, 2, 1)));
+        byte[] once = SimOpponentDialogProbePlan.transform(exact, fixture(1, 1, 1, 1));
         assertNotNull(once);
         assertNull(SimOpponentDialogProbePlan.transform(exact, once));
     }
@@ -71,10 +72,15 @@ class SimOpponentDialogProbePlanTest {
                         new ClassSignature.Method(
                                 SimOpponentDialogProbePlan.ADVANCE_METHOD,
                                 SimOpponentDialogProbePlan.ADVANCE_DESCRIPTOR,
+                                Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method(
+                                SimOpponentDialogProbePlan.UPDATE_METHOD,
+                                SimOpponentDialogProbePlan.UPDATE_DESCRIPTOR,
                                 Opcodes.ACC_PUBLIC)));
     }
 
-    private static byte[] fixture(int gridReturns, int layoutReturns, int advanceReturns) {
+    private static byte[] fixture(
+            int gridReturns, int layoutReturns, int advanceReturns, int updateReturns) {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
                 SimOpponentDialogProbePlan.TARGET_CLASS, null, "java/lang/Object", null);
@@ -99,6 +105,13 @@ class SimOpponentDialogProbePlanTest {
             advance.instructions.add(new InsnNode(Opcodes.RETURN));
         }
         advance.accept(writer);
+        MethodNode update = new MethodNode(Opcodes.ACC_PUBLIC,
+                SimOpponentDialogProbePlan.UPDATE_METHOD,
+                SimOpponentDialogProbePlan.UPDATE_DESCRIPTOR, null, null);
+        for (int index = 0; index < updateReturns; index++) {
+            update.instructions.add(new InsnNode(Opcodes.RETURN));
+        }
+        update.accept(writer);
         writer.visitEnd();
         return writer.toByteArray();
     }
@@ -119,6 +132,18 @@ class SimOpponentDialogProbePlanTest {
             if (instruction instanceof MethodInsnNode call
                     && SimOpponentSafetyRuntime.class.getName().replace('.', '/').equals(call.owner)
                     && "recordDialog".equals(call.name)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int updateRecordCalls(MethodNode method) {
+        int count = 0;
+        for (var instruction : method.instructions) {
+            if (instruction instanceof MethodInsnNode call
+                    && SimOpponentSafetyRuntime.class.getName().replace('.', '/').equals(call.owner)
+                    && "recordCategoryUpdate".equals(call.name)) {
                 count++;
             }
         }
