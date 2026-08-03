@@ -55,8 +55,11 @@ The scope is one invocation deliberately:
 - nothing survives into the next render, so a fleet-manager topology change cannot become stale;
 - any class, archive, loader, method-shape, or second-transform drift retains the original bytes.
 
-The shutdown report records cache hits, misses, and total requests. A live combat pilot must show
-both hits and misses; a transformed class that serves no repeated owner has proved no speedup.
+The shutdown report records cache hits, misses, total requests, total nanoseconds in each path,
+mean hit/miss microseconds, and an estimated avoided duration that projects the same session's mean
+miss cost across its hits. A live combat pilot must show both hits and misses; a transformed class
+that serves no repeated owner has proved no speedup. This is an estimate rather than an A/B claim,
+but it lets an ordinary beta session price the lead without asking its player to run a benchmark.
 
 ## Launch-free verification
 
