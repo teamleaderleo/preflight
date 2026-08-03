@@ -33,6 +33,8 @@ public final class TexturePreparedPixelRuntime {
     private static final IdentityHashMap<ByteBuffer, Integer> ACTIVE = new IdentityHashMap<>();
     private static final IdentityHashMap<Thread, ArrayDeque<ByteBuffer>> IN_FLIGHT = new IdentityHashMap<>();
     private static final Telemetry TELEMETRY = new Telemetry();
+    private static final SeamTimer LOAD_CLOCK = new SeamTimer();
+    private static final SeamTimer PREPARE_CLOCK = new SeamTimer();
     private static volatile boolean selected;
     private static long activeBytes;
     private static long peakBytes;
@@ -51,6 +53,8 @@ public final class TexturePreparedPixelRuntime {
             pendingBuffers = 0;
         }
         TELEMETRY.reset();
+        LOAD_CLOCK.reset();
+        PREPARE_CLOCK.reset();
     }
 
     static void select(TextureAdapterMode mode) {
@@ -86,6 +90,15 @@ public final class TexturePreparedPixelRuntime {
 
     /** Returns a prepared-texture carrier, or {@code null} for original decode fallback. */
     public static BufferedImage load(String logicalPath) {
+        long entry = LOAD_CLOCK.enter();
+        try {
+            return carrierFor(logicalPath);
+        } finally {
+            LOAD_CLOCK.exit(entry);
+        }
+    }
+
+    private static BufferedImage carrierFor(String logicalPath) {
         if (!ready()) {
             return null;
         }
@@ -151,6 +164,15 @@ public final class TexturePreparedPixelRuntime {
 
     /** Creates one bounded direct upload buffer and returns stored derived colors. */
     public static PreparedPixel prepare(BufferedImage image) {
+        long entry = PREPARE_CLOCK.enter();
+        try {
+            return prepareCarrier(image);
+        } finally {
+            PREPARE_CLOCK.exit(entry);
+        }
+    }
+
+    private static PreparedPixel prepareCarrier(BufferedImage image) {
         if (!(image instanceof CarrierImage carrier)) {
             return null;
         }
@@ -192,7 +214,7 @@ public final class TexturePreparedPixelRuntime {
             } else {
                 // Unpadded and already-power-of-two textures are the same case here: the stored
                 // pixels are exactly what the driver reads, with no rows or columns to invent.
-                buffer.put(texture.pixels());
+                buffer.put(texture.pixelsView());
             }
             buffer.flip();
             synchronized (LOCK) {
@@ -314,12 +336,15 @@ public final class TexturePreparedPixelRuntime {
             currentBuffers = ACTIVE.size();
             currentPending = pendingBuffers;
         }
-        return TELEMETRY.snapshot(
+        Map<String, Object> values = new LinkedHashMap<>(TELEMETRY.snapshot(
                 currentBytes,
                 maximumBytes,
                 currentBuffers,
                 currentPending,
-                ready());
+                ready()));
+        values.putAll(LOAD_CLOCK.snapshot("load"));
+        values.putAll(PREPARE_CLOCK.snapshot("prepare"));
+        return Map.copyOf(values);
     }
 
     private static boolean reserve(int bytes) {
@@ -394,12 +419,15 @@ public final class TexturePreparedPixelRuntime {
             ByteBuffer buffer,
             PreparedTexture texture,
             UploadLayout layout) {
-        byte[] source = texture.pixels();
+        // A view rather than pixels(): this reads each row once, straight into the upload buffer,
+        // and cloning the whole texture first to do that is the largest copy on the serving path.
+        ByteBuffer source = texture.pixelsView();
         int sourceStride = Math.multiplyExact(texture.originalWidth(), texture.channels());
         int uploadStride = Math.multiplyExact(layout.uploadWidth(), texture.channels());
         int rightPadding = uploadStride - sourceStride;
         for (int row = 0; row < texture.originalHeight(); row++) {
-            buffer.put(source, row * sourceStride, sourceStride);
+            source.limit(row * sourceStride + sourceStride).position(row * sourceStride);
+            buffer.put(source);
             putZeroes(buffer, rightPadding);
         }
         putZeroes(buffer, Math.multiplyExact(

@@ -9,6 +9,7 @@ import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 
 /**
@@ -38,11 +39,15 @@ final class TexturePreparedPixelCarrierSurface {
 
         // SPFT v1 stores OpenGL-ready source rows bottom-up. BufferedImage rasters are
         // addressed top-down, so materialize the same pixels with only the row order changed.
-        byte[] bottomUp = texture.pixels();
-        byte[] topDown = new byte[bottomUp.length];
+        //
+        // Read through a view rather than pixels(): the flip already allocates a second array the
+        // size of the texture, and cloning the source to read it once makes that a third.
+        ByteBuffer bottomUp = texture.pixelsView();
+        byte[] topDown = new byte[texture.pixelBytes()];
         for (int sourceRow = 0; sourceRow < height; sourceRow++) {
             int targetRow = height - 1 - sourceRow;
-            System.arraycopy(bottomUp, sourceRow * stride, topDown, targetRow * stride, stride);
+            bottomUp.position(sourceRow * stride);
+            bottomUp.get(topDown, targetRow * stride, stride);
         }
 
         boolean alpha = channels == 4;

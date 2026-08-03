@@ -1,0 +1,170 @@
+import dev.starsector.preflight.core.PreparedTexture;
+import dev.starsector.preflight.core.PreparedTextureIO;
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PatternLayout;
+import org.apache.log4j.RollingFileAppender;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
+import org.lwjgl.opengl.GL11;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * The launch's per-texture sequence, reproduced outside the game and taken apart one stage at a
+ * time. Every stage is what com.fs.graphics.TextureLoader actually does, in the order it does it,
+ * over the same 21,655 textures in the same order.
+ *
+ * The launch spends 17.72 s here. The graphics driver accounts for 1.15 s of that and the prepared
+ * blob read for 1.40 s. This is where the rest is.
+ */
+public final class FullReplay {
+    static final IntBuffer NAME = BufferUtils.createIntBuffer(1);
+    static final Map<Class<?>, Method> CLEANER = new HashMap<>();
+    static final Map<Class<?>, Method> CLEAN = new HashMap<>();
+    static Logger log;
+
+    public static void main(String[] args) throws Exception {
+        Path cache = Path.of(args[0]);
+        Path[] blobs = Files.readAllLines(Path.of(args[1])).stream()
+                .map(cache::resolve).toArray(Path[]::new);
+        String[] names = Files.readAllLines(Path.of(args[2])).toArray(String[]::new);
+        Path logFile = Path.of(args[3]);
+
+        // The game's own logging shape: a rolling file appender and a console appender, both on,
+        // both formatting the same line.
+        PatternLayout layout = new PatternLayout("%r [%t] %-5p %c  - %m%n");
+        RollingFileAppender file = new RollingFileAppender(layout, logFile.toString(), false);
+        file.setMaxFileSize("50MB");
+        file.setMaxBackupIndex(3);
+        Logger root = Logger.getRootLogger();
+        root.setLevel(Level.INFO);
+        root.addAppender(file);
+        root.addAppender(new ConsoleAppender(layout));
+        log = Logger.getLogger("com.fs.graphics.TextureLoader");
+
+        Display.setDisplayMode(new DisplayMode(320, 240));
+        Display.create();
+        System.err.println("GL_RENDERER " + GL11.glGetString(GL11.GL_RENDERER));
+        System.err.printf("textures %,d%n%n", blobs.length);
+
+        for (Path blob : blobs) {
+            Files.readAllBytes(blob);
+        }
+
+        run("everything: read, parse, clone, allocate, pad, upload, clean, log",
+                blobs, names, true, true, true, true);
+        run("without the log line", blobs, names, true, true, true, false);
+        run("without the reflective cleaner", blobs, names, true, true, false, true);
+        run("without the GL upload", blobs, names, true, false, true, true);
+        run("read and parse only", blobs, names, true, false, false, false);
+        run("everything, second time", blobs, names, true, true, true, true);
+
+        Display.destroy();
+    }
+
+    static void run(String label, Path[] blobs, String[] names,
+            boolean serve, boolean upload, boolean clean, boolean logging) throws Exception {
+        System.gc();
+        Thread.sleep(200);
+        int[] ids = new int[blobs.length];
+        int made = 0;
+        long start = System.nanoTime();
+        for (int i = 0; i < blobs.length; i++) {
+            PreparedTexture texture = PreparedTextureIO.readTrusted(blobs[i]);
+            if (!serve) {
+                continue;
+            }
+            int w = pot(texture.originalWidth());
+            int h = pot(texture.originalHeight());
+            int channels = texture.channels();
+            byte[] pixels = texture.pixels();
+            ByteBuffer buffer = ByteBuffer.allocateDirect(w * h * channels);
+            int sourceStride = texture.originalWidth() * channels;
+            int uploadStride = w * channels;
+            for (int row = 0; row < texture.originalHeight(); row++) {
+                buffer.put(pixels, row * sourceStride, sourceStride);
+                skip(buffer, uploadStride - sourceStride);
+            }
+            skip(buffer, (h - texture.originalHeight()) * uploadStride);
+            buffer.flip();
+            if (upload) {
+                int format = channels == 4 ? GL11.GL_RGBA : GL11.GL_RGB;
+                GL11.glGenTextures(NAME);
+                int id = NAME.get(0);
+                ids[made++] = id;
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, format, w, h, 0, format,
+                        GL11.GL_UNSIGNED_BYTE, buffer);
+            }
+            if (clean) {
+                clean(buffer);
+            }
+            if (logging) {
+                log.info(String.format("Cleaned buffer for texture %s (using reflection)", names[i]));
+            }
+        }
+        if (upload) {
+            GL11.glFinish();
+        }
+        double elapsed = (System.nanoTime() - start) / 1e9;
+        System.err.printf("%-52s %6.2f s%n", label, elapsed);
+        for (int i = 0; i < made; i++) {
+            GL11.glDeleteTextures(ids[i]);
+        }
+    }
+
+    /** Exactly what TextureLoader does: getMethod("cleaner"), memoised, then getMethod("clean"). */
+    static void clean(ByteBuffer buffer) {
+        try {
+            Method cleaner = CLEANER.get(buffer.getClass());
+            if (cleaner == null) {
+                cleaner = buffer.getClass().getMethod("cleaner");
+                cleaner.setAccessible(true);
+                CLEANER.put(buffer.getClass(), cleaner);
+            }
+            Object c = cleaner.invoke(buffer);
+            if (c == null) {
+                return;
+            }
+            Method doClean = CLEAN.get(c.getClass());
+            if (doClean == null) {
+                doClean = c.getClass().getMethod("clean");
+                doClean.setAccessible(true);
+                CLEAN.put(c.getClass(), doClean);
+            }
+            doClean.invoke(c);
+        } catch (ReflectiveOperationException ignored) {
+            // The launch logs a warning here and carries on; it never happens on this JVM.
+        }
+    }
+
+    static final byte[] ZEROES = new byte[8192];
+
+    static void skip(ByteBuffer buffer, int count) {
+        int remaining = count;
+        while (remaining > 0) {
+            int chunk = Math.min(remaining, ZEROES.length);
+            buffer.put(ZEROES, 0, chunk);
+            remaining -= chunk;
+        }
+    }
+
+    static int pot(int n) {
+        int p = 1;
+        while (p < n) {
+            p <<= 1;
+        }
+        return p;
+    }
+}

@@ -1,0 +1,110 @@
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.BufferUtils;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The launch's own 21,655 textures, in the launch's own order, uploaded exactly the way the game
+ * uploads them -- and nothing else. The launch spends 17.72s in TextureLoader. This is how much of
+ * that the graphics driver can account for.
+ */
+public final class CorpusReplay {
+    static final IntBuffer NAME = BufferUtils.createIntBuffer(1);
+
+    public static void main(String[] args) throws Exception {
+        List<int[]> corpus = new ArrayList<>();
+        for (String line : Files.readAllLines(Path.of(args[0]))) {
+            String[] f = line.split("\t");
+            corpus.add(new int[] {Integer.parseInt(f[0]), Integer.parseInt(f[1]), Integer.parseInt(f[2])});
+        }
+        Display.setDisplayMode(new DisplayMode(320, 240));
+        Display.create();
+        System.out.println("GL_RENDERER " + GL11.glGetString(GL11.GL_RENDERER));
+        System.out.println("textures    " + corpus.size());
+
+        // One buffer big enough for the largest padded upload, reused. The game allocates per
+        // texture, but that cost belongs to the game side, not to the driver.
+        long widest = 0;
+        long srcBytes = 0;
+        long padBytes = 0;
+        for (int[] t : corpus) {
+            long padded = (long) pot(t[0]) * pot(t[1]) * 4;
+            widest = Math.max(widest, padded);
+            srcBytes += (long) t[0] * t[1] * t[2];
+            padBytes += (long) pot(t[0]) * pot(t[1]) * t[2];
+        }
+        System.out.printf("source      %.2f GB%npadded      %.2f GB%n", srcBytes / 1e9, padBytes / 1e9);
+        ByteBuffer scratch = BufferUtils.createByteBuffer((int) widest);
+
+        for (int pass = 0; pass < 2; pass++) {
+            int[] ids = new int[corpus.size()];
+            long start = System.nanoTime();
+            for (int i = 0; i < corpus.size(); i++) {
+                int[] t = corpus.get(i);
+                int w = pot(t[0]);
+                int h = pot(t[1]);
+                int format = t[2] == 4 ? GL11.GL_RGBA : GL11.GL_RGB;
+                scratch.position(0).limit(w * h * t[2]);
+                GL11.glGenTextures(NAME);
+                int id = NAME.get(0);
+                ids[i] = id;
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, format, w, h, 0, format,
+                        GL11.GL_UNSIGNED_BYTE, scratch);
+            }
+            GL11.glFinish();
+            double elapsed = (System.nanoTime() - start) / 1e9;
+            System.out.printf("pass %d: %6.2f s  (%.3f ms per texture, %.2f GB/s)%n",
+                    pass, elapsed, elapsed * 1000 / corpus.size(), padBytes / elapsed / 1e9);
+            for (int id : ids) {
+                GL11.glDeleteTextures(id);
+            }
+            scratch.limit(scratch.capacity());
+        }
+
+        // The same corpus at its true size, with no power-of-two padding: what the 1.39 GB of
+        // padding is actually costing.
+        for (int pass = 0; pass < 2; pass++) {
+            int[] ids = new int[corpus.size()];
+            long start = System.nanoTime();
+            for (int i = 0; i < corpus.size(); i++) {
+                int[] t = corpus.get(i);
+                int format = t[2] == 4 ? GL11.GL_RGBA : GL11.GL_RGB;
+                scratch.position(0).limit(t[0] * t[1] * t[2]);
+                GL11.glGenTextures(NAME);
+                int id = NAME.get(0);
+                ids[i] = id;
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, format, t[0], t[1], 0, format,
+                        GL11.GL_UNSIGNED_BYTE, scratch);
+            }
+            GL11.glFinish();
+            double elapsed = (System.nanoTime() - start) / 1e9;
+            System.out.printf("unpadded pass %d: %6.2f s  (%.3f ms per texture)%n",
+                    pass, elapsed, elapsed * 1000 / corpus.size());
+            for (int id : ids) {
+                GL11.glDeleteTextures(id);
+            }
+            scratch.limit(scratch.capacity());
+        }
+        Display.destroy();
+    }
+
+    static int pot(int n) {
+        int p = 1;
+        while (p < n) {
+            p <<= 1;
+        }
+        return p;
+    }
+}
