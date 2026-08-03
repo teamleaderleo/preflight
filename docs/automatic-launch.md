@@ -126,12 +126,14 @@ The campaign entity-lookup pilot is separately gated even when the adapter is en
 java -jar preflight.jar run --adapter --campaign-entity-index
 ```
 
-It puts a size-invalidated index in front of `BaseLocation.getEntityById`, validates hits against
-the game's live repository set, and delegates every miss or failure to the preserved original
-method. The adapter report exposes `served`, `declined`, `rebuilds`, and `indexedEntities` counters
-under `campaignEntityIndex` for a long-session review. A pilot has not proved activation unless
-`installed` and `enabled` are both true and `served` is nonzero. The flag is intentionally rejected
-in adapter-off and probe modes.
+It puts a snapshot-validated index in front of `BaseLocation.getEntityById`. Before accepting a hit
+or miss it compares the live entity sequence and every live id with the snapshot, so same-size list
+replacement and `setId()` mutation are invalidations too. An authoritative miss returns directly;
+any validation or reflection failure delegates to the preserved original method. The adapter report
+exposes `served`, `missingServed`, `declined`, `rebuilds`, and `indexedEntities` counters under
+`campaignEntityIndex` for a long-session review. A pilot has not proved activation unless
+`installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
+is intentionally rejected in adapter-off and probe modes.
 
 See [vanilla runtime adapter](vanilla-adapter.md) for the activation gate, report format, kill switch, and the point where a real Starsector installation is required.
 

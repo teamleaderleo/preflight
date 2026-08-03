@@ -6,7 +6,8 @@
 `save_ThemisMorse_9156901202859789974` (100 MB, an old late-game save from ~/Downloads)
 **Benchmarks:** run on **the game's own JVM** -- `/Applications/Starsector.app/Contents/Home/bin/java`,
 Zulu 17.0.10 **x86_64**, i.e. under Rosetta, the same way the game runs
-**Status:** mechanism read from bytecode, sizes counted out of the players' own saves, costs measured.
+**Status:** mechanism read from bytecode, sizes counted out of the players' own saves, costs measured;
+first live adapter pilot completed 2026-08-04.
 
 [The previous document](2026-08-02-getentitybyid-is-a-linear-scan.md) said the cost was an O(1) map
 lookup validated by an O(n) `List.contains`. **That was the first half of the method.** The second
@@ -125,6 +126,36 @@ The fallback scan needs one addition rather than a substitution: it is a **case-
 so replacing it means a `Map<lowercasedId, entity>` maintained alongside `idToEntity`. That is the
 "per-location index" column above.
 
+## What the first live pilot added
+
+The 2026-08-04 combined gameplay pilot reached a campaign and combat, exited cleanly, and recorded
+14 applied transformations with no declines, failures, or corruption. The first positive-only
+entity index served 11,886 lookups but declined 228,053 misses. The recording put 474 main-thread
+leaf samples in the preserved `BaseLocation.getEntityById`, 11.2% of all main-thread execution
+samples. Of the 499 stacks containing that fallback, 472 came from:
+
+```
+Memory.get
+  -> Memory.replaceIdsWithEntities
+    -> CampaignEngine.getEntityById
+      -> BaseLocation.getEntityById
+```
+
+Those samples form one contiguous campaign-entry window: about 16.1 real seconds after correcting
+the Starsector JVM's 0.401x JFR clock. `Memory` replaces saved `enRef_...` strings on first access and
+then sets its `restored` flag, explaining the observed "slow at first, then gets better" campaign
+map. This is platform-independent single-threaded work; Rosetta can magnify it but does not create
+it.
+
+The follow-up implementation can return a negative answer only after comparing the live entity
+sequence and every live id with the index snapshot. This deliberately retains O(n) validation for
+misses, but replaces the shipped fallback's repeated locale lowercasing and allocation. It also
+repairs two correctness gaps in the first pilot: same-size `List.set` replacement and entity-id
+mutation now invalidate the snapshot, and exact candidates use the shipped containing-location
+validity split instead of repository membership. A small development microbenchmark measured the
+new missing path at roughly 0.63-0.66x the shipped fallback's time; that is directional evidence,
+not a game result.
+
 ## What is not established
 
 - **The benchmark is a model, not the game.** It reproduces the method's control flow, the
@@ -134,12 +165,13 @@ so replacing it means a `Map<lowercasedId, entity>` maintained alongside `idToEn
   subset classified as `SectorEntityToken`. Most objects in a location are entities
   (planets, jump points, terrain, asteroids, fleets), so the over-count is modest, but it is an
   over-count.
-- **The mix of cases A, B and C in real play is unmeasured.** The profile establishes that
-  `getEntityById` is where the tick's time goes -- 547 of 3,163 `main` samples, 17.3%, and 518 of
-  the 549 samples with `Memory.replaceIdsWithEntities` on the stack -- but not the ratio of hits to
-  misses that produced it.
+- **The exact hit/miss split inside shipped lookups remains unmeasured.** The first wrapper observed
+  11,886 indexed hits and 228,053 index misses, but a miss meant delegation; it did not record
+  whether the preserved method subsequently found a case-folded entity.
 - **Whether a mod already patches this was not checked**, and neither was Fast Rendering.
-- **Nothing is built.** No splice exists for any of this yet.
+- **The snapshot-validated miss path has not run in the game yet.** Unit tests cover direct
+  same-size replacement, id mutation, duplicate precedence, gate-off delegation, and fail-open
+  behavior; the next gameplay pilot must establish the live wall-clock and compatibility result.
 
 ## Method note
 

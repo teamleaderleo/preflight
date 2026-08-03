@@ -1,6 +1,5 @@
 package dev.starsector.preflight.agent;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -36,14 +35,15 @@ class CampaignEntityTelemetryReportTest {
         System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
 
         assertSame(entities.get(3), EntityLookupRuntime.lookup(entities, location, "entity_3"));
-        assertNull(EntityLookupRuntime.lookup(entities, location, "missing"));
+        assertTrue(EntityLookupRuntime.missing(
+                EntityLookupRuntime.lookup(entities, location, "missing")));
 
         Path output = temporaryDirectory.resolve("adapter.json");
         new AdapterReport(AdapterMode.ENABLED, output, null, List.of("com/fs/")).write();
         String report = Files.readString(output);
         assertTrue(report.contains(
                 "\"campaignEntityIndex\":{" + "\"installed\":true,\"enabled\":true,"
-                        + "\"served\":1,\"declined\":1,"
+                        + "\"served\":1,\"missingServed\":1,\"declined\":0,"
                         + "\"rebuilds\":1,\"indexedEntities\":16}"), report);
     }
 

@@ -149,6 +149,47 @@ class EntityLookupPlanTest {
     }
 
     @Test
+    void anAbsentIdIsServedOnlyAfterTheLiveSnapshotIsConfirmed() throws Exception {
+        Fixture fixture = Fixture.of(32);
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+
+        assertNull(fixture.lookup("missing"));
+
+        assertEquals(1L, EntityLookupRuntime.counters().get("missingServed"),
+                "a confirmed live-list miss should not run the allocating shipped fallback");
+        assertEquals(0L, EntityLookupRuntime.counters().get("declined"));
+    }
+
+    @Test
+    void aSameSizeListReplacementInvalidatesAPreviouslyConfirmedMiss() throws Exception {
+        Fixture fixture = Fixture.of(32);
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+        assertNull(fixture.lookup("replacement"));
+        long rebuilds = (Long) EntityLookupRuntime.counters().get("rebuilds");
+
+        Object replacement = fixture.replace(7, "replacement");
+
+        assertSame(replacement, fixture.lookup("replacement"));
+        assertTrue((Long) EntityLookupRuntime.counters().get("rebuilds") > rebuilds,
+                "size equality must not hide direct List.set mutation");
+    }
+
+    @Test
+    void anIdMutationInvalidatesAPreviouslyConfirmedMiss() throws Exception {
+        Fixture fixture = Fixture.ofMutable(32);
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+        assertNull(fixture.lookup("renamed"));
+        long rebuilds = (Long) EntityLookupRuntime.counters().get("rebuilds");
+
+        MutableEntity renamed = (MutableEntity) fixture.entities.get(9);
+        renamed.setId("renamed");
+
+        assertSame(renamed, fixture.lookup("renamed"));
+        assertTrue((Long) EntityLookupRuntime.counters().get("rebuilds") > rebuilds,
+                "setId-style mutation must be visible even though the list did not change");
+    }
+
+    @Test
     void anAlreadyRewrittenClassIsDeclined() throws Exception {
         byte[] once = rewritten();
         assertNull(EntityLookupPlan.transform(ClassSignature.parse(once), once),
@@ -173,6 +214,15 @@ class EntityLookupPlanTest {
 
         @SuppressWarnings("unchecked")
         static Fixture of(int size) throws Exception {
+            return create(size, false);
+        }
+
+        static Fixture ofMutable(int size) throws Exception {
+            return create(size, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Fixture create(int size, boolean mutable) throws Exception {
             Class<?> type = define(rewritten());
             Object location = type.getDeclaredConstructor().newInstance();
             Fixture fixture = new Fixture(
@@ -183,7 +233,11 @@ class EntityLookupPlanTest {
                     (ObjectRepository) type.getMethod(EntityLookupPlan.OBJECTS_METHOD)
                             .invoke(location));
             for (int i = 0; i < size; i++) {
-                fixture.add("entity_" + i);
+                if (mutable) {
+                    fixture.add(new MutableEntity("entity_" + i));
+                } else {
+                    fixture.add("entity_" + i);
+                }
             }
             return fixture;
         }
@@ -222,10 +276,30 @@ class EntityLookupPlanTest {
         }
 
         Object add(String id) {
-            SectorEntityToken entity = () -> id;
+            SectorEntityToken entity = new com.fs.starfarer.campaign.BaseCampaignEntity(id);
+            return add(entity);
+        }
+
+        Object add(SectorEntityToken entity) {
             entities.add(entity);
             repository.add(entity);
             return entity;
+        }
+
+        Object replace(int index, String id) {
+            SectorEntityToken old = entities.get(index);
+            SectorEntityToken replacement = new com.fs.starfarer.campaign.BaseCampaignEntity(id);
+            entities.set(index, replacement);
+            repository.remove(old);
+            repository.add(replacement);
+            return replacement;
+        }
+    }
+
+    private static final class MutableEntity
+            extends com.fs.starfarer.campaign.BaseCampaignEntity {
+        private MutableEntity(String id) {
+            super(id);
         }
     }
 
