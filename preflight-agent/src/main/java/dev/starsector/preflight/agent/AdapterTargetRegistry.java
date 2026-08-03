@@ -521,6 +521,10 @@ final class AdapterTargetRegistry {
                 .withTarget(ruleCommandClassPublishTarget());
     }
 
+    AdapterTargetRegistry withMergedReadCacheTarget() {
+        return withTarget(mergedReadCacheTarget());
+    }
+
     /**
      * The same class, pinned for the merged-read timing rather than the single-file memo.
      *
@@ -540,6 +544,32 @@ final class AdapterTargetRegistry {
                                 MergedReadProbePlan.MERGED_METHOD, MergedReadProbePlan.CSV_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
                                 MergedReadProbePlan.MERGED_METHOD, MergedReadProbePlan.JSON_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /**
+     * The same class again, pinned for the general merged-read cache.
+     *
+     * <p>Three targets now name {@code LoadingUtils}: the merged-read timing, the single-file memo,
+     * and this. They gate on different things and only one of them transforms, because the
+     * transformer returns on the first plan that produces bytes; every plan branch chains the
+     * others, so the set composes whichever target the loop reaches first.
+     */
+    static AdapterTarget mergedReadCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-loading-utils-0.98a-rc8-merged-read-cache",
+                MergedReadCachePlan.TARGET_CLASS,
+                "aa9f88ee76576894432503103de2979f297c01b399e528c096d1905f5a59f89d",
+                MergedReadCacheRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                MergedReadCachePlan.MERGED_METHOD, MergedReadCachePlan.CSV_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                MergedReadCachePlan.MERGED_METHOD, MergedReadCachePlan.JSON_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",

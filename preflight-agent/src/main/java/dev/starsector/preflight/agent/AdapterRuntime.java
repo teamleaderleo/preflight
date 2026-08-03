@@ -30,6 +30,7 @@ final class AdapterRuntime {
         RulesDuplicateIndexRuntime.beginSession();
         RuleTokenCacheRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
+        MergedReadCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -77,6 +78,7 @@ final class AdapterRuntime {
             HullJsonCacheRuntime.configure(options.hullJsonCache());
             RulesCsvCacheRuntime.configure(options.rulesCsvCache());
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
+            MergedReadCacheRuntime.configure(options.mergedReadCache());
             if (options.ruleTokenCache()) {
                 RuleTokenCacheRuntime.enable();
             }
@@ -147,6 +149,11 @@ final class AdapterRuntime {
                     registry = registry.withRuleCommandClassCacheTarget();
                     report.diagnostic("Loaded the exact rule command class cache targets ("
                             + RuleCommandClassCacheRuntime.status() + ")");
+                }
+                if (MergedReadCacheRuntime.ready()) {
+                    registry = registry.withMergedReadCacheTarget();
+                    report.diagnostic("Loaded the exact merged-read cache target ("
+                            + MergedReadCacheRuntime.status() + ")");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "

@@ -472,7 +472,7 @@ final class AgentInjection {
                 exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
                 campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
                 projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
-                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, null, null);
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, null, null, null);
     }
 
     static String append(
@@ -503,7 +503,11 @@ final class AgentInjection {
             boolean resourceProbeCache,
             boolean loadJsonMemo,
             Path preparedAudioCache,
-            String audioDecoderIdentity) {
+            String audioDecoderIdentity,
+            Path mergedReadCache) {
+        if (mergedReadCache != null && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Merged read cache requires the enabled adapter");
+        }
         if (preparedAudioCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Prepared audio requires the enabled adapter");
         }
@@ -566,6 +570,7 @@ final class AgentInjection {
         appendPath(arguments, "hullJsonCache64", hullJsonCache);
         appendPath(arguments, "rulesCsvCache64", rulesCsvCache);
         appendPath(arguments, "ruleCommandCache64", ruleCommandClassCache);
+        appendPath(arguments, "mergedReadCache64", mergedReadCache);
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
         }

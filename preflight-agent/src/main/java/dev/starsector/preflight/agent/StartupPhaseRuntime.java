@@ -78,6 +78,9 @@ public final class StartupPhaseRuntime {
         writeSafely();
     }
 
+    /** The phase that means vanilla finished loading everything, without dying on the way. */
+    private static final String LOADING_FINISHED = "resource-init-complete";
+
     /** Called from the reviewed game class. It must never let probe failure affect startup. */
     public static synchronized void mark(String name) {
         try {
@@ -86,6 +89,19 @@ public final class StartupPhaseRuntime {
             throw fatal;
         } catch (Throwable ignored) {
             // This code is woven into startup. Diagnostics are never allowed to become startup.
+        }
+        if (LOADING_FINISHED.equals(name)) {
+            // The general merged-read cache has no single loader to publish at the end of -- it
+            // serves every caller, including mod callbacks, which run right up to here. This is the
+            // first moment at which everything it could learn has been learned and vanilla is known
+            // to have got through it, which is the same rule the per-loader caches follow.
+            try {
+                MergedReadCacheRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable ignored) {
+                // Failing to publish costs the next launch its cache, and nothing else.
+            }
         }
     }
 
@@ -319,7 +335,14 @@ public final class StartupPhaseRuntime {
         timing.record(Math.max(0L, endNanos - startNanos), completed);
     }
 
-    private static void recordMergedRead(String kind, String path, long durationNanos) {
+    /**
+     * Counts one merged read against its group.
+     *
+     * <p>Package-private because {@link MergedReadCacheRuntime} weaves the same two methods this
+     * probe does and only one of them can be installed. The cache reports through here so that
+     * choosing to serve a launch does not cost the measurement of what it served.
+     */
+    static void recordMergedRead(String kind, String path, long durationNanos) {
         try {
             record(kind, mergedReadGroup(path), durationNanos);
         } catch (ThreadDeath | VirtualMachineError fatal) {

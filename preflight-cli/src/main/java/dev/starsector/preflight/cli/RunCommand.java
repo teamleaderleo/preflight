@@ -46,6 +46,7 @@ final class RunCommand {
         HullJsonCacheContext hullJsonCache = specStoreCaches.hullJson();
         RulesCsvCacheContext rulesCsvCache = specStoreCaches.rulesCsv();
         RuleCommandCacheContext ruleCommandCache = specStoreCaches.ruleCommand();
+        MergedReadCacheContext mergedReadCache = specStoreCaches.mergedRead();
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -107,7 +108,8 @@ final class RunCommand {
                 options.resourceProbeCache(),
                 options.loadJsonMemo(),
                 preparedAudioCache,
-                audioDecoderIdentity);
+                audioDecoderIdentity,
+                mergedReadCache == null ? null : mergedReadCache.artifact());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -661,7 +663,8 @@ final class RunCommand {
                     rulesCsvCacheContext(context, textures),
                     options.ruleCommandClassCache()
                             ? ruleCommandCacheContext(context, textures)
-                            : null);
+                            : null,
+                    mergedReadCacheContext(context, textures));
         } catch (Exception error) {
             System.err.println("Preflight launch profile identity failed: " + message(error)
                     + "; vanilla loading remains active.");
@@ -772,6 +775,23 @@ final class RunCommand {
         }
     }
 
+    private static MergedReadCacheContext mergedReadCacheContext(
+            ProfileIdentityContext context, TextureLaunchContext textures) {
+        long started = System.nanoTime();
+        try {
+            MergedReadProfileIdentityBuilder.Result profile =
+                    MergedReadProfileIdentityBuilder.build(context);
+            Path artifact = artifact(textures, "merged-reads", profile.identitySha256(), ".spmr");
+            report("merged read", profile.identitySha256(), started, artifact,
+                    String.format(Locale.ROOT, "%d paths, %d providers",
+                            profile.logicalPaths(), profile.providerCount()));
+            return new MergedReadCacheContext(artifact);
+        } catch (Exception error) {
+            declined("merged read", error);
+            return null;
+        }
+    }
+
     private static Path artifact(
             TextureLaunchContext textures, String store, String identity, String extension) {
         return textures.cacheDirectory()
@@ -802,10 +822,11 @@ final class RunCommand {
             ProjectileJsonCacheContext projectileJson,
             HullJsonCacheContext hullJson,
             RulesCsvCacheContext rulesCsv,
-            RuleCommandCacheContext ruleCommand) {
+            RuleCommandCacheContext ruleCommand,
+            MergedReadCacheContext mergedRead) {
 
         static SpecStoreCacheContexts none() {
-            return new SpecStoreCacheContexts(null, null, null, null, null, null);
+            return new SpecStoreCacheContexts(null, null, null, null, null, null, null);
         }
     }
 
@@ -837,5 +858,8 @@ final class RunCommand {
     }
 
     private record RuleCommandCacheContext(Path artifact) {
+    }
+
+    private record MergedReadCacheContext(Path artifact) {
     }
 }
