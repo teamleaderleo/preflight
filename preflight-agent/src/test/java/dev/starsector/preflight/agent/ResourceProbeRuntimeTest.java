@@ -2,9 +2,16 @@ package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fs.util.C;
 import java.io.File;
+import java.io.InputStream;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -111,5 +118,79 @@ class ResourceProbeRuntimeTest {
     void aPathWithNoParentFallsThroughRatherThanGuessing() {
         assertEquals(new File("nonexistent-relative-name").exists(),
                 ResourceProbeRuntime.exists(new File("nonexistent-relative-name")));
+    }
+
+    @Test
+    void aPerRootOpenForAnAbsentFileNeverReachesTheOriginal() throws Throwable {
+        Files.createDirectories(root.resolve("data/hulls"));
+        Counter vanilla = new Counter();
+
+        assertNull(ResourceProbeRuntime.open(null, "data/hulls/absent.ship",
+                directoryRoot(), vanilla.handle()));
+        assertNull(ResourceProbeRuntime.open(null, "data/weapons/absent.wpn",
+                directoryRoot(), vanilla.handle()));
+        assertEquals(0, vanilla.calls, "an absent file is answered from the listing, not by opening");
+        assertEquals(2L, ResourceProbeRuntime.report().get("rootOpensSkippedWholesale"));
+    }
+
+    @Test
+    void aPerRootOpenForAPresentFileIsHandedToTheOriginal() throws Throwable {
+        // Every hit goes to vanilla, which opens the stream the way it always did. The fast path
+        // only ever short-circuits an absence.
+        Files.createDirectories(root.resolve("data/hulls"));
+        Files.writeString(root.resolve("data/hulls/present.ship"), "{}");
+        Counter vanilla = new Counter();
+
+        assertNotNull(ResourceProbeRuntime.open(null, "data/hulls/present.ship",
+                directoryRoot(), vanilla.handle()));
+        assertEquals(1, vanilla.calls);
+    }
+
+    @Test
+    void aRootThatIsNotADirectoryIsLeftEntirelyToTheOriginal() throws Throwable {
+        // The classpath root has no directory to list, and guessing at one would be inventing an
+        // answer for a question this cannot see.
+        Counter vanilla = new Counter();
+        C.Oo classpath = new C.Oo(C.o.CLASSPATH, root.toString());
+
+        assertNotNull(ResourceProbeRuntime.open(null, "data/hulls/absent.ship",
+                classpath, vanilla.handle()));
+        assertEquals(1, vanilla.calls);
+    }
+
+    @Test
+    void aPathWithATraversalIsLeftEntirelyToTheOriginal() throws Throwable {
+        Counter vanilla = new Counter();
+
+        assertNotNull(ResourceProbeRuntime.open(null, "data/../data/hulls/absent.ship",
+                directoryRoot(), vanilla.handle()));
+        assertEquals(1, vanilla.calls, "vanilla knows what that path means; this does not");
+    }
+
+    private C.Oo directoryRoot() {
+        return new C.Oo(C.o.DIRECTORY, root.toString());
+    }
+
+    /** Stands in for the renamed original, and counts how often the fast path failed to avoid it. */
+    private static final class Counter {
+        int calls;
+
+        @SuppressWarnings("unused") // reached through the MethodHandle below.
+        InputStream open(String path, C.Oo root) {
+            calls++;
+            return InputStream.nullInputStream();
+        }
+
+        MethodHandle handle() throws Exception {
+            MethodHandle bound = MethodHandles.lookup()
+                    .findVirtual(Counter.class, "open",
+                            MethodType.methodType(InputStream.class, String.class, C.Oo.class))
+                    .bindTo(this);
+            // The rewritten method invokes with the resolver as a leading argument; this stand-in
+            // is already bound to itself, so make room for one and ignore it.
+            return MethodHandles.dropArguments(bound, 0, Object.class)
+                    .asType(MethodType.methodType(
+                            InputStream.class, Object.class, String.class, Object.class));
+        }
     }
 }

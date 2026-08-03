@@ -55,17 +55,70 @@ class ResourceProbePlanTest {
         assertNull(ResourceProbePlan.transform(ClassSignature.parse(other), other));
     }
 
+    @Test
+    void putsTheRuntimeInFrontOfThePerRootOpenAndKeepsTheOriginal() throws Exception {
+        byte[] original = fixture(ResourceProbePlan.EXPECTED_CALL_SITES);
+        byte[] rewritten = ResourceProbePlan.transform(ClassSignature.parse(original), original);
+        assertNotNull(rewritten);
+
+        ClassNode node = new ClassNode(Opcodes.ASM9);
+        new ClassReader(rewritten).accept(node, 0);
+
+        MethodNode entry = method(node, ResourceProbePlan.OPEN_METHOD);
+        assertNotNull(entry, "the original name must still be the one callers reach");
+        assertEquals(Opcodes.ACC_SYNCHRONIZED, entry.access & Opcodes.ACC_SYNCHRONIZED,
+                "the entry keeps the monitor the method it replaces held");
+        assertEquals(1, calls(rewritten, Opcodes.INVOKESTATIC, RUNTIME, "open"));
+
+        MethodNode vanilla = method(node, ResourceProbePlan.VANILLA_OPEN_METHOD);
+        assertNotNull(vanilla, "vanilla must survive under a new name for the runtime to fall back to");
+        assertEquals(ResourceProbePlan.OPEN_DESCRIPTOR, vanilla.desc);
+    }
+
+    @Test
+    void declinesAClassWithoutThePerRootOpen() throws Exception {
+        // Redirecting the probes without the open in front of them would still be correct, but it
+        // would install a plan that is not the one that was reviewed. Decline instead.
+        byte[] original = fixture(ResourceProbePlan.EXPECTED_CALL_SITES,
+                ResourceProbePlan.TARGET_CLASS, false);
+        assertNull(ResourceProbePlan.transform(ClassSignature.parse(original), original));
+    }
+
+    private static MethodNode method(ClassNode node, String name) {
+        for (MethodNode method : node.methods) {
+            if (name.equals(method.name)) {
+                return method;
+            }
+        }
+        return null;
+    }
+
     private static byte[] fixture(int probeSites) {
         return fixture(probeSites, ResourceProbePlan.TARGET_CLASS);
+    }
+
+    private static byte[] fixture(int probeSites, String internalName) {
+        return fixture(probeSites, internalName, true);
     }
 
     /**
      * The shape the resolver uses at every root: build a {@code File}, ask whether it is there.
      * Stack-neutral substitution means the fixture needs nothing more elaborate than that.
      */
-    private static byte[] fixture(int probeSites, String internalName) {
+    private static byte[] fixture(int probeSites, String internalName, boolean withPerRootOpen) {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, internalName, null, "java/lang/Object", null);
+
+        if (withPerRootOpen) {
+            MethodVisitor open = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_SYNCHRONIZED,
+                    ResourceProbePlan.OPEN_METHOD, ResourceProbePlan.OPEN_DESCRIPTOR, null,
+                    new String[] {"java/io/FileNotFoundException"});
+            open.visitCode();
+            open.visitInsn(Opcodes.ACONST_NULL);
+            open.visitInsn(Opcodes.ARETURN);
+            open.visitMaxs(1, 3);
+            open.visitEnd();
+        }
 
         MethodVisitor resolve = writer.visitMethod(Opcodes.ACC_PUBLIC,
                 ResourceProbePlan.RESOLVE_METHOD, ResourceProbePlan.RESOLVE_DESCRIPTOR, null, null);
