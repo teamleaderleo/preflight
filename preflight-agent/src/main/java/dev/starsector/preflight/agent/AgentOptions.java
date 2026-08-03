@@ -38,6 +38,7 @@ record AgentOptions(
         Path preparedAudioCache,
         String audioDecoderIdentity,
         boolean graphicsLibCompactReplay,
+        boolean graphicsLibInsigniaManagerCache,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -129,6 +130,8 @@ record AgentOptions(
         Path preparedAudioCache = decodedPath(values, "preparedAudioCache64");
         String audioDecoderIdentity = values.get("audioDecoder");
         boolean graphicsLibCompactReplay = "on".equalsIgnoreCase(values.get("graphicsLibCompactReplay"));
+        boolean graphicsLibInsigniaManagerCache =
+                "on".equalsIgnoreCase(values.get("graphicsLibInsigniaManagerCache"));
         return new AgentOptions(
                 destination,
                 settings,
@@ -157,6 +160,7 @@ record AgentOptions(
                 preparedAudioCache,
                 audioDecoderIdentity,
                 graphicsLibCompactReplay,
+                graphicsLibInsigniaManagerCache,
                 DEFAULT_CANDIDATE_PREFIXES);
     }
 

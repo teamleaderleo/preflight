@@ -32,6 +32,7 @@ final class AdapterRuntime {
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
+        GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -81,6 +82,8 @@ final class AdapterRuntime {
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             MergedReadCacheRuntime.configure(options.mergedReadCache());
             GraphicsLibCompactReplayPlan.configure(options.graphicsLibCompactReplay());
+            GraphicsLibInsigniaManagerCacheRuntime.configure(
+                    options.graphicsLibInsigniaManagerCache());
             if (options.ruleTokenCache()) {
                 RuleTokenCacheRuntime.enable();
             }
@@ -164,6 +167,10 @@ final class AdapterRuntime {
                 } else if (options.graphicsLibCompactReplay()) {
                     report.diagnostic("GraphicsLib compact replay was requested but is unavailable ("
                             + GraphicsLibCompactReplayPlan.status() + ")");
+                }
+                if (GraphicsLibInsigniaManagerCacheRuntime.ready()) {
+                    registry = registry.withGraphicsLibInsigniaManagerCacheTarget();
+                    report.diagnostic("Loaded the exact GraphicsLib insignia manager-cache target");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "

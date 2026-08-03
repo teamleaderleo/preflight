@@ -30,6 +30,11 @@ The current live texture plans are:
 
 The generated-bytecode wrapper also remains fail-open: incomplete Janino dependency evidence always calls the original generator and bypasses cache storage.
 
+Mod-owned adapters use the same boundary as game-owned ones. The two GraphicsLib 1.12.1 pilots pin
+the exact class, whole mod archive, and URL classloader. Compact replay replaces one reviewed class;
+the insignia pilot splices one accessor while preserving the original render body. Neither is part
+of `--fast` until its separate live startup or combat acceptance gate passes.
+
 ### `preflight-cli`
 
 The runnable wrapper and cache builder. It discovers the existing launcher, inventories the enabled profile, builds and validates caches, injects the agent, records run evidence, summarizes JFR, and exposes deterministic benchmark scenario records.

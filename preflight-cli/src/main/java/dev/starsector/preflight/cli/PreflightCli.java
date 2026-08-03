@@ -178,7 +178,7 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--direct] [--quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--direct] [--quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
                 "    --direct starts Starsector through its own launchDirect path without showing the"
                         + " launcher. Resolution, fullscreen and sound come from the launcher's saved"
                         + " preferences; the run fails closed if those settings are unavailable or unsafe.",
@@ -190,6 +190,9 @@ public final class PreflightCli {
                         + " 1.12.1 TextureData class with its measured compact normal-map request"
                         + " replay. Any class, archive, or classloader drift retains the mod's"
                         + " original bytes and is reported in adapter-health.json.",
+                "    --graphicslib-insignia-cache memoizes getFleetManager results only within one"
+                        + " exact GraphicsLib 1.12.1 insignia UI render. It changes no render math"
+                        + " and remains an explicit beta outside --fast.",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",

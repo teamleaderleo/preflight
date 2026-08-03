@@ -551,7 +551,7 @@ final class AgentInjection {
                 campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
                 projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
                 ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
-                audioDecoderIdentity, mergedReadCache, quietLogs, false);
+                audioDecoderIdentity, mergedReadCache, quietLogs, false, false);
     }
 
     static String append(
@@ -585,7 +585,8 @@ final class AgentInjection {
             String audioDecoderIdentity,
             Path mergedReadCache,
             boolean quietLogs,
-            boolean graphicsLibCompactReplay) {
+            boolean graphicsLibCompactReplay,
+            boolean graphicsLibInsigniaManagerCache) {
         if (mergedReadCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Merged read cache requires the enabled adapter");
         }
@@ -630,6 +631,9 @@ final class AgentInjection {
         }
         if (graphicsLibCompactReplay && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("GraphicsLib compact replay requires the enabled adapter");
+        }
+        if (graphicsLibInsigniaManagerCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("GraphicsLib insignia cache requires the enabled adapter");
         }
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
@@ -683,6 +687,9 @@ final class AgentInjection {
         }
         if (graphicsLibCompactReplay) {
             arguments.append(",graphicsLibCompactReplay=on");
+        }
+        if (graphicsLibInsigniaManagerCache) {
+            arguments.append(",graphicsLibInsigniaManagerCache=on");
         }
         // Both or neither: a cache with no decoder identity cannot be trusted to hold this
         // decoder's output, and an identity with no cache has nothing to check it against.
