@@ -220,7 +220,8 @@ public final class PreflightCli {
                 "    --campaign-entity-index enables the experimental BaseLocation.getEntityById"
                         + " index. It requires --adapter, serves only snapshot-validated hits and"
                         + " misses, fails open on any validation error, and is intended for"
-                        + " live-campaign validation before default use."));
+                        + " live-campaign validation before default use. The same gameplay pilot"
+                        + " also enables the exact snapshot-validated deployment icon cache."));
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));

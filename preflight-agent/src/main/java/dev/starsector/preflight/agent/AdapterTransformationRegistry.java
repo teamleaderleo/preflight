@@ -37,6 +37,10 @@ final class AdapterTransformationRegistry {
         if (EntityLookupRuntime.PLAN_ID.equals(target.planId())) {
             return EntityLookupPlan.transform(signature, originalBytes);
         }
+        // Like the campaign index, this wrapper is inert until its system property is enabled.
+        if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return DeploymentIconCachePlan.transform(signature, originalBytes);
+        }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
             // LoadingUtils is reached by this plan, by the merged-read cache's and by the loadJSON
             // memo's, and only one target per class ever transforms, so every branch composes all
@@ -423,6 +427,9 @@ final class AdapterTransformationRegistry {
         }
         if (GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID.equals(planId)) {
             return GraphicsLibInsigniaManagerCacheRuntime.ready();
+        }
+        if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {
+            return DeploymentIconCacheRuntime.ready();
         }
         return false;
     }

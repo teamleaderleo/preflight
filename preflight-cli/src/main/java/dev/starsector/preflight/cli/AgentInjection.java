@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.DeploymentIconCacheRuntime;
 import dev.starsector.preflight.agent.EntityLookupRuntime;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TexturePaddingRuntime;
@@ -858,7 +859,8 @@ final class AgentInjection {
             option = option + " -XX:FlightRecorderOptions=memorysize=256m,maxchunksize=256m";
         }
         if (campaignEntityIndex) {
-            option = option + " -D" + EntityLookupRuntime.ENABLED_PROPERTY + "=true";
+            option = option + " -D" + EntityLookupRuntime.ENABLED_PROPERTY + "=true"
+                    + " -D" + DeploymentIconCacheRuntime.ENABLED_PROPERTY + "=true";
         }
         return current.isEmpty() ? option : current + " " + option;
     }

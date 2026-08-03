@@ -133,7 +133,10 @@ any validation or reflection failure delegates to the preserved original method.
 exposes `served`, `missingServed`, `declined`, `rebuilds`, and `indexedEntities` counters under
 `campaignEntityIndex` for a long-session review. A pilot has not proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
-is intentionally rejected in adapter-off and probe modes.
+also enables a positive-only deployment member-icon cache for the exact reviewed vanilla UI class;
+that cache validates both backing list sequences and the icon's current member before reuse, and
+reports separately under `deploymentIconCache`. The flag is intentionally rejected in adapter-off
+and probe modes.
 
 See [vanilla runtime adapter](vanilla-adapter.md) for the activation gate, report format, kill switch, and the point where a real Starsector installation is required.
 

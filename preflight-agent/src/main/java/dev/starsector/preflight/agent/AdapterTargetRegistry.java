@@ -208,6 +208,30 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The exact vanilla deployment member grid observed in the gameplay recording. */
+    static AdapterTarget deploymentIconCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-deployment-member-icon-cache-0.98a-rc8",
+                DeploymentIconCachePlan.TARGET_CLASS,
+                DeploymentIconCachePlan.ORIGINAL_SHA256,
+                DeploymentIconCacheRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                DeploymentIconCachePlan.LOOKUP_METHOD,
+                                DeploymentIconCachePlan.LOOKUP_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                DeploymentIconCachePlan.MEMBERS_METHOD,
+                                DeploymentIconCachePlan.MEMBERS_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                DeploymentIconCachePlan.LIST_METHOD,
+                                DeploymentIconCachePlan.LIST_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The loading bar reaches 100% before this class waits for audio and runs final callbacks. */
     static AdapterTarget startupPhaseTarget() {
         return new AdapterTarget(
@@ -538,6 +562,10 @@ final class AdapterTargetRegistry {
         return withTarget(campaignEntityIndexTarget());
     }
 
+    AdapterTargetRegistry withDeploymentIconCacheTarget() {
+        return withTarget(deploymentIconCacheTarget());
+    }
+
     AdapterTargetRegistry withStartupPhaseTarget() {
         return withTarget(startupPhaseTarget())
                 .withTarget(specStorePhaseTarget())
@@ -689,7 +717,8 @@ final class AdapterTargetRegistry {
                 ? texturePreparedPixelTarget()
                 : textureCompatibilityTarget())
                 .withTarget(texturePrefetchBypassTarget())
-                .withTarget(campaignEntityIndexTarget());
+                .withTarget(campaignEntityIndexTarget())
+                .withTarget(deploymentIconCacheTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {
