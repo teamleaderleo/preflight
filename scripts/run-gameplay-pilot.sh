@@ -3,7 +3,7 @@
 # Launch one manually played combat pilot with every relevant beta probe enabled.
 #
 # Usage:
-#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME]
+#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--without-gameplay-caches]
 #
 # Load a representative campaign, open a simulation, raise the DP cap, deploy many capitals,
 # fight for three to five minutes, then exit Starsector normally. Preflight keeps a coherent JFR
@@ -12,11 +12,13 @@ set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
 LABEL="gameplay-pilot"
+GAMEPLAY_CACHES=true
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --game) GAME="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
+        --without-gameplay-caches) GAMEPLAY_CACHES=false; shift ;;
         -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
@@ -80,6 +82,7 @@ LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null \
 echo
 echo "Pilot directory: $OUT"
 echo "Pilot commit:    $(git rev-parse --short HEAD)"
+echo "Gameplay caches: $GAMEPLAY_CACHES"
 echo
 echo "In Starsector:"
 echo "  1. Load a representative campaign."
@@ -89,7 +92,7 @@ echo "  4. Exit Starsector normally when done."
 echo
 echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 
-java -jar "$JAR" run \
+RUN_ARGS=(run \
     --game "$GAME" \
     --launcher "$LAUNCHER" \
     --trace-dir "$OUT" \
@@ -99,9 +102,13 @@ java -jar "$JAR" run \
     --graphicslib-compact-replay \
     --janino-bytecode-cache \
     --graphicslib-insignia-cache \
-    --campaign-entity-index \
     --profile \
-    --single-chunk-recording \
+    --single-chunk-recording)
+if [[ "$GAMEPLAY_CACHES" == true ]]; then
+    RUN_ARGS+=(--campaign-entity-index)
+fi
+
+java -jar "$JAR" "${RUN_ARGS[@]}" \
     >"$OUT/wrapper.log" 2>&1 &
 WRAPPER_PID=$!
 
