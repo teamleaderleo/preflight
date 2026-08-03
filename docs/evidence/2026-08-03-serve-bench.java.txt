@@ -1,0 +1,91 @@
+import dev.starsector.preflight.core.PreparedTexture;
+import dev.starsector.preflight.core.PreparedTextureIO;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.List;
+
+/**
+ * What it costs to serve the launch's 21,655 prepared textures, stage by stage, in launch order.
+ *
+ * The graphics driver accounts for 1.15 s of the 17.72 s the launch spends in TextureLoader. This
+ * asks where the rest of it is, on the same corpus, with no GL context and no game.
+ */
+public final class ServeBench {
+    public static void main(String[] args) throws Exception {
+        Path cache = Path.of(args[0]);
+        List<String> order = Files.readAllLines(Path.of(args[1]));
+        Path[] blobs = order.stream().map(cache::resolve).toArray(Path[]::new);
+        long bytes = 0;
+        int widest = 0;
+        for (Path blob : blobs) {
+            int size = (int) Files.size(blob);
+            bytes += size;
+            widest = Math.max(widest, size);
+        }
+        System.out.printf("%,d blobs, %.2f GB on disk, largest %.1f MB%n%n",
+                blobs.length, bytes / 1e9, widest / 1e6);
+
+        // Warm the page cache: the launch runs against a cache the operating system has already
+        // seen, and a cold first pass would measure the SSD rather than the serving path.
+        for (Path blob : blobs) {
+            Files.readAllBytes(blob);
+        }
+
+        for (int pass = 0; pass < 2; pass++) {
+            System.out.println("pass " + pass);
+            long t0 = System.nanoTime();
+            long sink = 0;
+            for (Path blob : blobs) {
+                sink += Files.readAllBytes(blob).length;
+            }
+            long t1 = System.nanoTime();
+            System.out.printf("  read the blob into a heap array        %6.2f s  (%d)%n",
+                    (t1 - t0) / 1e9, sink & 1);
+
+            t0 = System.nanoTime();
+            long px = 0;
+            for (Path blob : blobs) {
+                px += PreparedTextureIO.readTrusted(blob).pixelBytes();
+            }
+            t1 = System.nanoTime();
+            System.out.printf("  read + parse into a PreparedTexture    %6.2f s  (%.2f GB of pixels)%n",
+                    (t1 - t0) / 1e9, px / 1e9);
+
+            t0 = System.nanoTime();
+            long copied = 0;
+            for (Path blob : blobs) {
+                PreparedTexture texture = PreparedTextureIO.readTrusted(blob);
+                byte[] pixels = texture.pixels();
+                ByteBuffer buffer = ByteBuffer.allocateDirect(pixels.length);
+                buffer.put(pixels);
+                buffer.flip();
+                copied += buffer.remaining();
+            }
+            t1 = System.nanoTime();
+            System.out.printf("  ... + pixels() + allocateDirect + put  %6.2f s  (%.2f GB)%n",
+                    (t1 - t0) / 1e9, copied / 1e9);
+
+            // The alternative: one direct buffer, reused, filled straight from the file. Same bytes
+            // arrive in the same place; nothing is cloned and nothing is zeroed.
+            ByteBuffer reused = ByteBuffer.allocateDirect(widest);
+            t0 = System.nanoTime();
+            long read = 0;
+            for (Path blob : blobs) {
+                try (FileChannel channel = FileChannel.open(blob, StandardOpenOption.READ)) {
+                    reused.clear();
+                    reused.limit((int) channel.size());
+                    while (reused.hasRemaining() && channel.read(reused) > 0) {
+                        // fill it
+                    }
+                    read += reused.position();
+                }
+            }
+            t1 = System.nanoTime();
+            System.out.printf("  one reused direct buffer, filled once  %6.2f s  (%.2f GB)%n%n",
+                    (t1 - t0) / 1e9, read / 1e9);
+        }
+    }
+}

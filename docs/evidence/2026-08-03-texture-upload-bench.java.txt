@@ -1,0 +1,149 @@
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.BufferUtils;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+
+/**
+ * What one texture upload costs on this machine, with the game's own LWJGL and the game's own
+ * GL calls -- and what the alternatives cost.
+ *
+ * The launch spends 17.7s inside TextureLoader for 21,655 textures. The distribution says most of
+ * that is a fixed charge per texture rather than per byte. This asks the driver directly.
+ */
+public final class TextureUploadBench {
+    static final int GL_BGRA = 0x80E1;
+    static final int GL_UNSIGNED_INT_8_8_8_8_REV = 0x8367;
+    static final IntBuffer NAME = BufferUtils.createIntBuffer(1);
+
+    public static void main(String[] args) throws Exception {
+        Display.setDisplayMode(new DisplayMode(320, 240));
+        Display.setTitle("preflight texture upload benchmark");
+        Display.create();
+        System.out.println("GL_VERSION  " + GL11.glGetString(GL11.GL_VERSION));
+        System.out.println("GL_RENDERER " + GL11.glGetString(GL11.GL_RENDERER));
+        System.out.println("GL_VENDOR   " + GL11.glGetString(GL11.GL_VENDOR));
+        System.out.println();
+
+        // Sizes chosen to straddle the knee the launch shows: below ~180x180 cost is flat.
+        int[] sides = {1, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
+        System.out.printf("%6s %8s %10s %10s %10s %10s%n",
+                "side", "KB", "RGBA us", "BGRA us", "RGBA MB/s", "BGRA MB/s");
+        for (int side : sides) {
+            int bytes = side * side * 4;
+            // 2,000 uploads at the small end, fewer as they get big: enough to time, not enough to
+            // exhaust VRAM before the deletes catch up.
+            int n = Math.max(20, Math.min(2000, (int) (256_000_000L / Math.max(bytes, 1))));
+            ByteBuffer pixels = BufferUtils.createByteBuffer(bytes);
+            for (int i = 0; i < bytes; i++) {
+                pixels.put(i, (byte) i);
+            }
+            double rgba = time(n, side, pixels, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE);
+            double bgra = time(n, side, pixels, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV);
+            System.out.printf("%6d %8.1f %10.1f %10.1f %10.0f %10.0f%n",
+                    side, bytes / 1024.0, rgba * 1e6, bgra * 1e6,
+                    bytes / rgba / 1e6, bytes / bgra / 1e6);
+        }
+
+        // The launch pads every texture up to a power of two. How much does the padding cost?
+        System.out.println("\npadding: a 384x384 image, uploaded at its true size vs padded to 512x512");
+        for (int[] wh : new int[][] {{384, 384}, {512, 512}, {768, 768}, {1024, 1024}}) {
+            int bytes = wh[0] * wh[1] * 4;
+            ByteBuffer pixels = BufferUtils.createByteBuffer(bytes);
+            int n = Math.max(20, (int) (256_000_000L / bytes));
+            double t = time(n, wh[0], wh[1], pixels, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE);
+            System.out.printf("  %4dx%-4d %8.1f KB  %8.1f us%n", wh[0], wh[1], bytes / 1024.0, t * 1e6);
+        }
+
+        // Is glGenTextures itself the fixed cost, or is it glTexImage2D?
+        System.out.println("\nwhere the fixed charge sits (1x1 textures, 20,000 of each):");
+        System.out.printf("  glGenTextures alone            %8.2f us%n", genOnly(20000) * 1e6);
+        System.out.printf("  glGenTextures+bind             %8.2f us%n", genBind(20000) * 1e6);
+        System.out.printf("  glGenTextures+bind+2 params    %8.2f us%n", genBindParams(20000) * 1e6);
+        System.out.printf("  the whole sequence + upload    %8.2f us%n",
+                time(20000, 1, BufferUtils.createByteBuffer(4), GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE) * 1e6);
+
+        Display.destroy();
+    }
+
+    static double time(int n, int side, ByteBuffer pixels, int format, int type) {
+        return time(n, side, side, pixels, format, type);
+    }
+
+    /** The game's own sequence: generate a name, bind it, set two filters, upload level 0. */
+    static double time(int n, int w, int h, ByteBuffer pixels, int format, int type) {
+        int[] ids = new int[n];
+        for (int warm = 0; warm < 2; warm++) {
+            long start = System.nanoTime();
+            for (int i = 0; i < n; i++) {
+                GL11.glGenTextures(NAME);
+                int id = NAME.get(0);
+                ids[i] = id;
+                GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, w, h, 0, format, type, pixels);
+            }
+            GL11.glFinish();
+            double elapsed = (System.nanoTime() - start) / 1e9 / n;
+            for (int id : ids) {
+                GL11.glDeleteTextures(id);
+            }
+            if (warm == 1) {
+                return elapsed;
+            }
+        }
+        throw new IllegalStateException();
+    }
+
+    static double genOnly(int n) {
+        int[] ids = new int[n];
+        long start = System.nanoTime();
+        for (int i = 0; i < n; i++) {
+            GL11.glGenTextures(NAME);
+            ids[i] = NAME.get(0);
+        }
+        GL11.glFinish();
+        double e = (System.nanoTime() - start) / 1e9 / n;
+        for (int id : ids) {
+            GL11.glDeleteTextures(id);
+        }
+        return e;
+    }
+
+    static double genBind(int n) {
+        int[] ids = new int[n];
+        long start = System.nanoTime();
+        for (int i = 0; i < n; i++) {
+            GL11.glGenTextures(NAME);
+            ids[i] = NAME.get(0);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, ids[i]);
+        }
+        GL11.glFinish();
+        double e = (System.nanoTime() - start) / 1e9 / n;
+        for (int id : ids) {
+            GL11.glDeleteTextures(id);
+        }
+        return e;
+    }
+
+    static double genBindParams(int n) {
+        int[] ids = new int[n];
+        long start = System.nanoTime();
+        for (int i = 0; i < n; i++) {
+            GL11.glGenTextures(NAME);
+            ids[i] = NAME.get(0);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, ids[i]);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+        }
+        GL11.glFinish();
+        double e = (System.nanoTime() - start) / 1e9 / n;
+        for (int id : ids) {
+            GL11.glDeleteTextures(id);
+        }
+        return e;
+    }
+}

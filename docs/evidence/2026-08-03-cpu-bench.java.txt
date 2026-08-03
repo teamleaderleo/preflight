@@ -1,0 +1,68 @@
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+/**
+ * The same CPU-bound shapes the launch is made of, so the Rosetta comparison is not decided by one
+ * workload. Memory-to-memory copying is where an emulated x86 does best; branchy interpreted work
+ * is where it does worst, and the launch has plenty of both.
+ */
+public final class CpuBench {
+    public static void main(String[] args) throws Exception {
+        System.out.println(System.getProperty("os.arch") + "  java " + System.getProperty("java.version"));
+        for (int pass = 0; pass < 2; pass++) {
+            if (pass == 1) {
+                System.out.println("(warm)");
+            }
+            System.out.printf("  regex + split + map   %6.2f s%n", strings());
+            System.out.printf("  sha-256 over 512 MB   %6.2f s%n", digest());
+            System.out.printf("  integer mixing        %6.2f s%n", arithmetic());
+        }
+    }
+
+    /** What rules loading does 205,686 times: match, split, intern into a map. */
+    static double strings() {
+        Pattern pattern = Pattern.compile("\\$([A-Za-z_][A-Za-z0-9_]*)");
+        String[] corpus = new String[64];
+        for (int i = 0; i < corpus.length; i++) {
+            corpus[i] = "PlayerHasItem $item_" + i + " AND $faction_" + i + " != $other_" + i;
+        }
+        Map<String, Integer> seen = new HashMap<>();
+        long start = System.nanoTime();
+        for (int i = 0; i < 400_000; i++) {
+            String line = corpus[i & 63];
+            var matcher = pattern.matcher(line);
+            while (matcher.find()) {
+                seen.merge(matcher.group(1), 1, Integer::sum);
+            }
+            for (String token : line.split(" ")) {
+                seen.merge(token, 1, Integer::sum);
+            }
+        }
+        return (System.nanoTime() - start) / 1e9 + (seen.isEmpty() ? 1 : 0);
+    }
+
+    static double digest() throws Exception {
+        MessageDigest sha = MessageDigest.getInstance("SHA-256");
+        byte[] block = new byte[1 << 20];
+        long start = System.nanoTime();
+        for (int i = 0; i < 512; i++) {
+            sha.update(block);
+        }
+        sha.digest();
+        return (System.nanoTime() - start) / 1e9;
+    }
+
+    static double arithmetic() {
+        long start = System.nanoTime();
+        long state = 88172645463325252L;
+        for (int i = 0; i < 300_000_000; i++) {
+            state ^= state << 13;
+            state ^= state >>> 7;
+            state ^= state << 17;
+        }
+        double elapsed = (System.nanoTime() - start) / 1e9;
+        return elapsed + (state == 0 ? 1 : 0);
+    }
+}

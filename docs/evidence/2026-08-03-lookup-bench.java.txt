@@ -1,0 +1,92 @@
+import dev.starsector.preflight.core.PreparedTextureIO;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * What the texture lookup costs before it reads anything.
+ *
+ * Serving one prepared texture takes four filesystem metadata operations on top of the read: a
+ * toRealPath on the source, a readAttributes on the source, a toRealPath on the blob, and an
+ * isRegularFile on the blob. Two of those resolve every component of a path that runs through
+ * `Contents/Resources/Java/../../../mods/<Some Mod>/graphics/...`. This is how much that is.
+ */
+public final class LookupBench {
+    public static void main(String[] args) throws Exception {
+        Path cache = Path.of(args[0]);
+        List<Path> blobs = new ArrayList<>();
+        List<Path> sources = new ArrayList<>();
+        for (String line : Files.readAllLines(Path.of(args[1]))) {
+            String[] f = line.split("\t");
+            blobs.add(cache.resolve(f[0]));
+            sources.add(Path.of(f[1]));
+        }
+        Path cacheRoot = cache.toRealPath();
+        System.out.printf("%,d textures%n%n", blobs.size());
+
+        for (Path blob : blobs) {
+            Files.readAllBytes(blob);
+        }
+
+        for (int pass = 0; pass < 2; pass++) {
+            System.out.println("pass " + pass);
+            long t0 = System.nanoTime();
+            long sink = 0;
+            for (Path source : sources) {
+                sink += source.toAbsolutePath().normalize().toRealPath().getNameCount();
+            }
+            System.out.printf("  toRealPath on the source file         %6.2f s  (%d)%n",
+                    (System.nanoTime() - t0) / 1e9, sink & 1);
+
+            t0 = System.nanoTime();
+            sink = 0;
+            for (Path source : sources) {
+                sink += Files.readAttributes(source, BasicFileAttributes.class).size();
+            }
+            System.out.printf("  readAttributes on the source file     %6.2f s  (%d)%n",
+                    (System.nanoTime() - t0) / 1e9, sink & 1);
+
+            t0 = System.nanoTime();
+            sink = 0;
+            for (Path blob : blobs) {
+                sink += blob.toAbsolutePath().normalize().toRealPath().getNameCount();
+                sink += Files.isRegularFile(blob) ? 1 : 0;
+            }
+            System.out.printf("  toRealPath + isRegularFile on the blob%6.2f s  (%d)%n",
+                    (System.nanoTime() - t0) / 1e9, sink & 1);
+
+            t0 = System.nanoTime();
+            sink = 0;
+            for (Path blob : blobs) {
+                sink += PreparedTextureIO.readTrusted(blob).pixelBytes();
+            }
+            System.out.printf("  reading the blob itself               %6.2f s  (%.2f GB)%n",
+                    (System.nanoTime() - t0) / 1e9, sink / 1e9);
+
+            // What it would cost to ask once, at the top, instead of per texture: one real path for
+            // each directory, and one directory listing that answers size and modified time.
+            t0 = System.nanoTime();
+            java.util.Set<Path> directories = new java.util.HashSet<>();
+            for (Path source : sources) {
+                directories.add(source.getParent());
+            }
+            long entries = 0;
+            for (Path directory : directories) {
+                try (var stream = Files.newDirectoryStream(directory)) {
+                    for (Path entry : stream) {
+                        Files.readAttributes(entry, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                        entries++;
+                    }
+                } catch (IOException ignored) {
+                    // A directory that has gone away simply answers nothing.
+                }
+            }
+            System.out.printf("  ... vs listing %,d directories once  %6.2f s  (%,d entries)%n%n",
+                    directories.size(), (System.nanoTime() - t0) / 1e9, entries);
+        }
+    }
+}
