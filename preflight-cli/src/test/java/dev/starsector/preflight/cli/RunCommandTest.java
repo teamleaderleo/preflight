@@ -27,6 +27,18 @@ class RunCommandTest {
     }
 
     @Test
+    void heapPretouchOverrideCanBeAppendedLastWithoutDiscardingExistingOptions() {
+        assertEquals(
+                "-XX:-AlwaysPreTouch",
+                RunCommand.appendJavaOptions(null, List.of("-XX:-AlwaysPreTouch")));
+        assertEquals(
+                "-Dexisting=true -XX:+AlwaysPreTouch -XX:-AlwaysPreTouch",
+                RunCommand.appendJavaOptions(
+                        "-Dexisting=true -XX:+AlwaysPreTouch",
+                        List.of("-XX:-AlwaysPreTouch")));
+    }
+
+    @Test
     void defaultRunDirectoriesRemainDistinctWithinOneMillisecond() {
         Path home = Path.of("synthetic-home");
         Instant started = Instant.parse("2026-07-21T10:42:03.123Z");

@@ -129,6 +129,26 @@ class RunCommandIT {
     }
 
     @Test
+    void heapPretouchOverrideReachesOnlyTheChildEnvironmentAndRunReceipt() throws Exception {
+        Path game = temporaryDirectory.resolve("Heap Pretouch Synthetic Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("heap-pretouch-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--no-adapter", "--no-heap-pretouch"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        String injected = Files.readString(game.resolve("java-options.txt")).strip();
+        assertTrue(injected.endsWith("-XX:-AlwaysPreTouch"), injected);
+        assertTrue(result.output().contains("heap pre-touch: disabled for child JVM"), result.output());
+
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals(Boolean.TRUE, report.get("heapPretouchDisabled"));
+    }
+
+    @Test
     void nonzeroLauncherExitRemainsAuthoritativeWithoutFatalEvidence() throws Exception {
         Path game = temporaryDirectory.resolve("Nonzero Synthetic Starsector");
         Files.createDirectories(game.resolve("logs"));
@@ -249,7 +269,8 @@ class RunCommandIT {
         Path launcher = game.resolve(windows ? "starsector.bat" : "starsector.sh");
         if (windows) {
             StringBuilder script = new StringBuilder("@echo off\r\n")
-                    .append("> \"%~dp0java-tool-options.txt\" echo %JAVA_TOOL_OPTIONS%\r\n");
+                    .append("> \"%~dp0java-tool-options.txt\" echo %JAVA_TOOL_OPTIONS%\r\n")
+                    .append("> \"%~dp0java-options.txt\" echo(%_JAVA_OPTIONS%\r\n");
             if (mode == LauncherMode.FATAL_LOG_ZERO) {
                 script.append("> \"%~dp0logs\\starsector.log\" echo ").append(fatalLog).append("\r\n")
                         .append(">> \"%~dp0logs\\starsector.log\" echo     ").append(frame).append("\r\n");
@@ -263,7 +284,8 @@ class RunCommandIT {
             Files.writeString(launcher, script);
         } else {
             StringBuilder script = new StringBuilder("#!/bin/sh\n")
-                    .append("printf '%s\\n' \"$JAVA_TOOL_OPTIONS\" > java-tool-options.txt\n");
+                    .append("printf '%s\\n' \"$JAVA_TOOL_OPTIONS\" > java-tool-options.txt\n")
+                    .append("printf '%s\\n' \"${_JAVA_OPTIONS-}\" > java-options.txt\n");
             if (mode == LauncherMode.FATAL_LOG_ZERO) {
                 script.append("printf '%s\\n' '").append(fatalLog).append("' > logs/starsector.log\n")
                         .append("printf '%s\\n' '    ").append(frame).append("' >> logs/starsector.log\n");

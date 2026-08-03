@@ -178,7 +178,7 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--direct] [--quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index] [--startup-phase-probe] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--direct] [--quiet-logs] [--no-heap-pretouch] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index] [--startup-phase-probe] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
                 "    --direct starts Starsector through its own launchDirect path without showing the"
                         + " launcher. Resolution, fullscreen and sound come from the launcher's saved"
                         + " preferences; the run fails closed if those settings are unavailable or unsafe.",
@@ -186,6 +186,11 @@ public final class PreflightCli {
                         + " duplicate console appender, and buffers file writes. It saves about 0.40s"
                         + " on the reviewed profile but a hard crash can lose the final 64 KiB, so it"
                         + " is opt-in and is not implied by --fast.",
+                "    --no-heap-pretouch asks the child JVM to fault heap pages on demand instead of"
+                        + " touching the entire fixed heap before game code starts. It preserves the"
+                        + " installed launcher and applies after its explicit JVM flags. This trades"
+                        + " startup time for possible later page-fault stalls, so it is experimental"
+                        + " and is not implied by --fast.",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",

@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
 final class RunCommand {
+    private static final String DISABLE_HEAP_PRETOUCH = "-XX:-AlwaysPreTouch";
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("uuuuMMdd-HHmmss-SSS")
             .withZone(ZoneOffset.UTC);
 
@@ -123,6 +124,9 @@ final class RunCommand {
                     javaToolOptions,
                     List.of(QuietLogConfiguration.javaOption(quietLogConfiguration)));
         }
+        String javaOptionsOverride = options.disableHeapPretouch()
+                ? appendJavaOptions(System.getenv("_JAVA_OPTIONS"), List.of(DISABLE_HEAP_PRETOUCH))
+                : null;
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
@@ -135,7 +139,8 @@ final class RunCommand {
                 discovery,
                 options,
                 textureContext,
-                directSettings);
+                directSettings,
+                javaOptionsOverride);
         if (options.dryRun()) {
             return 0;
         }
@@ -175,6 +180,12 @@ final class RunCommand {
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
             builder.environment().put("JAVA_TOOL_OPTIONS", javaToolOptions);
+            if (javaOptionsOverride != null) {
+                // HotSpot parses _JAVA_OPTIONS after the launcher's explicit command-line flags.
+                // JAVA_TOOL_OPTIONS is parsed before them, so it cannot negate the shipped batch
+                // file's later -XX:+AlwaysPreTouch. Keep this override child-local and last.
+                builder.environment().put("_JAVA_OPTIONS", javaOptionsOverride);
+            }
             builder.environment().put("PREFLIGHT_RUN_DIR", runDirectory.toString());
 
             childOutput = ChildProcessOutput.run(builder, console);
@@ -386,7 +397,8 @@ final class RunCommand {
             DiscoveryResult discovery,
             CommandLine options,
             TextureLaunchContext textureContext,
-            DirectLaunchSettings directSettings) {
+            DirectLaunchSettings directSettings,
+            String javaOptionsOverride) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
         System.out.println("  launcher: " + target.launcher());
@@ -404,6 +416,9 @@ final class RunCommand {
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
+        System.out.println("  heap pre-touch: " + (options.disableHeapPretouch()
+                ? "disabled for child JVM"
+                : "launcher default"));
         System.out.println("  launch: " + (directSettings == null
                 ? "launcher UI"
                 : "direct " + directSettings.resolution()
@@ -425,6 +440,9 @@ final class RunCommand {
         }
         System.out.println("  command:  " + renderCommand(command));
         System.out.println("  JAVA_TOOL_OPTIONS: " + javaToolOptions);
+        if (javaOptionsOverride != null) {
+            System.out.println("  _JAVA_OPTIONS: " + javaOptionsOverride);
+        }
         for (String diagnostic : discovery.diagnostics()) {
             System.out.println("  note: " + diagnostic);
         }
@@ -574,6 +592,7 @@ final class RunCommand {
         values.put("loadJsonMemo", options.loadJsonMemo());
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
         values.put("quietLogs", options.quietLogs());
+        values.put("heapPretouchDisabled", options.disableHeapPretouch());
         values.put("quietLogConfiguration", options.quietLogs()
                 ? QuietLogConfiguration.path(path.getParent())
                 : null);

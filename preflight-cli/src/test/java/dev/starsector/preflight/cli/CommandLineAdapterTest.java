@@ -41,11 +41,13 @@ class CommandLineAdapterTest {
         assertEquals(TextureAdapterMode.COMPATIBILITY, defaults.textureAdapterMode());
         assertEquals(false, defaults.directLaunch());
         assertEquals(false, defaults.quietLogs());
+        assertEquals(false, defaults.disableHeapPretouch());
 
         CommandLine direct = CommandLine.parse(
-                new String[] {"run", "--direct", "--quiet-logs"}, 1);
+                new String[] {"run", "--direct", "--quiet-logs", "--no-heap-pretouch"}, 1);
         assertEquals(true, direct.directLaunch());
         assertEquals(true, direct.quietLogs());
+        assertEquals(true, direct.disableHeapPretouch());
 
         CommandLine probe = CommandLine.parse(
                 new String[] {"run", "--adapter-probe", "--adapter-targets", "targets.txt"}, 1);
@@ -85,6 +87,7 @@ class CommandLineAdapterTest {
                 new String[] {"run", "--fast", "--quiet-logs"}, 1);
 
         assertEquals(false, fast.quietLogs());
+        assertEquals(false, fast.disableHeapPretouch());
         assertEquals(true, explicit.quietLogs());
     }
 

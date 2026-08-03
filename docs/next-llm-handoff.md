@@ -169,6 +169,11 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | `--quiet-logs` | **0.403s** | implemented on stacked branch; replay + real smoke pass |
 | tagged-tree rehydration for the four spec caches | **0.261s** | implemented; 394ms -> 132/134ms exact seam |
 | GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |
+| Windows heap pre-touch | unmeasured on Windows | explicit `--no-heap-pretouch` experiment on `codex/windows-pretouch-experiment`; Mac precedent only, not in `--fast` |
+
+Windows-specific research, primary sources, and the ordered measurement plan are in
+`docs/evidence/2026-08-04-windows-startup-leads.md`. Defender attribution comes before exclusions;
+NTFS USN-journal invalidation is only justified if a Windows trace prices the full metadata walk.
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j

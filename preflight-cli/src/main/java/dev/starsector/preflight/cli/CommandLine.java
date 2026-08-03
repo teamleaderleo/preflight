@@ -35,6 +35,7 @@ record CommandLine(
         boolean ruleCommandClassCache,
         boolean directLaunch,
         boolean quietLogs,
+        boolean disableHeapPretouch,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -57,6 +58,7 @@ record CommandLine(
         boolean ruleCommandClassCache = false;
         boolean directLaunch = false;
         boolean quietLogs = false;
+        boolean disableHeapPretouch = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -108,6 +110,7 @@ record CommandLine(
                 case "--rule-command-cache" -> ruleCommandClassCache = true;
                 case "--direct" -> directLaunch = true;
                 case "--quiet-logs" -> quietLogs = true;
+                case "--no-heap-pretouch" -> disableHeapPretouch = true;
                 // One flag for "everything that has landed and is safe to turn on". The individual
                 // flags stay, because a campaign that isolates one of them needs to name it -- but
                 // nobody running the game should have to remember seven of them in the right order.
@@ -235,6 +238,7 @@ record CommandLine(
                 ruleCommandClassCache,
                 directLaunch,
                 quietLogs,
+                disableHeapPretouch,
                 List.copyOf(forwarded));
     }
 
