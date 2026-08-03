@@ -138,3 +138,12 @@ The resource-probe cache is also no longer implied by `--fast`. It remains expli
 not satisfy the meaning of the normal safe preset yet. This containment is broader than the v3
 runtime change on purpose: the next gameplay pilot must establish startup correctness without any
 resource-listing substitution before the narrower memo is reconsidered for the preset.
+
+That next run, `dialog-grid-safe-retry-20260804-063940`, proved the resource-probe cache was not the
+only cause. Its report records the cache disabled, zero probes, zero skipped roots, and no resolver
+transformation. Starsector nevertheless failed to resolve the existing, readable Iron Shell file
+`data/missions/eis_queens/mission_text.txt`. The launch still served prepared merged reads and
+memoised JSON through the shared `LoadingUtils` transform. Since merged mission rows carry source
+context used by the following per-mission loads, visible JSON-tree equivalence alone is not enough
+to clear that layer. The next isolation arm disables every startup cache while retaining only the
+exact simulation/dialog telemetry.
