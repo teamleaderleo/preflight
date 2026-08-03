@@ -132,3 +132,9 @@ memo. This gives back the path-construction portion of the optimization, but res
 own resource-selection boundary and removes the failure mode entirely. Restoring wholesale skips
 requires an exhaustive parity replay of the actual per-root open contract, not another live-launch
 guess.
+
+The resource-probe cache is also no longer implied by `--fast`. It remains explicitly runnable as
+`--adapter --resource-probe-cache` for parity work, but two fatal live false negatives mean it does
+not satisfy the meaning of the normal safe preset yet. This containment is broader than the v3
+runtime change on purpose: the next gameplay pilot must establish startup correctness without any
+resource-listing substitution before the narrower memo is reconsidered for the preset.

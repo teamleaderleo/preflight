@@ -89,6 +89,16 @@ class CommandLineAdapterTest {
     }
 
     @Test
+    void fastDoesNotEnableTheResourceProbeCacheAfterLiveFalseNegatives() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+        CommandLine explicit = CommandLine.parse(
+                new String[] {"run", "--adapter", "--resource-probe-cache"}, 1);
+
+        assertEquals(false, fast.resourceProbeCache());
+        assertEquals(true, explicit.resourceProbeCache());
+    }
+
+    @Test
     void startupPhaseProbeRequiresTheEnabledAdapter() {
         CommandLine enabled = CommandLine.parse(
                 new String[] {"run", "--adapter", "--startup-phase-probe"}, 1);

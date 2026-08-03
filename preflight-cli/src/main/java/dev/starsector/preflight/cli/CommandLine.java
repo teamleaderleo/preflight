@@ -117,9 +117,9 @@ record CommandLine(
                 case "--graphicslib-insignia-cache" -> graphicsLibInsigniaManagerCache = true;
                 case "--direct" -> directLaunch = true;
                 case "--quiet-logs" -> quietLogs = true;
-                // One flag for "everything that has landed and is safe to turn on". The individual
-                // flags stay, because a campaign that isolates one of them needs to name it -- but
-                // nobody running the game should have to remember seven of them in the right order.
+                // One flag for everything that has landed and is safe to turn on. Experimental
+                // adapters stay individually addressable for isolated pilots, but do not belong in
+                // the normal launch path until live runs have established their correctness.
                 case "--fast" -> {
                     adapterMode = AdapterMode.ENABLED;
                     textureAuto = true;
@@ -128,7 +128,6 @@ record CommandLine(
                     npotDirect = true;
                     ruleTokenCache = true;
                     ruleCommandClassCache = true;
-                    resourceProbeCache = true;
                     preparedAudio = true;
                     loadJsonMemo = true;
                     recordingMode = RecordingMode.OFF;

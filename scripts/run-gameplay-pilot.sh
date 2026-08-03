@@ -92,6 +92,15 @@ echo "  4. Exit Starsector normally when done."
 echo
 echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 
+# Some third-party launch scripts enable HotSpot's interactive native-crash debugger prompt. On
+# macOS that leaves the already-crashed JVM behind an unresponsive 0% game window until someone
+# force-quits it, and killing that prompt also prevents HotSpot from writing its hs_err evidence.
+# _JAVA_OPTIONS is intentionally used here: HotSpot applies it after command-line flags, so this
+# overrides a launcher's earlier +ShowMessageBoxOnError without editing the user's installation.
+PILOT_CRASH_REPORT="$OUT/hs_err_pid%p.log"
+PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT'"
+export _JAVA_OPTIONS="${_JAVA_OPTIONS:+$_JAVA_OPTIONS }$PILOT_CRASH_OPTIONS"
+
 RUN_ARGS=(run \
     --game "$GAME" \
     --launcher "$LAUNCHER" \
@@ -125,6 +134,11 @@ trap - EXIT INT TERM
 
 echo
 echo "Pilot process exit: $PILOT_STATUS"
+for crash_report in "$OUT"/hs_err_pid*.log; do
+    if [[ -f "$crash_report" ]]; then
+        echo "Native JVM crash report: $crash_report" >&2
+    fi
+done
 if [[ -f "$OUT/adapter-health.json" ]]; then
     echo "Adapter health:"
     jq '{status, summary, transformationsApplied, transformationsDeclined, containedFailures}' \
