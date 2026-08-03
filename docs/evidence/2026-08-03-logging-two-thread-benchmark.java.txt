@@ -1,0 +1,141 @@
+import java.io.File;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+
+/**
+ * What Starsector's logging costs a launch that has already been optimised.
+ *
+ * <p>The 2026-08-02 benchmark modelled 65,305 lines on one thread. The current launch emits
+ * 122,437, and 30,615 of them come from a background thread that contends with the loading thread
+ * for the appender lock -- log4j 1.2 synchronises every append. So this version emits the real mix
+ * from two threads and reports what the loading thread paid.
+ *
+ * <p>Line counts are from ~/.starsector-preflight/runs/merged-reads-20260803-215048.
+ */
+public class LoggingBench2 {
+    // main thread, by logger
+    private static final int TEXTURE_LINES = 21_657;
+    private static final int RULES_LINES = 21_060;
+    private static final int LOADING_LINES = 13_330;
+    private static final int SPEC_LINES = 12_932;
+    private static final int SPREADSHEET_LINES = 16_594;
+    // background threads
+    private static final int SCRIPT_LINES = 28_963;
+    private static final int SOUND_LINES = 2_099;
+
+    public static void main(String[] args) throws Exception {
+        System.out.printf("jvm %s (%s)%n%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+        String[] names = {
+            "shipped: console + unbuffered file",
+            "no console, unbuffered file",
+            "no console, buffered file",
+            "console + buffered file",
+            "level raised, nothing emitted",
+        };
+        double[] loading = new double[names.length];
+        double[] wall = new double[names.length];
+        for (int i = 0; i < names.length; i++) {
+            double[] result = run(i);
+            loading[i] = result[0];
+            wall[i] = result[1];
+        }
+        System.out.printf("%-38s %12s %12s %12s%n", "", "loading", "wall", "vs shipped");
+        for (int i = 0; i < names.length; i++) {
+            System.out.printf("%-38s %10.3f s %10.3f s %10.3f s%n",
+                    names[i], loading[i], wall[i], loading[i] - loading[0]);
+        }
+    }
+
+    /** @return {seconds the loading thread spent logging, seconds until both threads finished} */
+    private static double[] run(int mode) throws Exception {
+        File log = File.createTempFile("preflight-logging-bench", ".log");
+        log.deleteOnExit();
+        Properties config = new Properties();
+        String appenders = (mode == 0 || mode == 3) ? "ConsoleAppender, file" : "file";
+        config.setProperty("log4j.rootLogger", (mode == 4 ? "ERROR, " : "INFO, ") + appenders);
+        config.setProperty("log4j.appender.ConsoleAppender", "org.apache.log4j.ConsoleAppender");
+        config.setProperty("log4j.appender.ConsoleAppender.layout", "org.apache.log4j.PatternLayout");
+        config.setProperty("log4j.appender.ConsoleAppender.layout.ConversionPattern",
+                "%-4r [%t] %-5p %c %x - %m%n");
+        config.setProperty("log4j.appender.file", "org.apache.log4j.RollingFileAppender");
+        config.setProperty("log4j.appender.file.File", log.getAbsolutePath());
+        config.setProperty("log4j.appender.file.layout", "org.apache.log4j.PatternLayout");
+        config.setProperty("log4j.appender.file.layout.ConversionPattern",
+                "%-4r [%t] %-5p %c %x - %m%n");
+        config.setProperty("log4j.appender.file.MaxFileSize", "50000KB");
+        config.setProperty("log4j.appender.file.MaxBackupIndex", "3");
+        if (mode == 2 || mode == 3) {
+            config.setProperty("log4j.appender.file.BufferedIO", "true");
+            config.setProperty("log4j.appender.file.BufferSize", "65536");
+        }
+        org.apache.log4j.LogManager.resetConfiguration();
+        PropertyConfigurator.configure(config);
+
+        warm();
+
+        CountDownLatch go = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        Thread background = new Thread(() -> {
+            try {
+                go.await();
+                Logger scripts = Logger.getLogger("com.fs.starfarer.loading.scripts.ScriptStore");
+                Logger sound = Logger.getLogger("sound.Sound");
+                for (int i = 0; i < SCRIPT_LINES; i++) {
+                    scripts.info("Compiling script [data/scripts/plugins/SomeModPlugin_" + i + "]");
+                }
+                for (int i = 0; i < SOUND_LINES; i++) {
+                    sound.info("Loading sound [sounds/effect_" + i + ".ogg]");
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } finally {
+                done.countDown();
+            }
+        }, "Thread-4");
+        background.setDaemon(true);
+        background.start();
+
+        long t0 = System.nanoTime();
+        go.countDown();
+        emitLoadingThread();
+        double loadingSeconds = (System.nanoTime() - t0) / 1e9;
+        done.await();
+        org.apache.log4j.LogManager.shutdown();
+        return new double[] {loadingSeconds, (System.nanoTime() - t0) / 1e9};
+    }
+
+    private static void warm() {
+        Logger warm = Logger.getLogger("warm");
+        for (int i = 0; i < 3_000; i++) {
+            warm.info("Loading JSON from [data/hulls/warm_" + i + ".ship]");
+        }
+    }
+
+    /** The five message shapes that make up the loading thread's log, formatting included. */
+    private static void emitLoadingThread() {
+        Logger textures = Logger.getLogger("com.fs.graphics.TextureLoader");
+        Logger rules = Logger.getLogger("com.fs.starfarer.campaign.rules.Rules");
+        Logger loading = Logger.getLogger("com.fs.starfarer.loading.LoadingUtils");
+        Logger spec = Logger.getLogger("com.fs.starfarer.loading.SpecStore");
+        Logger sheet = Logger.getLogger("com.fs.starfarer.loading.WeaponSpreadsheetLoader");
+        for (int i = 0; i < TEXTURE_LINES; i++) {
+            textures.info(String.format("Cleaned buffer for texture %s (using reflection)",
+                    "graphics/ships/some_faction/some_ship_" + i + "_SHIP_normal.png"));
+        }
+        for (int i = 0; i < RULES_LINES; i++) {
+            rules.info("Loaded rule [some_mod_rule_" + i + "] for trigger [OpenInteractionDialog]");
+        }
+        for (int i = 0; i < LOADING_LINES; i++) {
+            loading.info("Loading JSON from [data/hulls/skins/some_ship_variant_" + i + ".skin]");
+        }
+        for (int i = 0; i < SPEC_LINES; i++) {
+            spec.info("Loaded spec with id [some_mod_spec_" + i + "]");
+        }
+        for (int i = 0; i < SPREADSHEET_LINES; i++) {
+            sheet.info("Loading weapon [some_mod_weapon_" + i + "]");
+        }
+    }
+}
