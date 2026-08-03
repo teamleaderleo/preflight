@@ -68,6 +68,35 @@ class ResourceProbeRuntimeTest {
     }
 
     @Test
+    void aNameThatDiffersOnlyByCaseGetsTheAnswerTheFilesystemGives() throws Exception {
+        // Two mods on the measured install ship `ship_names.JSON` and `MPC_spearhead.ship` while
+        // the game asks for `ship_names.json` and `MPC_spearHead.ship`. macOS and Windows open
+        // those; comparing listed names as strings does not, and the files vanish. Whether this
+        // disk agrees is the filesystem's call, so assert against it rather than against a guess.
+        Files.createDirectories(root.resolve("data/strings"));
+        Files.writeString(root.resolve("data/strings/ship_names.JSON"), "{}");
+
+        File asked = root.resolve("data/strings/ship_names.json").toFile();
+        assertEquals(asked.exists(), ResourceProbeRuntime.exists(asked),
+                "a case-only difference must resolve exactly as the filesystem resolves it");
+        assertEquals(1L, ResourceProbeRuntime.report().get("probesDeferredToTheFilesystem"));
+    }
+
+    @Test
+    void aNameThatFoldsToNothingHereIsAnsweredWithoutTheFilesystem() throws Exception {
+        Files.createDirectories(root.resolve("data/strings"));
+        Files.writeString(root.resolve("data/strings/ship_names.JSON"), "{}");
+
+        assertFalse(ResourceProbeRuntime.exists(
+                root.resolve("data/strings/weapon_names.json").toFile()));
+        // Nothing in the directory folds to that name, so no filesystem could have matched it and
+        // there is nothing to ask.
+        Map<String, Object> report = ResourceProbeRuntime.report();
+        assertEquals(0L, report.get("probesDeferredToTheFilesystem"));
+        assertEquals(1L, report.get("probesAnsweredWithoutSyscall"));
+    }
+
+    @Test
     void aDisabledRuntimeIsExactlyFileExists() throws Exception {
         ResourceProbeRuntime.enable(false);
         Files.createDirectories(root.resolve("data"));
