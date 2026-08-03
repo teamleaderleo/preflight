@@ -23,6 +23,10 @@ public final class JaninoBytecodeCacheRuntime {
     private static final AtomicLong ERRORS = new AtomicLong();
     private static final AtomicLong STORED = new AtomicLong();
     private static final AtomicLong POLICY_DECLINED = new AtomicLong();
+    private static final AtomicLong INSIDE_NANOS = new AtomicLong();
+    private static final AtomicLong HIT_NANOS = new AtomicLong();
+    private static final AtomicLong ORIGINAL_NANOS = new AtomicLong();
+    private static final AtomicLong POLICY_DECLINED_NANOS = new AtomicLong();
     private static final ConcurrentHashMap<Class<?>, PolicyAccess> POLICY = new ConcurrentHashMap<>();
 
     private static volatile State state = State.disabled();
@@ -38,6 +42,10 @@ public final class JaninoBytecodeCacheRuntime {
         ERRORS.set(0);
         STORED.set(0);
         POLICY_DECLINED.set(0);
+        INSIDE_NANOS.set(0);
+        HIT_NANOS.set(0);
+        ORIGINAL_NANOS.set(0);
+        POLICY_DECLINED_NANOS.set(0);
         POLICY.clear();
         state = State.disabled();
     }
@@ -71,22 +79,32 @@ public final class JaninoBytecodeCacheRuntime {
     public static Map<String, byte[]> generate(Object loader, String requestedClassName)
             throws ClassNotFoundException {
         CALLS.incrementAndGet();
-        State current = state;
-        if (current.cacheRoot == null || current.context == null) {
-            return invokeOriginal(loader, requestedClassName);
-        }
-        if (!livePolicyMatches(loader)) {
-            POLICY_DECLINED.incrementAndGet();
-            return invokeOriginal(loader, requestedClassName);
-        }
+        long started = System.nanoTime();
+        TimingPath timingPath = TimingPath.ORIGINAL;
+        try {
+            State current = state;
+            if (current.cacheRoot == null || current.context == null) {
+                return invokeOriginal(loader, requestedClassName);
+            }
+            if (!livePolicyMatches(loader)) {
+                POLICY_DECLINED.incrementAndGet();
+                timingPath = TimingPath.POLICY_DECLINED;
+                return invokeOriginal(loader, requestedClassName);
+            }
 
-        GeneratedBytecodeCacheWrapper.Result result = GeneratedBytecodeCacheWrapper.generate(
-                current.cacheRoot,
-                current.context,
-                requestedClassName,
-                ignored -> invokeOriginal(loader, requestedClassName));
-        count(result);
-        return (Map<String, byte[]>) result.classes();
+            GeneratedBytecodeCacheWrapper.Result result = GeneratedBytecodeCacheWrapper.generate(
+                    current.cacheRoot,
+                    current.context,
+                    requestedClassName,
+                    ignored -> invokeOriginal(loader, requestedClassName));
+            count(result);
+            timingPath = result.source() == GeneratedBytecodeCacheWrapper.Source.CACHE_HIT
+                    ? TimingPath.HIT
+                    : TimingPath.ORIGINAL;
+            return (Map<String, byte[]>) result.classes();
+        } finally {
+            recordTiming(timingPath, System.nanoTime() - started);
+        }
     }
 
     static Map<String, Object> telemetry() {
@@ -101,7 +119,25 @@ public final class JaninoBytecodeCacheRuntime {
         values.put("errors", ERRORS.get());
         values.put("stored", STORED.get());
         values.put("livePolicyDeclined", POLICY_DECLINED.get());
+        values.put("insideMillis", millis(INSIDE_NANOS.get()));
+        values.put("hitInsideMillis", millis(HIT_NANOS.get()));
+        values.put("originalInsideMillis", millis(ORIGINAL_NANOS.get()));
+        values.put("livePolicyDeclinedInsideMillis", millis(POLICY_DECLINED_NANOS.get()));
         return values;
+    }
+
+    private static void recordTiming(TimingPath path, long nanos) {
+        long elapsed = Math.max(0, nanos);
+        INSIDE_NANOS.addAndGet(elapsed);
+        switch (path) {
+            case HIT -> HIT_NANOS.addAndGet(elapsed);
+            case ORIGINAL -> ORIGINAL_NANOS.addAndGet(elapsed);
+            case POLICY_DECLINED -> POLICY_DECLINED_NANOS.addAndGet(elapsed);
+        }
+    }
+
+    private static long millis(long nanos) {
+        return nanos / 1_000_000L;
     }
 
     private static void count(GeneratedBytecodeCacheWrapper.Result result) {
@@ -176,6 +212,12 @@ public final class JaninoBytecodeCacheRuntime {
         static State disabled() {
             return new State(null, null, "disabled");
         }
+    }
+
+    private enum TimingPath {
+        HIT,
+        ORIGINAL,
+        POLICY_DECLINED
     }
 
     private static final class PolicyAccess {
