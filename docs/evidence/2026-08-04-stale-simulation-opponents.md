@@ -5,7 +5,7 @@
 **Input:** gameplay pilots `gameplay-pilot-20260804-033528` and
 `gameplay-pilot-20260804-042009`, installed Starsector 0.98a-RC8 mod data and bytecode
 
-**Status:** root cause established; exact consumption-site guard implemented and verified offline
+**Status:** exact consumption-site guard live-validated; roster expansion remains separate work
 
 The follow-up gameplay pilot appeared to have no possible simulation opponents. Its console contains
 25 distinct `is not a valid ship variant id` reports from
@@ -45,5 +45,19 @@ copy-on-invalid behavior, shared-list non-mutation, reflection fail-open, the ki
 bytecode shape, wrong hashes, and duplicate transformation. An opt-in installed-archive test also
 transformed the actual reviewed `starfarer_obf.jar` class and found exactly the two expected sites;
 the transformed class then linked successfully on Starsector's own Java 17 with its production
-verification setting. No game was launched for this implementation. A short refit-simulator pilot
-remains the final behavioral check.
+verification setting.
+
+## Live result and remaining roster gap
+
+The `sim-opponent-safety-20260804-044915` pilot applied 16 reviewed transformations with no decline,
+contained failure, or health mismatch. The simulator guard received 535 configured rows, removed the
+25 known-invalid ids, and returned 510 valid rows. `failOpen` remained zero and the console contained
+no invalid-variant errors. This establishes the guard's intended behavior.
+
+The pilot still did not present what the user considered the full enemy roster. That is a different
+boundary: the variant cache rehydrated 5,573 variant definitions, while merged
+`sim_opponents.csv` files opted in only 535 rows. The guard repairs safety at the curated list's
+consumption seam; it deliberately does not add unlisted variants. Blindly supplying every loaded
+definition would also include alternate loadouts, hidden/dev variants, armor and station modules,
+and other specs that are not standalone simulator opponents. Any roster expansion therefore needs
+an explicit deployability classifier and its own compatibility evidence.
