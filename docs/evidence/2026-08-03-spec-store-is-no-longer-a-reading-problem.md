@@ -119,11 +119,80 @@ Disassembling the seven largest uncached top-level loaders names them, which not
 | merged reads, cached and uncached | ~2.0 |
 | live object construction and everything else | ~4.9 |
 
-**The 1.50s is the surprise.** `variant-json-merge-parse` still costs 508ms across 5,138 *hits* --
-99µs each, spent rebuilding a fresh `JSONObject` from stored text because the value handed to the
-game has to be one it may mutate. The caches removed the reading and kept the parsing. A
-representation that rehydrates cheaper is worth up to 1.5s and touches no game behaviour, which
-makes it the least risky item on this list.
+**That 1.50s is not what it looks like, and the correction is the rest of this document.**
+
+## The 1.50s was 0.39s of parsing and 0.95s of reading
+
+`variant-json-merge-parse` costs 508ms across 5,138 hits, which reads as 99µs of `JSONObject`
+construction each. Replaying these exact artifacts offline on the game's own JVM and json.jar parses
+all 11,689 of them in **0.155s**. Ten times apart, which is the same shape as the texture block: the
+label names one thing and measures another.
+
+A `SeamTimer` inside the four caches, around the `newInstance` call and nothing else, settles it:
+
+| | the loader's subphase | rehydration inside it |
+| --- | ---: | ---: |
+| variant | 417 ms | 76 ms |
+| weapon | 268 ms | 74 ms |
+| hull | 351 ms | 168 ms |
+| projectile | 307 ms | 76 ms |
+| **total** | **1,343 ms** | **394 ms** |
+
+1,343 − 394 = **949 ms**, and the merged-read probe independently attributed **953 ms** to cache
+fallbacks. Two instruments that share no code, four milliseconds apart. The subphase was never
+mostly parsing; it was mostly the calls the cache could not answer.
+
+(The 0.155s offline against 0.394s in the game is a 2.5x gap, which is JIT warm-up and a heap that
+already holds the game's data. That is a believable difference. Ten times was not.)
+
+## Why 895 calls could never be answered
+
+Every one of them is a core-game spec, and **a core-game spec reaches the loader as an absolute
+path** through the install directory. The caches keyed on `ResourceIndex.normalizeLogicalPath`,
+which refuses an absolute path outright; the runtimes caught the exception and returned null. So
+those calls missed, and the capture that follows a miss normalized the same path and dropped it too.
+They were invisible in both directions, launch after launch, which is why the fallback counts were
+identical to the unit across every run ever recorded: 435 variants, 200 hulls, 156 weapons, 104
+projectiles.
+
+The fix is not to canonicalize the absolute path onto the relative one. **They are different
+requests**: reading `data/variants/wolf.variant` merges every root that provides it, while reading
+`<install>/data/variants/wolf.variant` names one file, and folding them together would serve a mod's
+overlay where vanilla returned the core file alone. `SpecCacheKey` gives an absolute path its own
+key, marked `abs:`, with the install prefix dropped so an artifact survives the install moving.
+
+Dropping the prefix means two absolute paths could in principle claim one key. Nothing observed
+does, so rather than trusting that, a repeat capture is compared against what is already held and
+the key is refused outright when the two disagree -- a collision that is never served cannot serve
+the wrong spec. Zero collisions on this profile.
+
+### Measured
+
+One learning launch captured 435 / 156 / 200 / 104 and published all four artifacts. The launch
+after it:
+
+| | before | after |
+| --- | ---: | ---: |
+| cache fallbacks | 895 | **0** |
+| the four merge-parse subphases | 1,343 ms | **591 ms** |
+| merged reads, whole launch | 2,366 calls / 2,857 ms | **1,471 calls / 2,142 ms** |
+| merged reads on an absolute path | 1,005 calls / 953 ms | 110 calls / 72 ms |
+
+**-752 ms** by the subphase and **-715 ms** by the merged-read probe: the same change, measured
+twice, 37 ms apart. Hits went 12,584 -> 13,584 with zero misses, zero collisions, and no change to
+what the caches serve for a relative path.
+
+The main menu came up at 34.76s, 35.12s, and 34.52s across the three launches, which says nothing:
+run-to-run variance on this profile is about ±1.4s, so a 0.75s change is not visible at that level
+and the subphase numbers are the claim.
+
+## What is left of the rehydration idea
+
+394 ms, not 1.50 s. An artifact that stores the shape instead of the text -- capture walks the object
+vanilla produced and writes a tagged tree; a hit rebuilds it with `put()` calls, scanning no
+characters and inferring no types -- was measured offline against these artifacts at **6.3x**, with
+all 11,689 entries round-tripping identically. That is worth roughly 0.33 s of the 0.39 s and needs
+a format change. It is now the smallest of the remaining items rather than the largest.
 
 ## What this rules out
 
@@ -136,6 +205,10 @@ digest profiles. The same 1.90s is reachable from one place.
 ```bash
 scripts/probe-launch.sh --label merged-reads -- --fast
 ```
+
+Runs: `merged-reads-20260803-215048` (the survey), `rehydrate-20260803-220721` (the split),
+`abs-learn2-20260803-221219` (learning), `abs-warm-20260803-221541` (all four caches complete).
+The offline parse comparison is `2026-08-03-rehydrate-benchmark.java.txt`.
 
 `adapter-startup-phases.json` gains a `mergedReads` array, one row per `(kind, group)`, where a
 named spreadsheet is its own group and a directory of spec files is one group. The probe is on

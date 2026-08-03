@@ -15,10 +15,11 @@ public record PreparedProjectileJsonCache(
         profileIdentitySha256 = profileIdentitySha256.toLowerCase(java.util.Locale.ROOT);
         TreeMap<String, String> copy = new TreeMap<>();
         for (Map.Entry<String, String> item : entries.entrySet()) {
-            String path = ResourceIndex.normalizeLogicalPath(item.getKey());
-            boolean weapon = path.startsWith("data/weapons/proj/");
-            boolean shipSystem = path.startsWith("data/shipsystems/proj/");
-            if ((!weapon && !shipSystem) || !path.endsWith(".proj")) {
+            String path = SpecCachePaths.normalizeKey(item.getKey());
+            String logical = SpecCachePaths.logicalPath(path);
+            boolean weapon = logical.startsWith("data/weapons/proj/");
+            boolean shipSystem = logical.startsWith("data/shipsystems/proj/");
+            if ((!weapon && !shipSystem) || !logical.endsWith(".proj")) {
                 throw new IllegalArgumentException("Not a projectile definition path: " + path);
             }
             String json = item.getValue();

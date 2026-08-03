@@ -1,0 +1,278 @@
+import dev.starsector.preflight.core.PreparedHullJsonCacheIO;
+import dev.starsector.preflight.core.PreparedProjectileJsonCacheIO;
+import dev.starsector.preflight.core.PreparedVariantJsonCacheIO;
+import dev.starsector.preflight.core.PreparedWeaponJsonCacheIO;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+/**
+ * What the four JSON caches spend on a hit, and what a typed artifact would spend instead.
+ *
+ * <p>A hit currently costs {@code new JSONObject(storedText)}: the game's 2010-era json.jar reads
+ * every character through a synchronized {@code StringReader}, infers a type for every unquoted
+ * token, and unescapes every string. A probed launch measured 1.50 s of that across 11,689 hits.
+ *
+ * <p>The alternative measured here stores the shape rather than the text. Capture walks the object
+ * vanilla produced and writes a tagged tree; a hit decodes that tree and rebuilds the game's
+ * JSONObject with put() calls, so no character is ever scanned and no type is ever inferred -- the
+ * type is whatever vanilla had, recorded at bake time.
+ *
+ * <p>Every entry is checked both ways before either is timed.
+ */
+public class RehydrateBench {
+    private static final byte NULL = 0, FALSE = 1, TRUE = 2, INT = 3, LONG = 4, DOUBLE = 5,
+            STRING = 6, OBJECT = 7, ARRAY = 8;
+
+    public static void main(String[] args) throws Exception {
+        System.out.printf("jvm %s (%s)%n%n", System.getProperty("java.version"),
+                System.getProperty("os.arch"));
+        Path root = Path.of(System.getProperty("user.home"), ".starsector-preflight/cache/spec-store");
+
+        List<String> texts = new ArrayList<>();
+        texts.addAll(PreparedVariantJsonCacheIO.read(find(root, "variant-json", ".spvj")).entries().values());
+        int variants = texts.size();
+        texts.addAll(PreparedWeaponJsonCacheIO.read(find(root, "weapon-json", ".spwj")).entries().values());
+        texts.addAll(PreparedHullJsonCacheIO.read(find(root, "hull-json", ".sphj")).entries().values());
+        texts.addAll(PreparedProjectileJsonCacheIO.read(find(root, "projectile-json", ".sppj")).entries().values());
+        System.out.printf("%d entries (%d variants), %.1f MB of stored text%n",
+                texts.size(), variants,
+                texts.stream().mapToLong(String::length).sum() / 1e6);
+
+        List<byte[]> encoded = new ArrayList<>(texts.size());
+        long encodedBytes = 0;
+        for (String text : texts) {
+            byte[] bytes = encode(new JSONObject(text));
+            encoded.add(bytes);
+            encodedBytes += bytes.length;
+        }
+        System.out.printf("%.1f MB of tagged tree%n%n", encodedBytes / 1e6);
+
+        // Equivalence first: a faster wrong answer is not an answer.
+        for (int i = 0; i < texts.size(); i++) {
+            String fromText = canonical(new JSONObject(texts.get(i)));
+            String fromTree = canonical(decode(encoded.get(i)));
+            if (!fromText.equals(fromTree)) {
+                System.out.println("MISMATCH at entry " + i);
+                System.out.println("  text: " + fromText.substring(0, Math.min(300, fromText.length())));
+                System.out.println("  tree: " + fromTree.substring(0, Math.min(300, fromTree.length())));
+                return;
+            }
+        }
+        System.out.println("all " + texts.size() + " entries round-trip identically\n");
+
+        for (int round = 0; round < 3; round++) {
+            long parse = time(() -> {
+                try {
+                    for (String text : texts) {
+                        sink(new JSONObject(text));
+                    }
+                } catch (org.json.JSONException impossible) {
+                    throw new IllegalStateException(impossible);
+                }
+            });
+            long tree = time(() -> {
+                for (byte[] bytes : encoded) {
+                    sink(decode(bytes));
+                }
+            });
+            System.out.printf("round %d   parse stored text %6.3f s   decode tagged tree %6.3f s   %.2fx%n",
+                    round, parse / 1e9, tree / 1e9, (double) parse / tree);
+        }
+    }
+
+    private static int held;
+
+    private static void sink(Object value) {
+        held += value.hashCode() & 1;
+    }
+
+    private static long time(Runnable work) {
+        long start = System.nanoTime();
+        work.run();
+        return System.nanoTime() - start;
+    }
+
+    private static Path find(Path root, String directory, String suffix) throws Exception {
+        try (var files = java.nio.file.Files.list(root.resolve(directory))) {
+            return files.filter(p -> p.toString().endsWith(suffix)).findFirst().orElseThrow();
+        }
+    }
+
+    // --- the tagged tree ------------------------------------------------------------------
+
+    private static byte[] encode(JSONObject object) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(4096);
+        writeValue(out, object);
+        return out.toByteArray();
+    }
+
+    private static void writeValue(ByteArrayOutputStream out, Object value) throws Exception {
+        if (value == null || JSONObject.NULL.equals(value)) {
+            out.write(NULL);
+        } else if (value instanceof Boolean flag) {
+            out.write(flag ? TRUE : FALSE);
+        } else if (value instanceof Integer number) {
+            out.write(INT);
+            writeVarInt(out, number);
+        } else if (value instanceof Long number) {
+            out.write(LONG);
+            writeLong(out, number);
+        } else if (value instanceof Double || value instanceof Float) {
+            out.write(DOUBLE);
+            writeLong(out, Double.doubleToRawLongBits(((Number) value).doubleValue()));
+        } else if (value instanceof JSONObject nested) {
+            out.write(OBJECT);
+            writeVarInt(out, nested.length());
+            for (Iterator<?> keys = nested.keys(); keys.hasNext(); ) {
+                String key = (String) keys.next();
+                writeString(out, key);
+                writeValue(out, nested.get(key));
+            }
+        } else if (value instanceof JSONArray array) {
+            out.write(ARRAY);
+            writeVarInt(out, array.length());
+            for (int i = 0; i < array.length(); i++) {
+                writeValue(out, array.get(i));
+            }
+        } else {
+            out.write(STRING);
+            writeString(out, value.toString());
+        }
+    }
+
+    private static Object decode(byte[] bytes) {
+        return readValue(bytes, new int[] {0});
+    }
+
+    private static Object readValue(byte[] bytes, int[] at) {
+        byte tag = bytes[at[0]++];
+        switch (tag) {
+            case NULL: return JSONObject.NULL;
+            case FALSE: return Boolean.FALSE;
+            case TRUE: return Boolean.TRUE;
+            case INT: return readVarInt(bytes, at);
+            case LONG: return readLong(bytes, at);
+            case DOUBLE: return Double.longBitsToDouble(readLong(bytes, at));
+            case STRING: return readString(bytes, at);
+            case OBJECT: {
+                int count = readVarInt(bytes, at);
+                JSONObject object = new JSONObject();
+                try {
+                    for (int i = 0; i < count; i++) {
+                        String key = readString(bytes, at);
+                        object.put(key, readValue(bytes, at));
+                    }
+                } catch (org.json.JSONException impossible) {
+                    throw new IllegalStateException(impossible);
+                }
+                return object;
+            }
+            case ARRAY: {
+                int count = readVarInt(bytes, at);
+                JSONArray array = new JSONArray();
+                for (int i = 0; i < count; i++) {
+                    array.put(readValue(bytes, at));
+                }
+                return array;
+            }
+            default: throw new IllegalStateException("tag " + tag);
+        }
+    }
+
+    private static void writeString(ByteArrayOutputStream out, String value) {
+        byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
+        writeVarInt(out, utf8.length);
+        out.write(utf8, 0, utf8.length);
+    }
+
+    private static String readString(byte[] bytes, int[] at) {
+        int length = readVarInt(bytes, at);
+        String value = new String(bytes, at[0], length, StandardCharsets.UTF_8);
+        at[0] += length;
+        return value;
+    }
+
+    private static void writeVarInt(ByteArrayOutputStream out, int value) {
+        int remaining = value;
+        while ((remaining & ~0x7F) != 0) {
+            out.write((remaining & 0x7F) | 0x80);
+            remaining >>>= 7;
+        }
+        out.write(remaining);
+    }
+
+    private static int readVarInt(byte[] bytes, int[] at) {
+        int result = 0;
+        int shift = 0;
+        while (true) {
+            byte current = bytes[at[0]++];
+            result |= (current & 0x7F) << shift;
+            if ((current & 0x80) == 0) {
+                return result;
+            }
+            shift += 7;
+        }
+    }
+
+    private static void writeLong(ByteArrayOutputStream out, long value) {
+        for (int i = 7; i >= 0; i--) {
+            out.write((int) (value >>> (i * 8)) & 0xFF);
+        }
+    }
+
+    private static long readLong(byte[] bytes, int[] at) {
+        long result = 0;
+        for (int i = 0; i < 8; i++) {
+            result = (result << 8) | (bytes[at[0]++] & 0xFF);
+        }
+        return result;
+    }
+
+    // --- equivalence ----------------------------------------------------------------------
+
+    /** Key-sorted, type-tagged dump: json.jar stores keys in a HashMap, so order proves nothing. */
+    private static String canonical(Object value) throws Exception {
+        StringBuilder text = new StringBuilder();
+        appendCanonical(text, value);
+        return text.toString();
+    }
+
+    private static void appendCanonical(StringBuilder text, Object value) throws Exception {
+        if (value == null || JSONObject.NULL.equals(value)) {
+            text.append("null");
+        } else if (value instanceof JSONObject object) {
+            Map<String, Object> sorted = new TreeMap<>();
+            for (Iterator<?> keys = object.keys(); keys.hasNext(); ) {
+                String key = (String) keys.next();
+                sorted.put(key, object.get(key));
+            }
+            text.append('{');
+            for (Map.Entry<String, Object> entry : sorted.entrySet()) {
+                text.append(entry.getKey()).append(':');
+                appendCanonical(text, entry.getValue());
+                text.append(',');
+            }
+            text.append('}');
+        } else if (value instanceof JSONArray array) {
+            text.append('[');
+            for (int i = 0; i < array.length(); i++) {
+                appendCanonical(text, array.get(i));
+                text.append(',');
+            }
+            text.append(']');
+        } else {
+            text.append(value.getClass().getSimpleName()).append('(').append(value).append(')');
+        }
+    }
+
+    private static final Map<String, Object> UNUSED = new LinkedHashMap<>();
+}
