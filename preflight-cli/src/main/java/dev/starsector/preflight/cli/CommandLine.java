@@ -33,6 +33,7 @@ record CommandLine(
         boolean preparedAudio,
         boolean loadJsonMemo,
         boolean ruleCommandClassCache,
+        boolean graphicsLibCompactReplay,
         boolean directLaunch,
         boolean quietLogs,
         List<String> forwardedArgs) {
@@ -55,6 +56,7 @@ record CommandLine(
         boolean preparedAudio = false;
         boolean loadJsonMemo = false;
         boolean ruleCommandClassCache = false;
+        boolean graphicsLibCompactReplay = false;
         boolean directLaunch = false;
         boolean quietLogs = false;
         AdapterMode adapterMode = AdapterMode.OFF;
@@ -106,6 +108,7 @@ record CommandLine(
                 case "--prepared-audio" -> preparedAudio = true;
                 case "--loadjson-memo" -> loadJsonMemo = true;
                 case "--rule-command-cache" -> ruleCommandClassCache = true;
+                case "--graphicslib-compact-replay" -> graphicsLibCompactReplay = true;
                 case "--direct" -> directLaunch = true;
                 case "--quiet-logs" -> quietLogs = true;
                 // One flag for "everything that has landed and is safe to turn on". The individual
@@ -198,6 +201,9 @@ record CommandLine(
         if (ruleCommandClassCache && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--rule-command-cache requires --adapter");
         }
+        if (graphicsLibCompactReplay && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--graphicslib-compact-replay requires --adapter");
+        }
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
         }
@@ -233,6 +239,7 @@ record CommandLine(
                 preparedAudio,
                 loadJsonMemo,
                 ruleCommandClassCache,
+                graphicsLibCompactReplay,
                 directLaunch,
                 quietLogs,
                 List.copyOf(forwarded));

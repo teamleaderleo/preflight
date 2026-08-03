@@ -103,6 +103,22 @@ class CommandLineAdapterTest {
     }
 
     @Test
+    void graphicsLibCompactReplayRequiresTheEnabledAdapterAndStaysOutOfFastForBeta() {
+        CommandLine enabled = CommandLine.parse(
+                new String[] {"run", "--adapter", "--graphicslib-compact-replay"}, 1);
+        assertEquals(true, enabled.graphicsLibCompactReplay());
+        assertEquals(false,
+                CommandLine.parse(new String[] {"run", "--fast"}, 1).graphicsLibCompactReplay());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--graphicslib-compact-replay"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--graphicslib-compact-replay"}, 1));
+    }
+
+    @Test
     void textureAutoResolvesTheCacheForEitherTextureMode() {
         // Auto decides *which* manifest and index to use; the mode decides which TextureLoader
         // target reads them. They are independent -- both modes configure from the same call and

@@ -141,6 +141,11 @@ final class AdapterTransformationRegistry {
                     ? PreparedAudioPlan.transform(signature, originalBytes)
                     : null;
         }
+        if (GraphicsLibCompactReplayPlan.PLAN_ID.equals(target.planId())) {
+            return GraphicsLibCompactReplayPlan.ready()
+                    ? GraphicsLibCompactReplayPlan.transform(signature)
+                    : null;
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -399,6 +404,9 @@ final class AdapterTransformationRegistry {
         }
         if (MergedReadCacheRuntime.PLAN_ID.equals(planId)) {
             return MergedReadCacheRuntime.ready();
+        }
+        if (GraphicsLibCompactReplayPlan.PLAN_ID.equals(planId)) {
+            return GraphicsLibCompactReplayPlan.ready();
         }
         return false;
     }
