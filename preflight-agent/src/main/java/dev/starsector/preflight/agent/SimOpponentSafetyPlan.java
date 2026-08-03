@@ -26,6 +26,7 @@ final class SimOpponentSafetyPlan {
 
     private static final String SPEC_STORE = "com/fs/starfarer/loading/SpecStore";
     private static final String MISSION = "com/fs/starfarer/title/C/OO0O";
+    private static final String COMBAT_ENGINE = "com/fs/starfarer/combat/CombatEngine";
     private static final String OPPONENTS_METHOD = "o00000";
     private static final String OPPONENTS_DESCRIPTOR = "()Ljava/util/List;";
     private static final String RUNTIME =
@@ -83,7 +84,10 @@ final class SimOpponentSafetyPlan {
         List<AbstractInsnNode> returns = opcodes(simulation, Opcodes.ARETURN);
         List<MethodInsnNode> loads = calls(
                 launch, MISSION, "load", "()V", Opcodes.INVOKEVIRTUAL);
-        if (adds.size() != EXPECTED_ADD_SITES || returns.size() != 1 || loads.size() != 1) {
+        List<MethodInsnNode> combatInitializations = calls(
+                launch, COMBAT_ENGINE, "init", "()V", Opcodes.INVOKEVIRTUAL);
+        if (adds.size() != EXPECTED_ADD_SITES || returns.size() != 1 || loads.size() != 1
+                || combatInitializations.size() != 1) {
             return null;
         }
         for (MethodInsnNode consumer : consumers) {
@@ -109,6 +113,15 @@ final class SimOpponentSafetyPlan {
                 Opcodes.INVOKESTATIC, RUNTIME, "recordMission",
                 "(Ljava/lang/Object;Z)V", false));
         launch.instructions.insert(loads.get(0), afterLoad);
+
+        InsnList afterCombatInitialization = new InsnList();
+        afterCombatInitialization.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, COMBAT_ENGINE, "getInstance",
+                "()Lcom/fs/starfarer/combat/CombatEngine;", false));
+        afterCombatInitialization.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "recordCombatEngine",
+                "(Ljava/lang/Object;)V", false));
+        launch.instructions.insert(combatInitializations.get(0), afterCombatInitialization);
 
         InsnList beforeReturn = new InsnList();
         beforeReturn.add(new InsnNode(Opcodes.DUP));

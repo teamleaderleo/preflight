@@ -2,10 +2,11 @@
 
 **Date:** 2026-08-04
 
-**Input:** gameplay pilots `gameplay-pilot-20260804-033528` and
-`gameplay-pilot-20260804-042009`, installed Starsector 0.98a-RC8 mod data and bytecode
+**Input:** gameplay pilots `gameplay-pilot-20260804-033528`,
+`gameplay-pilot-20260804-042009`, `no-gameplay-caches-20260804-052305`, and
+`fleet-handoff-20260804-053818`; installed Starsector 0.98a-RC8 mod data and bytecode
 
-**Status:** exact consumption-site guard live-validated; roster expansion remains separate work
+**Status:** exact consumption-site guard live-validated; downstream empty-grid diagnosis in progress
 
 The follow-up gameplay pilot appeared to have no possible simulation opponents. Its console contains
 25 distinct `is not a valid ship variant id` reports from
@@ -54,10 +55,24 @@ contained failure, or health mismatch. The simulator guard received 535 configur
 25 known-invalid ids, and returned 510 valid rows. `failOpen` remained zero and the console contained
 no invalid-variant errors. This establishes the guard's intended behavior.
 
-The pilot still did not present what the user considered the full enemy roster. That is a different
-boundary: the variant cache rehydrated 5,573 variant definitions, while merged
-`sim_opponents.csv` files opted in only 535 rows. The guard repairs safety at the curated list's
-consumption seam; it deliberately does not add unlisted variants. Blindly supplying every loaded
-definition would also include alternate loadouts, hidden/dev variants, armor and station modules,
-and other specs that are not standalone simulator opponents. Any roster expansion therefore needs
-an explicit deployability classifier and its own compatibility evidence.
+The pilot still did not present what the user considered the full enemy roster. Disabling both
+gameplay caches produced the same empty grid with both caches reporting zero calls, so neither
+speedup is involved. The `fleet-handoff-20260804-053818` pilot then established that all 510 valid
+`addToFleet` calls returned non-null members and that the enemy mission fleet contained 510 members
+both immediately before and immediately after `OO0O.load()`.
+
+Reviewing the installed stock UI bytecode rules out an intentionally empty opponent view. The refit
+simulator sets `CombatEngine.setShowEnemyDeploymentDialog(true)`. `CombatState.showDeployDialog()`
+therefore constructs the deployment dialog for owner 1. That dialog has an explicit `Opponents`
+tab, selects it for simulator mode, and builds its icon grid from
+`CombatEngine.getFleetManager(1).getReserves()`, excluding only members marked as allies. The next
+diagnostic records that exact reserve collection immediately after `CombatEngine.init()`, including
+ally/non-ally and deployed counts. This separates a mission-to-combat transfer loss from a later UI
+construction problem without changing either path.
+
+There remains a separate roster-scope distinction: the variant cache rehydrated 5,573 variant
+definitions, while merged `sim_opponents.csv` files opted in only 535 rows. The guard repairs safety
+at the curated list's consumption seam; it deliberately does not add unlisted variants. Blindly
+supplying every loaded definition would also include alternate loadouts, hidden/dev variants, armor
+and station modules, and other specs that are not standalone simulator opponents. Any roster
+expansion therefore needs an explicit deployability classifier and its own compatibility evidence.

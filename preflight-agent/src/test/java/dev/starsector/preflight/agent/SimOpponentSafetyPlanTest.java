@@ -53,6 +53,8 @@ public class SimOpponentSafetyPlanTest {
         assertNotNull(launch);
         assertEquals(1, calls(launch,
                 SimOpponentSafetyRuntime.class.getName().replace('.', '/'), "recordMission"));
+        assertEquals(1, calls(launch,
+                SimOpponentSafetyRuntime.class.getName().replace('.', '/'), "recordCombatEngine"));
     }
 
     @Test
@@ -112,6 +114,20 @@ public class SimOpponentSafetyPlanTest {
         List<String> source = List.of("missing_ship");
         assertSame(source, SimOpponentSafetyRuntime.filter(source, fakeStore()));
         assertEquals(0L, SimOpponentSafetyRuntime.telemetry().get("calls"));
+    }
+
+    @Test
+    void combatBoundaryReportsTheCollectionsUsedByTheStockOpponentGrid() {
+        SimOpponentSafetyRuntime.recordCombatEngine(new FakeCombatEngine(List.of(
+                new FakeFleetMember(false), new FakeFleetMember(false),
+                new FakeFleetMember(true)), List.of(new Object())));
+
+        Map<String, Object> report = SimOpponentSafetyRuntime.telemetry();
+        assertEquals(3L, report.get("postInitEnemyReserves"));
+        assertEquals(2L, report.get("postInitEnemyNonAllyReserves"));
+        assertEquals(1L, report.get("postInitEnemyAllyReserves"));
+        assertEquals(1L, report.get("postInitEnemyDeployed"));
+        assertEquals(0L, report.get("combatInspectionFailures"));
     }
 
     @Test
@@ -226,6 +242,13 @@ public class SimOpponentSafetyPlanTest {
         launch.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL,
                 "com/fs/starfarer/title/C/OO0O", "load", "()V", false));
+        launch.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC,
+                "com/fs/starfarer/combat/CombatEngine", "getInstance",
+                "()Lcom/fs/starfarer/combat/CombatEngine;", false));
+        launch.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL,
+                "com/fs/starfarer/combat/CombatEngine", "init", "()V", false));
         launch.instructions.add(new InsnNode(Opcodes.RETURN));
         launch.accept(writer);
         writer.visitEnd();
@@ -260,6 +283,48 @@ public class SimOpponentSafetyPlanTest {
 
         private Class<?> define(String name, byte[] bytes) {
             return defineClass(name, bytes, 0, bytes.length);
+        }
+    }
+
+    public static final class FakeCombatEngine {
+        private final FakeCombatFleetManager enemy;
+
+        public FakeCombatEngine(List<FakeFleetMember> reserves, List<Object> deployed) {
+            enemy = new FakeCombatFleetManager(reserves, deployed);
+        }
+
+        public FakeCombatFleetManager getFleetManager(int owner) {
+            return owner == 1 ? enemy : null;
+        }
+    }
+
+    public static final class FakeCombatFleetManager {
+        private final List<FakeFleetMember> reserves;
+        private final List<Object> deployed;
+
+        public FakeCombatFleetManager(List<FakeFleetMember> reserves, List<Object> deployed) {
+            this.reserves = reserves;
+            this.deployed = deployed;
+        }
+
+        public List<FakeFleetMember> getReserves() {
+            return reserves;
+        }
+
+        public List<Object> getDeployed() {
+            return deployed;
+        }
+    }
+
+    public static final class FakeFleetMember {
+        private final boolean ally;
+
+        public FakeFleetMember(boolean ally) {
+            this.ally = ally;
+        }
+
+        public boolean isAlly() {
+            return ally;
         }
     }
 }

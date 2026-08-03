@@ -4,6 +4,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,11 @@ public final class SimOpponentSafetyRuntime {
     private static final AtomicLong BEFORE_LOAD_FLEET_SIZE = new AtomicLong(-1L);
     private static final AtomicLong AFTER_LOAD_FLEET_SIZE = new AtomicLong(-1L);
     private static final AtomicLong FLEET_INSPECTION_FAILURES = new AtomicLong();
+    private static final AtomicLong POST_INIT_ENEMY_RESERVES = new AtomicLong(-1L);
+    private static final AtomicLong POST_INIT_ENEMY_NON_ALLY_RESERVES = new AtomicLong(-1L);
+    private static final AtomicLong POST_INIT_ENEMY_ALLY_RESERVES = new AtomicLong(-1L);
+    private static final AtomicLong POST_INIT_ENEMY_DEPLOYED = new AtomicLong(-1L);
+    private static final AtomicLong COMBAT_INSPECTION_FAILURES = new AtomicLong();
     private static final Map<String, Long> INVALID_IDS = new LinkedHashMap<>();
     private static final AtomicBoolean INVALID_IDS_TRUNCATED = new AtomicBoolean();
 
@@ -166,6 +172,50 @@ public final class SimOpponentSafetyRuntime {
         }
     }
 
+    /** Records the exact enemy collections consumed by the stock deployment dialog. */
+    public static void recordCombatEngine(Object combatEngine) {
+        if (combatEngine == null) {
+            COMBAT_INSPECTION_FAILURES.incrementAndGet();
+            return;
+        }
+        try {
+            Method getFleetManager = combatEngine.getClass().getMethod("getFleetManager", int.class);
+            Object enemyManager = invoke(getFleetManager, combatEngine, 1);
+            if (enemyManager == null) {
+                throw new IllegalStateException("Simulation enemy combat manager is null");
+            }
+            Collection<?> reserves = collection(enemyManager, "getReserves");
+            Collection<?> deployed = collection(enemyManager, "getDeployed");
+            long allies = 0L;
+            for (Object member : reserves) {
+                if (member == null) {
+                    throw new IllegalStateException("Simulation enemy reserve member is null");
+                }
+                Method isAlly = member.getClass().getMethod("isAlly");
+                if (Boolean.TRUE.equals(invoke(isAlly, member))) {
+                    allies++;
+                }
+            }
+            POST_INIT_ENEMY_RESERVES.set(reserves.size());
+            POST_INIT_ENEMY_ALLY_RESERVES.set(allies);
+            POST_INIT_ENEMY_NON_ALLY_RESERVES.set(reserves.size() - allies);
+            POST_INIT_ENEMY_DEPLOYED.set(deployed.size());
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            COMBAT_INSPECTION_FAILURES.incrementAndGet();
+        }
+    }
+
+    private static Collection<?> collection(Object receiver, String methodName) throws Throwable {
+        Method method = receiver.getClass().getMethod(methodName);
+        Object value = invoke(method, receiver);
+        if (!(value instanceof Collection<?> collection)) {
+            throw new IllegalStateException(methodName + " did not return a collection");
+        }
+        return collection;
+    }
+
     private static Object invoke(Method method, Object receiver, Object... arguments)
             throws Throwable {
         try {
@@ -202,6 +252,11 @@ public final class SimOpponentSafetyRuntime {
         values.put("beforeLoadEnemyFleetSize", BEFORE_LOAD_FLEET_SIZE.get());
         values.put("afterLoadEnemyFleetSize", AFTER_LOAD_FLEET_SIZE.get());
         values.put("fleetInspectionFailures", FLEET_INSPECTION_FAILURES.get());
+        values.put("postInitEnemyReserves", POST_INIT_ENEMY_RESERVES.get());
+        values.put("postInitEnemyNonAllyReserves", POST_INIT_ENEMY_NON_ALLY_RESERVES.get());
+        values.put("postInitEnemyAllyReserves", POST_INIT_ENEMY_ALLY_RESERVES.get());
+        values.put("postInitEnemyDeployed", POST_INIT_ENEMY_DEPLOYED.get());
+        values.put("combatInspectionFailures", COMBAT_INSPECTION_FAILURES.get());
         synchronized (INVALID_IDS) {
             values.put("invalidVariantIds", new LinkedHashMap<>(INVALID_IDS));
             values.put("invalidVariantIdsTruncated", INVALID_IDS_TRUNCATED.get());
@@ -220,6 +275,11 @@ public final class SimOpponentSafetyRuntime {
         BEFORE_LOAD_FLEET_SIZE.set(-1L);
         AFTER_LOAD_FLEET_SIZE.set(-1L);
         FLEET_INSPECTION_FAILURES.set(0L);
+        POST_INIT_ENEMY_RESERVES.set(-1L);
+        POST_INIT_ENEMY_NON_ALLY_RESERVES.set(-1L);
+        POST_INIT_ENEMY_ALLY_RESERVES.set(-1L);
+        POST_INIT_ENEMY_DEPLOYED.set(-1L);
+        COMBAT_INSPECTION_FAILURES.set(0L);
         INVALID_IDS_TRUNCATED.set(false);
         synchronized (INVALID_IDS) {
             INVALID_IDS.clear();
