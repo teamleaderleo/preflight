@@ -74,8 +74,18 @@ record AdapterSourceIdentity(
         try {
             URI uri = location.toURI();
             return Path.of(uri);
-        } catch (Exception ignored) {
-            return null;
+        } catch (Exception malformedUrl) {
+            // Starsector's mod URLClassLoader constructs file URLs directly from installation
+            // paths. A mod directory containing a space therefore reaches us as a valid URL whose
+            // path was never percent-escaped, and URL.toURI() rejects it. Rebuild the URI from
+            // components so URI performs that escaping; Path still resolves the exact local file.
+            try {
+                URI escaped = new URI(
+                        location.getProtocol(), location.getAuthority(), location.getPath(), null, null);
+                return Path.of(escaped);
+            } catch (Exception ignored) {
+                return null;
+            }
         }
     }
 
