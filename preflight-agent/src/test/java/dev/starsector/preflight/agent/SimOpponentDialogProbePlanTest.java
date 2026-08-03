@@ -23,10 +23,12 @@ class SimOpponentDialogProbePlanTest {
 
     @Test
     void observesTheCompletedReserveGridAndConstructor() {
-        byte[] transformed = SimOpponentDialogProbePlan.transform(signature(), fixture(1));
+        byte[] transformed = SimOpponentDialogProbePlan.transform(signature(), fixture(1, 1, 1));
         assertNotNull(transformed);
         ClassNode owner = read(transformed);
         assertEquals(1, recordCalls(method(owner, SimOpponentDialogProbePlan.GRID_METHOD)));
+        assertEquals(1, recordCalls(method(owner, SimOpponentDialogProbePlan.LAYOUT_METHOD)));
+        assertEquals(1, recordCalls(method(owner, SimOpponentDialogProbePlan.ADVANCE_METHOD)));
     }
 
     @Test
@@ -34,9 +36,11 @@ class SimOpponentDialogProbePlanTest {
         ClassSignature exact = signature();
         assertNull(SimOpponentDialogProbePlan.transform(new ClassSignature(
                 exact.internalName(), "0".repeat(64), exact.majorVersion(), exact.access(),
-                exact.methods()), fixture(1)));
-        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(2)));
-        byte[] once = SimOpponentDialogProbePlan.transform(exact, fixture(1));
+                exact.methods()), fixture(1, 1, 1)));
+        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(2, 1, 1)));
+        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(1, 2, 1)));
+        assertNull(SimOpponentDialogProbePlan.transform(exact, fixture(1, 1, 2)));
+        byte[] once = SimOpponentDialogProbePlan.transform(exact, fixture(1, 1, 1));
         assertNotNull(once);
         assertNull(SimOpponentDialogProbePlan.transform(exact, once));
     }
@@ -59,10 +63,18 @@ class SimOpponentDialogProbePlanTest {
                 List.of(new ClassSignature.Method(
                         SimOpponentDialogProbePlan.GRID_METHOD,
                         SimOpponentDialogProbePlan.GRID_DESCRIPTOR,
-                        Opcodes.ACC_PRIVATE)));
+                        Opcodes.ACC_PRIVATE),
+                        new ClassSignature.Method(
+                                SimOpponentDialogProbePlan.LAYOUT_METHOD,
+                                SimOpponentDialogProbePlan.LAYOUT_DESCRIPTOR,
+                                Opcodes.ACC_PRIVATE),
+                        new ClassSignature.Method(
+                                SimOpponentDialogProbePlan.ADVANCE_METHOD,
+                                SimOpponentDialogProbePlan.ADVANCE_DESCRIPTOR,
+                                Opcodes.ACC_PUBLIC)));
     }
 
-    private static byte[] fixture(int gridReturns) {
+    private static byte[] fixture(int gridReturns, int layoutReturns, int advanceReturns) {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
                 SimOpponentDialogProbePlan.TARGET_CLASS, null, "java/lang/Object", null);
@@ -73,6 +85,20 @@ class SimOpponentDialogProbePlanTest {
             grid.instructions.add(new InsnNode(Opcodes.RETURN));
         }
         grid.accept(writer);
+        MethodNode layout = new MethodNode(Opcodes.ACC_PRIVATE,
+                SimOpponentDialogProbePlan.LAYOUT_METHOD,
+                SimOpponentDialogProbePlan.LAYOUT_DESCRIPTOR, null, null);
+        for (int index = 0; index < layoutReturns; index++) {
+            layout.instructions.add(new InsnNode(Opcodes.RETURN));
+        }
+        layout.accept(writer);
+        MethodNode advance = new MethodNode(Opcodes.ACC_PUBLIC,
+                SimOpponentDialogProbePlan.ADVANCE_METHOD,
+                SimOpponentDialogProbePlan.ADVANCE_DESCRIPTOR, null, null);
+        for (int index = 0; index < advanceReturns; index++) {
+            advance.instructions.add(new InsnNode(Opcodes.RETURN));
+        }
+        advance.accept(writer);
         writer.visitEnd();
         return writer.toByteArray();
     }

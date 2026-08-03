@@ -13,13 +13,17 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Observes the stock opponent dialog immediately after its reserve grid is populated. */
+/** Observes the stock opponent dialog after its grid and visible layout are populated. */
 final class SimOpponentDialogProbePlan {
     static final String TARGET_CLASS = "com/fs/starfarer/ui/impl/M";
     static final String ORIGINAL_SHA256 =
             "6217ab4538886e2eaedff27aefb0ea51c027d3555b92828e09cb0df9d2f8fe57";
     static final String GRID_METHOD = "ÖØ0000";
     static final String GRID_DESCRIPTOR = "()V";
+    static final String LAYOUT_METHOD = "õ00000";
+    static final String LAYOUT_DESCRIPTOR = "(Z)V";
+    static final String ADVANCE_METHOD = "advance";
+    static final String ADVANCE_DESCRIPTOR = "(F)V";
 
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/SimOpponentSafetyRuntime";
@@ -32,23 +36,35 @@ final class SimOpponentDialogProbePlan {
         if (!TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
                 || signature.majorVersion() != 61
-                || !signature.hasMethod(GRID_METHOD, GRID_DESCRIPTOR)) {
+                || !signature.hasMethod(GRID_METHOD, GRID_DESCRIPTOR)
+                || !signature.hasMethod(LAYOUT_METHOD, LAYOUT_DESCRIPTOR)
+                || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode grid = uniqueMethod(owner, GRID_METHOD, GRID_DESCRIPTOR);
-        if (!TARGET_CLASS.equals(owner.name) || grid == null
+        MethodNode layout = uniqueMethod(owner, LAYOUT_METHOD, LAYOUT_DESCRIPTOR);
+        MethodNode advance = uniqueMethod(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+        if (!TARGET_CLASS.equals(owner.name) || grid == null || layout == null || advance == null
                 || (grid.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT
                 | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) != 0
-                || hasRecordCall(grid)) {
+                || (layout.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT
+                | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) != 0
+                || (advance.access & (Opcodes.ACC_STATIC | Opcodes.ACC_ABSTRACT
+                | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNTHETIC | Opcodes.ACC_BRIDGE)) != 0
+                || hasRecordCall(grid) || hasRecordCall(layout) || hasRecordCall(advance)) {
             return null;
         }
         List<AbstractInsnNode> gridReturns = opcodes(grid, Opcodes.RETURN);
-        if (gridReturns.size() != 1) {
+        List<AbstractInsnNode> layoutReturns = opcodes(layout, Opcodes.RETURN);
+        List<AbstractInsnNode> advanceReturns = opcodes(advance, Opcodes.RETURN);
+        if (gridReturns.size() != 1 || layoutReturns.size() != 1 || advanceReturns.size() != 1) {
             return null;
         }
         insertObservation(grid, gridReturns.get(0), 0);
+        insertObservation(layout, layoutReturns.get(0), 1);
+        insertObservation(advance, advanceReturns.get(0), 2);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
@@ -58,7 +74,12 @@ final class SimOpponentDialogProbePlan {
     private static void insertObservation(MethodNode method, AbstractInsnNode before, int phase) {
         InsnList observation = new InsnList();
         observation.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        observation.add(new InsnNode(phase == 0 ? Opcodes.ICONST_0 : Opcodes.ICONST_1));
+        observation.add(new InsnNode(switch (phase) {
+            case 0 -> Opcodes.ICONST_0;
+            case 1 -> Opcodes.ICONST_1;
+            case 2 -> Opcodes.ICONST_2;
+            default -> throw new IllegalArgumentException("Unsupported dialog phase " + phase);
+        }));
         observation.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "recordDialog", RECORD_DESCRIPTOR, false));
         method.instructions.insertBefore(before, observation);
