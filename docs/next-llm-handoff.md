@@ -138,13 +138,16 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 ### What is left, in order
 
 1. Quiet-log PR #315 merged as `eb008e8` with every Linux, macOS, and Windows check green.
-2. Tagged-spec PR #316 is open after a clean rebase onto #315 and a fresh full `mvn verify`. It was
-   already fidelity-replayed, learned, and measured in two warm launches; evidence is in
+2. Tagged-spec PR #316 merged as `f63303d`. It was fidelity-replayed, learned, and measured in two
+   warm launches; evidence is in
    `docs/evidence/2026-08-04-tagged-spec-json.md`. Its real migration also proved the merged cache's
    12,584 shadowed spec entries are pruned transactionally (17MB back to 8.0MB).
-3. Merge #316 after its required checks pass.
-4. Re-price the remaining profile. Quiet logs and tagged spec trees together remove 0.664s at their
-   direct seams, leaving only about 0.12s of the prior pair-mean gap to 33.0s; launch noise is ±1.4s.
+3. Adapter-health PR #317 is open, with the GraphicsLib compact-replay PR #318 stacked on it.
+4. The Janino complete-map cache is live-piloted and restacked on #318. Its cold/warm direct aggregate
+   fell from 18.014s to 2.364s (-15.650s, 86.9%); the same launches moved from 34.83s to 29.46s whole,
+   within the existing ±1.4s launch noise. It remains explicit beta.
+5. After the stack lands, re-price the remaining profile and continue with the combat-side
+   GraphicsLib work behind the same exact-owner, fail-open adapter boundaries.
 
 ### The traps, from the ones already hit
 
@@ -168,8 +171,10 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | --- | ---: | --- |
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
 | `--quiet-logs` | **0.403s** | merged in #315; replay + real smoke pass |
-| tagged-tree rehydration for the four spec caches | **0.261s** | PR #316; 394ms -> 132/134ms exact seam |
-| GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |
+| tagged-tree rehydration for the four spec caches | **0.261s** | merged in #316; 394ms -> 132/134ms exact seam |
+| persisted Janino complete maps | **15.650s direct aggregate / 5.37s whole launch** | exact full-profile identity; clean cold/warm live pilot, explicit beta |
+| GraphicsLib compact normal-map replay | **3.038s exact callback** | clean live adapter application; PR #318 |
+| GraphicsLib `ShaderModPlugin` | traversal share unpriced | see below |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
@@ -184,11 +189,20 @@ Normal exit and SIGTERM flush through the existing agent shutdown hook. Current 
 and a real 83-mod smoke reached the main-menu marker with a complete newline-terminated log. See
 `docs/evidence/2026-08-04-quiet-logs.md`.
 
-**GraphicsLib.** Deliberately deferred by Leo ("but later"). Grounding already gathered: its
-`loadJSON` path prices at 0.85s with a 0.22s memo ceiling, already taken by the live memo. The probe
-covering that callback recorded 7,759 JSON-load lines against 6,191 texture-buffer cleanups, so it
-loads textures in `onApplicationLoad` and those already go through the texture cache. What it does
-with them *afterwards* is unmeasured, and that is where the next probe goes.
+**GraphicsLib.** The exact 1.12.1 `TextureData` compact auto-generation replay is now on
+`codex/graphicslib-compact-replay` at `890d22d`. It replaces only the reviewed class/archive/loader,
+uses no extra nested class, passed an actual installed-archive dry transform, and remains outside
+`--fast` until a live launch. The broader `ShaderModPlugin` callback still needs attribution: its
+`loadJSON` share is already covered by the live memo, and texture loads already reach Preflight's
+texture path, so neither may be counted again.
+
+**Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
+leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and
+class providers, core JARs, the game/Janino JARs, and bundled JVM modules, plus compiler/loader/
+protection policy. Hashes overlap through `ProfileIdentityContext`; archive order is recovered from
+the in-memory resource index rather than decoding a full class-entry index. Fast Rendering's custom
+system classloader is detected and owns this seam, so Janino preparation is suppressed there while
+independent Preflight caches remain available.
 
 ## Environment notes that cost time to rediscover
 

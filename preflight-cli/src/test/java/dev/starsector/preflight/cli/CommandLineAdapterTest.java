@@ -119,6 +119,22 @@ class CommandLineAdapterTest {
     }
 
     @Test
+    void janinoBytecodeCacheRequiresTheEnabledAdapterAndStaysOutOfFastForBeta() {
+        CommandLine enabled = CommandLine.parse(
+                new String[] {"run", "--adapter", "--janino-bytecode-cache"}, 1);
+        assertEquals(true, enabled.janinoBytecodeCache());
+        assertEquals(false,
+                CommandLine.parse(new String[] {"run", "--fast"}, 1).janinoBytecodeCache());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--janino-bytecode-cache"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--janino-bytecode-cache"}, 1));
+    }
+
+    @Test
     void textureAutoResolvesTheCacheForEitherTextureMode() {
         // Auto decides *which* manifest and index to use; the mode decides which TextureLoader
         // target reads them. They are independent -- both modes configure from the same call and

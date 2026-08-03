@@ -238,6 +238,33 @@ class RunCommandIT {
         assertTrue(injected.contains(",record=off"), injected);
     }
 
+    @Test
+    void fastRenderingOwnsJaninoWithoutDisablingTheRestOfTheAdapter() throws Exception {
+        Path game = temporaryDirectory.resolve("Fast Rendering Synthetic Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path vanillaName = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        boolean windows = System.getProperty("os.name")
+                .toLowerCase(java.util.Locale.ROOT).contains("win");
+        Path launcher = game.resolve(windows ? "fr.bat" : "fr.sh");
+        Files.move(vanillaName, launcher);
+        Path trace = temporaryDirectory.resolve("fast-rendering-owner-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--adapter", "--janino-bytecode-cache", "--no-record"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        assertTrue(result.output().contains("left Janino compilation to Fast Rendering"),
+                result.output());
+        String injected = Files.readString(game.resolve("java-tool-options.txt"));
+        assertTrue(injected.contains("adapter=enabled"), injected);
+        assertFalse(injected.contains("janinoBytecodeCache"), injected);
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals("FAST_RENDERING", report.get("runtimeOwner"));
+        assertEquals(Boolean.TRUE, report.get("janinoBytecodeCache"),
+                "the receipt preserves that the user requested it even though ownership suppressed it");
+    }
+
     private static Path fakeLauncher(Path game, LauncherMode mode) throws Exception {
         boolean windows = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win");
         String clean = "100 [Thread-3] INFO com.fs.starfarer.combat.CombatMain  - synthetic clean exit";

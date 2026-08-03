@@ -146,6 +146,11 @@ final class AdapterTransformationRegistry {
                     ? GraphicsLibCompactReplayPlan.transform(signature)
                     : null;
         }
+        if (JaninoBytecodeCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return JaninoBytecodeCacheRuntime.ready()
+                    ? JaninoBytecodeCachePlan.transform(signature, originalBytes)
+                    : null;
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -407,6 +412,9 @@ final class AdapterTransformationRegistry {
         }
         if (GraphicsLibCompactReplayPlan.PLAN_ID.equals(planId)) {
             return GraphicsLibCompactReplayPlan.ready();
+        }
+        if (JaninoBytecodeCacheRuntime.PLAN_ID.equals(planId)) {
+            return JaninoBytecodeCacheRuntime.ready();
         }
         return false;
     }

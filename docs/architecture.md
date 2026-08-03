@@ -28,7 +28,9 @@ The current live texture plans are:
 - `texture-compatibility-v2`: reconstructs a decoded image from a verified prepared blob while preserving Starsector's asynchronous preloader and the rest of the original texture path. It passed bounded behavioral acceptance on Starsector 0.98a-RC8 on 2026-07-19. Repeated timing remains pending.
 - `texture-prepared-pixels-v2`: retains Starsector's upload and lifetime path while aiming to bypass decode and pixel conversion. It remains fail-closed until the installed color-transfer dataflow is represented exactly.
 
-The generated-bytecode wrapper also remains fail-open: incomplete Janino dependency evidence always calls the original generator and bypasses cache storage.
+The generated-bytecode wrapper remains fail-open: incomplete evidence calls the original generator
+and bypasses storage. Its explicit-beta live Janino plan uses a conservative whole-profile identity,
+then rechecks the live compiler policy before serving a complete mutable class map.
 
 ### `preflight-cli`
 
@@ -79,4 +81,7 @@ Content-addressed blobs may be shared by multiple profiles. Fingerprint-named ma
 
 ## Current evidence boundary
 
-Compatibility-v2 has a real behavioral acceptance result and no performance claim. The next decision point is a repeated OFF-versus-ENABLED campaign collected under one stable profile and comparable JVM/run identities. Prepared pixels, audio reuse, and Janino reuse remain gated by their exact equivalence and context requirements.
+Compatibility-v2 has a real behavioral acceptance result and no performance claim. The Janino cache
+has installed-JAR compilation/replay evidence and remains explicit beta pending one clean real launch
+and repeated OFF-versus-ENABLED timing. Performance claims still require one stable profile and
+comparable JVM/run identities.

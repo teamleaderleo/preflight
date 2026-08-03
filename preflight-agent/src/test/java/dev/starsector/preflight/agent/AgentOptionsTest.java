@@ -129,6 +129,18 @@ class AgentOptionsTest {
     }
 
     @Test
+    void parsesJaninoBytecodeCacheAndExactContext() {
+        String context = String.join(".",
+                "01".repeat(32), "02".repeat(32), "03".repeat(32), "04".repeat(32),
+                "05".repeat(32), "06".repeat(32), "07".repeat(32));
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,janinoBytecodeCache64=" + encoded("build/cache")
+                        + ",janinoBytecodeContext=" + context);
+        assertEquals(Path.of("build/cache"), options.janinoBytecodeCache());
+        assertEquals(context, options.janinoBytecodeContext());
+    }
+
+    @Test
     void parsesVariantJsonCacheArtifact() {
         AgentOptions options = AgentOptions.parse(
                 "adapter=enabled,variantJsonCache64=" + encoded("build/cache/profile.spvj"));

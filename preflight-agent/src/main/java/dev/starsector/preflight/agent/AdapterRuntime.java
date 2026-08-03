@@ -32,6 +32,7 @@ final class AdapterRuntime {
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
+        JaninoBytecodeCacheRuntime.beginSession();
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -81,6 +82,8 @@ final class AdapterRuntime {
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             MergedReadCacheRuntime.configure(options.mergedReadCache());
             GraphicsLibCompactReplayPlan.configure(options.graphicsLibCompactReplay());
+            JaninoBytecodeCacheRuntime.configure(
+                    options.janinoBytecodeCache(), options.janinoBytecodeContext());
             if (options.ruleTokenCache()) {
                 RuleTokenCacheRuntime.enable();
             }
@@ -164,6 +167,14 @@ final class AdapterRuntime {
                 } else if (options.graphicsLibCompactReplay()) {
                     report.diagnostic("GraphicsLib compact replay was requested but is unavailable ("
                             + GraphicsLibCompactReplayPlan.status() + ")");
+                }
+                if (JaninoBytecodeCacheRuntime.ready()) {
+                    registry = registry.withJaninoBytecodeCacheTarget();
+                    report.diagnostic("Loaded the exact Janino complete-map bytecode cache target ("
+                            + JaninoBytecodeCacheRuntime.status() + ")");
+                } else if (options.janinoBytecodeCache() != null) {
+                    report.diagnostic("Janino bytecode cache was requested but is unavailable ("
+                            + JaninoBytecodeCacheRuntime.status() + ")");
                 }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "

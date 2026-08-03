@@ -69,6 +69,19 @@ class GeneratedBytecodeContextEvidenceTest {
     }
 
     @Test
+    void portableTokenRoundTripsAllExactComponents() {
+        GeneratedBytecodeContext context = new GeneratedBytecodeContext(
+                hash("0"), hash("1"), hash("2"), hash("3"), hash("4"), hash("5"), hash("6"));
+        assertEquals(context, GeneratedBytecodeContext.fromPortableToken(context.portableToken()));
+        assertThrows(IllegalArgumentException.class,
+                () -> GeneratedBytecodeContext.fromPortableToken(hash("0")));
+        assertThrows(IllegalArgumentException.class,
+                () -> GeneratedBytecodeContext.fromPortableToken(
+                        String.join(".", hash("0"), hash("1"), hash("2"), hash("3"),
+                                hash("4"), hash("5"), "not-a-hash")));
+    }
+
+    @Test
     void summaryRedactsNamesSettingsAndContents() {
         String sourceName = "mods/private/source/SecretCompilerUnit.java";
         String optionValue = "/private/mod/path/with-sensitive-value";

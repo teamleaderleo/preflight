@@ -75,6 +75,7 @@ final class ProfileIdentityContext implements Closeable {
         this.resources = resources;
         this.realRoots = realRoots;
         this.workers = workers;
+        this.fileHashes.put(gameJar, gameJarSha256);
     }
 
     /** Reads the index from disk. The launcher does this once and shares the result. */
