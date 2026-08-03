@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
+import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -607,6 +608,7 @@ final class RunCommand {
                     resolved.cacheDirectory(),
                     resolved.manifest(),
                     resolved.index(),
+                    resolved.resourceIndex(),
                     true,
                     resolved.profileFingerprint(),
                     resolved.manifestSha256(),
@@ -621,6 +623,7 @@ final class RunCommand {
                 options.textureCacheDirectory().toAbsolutePath().normalize(),
                 options.textureManifest().toAbsolutePath().normalize(),
                 options.textureIndex().toAbsolutePath().normalize(),
+                null,
                 false,
                 null,
                 null,
@@ -632,10 +635,12 @@ final class RunCommand {
     /**
      * Selects every spec-store cache artifact from one pass over the launch profile.
      *
-     * <p>These six identities used to be built independently, which meant six reads of the same
+     * <p>These identities used to be built independently, which meant six reads of the same
      * 8&nbsp;MB resource index, six hashes of the same game jar, and 12,797 separate {@code
      * toRealPath} resolutions -- 1,612ms in the launcher before the JVM started. Sharing one
-     * {@link ProfileIdentityContext} removes the duplication without changing a single digest.
+     * {@link ProfileIdentityContext} removes the duplication without changing a single digest, and
+     * the context starts from the checksummed index {@link CurrentTextureCache} just read and
+     * equality-checked instead of decoding that 8&nbsp;MB artifact again.
      *
      * <p>Each cache still fails independently: an identity that cannot be built leaves that one
      * context null and vanilla loading handles that corpus, exactly as before.
@@ -650,7 +655,7 @@ final class RunCommand {
         }
         long opened = System.nanoTime();
         try (ProfileIdentityContext context =
-                     ProfileIdentityContext.open(target.installRoot(), textures.index())) {
+                     ProfileIdentityContext.of(target.installRoot(), textures.resourceIndex())) {
             System.out.printf(Locale.ROOT,
                     "Preflight read the launch profile in %.1fms (%d providers).%n",
                     (System.nanoTime() - opened) / 1_000_000.0,
@@ -834,6 +839,7 @@ final class RunCommand {
             Path cacheDirectory,
             Path manifest,
             Path index,
+            ResourceIndex resourceIndex,
             boolean automatic,
             String profileFingerprint,
             String manifestSha256,

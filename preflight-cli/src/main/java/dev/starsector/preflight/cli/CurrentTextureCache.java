@@ -66,10 +66,14 @@ final class CurrentTextureCache {
         // ResourceIndexValidator still exists and is still used where there is no freshly built
         // index to compare against -- `doctor`, and the preparation path that checks an artifact
         // long after it was written.
+        // Carry the checksummed stored index forward. RunCommand's dependency identities need the
+        // same object immediately after this; reading and decoding the 8 MB artifact again added
+        // about 0.21 s while proving nothing the equality check above had not already proved.
         return new Resolution(
                 realCache,
                 manifest,
                 index,
+                stored,
                 fingerprint,
                 Hashes.sha256(manifest),
                 Hashes.sha256(index),
@@ -104,6 +108,7 @@ final class CurrentTextureCache {
             Path cacheDirectory,
             Path manifest,
             Path index,
+            ResourceIndex resourceIndex,
             String profileFingerprint,
             String manifestSha256,
             String indexSha256,

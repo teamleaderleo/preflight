@@ -305,6 +305,9 @@ public final class JsonTree {
             long value = 0;
             for (int shift = 0; shift < 64; shift += 7) {
                 int part = next();
+                if (shift == 63 && (part & 0xFE) != 0) {
+                    throw new IllegalArgumentException("Tagged JSON varint is malformed");
+                }
                 value |= (long) (part & 0x7F) << shift;
                 if ((part & 0x80) == 0) {
                     return value;

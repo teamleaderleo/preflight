@@ -27,8 +27,10 @@ sits outside every figure the harness records. See
 
 ## In flight: the general merged-read cache
 
-Branch `perf/merged-read-cache`, one commit, `752e94f`. **It compiles and is wired end to end. It has
-no tests of its own and has never been launched. Do not open a PR until both are done.**
+Branch `perf/merged-read-cache`; implementation commit `752e94f`, handoff commit `4c85ec4`, followed
+by the current pre-launch completion work. **It compiles, is wired end to end, has unit/runtime/weave
+coverage, and passed offline fidelity against the game's real JSON implementation. It has never been
+launched. Do not open a PR until the learning and warm launches below are done.**
 
 ### Why it exists
 
@@ -95,30 +97,32 @@ From `javap -p -c` on the installed `com.fs.starfarer.loading.LoadingUtils`:
 `MergedJsonProfileIdentity`'s digest layout unchanged), the artifact path, the `AgentInjection`
 parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 
+### Pre-launch gates completed after the handoff
+
+- `JsonTreeTest`, `MergedReadKeyTest`, `PreparedMergedReadCacheIOTest`,
+  `MergedReadCachePlanTest`, and `MergedReadCacheRuntimeTest` now cover the format, request keys,
+  persistence, both bytecode rewrites, composition with `LoadJsonMemoPlan`, learning, publishing,
+  warm hits, collision refusal, and unstorable fallback. The malformed-input work found and closed an
+  overflowing tenth-varint-byte acceptance bug in `JsonTree`.
+- The offline fidelity replay passed all **12,584 entries / 990,602 recursively compared values** on
+  Starsector's x86_64 JVM and exact installed `json.jar`. Evidence and the reusable harness are in
+  `docs/evidence/2026-08-03-merged-read-json-fidelity.md` and its adjacent `.java` source.
+- `ProfileIdentityContext` now memoises provider resolution and SHA-256 for one preparation, with
+  tests proving overlapping corpora reuse both while a new preparation revalidates paths and sees
+  changed bytes. `RunCommand` also reuses the checksummed `ResourceIndex` already decoded by
+  `CurrentTextureCache` instead of reading the 8 MB artifact again. Five alternating fresh-process
+  runs kept all seven identities exact and reduced median incremental identity preparation from
+  **632.543ms to 357.934ms (-274.609ms)**; the merged-read phase itself fell from 208.409ms to
+  86.311ms. Evidence: `docs/evidence/2026-08-03-profile-hash-memo-benchmark.md`.
+- Full `mvn verify` passed after these changes, including failsafe and synthetic cross-process tests.
+
 ### What is left, in order
 
-1. **Tests.** `JsonTreeTest` (round trip, string-table reuse, the null sentinel staying distinct from
-   a missing key, refusal of an unstorable type, malformed input), `MergedReadKeyTest` (the three
-   rules above, and that an absolute path never equals the relative one),
-   `PreparedMergedReadCacheIOTest` (round trip and corruption), `MergedReadCachePlanTest` (weaves
-   both, declines a second weave, declines a class below `V1_7`, declines a class already carrying the
-   probe's names, composes with `LoadJsonMemoPlan`). `MergedReadProbePlanTest` has the ASM fixture to
-   copy.
-2. **Offline fidelity replay, before any launch.** The agent test tree's `org/json/*` are stubs, not
-   `json.jar`, and were extended for this work — they establish plumbing, not fidelity. Do what the
-   audio and rehydration work did: compile a small main with `javac --release 17`, run it on
-   `/Applications/Starsector.app/Contents/Home/bin/java` with the real `json.jar`, and round-trip a
-   large corpus through `JsonTree`, comparing field by field.
-3. **`ProfileIdentityContext` should memoise file hashes by resolved path.** It memoises directory
-   resolution but not hashing, so the `data/` identity re-hashes the providers the four per-corpus
-   identities already hashed. `data/` is 55.9 MB over 17,839 providers (whole index: 61,693 providers,
-   2,215 MB); the marginal cost without memoisation is roughly 150–250ms of preparation, which would
-   eat an eighth of what PR #313 just recovered. With memoisation it is close to free.
-4. **One learning launch, then two warm launches.** Expect `mergedReadCache.writes: 1` and a large
+1. **One learning launch, then two warm launches.** Expect `mergedReadCache.writes: 1` and a large
    `preparedEntries` on the second. Watch `keyCollisions` (must be 0), `unkeyedReads`, and
    `unstorableReads` — a large `unstorableReads` means `GameJson.toTree` is meeting a type the format
    refuses, and the diagnostic names it.
-5. Check artifact size on disk and fold it into the storage disclosure (currently: cache 6.2 GB =
+2. Check artifact size on disk and fold it into the storage disclosure (currently: cache 6.2 GB =
    2.2x the 2.8 GB install; spec-store + indexes + manifests are only 63 MB of that and buy ~10s).
 
 ### The traps, from the ones already hit

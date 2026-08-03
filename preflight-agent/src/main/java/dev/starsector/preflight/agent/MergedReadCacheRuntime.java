@@ -242,6 +242,7 @@ public final class MergedReadCacheRuntime {
             throw fatal;
         } catch (Throwable error) {
             current.unstorable.incrementAndGet();
+            current.diagnose("a merged read could not be stored: " + message(error));
         }
     }
 

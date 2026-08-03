@@ -28,15 +28,20 @@ import java.util.stream.IntStream;
  * <b>1,612ms in the launcher before the JVM even starts</b>, of which roughly a third was five
  * redundant reads of the same 8&nbsp;MB index file.
  *
- * <p>Three things are shared here:
+ * <p>Five things are shared here:
  *
  * <ul>
  *   <li><b>the index and the game jar hash</b>, read and computed once;
  *   <li><b>containment</b>, which resolves each provider's <i>parent directory</i> through
  *       {@code toRealPath} and memoises it. 12,797 providers on this profile live in 694 distinct
  *       directories, so the symlink-escape check costs 694 resolutions instead of 12,797;
+ *   <li><b>provider resolution</b>, memoised after the first full containment check so overlapping
+ *       identities do not repeat {@code readAttributes} for the same indexed provider;
  *   <li><b>hashing</b>, which runs across every core but hands results back in request order, so the
- *       bytes fed to a caller's digest are exactly the bytes a serial loop would have fed it.
+ *       bytes fed to a caller's digest are exactly the bytes a serial loop would have fed it;
+ *   <li><b>content digests</b>, memoised by resolved path for this preparation. The broad
+ *       {@code data/} identity overlaps the four spec corpora, so those files are read once even
+ *       though more than one identity consumes their digest.
  * </ul>
  *
  * <p>Nothing here weakens what an identity covers. Every file that was hashed before is still hashed,
@@ -51,6 +56,8 @@ final class ProfileIdentityContext implements Closeable {
     private final ResourceIndex resources;
     private final List<Path> realRoots;
     private final Map<Path, Path> realDirectories = new ConcurrentHashMap<>();
+    private final Map<ResourceIndex.Provider, Path> realProviders = new ConcurrentHashMap<>();
+    private final Map<Path, String> fileHashes = new ConcurrentHashMap<>();
     private final int workers;
 
     private ForkJoinPool pool;
@@ -124,6 +131,16 @@ final class ProfileIdentityContext implements Closeable {
     }
 
     Path resolve(ResourceIndex.Provider provider) throws IOException {
+        Path memoised = realProviders.get(provider);
+        if (memoised != null) {
+            return memoised;
+        }
+        Path resolved = resolveUncached(provider);
+        Path raced = realProviders.putIfAbsent(provider, resolved);
+        return raced == null ? resolved : raced;
+    }
+
+    private Path resolveUncached(ResourceIndex.Provider provider) throws IOException {
         Path realRoot = realRoots.get(provider.rootIndex());
         Path candidate = resources.resolve(provider);
         Path parent = candidate.getParent();
@@ -176,14 +193,14 @@ final class ProfileIdentityContext implements Closeable {
         }
         if (count == 1 || workers == 1) {
             for (int index = 0; index < count; index++) {
-                digests[index] = Hashes.sha256(sources.get(index));
+                digests[index] = sha256(sources.get(index));
             }
             return List.of(digests);
         }
         try {
             pool().submit(() -> IntStream.range(0, count).parallel().forEach(index -> {
                 try {
-                    digests[index] = Hashes.sha256(sources.get(index));
+                    digests[index] = sha256(sources.get(index));
                 } catch (IOException error) {
                     throw new UncheckedIOException(error);
                 }
@@ -197,6 +214,22 @@ final class ProfileIdentityContext implements Closeable {
             throw unchecked.getCause();
         }
         return List.of(digests);
+    }
+
+    /** One content read per resolved path for the lifetime of this preparation context. */
+    private String sha256(Path source) throws IOException {
+        Path resolved = source.toAbsolutePath().normalize();
+        try {
+            return fileHashes.computeIfAbsent(resolved, path -> {
+                try {
+                    return Hashes.sha256(path);
+                } catch (IOException error) {
+                    throw new UncheckedIOException(error);
+                }
+            });
+        } catch (UncheckedIOException failed) {
+            throw failed.getCause();
+        }
     }
 
     private IOException unwrap(ExecutionException failed) {
@@ -229,6 +262,8 @@ final class ProfileIdentityContext implements Closeable {
             pool.shutdown();
             pool = null;
         }
+        realProviders.clear();
+        fileHashes.clear();
     }
 
     private static Path locateGameJar(Path installRoot) throws IOException {

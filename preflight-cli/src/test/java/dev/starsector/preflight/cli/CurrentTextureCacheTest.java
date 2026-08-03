@@ -28,6 +28,10 @@ class CurrentTextureCacheTest {
 
         assertEquals(fixture.index().toRealPath(), resolution.index());
         assertEquals(fixture.manifest().toRealPath(), resolution.manifest());
+        ResourceIndex stored = ResourceIndexIO.read(fixture.index());
+        assertEquals(stored.profileFingerprint(), resolution.resourceIndex().profileFingerprint());
+        assertEquals(stored.roots(), resolution.resourceIndex().roots());
+        assertEquals(stored.entries(), resolution.resourceIndex().entries());
         assertEquals(fixture.profile(), resolution.profileFingerprint());
         assertEquals(Hashes.sha256(fixture.index()), resolution.indexSha256());
         assertEquals(Hashes.sha256(fixture.manifest()), resolution.manifestSha256());
