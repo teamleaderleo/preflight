@@ -140,7 +140,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 1. Merge quiet-log PR #315 when its CI finishes.
 2. Rebase the stacked `codex/tagged-spec-json` branch onto that merge, then open its PR. It is
    implemented, fidelity-replayed, learned, and measured in two warm launches; evidence is in
-   `docs/evidence/2026-08-04-tagged-spec-json.md`.
+   `docs/evidence/2026-08-04-tagged-spec-json.md`. Its real migration also proved the merged cache's
+   12,584 shadowed spec entries are pruned transactionally (17MB back to 8.0MB).
 3. Re-price the remaining profile. Quiet logs and tagged spec trees together remove 0.664s at their
    direct seams, leaving only about 0.12s of the prior pair-mean gap to 33.0s; launch noise is ±1.4s.
 
