@@ -137,11 +137,12 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 
 ### What is left, in order
 
-1. Merge PR #314 when its CI finishes.
-2. Rebase the stacked `codex/quiet-logs` branch onto that merge, then open its PR. It is implemented,
-   replayed, and real-game smoked; evidence is in `docs/evidence/2026-08-04-quiet-logs.md`.
-3. Apply tagged-tree rehydration to the four older spec caches. After the measured 0.403s quiet-log
-   win, the launch still needs about 0.38s on its pair mean; that replay-priced work is ~0.33s.
+1. Merge quiet-log PR #315 when its CI finishes.
+2. Rebase the stacked `codex/tagged-spec-json` branch onto that merge, then open its PR. It is
+   implemented, fidelity-replayed, learned, and measured in two warm launches; evidence is in
+   `docs/evidence/2026-08-04-tagged-spec-json.md`.
+3. Re-price the remaining profile. Quiet logs and tagged spec trees together remove 0.664s at their
+   direct seams, leaving only about 0.12s of the prior pair-mean gap to 33.0s; launch noise is ±1.4s.
 
 ### The traps, from the ones already hit
 
@@ -165,7 +166,7 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | --- | ---: | --- |
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
 | `--quiet-logs` | **0.403s** | implemented on stacked branch; replay + real smoke pass |
-| tagged-tree rehydration for the four spec caches | **~0.33s** | `JsonTree` already exists; this is applying it to `.spvj`/`.spwj`/`.sppj`/`.sphj` |
+| tagged-tree rehydration for the four spec caches | **0.261s** | implemented; 394ms -> 132/134ms exact seam |
 | GraphicsLib `ShaderModPlugin` | 3.97s, unpriced | see below |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`

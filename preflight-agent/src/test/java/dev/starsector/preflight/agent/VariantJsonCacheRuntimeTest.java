@@ -1,9 +1,11 @@
 package dev.starsector.preflight.agent;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.JsonTree;
 import dev.starsector.preflight.core.PreparedVariantJsonCache;
 import dev.starsector.preflight.core.PreparedVariantJsonCacheIO;
 import java.nio.file.Path;
@@ -30,13 +32,13 @@ class VariantJsonCacheRuntimeTest {
         assertTrue(VariantJsonCacheRuntime.ready());
         assertNull(VariantJsonCacheRuntime.cached("data/variants/example.variant"));
         VariantJsonCacheRuntime.capture(
-                new org.json.JSONObject("{\"variantId\":\"example\"}"),
+                object("variantId", "example"),
                 "data/variants/example.variant");
         assertTrue(java.nio.file.Files.notExists(artifact));
 
         VariantJsonCacheRuntime.complete();
-        assertEquals(
-                "{\"variantId\":\"example\"}",
+        assertArrayEquals(
+                tree("variantId", "example"),
                 PreparedVariantJsonCacheIO.read(artifact).entries()
                         .get("data/variants/example.variant"));
         assertEquals(1L, VariantJsonCacheRuntime.telemetry().get("misses"));
@@ -49,30 +51,38 @@ class VariantJsonCacheRuntimeTest {
         String profile = "b".repeat(64);
         Path artifact = temporaryDirectory.resolve(profile + ".spvj");
         PreparedVariantJsonCacheIO.write(artifact, new PreparedVariantJsonCache(
-                profile, Map.of("data/variants/example.variant", "{\"variantId\":\"example\"}")));
+                profile, Map.of("data/variants/example.variant", tree("variantId", "example"))));
         VariantJsonCacheRuntime.configure(artifact);
 
         Object first = VariantJsonCacheRuntime.cached("data/variants/example.variant");
         Object second = VariantJsonCacheRuntime.cached("data/variants/example.variant");
-        assertEquals("{\"variantId\":\"example\"}", first.toString());
-        assertEquals("{\"variantId\":\"example\"}", second.toString());
+        assertEquals("example", ((org.json.JSONObject) first).get("variantId"));
+        assertEquals("example", ((org.json.JSONObject) second).get("variantId"));
         assertTrue(first != second);
         assertEquals(2L, VariantJsonCacheRuntime.telemetry().get("hits"));
     }
 
     @Test
-    void rejectsWrongProfileAndFallsBackWhenCachedJsonCannotBeParsed() throws Exception {
+    void rejectsWrongProfileAndFallsBackWhenCachedTreeCannotBeDecoded() throws Exception {
         String expected = "c".repeat(64);
         Path wrong = temporaryDirectory.resolve(expected + ".spvj");
         PreparedVariantJsonCacheIO.write(wrong, new PreparedVariantJsonCache(
-                "d".repeat(64), Map.of("data/variants/example.variant", "{}")));
+                "d".repeat(64), Map.of("data/variants/example.variant", tree("id", "wrong"))));
         VariantJsonCacheRuntime.configure(wrong);
         assertNull(VariantJsonCacheRuntime.cached("data/variants/example.variant"));
 
         Path invalid = temporaryDirectory.resolve("e".repeat(64) + ".spvj");
         PreparedVariantJsonCacheIO.write(invalid, new PreparedVariantJsonCache(
-                "e".repeat(64), Map.of("data/variants/example.variant", "INVALID")));
+                "e".repeat(64), Map.of("data/variants/example.variant", new byte[] {127})));
         VariantJsonCacheRuntime.configure(invalid);
         assertNull(VariantJsonCacheRuntime.cached("data/variants/example.variant"));
+    }
+
+    private static org.json.JSONObject object(String key, String value) {
+        return new org.json.JSONObject().put(key, value);
+    }
+
+    private static byte[] tree(String key, String value) {
+        return JsonTree.encode(Map.of(key, value));
     }
 }

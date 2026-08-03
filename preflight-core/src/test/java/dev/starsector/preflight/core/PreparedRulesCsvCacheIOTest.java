@@ -52,7 +52,7 @@ class PreparedRulesCsvCacheIOTest {
         assertThrows(IOException.class, () -> PreparedRulesCsvCacheIO.read(file));
 
         byte[] hull = PreparedHullJsonCacheIO.toBytes(new PreparedHullJsonCache(
-                "c".repeat(64), Map.of("data/hulls/a.ship", "{}")));
+                "c".repeat(64), Map.of("data/hulls/a.ship", JsonTree.encode(Map.of()))));
         assertThrows(IOException.class, () -> PreparedRulesCsvCacheIO.fromBytes(hull));
     }
 }
