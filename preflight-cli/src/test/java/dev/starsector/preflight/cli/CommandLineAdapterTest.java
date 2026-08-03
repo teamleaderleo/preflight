@@ -40,9 +40,12 @@ class CommandLineAdapterTest {
         assertEquals(AdapterMode.OFF, defaults.adapterMode());
         assertEquals(TextureAdapterMode.COMPATIBILITY, defaults.textureAdapterMode());
         assertEquals(false, defaults.directLaunch());
+        assertEquals(false, defaults.quietLogs());
 
-        CommandLine direct = CommandLine.parse(new String[] {"run", "--direct"}, 1);
+        CommandLine direct = CommandLine.parse(
+                new String[] {"run", "--direct", "--quiet-logs"}, 1);
         assertEquals(true, direct.directLaunch());
+        assertEquals(true, direct.quietLogs());
 
         CommandLine probe = CommandLine.parse(
                 new String[] {"run", "--adapter-probe", "--adapter-targets", "targets.txt"}, 1);
@@ -73,6 +76,16 @@ class CommandLineAdapterTest {
         assertEquals(Path.of("cache"), automatic.textureCacheDirectory());
         assertEquals(null, automatic.textureManifest());
         assertEquals(null, automatic.textureIndex());
+    }
+
+    @Test
+    void fastDoesNotSilentlyTradeAwayTheHardCrashLogTail() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+        CommandLine explicit = CommandLine.parse(
+                new String[] {"run", "--fast", "--quiet-logs"}, 1);
+
+        assertEquals(false, fast.quietLogs());
+        assertEquals(true, explicit.quietLogs());
     }
 
     @Test

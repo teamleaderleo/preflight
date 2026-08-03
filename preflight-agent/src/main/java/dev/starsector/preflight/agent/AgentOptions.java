@@ -23,6 +23,7 @@ record AgentOptions(
         boolean exhaustiveFileReads,
         RecordingMode recordingMode,
         Duration flushInterval,
+        boolean quietLogs,
         boolean startupPhaseProbe,
         boolean ruleTokenCache,
         boolean resourceProbeCache,
@@ -104,6 +105,7 @@ record AgentOptions(
         // own recordings show the exit dump losing the tail even on a clean exit. The flusher writes
         // a sidecar as the run goes, so a force-quit or a crash still leaves something to read.
         Duration flushInterval = flushInterval(values.get("flush"));
+        boolean quietLogs = "on".equalsIgnoreCase(values.get("quietLogs"));
         boolean startupPhaseProbe = "on".equalsIgnoreCase(values.get("startupPhases"));
         // No path and no artifact: the memo lives and dies with the process, so a plain
         // on/off is the whole of its configuration.
@@ -138,6 +140,7 @@ record AgentOptions(
                 exhaustiveFileReads,
                 recordingMode,
                 flushInterval,
+                quietLogs,
                 startupPhaseProbe,
                 ruleTokenCache,
                 resourceProbeCache,

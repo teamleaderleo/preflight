@@ -58,6 +58,16 @@ class PreflightCliHelpTest {
     }
 
     @Test
+    void runHelpDisclosesQuietLoggingBenefitAndCrashTradeoff() throws Exception {
+        String output = capture(new String[] {"run", "--help"}).standardOutput();
+
+        assertTrue(output.contains("--quiet-logs"), output);
+        assertTrue(output.contains("about 0.40s"), output);
+        assertTrue(output.contains("hard crash can lose the final 64 KiB"), output);
+        assertTrue(output.contains("not implied by --fast"), output);
+    }
+
+    @Test
     void benchmarkHelpIncludesScenarioRecorderCollectorAndComparisons() throws Exception {
         String output = capture(new String[] {"benchmark", "--help"}).standardOutput();
         assertTrue(output.contains("preflight benchmark lookups"), output);

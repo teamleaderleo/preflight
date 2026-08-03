@@ -106,6 +106,29 @@ class RunCommandIT {
     }
 
     @Test
+    void quietLoggingWritesAndInjectsTheExactPerRunConfiguration() throws Exception {
+        Path game = temporaryDirectory.resolve("Quiet Log Synthetic Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("quiet-log-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--no-adapter", "--quiet-logs"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        Path configuration = trace.resolve(QuietLogConfiguration.FILE_NAME).toAbsolutePath().normalize();
+        assertTrue(Files.isRegularFile(configuration));
+        String injected = Files.readString(game.resolve("java-tool-options.txt"));
+        assertTrue(injected.contains(QuietLogConfiguration.javaOption(configuration)), injected);
+        assertTrue(injected.contains(",quietLogs=on"), injected);
+
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals(Boolean.TRUE, report.get("quietLogs"));
+        assertEquals(configuration.toString(), report.get("quietLogConfiguration"));
+    }
+
+    @Test
     void nonzeroLauncherExitRemainsAuthoritativeWithoutFatalEvidence() throws Exception {
         Path game = temporaryDirectory.resolve("Nonzero Synthetic Starsector");
         Files.createDirectories(game.resolve("logs"));
