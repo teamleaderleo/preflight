@@ -33,6 +33,11 @@ class EntityLookupPlanTest {
     void clearGate() {
         System.clearProperty(EntityLookupRuntime.ENABLED_PROPERTY);
         EntityLookupRuntime.beginSession();
+        // These fixture tests define only BaseLocation. The two exact installed-class transforms
+        // have their own archive integration test; mark their gates here so answer-equivalence can
+        // continue to exercise the location wrapper in isolation.
+        EntityLookupRuntime.repositoryInstalled();
+        EntityLookupRuntime.idMutationInstalled();
     }
 
     @Test

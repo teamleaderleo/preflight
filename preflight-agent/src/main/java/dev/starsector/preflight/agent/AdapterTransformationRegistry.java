@@ -35,7 +35,13 @@ final class AdapterTransformationRegistry {
         // Ungated: the wrapper it installs delegates to the original until
         // preflight.campaign.entityIndex says otherwise, so there is nothing to be ready for.
         if (EntityLookupRuntime.PLAN_ID.equals(target.planId())) {
-            return EntityLookupPlan.transform(signature, originalBytes);
+            byte[] location = EntityLookupPlan.transform(signature, originalBytes);
+            if (location != null) {
+                return location;
+            }
+            byte[] repository = EntityRepositoryListPlan.transform(signature, originalBytes);
+            return repository != null
+                    ? repository : EntityIdMutationPlan.transform(signature, originalBytes);
         }
         // Like the campaign index, this wrapper is inert until its system property is enabled.
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {

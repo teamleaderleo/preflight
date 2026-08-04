@@ -31,7 +31,9 @@ class CampaignEntityTelemetryReportTest {
             entities.add(new Token("entity_" + i));
         }
         Object location = new Object();
-        EntityLookupRuntime.indexInstalled();
+        EntityLookupRuntime.locationInstalled();
+        EntityLookupRuntime.repositoryInstalled();
+        EntityLookupRuntime.idMutationInstalled();
         System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
 
         assertSame(entities.get(3), EntityLookupRuntime.lookup(entities, location, "entity_3"));
@@ -41,10 +43,11 @@ class CampaignEntityTelemetryReportTest {
         Path output = temporaryDirectory.resolve("adapter.json");
         new AdapterReport(AdapterMode.ENABLED, output, null, List.of("com/fs/")).write();
         String report = Files.readString(output);
-        assertTrue(report.contains(
-                "\"campaignEntityIndex\":{" + "\"installed\":true,\"enabled\":true,"
-                        + "\"served\":1,\"missingServed\":1,\"declined\":0,"
-                        + "\"rebuilds\":1,\"indexedEntities\":16}"), report);
+        assertTrue(report.contains("\"campaignEntityIndex\":{"
+                + "\"planId\":\"campaign-entity-index-v3\","
+                + "\"installed\":true,\"enabled\":true,"), report);
+        assertTrue(report.contains("\"served\":1,\"missingServed\":1,\"declined\":0,"), report);
+        assertTrue(report.contains("\"rebuilds\":1,\"indexedEntities\":16,"), report);
     }
 
     private record Token(String id) implements SectorEntityToken {

@@ -208,6 +208,40 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The repository list factory that supplies mutation generations to the campaign index. */
+    static AdapterTarget campaignEntityRepositoryTarget() {
+        return new AdapterTarget(
+                "vanilla-object-repository-0.98a-rc8-entity-index",
+                EntityRepositoryListPlan.TARGET_CLASS,
+                EntityRepositoryListPlan.ORIGINAL_SHA256,
+                EntityLookupRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        EntityRepositoryListPlan.GET_LIST_METHOD,
+                        EntityRepositoryListPlan.GET_LIST_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** The stable base setter through which ordinary campaign entities change ids. */
+    static AdapterTarget campaignEntityIdMutationTarget() {
+        return new AdapterTarget(
+                "vanilla-base-campaign-entity-0.98a-rc8-entity-index",
+                EntityIdMutationPlan.TARGET_CLASS,
+                EntityIdMutationPlan.ORIGINAL_SHA256,
+                EntityLookupRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        EntityIdMutationPlan.SET_ID_METHOD,
+                        EntityIdMutationPlan.SET_ID_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The exact vanilla deployment member grid observed in the gameplay recording. */
     static AdapterTarget deploymentIconCacheTarget() {
         return new AdapterTarget(
@@ -605,11 +639,13 @@ final class AdapterTargetRegistry {
 
     /**
      * Registered unconditionally with the texture targets, because the rewrite it installs is inert
-     * until {@code preflight.campaign.entityIndex} is set. Weaving it costs one wrapper on one
-     * method; not weaving it means the property can never take effect.
+     * until {@code preflight.campaign.entityIndex} is set. The gate requires all three reviewed
+     * location, repository-list, and id-mutation seams; a partial installation remains inert.
      */
     AdapterTargetRegistry withCampaignEntityIndexTarget() {
-        return withTarget(campaignEntityIndexTarget());
+        return withTarget(campaignEntityIndexTarget())
+                .withTarget(campaignEntityRepositoryTarget())
+                .withTarget(campaignEntityIdMutationTarget());
     }
 
     AdapterTargetRegistry withDeploymentIconCacheTarget() {
@@ -772,6 +808,8 @@ final class AdapterTargetRegistry {
                 : textureCompatibilityTarget())
                 .withTarget(texturePrefetchBypassTarget())
                 .withTarget(campaignEntityIndexTarget())
+                .withTarget(campaignEntityRepositoryTarget())
+                .withTarget(campaignEntityIdMutationTarget())
                 .withTarget(deploymentIconCacheTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget());

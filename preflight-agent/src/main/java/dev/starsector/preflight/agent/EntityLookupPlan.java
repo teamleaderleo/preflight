@@ -78,7 +78,7 @@ final class EntityLookupPlan {
         owner.accept(writer);
         // Only now, so the counters cannot describe a rewrite that never happened and the gate
         // cannot open on a class this plan declined.
-        EntityLookupRuntime.indexInstalled();
+        EntityLookupRuntime.locationInstalled();
         return writer.toByteArray();
     }
 

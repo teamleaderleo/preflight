@@ -141,12 +141,13 @@ The campaign entity cache can still be selected separately for isolation:
 java -jar preflight.jar run --adapter --campaign-entity-index
 ```
 
-It puts a snapshot-validated index in front of `BaseLocation.getEntityById`. Before accepting a hit
-or miss it compares the live entity sequence and every live id with the snapshot, so same-size list
-replacement and `setId()` mutation are invalidations too. An authoritative miss returns directly;
-any validation or reflection failure delegates to the preserved original method. The adapter report
-exposes `served`, `missingServed`, `declined`, `rebuilds`, and `indexedEntities` counters under
-`campaignEntityIndex` for a long-session review. A pilot has not proved activation unless
+It puts a mutation-tracked index in front of `BaseLocation.getEntityById`. Exact-gated generations
+on the repository's entity list and reviewed base entity id setter make same-size list, iterator,
+sub-list, and `setId()` edits invalidations too. A custom entity overriding the reviewed setter
+retains complete snapshot validation; any validation or reflection failure delegates to the
+preserved original method. The adapter report exposes answer, rebuild, fast/deep validation,
+mutation, and validated-reference counters under `campaignEntityIndex` for a long-session review.
+A pilot has not proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
 also enables a positive-only deployment member-icon cache for the exact reviewed vanilla UI class;
 that cache invalidates answers after the class's reviewed add, remove, and clear methods, delegates

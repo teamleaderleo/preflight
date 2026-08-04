@@ -7,7 +7,8 @@
 **Benchmarks:** run on **the game's own JVM** -- `/Applications/Starsector.app/Contents/Home/bin/java`,
 Zulu 17.0.10 **x86_64**, i.e. under Rosetta, the same way the game runs
 **Status:** mechanism read from bytecode, sizes counted out of the players' own saves, costs measured;
-first live adapter pilot completed 2026-08-04.
+first live adapter pilot completed 2026-08-04; mutation-tracked v3 verified offline against the
+installed 0.98a-RC8 archives and awaiting a coordinated game run.
 
 [The previous document](2026-08-02-getentitybyid-is-a-linear-scan.md) said the cost was an O(1) map
 lookup validated by an O(n) `List.contains`. **That was the first half of the method.** The second
@@ -166,6 +167,35 @@ contained `BaseLocation.getEntityById`. The follow-up had 20 such events plus 40
 `EntityLookupRuntime`: 60 combined. The runs had different lengths and user actions, so this is not
 wall-clock attribution, but an 88% stack-sample reduction is much larger than the recording-length
 difference and confirms that the cache removed the observed campaign-entry concentration.
+
+## Version 3 removes the validation scan too
+
+The second pilot also exposed the remaining multiplier: 225,061 answers still compared every live
+entity and reflectively fetched every live id before using the index. That was necessary for direct
+same-size list edits and `setId()` calls, but it meant the cache was still linear.
+
+Version 3 exact-gates three cooperating transforms. `ObjectRepository.getList(Class)` retains an
+ordinary `ArrayList` for every classification except `SectorEntityToken`; that one receives an
+ArrayList-compatible mutation generation covering direct list, iterator, and sub-list edits as well
+as the repository's own add/remove path. The reviewed `BaseCampaignEntity.setId(String)` advances a
+separate id generation. `BaseLocation.getEntityById` accepts a cached answer only when both
+generations still match. Any generation change rebuilds before answering. A custom entity that
+overrides the reviewed setter is detected while building the index and retains the complete
+identity/id validation path, so unknown mod behavior loses speed rather than correctness. The gate
+does not enable unless all three exact transformations install.
+
+A five-round development microbenchmark on Starsector's own JVM performed 100,000 repeated missing
+lookups through a 185-entity location, the measured late-save median:
+
+| validation | range | relative |
+| --- | ---: | ---: |
+| v2 identity/id snapshot | 59.117–62.196ms | 1.0x |
+| v3 mutation generations | **1.524–1.662ms** | **36.5–40.8x faster** |
+
+Focused answer-equivalence and mutation tests, exact installed-archive transforms for all three
+classes, and full `mvn verify` pass. A game launch is still required to confirm that the live entity
+population takes the fast generation path and to count actual rebuilds, list/id mutations, custom
+setter fallbacks, and eliminated reference validations.
 
 ## What is not established
 
