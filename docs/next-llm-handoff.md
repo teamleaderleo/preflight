@@ -48,7 +48,9 @@ probe failure. A later live run naturally corrected two false warnings, but sync
 the bundled x86-64 JVM at those transition points caused sharp CoreAudio pops. A plan-level live
 bisection isolated this adapter alone; moving the pressure capture before audio initialization
 keeps later checks process-free. Runtime, weave, bundled-JVM, exact installed-archive, and full
-verification pass. Evidence:
+verification pass. The final all-optimizations pilot applied 29 transformations with zero fallback,
+captured pressure once, reused it for four corrected warnings, and produced no campaign-load or
+simulation-exit pop. Evidence:
 `docs/evidence/2026-08-05-macos-memory-pressure-warning.md`.
 
 A later controlled combat run hit an impossible `A.J -> A.null` cast in vanilla `Ship.advance`

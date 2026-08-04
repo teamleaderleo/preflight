@@ -70,3 +70,9 @@ Starsector's bundled JRE has a non-executable `jspawnhelper`, so its supported f
 forking the multi-gigabyte x86-64 JVM under Rosetta at an audio transition caused the audible stall.
 Capturing once before audio initialization retains the pressure-aware correction without any
 transition-time process creation.
+
+The all-optimizations confirmation `mac-pressure-preaudio-confirm-20260805-051217` then completed
+with clean campaign-load and simulation-exit audio. Adapter health was `ACTIVE`: 29 transformations
+applied, zero declines, and zero contained failures. The pressure telemetry recorded exactly one
+session probe, four later in-memory warning checks/corrections, 67% available memory, and zero probe
+failures. This closes both the behavioral regression and the live instrumentation gate.
