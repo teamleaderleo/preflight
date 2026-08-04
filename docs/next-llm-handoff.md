@@ -143,11 +143,22 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-04 merged-read cache warm** | **33.42 / 34.15** |
 | 2026-08-04 Janino warm pilot | **29.46** |
 | 2026-08-04 controlled v3 warm probe | **31.90** |
+| **2026-08-05 corrected `--fast` pair** | **31.76 / 32.64** |
 
 Two runs, because single-launch variance on this profile is about **±1.4s**. Anything worth less than
 that cannot be measured by launching the game and has to be measured by replay instead.
 
-**The goal is a repeated measured 33.0s or below.** A later controlled warm probe reproduced the
+**The repeated measured 33.0s goal is now met.** The corrected unattended pair reached 31.76s and
+32.64s (32.20s median, 0.88s range). Both runs served 21,652 prepared textures, bypassed all 21,652
+pixel conversions, hit all 228 Janino calls and all 1,469 keyed merged reads, and applied 22 exact
+transformations with zero decline or contained failure. The benchmark had previously used `fast`
+as a label for its old compatibility-texture subset without passing the CLI's `--fast` preset; that
+semantic drift produced 54.23s and 58.13s diagnostic launches. The old subset is now named
+`compatibility`, while `fast` invokes the exact installed-launcher preset and has the stricter
+prepared-pixel acceptance gate. Evidence:
+`docs/evidence/2026-08-05-startup-benchmark-fast-preset.md`.
+
+A prior controlled warm probe reproduced the
 sub-32 result at 31.90s: adapter health was ACTIVE, all 16 exact transformations applied, Janino
 served 228/228 calls, the merged-read cache served 1,469/1,469 keyed calls, and GraphicsLib compact
 replay applied once. It is still one probe rather than a controlled pair. The separate quiet-log

@@ -34,7 +34,8 @@ Usage: scripts/run-startup-benchmark.sh [options]
   --rounds N          Rounds of every condition (default 5, the campaign threshold for
                       a reportable claim). Fewer rounds cannot reach significance: with
                       three per condition the smallest possible p-value is 0.1.
-  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,fast,full,profile,prepared
+  --conditions LIST   Comma-separated subset of vanilla,agent,enabled,compatibility,fast,full,
+                      profile,prepared
                       (default vanilla,agent,enabled,fast; the last two are opt-in).
   --unattended        Start the game without its launcher and stop it once the main menu is
                       up, so the campaign needs no clicks at all. Uses Starsector's own
@@ -58,13 +59,14 @@ Conditions:
   vanilla   the game's own launcher, no preflight at all -- the true baseline
   agent     preflight run --no-adapter -- isolates what the JFR recorder itself costs
   enabled   preflight run --adapter --texture-auto -- the prepared texture path, recorded
-  fast      the same, plus --no-record -- the caches without paying for the profile
-  full      every landed optimization at once: the prepared-pixel texture path plus the
-            rule token memo and the prepared rule-command package map. This is the condition
-            the scorecard's stacked estimate is trying to predict, and the only one that
-            measures the whole project rather than a part of it. `fast` is deliberately not
-            this: it runs compatibility texture mode and leaves both rule caches off, so a
-            fast-vs-vanilla number understates what has actually landed.
+  compatibility
+            the historical `fast` condition: compatibility textures and no recorder. It is
+            retained for component comparisons, but does not represent a normal user launch.
+  fast      the CLI's actual --fast preset: every startup and gameplay optimization that has
+            passed its live gate. Installed Preflight launchers use this mode.
+  full      the frozen 2026-08-03 explicit stack (prepared pixels plus the two rule caches).
+            It remains available to reproduce the accepted historical campaign, but newer
+            live-gated optimizations are present only in `fast`.
   prepared  --texture-mode prepared-pixels --prepared-npot --no-record -- hands the game
             upload-ready bytes instead of a BufferedImage it has to unpack a pixel at a
             time. The flag is not optional: without it the bridge declines every texture
@@ -142,7 +144,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled|fast|full|profile|prepared|prepared-unpadded) ;;
+        vanilla|agent|enabled|compatibility|fast|full|profile|prepared|prepared-unpadded) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -499,10 +501,13 @@ launch_once() {
         enabled)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE") ;;
-        fast)
+        compatibility)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --no-record) ;;
+        fast)
+            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE") ;;
         profile)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
@@ -632,10 +637,11 @@ launch_once() {
         status=excluded; reason="nonzero-exit-$exit_code"
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
-    elif [[ "$condition" == prepared || "$condition" == prepared-unpadded || "$condition" == full ]] \
+    elif [[ "$condition" == prepared || "$condition" == prepared-unpadded \
+            || "$condition" == fast || "$condition" == full ]] \
             && { ! served_prepared_textures "$run_dir" || ! bypassed_pixel_conversions "$run_dir"; }; then
         status=excluded; reason="prepared-pixels-served-nothing"
-    elif [[ "$condition" == enabled || "$condition" == fast || "$condition" == profile ]] \
+    elif [[ "$condition" == enabled || "$condition" == compatibility || "$condition" == profile ]] \
             && ! served_prepared_textures "$run_dir"; then
         # The adapter is fail-open by design, so a launch where it served nothing looks
         # exactly like a normal launch. Timing it would measure the baseline twice and

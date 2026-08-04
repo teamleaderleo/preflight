@@ -478,10 +478,13 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertTrue(conditions, "no prepared conditions found in the launch dispatch")
         for condition in conditions:
             self.assertIn(condition, guard.group("test"), f"{condition} is not guarded")
+        self.assertIn("fast", guard.group("test"), "the current --fast preset is not guarded")
+        self.assertIn("full", guard.group("test"), "the historical full stack is not guarded")
 
-    def test_both_cache_serving_conditions_are_checked_and_no_others(self):
-        # vanilla and agent legitimately have no adapter evidence; enabled and fast both
-        # serve from the cache, so both have to prove they did.
+    def test_compatibility_cache_serving_conditions_are_checked_and_no_others(self):
+        # vanilla and agent legitimately have no adapter evidence. The compatibility-pixel
+        # conditions prove cache service here; prepared-pixel conditions use the stricter
+        # cache-plus-bridge guard above.
         guard = re.search(
             r'elif \[\[ (?P<test>[^\]]*) \]\] \\?\s*\n?\s*&& ! served_prepared_textures',
             SCRIPT_TEXT,
@@ -489,9 +492,20 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertIsNotNone(guard, "adapter guard not found")
         condition = guard.group("test")
         self.assertIn("enabled", condition)
-        self.assertIn("fast", condition)
+        self.assertIn("compatibility", condition)
+        self.assertIn("profile", condition)
+        self.assertNotIn("fast", condition)
         self.assertNotIn("vanilla", condition)
         self.assertNotIn("agent", condition)
+
+    def test_fast_condition_invokes_the_cli_fast_preset(self):
+        fast = re.search(
+            r"^        fast\)(?P<body>.*?) ;;",
+            SCRIPT_TEXT,
+            re.DOTALL | re.MULTILINE,
+        )
+        self.assertIsNotNone(fast, "fast launch condition not found")
+        self.assertRegex(fast.group("body"), r"(?:^|\s)--fast(?:\s|$)")
 
 
 class UnattendedTest(unittest.TestCase):
