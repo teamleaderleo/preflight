@@ -6,7 +6,7 @@
 
 **Status:** exact adapter and installed-archive gates pass. The first live pilot matched the target
 but retained the original because the plan-availability registry entry was missing; that fail-closed
-plumbing issue is fixed and covered by regression test. A second live combat pilot is pending.
+plumbing issue was fixed and covered by regression test. The second live combat pilot passed.
 
 ## Runtime lead
 
@@ -53,10 +53,17 @@ plan was unavailable for the session. The transformation registry had the implem
 not the separate `hasPlan` route used before transformation. Adding it plus a target-level assertion
 closes that plumbing miss.
 
-The remaining gate is a second live combat session. It must show the exact transformation applied, nonzero
-hits, plausible misses relative to invalidations, normal live setting behavior, and no adapter
-failure. JFR can then establish whether the Luna lookup stack disappeared; frame-time differences
-from a non-identical battle remain directional rather than a controlled A/B.
+The second live pilot `graphicslib-audio-v2-20260805-041804` exited normally with ACTIVE health, 31
+transformations, zero fallback, and zero contained failure. The hot-settings cache installed and
+served **7,621 hits** after **3 misses** with **1 invalidation**. Three misses after one boundary are
+the expected one refresh per cached field.
+
+The prior failed-closed pilot sampled `GraphicsLibSettings.fighterBrightnessScale` and its
+`LunaSettings.getFloat` below `LightShader` once in 912 combat samples. The live cached pilot sampled
+neither `fighterBrightnessScale` nor any LunaSettings method in 776 combat samples, while
+`LightShader.renderInWorldCoords` remained active on 28 samples. This corroborates removal of the
+lookup stack. The battles were not identical, so neither LightShader share nor frame-time differences
+are a controlled A/B.
 
 ## Separate audio observation
 
@@ -65,4 +72,4 @@ captured a real, recoverable `AL_INVALID_VALUE` during initial streaming-player 
 bytecode proves vanilla checks a stale pre-generation error rather than the result of
 `alGenSources`; the separately gated repair is documented in
 `2026-08-05-openal-stream-source-stale-error.md`. This predates and is independent of the settings
-cache, which was not installed in that run.
+cache, which was not installed in the first run; both exact adapters passed together in the second.

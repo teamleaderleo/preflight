@@ -4,7 +4,7 @@
 
 **Install:** Starsector 0.98a-RC8 macOS, exact bundled `fs.sound_obf.jar`
 
-**Status:** exact repair passes executable and installed-archive gates; live pilot pending.
+**Status:** exact repair passes executable, installed-archive, full verification, and live gates.
 
 ## Live symptom
 
@@ -61,7 +61,21 @@ one-generation, retained-error-local instruction shape. Any drift retains the or
   one after its sole `alGenSources` call;
 - focused GraphicsLib/audio tests pass together.
 
-The next combined pilot must show both this repair and the GraphicsLib settings cache installed. A
-nonzero `recoveredStaleErrors` count with zero `generationErrors` would directly prove that the
-previous false failure was prevented. Whether it removes the audible shutdown pop remains an
-operator observation; the logged bug directly explains only the startup failure-and-retry.
+## Live result
+
+The combined pilot `graphicslib-audio-v2-20260805-041804` exited normally with ACTIVE adapter
+health, 31 transformations, zero fallback, and zero contained failure. The repair reported:
+
+| counter | value |
+| --- | ---: |
+| source-construction attempts | 202 |
+| stale pre-generation errors | **1** |
+| actual generation errors | **0** |
+| stale errors followed by successful generation | **1** |
+
+This is direct same-shape evidence: the stale error occurred again, but the immediately following
+`alGenSources` succeeded. There was no `Error initializing music source` log, and main-menu music
+created and played on the first recorded attempt at 34.242/34.243 seconds rather than failing and
+retrying 516ms later. The repair prevented the false startup failure without hiding a real
+generation error. Whether it also removes the audible shutdown pop remains an operator observation;
+the logged bug directly explains the startup failure-and-retry.

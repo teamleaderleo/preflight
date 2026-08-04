@@ -112,8 +112,10 @@ caches its existing static field after the first read, and invalidates all three
 of GraphicsLib's own `load()` and `applyChanges()` settings boundaries. Executed synthetic behavior,
 real installed-archive structure, fail-closed drift, and full `mvn verify` pass. A live combat pilot
 matched the exact target but correctly retained the original because its separate plan-availability
-registry entry was missing. That plumbing entry and a regression assertion are now added; a second
-live combat pilot is still required before treating it as gated. Evidence:
+registry entry was missing. That plumbing entry and a regression assertion were added. The second
+pilot exited ACTIVE with zero fallback/failure and served 7,621 hits after the expected three field
+misses and one invalidation. The prior Luna float stack disappeared from JFR while LightShader
+remained active; non-identical battles prevent a frame-time A/B claim. Evidence:
 `docs/evidence/2026-08-05-graphicslib-hot-settings-cache.md`.
 
 That failed-closed pilot also captured the operator's startup audio transient as a recoverable
@@ -122,7 +124,10 @@ bundled bytecode proves vanilla reads and stores `alGetError()` before `alGenSou
 that stale earlier error as the generation result without reading the real result. An exact adapter
 now clears and records the old error, reads the actual error immediately after generation, and lets
 vanilla's existing branches use it. Executable tests prove stale-error recovery and preservation of
-real generation failures; the installed-archive transform passes. Live validation is pending.
+real generation failures; the installed-archive transform passes. The combined live pilot then saw
+202 constructions, one stale error, zero real generation errors, and one recovered false failure.
+Main-menu music played on the first attempt with no initialization error, and adapter health was
+ACTIVE with zero fallback/failure.
 Evidence: `docs/evidence/2026-08-05-openal-stream-source-stale-error.md`.
 
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
@@ -303,8 +308,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | persisted Janino complete maps | **15.650s direct aggregate / 5.37s whole launch** | exact full-profile identity; clean cold/warm live pilot; included by `--fast` |
 | GraphicsLib compact startup replay | **3.038s exact callback** | clean live adapter application; PR #318 |
 | GraphicsLib insignia manager cache | 4.40% of long-session game-thread samples is all GraphicsLib | exact per-render adapter built; combat pilot pending |
-| GraphicsLib hot-settings cache | `LightShader` on 4.75% of latest combat samples | exact event-invalidated adapter; live pilot pending |
-| OpenAL streaming-source error order | one logged false `AL_INVALID_VALUE`, 516ms retry | exact vanilla repair; live pilot pending |
+| GraphicsLib hot-settings cache | 7,621 hits / 3 misses / 1 invalidation | live exact adapter; Luna float stack removed |
+| OpenAL streaming-source error order | 1 stale error recovered / 0 real generation errors | live exact vanilla repair; false 516ms retry removed |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
@@ -332,11 +337,13 @@ pilot. Evidence:
 The latest combat profile exposes a separate GraphicsLib cost: three `LightShader` settings getters
 perform LunaLib map/type lookups every render even though GraphicsLib already provides event-driven
 `load()` and `applyChanges()` boundaries. The exact hot-settings adapter caches only those three
-floats between those boundaries. Offline and exact installed-archive gates pass; live combat is the
-next gate. The preceding pilot also produced an audible pop at process startup and shutdown and now
+floats between those boundaries. Offline, exact installed-archive, and live gates pass; the live
+follow-up served 7,621 hits with the expected three initial misses. The
+preceding pilot also produced an audible pop at process startup and shutdown and now
 has a concrete startup cause: vanilla checked a stale OpenAL error after source generation, logged a
-false failure, and retried successfully. The exact error-order repair shares the next live gate; the
-shutdown sound is not yet independently attributed.
+false failure, and retried successfully. The exact error-order repair recovered that same stale
+error in the live follow-up and main-menu music started on the first attempt; the shutdown sound is
+not yet independently attributed.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and
