@@ -42,6 +42,8 @@ class EntityLookupMutationTrackingTest {
         assertEquals(2L, EntityLookupRuntime.counters().get("fastValidations"));
         assertEquals(0L, EntityLookupRuntime.counters().get("deepValidations"));
         assertEquals(0L, EntityLookupRuntime.counters().get("validatedReferences"));
+        assertEquals(1L, EntityLookupRuntime.counters().get("trackedRepositoryLists"));
+        assertEquals(0L, EntityLookupRuntime.counters().get("untrackedListValidations"));
     }
 
     @Test

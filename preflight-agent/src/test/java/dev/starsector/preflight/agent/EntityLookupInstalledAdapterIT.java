@@ -54,6 +54,8 @@ class EntityLookupInstalledAdapterIT {
         ClassNode repositoryOwner = read(transformedRepository);
         assertEquals(1, calls(method(repositoryOwner, EntityRepositoryListPlan.GET_LIST_METHOD,
                 EntityRepositoryListPlan.GET_LIST_DESCRIPTOR), RUNTIME, "newRepositoryList"));
+        assertEquals(1, calls(method(repositoryOwner, EntityRepositoryListPlan.ADD_METHOD,
+                EntityRepositoryListPlan.ADD_DESCRIPTOR), RUNTIME, "newRepositoryList"));
 
         ClassNode entityOwner = read(transformedEntity);
         assertEquals(1, calls(method(entityOwner, EntityIdMutationPlan.SET_ID_METHOD,

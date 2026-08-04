@@ -91,6 +91,8 @@ public final class EntityLookupRuntime {
     private static final AtomicLong LIST_MUTATIONS = new AtomicLong();
     private static final AtomicLong ID_MUTATIONS = new AtomicLong();
     private static final AtomicLong UNSAFE_ID_ENTITIES = new AtomicLong();
+    private static final AtomicLong TRACKED_REPOSITORY_LISTS = new AtomicLong();
+    private static final AtomicLong UNTRACKED_LIST_VALIDATIONS = new AtomicLong();
 
     private EntityLookupRuntime() {
     }
@@ -120,8 +122,9 @@ public final class EntityLookupRuntime {
      * Factory woven into {@code ObjectRepository.getList}. Only the entity list is tracked; every
      * other repository list retains the shipped {@link ArrayList} implementation.
      */
-    public static List<Object> newRepositoryList(Class<?> classifiedType) {
-        if (classifiedType != null && SECTOR_ENTITY_TOKEN.equals(classifiedType.getName())) {
+    public static List<Object> newRepositoryList(Object classifiedType) {
+        if (classifiedType instanceof Class<?> type && SECTOR_ENTITY_TOKEN.equals(type.getName())) {
+            TRACKED_REPOSITORY_LISTS.incrementAndGet();
             return new TrackedEntityList();
         }
         return new ArrayList<>();
@@ -305,6 +308,8 @@ public final class EntityLookupRuntime {
                 FAST_VALIDATIONS.incrementAndGet();
                 return true;
             }
+        } else {
+            UNTRACKED_LIST_VALIDATIONS.incrementAndGet();
         }
         DEEP_VALIDATIONS.incrementAndGet();
         for (int i = 0; i < size; i++) {
@@ -351,6 +356,8 @@ public final class EntityLookupRuntime {
         counters.put("listMutations", LIST_MUTATIONS.get());
         counters.put("idMutations", ID_MUTATIONS.get());
         counters.put("unsafeIdEntities", UNSAFE_ID_ENTITIES.get());
+        counters.put("trackedRepositoryLists", TRACKED_REPOSITORY_LISTS.get());
+        counters.put("untrackedListValidations", UNTRACKED_LIST_VALIDATIONS.get());
         return counters;
     }
 
@@ -373,6 +380,8 @@ public final class EntityLookupRuntime {
         LIST_MUTATIONS.set(0);
         ID_MUTATIONS.set(0);
         UNSAFE_ID_ENTITIES.set(0);
+        TRACKED_REPOSITORY_LISTS.set(0);
+        UNTRACKED_LIST_VALIDATIONS.set(0);
     }
 
     /** ArrayList-compatible list whose semantic mutations carry an O(1) generation stamp. */

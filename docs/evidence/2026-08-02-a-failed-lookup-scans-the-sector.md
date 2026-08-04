@@ -9,7 +9,8 @@ Zulu 17.0.10 **x86_64**, i.e. under Rosetta, the same way the game runs
 **Status:** mechanism read from bytecode, sizes counted out of the players' own saves, costs measured;
 first live adapter pilot completed 2026-08-04; mutation-tracked v3 verified offline against the
 installed 0.98a-RC8 archives and installed cleanly in a controlled menu probe. Campaign activity
-validation remains outstanding because that probe deliberately stopped before loading a save.
+then exposed a second exact repository allocation; the two-allocation fix is offline verified and
+awaits one live save recheck.
 
 [The previous document](2026-08-02-getentitybyid-is-a-linear-scan.md) said the cost was an O(1) map
 lookup validated by an O(n) `List.contains`. **That was the first half of the method.** The second
@@ -204,6 +205,22 @@ and zero declines or contained failures. Campaign index v3 reported `installed=t
 `enabled=true`. Its activity counters were correctly zero because no save was loaded, so this proves
 the live bytecode gate but not yet the live campaign population's validation path. Retained run:
 `~/.starsector-preflight/runs/controlled-warm-v3-20260804-215553`.
+
+The first save-and-combat pilot then caught a missing creation seam instead of falsely reporting a
+win. It answered 8,358 hits and 219,447 misses correctly, but all 227,805 validations were deep and
+walked 79,131,653 references; `fastValidations=0`. The repository transform had installed, yet its
+tracked-list factory only replaced the allocation in `ObjectRepository.getList(Class)`. Exact
+installed bytecode shows `ObjectRepository.add(Object)` has a second classified-list allocation.
+Save deserialization reconstructs a repository through `add`, so the `SectorEntityToken` list was
+already a vanilla `ArrayList` when `getList` returned it. This is why offline factory tests passed
+while a loaded save remained on the safe v2 path.
+
+The follow-up exact-hash transform now replaces both allocations. Its installed-archive test asserts
+one factory call in each method, and telemetry separately reports tracked lists created and
+untracked-list validations so this cannot silently recur. The original campaign pilot itself was
+otherwise clean: exit 0, adapter health ACTIVE, 18 exact transforms, zero declines or contained
+failures. Retained run:
+`~/.starsector-preflight/runs/campaign-combat-v3-20260804-215818`.
 
 ## What is not established
 

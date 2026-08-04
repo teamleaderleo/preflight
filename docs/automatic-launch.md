@@ -146,7 +146,8 @@ on the repository's entity list and reviewed base entity id setter make same-siz
 sub-list, and `setId()` edits invalidations too. A custom entity overriding the reviewed setter
 retains complete snapshot validation; any validation or reflection failure delegates to the
 preserved original method. The adapter report exposes answer, rebuild, fast/deep validation,
-mutation, and validated-reference counters under `campaignEntityIndex` for a long-session review.
+mutation, tracked/untracked-list, and validated-reference counters under `campaignEntityIndex` for
+a long-session review.
 A pilot has not proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
 also enables a positive-only deployment member-icon cache for the exact reviewed vanilla UI class;

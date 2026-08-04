@@ -215,9 +215,13 @@ final class AdapterTargetRegistry {
                 EntityRepositoryListPlan.TARGET_CLASS,
                 EntityRepositoryListPlan.ORIGINAL_SHA256,
                 EntityLookupRuntime.PLAN_ID,
-                List.of(new AdapterTarget.RequiredMethod(
-                        EntityRepositoryListPlan.GET_LIST_METHOD,
-                        EntityRepositoryListPlan.GET_LIST_DESCRIPTOR)),
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                EntityRepositoryListPlan.GET_LIST_METHOD,
+                                EntityRepositoryListPlan.GET_LIST_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                EntityRepositoryListPlan.ADD_METHOD,
+                                EntityRepositoryListPlan.ADD_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/fs.common_obf.jar",
                 "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
