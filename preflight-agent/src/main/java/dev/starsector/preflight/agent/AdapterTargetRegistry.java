@@ -98,6 +98,27 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The resolver's one-shot mod-source hint, isolated per loading thread. */
+    static AdapterTarget sourceHintIsolationTarget() {
+        return new AdapterTarget(
+                "vanilla-resource-resolver-0.98a-rc8-source-hint-isolation",
+                SourceHintIsolationPlan.TARGET_CLASS,
+                SourceHintIsolationPlan.ORIGINAL_SHA256,
+                SourceHintIsolationRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                SourceHintIsolationPlan.SET_METHOD,
+                                SourceHintIsolationPlan.SET_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                SourceHintIsolationPlan.RESOLVE_METHOD,
+                                SourceHintIsolationPlan.RESOLVE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /**
      * The game's Ogg Vorbis decode, in the sound jar.
      *
@@ -816,7 +837,8 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignEntityIdMutationTarget())
                 .withTarget(deploymentIconCacheTarget())
                 .withTarget(simOpponentSafetyTarget())
-                .withTarget(simOpponentDialogProbeTarget());
+                .withTarget(simOpponentDialogProbeTarget())
+                .withTarget(sourceHintIsolationTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {

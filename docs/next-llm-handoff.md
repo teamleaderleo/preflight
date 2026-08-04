@@ -6,6 +6,16 @@ used to carry is merged, and is described by `docs/evidence/` and `docs/prepared
 
 ## Where the launch is
 
+On 2026-08-04, the intermittent vanilla "resource not found" startup fatal was traced to a shared
+one-shot mod-source hint in `com.fs.util.C`: its synchronized setter and resolver are separate calls,
+so another loading thread can consume the hint between them and filter out the correct directory.
+`SourceHintIsolationPlan` moves only that transaction to a `ThreadLocal`, exact-gated on the shipped
+class and archive, and is included for every enabled adapter. Offline concurrency, composition, and
+exact installed-archive checks pass. A live campaign smoke then completed with exit 0, ACTIVE health,
+17 transforms, 1,222 hints consumed, and no resource fatal; its timing is invalid because the user
+browsed concurrently. Evidence:
+`docs/evidence/2026-08-04-resource-source-hint-race.md`.
+
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
 
 | | seconds |

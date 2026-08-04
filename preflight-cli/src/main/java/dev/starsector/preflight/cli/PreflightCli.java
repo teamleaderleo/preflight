@@ -204,7 +204,9 @@ public final class PreflightCli {
                 "    --adapter also validates the exact refit simulator's merged opponent list"
                         + " against Starsector's loaded ship and fighter registries. Nonexistent"
                         + " mod entries are omitted from that simulator invocation and reported;"
-                        + " registry uncertainty retains the original list.",
+                        + " registry uncertainty retains the original list. It also isolates"
+                        + " vanilla's one-shot mod resource hint per loading thread, preventing"
+                        + " another thread from making an existing resource appear missing.",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",

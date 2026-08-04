@@ -222,6 +222,14 @@ otherwise clean: exit 0, adapter health ACTIVE, 18 exact transforms, zero declin
 failures. Retained run:
 `~/.starsector-preflight/runs/campaign-combat-v3-20260804-215818`.
 
+The next campaign smoke confirmed the repaired live path. It served 10,478 positive and 219,447
+negative answers with **229,924 fast validations, zero deep validations, and zero validated
+references**. Save reconstruction created 290 tracked repository lists and
+`untrackedListValidations=0`; 74,751 list mutations were observed and safely advanced generations.
+The index rebuilt 503 times, then answered repeated queries in constant time. Adapter health was
+ACTIVE with zero declines or contained failures and the game exited normally. Retained run:
+`~/.starsector-preflight/runs/campaign-source-hint-v1-20260804-221805`.
+
 ## What is not established
 
 - **The benchmark is a model, not the game.** It reproduces the method's control flow, the
@@ -235,10 +243,10 @@ failures. Retained run:
   11,886 indexed hits and 228,053 index misses, but a miss meant delegation; it did not record
   whether the preserved method subsequently found a case-folded entity.
 - **Whether a mod already patches this was not checked**, and neither was Fast Rendering.
-- **A live pilot establishes activation and a strong sample-count reduction, not exact saved
-  wall-clock time.** Unit tests cover direct same-size replacement, id mutation, duplicate
-  precedence, gate-off delegation, and fail-open behavior; longer beta use remains the compatibility
-  check for mod behavior not represented in those tests.
+- **The live pilots establish activation, complete removal of the validation scan, and a strong
+  sample-count reduction, not exact saved wall-clock time.** Unit tests cover direct same-size
+  replacement, id mutation, duplicate precedence, gate-off delegation, and fail-open behavior;
+  longer beta use remains the compatibility check for mod behavior not represented in those tests.
 
 ## Method note
 

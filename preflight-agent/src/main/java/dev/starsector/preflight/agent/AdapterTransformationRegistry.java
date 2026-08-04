@@ -148,10 +148,9 @@ final class AdapterTransformationRegistry {
                 || MergedReadCacheRuntime.PLAN_ID.equals(target.planId())) {
             return loadingUtilsPlans(signature, originalBytes);
         }
-        if (ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
-            return ResourceProbeRuntime.ready()
-                    ? ResourceProbePlan.transform(signature, originalBytes)
-                    : null;
+        if (SourceHintIsolationRuntime.PLAN_ID.equals(target.planId())
+                || ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
+            return resourceResolverPlans(signature, originalBytes);
         }
         if (PreparedAudioRuntime.PLAN_ID.equals(target.planId())) {
             return PreparedAudioRuntime.ready()
@@ -420,6 +419,9 @@ final class AdapterTransformationRegistry {
         if (RuleCommandClassCacheRuntime.PLAN_ID.equals(planId)) {
             return RuleCommandClassCacheRuntime.ready();
         }
+        if (SourceHintIsolationRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
         if (ResourceProbeRuntime.PLAN_ID.equals(planId)) {
             return ResourceProbeRuntime.ready();
         }
@@ -448,6 +450,27 @@ final class AdapterTransformationRegistry {
             return SimOpponentSafetyRuntime.ready();
         }
         return false;
+    }
+
+    /** Composes the always-on race fix with the optional probe cache on their shared resolver. */
+    private static byte[] resourceResolverPlans(ClassSignature signature, byte[] originalBytes) {
+        byte[] current = SourceHintIsolationPlan.transform(signature, originalBytes);
+        boolean changed = current != null;
+        if (!changed) {
+            current = originalBytes;
+        }
+        if (ResourceProbeRuntime.ready()) {
+            try {
+                byte[] probed = ResourceProbePlan.transform(ClassSignature.parse(current), current);
+                if (probed != null) {
+                    current = probed;
+                    changed = true;
+                }
+            } catch (java.io.IOException ignored) {
+                // The source-hint rewrite, if installed, remains valid on its own.
+            }
+        }
+        return changed ? current : null;
     }
 
     static boolean anyPlanCompiled() {

@@ -108,6 +108,7 @@ final class AdapterRuntime {
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
+                report.diagnostic("Loaded the exact resource source-hint isolation target");
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
                     report.diagnostic("Loaded the exact ResourceLoaderState and SpecStore startup-phase probe targets");

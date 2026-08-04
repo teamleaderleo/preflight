@@ -284,6 +284,8 @@ final class AdapterReport {
                 .append(Json.value(DeploymentIconCacheRuntime.telemetry())).append(',');
         key(output, "simOpponentSafety")
                 .append(Json.value(SimOpponentSafetyRuntime.telemetry())).append(',');
+        key(output, "sourceHintIsolation")
+                .append(Json.value(SourceHintIsolationRuntime.telemetry())).append(',');
         // These three kept their counters to themselves until now, which meant a launch could not
         // be asked afterwards how much any of them actually did.
         key(output, "resourceProbeCache").append(Json.value(ResourceProbeRuntime.report())).append(',');
