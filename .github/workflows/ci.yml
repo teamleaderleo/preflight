@@ -50,6 +50,7 @@ jobs:
           python3 scripts/test_prepared_comparison_pilot.py
           python3 -m py_compile scripts/starsector_critical_path.py
           python3 scripts/test_starsector_critical_path.py
+          python3 scripts/test_starsector_gameplay_hotspots.py
       - name: Verify
         run: mvn --batch-mode --no-transfer-progress verify
       - name: Upload runnable JAR
