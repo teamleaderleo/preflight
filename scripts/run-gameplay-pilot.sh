@@ -3,7 +3,7 @@
 # Launch one manually played combat pilot with every relevant beta probe enabled.
 #
 # Usage:
-#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair]
+#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter]
 #
 # Load a representative campaign, open a simulation, raise the DP cap, deploy many capitals,
 # fight for three to five minutes, then exit Starsector normally. Preflight keeps a coherent JFR
@@ -16,6 +16,8 @@ STARTUP_CACHES=true
 GAMEPLAY_CACHES=true
 SAFER_JVM=false
 AUDIO_REPAIR=true
+PROFILE=true
+ADAPTER=true
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -25,10 +27,19 @@ while [[ $# -gt 0 ]]; do
         --without-gameplay-caches) GAMEPLAY_CACHES=false; shift ;;
         --safer-jvm) SAFER_JVM=true; shift ;;
         --without-audio-repair) AUDIO_REPAIR=false; shift ;;
+        --without-profile) PROFILE=false; shift ;;
+        --without-adapter) ADAPTER=false; shift ;;
         -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
+
+if [[ "$ADAPTER" != true ]]; then
+    STARTUP_CACHES=false
+    GAMEPLAY_CACHES=false
+    AUDIO_REPAIR=false
+    PROFILE=false
+fi
 
 [[ -f pom.xml ]] || { echo "Run this from the starsector-preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
@@ -92,6 +103,8 @@ echo "Startup caches:  $STARTUP_CACHES"
 echo "Gameplay caches: $GAMEPLAY_CACHES"
 echo "Safer JVM:        $SAFER_JVM"
 echo "Audio repair:     $AUDIO_REPAIR"
+echo "Profile:          $PROFILE"
+echo "Adapter:          $ADAPTER"
 echo
 echo "In Starsector:"
 echo "  1. Load a representative campaign."
@@ -109,7 +122,10 @@ echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 # Normal Preflight launches independently auto-gate Ship's cast-site exclusions against the exact
 # known-risk launcher/runtime/class fingerprint; --safer-jvm remains as a manual diagnostic override.
 PILOT_CRASH_REPORT="$OUT/hs_err_pid%p.log"
-PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT' -Dpreflight.frameTimes=true"
+PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT'"
+if [[ "$PROFILE" == true ]]; then
+    PILOT_CRASH_OPTIONS+=" -Dpreflight.frameTimes=true"
+fi
 if [[ "$SAFER_JVM" == true ]]; then
     # Diagnostic only: interpret the exact vanilla method that produced an otherwise impossible
     # ClassCastException. Verification must remain disabled: the shipped obfuscated core contains
@@ -128,12 +144,20 @@ RUN_ARGS=(run \
     --game "$GAME" \
     --launcher "$LAUNCHER" \
     --trace-dir "$OUT" \
-    --direct \
-    --adapter)
+    --direct)
+if [[ "$ADAPTER" == true ]]; then
+    RUN_ARGS+=(--adapter)
+else
+    RUN_ARGS+=(--no-adapter)
+fi
 if [[ "$STARTUP_CACHES" == true ]]; then
     RUN_ARGS+=(--fast)
 fi
-RUN_ARGS+=(--profile --single-chunk-recording --startup-phase-probe)
+if [[ "$PROFILE" == true ]]; then
+    RUN_ARGS+=(--profile --single-chunk-recording --startup-phase-probe)
+else
+    RUN_ARGS+=(--no-record)
+fi
 if [[ "$GAMEPLAY_CACHES" == true && "$STARTUP_CACHES" != true ]]; then
     # --fast already includes this; the explicit flag keeps gameplay-only isolation available.
     RUN_ARGS+=(--campaign-entity-index)
