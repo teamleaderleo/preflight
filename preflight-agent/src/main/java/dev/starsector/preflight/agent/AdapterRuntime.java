@@ -120,7 +120,11 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
                 report.diagnostic("Loaded the exact GraphicsLib hot-settings cache target");
-                report.diagnostic("Loaded the exact streaming-audio OpenAL error-order target");
+                if (AudioStreamSourceErrorRuntime.disabled()) {
+                    report.diagnostic("Skipped the streaming-audio OpenAL error-order target by diagnostic property");
+                } else {
+                    report.diagnostic("Loaded the exact streaming-audio OpenAL error-order target");
+                }
                 report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget();

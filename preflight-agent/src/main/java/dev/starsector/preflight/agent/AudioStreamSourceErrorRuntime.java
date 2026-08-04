@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Telemetry for the exact OpenAL streaming-source error-order repair. */
 public final class AudioStreamSourceErrorRuntime {
     static final String PLAN_ID = "audio-stream-source-error-order-v1";
+    static final String DISABLED_PROPERTY = "preflight.audioStreamSourceError.disabled";
 
     private static final ThreadLocal<Integer> priorError = new ThreadLocal<>();
     private static final AtomicLong attempts = new AtomicLong();
@@ -44,6 +45,10 @@ public final class AudioStreamSourceErrorRuntime {
         generationErrors.set(0L);
         recoveredStaleErrors.set(0L);
         priorError.remove();
+    }
+
+    static boolean disabled() {
+        return Boolean.getBoolean(DISABLED_PROPERTY);
     }
 
     static Map<String, Object> telemetry() {

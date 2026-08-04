@@ -3,7 +3,7 @@
 # Launch one manually played combat pilot with every relevant beta probe enabled.
 #
 # Usage:
-#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm]
+#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair]
 #
 # Load a representative campaign, open a simulation, raise the DP cap, deploy many capitals,
 # fight for three to five minutes, then exit Starsector normally. Preflight keeps a coherent JFR
@@ -15,6 +15,7 @@ LABEL="gameplay-pilot"
 STARTUP_CACHES=true
 GAMEPLAY_CACHES=true
 SAFER_JVM=false
+AUDIO_REPAIR=true
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -23,6 +24,7 @@ while [[ $# -gt 0 ]]; do
         --without-startup-caches) STARTUP_CACHES=false; shift ;;
         --without-gameplay-caches) GAMEPLAY_CACHES=false; shift ;;
         --safer-jvm) SAFER_JVM=true; shift ;;
+        --without-audio-repair) AUDIO_REPAIR=false; shift ;;
         -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
@@ -89,6 +91,7 @@ echo "Pilot commit:    $(git rev-parse --short HEAD)"
 echo "Startup caches:  $STARTUP_CACHES"
 echo "Gameplay caches: $GAMEPLAY_CACHES"
 echo "Safer JVM:        $SAFER_JVM"
+echo "Audio repair:     $AUDIO_REPAIR"
 echo
 echo "In Starsector:"
 echo "  1. Load a representative campaign."
@@ -115,6 +118,9 @@ if [[ "$SAFER_JVM" == true ]]; then
     PILOT_CRASH_OPTIONS+=" -XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.advance"
     PILOT_CRASH_OPTIONS+=" -XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.render"
     PILOT_CRASH_OPTIONS+=" -Dpreflight.combatIntegrity.jvmMode=ship-cast-sites-interpreted"
+fi
+if [[ "$AUDIO_REPAIR" != true ]]; then
+    PILOT_CRASH_OPTIONS+=" -Dpreflight.audioStreamSourceError.disabled=true"
 fi
 export _JAVA_OPTIONS="${_JAVA_OPTIONS:+$_JAVA_OPTIONS }$PILOT_CRASH_OPTIONS"
 

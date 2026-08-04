@@ -1080,7 +1080,7 @@ final class AdapterTargetRegistry {
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
         // Both cache-backed modes read through the same manifest, so both want the prefetcher to
         // stop queueing what that manifest can serve.
-        return withTarget(mode == TextureAdapterMode.PREPARED_PIXELS
+        AdapterTargetRegistry registry = withTarget(mode == TextureAdapterMode.PREPARED_PIXELS
                 ? texturePreparedPixelTarget()
                 : textureCompatibilityTarget())
                 .withTarget(texturePrefetchBypassTarget())
@@ -1093,7 +1093,6 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())
-                .withTarget(audioStreamSourceErrorTarget())
                 .withTarget(aiTweaksEngagementRangeTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
@@ -1101,6 +1100,10 @@ final class AdapterTargetRegistry {
                 .withTarget(stelnetMarketUpdaterTarget())
                 .withTarget(macMemoryWarningTarget())
                 .withTarget(combatRuntimeIntegrityTarget());
+        if (!AudioStreamSourceErrorRuntime.disabled()) {
+            registry = registry.withTarget(audioStreamSourceErrorTarget());
+        }
+        return registry;
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {

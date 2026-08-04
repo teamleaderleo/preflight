@@ -108,6 +108,26 @@ class AudioStreamSourceErrorPlanTest {
         assertTrue(target.match(signature(), source).exact());
     }
 
+    @Test
+    void diagnosticPropertyOmitsOnlyStreamingAudioTarget() {
+        String previous = System.getProperty(AudioStreamSourceErrorRuntime.DISABLED_PROPERTY);
+        try {
+            System.setProperty(AudioStreamSourceErrorRuntime.DISABLED_PROPERTY, "true");
+            AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                    .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS);
+            assertTrue(registry.targets().stream()
+                    .noneMatch(target -> AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())));
+            assertTrue(registry.targets().stream()
+                    .anyMatch(target -> AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())));
+        } finally {
+            if (previous == null) {
+                System.clearProperty(AudioStreamSourceErrorRuntime.DISABLED_PROPERTY);
+            } else {
+                System.setProperty(AudioStreamSourceErrorRuntime.DISABLED_PROPERTY, previous);
+            }
+        }
+    }
+
     private static ClassSignature signature() {
         return new ClassSignature(
                 AudioStreamSourceErrorPlan.TARGET_CLASS,
