@@ -32,6 +32,7 @@ final class AdapterRuntime {
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         AudioStreamSourceErrorRuntime.beginSession();
+        AiTweaksEngagementRangeRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
         JaninoBytecodeCacheRuntime.beginSession();
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
@@ -119,6 +120,7 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
                 report.diagnostic("Loaded the exact GraphicsLib hot-settings cache target");
                 report.diagnostic("Loaded the exact streaming-audio OpenAL error-order target");
+                report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget();
                     report.diagnostic("Loaded the exact opt-in LWJGL frame-time probe target");

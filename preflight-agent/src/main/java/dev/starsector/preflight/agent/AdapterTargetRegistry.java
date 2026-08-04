@@ -158,6 +158,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** AI Tweaks 2.2.10 recomputes the same derived range five times per target selection. */
+    static AdapterTarget aiTweaksEngagementRangeTarget() {
+        return new AdapterTarget(
+                "aitweaks-2.2.10-select-target-engagement-range",
+                AiTweaksEngagementRangePlan.TARGET_CLASS,
+                AiTweaksEngagementRangePlan.ORIGINAL_SHA256,
+                AiTweaksEngagementRangeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        AiTweaksEngagementRangePlan.CONSTRUCTOR,
+                        AiTweaksEngagementRangePlan.CONSTRUCTOR_DESCRIPTOR)),
+                "MOD",
+                "aitweaks-core.jar",
+                "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** GraphicsLib 1.12.1's exact normal-map traversal implementation and owning mod archive. */
     static AdapterTarget graphicsLibCompactReplayTarget() {
         return new AdapterTarget(
@@ -1071,6 +1088,7 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioStreamSourceErrorTarget())
+                .withTarget(aiTweaksEngagementRangeTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())

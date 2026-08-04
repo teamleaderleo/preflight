@@ -310,6 +310,7 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | GraphicsLib insignia manager cache | 4.40% of long-session game-thread samples is all GraphicsLib | exact per-render adapter built; combat pilot pending |
 | GraphicsLib hot-settings cache | 7,621 hits / 3 misses / 1 invalidation | live exact adapter; Luna float stack removed |
 | OpenAL streaming-source error order | 1 stale error recovered / 0 real generation errors | live exact vanilla repair; false 516ms retry removed |
+| AI Tweaks target-selection range snapshot | four of five derived-range calls removed per selection | exact offline and installed-archive gates pass; live combat pilot pending |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
@@ -343,7 +344,18 @@ preceding pilot also produced an audible pop at process startup and shutdown and
 has a concrete startup cause: vanilla checked a stale OpenAL error after source generation, logged a
 false failure, and retried successfully. The exact error-order repair recovered that same stale
 error in the live follow-up and main-menu music started on the first attempt; the shutdown sound is
-not yet independently attributed.
+not yet independently attributed. The latest complete log records orderly cleanup of both campaign
+and main-menu streams with no OpenAL error or underrun at exit, so the remaining boundary pop is
+tracked as an unlogged device-lifecycle event rather than folded into the stale-error repair.
+
+**AI Tweaks.** The latest combat profile put `AutofireAI` on 51 of 776 game-thread samples and its
+derived engagement-range getter below six of those samples. Exact 2.2.10 source and bytecode show
+that one short-lived `SelectTarget` recomputes the same range five times during one synchronous
+selection. `aitweaks-select-target-engagement-range-v1` snapshots the constructor's first result and
+reuses it for the other four calls, preserving changes between selection events and adding no
+cross-frame cache. The executable behavior test, exact installed-archive transform, fail-closed
+shape gates, and full verification pass. A live combat pilot is next; see
+`docs/evidence/2026-08-05-aitweaks-engagement-range.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and

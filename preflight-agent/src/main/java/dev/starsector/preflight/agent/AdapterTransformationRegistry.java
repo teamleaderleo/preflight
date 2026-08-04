@@ -168,6 +168,9 @@ final class AdapterTransformationRegistry {
         if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())) {
             return AudioStreamSourceErrorPlan.transform(signature, originalBytes);
         }
+        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
+            return AiTweaksEngagementRangePlan.transform(signature, originalBytes);
+        }
         if (GraphicsLibCompactReplayPlan.PLAN_ID.equals(target.planId())) {
             return GraphicsLibCompactReplayPlan.ready()
                     ? GraphicsLibCompactReplayPlan.transform(signature)
@@ -464,6 +467,9 @@ final class AdapterTransformationRegistry {
             return PreparedAudioRuntime.ready();
         }
         if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(planId)) {
