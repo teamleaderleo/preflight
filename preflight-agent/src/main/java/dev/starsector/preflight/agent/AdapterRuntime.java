@@ -36,6 +36,7 @@ final class AdapterRuntime {
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         EntityLookupRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
+        CommodityEventModMemoRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
@@ -111,6 +112,7 @@ final class AdapterRuntime {
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
+                report.diagnostic("Loaded the exact campaign commodity event-mod memo target");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
                 if (FrameTimeRuntime.enabled()) {

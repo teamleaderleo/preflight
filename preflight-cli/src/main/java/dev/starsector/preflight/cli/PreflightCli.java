@@ -231,9 +231,9 @@ public final class PreflightCli {
                         + " and gives up crash/force-quit sidecar recovery; --no-record is incompatible.",
                 "    --campaign-entity-index enables the BaseLocation.getEntityById index. It"
                         + " requires --adapter, serves only snapshot-validated hits and misses, and"
-                        + " fails open on any validation error. It and the exact snapshot-validated"
-                        + " deployment icon cache are included by --fast after two clean gameplay"
-                        + " pilots."));
+                        + " fails open on any validation error. The exact mutation-tracked deployment"
+                        + " icon cache and per-commodity event-mod memo use the same gameplay-cache"
+                        + " switch; --fast enables all three."));
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));

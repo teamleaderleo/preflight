@@ -434,6 +434,36 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The exact vanilla per-commodity event-mod rewrite observed in campaign frame samples. */
+    static AdapterTarget commodityEventModMemoTarget() {
+        return new AdapterTarget(
+                "vanilla-commodity-event-mod-memo-0.98a-rc8",
+                CommodityEventModMemoPlan.TARGET_CLASS,
+                CommodityEventModMemoPlan.ORIGINAL_SHA256,
+                CommodityEventModMemoRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                CommodityEventModMemoPlan.METHOD,
+                                CommodityEventModMemoPlan.DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CommodityEventModMemoPlan.QUANTITY_METHOD,
+                                CommodityEventModMemoPlan.QUANTITY_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CommodityEventModMemoPlan.MOD_VALUE_METHOD,
+                                CommodityEventModMemoPlan.MOD_VALUE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CommodityEventModMemoPlan.AVAILABLE_METHOD,
+                                CommodityEventModMemoPlan.AVAILABLE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CommodityEventModMemoPlan.COMMODITY_METHOD,
+                                CommodityEventModMemoPlan.COMMODITY_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The exact refit simulator method that consumes the merged simulation-opponent id list. */
     static AdapterTarget simOpponentSafetyTarget() {
         return new AdapterTarget(
@@ -808,6 +838,10 @@ final class AdapterTargetRegistry {
         return withTarget(deploymentIconCacheTarget());
     }
 
+    AdapterTargetRegistry withCommodityEventModMemoTarget() {
+        return withTarget(commodityEventModMemoTarget());
+    }
+
     AdapterTargetRegistry withSimOpponentSafetyTarget() {
         return withTarget(simOpponentSafetyTarget()).withTarget(simOpponentDialogProbeTarget());
     }
@@ -972,6 +1006,7 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignEntityRepositoryTarget())
                 .withTarget(campaignEntityIdMutationTarget())
                 .withTarget(deploymentIconCacheTarget())
+                .withTarget(commodityEventModMemoTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())

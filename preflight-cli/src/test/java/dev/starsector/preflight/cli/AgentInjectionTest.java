@@ -128,6 +128,7 @@ class AgentInjectionTest {
 
         assertTrue(enabled.contains(" -Dpreflight.campaign.entityIndex=true"), enabled);
         assertTrue(enabled.contains(" -Dpreflight.deployment.iconCache=true"), enabled);
+        assertTrue(enabled.contains(" -Dpreflight.campaign.eventModMemo=true"), enabled);
         assertThrows(
                 IllegalArgumentException.class,
                 () -> AgentInjection.append(

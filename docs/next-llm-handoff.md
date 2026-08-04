@@ -60,6 +60,15 @@ adds that one compile exclusion only when the exact OS, launcher policy, directi
 `Ship.class` hash all match; every drift fails closed and the decision lands in `run.json`. Evidence:
 `docs/evidence/2026-08-05-combat-jvm-safeguard.md`.
 
+The retreat recording also supplied the first clean post-startup campaign hotspot after the earlier
+MagicLib and Stelnet work. Vanilla `CommodityOnMarket.reapplyEventMod` occupied 84/781 campaign
+samples (10.76%) by removing and recreating the same event modifier every frame. An exact 0.98a-RC8
+memo now fingerprints the four inputs and post-vanilla output in transient per-commodity fields;
+first calls and every changed input use the retained original. Synthetic and installed-class
+execution tests cover zero and non-zero trade quantities and external mutations. It is enabled with
+the other campaign caches by `--fast`/`--campaign-entity-index`; a live comparison remains next.
+Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
+
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
 
 | | seconds |

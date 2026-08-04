@@ -148,6 +148,14 @@ retains complete snapshot validation; any validation or reflection failure deleg
 preserved original method. The adapter report exposes answer, rebuild, fast/deep validation,
 mutation, tracked/untracked-list, and validated-reference counters under `campaignEntityIndex` for
 a long-session review.
+A second exact vanilla campaign optimization is enabled by the same flag. `Market.advance` calls
+`CommodityOnMarket.reapplyEventMod` for every commodity every frame; the shipped method removes and
+recreates the same `eMod` even when its trade quantity, available value, prior event value, and
+commodity econ unit are unchanged. Preflight stores those four post-vanilla values in transient
+per-commodity fields, also guards the exact event-mod object and description, and skips only an
+exact match. The first call and every changed input delegate
+to the preserved method. `commodityEventModMemo` reports hits and delegations, and
+`-Dpreflight.campaign.eventModMemo.disabled=true` disables this memo alone.
 A pilot has not proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
 also enables a positive-only deployment member-icon cache for the exact reviewed vanilla UI class;

@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
 import dev.starsector.preflight.agent.DeploymentIconCacheRuntime;
+import dev.starsector.preflight.agent.CommodityEventModMemoRuntime;
 import dev.starsector.preflight.agent.EntityLookupRuntime;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TexturePaddingRuntime;
@@ -860,7 +861,8 @@ final class AgentInjection {
         }
         if (campaignEntityIndex) {
             option = option + " -D" + EntityLookupRuntime.ENABLED_PROPERTY + "=true"
-                    + " -D" + DeploymentIconCacheRuntime.ENABLED_PROPERTY + "=true";
+                    + " -D" + DeploymentIconCacheRuntime.ENABLED_PROPERTY + "=true"
+                    + " -D" + CommodityEventModMemoRuntime.ENABLED_PROPERTY + "=true";
         }
         return current.isEmpty() ? option : current + " " + option;
     }

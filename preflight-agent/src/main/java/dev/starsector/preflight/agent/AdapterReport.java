@@ -282,6 +282,8 @@ final class AdapterReport {
         key(output, "campaignEntityIndex").append(Json.value(EntityLookupRuntime.counters())).append(',');
         key(output, "deploymentIconCache")
                 .append(Json.value(DeploymentIconCacheRuntime.telemetry())).append(',');
+        key(output, "commodityEventModMemo")
+                .append(Json.value(CommodityEventModMemoRuntime.telemetry())).append(',');
         key(output, "simOpponentSafety")
                 .append(Json.value(SimOpponentSafetyRuntime.telemetry())).append(',');
         key(output, "sourceHintIsolation")
