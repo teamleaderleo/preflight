@@ -4,8 +4,7 @@
 
 **Input:** combined gameplay pilots `gameplay-pilot-20260804-033528` and
 `gameplay-pilot-20260804-042009`
-**Status:** v1 live-validated; v2 mutation-tracked repair verified offline against the installed
-0.98a-RC8 archive and awaiting a coordinated game run
+**Status:** v2 live-validated in campaign combat and the 500-member simulator grid
 
 ## Stress follow-up: v1 validated 9.44 billion references
 
@@ -33,8 +32,26 @@ is then one identity-map lookup plus the existing cached-icon member identity ch
 The report keeps `snapshots` and `validatedReferences` at zero for schema continuity and adds
 `validationStrategy=instrumented-owner-mutations`, `additions`, `removals`, `clears`, and
 `fallbackRecords`. Focused fixture tests and the opt-in installed `starfarer_obf.jar` transformation
-test pass without starting or initializing the game. Live timing and gameplay confirmation remain
-deliberately pending until the operator is ready for another launch.
+test pass without starting or initializing the game. The coordinated gameplay acceptance is
+recorded below.
+
+## Version 2 live acceptance
+
+Run `20260804-132119-393-31fc0cea` exercised an ordinary campaign battle and a simulator battle
+after building the Default opponent grid. The mutation-tracked cache reported:
+
+- 1,400,568 constant-time hits;
+- 1,179 delegated authoritative scans and 1,179 fallback records;
+- 1,249 additions, one clear, and no removals;
+- zero snapshots and zero validated references; and
+- no transformation decline, contained failure, or health mismatch.
+
+Hits were 99.916% of all lookup calls. More importantly, none of those hits traversed either
+backing list; the pathological reference-validation counter that reached 9.44 billion under v1
+remained zero. The same run's simulator safety adapter removed 25 stale variants from 535
+candidates, presented all 500 valid Default-category ships, and completed a six-ship simulation
+battle without a fleet, combat, dialog, or category-update inspection failure. Starsector and its
+launcher both exited with code zero, and Preflight's lifecycle scan found no fatal error.
 
 The gameplay recording's second concentrated warm-session hotspot was not rendering. Vanilla
 `supersuper.getIconForMember(FleetMember)` iterates the deployment grid's complete item list and,
