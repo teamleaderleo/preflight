@@ -97,8 +97,12 @@ same-key replacement through node value identity, structural edits through the g
 replacement through identity, and still compares public `StatMod` fields. The capability uses
 Starsector's existing `--add-opens java.base/java.util=ALL-UNNAMED`; without it, the exact old lookup
 remains. Missing accessor linkage disables the memo after vanilla returns. Closed-module, open-module,
-real installed-class, and full `mvn verify` checks pass. The remaining gate is a short live campaign
-pilot proving snapshot activation and removal of the sampled `getFlatStatMod` stack.
+real installed-class, and full `mvn verify` checks pass. The live v3 pilot then served 24,241,238
+hits, delegated/captured 223,219 exact post-vanilla states, and reported snapshot capability active
+with zero unavailable capture or accessor fallback. `getFlatStatMod` fell from 12.64% to 0.51% of
+campaign samples; all five survivors were legitimate vanilla delegations. The wrapper itself is now
+a 6.82% compiled leaf, so further commodity work must reduce exact validation cost or move the safe
+boundary outward rather than hunting another nested call.
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:

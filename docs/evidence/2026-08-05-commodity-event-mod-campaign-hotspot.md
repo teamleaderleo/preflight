@@ -145,5 +145,22 @@ Focused tests pass in both closed-module fallback mode and the launcher's open-m
 positive tests cover same-key replacement, direct entry replacement, removal/reinsertion, map
 replacement, absent-entry insertion, and stable entries. The installed-class suite executes the
 real Starsector classes in both modes, including all v2 mutation cases. Full `mvn verify` with the
-installed core jar is green. A live campaign pilot remains the activation and sampled-stack gate;
-until that passes, v3 is not a measured gameplay result.
+installed core jar is green.
+
+### Map-entry live result
+
+`~/.starsector-preflight/runs/commodity-event-entry-v3-20260805-035020` completed normally with
+adapter health `ACTIVE`, all 28 transformations applied, and no decline or contained failure. The
+memo served 24,241,238 unchanged calls and delegated 223,219 calls. Snapshot capability was active:
+all 223,219 post-vanilla states captured an entry snapshot, with zero unavailable captures and zero
+accessor fallback. No snapshot invalidation was needed in this workload because the earlier dirty,
+identity, float-bit, or description checks caught every observed change first; the map-generation
+check remained armed for direct edits through the exposed map.
+
+The state-separated recording contains 983 campaign and 1,010 combat main-thread samples.
+`MutableStat.getFlatStatMod` fell from 212/1,677 campaign samples in v2 (12.64%) to 5/983 (0.51%).
+All five remaining samples are under the preserved vanilla method during legitimate delegations;
+the 24.2-million-call hit path no longer performs the lookup. `CommodityOnMarket.reapplyEventMod`
+itself is now a compiled leaf in 67/983 samples (6.82%), so the next cost is the exact hit-path
+validation rather than another hidden vanilla call. Campaign frame time for this mixed interactive
+pilot was p50 16.8ms, p95 26.5ms, and p99 57.3ms; it is not an identical-workload frame-time A/B.
