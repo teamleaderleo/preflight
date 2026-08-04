@@ -106,15 +106,12 @@ echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 PILOT_CRASH_REPORT="$OUT/hs_err_pid%p.log"
 PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT' -Dpreflight.frameTimes=true"
 if [[ "$SAFER_JVM" == true ]]; then
-    # Diagnostic only: restore verification after the launcher's -noverify and interpret the exact
-    # vanilla method that produced an otherwise impossible ClassCastException. _JAVA_OPTIONS is
-    # applied after command-line flags, and nothing here edits the installation.
-    # _JAVA_OPTIONS is validated before the launcher's own UnlockDiagnosticVMOptions is visible,
-    # even though its final values win. Carry the unlock with the diagnostic flags themselves.
-    PILOT_CRASH_OPTIONS+=" -XX:+UnlockDiagnosticVMOptions"
-    PILOT_CRASH_OPTIONS+=" -XX:+BytecodeVerificationLocal -XX:+BytecodeVerificationRemote"
+    # Diagnostic only: interpret the exact vanilla method that produced an otherwise impossible
+    # ClassCastException. Verification must remain disabled: the shipped obfuscated core contains
+    # identifiers such as "for.Object" that Java 17 rejects before the title screen. Nothing here
+    # edits the installation.
     PILOT_CRASH_OPTIONS+=" -XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.advance"
-    PILOT_CRASH_OPTIONS+=" -Dpreflight.combatIntegrity.jvmMode=safer-jvm"
+    PILOT_CRASH_OPTIONS+=" -Dpreflight.combatIntegrity.jvmMode=ship-advance-interpreted"
 fi
 export _JAVA_OPTIONS="${_JAVA_OPTIONS:+$_JAVA_OPTIONS }$PILOT_CRASH_OPTIONS"
 
