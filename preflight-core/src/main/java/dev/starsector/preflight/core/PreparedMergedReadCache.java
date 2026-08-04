@@ -4,13 +4,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Merged reads the game already performed, stored as tagged trees under the exact profile that
+ * Data reads the game already performed, stored as tagged trees under the exact profile that
  * produced them.
  *
  * <p>Unlike the five per-loader caches, this one is not about any loader. It keys on the request --
- * which path was merged, and with which arguments -- because the two methods it serves are the two
- * every merged read in the game funnels through, whoever the caller is. That is what lets it answer
- * for the loaders nobody has pinned and for whatever a mod's callback decides to read.
+ * which path was read, which operation was used, and which arguments alter the answer. That is what
+ * lets it answer for loaders nobody has pinned and for lazy mod reads after startup.
  *
  * <p>A key names a request, not a file. {@link MergedReadKey} builds it, and the only thing this
  * record insists on is that keys are well formed and values decode as trees, so an artifact that has

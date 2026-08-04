@@ -39,6 +39,7 @@ public final class MergedReadKey {
 
     public static final String CSV = "csv";
     public static final String JSON = "json";
+    public static final String SINGLE_JSON = "single-json";
 
     /*
      * The game reads settings once before mod resource roots are active and again after registering
@@ -64,6 +65,15 @@ public final class MergedReadKey {
         }
         String items = items(mergeKeys);
         return items == null ? null : bound(JSON + FIELD + path + FIELD + items);
+    }
+
+    /** The key for one unrestricted single-file JSON read after resource initialization. */
+    public static String singleJson(String rawPath) {
+        String path = path(rawPath);
+        if (path == null || DYNAMIC_SETTINGS.equals(path)) {
+            return null;
+        }
+        return bound(SINGLE_JSON + FIELD + path + FIELD);
     }
 
     /** The key for one merged CSV read, or null if this cache may not answer for it. */
@@ -122,7 +132,10 @@ public final class MergedReadKey {
             return false;
         }
         String kind = key.substring(0, first);
-        if (!CSV.equals(kind) && !JSON.equals(kind)) {
+        if (!CSV.equals(kind) && !JSON.equals(kind) && !SINGLE_JSON.equals(kind)) {
+            return false;
+        }
+        if (SINGLE_JSON.equals(kind) && second != key.length() - 1) {
             return false;
         }
         String path = key.substring(first + 1, second);

@@ -29,6 +29,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * read a spec and construct from it rather than editing it in place, and a caller that did write
  * to the object would already have been racing the next caller for it. {@link #reparse} exists for
  * a profile that wants the immutable version, and gives up only the parse.
+ *
+ * <p>After resource initialization, eligible cold paths can also be reconstructed from the general
+ * full-data-profile cache. The first decoded object becomes this process's ordinary memo value, so
+ * sharing and mutation behavior remain identical to a vanilla parse followed by this memo.
  */
 public final class LoadJsonMemoRuntime {
     static final String PLAN_ID = "loadjson-memo-v1";
@@ -39,11 +43,15 @@ public final class LoadJsonMemoRuntime {
     private static final AtomicLong calls = new AtomicLong();
     private static final AtomicLong hits = new AtomicLong();
     private static final AtomicLong failures = new AtomicLong();
+    private static final AtomicLong preparedHits = new AtomicLong();
+    private static final AtomicLong preparedMisses = new AtomicLong();
+    private static final AtomicLong preparedCaptures = new AtomicLong();
 
     private static volatile boolean enabled =
             "on".equalsIgnoreCase(System.getProperty(ENABLED_PROPERTY));
     private static volatile boolean reparse =
             "on".equalsIgnoreCase(System.getProperty(REPARSE_PROPERTY));
+    private static volatile boolean startupComplete;
 
     /**
      * The resolver carries two one-shot pieces of state that the next resolve consumes and clears:
@@ -92,6 +100,11 @@ public final class LoadJsonMemoRuntime {
             // it is not the answer an unrestricted call would get.
             return loaded;
         }
+        return loadJsonResolved(path, vanilla);
+    }
+
+    /** The unrestricted path, separated so persistence behavior can be executed in isolation. */
+    static Object loadJsonResolved(String path, MethodHandle vanilla) throws Throwable {
         Object cached = parsed.get(path);
         if (cached != null) {
             hits.incrementAndGet();
@@ -105,11 +118,28 @@ public final class LoadJsonMemoRuntime {
                 return vanilla.invoke(path);
             }
         }
+        if (startupComplete && MergedReadCacheRuntime.singleJsonEligible(path)) {
+            Object prepared = MergedReadCacheRuntime.singleJson(path);
+            if (prepared != null) {
+                preparedHits.incrementAndGet();
+                parsed.put(path, prepared);
+                return prepared;
+            }
+            preparedMisses.incrementAndGet();
+        }
         Object loaded = vanilla.invoke(path);
         if (loaded != null) {
             parsed.put(path, loaded);
+            if (startupComplete && MergedReadCacheRuntime.captureSingleJson(path, loaded)) {
+                preparedCaptures.incrementAndGet();
+            }
         }
         return loaded;
+    }
+
+    /** Enables only phase-stable persistence after all resource roots are installed. */
+    static void markStartupComplete() {
+        startupComplete = true;
     }
 
     /**
@@ -177,6 +207,9 @@ public final class LoadJsonMemoRuntime {
         report.put("bypassedForPendingResolverState", bypassed.get());
         report.put("distinctPaths", parsed.size());
         report.put("failures", failures.get());
+        report.put("preparedHits", preparedHits.get());
+        report.put("preparedMisses", preparedMisses.get());
+        report.put("preparedCaptures", preparedCaptures.get());
         return report;
     }
 
@@ -186,5 +219,9 @@ public final class LoadJsonMemoRuntime {
         hits.set(0);
         bypassed.set(0);
         failures.set(0);
+        preparedHits.set(0);
+        preparedMisses.set(0);
+        preparedCaptures.set(0);
+        startupComplete = false;
     }
 }

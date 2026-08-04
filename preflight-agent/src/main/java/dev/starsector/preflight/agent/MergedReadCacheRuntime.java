@@ -19,7 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Serves the two methods every merged data read in the game funnels through.
+ * Serves the two methods every merged data read in the game funnels through, plus unrestricted
+ * single-file JSON first requested after resource initialization.
  *
  * <p>The five caches before this one each pinned a loader and cached that loader's reads, which
  * removed nine seconds from {@code SpecStore} and could not touch anything nobody had pinned. The
@@ -43,8 +44,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li><b>Collisions are refused, not resolved.</b> If two different values ever claim one key the
  *       key is dropped from the artifact entirely, so a doubtful key costs a fallback rather than
  *       serving the wrong merge.
- *   <li><b>It publishes only after a clean finish.</b> Nothing is written until startup reaches
- *       {@code resource-init-complete}, so a launch that died halfway leaves no artifact behind.
+ *   <li><b>It publishes only after completed startup.</b> The initial publication waits for
+ *       {@code resource-init-complete}; a shutdown publication can then add lazy campaign reads.
  * </ul>
  */
 public final class MergedReadCacheRuntime {
@@ -167,27 +168,64 @@ public final class MergedReadCacheRuntime {
         Object invoke() throws Throwable;
     }
 
-    /** Publishes what this launch learned, once startup has finished loading normally. */
+    /** Returns one prepared unrestricted JSON file, or null when this request stays vanilla. */
+    static Object singleJson(String path) {
+        State current = state;
+        if (current.artifact == null) return null;
+        Object value = cached(current, MergedReadKey.singleJson(path));
+        if (value == null) {
+            current.singleJsonMisses.incrementAndGet();
+        } else {
+            current.singleJsonHits.incrementAndGet();
+        }
+        return value;
+    }
+
+    static boolean singleJsonEligible(String path) {
+        return state.artifact != null && MergedReadKey.singleJson(path) != null;
+    }
+
+    /** Learns one unrestricted post-startup JSON file under the same full-data profile identity. */
+    static boolean captureSingleJson(String path, Object produced) {
+        State current = state;
+        if (current.artifact == null) return false;
+        boolean captured = capture(current, MergedReadKey.singleJson(path), produced);
+        if (captured) current.singleJsonCaptures.incrementAndGet();
+        return captured;
+    }
+
+    /**
+     * Publishes what this launch learned after a completed startup and again at orderly shutdown.
+     * The second publication adds lazy campaign reads without weakening the profile identity or
+     * collision rules; an unchanged revision is a no-op.
+     */
     public static void complete() {
         State current = state;
-        if (current.artifact == null
-                || current.learned.isEmpty() && current.prunableEntries == 0
-                || !current.completed.compareAndSet(false, true)) {
+        if (current.artifact == null) {
             return;
         }
-        try {
-            Map<String, byte[]> combined = new LinkedHashMap<>(current.entries);
-            combined.putAll(current.learned);
-            combined.keySet().removeAll(current.collidingKeys);
-            combined.keySet().removeIf(MergedReadKey::ownedBySpecJsonCache);
-            PreparedMergedReadCacheIO.write(
-                    current.artifact,
-                    new PreparedMergedReadCache(current.profileIdentity, combined));
-            current.writes.incrementAndGet();
-        } catch (ThreadDeath | VirtualMachineError fatal) {
-            throw fatal;
-        } catch (Throwable error) {
-            current.diagnose("prepared merged reads could not be written: " + message(error));
+        synchronized (current.publishLock) {
+            long revision = current.revision.get();
+            if ((current.learned.isEmpty() && current.prunableEntries == 0)
+                    || (current.publishedRevision == revision && current.pruningPublished)) {
+                return;
+            }
+            try {
+                Map<String, byte[]> combined = new LinkedHashMap<>(current.entries);
+                combined.putAll(current.learned);
+                combined.keySet().removeAll(current.collidingKeys);
+                combined.keySet().removeIf(MergedReadKey::ownedBySpecJsonCache);
+                PreparedMergedReadCacheIO.write(
+                        current.artifact,
+                        new PreparedMergedReadCache(current.profileIdentity, combined));
+                current.writes.incrementAndGet();
+                current.publishedRevision = revision;
+                current.pruningPublished = true;
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                current.diagnose("prepared merged reads could not be written: " + message(error));
+            }
         }
     }
 
@@ -222,21 +260,21 @@ public final class MergedReadCacheRuntime {
         }
     }
 
-    private static void capture(State current, String key, Object produced) {
+    private static boolean capture(State current, String key, Object produced) {
         if (key == null || produced == null || current.learned.size() >= MAX_LEARNED) {
-            return;
+            return false;
         }
         // Four higher caches own these domains. Retaining one from an older artifact lets a miss
         // still fall through to this cache for the current run, but publishing a second permanent
         // copy only bloats the lower artifact: warm launches always stop at the dedicated cache.
         if (MergedReadKey.ownedBySpecJsonCache(key)) {
             current.dedicatedSpecCapturesSkipped.incrementAndGet();
-            return;
+            return false;
         }
         try {
             GameJson bridge = GameJson.bridge();
             if (!bridge.isGameJson(produced)) {
-                return;
+                return false;
             }
             byte[] encoded = bridge.encode(produced);
             byte[] previous = current.learned.putIfAbsent(key, encoded);
@@ -247,15 +285,19 @@ public final class MergedReadCacheRuntime {
                 current.collidingKeys.add(key);
                 current.badEntries.add(key);
                 current.collisions.incrementAndGet();
+                current.revision.incrementAndGet();
                 current.diagnose("two different merged reads claim the cache key " + readable(key));
-                return;
+                return false;
             }
+            if (previous == null) current.revision.incrementAndGet();
             current.captures.incrementAndGet();
+            return true;
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable error) {
             current.unstorable.incrementAndGet();
             current.diagnose("a merged read could not be stored: " + message(error));
+            return false;
         }
     }
 
@@ -302,6 +344,9 @@ public final class MergedReadCacheRuntime {
         values.put("keyCollisions", current.collisions.get());
         values.put("dedicatedSpecEntriesPruned", current.prunableEntries);
         values.put("dedicatedSpecCapturesSkipped", current.dedicatedSpecCapturesSkipped.get());
+        values.put("singleJsonHits", current.singleJsonHits.get());
+        values.put("singleJsonMisses", current.singleJsonMisses.get());
+        values.put("singleJsonCaptures", current.singleJsonCaptures.get());
         values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
         return values;
     }
@@ -327,8 +372,8 @@ public final class MergedReadCacheRuntime {
         private final Map<String, byte[]> learned = new ConcurrentHashMap<>();
         private final Set<String> badEntries = ConcurrentHashMap.newKeySet();
         private final Set<String> collidingKeys = ConcurrentHashMap.newKeySet();
-        private final AtomicBoolean completed = new AtomicBoolean();
         private final AtomicBoolean diagnosed = new AtomicBoolean();
+        private final Object publishLock = new Object();
         private final AtomicLong hits = new AtomicLong();
         private final AtomicLong misses = new AtomicLong();
         private final AtomicLong captures = new AtomicLong();
@@ -337,6 +382,12 @@ public final class MergedReadCacheRuntime {
         private final AtomicLong writes = new AtomicLong();
         private final AtomicLong collisions = new AtomicLong();
         private final AtomicLong dedicatedSpecCapturesSkipped = new AtomicLong();
+        private final AtomicLong singleJsonHits = new AtomicLong();
+        private final AtomicLong singleJsonMisses = new AtomicLong();
+        private final AtomicLong singleJsonCaptures = new AtomicLong();
+        private final AtomicLong revision = new AtomicLong();
+        private long publishedRevision = Long.MIN_VALUE;
+        private boolean pruningPublished;
 
         private State(Path artifact, String profileIdentity, Map<String, byte[]> entries,
                 int prunableEntries, String diagnostic) {

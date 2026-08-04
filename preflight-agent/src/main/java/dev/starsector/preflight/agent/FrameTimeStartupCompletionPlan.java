@@ -23,7 +23,7 @@ final class FrameTimeStartupCompletionPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!FrameTimeRuntime.enabled()
+        if ((!FrameTimeRuntime.enabled() && !LoadJsonMemoRuntime.ready())
                 || !TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
                 || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {

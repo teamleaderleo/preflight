@@ -115,6 +115,8 @@ public final class FrameTimeRuntime {
     /** Called from an exact transformed game class when resource initialization returns. */
     public static synchronized void markStartupComplete() {
         if (enabled) startupComplete = true;
+        LoadJsonMemoRuntime.markStartupComplete();
+        MergedReadCacheRuntime.complete();
     }
 
     static synchronized void recordBoundary(long now) {

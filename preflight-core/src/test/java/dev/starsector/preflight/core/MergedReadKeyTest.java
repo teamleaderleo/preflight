@@ -17,11 +17,14 @@ class MergedReadKeyTest {
                 "data/hulls/ship_data.csv", true, false, List.of("id", "name"));
         String json = MergedReadKey.json(
                 "data/config/engine_styles.json", List.of("protected", "alsoProtected"));
+        String singleJson = MergedReadKey.singleJson("data/config/chatter/characters/default.json");
 
         assertNotNull(csv);
         assertNotNull(json);
+        assertNotNull(singleJson);
         assertTrue(MergedReadKey.wellFormed(csv));
         assertTrue(MergedReadKey.wellFormed(json));
+        assertTrue(MergedReadKey.wellFormed(singleJson));
         assertNotEquals(csv, MergedReadKey.csv(
                 "data/hulls/ship_data.csv", false, false, List.of("id", "name")));
         assertNotEquals(csv, MergedReadKey.csv(
@@ -32,12 +35,14 @@ class MergedReadKeyTest {
         assertNull(MergedReadKey.json("graphics/settings.json", List.of()));
         assertNull(MergedReadKey.csv("ship_data.csv", true, false, List.of()));
         assertNull(MergedReadKey.json("data/config/../settings.json", List.of()));
+        assertNull(MergedReadKey.singleJson("graphics/settings.json"));
     }
 
     @Test
     void refusesSettingsWhoseOverlayChangesAsResourceRootsComeOnline() {
         assertNull(MergedReadKey.json("data/config/settings.json", List.of()));
         assertNull(MergedReadKey.json("data/config/settings.json", List.of("protected")));
+        assertNull(MergedReadKey.singleJson("data/config/settings.json"));
     }
 
     @Test

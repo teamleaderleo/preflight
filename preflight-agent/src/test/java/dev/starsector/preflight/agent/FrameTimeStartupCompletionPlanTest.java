@@ -21,6 +21,8 @@ class FrameTimeStartupCompletionPlanTest {
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
+        LoadJsonMemoRuntime.enable(false);
+        LoadJsonMemoRuntime.reset();
     }
 
     @Test
@@ -62,6 +64,18 @@ class FrameTimeStartupCompletionPlanTest {
         byte[] ambiguous = fixture(2);
         assertNull(FrameTimeStartupCompletionPlan.transform(
                 exactSignature(ambiguous), ambiguous));
+    }
+
+    @Test
+    void installsForThePostStartupJsonCacheWithoutFrameTelemetry() throws Exception {
+        FrameTimeRuntime.beginSession(false);
+        LoadJsonMemoRuntime.enable(true);
+        byte[] original = fixture(1);
+
+        byte[] transformed = FrameTimeStartupCompletionPlan.transform(
+                exactSignature(original), original);
+
+        assertEquals(1, calls(method(transformed), RUNTIME, "markStartupComplete", "()V"));
     }
 
     private static byte[] fixture(int returns) {

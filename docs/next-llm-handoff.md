@@ -422,6 +422,16 @@ campaign distribution because Starsector's title screen runs a background `Comba
 contaminated the raw combat bucket. See
 `docs/evidence/2026-08-05-frame-time-fps-reporting.md`.
 
+**Post-startup JSON.** That pilot's in-process memo served 26,590 of 36,090 `loadJSON` calls, but
+still parsed 7,637 distinct paths once per process. Save completion at 46.219s was immediately
+followed by Combat Chatter's deferred data reads while the campaign was visible. The general
+full-data-profile artifact now also learns only unrestricted `data/` JSON first requested after the
+exact resource-init completion marker, publishes the lazy revision at shutdown, and reconstructs it
+once into the process-local memo on the next run. Restricted/phase-dependent calls, settings,
+outside-data paths, collisions, malformed values, and changed profiles stay vanilla. Executable
+cold/warm behavior and full `mvn verify` pass; the next two matching gameplay launches are the
+learning and warm gates. See `docs/evidence/2026-08-05-post-startup-loadjson-cache.md`.
+
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and
 class providers, core JARs, the game/Janino JARs, and bundled JVM modules, plus compiler/loader/

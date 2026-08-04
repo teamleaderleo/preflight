@@ -35,6 +35,7 @@ final class AdapterRuntime {
         RuleTokenCacheRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
+        LoadJsonMemoRuntime.reset();
         AudioStreamSourceErrorRuntime.beginSession();
         AudioMusicTransitionRuntime.beginSession();
         AiTweaksEngagementRangeRuntime.beginSession();
@@ -134,10 +135,11 @@ final class AdapterRuntime {
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget();
                     report.diagnostic("Loaded the exact opt-in LWJGL frame-time probe target");
-                    if (!options.startupPhaseProbe()) {
-                        registry = registry.withFrameTimeStartupCompletionTarget();
-                        report.diagnostic("Loaded the exact lightweight frame-time startup-completion target");
-                    }
+                }
+                if (!options.startupPhaseProbe()
+                        && (FrameTimeRuntime.enabled() || LoadJsonMemoRuntime.ready())) {
+                    registry = registry.withFrameTimeStartupCompletionTarget();
+                    report.diagnostic("Loaded the exact lightweight runtime startup-completion target");
                 }
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
@@ -354,6 +356,14 @@ final class AdapterRuntime {
         public void close() {
             if (!closed.compareAndSet(false, true) || !writeReport) {
                 return;
+            }
+            try {
+                MergedReadCacheRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish lazy read cache: "
+                        + error.getMessage());
             }
             try {
                 report.write();
