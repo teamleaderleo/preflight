@@ -256,6 +256,22 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Vanilla 0.98a-RC8's literal-free-memory warning, corrected for macOS memory pressure. */
+    static AdapterTarget macMemoryWarningTarget() {
+        return new AdapterTarget(
+                "vanilla-macos-pressure-aware-memory-warning-0.98a-rc8",
+                MacMemoryWarningPlan.TARGET_CLASS,
+                MacMemoryWarningPlan.ORIGINAL_SHA256,
+                MacMemoryWarningRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MacMemoryWarningPlan.METHOD, MacMemoryWarningPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -896,7 +912,8 @@ final class AdapterTargetRegistry {
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
-                .withTarget(stelnetMarketUpdaterTarget());
+                .withTarget(stelnetMarketUpdaterTarget())
+                .withTarget(macMemoryWarningTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {

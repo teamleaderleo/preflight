@@ -41,9 +41,14 @@ installed-archive transform pass. Evidence:
 That pilot also surfaced vanilla Starsector's macOS `Warning: Low system RAM remaining`. The exact
 bytecode in `com/fs/starfarer/campaign/C.o00000(CampaignState, boolean)` warns whenever
 `OperatingSystemMXBean.getFreePhysicalMemorySize()` is below 1,000 MB. On macOS that is literal free
-pages, not the OS memory-pressure model and not reclaimable inactive/speculative/file-cache memory,
-so it can be a false alarm. Investigate a separately exact-gated macOS-only correction; do not simply
-suppress genuine JVM-heap or system-pressure warnings.
+pages, not the OS memory-pressure model and not reclaimable inactive/speculative/file-cache memory.
+An exact adapter now consults `/usr/bin/memory_pressure -Q` only when vanilla's literal-free count
+would warn, applies the same threshold to estimated available memory, and preserves the warning on
+real pressure or any probe failure. Runtime, weave, exact installed-archive, and full verification
+pass. A clean live pilot applied all 21 transformations with zero fallback; this event-driven method
+was not invoked in that session (`checks=0`), so live compatibility is verified but a naturally
+occurring corrected warning remains to be captured. Evidence:
+`docs/evidence/2026-08-05-macos-memory-pressure-warning.md`.
 
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
 
