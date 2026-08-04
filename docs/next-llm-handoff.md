@@ -105,6 +105,15 @@ a 6.82% compiled leaf, so further commodity work must reduce exact validation co
 boundary outward rather than hunting another nested call.
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
+The same mixed-state recording put GraphicsLib's `LightShader` on 48/1,010 combat samples (4.75%).
+Exact installed bytecode shows its render loop rereads three stable float settings through LunaLib
+on every call. An offline-green exact GraphicsLib 1.12.1 adapter now retains each original getter,
+caches its existing static field after the first read, and invalidates all three values at the start
+of GraphicsLib's own `load()` and `applyChanges()` settings boundaries. Executed synthetic behavior,
+real installed-archive structure, fail-closed drift, and full `mvn verify` pass. A live combat pilot
+is still required before treating it as gated. Evidence:
+`docs/evidence/2026-08-05-graphicslib-hot-settings-cache.md`.
+
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
 
 | | seconds |
@@ -283,6 +292,7 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | persisted Janino complete maps | **15.650s direct aggregate / 5.37s whole launch** | exact full-profile identity; clean cold/warm live pilot; included by `--fast` |
 | GraphicsLib compact startup replay | **3.038s exact callback** | clean live adapter application; PR #318 |
 | GraphicsLib insignia manager cache | 4.40% of long-session game-thread samples is all GraphicsLib | exact per-render adapter built; combat pilot pending |
+| GraphicsLib hot-settings cache | `LightShader` on 4.75% of latest combat samples | exact event-invalidated adapter; live pilot pending |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
@@ -306,6 +316,14 @@ caches that accessor only within one render invocation, changes no render math, 
 installed-JAR, dry-run, and woven-execution gates, and awaits a controlled combat visual/frame-time
 pilot. Evidence:
 `docs/evidence/2026-08-04-graphicslib-insignia-manager-cache.md`.
+
+The latest combat profile exposes a separate GraphicsLib cost: three `LightShader` settings getters
+perform LunaLib map/type lookups every render even though GraphicsLib already provides event-driven
+`load()` and `applyChanges()` boundaries. The exact hot-settings adapter caches only those three
+floats between those boundaries. Offline and exact installed-archive gates pass; live combat is the
+next gate. The preceding pilot also produced an audible pop at process startup and shutdown, but its
+retained log contains ordinary sound creation/cleanup and no OpenAL, decoder, or device failure. The
+transient remains un-attributed and predates this adapter.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and

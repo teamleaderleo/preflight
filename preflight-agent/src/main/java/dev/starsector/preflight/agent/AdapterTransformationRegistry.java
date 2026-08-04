@@ -180,6 +180,9 @@ final class AdapterTransformationRegistry {
                     ? GraphicsLibInsigniaManagerCachePlan.transform(signature, originalBytes)
                     : null;
         }
+        if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
+            return GraphicsLibHotSettingsPlan.transform(signature, originalBytes);
+        }
         if (MagicLibPaintjobRuntime.PLAN_ID.equals(target.planId())) {
             return MagicLibPaintjobPlan.transform(signature, originalBytes);
         }

@@ -299,6 +299,8 @@ final class AdapterReport {
                 .append(Json.value(JaninoBytecodeCacheRuntime.telemetry())).append(',');
         key(output, "graphicsLibInsigniaManagerCache")
                 .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
+        key(output, "graphicsLibHotSettings")
+                .append(Json.value(GraphicsLibHotSettingsRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjob")
                 .append(Json.value(MagicLibPaintjobRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjobNotification")

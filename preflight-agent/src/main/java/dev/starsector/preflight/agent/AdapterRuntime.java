@@ -34,6 +34,7 @@ final class AdapterRuntime {
         GraphicsLibCompactReplayPlan.beginSession();
         JaninoBytecodeCacheRuntime.beginSession();
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
+        GraphicsLibHotSettingsRuntime.reset();
         EntityLookupRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
         CommodityEventModMemoRuntime.beginSession();
@@ -115,6 +116,7 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact campaign commodity event-mod memo target");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
+                report.diagnostic("Loaded the exact GraphicsLib hot-settings cache target");
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget();
                     report.diagnostic("Loaded the exact opt-in LWJGL frame-time probe target");

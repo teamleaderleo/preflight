@@ -201,6 +201,30 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** GraphicsLib 1.12.1's repeated LunaLib lookups for per-render light constants. */
+    static AdapterTarget graphicsLibHotSettingsTarget() {
+        return new AdapterTarget(
+                "graphicslib-1.12.1-hot-settings-cache",
+                GraphicsLibHotSettingsPlan.TARGET_CLASS,
+                GraphicsLibHotSettingsPlan.ORIGINAL_SHA256,
+                GraphicsLibHotSettingsRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                GraphicsLibHotSettingsPlan.LOAD_METHOD,
+                                GraphicsLibHotSettingsPlan.LOAD_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                GraphicsLibHotSettingsPlan.APPLY_METHOD,
+                                GraphicsLibHotSettingsPlan.APPLY_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod("fighterBrightnessScale", "()F"),
+                        new AdapterTarget.RequiredMethod("weaponFlashHeight", "()F"),
+                        new AdapterTarget.RequiredMethod("weaponLightHeight", "()F")),
+                "MOD",
+                "graphics.jar",
+                "832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** MagicLib 1.5.6's allocation-heavy unlocked-paintjob extension. */
     static AdapterTarget magicLibPaintjobTarget() {
         return new AdapterTarget(
@@ -1031,6 +1055,7 @@ final class AdapterTargetRegistry {
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
+                .withTarget(graphicsLibHotSettingsTarget())
                 .withTarget(stelnetMarketUpdaterTarget())
                 .withTarget(macMemoryWarningTarget())
                 .withTarget(combatRuntimeIntegrityTarget());
