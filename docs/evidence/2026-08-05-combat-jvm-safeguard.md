@@ -66,3 +66,29 @@ class hash, and escape hatch are written to `run.json`. Users can opt out with
 `PREFLIGHT_DISABLE_COMBAT_JVM_SAFEGUARD=1`. A real-install dry run activated the safeguard and
 showed the exact `_JAVA_OPTIONS`; synthetic tests cover platform/launcher drift, explicit disable,
 the final class gate, option idempotence, and preservation of a manual diagnostic mode.
+
+## Second proven site
+
+The later run
+`~/.starsector-preflight/runs/commodity-event-mod-v1-20260805-013251` confirms the first boundary was
+too narrow. HotSpot logged that the `Ship.advance` compile exclusion was accepted, and runtime
+integrity again proved `A.J` directly implements `A.null` in the same archive and loader. After a
+long combat session the game failed with the identical impossible cast at:
+
+```text
+java.lang.ClassCastException: class com.fs.starfarer.combat.entities.ship.A.J
+cannot be cast to class com.fs.starfarer.combat.entities.ship.A.null
+    at com.fs.starfarer.combat.entities.Ship.render(Unknown Source)
+    at com.fs.starfarer.combat.entities.Ship.render(Unknown Source)
+```
+
+The three-argument `Ship.render` contains three reviewed iterations of the same fitted-module list,
+each casting its entries to `A.null`; `A.J` is one of four concrete classes in the exact archive
+that directly implement that interface. There was no native JVM crash report. Preflight correctly
+classified the Java fatal despite the launcher returning zero.
+
+The automatic safeguard now excludes both `Ship.advance` and the overloaded `Ship.render` methods
+from compilation under the same exact fingerprint. The class hash gate already covers both method
+bodies, so no broader build or platform is opted in. Interpreting the very large render method may
+have a frame-time cost; a live combat comparison is required. The escape hatch remains
+`PREFLIGHT_DISABLE_COMBAT_JVM_SAFEGUARD=1`.

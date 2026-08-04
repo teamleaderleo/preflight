@@ -60,6 +60,13 @@ adds that one compile exclusion only when the exact OS, launcher policy, directi
 `Ship.class` hash all match; every drift fails closed and the decision lands in `run.json`. Evidence:
 `docs/evidence/2026-08-05-combat-jvm-safeguard.md`.
 
+A subsequent long combat run proved the same impossible cast has a second site in `Ship.render`,
+even while HotSpot confirmed the `Ship.advance` exclusion was active. The strict automatic safeguard
+now interprets both overloaded `Ship.render` methods as well as `advance`, under the same exact
+macOS/runtime/launcher/directives/`Ship.class` fingerprint. This needs a live combat frame-time
+comparison because the three-argument render method is large. The commodity memo was installed but
+had zero calls in that combat-only session and is unrelated to the crash.
+
 The retreat recording also supplied the first clean post-startup campaign hotspot after the earlier
 MagicLib and Stelnet work. Vanilla `CommodityOnMarket.reapplyEventMod` occupied 84/781 campaign
 samples (10.76%) by removing and recreating the same event modifier every frame. An exact 0.98a-RC8

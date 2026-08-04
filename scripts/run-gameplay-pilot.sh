@@ -103,7 +103,7 @@ echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 # force-quits it, and killing that prompt also prevents HotSpot from writing its hs_err evidence.
 # _JAVA_OPTIONS is intentionally used here: HotSpot applies it after command-line flags, so this
 # overrides a launcher's earlier +ShowMessageBoxOnError without editing the user's installation.
-# Normal Preflight launches independently auto-gate the Ship.advance exclusion against the exact
+# Normal Preflight launches independently auto-gate Ship's cast-site exclusions against the exact
 # known-risk launcher/runtime/class fingerprint; --safer-jvm remains as a manual diagnostic override.
 PILOT_CRASH_REPORT="$OUT/hs_err_pid%p.log"
 PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT' -Dpreflight.frameTimes=true"
@@ -113,7 +113,8 @@ if [[ "$SAFER_JVM" == true ]]; then
     # identifiers such as "for.Object" that Java 17 rejects before the title screen. Nothing here
     # edits the installation.
     PILOT_CRASH_OPTIONS+=" -XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.advance"
-    PILOT_CRASH_OPTIONS+=" -Dpreflight.combatIntegrity.jvmMode=ship-advance-interpreted"
+    PILOT_CRASH_OPTIONS+=" -XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.render"
+    PILOT_CRASH_OPTIONS+=" -Dpreflight.combatIntegrity.jvmMode=ship-cast-sites-interpreted"
 fi
 export _JAVA_OPTIONS="${_JAVA_OPTIONS:+$_JAVA_OPTIONS }$PILOT_CRASH_OPTIONS"
 

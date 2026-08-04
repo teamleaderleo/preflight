@@ -17,7 +17,8 @@ import java.util.zip.ZipFile;
  *
  * <p>The failing cast is valid in the exact shipped bytecode and at runtime: the source and target
  * classes come from the same archive and loader, and the source directly implements the target.
- * Interpreting only {@code Ship.advance} survived the same destruction/full-retreat overlap. This
+ * Interpreting {@code Ship.advance} survived the same destruction/full-retreat overlap, but a later
+ * long combat produced the identical impossible cast from {@code Ship.render}. This
  * guard deliberately matches the entire known-risk contract before changing compilation policy:
  * macOS, the reviewed x86-64 Zulu runtime, the aggressively customized launcher/directives, and the
  * exact combat class. Any drift keeps the launcher's policy and leaves evidence in {@code run.json}.
@@ -26,8 +27,12 @@ final class CombatJvmSafeguard {
     static final String DISABLE_ENVIRONMENT = "PREFLIGHT_DISABLE_COMBAT_JVM_SAFEGUARD";
     static final String COMPILE_EXCLUSION =
             "-XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.advance";
+    static final String RENDER_COMPILE_EXCLUSION =
+            "-XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.render";
+    static final List<String> COMPILE_EXCLUSIONS =
+            List.of(COMPILE_EXCLUSION, RENDER_COMPILE_EXCLUSION);
     static final String MODE_PROPERTY =
-            "-Dpreflight.combatIntegrity.jvmMode=auto-ship-advance-interpreted";
+            "-Dpreflight.combatIntegrity.jvmMode=auto-ship-cast-sites-interpreted";
     static final String SHIP_CLASS = "com/fs/starfarer/combat/entities/Ship.class";
     static final String REVIEWED_SHIP_SHA256 =
             "71997384a879ba6b0897b9f9e8cbf6d91449f2e767b81576dffed7fdd5b29926";
@@ -86,8 +91,10 @@ final class CombatJvmSafeguard {
     static String appendOptions(String existing, Resolution resolution) {
         if (!resolution.active()) return existing;
         String result = existing == null ? "" : existing.trim();
-        if (!containsOption(result, COMPILE_EXCLUSION)) {
-            result = append(result, COMPILE_EXCLUSION);
+        for (String exclusion : COMPILE_EXCLUSIONS) {
+            if (!containsOption(result, exclusion)) {
+                result = append(result, exclusion);
+            }
         }
         if (!result.contains("-Dpreflight.combatIntegrity.jvmMode=")) {
             result = append(result, MODE_PROPERTY);
@@ -187,6 +194,7 @@ final class CombatJvmSafeguard {
             result.put("gameJar", gameJar);
             result.put("shipClassSha256", shipClassSha256);
             result.put("compileExclusion", active ? COMPILE_EXCLUSION : null);
+            result.put("compileExclusions", active ? COMPILE_EXCLUSIONS : List.of());
             result.put("disableEnvironment", DISABLE_ENVIRONMENT);
             return result;
         }

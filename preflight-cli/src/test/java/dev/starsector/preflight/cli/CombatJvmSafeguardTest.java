@@ -53,6 +53,7 @@ class CombatJvmSafeguardTest {
                 true, "test", result.gameJar(), CombatJvmSafeguard.REVIEWED_SHIP_SHA256);
         String options = CombatJvmSafeguard.appendOptions("-Dexisting=true", active);
         assertTrue(options.contains(CombatJvmSafeguard.COMPILE_EXCLUSION));
+        assertTrue(options.contains(CombatJvmSafeguard.RENDER_COMPILE_EXCLUSION));
         assertTrue(options.contains(CombatJvmSafeguard.MODE_PROPERTY));
         assertEquals(options, CombatJvmSafeguard.appendOptions(options, active));
 
@@ -65,7 +66,11 @@ class CombatJvmSafeguardTest {
         var active = new CombatJvmSafeguard.Resolution(true, "test", null, null);
         String existing = CombatJvmSafeguard.COMPILE_EXCLUSION
                 + " -Dpreflight.combatIntegrity.jvmMode=manual-test";
-        assertEquals(existing, CombatJvmSafeguard.appendOptions(existing, active));
+        String options = CombatJvmSafeguard.appendOptions(existing, active);
+        assertTrue(options.contains(CombatJvmSafeguard.COMPILE_EXCLUSION));
+        assertTrue(options.contains(CombatJvmSafeguard.RENDER_COMPILE_EXCLUSION));
+        assertTrue(options.contains("-Dpreflight.combatIntegrity.jvmMode=manual-test"));
+        assertFalse(options.contains(CombatJvmSafeguard.MODE_PROPERTY));
     }
 
     private Path fixture(boolean riskyLauncher) throws IOException {
