@@ -109,6 +109,9 @@ if [[ "$SAFER_JVM" == true ]]; then
     # Diagnostic only: restore verification after the launcher's -noverify and interpret the exact
     # vanilla method that produced an otherwise impossible ClassCastException. _JAVA_OPTIONS is
     # applied after command-line flags, and nothing here edits the installation.
+    # _JAVA_OPTIONS is validated before the launcher's own UnlockDiagnosticVMOptions is visible,
+    # even though its final values win. Carry the unlock with the diagnostic flags themselves.
+    PILOT_CRASH_OPTIONS+=" -XX:+UnlockDiagnosticVMOptions"
     PILOT_CRASH_OPTIONS+=" -XX:+BytecodeVerificationLocal -XX:+BytecodeVerificationRemote"
     PILOT_CRASH_OPTIONS+=" -XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.advance"
     PILOT_CRASH_OPTIONS+=" -Dpreflight.combatIntegrity.jvmMode=safer-jvm"
