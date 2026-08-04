@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.jar.JarFile;
@@ -50,6 +52,54 @@ class AudioResourceFallbackInstalledAdapterIT {
         String runtime = AudioResourceFallbackRuntime.class.getName().replace('.', '/');
         assertEquals(3, calls(owner, runtime, "open"));
         assertEquals(0, calls(owner, "java/lang/Class", "getResourceAsStream"));
+
+        Path gameClasses = archive.getParent();
+        URL[] classpath = {
+                archive.toUri().toURL(),
+                gameClasses.toUri().toURL(),
+                gameClasses.resolve("log4j-1.2.9.jar").toUri().toURL(),
+                gameClasses.resolve("lwjgl.jar").toUri().toURL()
+        };
+        try (URLClassLoader loader = transformedLoader(classpath, transformed)) {
+            Class<?> storeClass = Class.forName("sound.ooOO", true, loader);
+            var constructor = storeClass.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            Object store = constructor.newInstance();
+            var load = storeClass.getDeclaredMethod("Object", String.class);
+            load.setAccessible(true);
+            Object sound = load.invoke(store, "sounds/sfx_interface/ui_button_mouseover.ogg");
+            assertNotNull(sound);
+        }
+
+        var telemetry = AudioResourceFallbackRuntime.telemetry();
+        assertEquals(1L, telemetry.get("lookups"));
+        assertEquals(0L, telemetry.get("originalHits"));
+        assertEquals(1L, telemetry.get("fallbackAttempts"));
+        assertEquals(1L, telemetry.get("fallbackHits"));
+        assertEquals(0L, telemetry.get("fallbackMisses"));
+    }
+
+    private static URLClassLoader transformedLoader(URL[] urls, byte[] transformed) {
+        return new URLClassLoader(
+                urls, AudioResourceFallbackInstalledAdapterIT.class.getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                synchronized (getClassLoadingLock(name)) {
+                    Class<?> loaded = findLoadedClass(name);
+                    if (loaded == null && "sound.ooOO".equals(name)) {
+                        loaded = defineClass(name, transformed, 0, transformed.length);
+                    }
+                    if (loaded == null && (name.startsWith("sound.")
+                            || name.startsWith("org.lwjgl.")
+                            || name.startsWith("org.apache.log4j."))) {
+                        loaded = findClass(name);
+                    }
+                    if (loaded == null) loaded = super.loadClass(name, false);
+                    if (resolve) resolveClass(loaded);
+                    return loaded;
+                }
+            }
+        };
     }
 
     private static int calls(ClassNode owner, String callOwner, String name) {

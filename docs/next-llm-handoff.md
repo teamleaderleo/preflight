@@ -450,8 +450,11 @@ exist. Exact bytecode shows all three sound-store readers passing raw `sounds/..
 `Class.getResourceAsStream`, which resolves them under package `sound` and misses
 `sound/sounds/...`. A hash-pinned adapter now preserves the original relative lookup and, only
 after a null result, retries the same relative path from the classpath root. Exact installed-JAR
-transformation and runtime fallback tests pass; live confirmation still needs to prove fallback
-hits and disappearance of the retry storm. See
+transformation and runtime fallback tests pass. The next normal live run completed two simulations with
+zero prepared-audio failures and none of the retry errors, but the intermittent recovery path did
+not recur (`lookups=0`), so that is a no-regression result rather than causal proof. The exact
+installed-class test now deterministically invokes the real recovery method and proves one root
+fallback hit without initializing OpenAL. See
 `docs/evidence/2026-08-05-audio-classpath-root-fallback.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and

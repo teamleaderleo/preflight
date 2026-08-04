@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: implementation and exact installed-archive verification complete; live confirmation pending
+Status: implementation, exact installed recovery execution, and a clean normal live run complete
 
 ## Live failure
 
@@ -12,10 +12,10 @@ contained 731 `sound.ooOO` load errors. Of those, 403 named `laser_loop.ogg` and
 2,050 loads and serving 2,049 prepared buffers. These failures occurred before decoding because
 the supplied input stream was null. The referenced files exist in the installed game resources.
 
-Previous live pilots reported zero prepared-audio failures, so this is not part of the accepted
-audio preparation baseline. Repeated stack traces and failed lookups during combat are also a
-plausible source of late frame and audio disruption even when the game substitutes an empty sound
-instead of crashing.
+Previous live pilots reported zero prepared-audio failures, so this is an intermittent recovery
+case rather than part of the accepted audio preparation baseline. Repeated stack traces and failed
+lookups during combat are also a plausible source of late frame and audio disruption even when the
+game substitutes an empty sound instead of crashing.
 
 ## Exact cause
 
@@ -51,6 +51,15 @@ contained fallback failures.
 
 Runtime tests cover original hits, root fallback hits, final misses, absolute-path behavior, and
 session telemetry. Shape tests reject altered class hashes or altered lookup counts. The installed
-game archive test verifies all three exact methods transform to the public runtime entry point. A
-full repository `mvn verify` and a live repeated-combat pilot remain before the fix can be called
-complete.
+game archive test verifies all three exact methods transform to the public runtime entry point. It
+then loads the transformed installed class in an isolated loader, invokes the actual recovery
+method for `sounds/sfx_interface/ui_button_mouseover.ogg`, and proves the loose installed resource
+is returned through one classpath-root fallback hit without opening OpenAL.
+
+Full repository `mvn verify` passes. Live run
+`audio-root-fallback-v1-20260805-071953` then completed two combat simulations and normal shutdown
+with all 40 transforms active, no declines, no contained failures, zero prepared-audio failures,
+and none of the previous `sound.ooOO` retry errors. The fallback counter remained zero because the
+intermittent sound-cache recovery path did not occur in that run. Therefore the live comparison is
+a no-regression and clean-normal-path result, not a claim that the adapter caused the failures to
+disappear. The deterministic installed-class execution supplies the positive recovery-path proof.
