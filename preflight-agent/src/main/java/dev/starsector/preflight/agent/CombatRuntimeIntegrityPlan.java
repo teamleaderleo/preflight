@@ -9,26 +9,25 @@ import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Marks display intervals as campaign without putting a clock in the hot loop. */
-final class FrameTimeStatePlan {
-    static final String PLAN_ID = "vanilla-game-state-frame-time-segments-v1";
-    static final String CAMPAIGN_CLASS = "com/fs/starfarer/campaign/CampaignState";
-    static final String CAMPAIGN_SHA256 =
-            "bdd3e9801c6bd8ae216fc40510d7f9f33fa16a540426cd137ca85dc640163372";
+/** Installs one runtime-integrity observation and composes the opt-in combat state marker. */
+final class CombatRuntimeIntegrityPlan {
+    static final String TARGET_CLASS = "com/fs/starfarer/combat/CombatEngine";
+    static final String ORIGINAL_SHA256 =
+            "17c1d7f1347d177d6fc36f560e903d50d9df5f1f945e5da9590f83e4fbac17f4";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
 
-    private static final String RUNTIME =
+    private static final String INTEGRITY_RUNTIME =
+            "dev/starsector/preflight/agent/CombatRuntimeIntegrityRuntime";
+    private static final String FRAME_RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
 
-    private FrameTimeStatePlan() {
+    private CombatRuntimeIntegrityPlan() {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        String observer = "observeCampaign";
-        if (!FrameTimeRuntime.enabled()
-                || !CAMPAIGN_CLASS.equals(signature.internalName())
-                || !CAMPAIGN_SHA256.equals(signature.sha256())
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !ORIGINAL_SHA256.equals(signature.sha256())
                 || signature.majorVersion() != 61
                 || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
             return null;
@@ -40,16 +39,23 @@ final class FrameTimeStatePlan {
         if (advance == null
                 || (advance.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0
                 || advance.instructions.getFirst() == null
-                || calls(advance, RUNTIME, observer) != 0) {
+                || calls(advance, INTEGRITY_RUNTIME, "observe") != 0
+                || calls(advance, FRAME_RUNTIME, "observeCombat") != 0) {
             return null;
         }
 
-        InsnList state = new InsnList();
-        state.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME, observer, "()V", false));
-        advance.instructions.insertBefore(advance.instructions.getFirst(), state);
+        InsnList observations = new InsnList();
+        observations.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, INTEGRITY_RUNTIME, "observe", "()V", false));
+        if (FrameTimeRuntime.enabled()) {
+            observations.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, FRAME_RUNTIME, "observeCombat", "()V", false));
+        }
+        advance.instructions.insertBefore(advance.instructions.getFirst(), observations);
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
+        CombatRuntimeIntegrityRuntime.installed();
         return writer.toByteArray();
     }
 
@@ -68,9 +74,7 @@ final class FrameTimeStatePlan {
         int result = 0;
         for (AbstractInsnNode instruction : method.instructions) {
             if (instruction instanceof MethodInsnNode call
-                    && owner.equals(call.owner) && name.equals(call.name)) {
-                result++;
-            }
+                    && owner.equals(call.owner) && name.equals(call.name)) result++;
         }
         return result;
     }

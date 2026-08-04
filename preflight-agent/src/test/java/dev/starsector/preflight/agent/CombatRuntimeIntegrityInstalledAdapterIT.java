@@ -18,57 +18,59 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-/** Opt-in exact installed-core transform check; it never starts the game. */
-class FrameTimeStateInstalledAdapterIT {
-    private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
-
+/** Exact installed CombatEngine check; it never starts the game. */
+class CombatRuntimeIntegrityInstalledAdapterIT {
     @BeforeEach
-    void enable() {
+    void enableFrames() {
         FrameTimeRuntime.beginSession(true);
     }
 
     @AfterEach
     void reset() {
+        CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.reset();
     }
 
     @Test
-    void installedCampaignLoopAcceptsExactlyOneObserver() throws Exception {
+    void installedCombatLoopCarriesIntegrityAndFrameObservations() throws Exception {
         String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
         Assumptions.assumeTrue(!configured.isEmpty(),
                 "set -Dpreflight.starsector.core.jar=<starfarer_obf.jar>");
         Path archive = Path.of(configured).toAbsolutePath().normalize();
         Assumptions.assumeTrue(Files.isRegularFile(archive));
 
-        try (JarFile jar = new JarFile(archive.toFile())) {
-            assertInstalled(jar, FrameTimeStatePlan.CAMPAIGN_CLASS,
-                    FrameTimeStatePlan.CAMPAIGN_SHA256, "observeCampaign");
-        }
-    }
-
-    private static void assertInstalled(JarFile jar, String className, String expectedHash,
-            String observer) throws Exception {
-        var entry = jar.getJarEntry(className + ".class");
-        assertNotNull(entry);
         byte[] original;
-        try (var input = jar.getInputStream(entry)) {
-            original = input.readAllBytes();
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            var entry = jar.getJarEntry(CombatRuntimeIntegrityPlan.TARGET_CLASS + ".class");
+            assertNotNull(entry);
+            try (var input = jar.getInputStream(entry)) {
+                original = input.readAllBytes();
+            }
         }
         ClassSignature signature = ClassSignature.parse(original);
-        assertEquals(expectedHash, signature.sha256());
-        byte[] transformed = FrameTimeStatePlan.transform(signature, original);
+        assertEquals(CombatRuntimeIntegrityPlan.ORIGINAL_SHA256, signature.sha256());
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(signature, original);
         assertNotNull(transformed);
-        assertNull(FrameTimeStatePlan.transform(ClassSignature.parse(transformed), transformed));
+        assertNull(CombatRuntimeIntegrityPlan.transform(
+                ClassSignature.parse(transformed), transformed));
 
+        MethodNode method = method(read(transformed));
+        assertEquals(1, calls(method,
+                CombatRuntimeIntegrityRuntime.class.getName().replace('.', '/'), "observe"));
+        assertEquals(1, calls(method,
+                FrameTimeRuntime.class.getName().replace('.', '/'), "observeCombat"));
+    }
+
+    private static ClassNode read(byte[] bytes) {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
-        assertEquals(1, calls(method(owner), RUNTIME, observer));
+        new ClassReader(bytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        return owner;
     }
 
     private static MethodNode method(ClassNode owner) {
         return owner.methods.stream()
-                .filter(candidate -> FrameTimeStatePlan.ADVANCE_METHOD.equals(candidate.name)
-                        && FrameTimeStatePlan.ADVANCE_DESCRIPTOR.equals(candidate.desc))
+                .filter(candidate -> CombatRuntimeIntegrityPlan.ADVANCE_METHOD.equals(candidate.name)
+                        && CombatRuntimeIntegrityPlan.ADVANCE_DESCRIPTOR.equals(candidate.desc))
                 .findFirst().orElseThrow();
     }
 

@@ -38,6 +38,7 @@ final class AdapterRuntime {
         DeploymentIconCacheRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
         MacMemoryWarningRuntime.beginSession();
+        CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);

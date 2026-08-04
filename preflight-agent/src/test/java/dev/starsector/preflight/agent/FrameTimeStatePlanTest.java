@@ -30,11 +30,9 @@ class FrameTimeStatePlanTest {
     }
 
     @Test
-    void marksCampaignAndCombatAtTheirReviewedAdvanceSeams() throws Exception {
+    void marksCampaignAtItsReviewedAdvanceSeam() throws Exception {
         assertObserver(FrameTimeStatePlan.CAMPAIGN_CLASS,
                 FrameTimeStatePlan.CAMPAIGN_SHA256, "observeCampaign");
-        assertObserver(FrameTimeStatePlan.COMBAT_CLASS,
-                FrameTimeStatePlan.COMBAT_SHA256, "observeCombat");
     }
 
     @Test

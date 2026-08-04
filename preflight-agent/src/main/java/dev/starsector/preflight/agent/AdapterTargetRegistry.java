@@ -299,12 +299,21 @@ final class AdapterTargetRegistry {
                 FrameTimeStatePlan.CAMPAIGN_SHA256);
     }
 
-    /** Vanilla combat engine loop used only to segment opt-in frame-time recordings. */
-    static AdapterTarget combatFrameTimeStateTarget() {
-        return frameTimeStateTarget(
-                "vanilla-combat-frame-time-segment-0.98a-rc8",
-                FrameTimeStatePlan.COMBAT_CLASS,
-                FrameTimeStatePlan.COMBAT_SHA256);
+    /** Exact vanilla combat loop used for one-shot runtime integrity and opt-in frame segments. */
+    static AdapterTarget combatRuntimeIntegrityTarget() {
+        return new AdapterTarget(
+                "vanilla-combat-runtime-integrity-0.98a-rc8",
+                CombatRuntimeIntegrityPlan.TARGET_CLASS,
+                CombatRuntimeIntegrityPlan.ORIGINAL_SHA256,
+                CombatRuntimeIntegrityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CombatRuntimeIntegrityPlan.ADVANCE_METHOD,
+                        CombatRuntimeIntegrityPlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
     }
 
     private static AdapterTarget frameTimeStateTarget(String id, String className, String classHash) {
@@ -949,8 +958,7 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withFrameTimeTarget() {
         return withTarget(frameTimeTarget())
-                .withTarget(campaignFrameTimeStateTarget())
-                .withTarget(combatFrameTimeStateTarget());
+                .withTarget(campaignFrameTimeStateTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
@@ -970,7 +978,8 @@ final class AdapterTargetRegistry {
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(stelnetMarketUpdaterTarget())
-                .withTarget(macMemoryWarningTarget());
+                .withTarget(macMemoryWarningTarget())
+                .withTarget(combatRuntimeIntegrityTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {
