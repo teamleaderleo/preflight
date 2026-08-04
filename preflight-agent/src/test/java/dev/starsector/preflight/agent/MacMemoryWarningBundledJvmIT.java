@@ -33,6 +33,7 @@ class MacMemoryWarningBundledJvmIT {
         assertEquals(0, process.exitValue(), output);
         assertTrue(output.contains("\"corrections\":1"), output);
         assertTrue(output.contains("\"probeFailures\":0"), output);
+        assertTrue(output.contains("\"sessionProbeAttempts\":1"), output);
         assertTrue(output.contains("\"processLaunchRepairApplied\":true"), output);
     }
 }

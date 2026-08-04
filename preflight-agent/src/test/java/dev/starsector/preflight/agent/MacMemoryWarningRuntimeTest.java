@@ -40,6 +40,24 @@ class MacMemoryWarningRuntimeTest {
     }
 
     @Test
+    void sessionSnapshotIsCapturedOnceAndReusedWithoutAnotherProbe() {
+        AtomicInteger probes = new AtomicInteger();
+        MacMemoryWarningRuntime.captureSessionPressure(() -> {
+            probes.incrementAndGet();
+            return 84;
+        });
+
+        assertFalse(MacMemoryWarningRuntime.shouldWarn(
+                128L, 24_576L, true, MacMemoryWarningRuntime::sessionAvailablePercent));
+        assertFalse(MacMemoryWarningRuntime.shouldWarn(
+                98L, 24_576L, true, MacMemoryWarningRuntime::sessionAvailablePercent));
+        assertEquals(1, probes.get());
+        assertEquals(1L, MacMemoryWarningRuntime.telemetry().get("sessionProbeAttempts"));
+        assertEquals(84, MacMemoryWarningRuntime.telemetry().get("sessionAvailablePercent"));
+        assertEquals(2L, MacMemoryWarningRuntime.telemetry().get("corrections"));
+    }
+
+    @Test
     void nonMacAndProbeFailurePreserveTheVanillaWarning() {
         assertTrue(MacMemoryWarningRuntime.shouldWarn(999L, 8_192L, false,
                 () -> { throw new AssertionError("non-mac probe must not run"); }));

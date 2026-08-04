@@ -23,11 +23,15 @@ public final class MacMemoryWarningRuntime {
     private static final AtomicLong corrections = new AtomicLong();
     private static final AtomicLong warningsPreserved = new AtomicLong();
     private static final AtomicLong probeFailures = new AtomicLong();
+    private static final AtomicLong sessionProbeAttempts = new AtomicLong();
     private static volatile long lastReportedFreeMiB = -1L;
     private static volatile long lastTotalMiB = -1L;
     private static volatile int lastAvailablePercent = -1;
     private static volatile long lastEstimatedAvailableMiB = -1L;
     private static volatile String lastProbeFailure;
+    private static volatile int sessionAvailablePercent = -1;
+    private static volatile long sessionProbeCapturedAtEpochMillis = -1L;
+    private static volatile String sessionProbeFailure;
     private static volatile boolean processLaunchRepairApplied;
     private static volatile String processLaunchRepairProblem;
     private static volatile boolean installed;
@@ -39,19 +43,23 @@ public final class MacMemoryWarningRuntime {
     static void beginSession() {
         processLaunchRepairApplied = false;
         processLaunchRepairProblem = null;
+        sessionAvailablePercent = -1;
+        sessionProbeCapturedAtEpochMillis = -1L;
+        sessionProbeFailure = null;
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("mac")) return;
         try {
             Path helper = Path.of(System.getProperty("java.home", ""), "lib", "jspawnhelper");
-            if (Files.isExecutable(helper)) return;
-            String configured = System.getProperty("jdk.lang.Process.launchMechanism", "");
-            if (configured.isBlank()) {
-                // The default POSIX_SPAWN path executes jspawnhelper. FORK is the JDK's supported
-                // fallback and restores ProcessBuilder when a repackaged runtime lost that bit.
-                System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
-                processLaunchRepairApplied = true;
-            } else if (!"fork".equalsIgnoreCase(configured)) {
-                processLaunchRepairProblem = "jspawnhelper is not executable and launch mechanism is "
-                        + configured;
+            if (!Files.isExecutable(helper)) {
+                String configured = System.getProperty("jdk.lang.Process.launchMechanism", "");
+                if (configured.isBlank()) {
+                    // The default POSIX_SPAWN path executes jspawnhelper. FORK is the JDK's supported
+                    // fallback and restores ProcessBuilder when a repackaged runtime lost that bit.
+                    System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
+                    processLaunchRepairApplied = true;
+                } else if (!"fork".equalsIgnoreCase(configured)) {
+                    processLaunchRepairProblem = "jspawnhelper is not executable and launch mechanism is "
+                            + configured;
+                }
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
@@ -60,6 +68,7 @@ public final class MacMemoryWarningRuntime {
             processLaunchRepairProblem = failure.getClass().getSimpleName()
                     + (message == null || message.isBlank() ? "" : ": " + message);
         }
+        captureSessionPressure(MacMemoryWarningRuntime::readAvailablePercent);
     }
 
     static void installed() {
@@ -70,7 +79,37 @@ public final class MacMemoryWarningRuntime {
     public static boolean shouldWarn(long reportedFreeMiB, long totalMiB) {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         return shouldWarn(reportedFreeMiB, totalMiB, os.startsWith("mac"),
-                MacMemoryWarningRuntime::readAvailablePercent);
+                MacMemoryWarningRuntime::sessionAvailablePercent);
+    }
+
+    /** Captures pressure before Starsector creates its audio system; later checks never fork. */
+    static void captureSessionPressure(PressureProbe probe) {
+        sessionProbeAttempts.incrementAndGet();
+        try {
+            int availablePercent = probe.availablePercent();
+            if (availablePercent < 0 || availablePercent > 100) {
+                throw new IllegalStateException("invalid macOS memory-pressure result");
+            }
+            sessionAvailablePercent = availablePercent;
+            sessionProbeCapturedAtEpochMillis = System.currentTimeMillis();
+            sessionProbeFailure = null;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            sessionAvailablePercent = -1;
+            sessionProbeCapturedAtEpochMillis = -1L;
+            String message = failure.getMessage();
+            sessionProbeFailure = failure.getClass().getSimpleName()
+                    + (message == null || message.isBlank() ? "" : ": " + message);
+        }
+    }
+
+    static int sessionAvailablePercent() {
+        if (sessionAvailablePercent < 0) {
+            throw new IllegalStateException("session pressure snapshot unavailable"
+                    + (sessionProbeFailure == null ? "" : ": " + sessionProbeFailure));
+        }
+        return sessionAvailablePercent;
     }
 
     static boolean shouldWarn(
@@ -167,6 +206,10 @@ public final class MacMemoryWarningRuntime {
         result.put("corrections", corrections.get());
         result.put("warningsPreserved", warningsPreserved.get());
         result.put("probeFailures", probeFailures.get());
+        result.put("sessionProbeAttempts", sessionProbeAttempts.get());
+        result.put("sessionAvailablePercent", sessionAvailablePercent);
+        result.put("sessionProbeCapturedAtEpochMillis", sessionProbeCapturedAtEpochMillis);
+        result.put("sessionProbeFailure", sessionProbeFailure);
         result.put("lastReportedFreeMiB", lastReportedFreeMiB);
         result.put("lastTotalMiB", lastTotalMiB);
         result.put("lastAvailablePercent", lastAvailablePercent);
@@ -184,11 +227,15 @@ public final class MacMemoryWarningRuntime {
         corrections.set(0L);
         warningsPreserved.set(0L);
         probeFailures.set(0L);
+        sessionProbeAttempts.set(0L);
         lastReportedFreeMiB = -1L;
         lastTotalMiB = -1L;
         lastAvailablePercent = -1;
         lastEstimatedAvailableMiB = -1L;
         lastProbeFailure = null;
+        sessionAvailablePercent = -1;
+        sessionProbeCapturedAtEpochMillis = -1L;
+        sessionProbeFailure = null;
         processLaunchRepairApplied = false;
         processLaunchRepairProblem = null;
     }

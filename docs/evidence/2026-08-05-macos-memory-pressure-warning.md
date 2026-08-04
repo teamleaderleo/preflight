@@ -25,11 +25,12 @@ macOS still has ample immediately available memory. On the development Mac, Java
 - the normal source-archive and application-class-loader gates in `AdapterTargetRegistry`.
 
 The adapter changes only the final `< 1000 MiB` decision. The original warning text and
-`CampaignState.addMessage` call remain vanilla. If literal free memory is already at least 1,000
-MiB, the fast path does not launch a probe. On macOS below that threshold,
-`MacMemoryWarningRuntime` runs `/usr/bin/memory_pressure -Q` with a C locale and a 250 ms timeout,
-then applies the same 1,000 MiB threshold to the reported available percentage multiplied by total
-physical memory.
+`CampaignState.addMessage` call remain vanilla. During agent startup, before Starsector creates its
+audio system, `MacMemoryWarningRuntime` runs `/usr/bin/memory_pressure -Q` once with a C locale and
+a two-second hard timeout. Later warning checks are pure in-memory reads of that session snapshot;
+they launch no process. If literal free memory is already at least 1,000 MiB, the vanilla fast path
+still returns without consulting the snapshot. Otherwise, the adapter applies the same 1,000 MiB
+threshold to the captured available percentage multiplied by total physical memory.
 
 Real pressure still warns. A missing tool, timeout, nonzero exit, malformed output, interruption, or
 any other ordinary probe failure also preserves the vanilla warning. Non-macOS systems preserve the
@@ -38,10 +39,10 @@ vanilla decision without probing. Fatal VM errors are not swallowed.
 ## Verification
 
 Focused tests cover a healthy fast path, an 84% macOS correction, a 2% real-pressure warning,
-non-macOS behavior, probe failure, parser bounds, wrong hashes and shapes, a second-transform
+single-capture reuse across repeated checks, non-macOS behavior, probe failure, parser bounds,
+wrong hashes and shapes, a second-transform
 decline, and the exact installed class from `starfarer_obf.jar`. Full `mvn verify` passed afterward:
-core 195 tests; agent 352; CLI 371; integration 38 with one expected skip; synthetic 22 with one
-expected skip.
+zero failures across every reactor module.
 
 The live pilot `mac-memory-pressure-v1-20260805-001605` exited normally with adapter health `ACTIVE`,
 21 exact transformations applied, zero declines, and zero contained failures. The RAM-warning plan
@@ -50,3 +51,22 @@ during this particular session. This is therefore live compatibility evidence, n
 false warning was corrected in that run. The actual branch behavior is established by the runtime
 tests and the exact installed-bytecode integration test above; a future naturally occurring warning
 will provide the remaining live counter evidence.
+
+## Transition-audio regression and correction
+
+A later pilot exposed a sharp CoreAudio pop while loading a campaign and leaving a combat
+simulation. A controlled bisection established the following:
+
+- fully vanilla (`vanilla-audio-control-20260805-045104`) produced only Starsector's ordinary soft
+  transition noise;
+- omitting only the streaming-audio transform still popped;
+- disabling profiling and frame probes still popped;
+- disabling all runtime plans while retaining startup caches produced clean audio;
+- progressively reducing that set to only `macos-pressure-aware-system-ram-warning-v1` produced
+  clean audio with every other optimization active (`audio-bisect-mac-memory-off-20260805-050721`).
+
+The prior runtime launched `memory_pressure` synchronously on each low-literal-free warning check.
+Starsector's bundled JRE has a non-executable `jspawnhelper`, so its supported fallback is `FORK`;
+forking the multi-gigabyte x86-64 JVM under Rosetta at an audio transition caused the audible stall.
+Capturing once before audio initialization retains the pressure-aware correction without any
+transition-time process creation.

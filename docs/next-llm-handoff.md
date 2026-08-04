@@ -42,12 +42,13 @@ That pilot also surfaced vanilla Starsector's macOS `Warning: Low system RAM rem
 bytecode in `com/fs/starfarer/campaign/C.o00000(CampaignState, boolean)` warns whenever
 `OperatingSystemMXBean.getFreePhysicalMemorySize()` is below 1,000 MB. On macOS that is literal free
 pages, not the OS memory-pressure model and not reclaimable inactive/speculative/file-cache memory.
-An exact adapter now consults `/usr/bin/memory_pressure -Q` only when vanilla's literal-free count
-would warn, applies the same threshold to estimated available memory, and preserves the warning on
-real pressure or any probe failure. Runtime, weave, exact installed-archive, and full verification
-pass. A clean live pilot applied all 21 transformations with zero fallback; this event-driven method
-was not invoked in that session (`checks=0`), so live compatibility is verified but a naturally
-occurring corrected warning remains to be captured. Evidence:
+An exact adapter now captures `/usr/bin/memory_pressure -Q` once during agent startup, applies the
+same threshold to estimated available memory, and preserves the warning on real pressure or any
+probe failure. A later live run naturally corrected two false warnings, but synchronously forking
+the bundled x86-64 JVM at those transition points caused sharp CoreAudio pops. A plan-level live
+bisection isolated this adapter alone; moving the pressure capture before audio initialization
+keeps later checks process-free. Runtime, weave, bundled-JVM, exact installed-archive, and full
+verification pass. Evidence:
 `docs/evidence/2026-08-05-macos-memory-pressure-warning.md`.
 
 A later controlled combat run hit an impossible `A.J -> A.null` cast in vanilla `Ship.advance`
