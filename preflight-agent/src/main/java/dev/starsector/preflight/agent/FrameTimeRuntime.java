@@ -111,6 +111,10 @@ public final class FrameTimeRuntime {
         boundaries++;
         boolean active = observedActive;
         int state = observedState;
+        // Campaign/combat observers run once in their respective game-loop advance. Treat that
+        // observation as a pulse for this display interval: otherwise menu, loading, and refit
+        // frames after leaving a state inherit its last value indefinitely.
+        observedState = STATE_UNKNOWN;
         boolean crossedFocusBreak = focusBreak;
         focusBreak = false;
         if (firstBoundaryNanos == Long.MIN_VALUE) {

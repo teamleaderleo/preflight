@@ -134,6 +134,10 @@ final class AdapterRuntime {
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget();
                     report.diagnostic("Loaded the exact opt-in LWJGL frame-time probe target");
+                    if (!options.startupPhaseProbe()) {
+                        registry = registry.withFrameTimeStartupCompletionTarget();
+                        report.diagnostic("Loaded the exact lightweight frame-time startup-completion target");
+                    }
                 }
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();

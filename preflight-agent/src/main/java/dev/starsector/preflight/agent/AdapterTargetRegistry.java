@@ -164,10 +164,10 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
-    /** AI Tweaks 2.2.10 recomputes the same derived range five times per target selection. */
+    /** AI Tweaks 2.2.10 recomputes and repeatedly boxes fixed ranges during target selection. */
     static AdapterTarget aiTweaksEngagementRangeTarget() {
         return new AdapterTarget(
-                "aitweaks-2.2.10-select-target-engagement-range",
+                "aitweaks-2.2.10-select-target-range-snapshot",
                 AiTweaksEngagementRangePlan.TARGET_CLASS,
                 AiTweaksEngagementRangePlan.ORIGINAL_SHA256,
                 AiTweaksEngagementRangeRuntime.PLAN_ID,
@@ -351,6 +351,23 @@ final class AdapterTargetRegistry {
                 "STARSECTOR_CORE",
                 "contents/resources/java/lwjgl.jar",
                 "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Minimal end-of-startup marker for frame-time pilots that deliberately avoid JFR. */
+    static AdapterTarget frameTimeStartupCompletionTarget() {
+        return new AdapterTarget(
+                "vanilla-resource-loader-0.98a-rc8-frame-time-startup-completion",
+                FrameTimeStartupCompletionPlan.TARGET_CLASS,
+                FrameTimeStartupCompletionPlan.ORIGINAL_SHA256,
+                FrameTimeStartupCompletionPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameTimeStartupCompletionPlan.INIT_METHOD,
+                        FrameTimeStartupCompletionPlan.INIT_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
                 "app");
     }
@@ -1092,6 +1109,10 @@ final class AdapterTargetRegistry {
     AdapterTargetRegistry withFrameTimeTarget() {
         return withTarget(frameTimeTarget())
                 .withTarget(campaignFrameTimeStateTarget());
+    }
+
+    AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
+        return withTarget(frameTimeStartupCompletionTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

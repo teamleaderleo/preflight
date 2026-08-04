@@ -1,13 +1,12 @@
-# AI Tweaks recomputes one engagement range five times per target selection
+# AI Tweaks recomputes and repeatedly boxes fixed ranges during target selection
 
 **Date:** 2026-08-05
 
 **Install:** Starsector 0.98a-RC8, AI Tweaks 2.2.10, current mod profile
 
-**Status:** exact adapter, executable behavior test, installed-archive test, and full repository
-verification pass. The first live pilot correctly retained the original because AI Tweaks erases its
-classes' protection-domain source while defining rewritten bytes. A fail-closed source-recovery fix
-is implemented; live combat counters and sampling remain pending.
+**Status:** the v1 exact range snapshot is live-validated. A v2 allocation rewrite passes executable
+behavior, exact installed-archive, and full repository verification; live allocation/FPS validation
+remains pending.
 
 ## Runtime lead
 
@@ -58,6 +57,35 @@ archive hash, and the exact custom `CoreLoader`; `installed=false` and zero snap
 AI Tweaks code ran. That observation supplied the source-recovery boundary above rather than being
 treated as permission to weaken source identity.
 
-No frame-time or speed claim is made before the live combat pilot. The shutdown report records
-installation and the number of target-selection snapshots, and JFR can independently confirm
-whether the four removed call sites disappear from `SelectTarget` stacks.
+The shutdown report records installation and the number of target-selection snapshots. JFR provides
+the independent call/allocation evidence below; the non-identical combat still does not support a
+frame-time speed claim.
+
+## Live v1 result and the next exposed cost
+
+`aitweaks-audio-v2-20260805-044117` applied the exact v1 target and completed with **13,405**
+selection snapshots. The derived engagement-range getter was reduced to its constructor call as
+designed. This validates application and use, but the combat was not a controlled frame-time A/B.
+
+The recording's JFR allocation samples exposed a separate Kotlin/JVM cost in the same exact class.
+`SelectTarget.selectTarget` accepts a `Function2<CombatEntityAPI, Float, Boolean>`, so it executes
+`Float.valueOf` for the fixed search range on every candidate ship or missile. Twelve allocation
+samples rooted at those three `selectTarget` boxing sites carried **27,255,424 bytes of sampled
+allocation weight**. This is sampled weight, not an exact byte census, but all twelve stacks identify
+the same bytecode boundary.
+
+`aitweaks-select-target-range-snapshot-v2` retains v1's primitive snapshot and adds two final boxed
+fields: the selected weapon's engagement range and its already-fixed `targetSearchRange`. The
+constructor boxes each once. The two primary/current checks and the candidate loop then load those
+same `Float` objects instead of allocating at their `Function2` call boundary. Predicate order,
+candidate order, primitive bit values, range changes between selection objects, and every downstream
+AI calculation remain unchanged.
+
+The v2 transform additionally requires exactly two engagement-range boxing sites and one
+target-search boxing site with the reviewed instruction shapes. It still pins the exact class,
+archive, loader, bytecode version, constructor, fields, and all five derived-range calls. The
+executable fixture proves a post-construction backing-range change remains isolated to the next
+selection object, verifies one getter call and two constructor boxes, and exact installed-JAR
+verification confirms all three cached fields. Full `mvn verify` passes. A live follow-up should
+confirm the `SelectTarget.selectTarget -> Float.valueOf` allocation stack disappears and collect a
+settled combat FPS distribution without JFR if Rosetta profiling remains unstable.

@@ -70,10 +70,13 @@ class FrameTimeRuntimeTest {
         FrameTimeRuntime.recordBoundary(0L);
         FrameTimeRuntime.observeCampaign();
         FrameTimeRuntime.recordBoundary(10L); // unknown -> campaign
+        FrameTimeRuntime.observeCampaign();
         FrameTimeRuntime.recordBoundary(20L);
+        FrameTimeRuntime.observeCampaign();
         FrameTimeRuntime.recordBoundary(30L);
         FrameTimeRuntime.observeCombat();
         FrameTimeRuntime.recordBoundary(40L); // campaign -> combat
+        FrameTimeRuntime.observeCombat();
         FrameTimeRuntime.recordBoundary(50L);
 
         Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
@@ -81,6 +84,25 @@ class FrameTimeRuntimeTest {
         assertEquals(2L, telemetry.get("stateTransitionIntervalsDropped"));
         assertEquals(2L, map(telemetry.get("campaignActive")).get("frames"));
         assertEquals(1L, map(telemetry.get("combatActive")).get("frames"));
+    }
+
+    @Test
+    void stateObservationExpiresAtTheNextDisplayBoundary() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(10L); // unknown -> campaign
+        FrameTimeRuntime.recordBoundary(20L); // campaign -> unknown
+        FrameTimeRuntime.recordBoundary(30L); // stable unknown, not campaign
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(40L); // unknown -> campaign
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(50L); // stable campaign
+
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        assertEquals(3L, telemetry.get("stateTransitionIntervalsDropped"));
+        assertEquals(1L, map(telemetry.get("campaignActive")).get("frames"));
+        assertEquals(0L, map(telemetry.get("combatActive")).get("frames"));
     }
 
     @Test

@@ -15,7 +15,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Snapshots a derived weapon range once inside one short-lived AI Tweaks target selection. */
+/** Snapshots and boxes fixed weapon ranges once inside one AI Tweaks target selection. */
 final class AiTweaksEngagementRangePlan {
     static final String TARGET_CLASS = "com/genir/aitweaks/core/shipai/autofire/SelectTarget";
     static final String ORIGINAL_SHA256 =
@@ -33,6 +33,11 @@ final class AiTweaksEngagementRangePlan {
     private static final String WEAPON_FIELD = "weapon";
     private static final String WEAPON_DESCRIPTOR = "Lcom/fs/starfarer/api/combat/WeaponAPI;";
     private static final String CACHE_FIELD = "preflight$engagementRange";
+    private static final String BOXED_CACHE_FIELD = "preflight$engagementRangeBoxed";
+    private static final String TARGET_SEARCH_FIELD = "targetSearchRange";
+    private static final String TARGET_SEARCH_BOXED_FIELD = "preflight$targetSearchRangeBoxed";
+    private static final String FLOAT = "java/lang/Float";
+    private static final String BOX_DESCRIPTOR = "(F)Ljava/lang/Float;";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/AiTweaksEngagementRangeRuntime";
 
@@ -48,9 +53,10 @@ final class AiTweaksEngagementRangePlan {
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        if (owner.fields.stream().anyMatch(field -> CACHE_FIELD.equals(field.name))) return null;
+        if (owner.fields.stream().anyMatch(field -> field.name.startsWith("preflight$"))) return null;
         MethodNode constructor = unique(owner, CONSTRUCTOR, CONSTRUCTOR_DESCRIPTOR);
-        if (constructor == null || field(owner, WEAPON_FIELD, WEAPON_DESCRIPTOR) == null) return null;
+        if (constructor == null || field(owner, WEAPON_FIELD, WEAPON_DESCRIPTOR) == null
+                || field(owner, TARGET_SEARCH_FIELD, "F") == null) return null;
 
         List<CallSite> sites = new ArrayList<>();
         for (MethodNode method : owner.methods) {
@@ -73,33 +79,86 @@ final class AiTweaksEngagementRangePlan {
         }
         List<CallSite> constructorSites = sites.stream()
                 .filter(site -> site.method() == constructor).toList();
+        List<CallSite> boxedEngagementSites = sites.stream()
+                .filter(site -> site.method() != constructor)
+                .filter(site -> isBox(nextCode(site.call())))
+                .toList();
+        List<FieldBoxSite> boxedSearchSites = new ArrayList<>();
+        for (MethodNode method : owner.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof FieldInsnNode field
+                        && field.getOpcode() == Opcodes.GETFIELD
+                        && TARGET_CLASS.equals(field.owner)
+                        && TARGET_SEARCH_FIELD.equals(field.name)
+                        && "F".equals(field.desc)
+                        && isBox(nextCode(field))) {
+                    boxedSearchSites.add(new FieldBoxSite(
+                            method, field, (MethodInsnNode) nextCode(field)));
+                }
+            }
+        }
         if (sites.size() != 5 || constructorSites.size() != 1
+                || boxedEngagementSites.size() != 2 || boxedSearchSites.size() != 1
                 || sites.stream().filter(site -> site.method() != constructor)
                         .anyMatch(site -> (site.method().access & Opcodes.ACC_STATIC) != 0)) {
             return null;
         }
 
+        int cacheAccess = Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC;
+        owner.fields.add(new FieldNode(cacheAccess, CACHE_FIELD, "F", null, null));
         owner.fields.add(new FieldNode(
-                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC,
-                CACHE_FIELD, "F", null, null));
+                cacheAccess, BOXED_CACHE_FIELD, "Ljava/lang/Float;", null, null));
+        owner.fields.add(new FieldNode(
+                cacheAccess, TARGET_SEARCH_BOXED_FIELD, "Ljava/lang/Float;", null, null));
         MethodInsnNode capture = constructorSites.get(0).call();
         InsnList save = new InsnList();
         save.add(new InsnNode(Opcodes.DUP));
         save.add(new VarInsnNode(Opcodes.ALOAD, 0));
         save.add(new InsnNode(Opcodes.SWAP));
         save.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS, CACHE_FIELD, "F"));
+        save.add(new InsnNode(Opcodes.DUP));
+        save.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, FLOAT, "valueOf", BOX_DESCRIPTOR, false));
+        save.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        save.add(new InsnNode(Opcodes.SWAP));
+        save.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS,
+                BOXED_CACHE_FIELD, "Ljava/lang/Float;"));
         save.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "snapshot", "()V", false));
         constructor.instructions.insert(capture, save);
+
+        FieldInsnNode targetSearchAssignment = uniqueField(
+                constructor, Opcodes.PUTFIELD, TARGET_SEARCH_FIELD, "F");
+        if (targetSearchAssignment == null) return null;
+        InsnList saveSearch = new InsnList();
+        saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        saveSearch.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        saveSearch.add(new FieldInsnNode(
+                Opcodes.GETFIELD, TARGET_CLASS, TARGET_SEARCH_FIELD, "F"));
+        saveSearch.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, FLOAT, "valueOf", BOX_DESCRIPTOR, false));
+        saveSearch.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS,
+                TARGET_SEARCH_BOXED_FIELD, "Ljava/lang/Float;"));
+        constructor.instructions.insert(targetSearchAssignment, saveSearch);
 
         for (CallSite site : sites) {
             if (site.call() == capture) continue;
             InsnList cached = new InsnList();
             cached.add(new InsnNode(Opcodes.POP));
             cached.add(new VarInsnNode(Opcodes.ALOAD, 0));
-            cached.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, CACHE_FIELD, "F"));
+            boolean boxed = boxedEngagementSites.contains(site);
+            MethodInsnNode originalBox = boxed ? (MethodInsnNode) nextCode(site.call()) : null;
+            cached.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS,
+                    boxed ? BOXED_CACHE_FIELD : CACHE_FIELD,
+                    boxed ? "Ljava/lang/Float;" : "F"));
             site.method().instructions.insertBefore(site.call(), cached);
             site.method().instructions.remove(site.call());
+            if (boxed) site.method().instructions.remove(originalBox);
+        }
+        for (FieldBoxSite site : boxedSearchSites) {
+            site.field().name = TARGET_SEARCH_BOXED_FIELD;
+            site.field().desc = "Ljava/lang/Float;";
+            site.method().instructions.remove(site.box());
         }
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
@@ -125,12 +184,45 @@ final class AiTweaksEngagementRangePlan {
                 .findFirst().orElse(null);
     }
 
+    private static FieldInsnNode uniqueField(
+            MethodNode method, int opcode, String name, String descriptor) {
+        FieldInsnNode found = null;
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (instruction instanceof FieldInsnNode field
+                    && field.getOpcode() == opcode
+                    && TARGET_CLASS.equals(field.owner)
+                    && name.equals(field.name) && descriptor.equals(field.desc)) {
+                if (found != null) return null;
+                found = field;
+            }
+        }
+        return found;
+    }
+
+    private static boolean isBox(AbstractInsnNode instruction) {
+        return instruction instanceof MethodInsnNode call
+                && call.getOpcode() == Opcodes.INVOKESTATIC
+                && FLOAT.equals(call.owner)
+                && "valueOf".equals(call.name)
+                && BOX_DESCRIPTOR.equals(call.desc);
+    }
+
     private static AbstractInsnNode previousCode(AbstractInsnNode instruction) {
         AbstractInsnNode current = instruction.getPrevious();
         while (current != null && current.getOpcode() < 0) current = current.getPrevious();
         return current;
     }
 
+    private static AbstractInsnNode nextCode(AbstractInsnNode instruction) {
+        AbstractInsnNode current = instruction.getNext();
+        while (current != null && current.getOpcode() < 0) current = current.getNext();
+        return current;
+    }
+
     private record CallSite(MethodNode method, MethodInsnNode call) {
+    }
+
+    private record FieldBoxSite(
+            MethodNode method, FieldInsnNode field, MethodInsnNode box) {
     }
 }

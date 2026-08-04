@@ -350,7 +350,7 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | GraphicsLib insignia manager cache | 4.40% of long-session game-thread samples is all GraphicsLib | exact per-render adapter built; combat pilot pending |
 | GraphicsLib hot-settings cache | 7,621 hits / 3 misses / 1 invalidation | live exact adapter; Luna float stack removed |
 | OpenAL streaming-source error order | 1 stale error recovered / 0 real generation errors | live exact vanilla repair; false 516ms retry removed |
-| AI Tweaks target-selection range snapshot | four of five derived-range calls removed per selection | exact offline and installed-archive gates pass; live combat pilot pending |
+| AI Tweaks target-selection range snapshot | 13,405 live selections; four derived calls removed; v2 removes per-candidate range boxing | v1 live; v2 offline/exact green, live FPS/allocation follow-up pending |
 
 **`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
@@ -396,16 +396,17 @@ macOS library is OpenAL Soft 1.23.1; upstream already added premature-stop click
 records fade requests, final scalar, and create/cleanup ordering without touching OpenAL. Its
 offline and exact installed-archive gates pass; fold it into the next AI Tweaks live follow-up.
 
-**AI Tweaks.** The latest combat profile put `AutofireAI` on 51 of 776 game-thread samples and its
-derived engagement-range getter below six of those samples. Exact 2.2.10 source and bytecode show
-that one short-lived `SelectTarget` recomputes the same range five times during one synchronous
-selection. `aitweaks-select-target-engagement-range-v1` snapshots the constructor's first result and
-reuses it for the other four calls, preserving changes between selection events and adding no
-cross-frame cache. The executable behavior test, exact installed-archive transform, fail-closed
-shape gates, and full verification pass. The first live pilot retained original code because AI
-Tweaks' custom `CoreLoader` defines its twice-rewritten class without a protection domain. Preflight
-now recovers a source only from a sole URL on that loader, preserving the exact archive hash and
-custom-loader binding while refusing ambiguous URL sets. A live combat follow-up is next; see
+**AI Tweaks.** The v1 range snapshot is now live: one combat pilot applied the exact target and
+recorded 13,405 selection objects. Its JFR allocation samples then exposed the next layer:
+`SelectTarget.selectTarget` boxes its fixed search range through Kotlin's `Function2` boundary once
+for every candidate ship or missile. Twelve samples at those exact boxing sites carried 27.3MB of
+sampled allocation weight. `aitweaks-select-target-range-snapshot-v2` stores boxed engagement and
+search ranges once per short-lived selection object and substitutes field reads at the two
+primary/current sites and the candidate loop. Values, ordering, predicates, and changes between
+selection events remain unchanged. The transform requires the exact three boxing shapes in addition
+to all prior class/archive/loader/call-count gates. Executable behavior, exact installed-archive,
+and full verification pass; the next live combat should confirm the allocation stack disappears and
+collect settled FPS without JFR if Rosetta's sampler remains unstable. See
 `docs/evidence/2026-08-05-aitweaks-engagement-range.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and

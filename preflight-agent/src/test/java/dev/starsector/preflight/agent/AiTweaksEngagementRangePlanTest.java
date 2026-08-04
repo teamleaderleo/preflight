@@ -47,7 +47,14 @@ class AiTweaksEngagementRangePlanTest {
         assertTrue((cache.access & Opcodes.ACC_PRIVATE) != 0);
         assertTrue((cache.access & Opcodes.ACC_FINAL) != 0);
         assertTrue((cache.access & Opcodes.ACC_SYNTHETIC) != 0);
+        assertEquals("Ljava/lang/Float;", owner.fields.stream()
+                .filter(field -> "preflight$engagementRangeBoxed".equals(field.name))
+                .findFirst().orElseThrow().desc);
+        assertEquals("Ljava/lang/Float;", owner.fields.stream()
+                .filter(field -> "preflight$targetSearchRangeBoxed".equals(field.name))
+                .findFirst().orElseThrow().desc);
         assertEquals(1, calls(owner, HANDLE, GETTER));
+        assertEquals(2, calls(owner, "java/lang/Float", "valueOf"));
         assertEquals(1, calls(owner, RUNTIME, "snapshot"));
 
         Map<String, byte[]> classes = fixtureTypes();
@@ -144,10 +151,26 @@ class AiTweaksEngagementRangePlanTest {
         MethodNode use = new MethodNode(Opcodes.ACC_PUBLIC, "use", "()F", null, null);
         for (int index = 0; index < useCalls; index++) {
             addRangeCall(use);
+            if (index < 2) {
+                use.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                        "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false));
+                use.instructions.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
+                        "java/lang/Float", "floatValue", "()F", false));
+            }
             if (index > 0) use.instructions.add(new InsnNode(Opcodes.FADD));
         }
         use.instructions.add(new InsnNode(Opcodes.FRETURN));
         use.accept(writer);
+
+        MethodNode searchBox = new MethodNode(
+                Opcodes.ACC_PUBLIC, "searchBox", "()Ljava/lang/Float;", null, null);
+        searchBox.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        searchBox.instructions.add(new FieldInsnNode(
+                Opcodes.GETFIELD, TARGET, "targetSearchRange", "F"));
+        searchBox.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false));
+        searchBox.instructions.add(new InsnNode(Opcodes.ARETURN));
+        searchBox.accept(writer);
         writer.visitEnd();
         return writer.toByteArray();
     }
