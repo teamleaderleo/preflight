@@ -64,5 +64,17 @@ transformation. The narrow runtime escape hatch is
   reflect over. The transformed class and real mutable-stat implementation remain the subjects of
   the execution test.
 
-A live campaign pilot and before/after sample comparison remain required before calling the measured
-frame-time win complete.
+## Live validation
+
+The mixed campaign/combat run
+`~/.starsector-preflight/runs/ship-cast-sites-interpreted-v1-20260805-031646` completed normally with
+adapter health `ACTIVE`, 28 transformations, and no decline or contained failure. The memo handled
+16,167,426 calls: 15,970,331 exact unchanged-state hits (98.78%) and 197,095 delegations (1.22%).
+Those delegations include first observations and real market-state changes; no failure was reported.
+
+State-separated sampling still found `reapplyEventMod` in 41/580 campaign samples (7.07%), down from
+84/781 (10.76%) in the earlier non-identical campaign recording. The workloads are not controlled
+enough to claim the 3.69-point difference as a precise speedup, but the live hit/delegate split
+proves the intended redundant work exists at very high volume and that changed states continue to
+reach vanilla. A controlled identical-save A/B would be needed for an exact frame-time attribution;
+live compatibility and the optimization boundary are now validated.

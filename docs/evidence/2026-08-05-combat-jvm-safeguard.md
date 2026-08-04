@@ -53,7 +53,7 @@ the narrowest safe workaround available before the JVM starts.
 
 ## Automatic boundary
 
-`CombatJvmSafeguard` now injects that one compile exclusion only when all of these match:
+`CombatJvmSafeguard` injects the reviewed `Ship` compile exclusions only when all of these match:
 
 1. macOS;
 2. the reviewed aggressive launcher flags;
@@ -89,6 +89,22 @@ classified the Java fatal despite the launcher returning zero.
 
 The automatic safeguard now excludes both `Ship.advance` and the overloaded `Ship.render` methods
 from compilation under the same exact fingerprint. The class hash gate already covers both method
-bodies, so no broader build or platform is opted in. Interpreting the very large render method may
-have a frame-time cost; a live combat comparison is required. The escape hatch remains
+bodies, so no broader build or platform is opted in. The escape hatch remains
 `PREFLIGHT_DISABLE_COMBAT_JVM_SAFEGUARD=1`.
+
+## Expanded live validation
+
+`~/.starsector-preflight/runs/ship-cast-sites-interpreted-v1-20260805-031646` completed a campaign
+load and a large simulation battle with both exclusions accepted by HotSpot. It exited normally,
+reported adapter health `ACTIVE` with 28 transformations and no decline or contained failure, and
+the runtime probe again established the exact assignable same-loader/same-archive relationship.
+There was no `ClassCastException`, fatal log evidence, or native JVM crash file.
+
+The non-identical battle recorded 3,996 active combat frames: p50 16.8ms, p95 30.2ms, and p99
+65.1ms. The earlier failing combat-only run, with only `Ship.advance` interpreted, recorded p50
+17.5ms, p95 22.0ms, and p99 33.1ms. The tail distributions cannot be treated as an A/B because the
+ship counts, effects, and battle phases differed. The state-separated execution samples provide a
+more specific cost check: `Ship.render`'s own bytecode was the leaf in 6/1,190 combat samples
+(0.50%) with render interpreted, versus 23/4,406 (0.52%) in the earlier compiled-render run. No
+material interpreter tax is visible at the protected method itself, while the median frame time did
+not regress. Correctness therefore remains the appropriate default for this exact risky runtime.

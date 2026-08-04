@@ -63,9 +63,12 @@ adds that one compile exclusion only when the exact OS, launcher policy, directi
 A subsequent long combat run proved the same impossible cast has a second site in `Ship.render`,
 even while HotSpot confirmed the `Ship.advance` exclusion was active. The strict automatic safeguard
 now interprets both overloaded `Ship.render` methods as well as `advance`, under the same exact
-macOS/runtime/launcher/directives/`Ship.class` fingerprint. This needs a live combat frame-time
-comparison because the three-argument render method is large. The commodity memo was installed but
-had zero calls in that combat-only session and is unrelated to the crash.
+macOS/runtime/launcher/directives/`Ship.class` fingerprint. A subsequent campaign plus large battle
+completed normally with both exclusions accepted, no cast failure, and ACTIVE adapter health.
+`Ship.render`'s own bytecode was 0.50% of combat samples interpreted versus 0.52% in the earlier
+compiled-render recording; the median combat frame was 16.8ms versus 17.5ms. The battles were not
+identical, so their worse tail percentiles are not a controlled A/B, but no method-local interpreter
+tax is visible.
 
 The retreat recording also supplied the first clean post-startup campaign hotspot after the earlier
 MagicLib and Stelnet work. Vanilla `CommodityOnMarket.reapplyEventMod` occupied 84/781 campaign
@@ -73,7 +76,10 @@ samples (10.76%) by removing and recreating the same event modifier every frame.
 memo now fingerprints the four inputs and post-vanilla output in transient per-commodity fields;
 first calls and every changed input use the retained original. Synthetic and installed-class
 execution tests cover zero and non-zero trade quantities and external mutations. It is enabled with
-the other campaign caches by `--fast`/`--campaign-entity-index`; a live comparison remains next.
+the other campaign caches by `--fast`/`--campaign-entity-index`. The same clean mixed-state pilot
+served 15,970,331 unchanged calls and delegated 197,095 changed/first calls: a 98.78% hit rate with
+no reported failure. `reapplyEventMod` fell from 10.76% to 7.07% of campaign samples across
+non-identical runs; an identical-save A/B is still needed for precise frame-time attribution.
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
