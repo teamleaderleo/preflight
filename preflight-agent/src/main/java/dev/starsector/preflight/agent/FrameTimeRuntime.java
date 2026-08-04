@@ -103,7 +103,8 @@ public final class FrameTimeRuntime {
         }
     }
 
-    static synchronized void markStartupComplete() {
+    /** Called from an exact transformed game class when resource initialization returns. */
+    public static synchronized void markStartupComplete() {
         if (enabled) startupComplete = true;
     }
 

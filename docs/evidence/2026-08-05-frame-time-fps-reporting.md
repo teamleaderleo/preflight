@@ -58,7 +58,11 @@ was previously signalled only by the full startup-phase probe, which the safe Ro
 enable. Frame-only runs now exact-gate a minimal `ResourceLoaderState.init(Map)` transform that calls
 only `markStartupComplete()` before its unique return. Full startup-attribution runs keep their
 existing transform instead, so two plans never compete for the same class. Synthetic tests and an
-exact installed-core transform pass; a fresh live readout remains pending.
+exact installed-core transform pass. The first live attempt exposed an access-control defect before
+the main menu: the injected game class could not call package-private `markStartupComplete()`.
+The runtime entry point is now public, and the regression test defines the transformed game class in
+its own classloader and actually invokes `init(Map)` across the package boundary. Full verification
+passes; a fresh live readout remains pending.
 
 ## Rosetta profiling boundary
 

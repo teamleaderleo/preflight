@@ -2,7 +2,9 @@ package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -35,6 +37,21 @@ class FrameTimeStartupCompletionPlanTest {
     }
 
     @Test
+    void transformedGameClassCanCallTheRuntimeAcrossPackageBoundaries() throws Exception {
+        FrameTimeRuntime.beginSession(true);
+        byte[] original = fixture(1);
+        byte[] transformed = FrameTimeStartupCompletionPlan.transform(
+                exactSignature(original), original);
+        String binaryName = FrameTimeStartupCompletionPlan.TARGET_CLASS.replace('/', '.');
+        Class<?> target = new ByteArrayLoader(binaryName, transformed).loadClass(binaryName);
+
+        target.getMethod(FrameTimeStartupCompletionPlan.INIT_METHOD, Map.class)
+                .invoke(target.getConstructor().newInstance(), Map.of());
+
+        assertTrue((Boolean) FrameTimeRuntime.telemetry().get("startupComplete"));
+    }
+
+    @Test
     void declinesWhenDisabledHashChangedOrShapeIsAmbiguous() throws Exception {
         byte[] original = fixture(1);
         FrameTimeRuntime.beginSession(false);
@@ -51,6 +68,14 @@ class FrameTimeStartupCompletionPlanTest {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
                 FrameTimeStartupCompletionPlan.TARGET_CLASS, null, "java/lang/Object", null);
+        var constructor = writer.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(
+                Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        constructor.visitInsn(Opcodes.RETURN);
+        constructor.visitMaxs(1, 1);
+        constructor.visitEnd();
         MethodNode init = new MethodNode(Opcodes.ACC_PUBLIC,
                 FrameTimeStartupCompletionPlan.INIT_METHOD,
                 FrameTimeStartupCompletionPlan.INIT_DESCRIPTOR, null, null);
@@ -98,5 +123,28 @@ class FrameTimeStartupCompletionPlanTest {
             }
         }
         return count;
+    }
+
+    private static final class ByteArrayLoader extends ClassLoader {
+        private final String binaryName;
+        private final byte[] bytes;
+
+        private ByteArrayLoader(String binaryName, byte[] bytes) {
+            super(FrameTimeStartupCompletionPlanTest.class.getClassLoader());
+            this.binaryName = binaryName;
+            this.bytes = bytes;
+        }
+
+        @Override
+        protected synchronized Class<?> loadClass(String name, boolean resolve)
+                throws ClassNotFoundException {
+            Class<?> loaded = findLoadedClass(name);
+            if (loaded == null && binaryName.equals(name)) {
+                loaded = defineClass(name, bytes, 0, bytes.length);
+            }
+            if (loaded == null) loaded = super.loadClass(name, false);
+            if (resolve) resolveClass(loaded);
+            return loaded;
+        }
     }
 }
