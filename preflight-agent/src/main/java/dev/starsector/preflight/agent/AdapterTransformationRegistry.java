@@ -37,7 +37,11 @@ final class AdapterTransformationRegistry {
         if (EntityLookupRuntime.PLAN_ID.equals(target.planId())) {
             byte[] location = EntityLookupPlan.transform(signature, originalBytes);
             if (location != null) {
-                return location;
+                // BaseLocation is also the deeper opt-in campaign attribution target. The
+                // transformer returns after the first exact target, so compose the disjoint
+                // method rewrites here while the original class/source identity is still known.
+                byte[] timed = CampaignLocationEconomyTimePlan.transform(signature, location);
+                return timed == null ? location : timed;
             }
             byte[] repository = EntityRepositoryListPlan.transform(signature, originalBytes);
             return repository != null
@@ -215,6 +219,9 @@ final class AdapterTransformationRegistry {
         }
         if (CampaignEngineTimeRuntime.PLAN_ID.equals(target.planId())) {
             return CampaignEngineTimePlan.transform(signature, originalBytes);
+        }
+        if (CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CampaignLocationEconomyTimePlan.transform(signature, originalBytes);
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
@@ -527,6 +534,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (CampaignEngineTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {

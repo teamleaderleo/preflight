@@ -442,8 +442,15 @@ none of the six timed calls. Route and diplomacy own two real medium hitches, no
 The next opt-in layer now hash-pins vanilla `CampaignEngine.advance` and exact-times its managers,
 memory/factions, locations, and campaign help. Both persistent and transient engine-script loops
 also group inclusive time by concrete `EveryFrameScript` class through session-scoped `ClassValue`
-state. Synthetic shape and exact installed-archive transforms pass; run one ordinary campaign
-pilot and join maximum end epochs to the retained worst frames. Do not add nested inclusive totals.
+state. Its first live pilot completed normally and measured the campaign at 52.76 average FPS,
+59.52 median, and 15.06 FPS 1% low. The first 30 seconds were materially worse (46.10 average,
+9.15 FPS 1% low) than later play (55.47 average, 20.45 FPS 1% low). Location advancement consumed
+19.04s of inclusive CPU and economy 11.49s. Stellar Networks' updater had a 131.03ms call inside a
+143.26ms frame; MagicLib's bounty board had a 50.87ms call inside a 66.43ms frame. A deeper opt-in
+probe now attributes location entity/script calls by concrete class and splits economy into its
+location-map, stepper, and market-advance seams. Synthetic and exact installed-archive gates pass,
+including composition with the existing `BaseLocation` entity index; run one short campaign pilot
+before choosing a behavioral optimization. Do not add overlapping totals to a speed claim.
 See
 `docs/evidence/2026-08-05-campaign-engine-call-times.md`.
 

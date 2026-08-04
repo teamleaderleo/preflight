@@ -327,6 +327,8 @@ final class AdapterReport {
                 .append(Json.value(CampaignCallTimeRuntime.telemetry())).append(',');
         key(output, "campaignEngineTimes")
                 .append(Json.value(CampaignEngineTimeRuntime.telemetry())).append(',');
+        key(output, "campaignLocationEconomyTimes")
+                .append(Json.value(CampaignLocationEconomyTimeRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

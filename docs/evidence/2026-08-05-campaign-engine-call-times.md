@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: implementation and exact installed-archive verification complete; live pilot pending
+Status: first live pilot complete; deeper location/economy attribution implemented and exact-verified
 
 ## Why another layer was necessary
 
@@ -53,5 +53,66 @@ unless `preflight.frameTimes=true` was explicitly requested.
 Runtime tests cover fixed-phase and concrete-script grouping. Shape tests pin all 21 reviewed call
 sites and reject a missing call, disabled runtime, wrong identity, or a second transformation. The
 exact installed `starfarer_obf.jar` transforms to 19 fixed-phase entries, two per-class script
-entries, and exception-safe exits for every call. Full `mvn verify` passes. A live campaign pilot is
-the remaining gate.
+entries, and exception-safe exits for every call. Full `mvn verify` passes.
+
+## Live result
+
+`campaign-engine-times-v1-20260805-073428` loaded the representative campaign, roamed through the
+campaign and UI, entered combat, returned to the campaign, and exited normally. Adapter health was
+`ACTIVE`: 40 exact transformations, zero declines, and zero contained failures. Memory pressure was
+not a confounder: the macOS probe retained about 18GB / 74% available memory.
+
+Campaign frame throughput was:
+
+| slice | frames | average | median | 1% low | p95 | p99 | >100ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| all campaign | 5,474 | 52.76 FPS | 59.52 FPS | 15.06 FPS | 31.2ms | 66.4ms | 23 |
+| first 30 seconds | 1,383 | 46.10 FPS | 58.48 FPS | 9.15 FPS | 44.5ms | 109.3ms | 17 |
+| after 30 seconds | 4,091 | 55.47 FPS | 59.52 FPS | 20.45 FPS | 27.1ms | 48.9ms | 6 |
+
+The user's repeated observation that campaign play is rough immediately after loading and then
+smooths out is therefore measured directly, including throughput rather than only frame-time
+percentiles.
+
+The inclusive vanilla engine totals identify two dominant buckets:
+
+- location and hyperspace advancement: 79,072 calls / **19,039.7ms**, maximum 163.94ms;
+- economy advancement: 6,222 calls / **11,492.1ms**, maximum 50.95ms.
+
+Those maxima are not log-gap guesses. The 163.94ms location call ends 70ms before the end of a
+241.80ms retained campaign frame, and the 50.95ms economy call ends 10ms before the end of a
+64.18ms frame.
+
+The concrete engine-script list also exposed specific mod costs:
+
+- Stellar Networks `stelnet.board.query.MarketUpdater`: **1,832.9ms** total and a 131.03ms maximum;
+- vanilla `CoreScript`: 1,440.0ms total and a 52.46ms maximum;
+- `data.plugins.qolp_clock`: 921.0ms total;
+- Mnemonic Sensors: 432.1ms total;
+- MagicLib paintjob runner: 383.5ms total;
+- MagicLib bounty-board plugin: 264.6ms total and a 50.87ms maximum.
+
+The Stellar Networks maximum ends 7ms before the end of a 143.26ms frame. The MagicLib bounty
+maximum likewise ends 7ms before the end of a 66.43ms frame. During this run the operator also
+observed a bounty notification/UI temporarily capturing left clicks outside its visible dialog.
+The current probes never intercept input, and there was no adapter failure. The log repeatedly
+rebuilt MagicLib bounty state and emitted LunaLib `CaptainsLog`-missing errors while that UI was
+active, so this is retained as a mod UI defect/performance lead rather than attributed to Preflight.
+
+## Deeper location/economy probe
+
+The first live result makes optimizing one of the smaller isolated scripts premature: locations
+and economy account for the largest known inclusive work. Probe
+`campaign-location-economy-call-time-probe-v1` therefore adds no behavior change and only runs when
+the existing frame-time option is explicit.
+
+It exact-pins the installed `BaseLocation` and `Economy` classes. `BaseLocation` groups active
+entity advancement, paused entity advancement, and location scripts by concrete runtime class.
+`Economy` separately times `ReachEconomy.updateLocationMap`, `ReachEconomyStepper.nextFrame`, and
+the complete per-market advance call site. Every normal and exceptional exit records or fails inertly
+and rethrows the original exception. The `BaseLocation` instrumentation composes after the existing
+entity-index rewrite because both exact targets share the class and touch disjoint methods.
+
+Synthetic shape/runtime coverage and an exact installed-archive test pass, including composition
+with the entity index. A short ordinary campaign pilot is the remaining gate before choosing a
+behavioral optimization.

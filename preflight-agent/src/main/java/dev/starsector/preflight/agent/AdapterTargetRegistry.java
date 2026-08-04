@@ -1166,6 +1166,40 @@ final class AdapterTargetRegistry {
                 "app"));
     }
 
+    AdapterTargetRegistry withCampaignLocationEconomyTimeTargets() {
+        AdapterTargetRegistry registry = this;
+        registry = registry.withTarget(new AdapterTarget(
+                "campaign-location-call-time-0.98a-rc8",
+                CampaignLocationEconomyTimePlan.LOCATION_CLASS,
+                CampaignLocationEconomyTimePlan.LOCATION_SHA256,
+                CampaignLocationEconomyTimeRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                CampaignLocationEconomyTimePlan.LOCATION_ADVANCE,
+                                CampaignLocationEconomyTimePlan.LOCATION_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CampaignLocationEconomyTimePlan.LOCATION_PAUSED,
+                                CampaignLocationEconomyTimePlan.LOCATION_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+        return registry.withTarget(new AdapterTarget(
+                "campaign-economy-call-time-0.98a-rc8",
+                CampaignLocationEconomyTimePlan.ECONOMY_CLASS,
+                CampaignLocationEconomyTimePlan.ECONOMY_SHA256,
+                CampaignLocationEconomyTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignLocationEconomyTimePlan.ECONOMY_ADVANCE,
+                        CampaignLocationEconomyTimePlan.ECONOMY_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }
