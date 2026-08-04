@@ -254,14 +254,25 @@ public final class FrameTimeRuntime {
 
         Map<String, Object> toMap(long originEpochMillis) {
             Map<String, Object> result = new LinkedHashMap<>();
+            Double meanMicros = count == 0L ? null : totalNanos / 1_000.0 / count;
+            Long p50Micros = percentile(500);
+            Long p95Micros = percentile(950);
+            Long p99Micros = percentile(990);
+            Long p999Micros = percentile(999);
             result.put("frames", count);
-            result.put("meanMicros", count == 0L ? null : totalNanos / 1_000.0 / count);
+            result.put("meanMicros", meanMicros);
             result.put("minimumMicros", count == 0L ? null : minimumNanos / 1_000L);
             result.put("maximumMicros", count == 0L ? null : maximumNanos / 1_000L);
-            result.put("p50Micros", percentile(500));
-            result.put("p95Micros", percentile(950));
-            result.put("p99Micros", percentile(990));
-            result.put("p999Micros", percentile(999));
+            result.put("p50Micros", p50Micros);
+            result.put("p95Micros", p95Micros);
+            result.put("p99Micros", p99Micros);
+            result.put("p999Micros", p999Micros);
+            result.put("averageFps", fps(meanMicros));
+            result.put("medianFps", fps(p50Micros));
+            result.put("onePercentLowFps", fps(p99Micros));
+            result.put("pointOnePercentLowFps", fps(p999Micros));
+            result.put("framesMeeting60FpsPercent", percentage(count - over16Millis));
+            result.put("framesMeeting30FpsPercent", percentage(count - over33Millis));
             result.put("over16_67Millis", over16Millis);
             result.put("over33_33Millis", over33Millis);
             result.put("over50Millis", over50Millis);
@@ -270,6 +281,19 @@ public final class FrameTimeRuntime {
             result.put("over1000Millis", over1000Millis);
             result.put("worstFrames", worstFrames(originEpochMillis));
             return result;
+        }
+
+        private Double fps(Number micros) {
+            if (micros == null || micros.doubleValue() <= 0.0) return null;
+            return round(1_000_000.0 / micros.doubleValue());
+        }
+
+        private Double percentage(long matching) {
+            return count == 0L ? null : round(100.0 * matching / count);
+        }
+
+        private double round(double value) {
+            return Math.round(value * 100.0) / 100.0;
         }
 
         private Long percentile(int perThousand) {

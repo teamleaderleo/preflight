@@ -34,6 +34,12 @@ class FrameTimeRuntimeTest {
         assertEquals(20_000L, all.get("p50Micros"));
         assertEquals(100_000L, all.get("p95Micros"));
         assertEquals(100_000L, all.get("p99Micros"));
+        assertEquals(26.88, all.get("averageFps"));
+        assertEquals(50.0, all.get("medianFps"));
+        assertEquals(10.0, all.get("onePercentLowFps"));
+        assertEquals(10.0, all.get("pointOnePercentLowFps"));
+        assertEquals(40.0, all.get("framesMeeting60FpsPercent"));
+        assertEquals(60.0, all.get("framesMeeting30FpsPercent"));
         assertEquals(3L, all.get("over16_67Millis"));
         assertEquals(3L, post.get("frames"));
         assertEquals(40_000L, post.get("p50Micros"));
@@ -87,6 +93,8 @@ class FrameTimeRuntimeTest {
         assertEquals(0L, telemetry.get("boundaries"));
         assertEquals(0L, map(telemetry.get("allActive")).get("frames"));
         assertNull(map(telemetry.get("allActive")).get("p99Micros"));
+        assertNull(map(telemetry.get("allActive")).get("averageFps"));
+        assertNull(map(telemetry.get("allActive")).get("onePercentLowFps"));
     }
 
     @Test

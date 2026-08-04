@@ -117,10 +117,22 @@ adapter now handles only the safe first slice: it initializes the reviewed seven
 reuses it while the existing exact gameplay-cache gate is active; gate-off executes the untouched
 vanilla allocation block. The shipped class hash, exact seven literals/order, archive, loader, and
 single construction block are pinned. Synthetic shape/gate tests, an exact installed-class
-transform, and full `mvn verify` pass. A live campaign roam still needs to establish non-zero
-`campaignRadarRender.cachedFrames`, normal map/radar behavior, and whether the allocation removal is
-large enough to survive sampling noise. Evidence:
+transform, and full `mvn verify` pass. A live non-JFR campaign/combat roam completed normally with
+ACTIVE adapter health (30 applied, zero declines/failures) and served **6,199** radar frames through
+the cached set. The preceding JFR attempt hit HotSpot's own `SharedRuntime::get_poll_stub` safepoint
+assertion in the x86-64 Zulu 17 VM under Rosetta before the renderer loaded, so passive frame/radar
+telemetry is now available independently of profiling. The live gate proves use and compatibility;
+whether the allocation removal survives frame-time sampling noise still requires controlled A/B.
+Evidence:
 `docs/evidence/2026-08-05-campaign-radar-type-set.md`.
+
+Frame reports now expose direct throughput alongside frame-time percentiles: average FPS, median
+FPS, 1% low, 0.1% low, and the percentages meeting 60- and 30-FPS budgets. These are derived during
+report serialization from existing counters, so they add no per-frame work. The first mixed live
+campaign readout was 53.40 average FPS, 59.17 median, 15.04 1% low, and 6.78 0.1% low; 45.64% of
+frames met 60 FPS and 96.32% met 30 FPS. That points at tail latency rather than broad throughput as
+the next target. Its short combat slice included a load transition and is not a steady-battle
+result. Evidence: `docs/evidence/2026-08-05-frame-time-fps-reporting.md`.
 
 The same mixed-state recording put GraphicsLib's `LightShader` on 48/1,010 combat samples (4.75%).
 Exact installed bytecode shows its render loop rereads three stable float settings through LunaLib

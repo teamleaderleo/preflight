@@ -3,7 +3,7 @@
 **Date:** 2026-08-05  
 **Target:** Starsector 0.98a-RC8 `com/fs/starfarer/coreui/A/oOoO.class`  
 **Class SHA-256:** `d946e2eddc6ecfca0b56e178928c349aa17ec178888e78701373679e818c0260`  
-**Status:** implementation and offline verification complete; live campaign gate pending
+**Status:** implementation, offline verification, and live campaign gate complete
 
 ## Why this seam
 
@@ -67,7 +67,20 @@ changing any visibility, position, icon, or fader operation.
 - Full `mvn verify` passed: core 195, agent 390 with one expected skip, CLI unit 375, CLI integration
   38 with one expected skip, and synthetic 22 with one expected skip.
 
-No game was launched for this implementation gate. The next run should load a campaign, move through
-normal and hyperspace map views, open/close the map, and then inspect `cachedFrames` plus adapter
-health. Frame-time attribution requires a longer controlled A/B; disappearance of one allocation
-site alone is not a whole-FPS claim.
+A live non-JFR pilot loaded a save, exercised campaign and combat state, and exited normally:
+
+- run: `~/.starsector-preflight/runs/campaign-radar-fps-v2-20260805-055942`
+- `campaignRadarRender`: installed and enabled, with **6,199 cached frames**
+- adapter health: **ACTIVE**, 30 transforms applied, zero declines, zero contained failures
+- process outcome: completed with launcher exit code 0 and no detected fatal condition
+
+The preceding profiled attempt aborted inside HotSpot's
+`SharedRuntime::get_poll_stub` with `safepoint polling: pc must refer to an nmethod`. Its fatal report
+identifies Zulu 17.0.10 x86-64 running under Rosetta; the Java stack happened to be in JDK locale
+initialization reached from Nexerelin starting-fleet validation, before the radar renderer loaded.
+Its JFR artifact is zero bytes. The successful retry therefore kept passive frame/radar telemetry
+but disabled JFR. This establishes the live behavior gate without treating the translated-VM crash
+as an adapter failure.
+
+Frame-time attribution still requires a controlled A/B; disappearance of one allocation site alone
+is not a whole-FPS claim.

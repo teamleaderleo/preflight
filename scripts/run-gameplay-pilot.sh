@@ -125,10 +125,10 @@ echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 # Normal Preflight launches independently auto-gate Ship's cast-site exclusions against the exact
 # known-risk launcher/runtime/class fingerprint; --safer-jvm remains as a manual diagnostic override.
 PILOT_CRASH_REPORT="$OUT/hs_err_pid%p.log"
-PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT'"
-if [[ "$PROFILE" == true ]]; then
-    PILOT_CRASH_OPTIONS+=" -Dpreflight.frameTimes=true"
-fi
+# Frame telemetry is independent of JFR and intentionally remains available in --without-profile
+# pilots. That gives Rosetta launches a safe FPS/1%-low path when HotSpot's sampling profiler itself
+# triggers the known sharedRuntime safepoint assertion.
+PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT' -Dpreflight.frameTimes=true"
 if [[ "$SAFER_JVM" == true ]]; then
     # Diagnostic only: interpret the exact vanilla method that produced an otherwise impossible
     # ClassCastException. Verification must remain disabled: the shipped obfuscated core contains
@@ -200,7 +200,7 @@ if [[ -f "$OUT/adapter-health.json" ]]; then
 fi
 if [[ -f "$OUT/adapter.json" ]]; then
     echo "Probe telemetry:"
-    jq '{audioStreamSourceError, audioMusicTransitions, aiTweaksEngagementRange, graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, graphicsLibHotSettings, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, combatRuntimeIntegrity, frameTimes: (.frameTimes | .allActive |= del(.worstFrames) | .postStartupActive |= del(.worstFrames) | .campaignActive |= del(.worstFrames) | .combatActive |= del(.worstFrames)), campaignEntityIndex, deploymentIconCache, commodityEventModMemo, simOpponentSafety}' \
+    jq '{audioStreamSourceError, audioMusicTransitions, aiTweaksEngagementRange, graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, graphicsLibHotSettings, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, combatRuntimeIntegrity, frameTimes: (.frameTimes | .allActive |= del(.worstFrames) | .postStartupActive |= del(.worstFrames) | .campaignActive |= del(.worstFrames) | .combatActive |= del(.worstFrames)), campaignEntityIndex, campaignRadarRender, deploymentIconCache, commodityEventModMemo, simOpponentSafety}' \
         "$OUT/adapter.json"
 else
     echo "No adapter report was produced; inspect $OUT/wrapper.log" >&2
