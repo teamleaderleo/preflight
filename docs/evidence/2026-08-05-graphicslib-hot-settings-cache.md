@@ -4,7 +4,9 @@
 
 **Install:** Starsector 0.98a-RC8, GraphicsLib 1.12.1, current mod profile
 
-**Status:** exact adapter and installed-archive gates pass; live combat pilot pending.
+**Status:** exact adapter and installed-archive gates pass. The first live pilot matched the target
+but retained the original because the plan-availability registry entry was missing; that fail-closed
+plumbing issue is fixed and covered by regression test. A second live combat pilot is pending.
 
 ## Runtime lead
 
@@ -45,14 +47,22 @@ original bytes. The shutdown report records installation, hits, misses, and inva
   three original getters plus both invalidation hooks;
 - full `mvn verify`, including the exact Starsector and GraphicsLib archives, passes.
 
-The remaining gate is a live combat session. It must show the exact transformation applied, nonzero
+The first live combat session exited normally with 29 other transformations and zero contained
+failure, but reported `installed=false`. Its exact target evaluation was clean; diagnostics said the
+plan was unavailable for the session. The transformation registry had the implementation route but
+not the separate `hasPlan` route used before transformation. Adding it plus a target-level assertion
+closes that plumbing miss.
+
+The remaining gate is a second live combat session. It must show the exact transformation applied, nonzero
 hits, plausible misses relative to invalidations, normal live setting behavior, and no adapter
 failure. JFR can then establish whether the Luna lookup stack disappeared; frame-time differences
 from a non-identical battle remain directional rather than a controlled A/B.
 
 ## Separate audio observation
 
-The operator heard a short audio pop at both process startup and shutdown during the preceding
-pilot. The retained log shows ordinary music-player creation, playback, and cleanup, with no OpenAL,
-decoder, or device error. This is therefore an unresolved boundary transient, not evidence against
-the settings cache, which had not yet been installed in that run.
+The operator heard a short audio pop at both process startup and shutdown. The first pilot then
+captured a real, recoverable `AL_INVALID_VALUE` during initial streaming-player creation. Exact
+bytecode proves vanilla checks a stale pre-generation error rather than the result of
+`alGenSources`; the separately gated repair is documented in
+`2026-08-05-openal-stream-source-stale-error.md`. This predates and is independent of the settings
+cache, which was not installed in that run.

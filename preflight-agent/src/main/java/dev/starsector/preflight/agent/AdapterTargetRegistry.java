@@ -141,6 +141,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Starsector 0.98a-RC8's streaming player checks a stale OpenAL error after source creation. */
+    static AdapterTarget audioStreamSourceErrorTarget() {
+        return new AdapterTarget(
+                "vanilla-streaming-audio-source-error-order-0.98a-rc8",
+                AudioStreamSourceErrorPlan.TARGET_CLASS,
+                AudioStreamSourceErrorPlan.ORIGINAL_SHA256,
+                AudioStreamSourceErrorRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        AudioStreamSourceErrorPlan.CONSTRUCTOR,
+                        AudioStreamSourceErrorPlan.CONSTRUCTOR_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.sound_obf.jar",
+                "79e5bc71236333541674e2b9093642ac5a2d68d9e55cb8a71f299fd389ba1573",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** GraphicsLib 1.12.1's exact normal-map traversal implementation and owning mod archive. */
     static AdapterTarget graphicsLibCompactReplayTarget() {
         return new AdapterTarget(
@@ -1053,6 +1070,7 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())
+                .withTarget(audioStreamSourceErrorTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())

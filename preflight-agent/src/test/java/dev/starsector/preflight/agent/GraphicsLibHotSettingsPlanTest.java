@@ -93,6 +93,7 @@ class GraphicsLibHotSettingsPlanTest {
     @Test
     void targetPinsTheReviewedModArchiveAndLoader() {
         AdapterTarget target = AdapterTargetRegistry.graphicsLibHotSettingsTarget();
+        assertTrue(AdapterTransformationRegistry.hasPlan(target.planId()));
         AdapterSourceIdentity source = new AdapterSourceIdentity(
                 "file:/game/mods/GraphicsLib/jars/Graphics.jar",
                 "/game/mods/graphicslib/jars/graphics.jar",

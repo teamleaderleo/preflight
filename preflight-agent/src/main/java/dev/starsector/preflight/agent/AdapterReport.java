@@ -293,6 +293,8 @@ final class AdapterReport {
         key(output, "resourceProbeCache").append(Json.value(ResourceProbeRuntime.report())).append(',');
         key(output, "loadJsonMemo").append(Json.value(LoadJsonMemoRuntime.report())).append(',');
         key(output, "preparedAudio").append(Json.value(PreparedAudioRuntime.report())).append(',');
+        key(output, "audioStreamSourceError")
+                .append(Json.value(AudioStreamSourceErrorRuntime.telemetry())).append(',');
         key(output, "graphicsLibCompactReplay")
                 .append(Json.value(GraphicsLibCompactReplayPlan.telemetry())).append(',');
         key(output, "janinoBytecodeCache")
