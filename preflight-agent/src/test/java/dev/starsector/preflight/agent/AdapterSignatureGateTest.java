@@ -18,6 +18,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -262,6 +263,23 @@ class AdapterSignatureGateTest {
         properties.setProperty("preflight.adapter.disabled", "true");
         assertTrue(AdapterRuntime.killSwitch(Map.of(), properties));
         assertTrue(AdapterRuntime.killSwitch(Map.of("PREFLIGHT_DISABLE_ADAPTER", "1"), new Properties()));
+    }
+
+    @Test
+    void diagnosticPlanFilterParsesAndOmitsEveryTargetForAPlan() {
+        Properties properties = new Properties();
+        properties.setProperty(AdapterRuntime.DISABLED_PLANS_PROPERTY,
+                " prepared-audio-v1, campaign-entity-index-v3,prepared-audio-v1 ");
+        Set<String> disabled = AdapterRuntime.disabledPlans(properties);
+        assertEquals(Set.of("prepared-audio-v1", "campaign-entity-index-v3"), disabled);
+
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withoutPlans(disabled);
+        assertTrue(registry.targets().stream()
+                .noneMatch(target -> disabled.contains(target.planId())));
+        assertTrue(registry.targets().stream()
+                .anyMatch(target -> SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())));
     }
 
     private static ProtectionDomain domain(Path path) throws Exception {

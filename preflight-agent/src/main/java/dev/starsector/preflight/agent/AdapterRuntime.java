@@ -5,14 +5,18 @@ import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Installs the optional probe transformer while keeping every unknown build unmodified. */
 final class AdapterRuntime {
+    static final String DISABLED_PLANS_PROPERTY = "preflight.adapter.disabledPlans";
+
     private AdapterRuntime() {
     }
 
@@ -213,6 +217,14 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the compiled exact TextureLoader "
                         + options.textureAdapterMode().optionValue() + " target");
             }
+            Set<String> disabledPlans = disabledPlans(System.getProperties());
+            if (!disabledPlans.isEmpty()) {
+                int before = registry.targets().size();
+                registry = registry.withoutPlans(disabledPlans);
+                report.diagnostic("Diagnostic plan filter omitted "
+                        + (before - registry.targets().size()) + " target(s): "
+                        + String.join(",", disabledPlans));
+            }
         } catch (IOException | RuntimeException error) {
             report.contained("Could not load adapter target registry", error);
             return session;
@@ -245,6 +257,16 @@ final class AdapterRuntime {
         String property = properties.getProperty("preflight.adapter.disabled");
         String environmentValue = environment.get("PREFLIGHT_DISABLE_ADAPTER");
         return truthy(property) || truthy(environmentValue);
+    }
+
+    static Set<String> disabledPlans(Properties properties) {
+        String raw = properties.getProperty(DISABLED_PLANS_PROPERTY, "");
+        Set<String> plans = new LinkedHashSet<>();
+        for (String token : raw.split(",")) {
+            String plan = token.trim();
+            if (!plan.isEmpty()) plans.add(plan);
+        }
+        return Set.copyOf(plans);
     }
 
     private static BytecodeShapeReport.CaptureTarget janinoTarget() {

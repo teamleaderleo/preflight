@@ -3,7 +3,7 @@
 # Launch one manually played combat pilot with every relevant beta probe enabled.
 #
 # Usage:
-#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter]
+#   scripts/run-gameplay-pilot.sh [--game DIR] [--label NAME] [--safer-jvm] [--without-audio-repair] [--without-profile] [--without-adapter] [--disable-plans IDS]
 #
 # Load a representative campaign, open a simulation, raise the DP cap, deploy many capitals,
 # fight for three to five minutes, then exit Starsector normally. Preflight keeps a coherent JFR
@@ -18,6 +18,7 @@ SAFER_JVM=false
 AUDIO_REPAIR=true
 PROFILE=true
 ADAPTER=true
+DISABLED_PLANS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -29,6 +30,7 @@ while [[ $# -gt 0 ]]; do
         --without-audio-repair) AUDIO_REPAIR=false; shift ;;
         --without-profile) PROFILE=false; shift ;;
         --without-adapter) ADAPTER=false; shift ;;
+        --disable-plans) DISABLED_PLANS="$2"; shift 2 ;;
         -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
@@ -105,6 +107,7 @@ echo "Safer JVM:        $SAFER_JVM"
 echo "Audio repair:     $AUDIO_REPAIR"
 echo "Profile:          $PROFILE"
 echo "Adapter:          $ADAPTER"
+echo "Disabled plans:   ${DISABLED_PLANS:-none}"
 echo
 echo "In Starsector:"
 echo "  1. Load a representative campaign."
@@ -137,6 +140,9 @@ if [[ "$SAFER_JVM" == true ]]; then
 fi
 if [[ "$AUDIO_REPAIR" != true ]]; then
     PILOT_CRASH_OPTIONS+=" -Dpreflight.audioStreamSourceError.disabled=true"
+fi
+if [[ -n "$DISABLED_PLANS" ]]; then
+    PILOT_CRASH_OPTIONS+=" -Dpreflight.adapter.disabledPlans=$DISABLED_PLANS"
 fi
 export _JAVA_OPTIONS="${_JAVA_OPTIONS:+$_JAVA_OPTIONS }$PILOT_CRASH_OPTIONS"
 

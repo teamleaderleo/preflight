@@ -1199,6 +1199,13 @@ final class AdapterTargetRegistry {
         return targets;
     }
 
+    AdapterTargetRegistry withoutPlans(Set<String> planIds) {
+        if (planIds.isEmpty()) return this;
+        return new AdapterTargetRegistry(targets.stream()
+                .filter(target -> !planIds.contains(target.planId()))
+                .toList());
+    }
+
     List<AdapterTarget> forClass(String internalName) {
         return byClass.getOrDefault(internalName, List.of());
     }
