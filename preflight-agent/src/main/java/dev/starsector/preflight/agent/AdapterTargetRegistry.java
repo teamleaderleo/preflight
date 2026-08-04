@@ -1151,6 +1151,21 @@ final class AdapterTargetRegistry {
         return registry;
     }
 
+    AdapterTargetRegistry withCampaignEngineTimeTarget() {
+        return withTarget(new AdapterTarget(
+                "campaign-engine-call-time-0.98a-rc8",
+                CampaignEngineTimePlan.TARGET_CLASS,
+                CampaignEngineTimePlan.ORIGINAL_SHA256,
+                CampaignEngineTimeRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignEngineTimePlan.METHOD, CampaignEngineTimePlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app"));
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }

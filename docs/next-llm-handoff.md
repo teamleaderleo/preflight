@@ -439,9 +439,13 @@ installed-archive transforms pass. The live run completed normally: route
 spawn/despawn reached 35.155ms inside a 50.834ms frame and diplomacy advance reached 36.253ms
 inside a 53.250ms frame. The other four seams were smaller, and most frames over 100ms contained
 none of the six timed calls. Route and diplomacy own two real medium hitches, not the general tail.
-Time the engine-level script loops and major `CampaignEngine.advance` subphases next. Do not add
-nested inclusive totals. See
-`docs/evidence/2026-08-05-post-startup-loadjson-cache.md`.
+The next opt-in layer now hash-pins vanilla `CampaignEngine.advance` and exact-times its managers,
+memory/factions, locations, and campaign help. Both persistent and transient engine-script loops
+also group inclusive time by concrete `EveryFrameScript` class through session-scoped `ClassValue`
+state. Synthetic shape and exact installed-archive transforms pass; run one ordinary campaign
+pilot and join maximum end epochs to the retained worst frames. Do not add nested inclusive totals.
+See
+`docs/evidence/2026-08-05-campaign-engine-call-times.md`.
 
 **Core sound resource fallback.** The same live run's final 1 MiB console ring contained 731
 repeated core-sound load errors, including 403 for `laser_loop.ogg` and 244 for

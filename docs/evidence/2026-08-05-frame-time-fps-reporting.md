@@ -137,6 +137,16 @@ work. Route and diplomacy therefore own two real medium hitches but do not expla
 tail. The next attribution layer should time the engine-level script loops and major
 `CampaignEngine.advance` subphases instead of inferring ownership from log adjacency.
 
+That second attribution layer is now implemented behind the same opt-in frame property. The exact
+installed `CampaignEngine.advance(float, B)` call shape is hash-pinned and times intel, events,
+important people, UI data, economy, memory, factions, location/hyperspace advances, and campaign
+help. Both persistent and transient `EveryFrameScript.advance` call sites additionally group time
+by the concrete script class. Each call is closed on normal and exceptional exits; the original
+exception is rethrown. Per-class state is allocated once through `ClassValue`, while the steady
+path uses primitive counters and does not format class names. Synthetic call-shape tests and the
+exact installed `starfarer_obf.jar` transform pass. A live campaign pilot remains the gate before
+using these results to choose an optimization.
+
 ## Rosetta profiling boundary
 
 The immediately preceding JFR-enabled attempt crashed in Zulu 17.0.10's
