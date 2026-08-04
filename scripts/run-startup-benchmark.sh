@@ -36,7 +36,7 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       three per condition the smallest possible p-value is 0.1.
   --conditions LIST   Comma-separated subset of vanilla,agent,enabled,compatibility,fast,full,
                       profile,prepared
-                      (default vanilla,agent,enabled,fast; the last two are opt-in).
+                      (default vanilla,agent,enabled,fast; every other condition is opt-in).
   --unattended        Start the game without its launcher and stop it once the main menu is
                       up, so the campaign needs no clicks at all. Uses Starsector's own
                       launchDirect path with the resolution, fullscreen and sound settings
