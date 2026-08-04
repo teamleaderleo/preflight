@@ -148,15 +148,30 @@ context used by the following per-mission loads, visible JSON-tree equivalence a
 to clear that layer. The next isolation arm disables every startup cache while retaining only the
 exact simulation/dialog telemetry.
 
-## Follow-up: the conservative memo returns to the fast preset
+## Follow-up: an attempted conservative return also failed
 
 The later simulator investigation established that its blank opponent grid was unrelated to any
 startup cache: Starsector had persisted `cat_custom` as the selected simulator category while the
 saved custom-opponent list was empty. With the resource cache disabled, the remaining intermittent
 resource failures also reproduced independently of its transform.
 
-`--fast` therefore enables resource-probe-cache-v3 again. This does **not** restore the disproven
-whole-root shortcut: every per-root open still invokes vanilla. Only the lower `File.exists()` memo
-is active, with case/Unicode ambiguity and failed listings delegated to the filesystem. The known
-trade remains explicit and tested: a data file generated after its directory was first observed is
-not visible through that launch's memo.
+Commit `26664c3` therefore briefly enabled resource-probe-cache-v3 in `--fast` again. It did **not**
+restore the disproven whole-root shortcut: every per-root open still invoked vanilla. Only the
+lower `File.exists()` memo was active, with case/Unicode ambiguity and failed listings delegated to
+the filesystem.
+
+The very next ordinary fast launch, `20260804-125209-161-149caeb5`, failed on the unchanged core
+file `data/missions/forlornhope/mission_text.txt`. The file existed with the exact requested name,
+was readable, and had not changed since 2025. This was not a recorded rapid relaunch: the preceding
+Preflight run was roughly 13 hours earlier. V3 reported 17,105 probes, all answered from remembered
+listings, with zero filesystem deferrals, listing failures, or whole-root skips.
+
+The resolver bytecode establishes the boundary exactly. Core loose data uses its bare-path branch,
+which constructs `new File(path)` and calls the `File.exists()` site v3 replaced. The classpath
+branch does not call the memo. Thus v3 supplied a false negative at the remaining narrow seam; the
+listing looked complete to Java but omitted an existing exact child. A directory enumeration is
+not an authoritative proof of absence on this installation, even when it returns normally.
+
+The resource-probe cache is consequently excluded from `--fast` again. The explicit flag remains
+for parity experiments, but no directory-listing negative cache belongs in a normal launch until it
+can validate absence without merely repeating the assumption that failed here.

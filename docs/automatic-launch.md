@@ -129,10 +129,11 @@ java -jar preflight.jar run --direct --fast
 
 This includes the campaign entity and deployment-icon caches, GraphicsLib's compact startup replay
 and per-render insignia memo when the exact reviewed GraphicsLib is installed, the Janino generated
-bytecode cache unless Fast Rendering owns that compiler path, and the conservative resource-probe
-memo. Every adapter remains exact-version-gated and retains original behavior on drift or internal
-failure. The resource memo never skips a resolver root wholesale; that earlier optimization was
-removed after live false negatives.
+bytecode cache unless Fast Rendering owns that compiler path, and the prepared spec, merged-read,
+texture, and audio caches. Every adapter remains exact-version-gated and retains original behavior
+on drift or internal failure. The directory-listing resource-probe cache is deliberately excluded:
+both its whole-root shortcut and its narrower `File.exists()` memo produced live false negatives
+for unchanged files.
 
 The campaign entity cache can still be selected separately for isolation:
 

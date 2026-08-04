@@ -130,7 +130,6 @@ record CommandLine(
                     campaignEntityIndex = true;
                     ruleTokenCache = true;
                     ruleCommandClassCache = true;
-                    resourceProbeCache = true;
                     preparedAudio = true;
                     loadJsonMemo = true;
                     graphicsLibCompactReplay = true;

@@ -89,12 +89,12 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void fastEnablesTheConservativeResourceProbeCacheWithoutWholesaleSkips() {
+    void fastExcludesTheResourceProbeCacheAfterTheConservativeMemoAlsoLostAFile() {
         CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
         CommandLine explicit = CommandLine.parse(
                 new String[] {"run", "--adapter", "--resource-probe-cache"}, 1);
 
-        assertEquals(true, fast.resourceProbeCache());
+        assertEquals(false, fast.resourceProbeCache());
         assertEquals(true, fast.campaignEntityIndex());
         assertEquals(false, CommandLine.parse(
                 new String[] {"run", "--fast", "--no-campaign-entity-index"}, 1)
