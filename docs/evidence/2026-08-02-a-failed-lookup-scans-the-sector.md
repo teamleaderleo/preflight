@@ -8,7 +8,8 @@
 Zulu 17.0.10 **x86_64**, i.e. under Rosetta, the same way the game runs
 **Status:** mechanism read from bytecode, sizes counted out of the players' own saves, costs measured;
 first live adapter pilot completed 2026-08-04; mutation-tracked v3 verified offline against the
-installed 0.98a-RC8 archives and awaiting a coordinated game run.
+installed 0.98a-RC8 archives and installed cleanly in a controlled menu probe. Campaign activity
+validation remains outstanding because that probe deliberately stopped before loading a save.
 
 [The previous document](2026-08-02-getentitybyid-is-a-linear-scan.md) said the cost was an O(1) map
 lookup validated by an O(n) `List.contains`. **That was the first half of the method.** The second
@@ -193,9 +194,16 @@ lookups through a 185-entity location, the measured late-save median:
 | v3 mutation generations | **1.524–1.662ms** | **36.5–40.8x faster** |
 
 Focused answer-equivalence and mutation tests, exact installed-archive transforms for all three
-classes, and full `mvn verify` pass. A game launch is still required to confirm that the live entity
-population takes the fast generation path and to count actual rebuilds, list/id mutations, custom
-setter fallbacks, and eliminated reference validations.
+classes, and full `mvn verify` pass. Loading a campaign is still required to confirm that the live
+entity population takes the fast generation path and to count actual rebuilds, list/id mutations,
+custom setter fallbacks, and eliminated reference validations.
+
+The controlled warm probe at commit `1452d42` reached the main menu in **31.90s**, stopped through
+the JVM shutdown hooks, and reported adapter health ACTIVE with all 16 exact transformations applied
+and zero declines or contained failures. Campaign index v3 reported `installed=true` and
+`enabled=true`. Its activity counters were correctly zero because no save was loaded, so this proves
+the live bytecode gate but not yet the live campaign population's validation path. Retained run:
+`~/.starsector-preflight/runs/controlled-warm-v3-20260804-215553`.
 
 ## What is not established
 

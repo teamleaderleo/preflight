@@ -15,16 +15,18 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | 2026-08-03 `main` @ `d29ba17` | 34.66 / 35.54 |
 | **2026-08-04 merged-read cache warm** | **33.42 / 34.15** |
 | 2026-08-04 Janino warm pilot | **29.46** |
+| 2026-08-04 controlled v3 warm probe | **31.90** |
 
 Two runs, because single-launch variance on this profile is about **±1.4s**. Anything worth less than
 that cannot be measured by launching the game and has to be measured by replay instead.
 
-**The goal is a repeated measured 33.0s or below.** The Janino pilot crossed it once, but it is one
-warm half of a cold/warm pair rather than a repeated steady-state result. The separate quiet-log
-smoke reached 32.279s, also as a compatibility smoke rather than a performance pair. A later 34.706s
-interactive launch is not comparable: a UI-controller attach mistake launched a second Starsector
-instance during startup and the run streamed the full unbuffered console through a PTY. The clean
-repeat remains the authority.
+**The goal is a repeated measured 33.0s or below.** A later controlled warm probe reproduced the
+sub-32 result at 31.90s: adapter health was ACTIVE, all 16 exact transformations applied, Janino
+served 228/228 calls, the merged-read cache served 1,469/1,469 keyed calls, and GraphicsLib compact
+replay applied once. It is still one probe rather than a controlled pair. The separate quiet-log
+smoke reached 32.279s. A 34.706s interactive launch is not comparable: a UI-controller attach
+mistake launched a second Starsector instance during startup and the run streamed the full
+unbuffered console through a PTY.
 
 Preparation before the JVM starts is a further **1.19s** and is *not* inside any number above:
 `run.json`'s `started` is captured immediately before the child process is spawned, so preparation
