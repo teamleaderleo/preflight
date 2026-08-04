@@ -27,6 +27,24 @@ The notification scan disappeared and the whole manager fell to 9/1,500 samples.
 and both exact installed-archive transforms pass. Evidence:
 `docs/evidence/2026-08-04-magiclib-paintjob-campaign-hotspot.md`.
 
+The next live profile put Stellar Networks' paused `MarketUpdater` on 92/1,500 campaign samples
+(6.13%). The inner `CargoData.sort` is real cargo/fleet/stat synchronization and is not safe to
+skip. The safe boundary is the updater's outer policy: it refreshes a random remote market on every
+frame while game time is paused. An exact Stellar Networks 3.3.0 adapter now shuffles one market
+snapshot per paused interval, refreshes each at most once, and then returns early until unpause or a
+reviewed market invalidation. A live stress pilot crossed 12 pause intervals, served 1,320 markets,
+stopped 267 exhausted frames, and had zero delegation or failure. Stelnet fell to 66/1,449 samples
+(4.55%); repeated zero-sample stretches corroborate queue exhaustion. Full `mvn verify` and the exact
+installed-archive transform pass. Evidence:
+`docs/evidence/2026-08-04-stelnet-paused-market-refresh.md`.
+
+That pilot also surfaced vanilla Starsector's macOS `Warning: Low system RAM remaining`. The exact
+bytecode in `com/fs/starfarer/campaign/C.o00000(CampaignState, boolean)` warns whenever
+`OperatingSystemMXBean.getFreePhysicalMemorySize()` is below 1,000 MB. On macOS that is literal free
+pages, not the OS memory-pressure model and not reclaimable inactive/speculative/file-cache memory,
+so it can be a false alarm. Investigate a separately exact-gated macOS-only correction; do not simply
+suppress genuine JVM-heap or system-pressure warnings.
+
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
 
 | | seconds |

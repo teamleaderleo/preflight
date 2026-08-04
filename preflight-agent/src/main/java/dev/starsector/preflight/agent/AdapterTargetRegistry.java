@@ -235,6 +235,27 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Stellar Networks 3.3.0's every-paused-frame remote market updater. */
+    static AdapterTarget stelnetMarketUpdaterTarget() {
+        return new AdapterTarget(
+                "stelnet-3.3.0-paused-market-refresh-pass",
+                StelnetMarketUpdaterPlan.TARGET_CLASS,
+                StelnetMarketUpdaterPlan.ORIGINAL_SHA256,
+                StelnetMarketUpdaterRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                StelnetMarketUpdaterPlan.ADVANCE_METHOD,
+                                StelnetMarketUpdaterPlan.ADVANCE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                StelnetMarketUpdaterPlan.PICK_METHOD,
+                                "()Lcom/fs/starfarer/api/campaign/econ/MarketAPI;")),
+                "MOD",
+                "stelnet.jar",
+                "3a0fcb88c9652de3f65e051d1eb0fb84020c566a2c18c0b03426c204e2003513",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -874,7 +895,8 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(magicLibPaintjobTarget())
-                .withTarget(magicLibPaintjobNotificationTarget());
+                .withTarget(magicLibPaintjobNotificationTarget())
+                .withTarget(stelnetMarketUpdaterTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {

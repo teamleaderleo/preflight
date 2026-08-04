@@ -178,6 +178,9 @@ final class AdapterTransformationRegistry {
         if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(target.planId())) {
             return MagicLibPaintjobNotificationPlan.transform(signature, originalBytes);
         }
+        if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(target.planId())) {
+            return StelnetMarketUpdaterPlan.transform(signature, originalBytes);
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -453,6 +456,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {
