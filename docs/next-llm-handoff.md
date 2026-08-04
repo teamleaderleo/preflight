@@ -50,6 +50,16 @@ was not invoked in that session (`checks=0`), so live compatibility is verified 
 occurring corrected warning remains to be captured. Evidence:
 `docs/evidence/2026-08-05-macos-memory-pressure-warning.md`.
 
+A later controlled combat run hit an impossible `A.J -> A.null` cast in vanilla `Ship.advance`
+while ships were destroyed around a full retreat. Static bytecode and a live one-shot probe prove
+that the source directly implements the target, both loaded from the same exact archive and app
+loader. The reviewed launcher runs x86-64 Zulu 17 under Rosetta with aggressive experimental flags
+and C1-only combat directives. Replaying the destruction/retreat overlap with only `Ship.advance`
+interpreted completed normally, with no obvious frame-time regression. `CombatJvmSafeguard` now
+adds that one compile exclusion only when the exact OS, launcher policy, directives, runtime, and
+`Ship.class` hash all match; every drift fails closed and the decision lands in `run.json`. Evidence:
+`docs/evidence/2026-08-05-combat-jvm-safeguard.md`.
+
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
 
 | | seconds |

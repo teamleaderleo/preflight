@@ -40,6 +40,8 @@ final class RunCommand {
             printDiscovery(discovery);
             return 3;
         }
+        CombatJvmSafeguard.Resolution combatJvmSafeguard =
+                CombatJvmSafeguard.resolve(platform, target, System.getenv());
         LaunchOwnership ownership = LaunchOwnership.detect(target);
         boolean janinoCacheOwned = options.janinoBytecodeCache() && !ownership.fastRendering();
         if (options.janinoBytecodeCache() && ownership.fastRendering()) {
@@ -137,6 +139,8 @@ final class RunCommand {
                     javaToolOptions,
                     List.of(QuietLogConfiguration.javaOption(quietLogConfiguration)));
         }
+        String javaOptions = CombatJvmSafeguard.appendOptions(
+                System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
@@ -150,7 +154,9 @@ final class RunCommand {
                 options,
                 textureContext,
                 directSettings,
-                janinoBytecodeCache);
+                janinoBytecodeCache,
+                combatJvmSafeguard,
+                javaOptions);
         if (options.dryRun()) {
             return 0;
         }
@@ -185,11 +191,14 @@ final class RunCommand {
             writeMetadata(
                     metadata, target, command, runIdentity, started, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
-                    postprocessingFailures, null);
+                    postprocessingFailures, null, combatJvmSafeguard);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
             builder.environment().put("JAVA_TOOL_OPTIONS", javaToolOptions);
+            if (javaOptions != null && !javaOptions.isBlank()) {
+                builder.environment().put("_JAVA_OPTIONS", javaOptions);
+            }
             builder.environment().put("PREFLIGHT_RUN_DIR", runDirectory.toString());
 
             childOutput = ChildProcessOutput.run(builder, console);
@@ -302,7 +311,7 @@ final class RunCommand {
                         metadata, target, command, runIdentity, started, ended, exitCode, launcherExitCode, outcome,
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
-                        console, childOutput, postprocessingFailures, executionFailure);
+                        console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -410,7 +419,9 @@ final class RunCommand {
             CommandLine options,
             TextureLaunchContext textureContext,
             DirectLaunchSettings directSettings,
-            JaninoBytecodeCacheContext janinoBytecodeCache) {
+            JaninoBytecodeCacheContext janinoBytecodeCache,
+            CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            String javaOptions) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
         System.out.println("  launcher: " + target.launcher());
@@ -434,6 +445,9 @@ final class RunCommand {
                 : options.janinoBytecodeCache() ? "suppressed or unavailable" : "off"));
         System.out.println("  GraphicsLib insignia manager cache: "
                 + options.graphicsLibInsigniaManagerCache());
+        System.out.println("  combat JVM safeguard: "
+                + (combatJvmSafeguard.active() ? "active — " : "inactive — ")
+                + combatJvmSafeguard.reason());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -458,6 +472,9 @@ final class RunCommand {
         }
         System.out.println("  command:  " + renderCommand(command));
         System.out.println("  JAVA_TOOL_OPTIONS: " + javaToolOptions);
+        if (javaOptions != null && !javaOptions.isBlank()) {
+            System.out.println("  _JAVA_OPTIONS: " + javaOptions);
+        }
         for (String diagnostic : discovery.diagnostics()) {
             System.out.println("  note: " + diagnostic);
         }
@@ -572,7 +589,8 @@ final class RunCommand {
             Path console,
             ChildProcessOutput.Result childOutput,
             List<String> postprocessingFailures,
-            String executionFailure) throws IOException {
+            String executionFailure,
+            CombatJvmSafeguard.Resolution combatJvmSafeguard) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("started", started);
         values.put("ended", ended);
@@ -612,6 +630,7 @@ final class RunCommand {
         values.put("graphicsLibCompactReplay", options.graphicsLibCompactReplay());
         values.put("janinoBytecodeCache", options.janinoBytecodeCache());
         values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
+        values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("quietLogConfiguration", options.quietLogs()
                 ? QuietLogConfiguration.path(path.getParent())
