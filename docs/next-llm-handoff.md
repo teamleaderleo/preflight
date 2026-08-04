@@ -435,9 +435,24 @@ bad interval. The opt-in frame pilot now also exact-times six initial inclusive 
 pool advance, route spawn/despawn, resource-pool update, diplomacy advance, and vanilla reputation
 and economy-fleet advances. It retains threshold counts and 32 slowest end timestamps using fixed
 primitive arrays; normal and exceptional exits are covered. Synthetic execution and all six exact
-installed-archive transforms pass. Run another ordinary warm gameplay pilot, then correlate the
-slowest calls to retained bad-frame timestamps. Do not add nested inclusive totals. See
+installed-archive transforms pass. The live run completed normally: route
+spawn/despawn reached 35.155ms inside a 50.834ms frame and diplomacy advance reached 36.253ms
+inside a 53.250ms frame. The other four seams were smaller, and most frames over 100ms contained
+none of the six timed calls. Route and diplomacy own two real medium hitches, not the general tail.
+Time the engine-level script loops and major `CampaignEngine.advance` subphases next. Do not add
+nested inclusive totals. See
 `docs/evidence/2026-08-05-post-startup-loadjson-cache.md`.
+
+**Core sound resource fallback.** The same live run's final 1 MiB console ring contained 731
+repeated core-sound load errors, including 403 for `laser_loop.ogg` and 244 for
+`maneuvering_jets_loop.ogg`; prepared-audio telemetry counted 6,242 null-input failures. The files
+exist. Exact bytecode shows all three sound-store readers passing raw `sounds/...` paths to
+`Class.getResourceAsStream`, which resolves them under package `sound` and misses
+`sound/sounds/...`. A hash-pinned adapter now preserves the original relative lookup and, only
+after a null result, retries the same relative path from the classpath root. Exact installed-JAR
+transformation and runtime fallback tests pass; live confirmation still needs to prove fallback
+hits and disappearance of the retry storm. See
+`docs/evidence/2026-08-05-audio-classpath-root-fallback.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and

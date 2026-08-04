@@ -164,6 +164,24 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Starsector's sound store resolves caller paths relative to package sound before this fallback. */
+    static AdapterTarget audioResourceFallbackTarget() {
+        return new AdapterTarget(
+                "vanilla-sound-classpath-root-resource-fallback-0.98a-rc8",
+                AudioResourceFallbackPlan.TARGET_CLASS,
+                AudioResourceFallbackPlan.ORIGINAL_SHA256,
+                AudioResourceFallbackRuntime.PLAN_ID,
+                AudioResourceFallbackPlan.METHODS.stream()
+                        .map(name -> new AdapterTarget.RequiredMethod(
+                                name, AudioResourceFallbackPlan.STRING_DESCRIPTOR))
+                        .toList(),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.sound_obf.jar",
+                "79e5bc71236333541674e2b9093642ac5a2d68d9e55cb8a71f299fd389ba1573",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** AI Tweaks 2.2.10 recomputes and repeatedly boxes fixed ranges during target selection. */
     static AdapterTarget aiTweaksEngagementRangeTarget() {
         return new AdapterTarget(
@@ -1154,6 +1172,7 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())
+                .withTarget(audioResourceFallbackTarget())
                 .withTarget(aiTweaksEngagementRangeTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())

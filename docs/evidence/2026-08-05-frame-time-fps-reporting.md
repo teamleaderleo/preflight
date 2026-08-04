@@ -127,6 +127,16 @@ and is disabled unless frame telemetry was explicitly requested. Results are inc
 route operation must not be added to its caller's total. Synthetic invocation proves normal and
 exceptional behavior, and all six installed classes pass exact-archive transform verification.
 
+The first live timing run, `campaign-call-times-v1-20260805-070642`, completed normally with all 39
+requested transforms applied and no declines or contained failures. After the first 30 campaign
+seconds it measured 52.81 average FPS, a 59.88 median, a 16.84 FPS 1% low, and 29.1/59.4ms
+p95/p99. Nexerelin's route spawn/despawn seam contained a 35.155ms call and diplomacy advance
+contained a 36.253ms call; those calls overlapped 50.834ms and 53.250ms frames respectively. The
+remaining sampled seams were much smaller, and most frames over 100ms contained none of their
+work. Route and diplomacy therefore own two real medium hitches but do not explain the overall
+tail. The next attribution layer should time the engine-level script loops and major
+`CampaignEngine.advance` subphases instead of inferring ownership from log adjacency.
+
 ## Rosetta profiling boundary
 
 The immediately preceding JFR-enabled attempt crashed in Zulu 17.0.10's

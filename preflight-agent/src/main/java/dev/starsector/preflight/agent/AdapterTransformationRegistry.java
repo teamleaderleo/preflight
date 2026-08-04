@@ -171,6 +171,9 @@ final class AdapterTransformationRegistry {
         if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())) {
             return AudioStreamSourceErrorPlan.transform(signature, originalBytes);
         }
+        if (AudioResourceFallbackRuntime.PLAN_ID.equals(target.planId())) {
+            return AudioResourceFallbackPlan.transform(signature, originalBytes);
+        }
         if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
             return AiTweaksEngagementRangePlan.transform(signature, originalBytes);
         }
@@ -476,6 +479,9 @@ final class AdapterTransformationRegistry {
             return PreparedAudioRuntime.ready();
         }
         if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AudioResourceFallbackRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(planId)) {

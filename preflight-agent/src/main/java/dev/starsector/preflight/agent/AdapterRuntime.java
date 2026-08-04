@@ -37,6 +37,7 @@ final class AdapterRuntime {
         MergedReadCacheRuntime.beginSession();
         LoadJsonMemoRuntime.reset();
         AudioStreamSourceErrorRuntime.beginSession();
+        AudioResourceFallbackRuntime.beginSession();
         AudioMusicTransitionRuntime.beginSession();
         AiTweaksEngagementRangeRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
@@ -132,6 +133,7 @@ final class AdapterRuntime {
                 } else {
                     report.diagnostic("Loaded the exact streaming-audio OpenAL error-order target");
                 }
+                report.diagnostic("Loaded the exact sound classpath-root resource fallback target");
                 report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget().withCampaignCallTimeTargets();
