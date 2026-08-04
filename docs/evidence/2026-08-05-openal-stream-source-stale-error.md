@@ -6,9 +6,9 @@
 
 **Status:** exact repair passes executable, installed-archive, full verification, and live gates.
 
-## Live symptom
+## Live stale-error symptom
 
-The operator heard a short audio pop around startup and shutdown. The retained pilot
+The retained pilot
 `graphicslib-hot-settings-v1-20260805-040708` gives a concrete startup failure:
 
 ```text
@@ -79,3 +79,29 @@ created and played on the first recorded attempt at 34.242/34.243 seconds rather
 retrying 516ms later. The repair prevented the false startup failure without hiding a real
 generation error. Whether it also removes the audible shutdown pop remains an operator observation;
 the logged bug directly explains the startup failure-and-retry.
+
+## Separate in-process transition pop
+
+The operator subsequently localized the audible pop more precisely: loading a campaign, entering
+and leaving a combat simulation, and leaving the refit screen. These are music-state transitions
+inside one running process, not OpenAL device startup and shutdown. The
+`aitweaks-range-v1-20260805-043049` log aligns all reported boundaries with creation, resumption, or
+cleanup of main-menu, campaign, and battle-ambience streaming players. It contains no OpenAL error.
+
+Exact sound bytecode shows that Starsector already begins a new player at zero logical gain and
+fades it in. An old player is advanced until its logical fade scalar reaches zero before the music
+thread closes its decoder, deletes the OpenAL source, and selects the pending player. This rules out
+a simply missing game-level fade, but the ordinary log does not retain requested fade duration or
+the final scalar at native source destruction.
+
+The bundled macOS `openal.dylib` identifies itself as OpenAL Soft 1.23.1 and uses CoreAudio. Upstream
+OpenAL Soft documents click/pop prevention for prematurely stopped sources in 1.21.1, so merely
+assuming that any newer library fixes this exact case is not supported. The OpenAL 1.1 API also
+defines source state changes but does not promise that a host-side gain update and immediate source
+deletion become sample-synchronous at the output device.
+
+The exact sound-class transform now carries a passive `audio-music-transition-probe-v1`. It records
+player creation, the four requested fade variants and durations, and cleanup with the game's final
+fade scalar, fade-out duration, source ID, and monotonic ordering. It makes no OpenAL query or
+mutation. Its executable fixture and exact installed-archive test pass. A live follow-up is pending;
+no timing workaround or native-library replacement is enabled before that evidence.

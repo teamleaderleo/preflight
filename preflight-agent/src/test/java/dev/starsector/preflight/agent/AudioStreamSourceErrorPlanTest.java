@@ -31,6 +31,7 @@ class AudioStreamSourceErrorPlanTest {
     @BeforeEach
     void reset() {
         AudioStreamSourceErrorRuntime.beginSession();
+        AudioMusicTransitionRuntime.beginSession();
     }
 
     @Test
@@ -41,6 +42,8 @@ class AudioStreamSourceErrorPlanTest {
         assertEquals(2, calls(constructor, AL10, "alGetError"));
         assertEquals(1, calls(constructor, RUNTIME, "beforeGeneration"));
         assertEquals(1, calls(constructor, RUNTIME, "afterGeneration"));
+        assertEquals(1, calls(constructor,
+                AudioMusicTransitionRuntime.class.getName().replace('.', '/'), "created"));
 
         var loader = new ByteArrayLoader(Map.of(
                 "sound.oo0O", transformed,
@@ -50,11 +53,24 @@ class AudioStreamSourceErrorPlanTest {
         var create = player.getConstructor(List.class, String.class);
 
         configure(al10, 40963, 0);
-        assertNotNull(create.newInstance(List.of(), "menu"));
+        Object menu = create.newInstance(List.of(), "menu");
+        assertNotNull(menu);
+        player.getMethod("class", int.class).invoke(menu, 2_000);
+        player.getMethod("new", int.class).invoke(menu, 750);
+        player.getMethod("ö00000").invoke(menu);
         assertEquals(1L, AudioStreamSourceErrorRuntime.telemetry().get("attempts"));
         assertEquals(1L, AudioStreamSourceErrorRuntime.telemetry().get("staleErrors"));
         assertEquals(0L, AudioStreamSourceErrorRuntime.telemetry().get("generationErrors"));
         assertEquals(1L, AudioStreamSourceErrorRuntime.telemetry().get("recoveredStaleErrors"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> events = (List<Map<String, Object>>)
+                AudioMusicTransitionRuntime.telemetry().get("events");
+        assertEquals(List.of("created", "fade-in", "fade-pause", "cleanup"),
+                events.stream().map(event -> event.get("kind")).toList());
+        assertEquals(2_000, events.get(1).get("durationMillis"));
+        assertEquals(750, events.get(2).get("durationMillis"));
+        assertEquals(0f, events.get(3).get("fadeScale"));
+        assertEquals(7, events.get(3).get("source"));
 
         configure(al10, 0, 40965);
         InvocationTargetException thrown = assertThrows(
@@ -98,14 +114,25 @@ class AudioStreamSourceErrorPlanTest {
                 AudioStreamSourceErrorPlan.ORIGINAL_SHA256,
                 61,
                 Opcodes.ACC_PUBLIC,
-                List.of(new ClassSignature.Method(
-                        "<init>", AudioStreamSourceErrorPlan.CONSTRUCTOR_DESCRIPTOR,
-                        Opcodes.ACC_PUBLIC)));
+                List.of(
+                        new ClassSignature.Method(
+                                "<init>", AudioStreamSourceErrorPlan.CONSTRUCTOR_DESCRIPTOR,
+                                Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method("class", "(I)V", Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method("Ô00000", "(I)V", Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method("new", "(I)V", Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method("Ó00000", "(I)V", Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method("ö00000", "()V", Opcodes.ACC_PUBLIC)));
     }
 
     private static byte[] fixture(boolean reviewed) {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, "sound/oo0O", null, "java/lang/Object", null);
+        writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                "Object", "Ljava/lang/String;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE, "o00000", "I", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE, "Õ00000", "F", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE, "ô00000", "I", null, null).visitEnd();
         MethodNode method = new MethodNode(
                 Opcodes.ACC_PUBLIC, "<init>", AudioStreamSourceErrorPlan.CONSTRUCTOR_DESCRIPTOR,
                 null, null);
@@ -113,6 +140,14 @@ class AudioStreamSourceErrorPlanTest {
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        method.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+                Opcodes.PUTFIELD, "sound/oo0O", "Object", "Ljava/lang/String;"));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new org.objectweb.asm.tree.IntInsnNode(Opcodes.BIPUSH, 7));
+        method.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+                Opcodes.PUTFIELD, "sound/oo0O", "o00000", "I"));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, AL10, "alGetError", "()I", false));
         method.instructions.add(new VarInsnNode(Opcodes.ISTORE, 3));
@@ -133,6 +168,18 @@ class AudioStreamSourceErrorPlanTest {
         method.instructions.add(new InsnNode(Opcodes.POP));
         method.instructions.add(new InsnNode(Opcodes.RETURN));
         method.accept(writer);
+        for (String name : new String[] {"class", "Ô00000", "new", "Ó00000"}) {
+            MethodNode fade = new MethodNode(Opcodes.ACC_PUBLIC, name, "(I)V", null, null);
+            fade.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            fade.instructions.add(new VarInsnNode(Opcodes.ILOAD, 1));
+            fade.instructions.add(new org.objectweb.asm.tree.FieldInsnNode(
+                    Opcodes.PUTFIELD, "sound/oo0O", "ô00000", "I"));
+            fade.instructions.add(new InsnNode(Opcodes.RETURN));
+            fade.accept(writer);
+        }
+        MethodNode cleanup = new MethodNode(Opcodes.ACC_PUBLIC, "ö00000", "()V", null, null);
+        cleanup.instructions.add(new InsnNode(Opcodes.RETURN));
+        cleanup.accept(writer);
         writer.visitEnd();
         return writer.toByteArray();
     }

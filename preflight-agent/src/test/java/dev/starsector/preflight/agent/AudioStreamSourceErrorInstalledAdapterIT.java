@@ -47,10 +47,14 @@ class AudioStreamSourceErrorInstalledAdapterIT {
                         && AudioStreamSourceErrorPlan.CONSTRUCTOR_DESCRIPTOR.equals(method.desc))
                 .findFirst().orElseThrow();
         String runtime = AudioStreamSourceErrorRuntime.class.getName().replace('.', '/');
+        String transitions = AudioMusicTransitionRuntime.class.getName().replace('.', '/');
         assertEquals(2, calls(constructor, "org/lwjgl/openal/AL10", "alGetError"));
         assertEquals(1, calls(constructor, "org/lwjgl/openal/AL10", "alGenSources"));
         assertEquals(1, calls(constructor, runtime, "beforeGeneration"));
         assertEquals(1, calls(constructor, runtime, "afterGeneration"));
+        assertEquals(1, calls(constructor, transitions, "created"));
+        assertEquals(4, calls(owner, transitions, "fade"));
+        assertEquals(1, calls(owner, transitions, "cleanup"));
     }
 
     private static int calls(
@@ -60,6 +64,12 @@ class AudioStreamSourceErrorInstalledAdapterIT {
             if (instruction instanceof MethodInsnNode call
                     && owner.equals(call.owner) && name.equals(call.name)) count++;
         }
+        return count;
+    }
+
+    private static int calls(ClassNode owner, String targetOwner, String name) {
+        int count = 0;
+        for (var method : owner.methods) count += calls(method, targetOwner, name);
         return count;
     }
 }

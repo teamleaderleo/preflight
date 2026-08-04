@@ -295,6 +295,8 @@ final class AdapterReport {
         key(output, "preparedAudio").append(Json.value(PreparedAudioRuntime.report())).append(',');
         key(output, "audioStreamSourceError")
                 .append(Json.value(AudioStreamSourceErrorRuntime.telemetry())).append(',');
+        key(output, "audioMusicTransitions")
+                .append(Json.value(AudioMusicTransitionRuntime.telemetry())).append(',');
         key(output, "aiTweaksEngagementRange")
                 .append(Json.value(AiTweaksEngagementRangeRuntime.telemetry())).append(',');
         key(output, "graphicsLibCompactReplay")

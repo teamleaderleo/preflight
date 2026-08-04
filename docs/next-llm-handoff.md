@@ -348,6 +348,14 @@ not yet independently attributed. The latest complete log records orderly cleanu
 and main-menu streams with no OpenAL error or underrun at exit, so the remaining boundary pop is
 tracked as an unlogged device-lifecycle event rather than folded into the stale-error repair.
 
+The operator then localized that remaining pop to in-process music transitions: campaign load,
+combat-simulation entry/exit, and leaving refit. Exact bytecode shows Starsector does compute a fade
+to zero before deleting an old OpenAL source and starts new streams from zero gain. The bundled
+macOS library is OpenAL Soft 1.23.1; upstream already added premature-stop click prevention in
+1.21.1, so a blind native-library swap is not justified. A passive exact-class transition probe now
+records fade requests, final scalar, and create/cleanup ordering without touching OpenAL. Its
+offline and exact installed-archive gates pass; fold it into the next AI Tweaks live follow-up.
+
 **AI Tweaks.** The latest combat profile put `AutofireAI` on 51 of 776 game-thread samples and its
 derived engagement-range getter below six of those samples. Exact 2.2.10 source and bytecode show
 that one short-lived `SelectTarget` recomputes the same range five times during one synchronous

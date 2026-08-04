@@ -32,6 +32,7 @@ final class AdapterRuntime {
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         AudioStreamSourceErrorRuntime.beginSession();
+        AudioMusicTransitionRuntime.beginSession();
         AiTweaksEngagementRangeRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
         JaninoBytecodeCacheRuntime.beginSession();

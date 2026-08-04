@@ -148,9 +148,15 @@ final class AdapterTargetRegistry {
                 AudioStreamSourceErrorPlan.TARGET_CLASS,
                 AudioStreamSourceErrorPlan.ORIGINAL_SHA256,
                 AudioStreamSourceErrorRuntime.PLAN_ID,
-                List.of(new AdapterTarget.RequiredMethod(
-                        AudioStreamSourceErrorPlan.CONSTRUCTOR,
-                        AudioStreamSourceErrorPlan.CONSTRUCTOR_DESCRIPTOR)),
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                AudioStreamSourceErrorPlan.CONSTRUCTOR,
+                                AudioStreamSourceErrorPlan.CONSTRUCTOR_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod("class", "(I)V"),
+                        new AdapterTarget.RequiredMethod("Ô00000", "(I)V"),
+                        new AdapterTarget.RequiredMethod("new", "(I)V"),
+                        new AdapterTarget.RequiredMethod("Ó00000", "(I)V"),
+                        new AdapterTarget.RequiredMethod("ö00000", "()V")),
                 "STARSECTOR_CORE",
                 "contents/resources/java/fs.sound_obf.jar",
                 "79e5bc71236333541674e2b9093642ac5a2d68d9e55cb8a71f299fd389ba1573",
