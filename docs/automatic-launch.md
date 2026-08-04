@@ -157,8 +157,14 @@ exact match. The first call and every changed input delegate
 to the preserved method. On a valid memo entry, an exact companion rewrite adds a read-only dirty
 accessor to the shipped `MutableStat`; clean backing stats are checked through their object identity
 and authoritative public value without calling four getters or recomputing the combined quantity.
-If that accessor is unavailable, the memo disables itself and keeps vanilla. `commodityEventModMemo`
-reports hits, delegations, and `fastValidationUnavailable`, and
+The same exact rewrite exposes the current flat-mod map reference. When the JVM permits the same
+`java.util` access already present in Starsector's launcher, Preflight retains the map entry and
+structural generation so unchanged hits also avoid a hash lookup. Same-key replacement, direct
+entry replacement, removal/reinsertion, map replacement, and direct value/description mutation are
+all still detected. A launcher without that module access simply keeps the exact hash lookup; if
+either transformed accessor is unavailable, the memo disables itself and keeps vanilla.
+`commodityEventModMemo` reports hits, delegations, accessor fallback, snapshot capability,
+captures, unavailable captures, and invalidations; and
 `-Dpreflight.campaign.eventModMemo.disabled=true` disables this memo alone.
 A pilot has not proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag

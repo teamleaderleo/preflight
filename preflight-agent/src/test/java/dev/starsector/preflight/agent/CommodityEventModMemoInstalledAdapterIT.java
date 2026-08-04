@@ -125,6 +125,17 @@ class CommodityEventModMemoInstalledAdapterIT {
             assertEquals(7L, CommodityEventModMemoRuntime.telemetry().get("hits"));
             assertEquals(0L,
                     CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
+            if (EventModMapSnapshotRuntime.available()) {
+                assertEquals(7L,
+                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotsCaptured"));
+                assertEquals(0L,
+                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotUnavailable"));
+            } else {
+                assertEquals(0L,
+                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotsCaptured"));
+                assertEquals(7L,
+                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotUnavailable"));
+            }
         }
     }
 
@@ -151,8 +162,9 @@ class CommodityEventModMemoInstalledAdapterIT {
         byte[] executable = withTestExercise(transformed);
         ListWithArchive classpath = gameClasspath(archive);
 
-        // Deliberately omit MutableStatDirtyAccessorPlan's transformed class. The second call sees
-        // the missing method, catches LinkageError inside the wrapper, and permanently fails open.
+        // Deliberately omit MutableStatDirtyAccessorPlan's transformed class. Post-state capture
+        // sees the missing map accessor after vanilla completes, catches LinkageError inside the
+        // wrapper, and permanently fails open before the second call.
         try (InstalledLoader loader = new InstalledLoader(
                 classpath.urls(), Map.of(
                         CommodityEventModMemoPlan.TARGET_CLASS.replace('/', '.'), executable,
@@ -179,7 +191,7 @@ class CommodityEventModMemoInstalledAdapterIT {
                     statConstructor.newInstance(0f),
                     commoditySpecType.getConstructor(float.class).newInstance(1f));
             assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("hits"));
-            assertEquals(2L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+            assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
             assertEquals(1L,
                     CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
             assertEquals(false, CommodityEventModMemoRuntime.telemetry().get("enabled"));

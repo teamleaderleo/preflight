@@ -86,7 +86,19 @@ read-only dirty accessor on the shipped `MutableStat`, then checks clean flags, 
 identity, and authoritative public float bits directly. Hits skip all four getters and the quantity
 calculation; every dirty/direct-write/object/description/econ-unit change still delegates. Missing
 accessor linkage disables the memo and falls through to vanilla. Exact installed-class execution and
-full `mvn verify` pass; a short campaign pilot is the remaining live gate.
+full `mvn verify` pass. The live v2 campaign pilot then served 128,803,184/129,026,515 calls
+(99.8269%), delegated 223,331 real changes, reported zero fast-validation fallback, and completed
+with ACTIVE health. `getCombinedTradeModQuantity` disappeared completely (0/1,677 campaign samples,
+versus 31/580 under v1). The next exposed layer is the retained exact `eMod` map lookup:
+`MutableStat.getFlatStatMod` now occupies 212/1,677 campaign samples (12.64%). Do not remove it
+without an equally exact way to detect direct mutation through the publicly exposed flat-mod map.
+An offline-green v3 now retains the exact backing map, entry node, and `HashMap.modCount`; it catches
+same-key replacement through node value identity, structural edits through the generation, map
+replacement through identity, and still compares public `StatMod` fields. The capability uses
+Starsector's existing `--add-opens java.base/java.util=ALL-UNNAMED`; without it, the exact old lookup
+remains. Missing accessor linkage disables the memo after vanilla returns. Closed-module, open-module,
+real installed-class, and full `mvn verify` checks pass. The remaining gate is a short live campaign
+pilot proving snapshot activation and removal of the sampled `getFlatStatMod` stack.
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:

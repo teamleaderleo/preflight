@@ -22,7 +22,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 class MutableStatDirtyAccessorPlanTest {
     @Test
-    void exactGetterAddsOnlyReadOnlySyntheticAccessor() {
+    void exactGetterAddsOnlyReadOnlySyntheticAccessors() {
         byte[] transformed = MutableStatDirtyAccessorPlan.transform(signature(), fixture(true));
         assertNotNull(transformed);
         ClassNode owner = read(transformed);
@@ -42,6 +42,23 @@ class MutableStatDirtyAccessorPlanTest {
         }
         assertEquals(1, dirtyReads);
         assertEquals(1, returns);
+
+        MethodNode flatModsAccessor = method(
+                owner,
+                MutableStatDirtyAccessorPlan.FLAT_MODS_ACCESSOR,
+                MutableStatDirtyAccessorPlan.FLAT_MODS_ACCESSOR_DESCRIPTOR);
+        assertTrue((flatModsAccessor.access & Opcodes.ACC_PUBLIC) != 0);
+        assertTrue((flatModsAccessor.access & Opcodes.ACC_FINAL) != 0);
+        assertTrue((flatModsAccessor.access & Opcodes.ACC_SYNTHETIC) != 0);
+        int mapReads = 0;
+        int objectReturns = 0;
+        for (var instruction : flatModsAccessor.instructions) {
+            if (instruction instanceof FieldInsnNode field
+                    && "flatMods".equals(field.name)) mapReads++;
+            if (instruction.getOpcode() == Opcodes.ARETURN) objectReturns++;
+        }
+        assertEquals(1, mapReads);
+        assertEquals(1, objectReturns);
     }
 
     @Test
@@ -84,6 +101,12 @@ class MutableStatDirtyAccessorPlanTest {
                 null,
                 null).visitEnd();
         writer.visitField(Opcodes.ACC_PUBLIC, "modified", "F", null, null).visitEnd();
+        writer.visitField(
+                Opcodes.ACC_PRIVATE,
+                "flatMods",
+                "Ljava/util/LinkedHashMap;",
+                null,
+                null).visitEnd();
 
         MethodNode recompute = new MethodNode(Opcodes.ACC_PRIVATE, "recompute", "()V", null, null);
         recompute.instructions.add(new InsnNode(Opcodes.RETURN));

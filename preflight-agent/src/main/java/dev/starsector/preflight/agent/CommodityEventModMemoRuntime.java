@@ -53,10 +53,16 @@ public final class CommodityEventModMemoRuntime {
         values.put("planId", PLAN_ID);
         values.put("installed", installed);
         values.put("enabled", enabled());
-        values.put("validationStrategy", "clean-stat-fast-path-and-exact-post-state-fingerprint");
+        values.put("validationStrategy",
+                "clean-stat-and-map-entry-fast-path-with-exact-post-state-fingerprint");
         values.put("hits", hits);
         values.put("delegated", delegated);
         values.put("fastValidationUnavailable", fastValidationUnavailable);
+        values.put("entrySnapshotAvailable", EventModMapSnapshotRuntime.available());
+        values.put("entrySnapshotsCaptured", EventModMapSnapshotRuntime.captures());
+        values.put("entrySnapshotUnavailable",
+                EventModMapSnapshotRuntime.unavailableCaptures());
+        values.put("entrySnapshotInvalidations", EventModMapSnapshotRuntime.invalidations());
         return values;
     }
 
@@ -66,5 +72,6 @@ public final class CommodityEventModMemoRuntime {
         hits = 0L;
         delegated = 0L;
         fastValidationUnavailable = 0L;
+        EventModMapSnapshotRuntime.reset();
     }
 }

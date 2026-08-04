@@ -102,4 +102,48 @@ linkage failure, disables the memo for the session, and continues through vanill
 cover both exact shapes and the linkage fail-open. The installed-class execution test uses the
 game's real `MutableStatWithTempMods` for dirty mutations, direct `modified` writes, whole-stat
 replacement, zero/non-zero quantities, and same-value description changes. Full `mvn verify` is
-green. A new campaign pilot remains required to measure how much of the residual 5.17% disappears.
+green. The following campaign pilot measures the residual stack directly.
+
+### Fast-path live result
+
+`~/.starsector-preflight/runs/commodity-clean-stat-v2-20260805-033607` completed normally with
+adapter health `ACTIVE`, 28 transformations, no decline or contained failure, and no fatal log or
+native JVM crash evidence. The refined memo handled 129,026,515 calls: 128,803,184 hits (99.8269%)
+and 223,331 delegations (0.1731%). `fastValidationUnavailable` remained zero, proving the exact
+`MutableStat` seam was linked and used throughout the session.
+
+The state-separated recording contains 1,677 campaign main-thread samples.
+`getCombinedTradeModQuantity` appears in zero of them, versus 31/580 in the v1 recording. The
+targeted four-getter/quantity stack is therefore removed rather than merely diluted by the longer
+run. The next exposed layer is the exact `eMod` identity check: `MutableStat.getFlatStatMod` is now
+the leaf in 212/1,677 campaign samples (12.64%). That lookup cannot simply be omitted because
+`getFlatMods()` exposes the mutable backing map; a safe next step must retain detection of direct
+same-key replacement, removal/reinsertion, and description/value mutation.
+
+## Exact map-entry fast path (v3, offline-green)
+
+The next refinement retains the exact flat-mod backing map, its `eMod` entry node, and
+`HashMap.modCount` after each vanilla delegation. On a prospective hit it requires the same map,
+the same structural generation, and the same entry value identity before reading the cached
+`StatMod`'s public value and description fields. This covers the mutation surface that makes a
+blindly cached lookup unsafe:
+
+- a same-key `put` updates the retained node and is caught by value identity even though Java does
+  not increment `modCount`;
+- removal/reinsertion and other structural edits change `modCount`;
+- whole-map replacement is caught by map identity; and
+- direct `StatMod.value` or `StatMod.desc` edits remain covered by the existing exact field checks.
+
+The `HashMap.modCount` handle is capability-gated through `MethodHandles.privateLookupIn`.
+Starsector's reviewed launcher already supplies `--add-opens java.base/java.util=ALL-UNNAMED`; a
+launcher that does not simply receives a null snapshot and retains the exact `getFlatStatMod`
+lookup. No weaker validation mode exists. The exact `MutableStat` rewrite adds a second read-only
+synthetic accessor for the current private `flatMods` reference. Missing accessor linkage is caught
+after vanilla has completed, disables the memo, and returns safely.
+
+Focused tests pass in both closed-module fallback mode and the launcher's open-module mode. The
+positive tests cover same-key replacement, direct entry replacement, removal/reinsertion, map
+replacement, absent-entry insertion, and stable entries. The installed-class suite executes the
+real Starsector classes in both modes, including all v2 mutation cases. Full `mvn verify` with the
+installed core jar is green. A live campaign pilot remains the activation and sampled-stack gate;
+until that passes, v3 is not a measured gameplay result.

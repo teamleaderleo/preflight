@@ -21,8 +21,11 @@ final class MutableStatDirtyAccessorPlan {
     static final String VALUE_DESCRIPTOR = "()F";
     static final String ACCESSOR = "preflight$needsRecompute";
     static final String ACCESSOR_DESCRIPTOR = "()Z";
+    static final String FLAT_MODS_ACCESSOR = "preflight$flatModsRef";
+    static final String FLAT_MODS_ACCESSOR_DESCRIPTOR = "()Ljava/util/LinkedHashMap;";
 
     private static final String DIRTY_FIELD = "needsRecompute";
+    private static final String FLAT_MODS_FIELD = "flatMods";
 
     private MutableStatDirtyAccessorPlan() {
     }
@@ -37,7 +40,9 @@ final class MutableStatDirtyAccessorPlan {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         if (hasMethod(owner, ACCESSOR, ACCESSOR_DESCRIPTOR)
+                || hasMethod(owner, FLAT_MODS_ACCESSOR, FLAT_MODS_ACCESSOR_DESCRIPTOR)
                 || !reviewDirtyField(owner)
+                || !reviewFlatModsField(owner)
                 || !reviewValueGetter(owner)) {
             return null;
         }
@@ -55,6 +60,22 @@ final class MutableStatDirtyAccessorPlan {
         accessor.instructions.add(new InsnNode(Opcodes.IRETURN));
         owner.methods.add(accessor);
 
+        MethodNode flatModsAccessor = new MethodNode(
+                Opcodes.ASM9,
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL | Opcodes.ACC_SYNTHETIC,
+                FLAT_MODS_ACCESSOR,
+                FLAT_MODS_ACCESSOR_DESCRIPTOR,
+                null,
+                null);
+        flatModsAccessor.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        flatModsAccessor.instructions.add(new FieldInsnNode(
+                Opcodes.GETFIELD,
+                TARGET_CLASS,
+                FLAT_MODS_FIELD,
+                "Ljava/util/LinkedHashMap;"));
+        flatModsAccessor.instructions.add(new InsnNode(Opcodes.ARETURN));
+        owner.methods.add(flatModsAccessor);
+
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();
@@ -71,6 +92,20 @@ final class MutableStatDirtyAccessorPlan {
         return match != null
                 && (match.access & Opcodes.ACC_PRIVATE) != 0
                 && (match.access & Opcodes.ACC_TRANSIENT) != 0
+                && (match.access & Opcodes.ACC_STATIC) == 0;
+    }
+
+    private static boolean reviewFlatModsField(ClassNode owner) {
+        FieldNode match = null;
+        for (FieldNode field : owner.fields) {
+            if (FLAT_MODS_FIELD.equals(field.name)
+                    && "Ljava/util/LinkedHashMap;".equals(field.desc)) {
+                if (match != null) return false;
+                match = field;
+            }
+        }
+        return match != null
+                && (match.access & Opcodes.ACC_PRIVATE) != 0
                 && (match.access & Opcodes.ACC_STATIC) == 0;
     }
 
