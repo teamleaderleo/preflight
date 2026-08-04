@@ -175,6 +175,9 @@ final class AdapterTransformationRegistry {
         if (MagicLibPaintjobRuntime.PLAN_ID.equals(target.planId())) {
             return MagicLibPaintjobPlan.transform(signature, originalBytes);
         }
+        if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(target.planId())) {
+            return MagicLibPaintjobNotificationPlan.transform(signature, originalBytes);
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -447,6 +450,9 @@ final class AdapterTransformationRegistry {
             return GraphicsLibInsigniaManagerCacheRuntime.ready();
         }
         if (MagicLibPaintjobRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {

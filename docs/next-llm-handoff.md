@@ -19,8 +19,12 @@ browsed concurrently. Evidence:
 The same campaign recording exposed the next in-game target: MagicLib paintjob unlock checks occupy
 101 of 1,055 campaign main-thread samples (9.57%) because every check copies a `LinkedHashSet` into
 an `ArrayList` and scans it. An exact MagicLib 1.5.6 adapter now queries the authoritative set with a
-preserved-original fallback. Offline and installed-archive checks pass; it needs one live campaign
-pilot before a speed claim. Evidence:
+preserved-original fallback. A live campaign answered 1,316,681 checks with zero delegation or
+failure and removed the entire copied-list stack from JFR. That recording exposed a second MagicLib
+list scan for already-notified IDs on 36 samples; a separately exact-gated, mutation-invalidated set
+snapshot then served 1,312,748 live checks after 438 mutations with one rebuild and zero fallback.
+The notification scan disappeared and the whole manager fell to 9/1,500 samples. Full `mvn verify`
+and both exact installed-archive transforms pass. Evidence:
 `docs/evidence/2026-08-04-magiclib-paintjob-campaign-hotspot.md`.
 
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:

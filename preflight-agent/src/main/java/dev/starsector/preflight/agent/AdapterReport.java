@@ -299,6 +299,8 @@ final class AdapterReport {
                 .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjob")
                 .append(Json.value(MagicLibPaintjobRuntime.telemetry())).append(',');
+        key(output, "magicLibPaintjobNotification")
+                .append(Json.value(MagicLibPaintjobNotificationRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

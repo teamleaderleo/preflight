@@ -70,5 +70,57 @@ Offline coverage proves:
 - wrong hash, wrong body, and a second rewrite decline;
 - the exact installed MagicLib archive transforms with one runtime lookup and one preserved method.
 
-A live campaign pilot is still required to prove the installed mod loader/source gate, zero
-delegation, and removal of the sampled allocation/scan chain. No percentage speedup is claimed yet.
+## First live result
+
+`magiclib-paintjob-v1-20260804-225721` loaded the representative campaign and exited normally:
+
+- adapter health `ACTIVE`, 19 transformations, zero declines and zero contained failures;
+- exact MagicLib adapter installed;
+- 1,316,681 unlocked checks answered from the authoritative set;
+- zero delegated checks and zero runtime failures.
+
+The comparable campaign window contains 1,440 main-thread execution samples. The old
+`MagicPaintjobManagerKt.isUnlocked`, `LinkedHashMap.keysToArray`, and Kotlin `toList` / `toMutableList`
+frames are all absent. `MagicPaintjobManager.advance` fell from 128/1,055 samples (12.13%) to
+40/1,440 (2.78%). These are two short interactive recordings rather than a controlled frame-time
+benchmark, so the ratio is corroborating profile evidence, not a claimed 4.4x gameplay speedup.
+
+The 40 surviving manager samples exposed another independent list scan in the same source:
+
+```kotlin
+private val completedPaintjobIdsThatUserHasBeenNotifiedFor = mutableListOf<String>()
+
+if (paintjob.isUnlocked() &&
+    !completedPaintjobIdsThatUserHasBeenNotifiedFor.contains(paintjob.id)) {
+    // notify once
+}
+```
+
+`ArrayList.indexOfRange` is the leaf on 36 of those 40 samples. The manager class has exactly one
+clear and two adds to this private list. `MagicLibPaintjobNotificationPlan` exact-gates that class,
+replaces only the reviewed `contains` with a set snapshot, and invalidates the snapshot after all
+three reviewed mutations. This handles same-size clear-and-repopulate correctly; it does not rely
+on a size heuristic. Snapshot failure invokes the original list's `contains`, while target, class,
+archive, loader, mutation count, and call shape drift all decline transformation.
+
+## Second live result
+
+`magiclib-notification-v1-20260804-230724` accepted the second seam with process exit 0 and adapter
+health `ACTIVE`: 20 exact transformations, zero declines, and zero contained failures. Runtime
+telemetry reported:
+
+- 1,312,748 unlocked-set checks, zero delegation/failure;
+- 1,312,748 already-notified checks, zero delegation/failure;
+- 438 reviewed notification-list mutations;
+- one set-snapshot rebuild for the whole session.
+
+The campaign window contains 1,500 main-thread execution samples. The already-notified
+`ArrayList.contains` stack is absent, while the original set-copy stack remains absent.
+`MagicPaintjobManager.advance` is present on nine samples (0.60%), down from 40/1,440 (2.78%) after
+the first seam and 128/1,055 (12.13%) before either seam. The nine surviving samples are primarily
+MagicLib rebuilding `getPaintjobs()`' filtered set; two `ArrayList.contains` leaves are
+`MagicPaintjobSpec.isShiny`, not the optimized notification list.
+
+Again, these differently sized interactive windows establish mechanism removal and identify what is
+left. They are not a controlled frame-time benchmark and do not support multiplying the sample
+ratios into a user-facing speedup claim.

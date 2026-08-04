@@ -218,6 +218,23 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** MagicLib 1.5.6's per-frame scan of already-notified paintjob IDs. */
+    static AdapterTarget magicLibPaintjobNotificationTarget() {
+        return new AdapterTarget(
+                "magiclib-1.5.6-paintjob-notification-set",
+                MagicLibPaintjobNotificationPlan.TARGET_CLASS,
+                MagicLibPaintjobNotificationPlan.ORIGINAL_SHA256,
+                MagicLibPaintjobNotificationRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MagicLibPaintjobNotificationPlan.ADVANCE_METHOD,
+                        MagicLibPaintjobNotificationPlan.ADVANCE_DESCRIPTOR)),
+                "MOD",
+                "MagicLib.jar",
+                "af028fcd67dd537024eab0082d3e78cac8508355dbd5f8731b6c243c60dae0d5",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -856,7 +873,8 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())
-                .withTarget(magicLibPaintjobTarget());
+                .withTarget(magicLibPaintjobTarget())
+                .withTarget(magicLibPaintjobNotificationTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {
