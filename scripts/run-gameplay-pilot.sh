@@ -150,7 +150,7 @@ if [[ -f "$OUT/adapter-health.json" ]]; then
 fi
 if [[ -f "$OUT/adapter.json" ]]; then
     echo "Probe telemetry:"
-    jq '{graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, frameTimes: (.frameTimes | .allActive |= del(.worstFrames) | .postStartupActive |= del(.worstFrames)), campaignEntityIndex, deploymentIconCache, simOpponentSafety}' \
+    jq '{graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, frameTimes: (.frameTimes | .allActive |= del(.worstFrames) | .postStartupActive |= del(.worstFrames) | .campaignActive |= del(.worstFrames) | .combatActive |= del(.worstFrames)), campaignEntityIndex, deploymentIconCache, simOpponentSafety}' \
         "$OUT/adapter.json"
 else
     echo "No adapter report was produced; inspect $OUT/wrapper.log" >&2

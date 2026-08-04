@@ -59,6 +59,25 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void segmentsStableCampaignAndCombatIntervalsAndDropsTransitions() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(10L); // unknown -> campaign
+        FrameTimeRuntime.recordBoundary(20L);
+        FrameTimeRuntime.recordBoundary(30L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(40L); // campaign -> combat
+        FrameTimeRuntime.recordBoundary(50L);
+
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        assertEquals(5L, map(telemetry.get("allActive")).get("frames"));
+        assertEquals(2L, telemetry.get("stateTransitionIntervalsDropped"));
+        assertEquals(2L, map(telemetry.get("campaignActive")).get("frames"));
+        assertEquals(1L, map(telemetry.get("combatActive")).get("frames"));
+    }
+
+    @Test
     void disabledProbeIsAStableNoOp() {
         FrameTimeRuntime.beginSession(false);
         FrameTimeRuntime.observeActive(false);

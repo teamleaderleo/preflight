@@ -187,6 +187,9 @@ final class AdapterTransformationRegistry {
         if (FrameTimeRuntime.PLAN_ID.equals(target.planId())) {
             return FrameTimePlan.transform(signature, originalBytes);
         }
+        if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
+            return FrameTimeStatePlan.transform(signature, originalBytes);
+        }
         // The memo can install on its own, without the attribution probe in front of it.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
             return ruleTokenCache(originalBytes, null);
@@ -471,6 +474,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (FrameTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {

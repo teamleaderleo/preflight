@@ -1,6 +1,8 @@
 package dev.starsector.preflight.agent;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -26,9 +28,38 @@ public final class MacMemoryWarningRuntime {
     private static volatile int lastAvailablePercent = -1;
     private static volatile long lastEstimatedAvailableMiB = -1L;
     private static volatile String lastProbeFailure;
+    private static volatile boolean processLaunchRepairApplied;
+    private static volatile String processLaunchRepairProblem;
     private static volatile boolean installed;
 
     private MacMemoryWarningRuntime() {
+    }
+
+    /** Repairs a non-executable bundled jspawnhelper before ProcessImpl is initialized. */
+    static void beginSession() {
+        processLaunchRepairApplied = false;
+        processLaunchRepairProblem = null;
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("mac")) return;
+        try {
+            Path helper = Path.of(System.getProperty("java.home", ""), "lib", "jspawnhelper");
+            if (Files.isExecutable(helper)) return;
+            String configured = System.getProperty("jdk.lang.Process.launchMechanism", "");
+            if (configured.isBlank()) {
+                // The default POSIX_SPAWN path executes jspawnhelper. FORK is the JDK's supported
+                // fallback and restores ProcessBuilder when a repackaged runtime lost that bit.
+                System.setProperty("jdk.lang.Process.launchMechanism", "FORK");
+                processLaunchRepairApplied = true;
+            } else if (!"fork".equalsIgnoreCase(configured)) {
+                processLaunchRepairProblem = "jspawnhelper is not executable and launch mechanism is "
+                        + configured;
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            String message = failure.getMessage();
+            processLaunchRepairProblem = failure.getClass().getSimpleName()
+                    + (message == null || message.isBlank() ? "" : ": " + message);
+        }
     }
 
     static void installed() {
@@ -141,6 +172,8 @@ public final class MacMemoryWarningRuntime {
         result.put("lastAvailablePercent", lastAvailablePercent);
         result.put("lastEstimatedAvailableMiB", lastEstimatedAvailableMiB);
         result.put("lastProbeFailure", lastProbeFailure);
+        result.put("processLaunchRepairApplied", processLaunchRepairApplied);
+        result.put("processLaunchRepairProblem", processLaunchRepairProblem);
         return result;
     }
 
@@ -156,6 +189,8 @@ public final class MacMemoryWarningRuntime {
         lastAvailablePercent = -1;
         lastEstimatedAvailableMiB = -1L;
         lastProbeFailure = null;
+        processLaunchRepairApplied = false;
+        processLaunchRepairProblem = null;
     }
 
     @FunctionalInterface

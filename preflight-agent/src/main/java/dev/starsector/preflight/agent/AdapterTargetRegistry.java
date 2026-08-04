@@ -291,6 +291,38 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Vanilla campaign loop used only to segment opt-in frame-time recordings. */
+    static AdapterTarget campaignFrameTimeStateTarget() {
+        return frameTimeStateTarget(
+                "vanilla-campaign-frame-time-segment-0.98a-rc8",
+                FrameTimeStatePlan.CAMPAIGN_CLASS,
+                FrameTimeStatePlan.CAMPAIGN_SHA256);
+    }
+
+    /** Vanilla combat engine loop used only to segment opt-in frame-time recordings. */
+    static AdapterTarget combatFrameTimeStateTarget() {
+        return frameTimeStateTarget(
+                "vanilla-combat-frame-time-segment-0.98a-rc8",
+                FrameTimeStatePlan.COMBAT_CLASS,
+                FrameTimeStatePlan.COMBAT_SHA256);
+    }
+
+    private static AdapterTarget frameTimeStateTarget(String id, String className, String classHash) {
+        return new AdapterTarget(
+                id,
+                className,
+                classHash,
+                FrameTimeStatePlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FrameTimeStatePlan.ADVANCE_METHOD,
+                        FrameTimeStatePlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -916,7 +948,9 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withFrameTimeTarget() {
-        return withTarget(frameTimeTarget());
+        return withTarget(frameTimeTarget())
+                .withTarget(campaignFrameTimeStateTarget())
+                .withTarget(combatFrameTimeStateTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {
