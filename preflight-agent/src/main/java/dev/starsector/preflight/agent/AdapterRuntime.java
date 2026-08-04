@@ -51,6 +51,7 @@ final class AdapterRuntime {
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));
+        CampaignCallTimeRuntime.beginSession(FrameTimeRuntime.enabled());
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -133,8 +134,8 @@ final class AdapterRuntime {
                 }
                 report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
                 if (FrameTimeRuntime.enabled()) {
-                    registry = registry.withFrameTimeTarget();
-                    report.diagnostic("Loaded the exact opt-in LWJGL frame-time probe target");
+                    registry = registry.withFrameTimeTarget().withCampaignCallTimeTargets();
+                    report.diagnostic("Loaded the exact opt-in frame-time and campaign call-time probe targets");
                 }
                 if (!options.startupPhaseProbe()
                         && (FrameTimeRuntime.enabled() || LoadJsonMemoRuntime.ready())) {

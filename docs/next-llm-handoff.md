@@ -422,15 +422,22 @@ campaign distribution because Starsector's title screen runs a background `Comba
 contaminated the raw combat bucket. See
 `docs/evidence/2026-08-05-frame-time-fps-reporting.md`.
 
-**Post-startup JSON.** That pilot's in-process memo served 26,590 of 36,090 `loadJSON` calls, but
-still parsed 7,637 distinct paths once per process. Save completion at 46.219s was immediately
-followed by Combat Chatter's deferred data reads while the campaign was visible. The general
-full-data-profile artifact now also learns only unrestricted `data/` JSON first requested after the
-exact resource-init completion marker, publishes the lazy revision at shutdown, and reconstructs it
-once into the process-local memo on the next run. Restricted/phase-dependent calls, settings,
-outside-data paths, collisions, malformed values, and changed profiles stay vanilla. Executable
-cold/warm behavior and full `mvn verify` pass; the next two matching gameplay launches are the
-learning and warm gates. See `docs/evidence/2026-08-05-post-startup-loadjson-cache.md`.
+**Post-startup JSON.** The cold/warm live gate is complete. The learning run captured 746 eligible
+single-file JSON trees; the warm run served 746 of 748 eligible reads from the prepared artifact
+(99.73%), with zero failures, collisions, or unstorable values. The full-data artifact is only
+9,055,392 bytes. This removed repeat parsing and cut early post-save `LoadingUtils` lines, but did
+not improve campaign warm-up: first-30-second average FPS was 47.34 learning versus 46.72 warm and
+p95 was 45.0 versus 50.3ms. Those small operator-driven differences are noise, not a regression,
+but they decisively provide no speedup claim. Retain the narrow fail-closed cache as repeat-I/O
+avoidance; investigate campaign catch-up simulation next. The 116-line `RepTrackerEvent` burst
+occupied only about 17ms, while Nex fleet/route/economy/mission activity continued throughout the
+bad interval. The opt-in frame pilot now also exact-times six initial inclusive seams: Nex fleet-
+pool advance, route spawn/despawn, resource-pool update, diplomacy advance, and vanilla reputation
+and economy-fleet advances. It retains threshold counts and 32 slowest end timestamps using fixed
+primitive arrays; normal and exceptional exits are covered. Synthetic execution and all six exact
+installed-archive transforms pass. Run another ordinary warm gameplay pilot, then correlate the
+slowest calls to retained bad-frame timestamps. Do not add nested inclusive totals. See
+`docs/evidence/2026-08-05-post-startup-loadjson-cache.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and

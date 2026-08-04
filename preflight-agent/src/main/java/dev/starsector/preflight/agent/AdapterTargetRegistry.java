@@ -1111,6 +1111,28 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignFrameTimeStateTarget());
     }
 
+    AdapterTargetRegistry withCampaignCallTimeTargets() {
+        AdapterTargetRegistry registry = this;
+        for (CampaignCallTimePlan.Probe probe : CampaignCallTimePlan.probes()) {
+            boolean nex = probe.className().startsWith("exerelin/");
+            registry = registry.withTarget(new AdapterTarget(
+                    "campaign-call-time-" + probe.id(),
+                    probe.className(),
+                    probe.sha256(),
+                    CampaignCallTimeRuntime.PLAN_ID,
+                    List.of(new AdapterTarget.RequiredMethod(
+                            probe.method(), probe.descriptor())),
+                    nex ? "MOD" : "STARSECTOR_CORE",
+                    nex ? "exerelincore.jar" : "contents/resources/java/starfarer.api.jar",
+                    nex
+                            ? "3d3bb30c44eec9060a7777317af519dd695a1aa31d75f478036fc338870b3b71"
+                            : "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                    nex ? "java/net/URLClassLoader" : "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                    nex ? "" : "app"));
+        }
+        return registry;
+    }
+
     AdapterTargetRegistry withFrameTimeStartupCompletionTarget() {
         return withTarget(frameTimeStartupCompletionTarget());
     }

@@ -98,6 +98,35 @@ the next optimization an actual A/B instead of another log-gap guess.
 Targeted tests pin the 30-second boundary, campaign-start timestamp, title-demo exclusion, and the
 existing pulse/transition behavior. Full `mvn verify` passes.
 
+## First warm-up optimization A/B
+
+The post-startup single-file JSON cache supplied the first use of the split distribution. Its
+learning and warm runs served 0 and 746 eligible paths from the prepared artifact respectively,
+with 99.73% warm coverage and no failures. Despite removing those repeated parses, the first-30-
+second campaign average moved from 47.34 to 46.72 FPS and p95 moved from 45.0 to 50.3ms. The
+operator-driven workloads were not identical, so those small differences are noise; critically,
+there is no improvement large enough to support the JSON hypothesis.
+
+The later-campaign distribution remained better in both runs. The warm run measured 52.90 average
+FPS, 59.52 median FPS, 14.18 FPS 1% low, and 30.1/70.5ms p95/p99 after the first 30 seconds. The next
+probe should attribute exact campaign simulation/event call sites rather than infer ownership from
+nearby log messages.
+
+That attribution probe now accompanies the opt-in frame pilot. It records inclusive call count,
+total/average/maximum time, threshold counts, and the 32 slowest end timestamps for these exact
+methods:
+
+- Nexerelin 0.12.2b `FleetPoolHelperListener.advance`,
+  `NexRouteManager.spawnAndDespawn`, `ResourcePoolManager.updatePoints`, and
+  `DiplomacyManager.advance`;
+- Starsector 0.98a-RC8 `RepTrackerEvent.advance` and `EconomyFleetRouteManager.advance`.
+
+Every class and owning archive is hash-pinned. Normal returns and exceptions both close the timer;
+the original exception is rethrown. The hot path uses fixed primitive arrays, allocates nothing,
+and is disabled unless frame telemetry was explicitly requested. Results are inclusive, so a nested
+route operation must not be added to its caller's total. Synthetic invocation proves normal and
+exceptional behavior, and all six installed classes pass exact-archive transform verification.
+
 ## Rosetta profiling boundary
 
 The immediately preceding JFR-enabled attempt crashed in Zulu 17.0.10's
