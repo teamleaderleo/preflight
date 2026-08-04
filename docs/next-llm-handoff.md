@@ -108,6 +108,20 @@ a 6.82% compiled leaf, so further commodity work must reduce exact validation co
 boundary outward rather than hunting another nested call.
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
+The same campaign profile put vanilla's `com.fs.starfarer.coreui.A.oOoO.renderStuff` at 22/174
+campaign main-thread leaf samples (12.64%). Exact installed bytecode showed three separable kinds of
+work: live per-frame visibility/fader updates, a full entity-list copy, and construction plus filling
+of the same seven-class `HashSet` every frame. The first must remain live, and the list snapshot has
+concurrent-iteration semantics that need a separate mutation-boundary proof. An offline-green exact
+adapter now handles only the safe first slice: it initializes the reviewed seven-class set once and
+reuses it while the existing exact gameplay-cache gate is active; gate-off executes the untouched
+vanilla allocation block. The shipped class hash, exact seven literals/order, archive, loader, and
+single construction block are pinned. Synthetic shape/gate tests, an exact installed-class
+transform, and full `mvn verify` pass. A live campaign roam still needs to establish non-zero
+`campaignRadarRender.cachedFrames`, normal map/radar behavior, and whether the allocation removal is
+large enough to survive sampling noise. Evidence:
+`docs/evidence/2026-08-05-campaign-radar-type-set.md`.
+
 The same mixed-state recording put GraphicsLib's `LightShader` on 48/1,010 combat samples (4.75%).
 Exact installed bytecode shows its render loop rereads three stable float settings through LunaLib
 on every call. An offline-green exact GraphicsLib 1.12.1 adapter now retains each original getter,

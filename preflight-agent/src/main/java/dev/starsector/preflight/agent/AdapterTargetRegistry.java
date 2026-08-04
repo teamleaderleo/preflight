@@ -498,6 +498,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** The exact vanilla campaign radar renderer observed in campaign frame samples. */
+    static AdapterTarget radarRenderTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-radar-type-set-0.98a-rc8",
+                RadarRenderPlan.TARGET_CLASS,
+                RadarRenderPlan.ORIGINAL_SHA256,
+                RadarRenderRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RadarRenderPlan.RENDER_METHOD,
+                        RadarRenderPlan.RENDER_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The exact vanilla per-commodity event-mod rewrite observed in campaign frame samples. */
     static AdapterTarget commodityEventModMemoTarget() {
         return new AdapterTarget(
@@ -1087,6 +1104,7 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignEntityIndexTarget())
                 .withTarget(campaignEntityRepositoryTarget())
                 .withTarget(campaignEntityIdMutationTarget())
+                .withTarget(radarRenderTarget())
                 .withTarget(deploymentIconCacheTarget())
                 .withTarget(commodityEventModMemoTarget())
                 .withTarget(mutableStatDirtyAccessorTarget())

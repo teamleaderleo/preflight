@@ -43,6 +43,7 @@ final class AdapterRuntime {
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
         GraphicsLibHotSettingsRuntime.reset();
         EntityLookupRuntime.beginSession();
+        RadarRenderRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
         CommodityEventModMemoRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();

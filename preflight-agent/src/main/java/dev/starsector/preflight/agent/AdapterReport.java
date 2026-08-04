@@ -280,6 +280,8 @@ final class AdapterReport {
         key(output, "ruleTokenCache").append(Json.value(RuleTokenCacheRuntime.telemetry())).append(',');
         key(output, "mergedReadCache").append(Json.value(MergedReadCacheRuntime.telemetry())).append(',');
         key(output, "campaignEntityIndex").append(Json.value(EntityLookupRuntime.counters())).append(',');
+        key(output, "campaignRadarRender")
+                .append(Json.value(RadarRenderRuntime.telemetry())).append(',');
         key(output, "deploymentIconCache")
                 .append(Json.value(DeploymentIconCacheRuntime.telemetry())).append(',');
         key(output, "commodityEventModMemo")

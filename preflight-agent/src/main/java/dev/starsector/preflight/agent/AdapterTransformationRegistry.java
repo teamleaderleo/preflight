@@ -47,6 +47,9 @@ final class AdapterTransformationRegistry {
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {
             return DeploymentIconCachePlan.transform(signature, originalBytes);
         }
+        if (RadarRenderRuntime.PLAN_ID.equals(target.planId())) {
+            return RadarRenderPlan.transform(signature, originalBytes);
+        }
         // Inert until --campaign-entity-index/--fast enables its runtime property. The exact
         // wrapper retains and delegates to the reviewed vanilla method on every cache miss.
         if (CommodityEventModMemoRuntime.PLAN_ID.equals(target.planId())) {
@@ -513,6 +516,9 @@ final class AdapterTransformationRegistry {
         }
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {
             return DeploymentIconCacheRuntime.ready();
+        }
+        if (RadarRenderRuntime.PLAN_ID.equals(planId)) {
+            return true;
         }
         if (CommodityEventModMemoRuntime.PLAN_ID.equals(planId)) {
             return CommodityEventModMemoRuntime.ready();
