@@ -29,7 +29,7 @@ class DeploymentIconCachePlanTest {
     }
 
     @Test
-    void exactGridKeepsTheOriginalAndInstallsAValidatedWrapper() {
+    void exactGridKeepsTheOriginalAndInstrumentsEveryReviewedMutation() {
         byte[] transformed = DeploymentIconCachePlan.transform(signature(), fixture());
         assertNotNull(transformed);
         ClassNode node = read(transformed);
@@ -41,6 +41,19 @@ class DeploymentIconCachePlanTest {
         assertEquals(1, calls(wrapper, DeploymentIconCacheRuntime.class.getName()
                 .replace('.', '/'), "record"));
         assertEquals(1, calls(wrapper, DeploymentIconCachePlan.ICON, "Öo0000"));
+        assertEquals(0, calls(wrapper, DeploymentIconCachePlan.TARGET_CLASS,
+                DeploymentIconCachePlan.MEMBERS_METHOD));
+        assertEquals(0, calls(wrapper, DeploymentIconCachePlan.TARGET_CLASS,
+                DeploymentIconCachePlan.LIST_METHOD));
+        String runtime = DeploymentIconCacheRuntime.class.getName().replace('.', '/');
+        assertEquals(1, calls(method(node, DeploymentIconCachePlan.CLEAR_METHOD),
+                runtime, "cleared"));
+        assertEquals(1, calls(method(node, DeploymentIconCachePlan.ADD_METHOD,
+                DeploymentIconCachePlan.ADD_MEMBER_DESCRIPTOR), runtime, "added"));
+        assertEquals(1, calls(method(node, DeploymentIconCachePlan.ADD_METHOD,
+                DeploymentIconCachePlan.ADD_COMBAT_ENTRY_DESCRIPTOR), runtime, "added"));
+        assertEquals(1, calls(method(node, DeploymentIconCachePlan.REMOVE_METHOD),
+                runtime, "removed"));
     }
 
     @Test
@@ -55,25 +68,47 @@ class DeploymentIconCachePlanTest {
     }
 
     @Test
-    void positiveCacheRequiresBothLiveSequencesToRemainIdentical() {
+    void ownerMutationsKeepPositiveAnswersCurrentWithoutListValidation() {
         Object owner = new Object();
         Object member = new Object();
         Object icon = new Object();
-        List<Object> members = new ArrayList<>(List.of(member, new Object()));
-        List<Object> items = new ArrayList<>(List.of(icon, new Object()));
         DeploymentIconCacheRuntime.installed();
         System.setProperty(DeploymentIconCacheRuntime.ENABLED_PROPERTY, "true");
 
-        assertNull(DeploymentIconCacheRuntime.lookup(owner, member, members, items));
-        DeploymentIconCacheRuntime.record(owner, member, icon, members, items);
-        assertSame(icon, DeploymentIconCacheRuntime.lookup(owner, member, members, items));
+        assertNull(DeploymentIconCacheRuntime.lookup(owner, member));
+        DeploymentIconCacheRuntime.added(owner, member);
+        assertNull(DeploymentIconCacheRuntime.lookup(owner, member));
+        DeploymentIconCacheRuntime.record(owner, member, icon);
+        assertSame(icon, DeploymentIconCacheRuntime.lookup(owner, member));
+        DeploymentIconCacheRuntime.removed(owner, member);
+        assertNull(DeploymentIconCacheRuntime.lookup(owner, member));
+        DeploymentIconCacheRuntime.record(owner, member, icon);
+        assertSame(icon, DeploymentIconCacheRuntime.lookup(owner, member));
+        DeploymentIconCacheRuntime.cleared(owner);
+        assertNull(DeploymentIconCacheRuntime.lookup(owner, member));
 
-        Object replacement = new Object();
-        items.set(0, replacement);
-        assertNull(DeploymentIconCacheRuntime.lookup(owner, member, members, items),
-                "same-size direct replacement invalidates the cache");
-        assertEquals(1L, DeploymentIconCacheRuntime.telemetry().get("hits"));
-        assertTrue((Long) DeploymentIconCacheRuntime.telemetry().get("delegated") >= 2L);
+        assertEquals("instrumented-owner-mutations",
+                DeploymentIconCacheRuntime.telemetry().get("validationStrategy"));
+        assertEquals(0L, DeploymentIconCacheRuntime.telemetry().get("validatedReferences"));
+        assertEquals(2L, DeploymentIconCacheRuntime.telemetry().get("hits"));
+        assertTrue((Long) DeploymentIconCacheRuntime.telemetry().get("delegated") >= 4L);
+    }
+
+    @Test
+    void duplicateAddsPreserveTheOriginalMethodsFirstMatchSemantics() {
+        Object owner = new Object();
+        Object member = new Object();
+        Object first = new Object();
+        DeploymentIconCacheRuntime.installed();
+        System.setProperty(DeploymentIconCacheRuntime.ENABLED_PROPERTY, "true");
+
+        DeploymentIconCacheRuntime.added(owner, member);
+        DeploymentIconCacheRuntime.record(owner, member, first);
+        DeploymentIconCacheRuntime.added(owner, member);
+        assertNull(DeploymentIconCacheRuntime.lookup(owner, member),
+                "an add must delegate once because an earlier duplicate may exist");
+        DeploymentIconCacheRuntime.record(owner, member, first);
+        assertSame(first, DeploymentIconCacheRuntime.lookup(owner, member));
     }
 
     @Test
@@ -82,9 +117,9 @@ class DeploymentIconCachePlanTest {
         List<Object> values = new ArrayList<>(List.of(new Object()));
         Object owner = new Object();
         Object member = values.get(0);
-        DeploymentIconCacheRuntime.record(owner, member, new Object(), values, values);
+        DeploymentIconCacheRuntime.record(owner, member, new Object());
         assertFalse(DeploymentIconCacheRuntime.enabled());
-        assertNull(DeploymentIconCacheRuntime.lookup(owner, member, values, values));
+        assertNull(DeploymentIconCacheRuntime.lookup(owner, member));
         assertEquals(0L, DeploymentIconCacheRuntime.telemetry().get("snapshots"));
     }
 
@@ -120,6 +155,22 @@ class DeploymentIconCachePlanTest {
                         new ClassSignature.Method(
                                 DeploymentIconCachePlan.LIST_METHOD,
                                 DeploymentIconCachePlan.LIST_DESCRIPTOR,
+                                Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method(
+                                DeploymentIconCachePlan.CLEAR_METHOD,
+                                DeploymentIconCachePlan.CLEAR_DESCRIPTOR,
+                                Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method(
+                                DeploymentIconCachePlan.ADD_METHOD,
+                                DeploymentIconCachePlan.ADD_MEMBER_DESCRIPTOR,
+                                Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method(
+                                DeploymentIconCachePlan.ADD_METHOD,
+                                DeploymentIconCachePlan.ADD_COMBAT_ENTRY_DESCRIPTOR,
+                                Opcodes.ACC_PUBLIC),
+                        new ClassSignature.Method(
+                                DeploymentIconCachePlan.REMOVE_METHOD,
+                                DeploymentIconCachePlan.REMOVE_DESCRIPTOR,
                                 Opcodes.ACC_PUBLIC)));
     }
 
@@ -145,8 +196,22 @@ class DeploymentIconCachePlanTest {
         list.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
         list.instructions.add(new InsnNode(Opcodes.ARETURN));
         list.accept(writer);
+        voidMethod(writer, DeploymentIconCachePlan.CLEAR_METHOD,
+                DeploymentIconCachePlan.CLEAR_DESCRIPTOR);
+        voidMethod(writer, DeploymentIconCachePlan.ADD_METHOD,
+                DeploymentIconCachePlan.ADD_MEMBER_DESCRIPTOR);
+        voidMethod(writer, DeploymentIconCachePlan.ADD_METHOD,
+                DeploymentIconCachePlan.ADD_COMBAT_ENTRY_DESCRIPTOR);
+        voidMethod(writer, DeploymentIconCachePlan.REMOVE_METHOD,
+                DeploymentIconCachePlan.REMOVE_DESCRIPTOR);
         writer.visitEnd();
         return writer.toByteArray();
+    }
+
+    private static void voidMethod(ClassWriter writer, String name, String descriptor) {
+        MethodNode method = new MethodNode(Opcodes.ACC_PUBLIC, name, descriptor, null, null);
+        method.instructions.add(new InsnNode(Opcodes.RETURN));
+        method.accept(writer);
     }
 
     private static ClassNode read(byte[] bytes) {
@@ -157,6 +222,12 @@ class DeploymentIconCachePlanTest {
 
     private static MethodNode method(ClassNode owner, String name) {
         return owner.methods.stream().filter(value -> name.equals(value.name)).findFirst().orElse(null);
+    }
+
+    private static MethodNode method(ClassNode owner, String name, String descriptor) {
+        return owner.methods.stream()
+                .filter(value -> name.equals(value.name) && descriptor.equals(value.desc))
+                .findFirst().orElse(null);
     }
 
     private static int calls(MethodNode method, String owner, String name) {

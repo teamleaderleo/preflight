@@ -211,7 +211,7 @@ final class AdapterTargetRegistry {
     /** The exact vanilla deployment member grid observed in the gameplay recording. */
     static AdapterTarget deploymentIconCacheTarget() {
         return new AdapterTarget(
-                "vanilla-deployment-member-icon-cache-0.98a-rc8",
+                "vanilla-deployment-member-icon-cache-v2-0.98a-rc8",
                 DeploymentIconCachePlan.TARGET_CLASS,
                 DeploymentIconCachePlan.ORIGINAL_SHA256,
                 DeploymentIconCacheRuntime.PLAN_ID,
@@ -224,7 +224,19 @@ final class AdapterTargetRegistry {
                                 DeploymentIconCachePlan.MEMBERS_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
                                 DeploymentIconCachePlan.LIST_METHOD,
-                                DeploymentIconCachePlan.LIST_DESCRIPTOR)),
+                                DeploymentIconCachePlan.LIST_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                DeploymentIconCachePlan.CLEAR_METHOD,
+                                DeploymentIconCachePlan.CLEAR_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                DeploymentIconCachePlan.ADD_METHOD,
+                                DeploymentIconCachePlan.ADD_MEMBER_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                DeploymentIconCachePlan.ADD_METHOD,
+                                DeploymentIconCachePlan.ADD_COMBAT_ENTRY_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                DeploymentIconCachePlan.REMOVE_METHOD,
+                                DeploymentIconCachePlan.REMOVE_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",

@@ -2,13 +2,12 @@ package dev.starsector.preflight.agent;
 
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Positive-only, snapshot-validated cache for the combat deployment member grid. */
+/** Positive-only, mutation-tracked cache for the combat deployment member grid. */
 public final class DeploymentIconCacheRuntime {
-    static final String PLAN_ID = "deployment-member-icon-cache-v1";
+    static final String PLAN_ID = "deployment-member-icon-cache-v2";
     public static final String ENABLED_PROPERTY = "preflight.deployment.iconCache";
 
     private static volatile boolean installed;
@@ -17,8 +16,10 @@ public final class DeploymentIconCacheRuntime {
     private static final Map<Object, Index> INDEXES = new IdentityHashMap<>();
     private static final AtomicLong HITS = new AtomicLong();
     private static final AtomicLong DELEGATED = new AtomicLong();
-    private static final AtomicLong SNAPSHOTS = new AtomicLong();
-    private static final AtomicLong VALIDATED_REFERENCES = new AtomicLong();
+    private static final AtomicLong ADDITIONS = new AtomicLong();
+    private static final AtomicLong REMOVALS = new AtomicLong();
+    private static final AtomicLong CLEARS = new AtomicLong();
+    private static final AtomicLong FALLBACK_RECORDS = new AtomicLong();
 
     private DeploymentIconCacheRuntime() {
     }
@@ -36,14 +37,14 @@ public final class DeploymentIconCacheRuntime {
     }
 
     /** Returns a cached positive candidate, or null so the preserved scan runs. */
-    public static Object lookup(Object owner, Object member, List<?> members, List<?> items) {
-        if (!enabled() || owner == null || member == null || members == null || items == null) {
+    public static Object lookup(Object owner, Object member) {
+        if (!enabled() || owner == null || member == null) {
             return null;
         }
         try {
             synchronized (DeploymentIconCacheRuntime.class) {
                 Index index = INDEXES.get(owner);
-                if (index == null || !current(index, members, items)) {
+                if (index == null) {
                     DELEGATED.incrementAndGet();
                     return null;
                 }
@@ -63,23 +64,16 @@ public final class DeploymentIconCacheRuntime {
         }
     }
 
-    /** Records only the original method's positive answer against exact live-list snapshots. */
-    public static void record(
-            Object owner, Object member, Object icon, List<?> members, List<?> items) {
-        if (!enabled() || owner == null || member == null || icon == null
-                || members == null || items == null) {
+    /** Records a positive answer returned by the preserved original lookup. */
+    public static void record(Object owner, Object member, Object icon) {
+        if (!enabled() || owner == null || member == null || icon == null) {
             return;
         }
         try {
             synchronized (DeploymentIconCacheRuntime.class) {
-                Index index = INDEXES.get(owner);
-                if (index == null || !current(index, members, items)) {
-                    index = new Index(
-                            members.toArray(), items.toArray(), new IdentityHashMap<>());
-                    INDEXES.put(owner, index);
-                    SNAPSHOTS.incrementAndGet();
-                }
+                Index index = INDEXES.computeIfAbsent(owner, ignored -> new Index());
                 index.icons.put(member, icon);
+                FALLBACK_RECORDS.incrementAndGet();
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
@@ -88,27 +82,64 @@ public final class DeploymentIconCacheRuntime {
         }
     }
 
-    private static boolean current(Index index, List<?> members, List<?> items) {
-        if (members.size() != index.members.length || items.size() != index.items.length) {
-            return false;
+    /** Invalidates a member after the exact reviewed owner successfully adds an icon for it. */
+    public static void added(Object owner, Object member) {
+        if (!enabled() || owner == null || member == null) {
+            return;
         }
-        long checked = 0;
-        for (int i = 0; i < index.members.length; i++) {
-            checked++;
-            if (members.get(i) != index.members[i]) {
-                VALIDATED_REFERENCES.addAndGet(checked);
-                return false;
+        try {
+            synchronized (DeploymentIconCacheRuntime.class) {
+                Index index = INDEXES.get(owner);
+                if (index != null) {
+                    // Do not install the newly-added icon directly. If a duplicate member exists,
+                    // vanilla returns the first icon already in the grid. The next query therefore
+                    // runs the preserved scan once and records its authoritative answer.
+                    index.icons.remove(member);
+                }
+                ADDITIONS.incrementAndGet();
             }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The preserved lookup remains available.
         }
-        for (int i = 0; i < index.items.length; i++) {
-            checked++;
-            if (items.get(i) != index.items[i]) {
-                VALIDATED_REFERENCES.addAndGet(checked);
-                return false;
+    }
+
+    /** Invalidates the removed member; a duplicate, if any, is repopulated by the original scan. */
+    public static void removed(Object owner, Object member) {
+        if (!enabled() || owner == null || member == null) {
+            return;
+        }
+        try {
+            synchronized (DeploymentIconCacheRuntime.class) {
+                Index index = INDEXES.get(owner);
+                if (index != null) {
+                    index.icons.remove(member);
+                }
+                REMOVALS.incrementAndGet();
             }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The preserved lookup remains available.
         }
-        VALIDATED_REFERENCES.addAndGet(checked);
-        return true;
+    }
+
+    /** Drops every answer after the exact reviewed owner successfully clears its grid. */
+    public static void cleared(Object owner) {
+        if (!enabled() || owner == null) {
+            return;
+        }
+        try {
+            synchronized (DeploymentIconCacheRuntime.class) {
+                INDEXES.remove(owner);
+                CLEARS.incrementAndGet();
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The preserved lookup remains available.
+        }
     }
 
     static Map<String, Object> telemetry() {
@@ -116,10 +147,17 @@ public final class DeploymentIconCacheRuntime {
         values.put("planId", PLAN_ID);
         values.put("installed", installed);
         values.put("enabled", enabled());
+        values.put("validationStrategy", "instrumented-owner-mutations");
         values.put("hits", HITS.get());
         values.put("delegated", DELEGATED.get());
-        values.put("snapshots", SNAPSHOTS.get());
-        values.put("validatedReferences", VALIDATED_REFERENCES.get());
+        values.put("additions", ADDITIONS.get());
+        values.put("removals", REMOVALS.get());
+        values.put("clears", CLEARS.get());
+        values.put("fallbackRecords", FALLBACK_RECORDS.get());
+        // Retain the old counters so report consumers can compare schemas directly. The new
+        // strategy deliberately performs neither whole-list snapshots nor reference validation.
+        values.put("snapshots", 0L);
+        values.put("validatedReferences", 0L);
         return values;
     }
 
@@ -130,10 +168,13 @@ public final class DeploymentIconCacheRuntime {
         }
         HITS.set(0);
         DELEGATED.set(0);
-        SNAPSHOTS.set(0);
-        VALIDATED_REFERENCES.set(0);
+        ADDITIONS.set(0);
+        REMOVALS.set(0);
+        CLEARS.set(0);
+        FALLBACK_RECORDS.set(0);
     }
 
-    private record Index(Object[] members, Object[] items, IdentityHashMap<Object, Object> icons) {
+    private static final class Index {
+        private final IdentityHashMap<Object, Object> icons = new IdentityHashMap<>();
     }
 }

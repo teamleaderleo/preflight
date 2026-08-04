@@ -149,9 +149,13 @@ exposes `served`, `missingServed`, `declined`, `rebuilds`, and `indexedEntities`
 `campaignEntityIndex` for a long-session review. A pilot has not proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
 also enables a positive-only deployment member-icon cache for the exact reviewed vanilla UI class;
-that cache validates both backing list sequences and the icon's current member before reuse, and
-reports separately under `deploymentIconCache`. The flag is rejected in adapter-off and probe
-modes and is implied by `--fast`.
+that cache invalidates answers after the class's reviewed add, remove, and clear methods, delegates
+once to the preserved scan to obtain each new authoritative answer, and still verifies the cached
+icon's current member before reuse. Hits no longer traverse either backing list. Its `additions`,
+`removals`, `clears`, `fallbackRecords`, and `validationStrategy` counters report separately under
+`deploymentIconCache`; the legacy `snapshots` and `validatedReferences` fields remain present at
+zero for report-schema continuity. The flag is rejected in adapter-off and probe modes and is
+implied by `--fast`.
 
 Enabled adapter mode also protects the exact reviewed refit simulator from stale merged
 `sim_opponents.csv` rows. Immediately before vanilla constructs either simulator fleet, Preflight
