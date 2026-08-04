@@ -96,7 +96,7 @@ class AiTweaksEngagementRangePlanTest {
                 "MOD",
                 target.sourceSha256(),
                 "",
-                "java/net/URLClassLoader",
+                "com/genir/aitweaks/launcher/loading/CoreLoader",
                 "");
         assertTrue(target.match(signature(), source).exact());
     }

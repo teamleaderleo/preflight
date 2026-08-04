@@ -5,7 +5,9 @@
 **Install:** Starsector 0.98a-RC8, AI Tweaks 2.2.10, current mod profile
 
 **Status:** exact adapter, executable behavior test, installed-archive test, and full repository
-verification pass. Live combat counters and sampling remain pending.
+verification pass. The first live pilot correctly retained the original because AI Tweaks erases its
+classes' protection-domain source while defining rewritten bytes. A fail-closed source-recovery fix
+is implemented; live combat counters and sampling remain pending.
 
 ## Runtime lead
 
@@ -33,6 +35,13 @@ non-static instance methods. Every call must consume the exact object's `weapon`
 beforehand. Class hash, archive hash, bytecode version, loader, method, call count, field access, or
 instruction-shape drift retains the original class.
 
+AI Tweaks does not let its `URLClassLoader` define core classes normally. It reads each class,
+applies two internal rewrite passes, then calls `defineClass` without a protection domain. The JVM
+therefore reports no code source even though the custom loader contains exactly one URL. Preflight
+now uses a sole `URLClassLoader` URL only when protection-domain source is absent, then applies the
+ordinary mod path and archive-hash gates to that URL. Zero or multiple loader URLs remain unknown
+and fail closed. The exact loader subclass is also pinned to AI Tweaks' `CoreLoader`.
+
 ## Verification before launch
 
 - an executable woven fixture changes the backing weapon range after construction and proves that
@@ -42,6 +51,12 @@ instruction-shape drift retains the original class.
 - the installed-archive integration test transforms the exact local AI Tweaks 2.2.10 class and
   confirms one original range call plus one snapshot hook remain;
 - full `mvn verify` passes with the exact installed Starsector core, sound, and AI Tweaks archives.
+
+The first live pilot `aitweaks-range-v1-20260805-043049` exited normally and transformed 31 other
+targets with no decline or contained failure. This target reported `source kind UNKNOWN`, absent
+archive hash, and the exact custom `CoreLoader`; `installed=false` and zero snapshots prove original
+AI Tweaks code ran. That observation supplied the source-recovery boundary above rather than being
+treated as permission to weaken source identity.
 
 No frame-time or speed claim is made before the live combat pilot. The shutdown report records
 installation and the number of target-selection snapshots, and JFR can independently confirm

@@ -171,7 +171,7 @@ final class AdapterTargetRegistry {
                 "MOD",
                 "aitweaks-core.jar",
                 "9f6179bcd2df2e3ce8cea2da79051c9f1be3c9b71712c6c28d7568b777ecf5b2",
-                "java/net/URLClassLoader",
+                "com/genir/aitweaks/launcher/loading/CoreLoader",
                 "");
     }
 

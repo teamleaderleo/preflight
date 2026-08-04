@@ -95,6 +95,32 @@ class AdapterSourceIdentityTest {
     }
 
     @Test
+    void recoversUnambiguousSourceFromSingleUrlLoaderWithoutProtectionDomain() throws Exception {
+        Path archive = temporaryDirectory.resolve("game/mods/AI Tweaks/jars/aitweaks-core.jar");
+        Path other = temporaryDirectory.resolve("game/mods/AI Tweaks/jars/other.jar");
+        Files.createDirectories(archive.getParent());
+        byte[] content = "ai-tweaks-core".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(archive, content);
+        Files.write(other, new byte[] {1});
+
+        try (URLClassLoader one = new URLClassLoader(
+                    new URL[] {archive.toUri().toURL()}, getClass().getClassLoader());
+                URLClassLoader ambiguous = new URLClassLoader(
+                    new URL[] {archive.toUri().toURL(), other.toUri().toURL()},
+                    getClass().getClassLoader())) {
+            AdapterSourceIdentity recovered = AdapterSourceIdentity.capture(one, null, true);
+            assertEquals("MOD", recovered.sourceKind());
+            assertTrue(recovered.sourceEndsWith("AI Tweaks/jars/aitweaks-core.jar"));
+            assertEquals(sha256(content), recovered.sourceSha256());
+
+            AdapterSourceIdentity refused = AdapterSourceIdentity.capture(ambiguous, null, true);
+            assertEquals("UNKNOWN", refused.sourceKind());
+            assertEquals("", refused.normalizedSource());
+            assertFalse(refused.sourceHashProblem().isBlank());
+        }
+    }
+
+    @Test
     void identicalClassBytesFromDifferentSourcesRemainDistinctInReport() throws Exception {
         ClassSignature signature = ClassSignature.parse(classBytes());
         AdapterSourceIdentity first = new AdapterSourceIdentity(

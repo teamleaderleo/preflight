@@ -354,7 +354,10 @@ that one short-lived `SelectTarget` recomputes the same range five times during 
 selection. `aitweaks-select-target-engagement-range-v1` snapshots the constructor's first result and
 reuses it for the other four calls, preserving changes between selection events and adding no
 cross-frame cache. The executable behavior test, exact installed-archive transform, fail-closed
-shape gates, and full verification pass. A live combat pilot is next; see
+shape gates, and full verification pass. The first live pilot retained original code because AI
+Tweaks' custom `CoreLoader` defines its twice-rewritten class without a protection domain. Preflight
+now recovers a source only from a sole URL on that loader, preserving the exact archive hash and
+custom-loader binding while refusing ambiguous URL sets. A live combat follow-up is next; see
 `docs/evidence/2026-08-05-aitweaks-engagement-range.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and

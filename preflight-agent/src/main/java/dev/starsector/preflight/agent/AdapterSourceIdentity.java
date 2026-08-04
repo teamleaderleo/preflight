@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import java.net.URI;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.security.ProtectionDomain;
 import java.util.Locale;
@@ -29,7 +30,7 @@ record AdapterSourceIdentity(
             ClassLoader loader,
             ProtectionDomain domain,
             boolean hashArchive) {
-        URL location = location(domain);
+        URL location = location(loader, domain);
         Path localPath = localPath(location);
         String raw = location == null ? "" : location.toString();
         String normalized = localPath == null
@@ -57,14 +58,28 @@ record AdapterSourceIdentity(
         return !expected.isBlank() && normalizedSource.toLowerCase(Locale.ROOT).endsWith(expected);
     }
 
-    private static URL location(ProtectionDomain domain) {
+    private static URL location(ClassLoader loader, ProtectionDomain domain) {
         try {
-            return domain == null || domain.getCodeSource() == null
-                    ? null
-                    : domain.getCodeSource().getLocation();
+            if (domain != null && domain.getCodeSource() != null) {
+                URL location = domain.getCodeSource().getLocation();
+                if (location != null) return location;
+            }
         } catch (RuntimeException ignored) {
-            return null;
+            // Try the loader-owned source below.
         }
+        // Some mod loaders read, rewrite, and define their classes without a ProtectionDomain.
+        // A URLClassLoader with exactly one URL still provides an unambiguous, hashable owner.
+        // Refuse zero or multiple URLs: choosing among several would turn a source binding into a
+        // guess, exactly what this gate exists to avoid.
+        try {
+            if (loader instanceof URLClassLoader urlLoader) {
+                URL[] urls = urlLoader.getURLs();
+                if (urls.length == 1) return urls[0];
+            }
+        } catch (RuntimeException ignored) {
+            // The caller records an unknown source and the exact target fails closed.
+        }
+        return null;
     }
 
     private static Path localPath(URL location) {
