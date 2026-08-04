@@ -113,7 +113,7 @@ RUN_ARGS=(run \
 if [[ "$STARTUP_CACHES" == true ]]; then
     RUN_ARGS+=(--fast)
 fi
-RUN_ARGS+=(--profile --single-chunk-recording)
+RUN_ARGS+=(--profile --single-chunk-recording --startup-phase-probe)
 if [[ "$GAMEPLAY_CACHES" == true && "$STARTUP_CACHES" != true ]]; then
     # --fast already includes this; the explicit flag keeps gameplay-only isolation available.
     RUN_ARGS+=(--campaign-entity-index)
@@ -150,7 +150,7 @@ if [[ -f "$OUT/adapter-health.json" ]]; then
 fi
 if [[ -f "$OUT/adapter.json" ]]; then
     echo "Probe telemetry:"
-    jq '{graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, frameTimes, campaignEntityIndex, deploymentIconCache, simOpponentSafety}' \
+    jq '{graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, frameTimes: (.frameTimes | .allActive |= del(.worstFrames) | .postStartupActive |= del(.worstFrames)), campaignEntityIndex, deploymentIconCache, simOpponentSafety}' \
         "$OUT/adapter.json"
 else
     echo "No adapter report was produced; inspect $OUT/wrapper.log" >&2

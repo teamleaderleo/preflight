@@ -25,6 +25,7 @@ public final class MacMemoryWarningRuntime {
     private static volatile long lastTotalMiB = -1L;
     private static volatile int lastAvailablePercent = -1;
     private static volatile long lastEstimatedAvailableMiB = -1L;
+    private static volatile String lastProbeFailure;
     private static volatile boolean installed;
 
     private MacMemoryWarningRuntime() {
@@ -48,6 +49,7 @@ public final class MacMemoryWarningRuntime {
         lastTotalMiB = totalMiB;
         lastAvailablePercent = -1;
         lastEstimatedAvailableMiB = -1L;
+        lastProbeFailure = null;
         if (reportedFreeMiB >= WARNING_THRESHOLD_MIB) {
             return false;
         }
@@ -76,6 +78,9 @@ public final class MacMemoryWarningRuntime {
         } catch (Throwable failure) {
             probeFailures.incrementAndGet();
             warningsPreserved.incrementAndGet();
+            String message = failure.getMessage();
+            lastProbeFailure = failure.getClass().getSimpleName()
+                    + (message == null || message.isBlank() ? "" : ": " + message);
             return true;
         }
     }
@@ -100,7 +105,7 @@ public final class MacMemoryWarningRuntime {
         Process process = builder.start();
         boolean interrupted = false;
         try {
-            if (!process.waitFor(250L, TimeUnit.MILLISECONDS)) {
+            if (!process.waitFor(2L, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 throw new IllegalStateException("macOS memory-pressure probe timed out");
             }
@@ -135,6 +140,7 @@ public final class MacMemoryWarningRuntime {
         result.put("lastTotalMiB", lastTotalMiB);
         result.put("lastAvailablePercent", lastAvailablePercent);
         result.put("lastEstimatedAvailableMiB", lastEstimatedAvailableMiB);
+        result.put("lastProbeFailure", lastProbeFailure);
         return result;
     }
 
@@ -149,6 +155,7 @@ public final class MacMemoryWarningRuntime {
         lastTotalMiB = -1L;
         lastAvailablePercent = -1;
         lastEstimatedAvailableMiB = -1L;
+        lastProbeFailure = null;
     }
 
     @FunctionalInterface

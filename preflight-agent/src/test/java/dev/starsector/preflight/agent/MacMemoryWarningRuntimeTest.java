@@ -47,6 +47,8 @@ class MacMemoryWarningRuntimeTest {
                 () -> { throw new IllegalStateException("probe unavailable"); }));
         assertEquals(2L, MacMemoryWarningRuntime.telemetry().get("warningsPreserved"));
         assertEquals(1L, MacMemoryWarningRuntime.telemetry().get("probeFailures"));
+        assertEquals("IllegalStateException: probe unavailable",
+                MacMemoryWarningRuntime.telemetry().get("lastProbeFailure"));
     }
 
     @Test
