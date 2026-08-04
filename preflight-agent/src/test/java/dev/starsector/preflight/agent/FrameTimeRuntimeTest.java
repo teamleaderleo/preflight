@@ -106,6 +106,35 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void separatesCampaignWarmupAndExcludesTitleCombatFromCampaignSessionCombat() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordBoundary(0L);
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(10L); // title demo transition
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(20L); // stable title demo
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(30L); // first campaign boundary
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(40L); // first-30-seconds campaign
+        FrameTimeRuntime.observeCampaign();
+        FrameTimeRuntime.recordBoundary(30_000_000_030L); // exactly 30 seconds later
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(30_000_000_040L); // campaign -> combat
+        FrameTimeRuntime.observeCombat();
+        FrameTimeRuntime.recordBoundary(30_000_000_050L); // campaign-session combat
+
+        Map<String, Object> telemetry = FrameTimeRuntime.telemetry();
+        assertEquals(30_000L, telemetry.get("campaignWarmupWindowMillis"));
+        assertEquals(0.00003, telemetry.get("firstCampaignBoundaryOffsetMillis"));
+        assertEquals(2L, map(telemetry.get("campaignActive")).get("frames"));
+        assertEquals(1L, map(telemetry.get("campaignFirst30SecondsActive")).get("frames"));
+        assertEquals(1L, map(telemetry.get("campaignAfter30SecondsActive")).get("frames"));
+        assertEquals(2L, map(telemetry.get("combatActive")).get("frames"));
+        assertEquals(1L, map(telemetry.get("combatAfterCampaignActive")).get("frames"));
+    }
+
+    @Test
     void disabledProbeIsAStableNoOp() {
         FrameTimeRuntime.beginSession(false);
         FrameTimeRuntime.observeActive(false);

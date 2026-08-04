@@ -4,9 +4,8 @@
 
 **Install:** Starsector 0.98a-RC8, AI Tweaks 2.2.10, current mod profile
 
-**Status:** the v1 exact range snapshot is live-validated. A v2 allocation rewrite passes executable
-behavior, exact installed-archive, and full repository verification; live allocation/FPS validation
-remains pending.
+**Status:** the v1 exact range snapshot and v2 live application/use are validated. A direct v2
+allocation comparison remains unavailable because JFR is unstable under this Rosetta JVM.
 
 ## Runtime lead
 
@@ -89,3 +88,16 @@ selection object, verifies one getter call and two constructor boxes, and exact 
 verification confirms all three cached fields. Full `mvn verify` passes. A live follow-up should
 confirm the `SelectTarget.selectTarget -> Float.valueOf` allocation stack disappears and collect a
 settled combat FPS distribution without JFR if Rosetta profiling remains unstable.
+
+## Live v2 result
+
+`aitweaks-boxing-fps-v3-20260805-062901` completed normally and installed the exact v2 adapter. It
+served **30,989** `SelectTarget` construction snapshots during campaign/combat play. All 33 reviewed
+transforms applied, with zero declines and zero contained failures. This is strong compatibility and
+use evidence: the transformed class linked, constructed, selected targets repeatedly, completed
+combat, and shut down cleanly.
+
+The run deliberately omitted JFR after the preceding Rosetta/HotSpot safepoint crash, so it does not
+directly prove that the sampled `Float.valueOf` stack disappeared or support a controlled FPS speed
+claim. The allocation removal remains structurally exact and executable-fixture verified; passive
+frame telemetry is retained for future controlled A/B work.

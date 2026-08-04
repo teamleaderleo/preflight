@@ -14,6 +14,7 @@ public final class FrameTimeRuntime {
     private static final long HISTOGRAM_BIN_NANOS = 100_000L;
     private static final int HISTOGRAM_REGULAR_BINS = 20_000;
     private static final int WORST_FRAME_LIMIT = 128;
+    private static final long CAMPAIGN_WARMUP_NANOS = 30_000_000_000L;
     private static final int STATE_UNKNOWN = 0;
     private static final int STATE_CAMPAIGN = 1;
     private static final int STATE_COMBAT = 2;
@@ -31,13 +32,17 @@ public final class FrameTimeRuntime {
     private static long stateTransitionIntervals;
     private static long firstBoundaryNanos = Long.MIN_VALUE;
     private static long firstBoundaryEpochMillis = -1L;
+    private static long firstCampaignBoundaryNanos = Long.MIN_VALUE;
     private static long lastBoundaryNanos = Long.MIN_VALUE;
     private static boolean lastBoundaryActive = true;
     private static int lastBoundaryState;
     private static final Distribution allActive = new Distribution();
     private static final Distribution postStartupActive = new Distribution();
     private static final Distribution campaignActive = new Distribution();
+    private static final Distribution campaignFirst30SecondsActive = new Distribution();
+    private static final Distribution campaignAfter30SecondsActive = new Distribution();
     private static final Distribution combatActive = new Distribution();
+    private static final Distribution combatAfterCampaignActive = new Distribution();
 
     private FrameTimeRuntime() {
     }
@@ -53,6 +58,7 @@ public final class FrameTimeRuntime {
         stateTransitionIntervals = 0L;
         firstBoundaryNanos = Long.MIN_VALUE;
         firstBoundaryEpochMillis = -1L;
+        firstCampaignBoundaryNanos = Long.MIN_VALUE;
         lastBoundaryNanos = Long.MIN_VALUE;
         lastBoundaryActive = true;
         lastBoundaryState = STATE_UNKNOWN;
@@ -62,7 +68,10 @@ public final class FrameTimeRuntime {
         allActive.reset();
         postStartupActive.reset();
         campaignActive.reset();
+        campaignFirst30SecondsActive.reset();
+        campaignAfter30SecondsActive.reset();
         combatActive.reset();
+        combatAfterCampaignActive.reset();
     }
 
     static synchronized void installed() {
@@ -145,12 +154,23 @@ public final class FrameTimeRuntime {
         long endOffset = now - firstBoundaryNanos;
         allActive.record(duration, endOffset);
         if (startupComplete) postStartupActive.record(duration, endOffset);
+        if (state == STATE_CAMPAIGN && firstCampaignBoundaryNanos == Long.MIN_VALUE) {
+            firstCampaignBoundaryNanos = now;
+        }
         if (state != lastBoundaryState) {
             stateTransitionIntervals++;
         } else if (state == STATE_CAMPAIGN) {
             campaignActive.record(duration, endOffset);
+            if (now - firstCampaignBoundaryNanos < CAMPAIGN_WARMUP_NANOS) {
+                campaignFirst30SecondsActive.record(duration, endOffset);
+            } else {
+                campaignAfter30SecondsActive.record(duration, endOffset);
+            }
         } else if (state == STATE_COMBAT) {
             combatActive.record(duration, endOffset);
+            if (firstCampaignBoundaryNanos != Long.MIN_VALUE) {
+                combatAfterCampaignActive.record(duration, endOffset);
+            }
         }
         lastBoundaryActive = active;
         lastBoundaryState = state;
@@ -168,13 +188,24 @@ public final class FrameTimeRuntime {
         result.put("invalidIntervalsDropped", invalidIntervals);
         result.put("stateTransitionIntervalsDropped", stateTransitionIntervals);
         result.put("firstBoundaryEpochMillis", firstBoundaryEpochMillis);
+        result.put("campaignWarmupWindowMillis", CAMPAIGN_WARMUP_NANOS / 1_000_000L);
+        result.put("firstCampaignBoundaryOffsetMillis",
+                firstCampaignBoundaryNanos == Long.MIN_VALUE || firstBoundaryNanos == Long.MIN_VALUE
+                        ? null
+                        : (firstCampaignBoundaryNanos - firstBoundaryNanos) / 1_000_000.0);
         result.put("histogramBinMicros", HISTOGRAM_BIN_NANOS / 1_000L);
         result.put("histogramOverflowMicros",
                 HISTOGRAM_REGULAR_BINS * HISTOGRAM_BIN_NANOS / 1_000L);
         result.put("allActive", allActive.toMap(firstBoundaryEpochMillis));
         result.put("postStartupActive", postStartupActive.toMap(firstBoundaryEpochMillis));
         result.put("campaignActive", campaignActive.toMap(firstBoundaryEpochMillis));
+        result.put("campaignFirst30SecondsActive",
+                campaignFirst30SecondsActive.toMap(firstBoundaryEpochMillis));
+        result.put("campaignAfter30SecondsActive",
+                campaignAfter30SecondsActive.toMap(firstBoundaryEpochMillis));
         result.put("combatActive", combatActive.toMap(firstBoundaryEpochMillis));
+        result.put("combatAfterCampaignActive",
+                combatAfterCampaignActive.toMap(firstBoundaryEpochMillis));
         return result;
     }
 

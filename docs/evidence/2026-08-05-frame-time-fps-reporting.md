@@ -1,7 +1,7 @@
 # Frame telemetry now reports FPS throughput and lows directly
 
 **Date:** 2026-08-05
-**Status:** implementation, unit verification, and first live readout complete
+**Status:** implementation, unit verification, and corrected live readout complete
 
 ## Why add FPS fields
 
@@ -61,8 +61,42 @@ existing transform instead, so two plans never compete for the same class. Synth
 exact installed-core transform pass. The first live attempt exposed an access-control defect before
 the main menu: the injected game class could not call package-private `markStartupComplete()`.
 The runtime entry point is now public, and the regression test defines the transformed game class in
-its own classloader and actually invokes `init(Map)` across the package boundary. Full verification
-passes; a fresh live readout remains pending.
+its own classloader and actually invokes `init(Map)` across the package boundary.
+
+## Corrected live readout and campaign warm-up
+
+Run `~/.starsector-preflight/runs/aitweaks-boxing-fps-v3-20260805-062901` completed normally without
+JFR. The lightweight startup marker reported `startupComplete=true`; all 33 reviewed transforms
+applied with zero declines or contained failures. The distributions no longer contain inherited
+multi-second loading/menu intervals.
+
+| distribution | frames | average FPS | median FPS | 1% low | 0.1% low | p95 / p99 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| all active | 8,635 | 55.25 | 62.89 | 14.33 | 2.69 | 29.6 / 69.8ms |
+| post-startup | 6,016 | 44.85 | 59.52 | 12.90 | 3.53 | 33.4 / 77.5ms |
+| campaign | 2,599 | 50.09 | 59.17 | 12.30 | 4.92 | 36.4 / 81.3ms |
+| raw combat call site | 2,947 | 52.90 | 59.17 | 16.81 | 4.06 | 30.3 / 59.5ms |
+
+The raw combat row is not yet a pure battle number. Starsector also advances a `CombatEngine` for
+the animated battle behind the title screen. Fifteen retained tail frames at 30--40 seconds are
+from that pre-campaign engine and contaminate the aggregate even though the call-site label itself
+is exact. The report now retains the raw distribution for compatibility and adds
+`combatAfterCampaignActive`, which begins only after this process has observed campaign play. It
+also splits campaign play into `campaignFirst30SecondsActive` and
+`campaignAfter30SecondsActive`. A menu-only mission can still use the raw distribution; a
+load-campaign-then-simulate pilot gets the uncontaminated session row.
+
+The operator independently described campaign play as jittery immediately after loading and smooth
+later. The retained worst campaign frames agree: they cluster from roughly 50 to 100 seconds after
+the first display boundary, then nearly disappear. The game reported the save load complete at
+46.219 seconds and immediately performed deferred Combat Chatter CSV/JSON reads around 48.5
+seconds. Later clusters are adjacent to Nexerelin fleet/economy/event work; 116 `RepTrackerEvent`
+lines occur in the 70-second region. These are leads, not causal attribution: neighboring log lines
+cannot prove what occupied a silent frame interval. The new fixed warm-up/steady distributions make
+the next optimization an actual A/B instead of another log-gap guess.
+
+Targeted tests pin the 30-second boundary, campaign-start timestamp, title-demo exclusion, and the
+existing pulse/transition behavior. Full `mvn verify` passes.
 
 ## Rosetta profiling boundary
 

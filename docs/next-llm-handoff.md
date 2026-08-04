@@ -404,10 +404,23 @@ sampled allocation weight. `aitweaks-select-target-range-snapshot-v2` stores box
 search ranges once per short-lived selection object and substitutes field reads at the two
 primary/current sites and the candidate loop. Values, ordering, predicates, and changes between
 selection events remain unchanged. The transform requires the exact three boxing shapes in addition
-to all prior class/archive/loader/call-count gates. Executable behavior, exact installed-archive,
-and full verification pass; the next live combat should confirm the allocation stack disappears and
-collect settled FPS without JFR if Rosetta's sampler remains unstable. See
+to all prior class/archive/loader/call-count gates. Executable behavior and exact installed-archive
+verification pass. A non-JFR live pilot then installed and exercised v2 for **30,989** target
+selections, completed normally, and reported all 33 transforms with zero decline or contained
+failure. That proves live linkage/use compatibility, but not the disappearance of the sampled
+allocation stack. See
 `docs/evidence/2026-08-05-aitweaks-engagement-range.md`.
+
+**Frame pacing.** The same clean pilot fixed the earlier access-control defect and produced the
+first valid post-startup readout: campaign averaged 50.09 FPS with a 59.17 median, 12.30 FPS 1% low,
+and 81.3ms p99. The user's observation that campaign play jitters just after save load and then
+smooths out is present in the retained tail timestamps: bad-frame clusters are front-loaded and
+nearly vanish later. Save completion at 46.219s is followed by deferred Combat Chatter data reads;
+later clusters are near Nexerelin event/economy activity, but log adjacency is not causation.
+Telemetry now splits the first 30 campaign seconds from later play. It also adds a combat-after-
+campaign distribution because Starsector's title screen runs a background `CombatEngine` that had
+contaminated the raw combat bucket. See
+`docs/evidence/2026-08-05-frame-time-fps-reporting.md`.
 
 **Janino.** `codex/janino-profile-cache` wraps the exact complete-map `generateBytecodes` seam and
 leaves Janino definition intact. The context content-hashes all ordered mod archives, loose Java and
