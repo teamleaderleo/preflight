@@ -16,6 +16,13 @@ exact installed-archive checks pass. A live campaign smoke then completed with e
 browsed concurrently. Evidence:
 `docs/evidence/2026-08-04-resource-source-hint-race.md`.
 
+The same campaign recording exposed the next in-game target: MagicLib paintjob unlock checks occupy
+101 of 1,055 campaign main-thread samples (9.57%) because every check copies a `LinkedHashSet` into
+an `ArrayList` and scans it. An exact MagicLib 1.5.6 adapter now queries the authoritative set with a
+preserved-original fallback. Offline and installed-archive checks pass; it needs one live campaign
+pilot before a speed claim. Evidence:
+`docs/evidence/2026-08-04-magiclib-paintjob-campaign-hotspot.md`.
+
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:
 
 | | seconds |

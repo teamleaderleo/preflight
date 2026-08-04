@@ -201,6 +201,23 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** MagicLib 1.5.6's allocation-heavy unlocked-paintjob extension. */
+    static AdapterTarget magicLibPaintjobTarget() {
+        return new AdapterTarget(
+                "magiclib-1.5.6-paintjob-unlocked-set",
+                MagicLibPaintjobPlan.TARGET_CLASS,
+                MagicLibPaintjobPlan.ORIGINAL_SHA256,
+                MagicLibPaintjobRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MagicLibPaintjobPlan.LOOKUP_METHOD,
+                        MagicLibPaintjobPlan.LOOKUP_DESCRIPTOR)),
+                "MOD",
+                "MagicLib.jar",
+                "af028fcd67dd537024eab0082d3e78cac8508355dbd5f8731b6c243c60dae0d5",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -838,7 +855,8 @@ final class AdapterTargetRegistry {
                 .withTarget(deploymentIconCacheTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
-                .withTarget(sourceHintIsolationTarget());
+                .withTarget(sourceHintIsolationTarget())
+                .withTarget(magicLibPaintjobTarget());
     }
 
     private AdapterTargetRegistry withTarget(AdapterTarget builtIn) {
