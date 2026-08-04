@@ -80,6 +80,13 @@ the other campaign caches by `--fast`/`--campaign-entity-index`. The same clean 
 served 15,970,331 unchanged calls and delegated 197,095 changed/first calls: a 98.78% hit rate with
 no reported failure. `reapplyEventMod` fell from 10.76% to 7.07% of campaign samples across
 non-identical runs; an identical-save A/B is still needed for precise frame-time attribution.
+That recording showed the v1 hit path itself still spending 5.17% of campaign samples in the
+four `MutableStat` getters and combined-quantity arithmetic. An offline-validated v2 exact-gates a
+read-only dirty accessor on the shipped `MutableStat`, then checks clean flags, backing-object
+identity, and authoritative public float bits directly. Hits skip all four getters and the quantity
+calculation; every dirty/direct-write/object/description/econ-unit change still delegates. Missing
+accessor linkage disables the memo and falls through to vanilla. Exact installed-class execution and
+full `mvn verify` pass; a short campaign pilot is the remaining live gate.
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
 Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start to main menu:

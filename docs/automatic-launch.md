@@ -154,7 +154,11 @@ recreates the same `eMod` even when its trade quantity, available value, prior e
 commodity econ unit are unchanged. Preflight stores those four post-vanilla values in transient
 per-commodity fields, also guards the exact event-mod object and description, and skips only an
 exact match. The first call and every changed input delegate
-to the preserved method. `commodityEventModMemo` reports hits and delegations, and
+to the preserved method. On a valid memo entry, an exact companion rewrite adds a read-only dirty
+accessor to the shipped `MutableStat`; clean backing stats are checked through their object identity
+and authoritative public value without calling four getters or recomputing the combined quantity.
+If that accessor is unavailable, the memo disables itself and keeps vanilla. `commodityEventModMemo`
+reports hits, delegations, and `fastValidationUnavailable`, and
 `-Dpreflight.campaign.eventModMemo.disabled=true` disables this memo alone.
 A pilot has not proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag

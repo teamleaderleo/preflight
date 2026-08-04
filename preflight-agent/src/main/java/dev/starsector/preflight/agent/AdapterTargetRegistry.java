@@ -464,6 +464,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Read-only dirty-state seam used to make unchanged commodity memo hits constant work. */
+    static AdapterTarget mutableStatDirtyAccessorTarget() {
+        return new AdapterTarget(
+                "vanilla-mutable-stat-dirty-accessor-0.98a-rc8",
+                MutableStatDirtyAccessorPlan.TARGET_CLASS,
+                MutableStatDirtyAccessorPlan.ORIGINAL_SHA256,
+                CommodityEventModMemoRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        MutableStatDirtyAccessorPlan.VALUE_METHOD,
+                        MutableStatDirtyAccessorPlan.VALUE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The exact refit simulator method that consumes the merged simulation-opponent id list. */
     static AdapterTarget simOpponentSafetyTarget() {
         return new AdapterTarget(
@@ -839,7 +856,8 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withCommodityEventModMemoTarget() {
-        return withTarget(commodityEventModMemoTarget());
+        return withTarget(commodityEventModMemoTarget())
+                .withTarget(mutableStatDirtyAccessorTarget());
     }
 
     AdapterTargetRegistry withSimOpponentSafetyTarget() {
@@ -1007,6 +1025,7 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignEntityIdMutationTarget())
                 .withTarget(deploymentIconCacheTarget())
                 .withTarget(commodityEventModMemoTarget())
+                .withTarget(mutableStatDirtyAccessorTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())

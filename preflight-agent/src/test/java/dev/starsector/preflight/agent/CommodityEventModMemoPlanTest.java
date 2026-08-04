@@ -47,14 +47,19 @@ class CommodityEventModMemoPlanTest {
         assertEquals(1, calls(wrapper, RUNTIME, "delegated"));
         assertEquals(2, calls(wrapper, CommodityEventModMemoPlan.TARGET_CLASS,
                 "preflight$original$reapplyEventMod"));
-        assertEquals(2, calls(wrapper, CommodityEventModMemoPlan.TARGET_CLASS,
+        assertEquals(1, calls(wrapper, CommodityEventModMemoPlan.TARGET_CLASS,
                 CommodityEventModMemoPlan.QUANTITY_METHOD));
-        assertEquals(2, calls(wrapper, MUTABLE_TEMP, "getModifiedValue"));
+        assertEquals(1, calls(wrapper, MUTABLE_TEMP, "getModifiedValue"));
+        assertEquals(4, calls(wrapper, "com/fs/starfarer/api/combat/MutableStat",
+                MutableStatDirtyAccessorPlan.ACCESSOR));
+        assertEquals(1, calls(wrapper, RUNTIME, "fastValidationUnavailable"));
+        assertEquals(1, wrapper.tryCatchBlocks.stream()
+                .filter(block -> "java/lang/LinkageError".equals(block.type)).count());
 
         List<FieldNode> memoFields = owner.fields.stream()
                 .filter(field -> field.name.startsWith("preflight$eventMod"))
                 .toList();
-        assertEquals(7, memoFields.size());
+        assertEquals(14, memoFields.size());
         assertTrue(memoFields.stream().allMatch(field -> (field.access & Opcodes.ACC_PRIVATE) != 0));
         assertTrue(memoFields.stream().allMatch(field -> (field.access & Opcodes.ACC_TRANSIENT) != 0));
     }
@@ -85,8 +90,12 @@ class CommodityEventModMemoPlanTest {
         CommodityEventModMemoRuntime.delegated();
         assertEquals(2L, CommodityEventModMemoRuntime.telemetry().get("hits"));
         assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
-        assertEquals("exact-post-state-fingerprint",
+        assertEquals("clean-stat-fast-path-and-exact-post-state-fingerprint",
                 CommodityEventModMemoRuntime.telemetry().get("validationStrategy"));
+        CommodityEventModMemoRuntime.fastValidationUnavailable();
+        assertFalse(CommodityEventModMemoRuntime.enabled());
+        assertEquals(1L,
+                CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
         System.setProperty(CommodityEventModMemoRuntime.DISABLED_PROPERTY, "true");
         CommodityEventModMemoRuntime.beginSession();
         CommodityEventModMemoRuntime.installed();
@@ -105,6 +114,25 @@ class CommodityEventModMemoPlanTest {
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
                 "app");
         assertTrue(target.match(signature(), source).exact());
+
+        AdapterTarget mutable = AdapterTargetRegistry.mutableStatDirtyAccessorTarget();
+        AdapterSourceIdentity apiSource = new AdapterSourceIdentity(
+                "file:/game/Contents/Resources/Java/starfarer.api.jar",
+                "/game/contents/resources/java/starfarer.api.jar",
+                "STARSECTOR_CORE",
+                mutable.sourceSha256(),
+                "",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+        assertTrue(mutable.match(new ClassSignature(
+                MutableStatDirtyAccessorPlan.TARGET_CLASS,
+                MutableStatDirtyAccessorPlan.ORIGINAL_SHA256,
+                61,
+                Opcodes.ACC_PUBLIC,
+                List.of(new ClassSignature.Method(
+                        MutableStatDirtyAccessorPlan.VALUE_METHOD,
+                        MutableStatDirtyAccessorPlan.VALUE_DESCRIPTOR,
+                        Opcodes.ACC_PUBLIC))), apiSource).exact());
     }
 
     private static ClassSignature signature() {

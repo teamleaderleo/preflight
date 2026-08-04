@@ -13,6 +13,7 @@ import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TryCatchBlockNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /** Skips vanilla's per-frame event-mod rewrite when every input and its prior output are unchanged. */
@@ -40,11 +41,22 @@ final class CommodityEventModMemoPlan {
             "com/fs/starfarer/api/combat/MutableStatWithTempMods";
     private static final String STAT_MOD = "com/fs/starfarer/api/combat/MutableStat$StatMod";
     private static final String COMMODITY = "com/fs/starfarer/loading/return";
+    private static final String TRADE_FIELD = "tradeMod";
+    private static final String TRADE_PLUS_FIELD = "tradeModPlus";
+    private static final String TRADE_MINUS_FIELD = "tradeModMinus";
+    private static final String AVAILABLE_FIELD = "available";
     private static final String VALID = "preflight$eventModMemoValid";
     private static final String QUANTITY = "preflight$eventModQuantityBits";
     private static final String AVAILABLE = "preflight$eventModAvailableBits";
+    private static final String TRADE = "preflight$eventModTradeBits";
+    private static final String TRADE_PLUS = "preflight$eventModTradePlusBits";
+    private static final String TRADE_MINUS = "preflight$eventModTradeMinusBits";
     private static final String EVENT_MOD = "preflight$eventModValueBits";
     private static final String ECON_UNIT = "preflight$eventModEconUnitBits";
+    private static final String AVAILABLE_STAT_REF = "preflight$eventModAvailableStatRef";
+    private static final String TRADE_STAT_REF = "preflight$eventModTradeStatRef";
+    private static final String TRADE_PLUS_STAT_REF = "preflight$eventModTradePlusStatRef";
+    private static final String TRADE_MINUS_STAT_REF = "preflight$eventModTradeMinusStatRef";
     private static final String EVENT_MOD_REF = "preflight$eventModRef";
     private static final String EVENT_MOD_DESC = "preflight$eventModDescriptionRef";
 
@@ -86,6 +98,9 @@ final class CommodityEventModMemoPlan {
         MethodNode method = new MethodNode(Opcodes.ASM9, access, METHOD, DESCRIPTOR, null, null);
         LabelNode enabled = new LabelNode();
         LabelNode delegated = new LabelNode();
+        LabelNode fastStart = new LabelNode();
+        LabelNode fastEnd = new LabelNode();
+        LabelNode linkageFailure = new LabelNode();
 
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "enabled", "()Z", false));
@@ -94,19 +109,50 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(new InsnNode(Opcodes.RETURN));
 
         method.instructions.add(enabled);
-        captureFingerprint(method);
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, VALID, "Z"));
         method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, delegated));
-        compare(method, QUANTITY, 1, delegated);
-        compare(method, AVAILABLE, 3, delegated);
-        compare(method, EVENT_MOD, 5, delegated);
-        compare(method, ECON_UNIT, 6, delegated);
+
+        // A clean MutableStat's public modified value is authoritative. Compare those values and
+        // their owning objects directly, avoiding four getModifiedValue calls and the combined
+        // quantity arithmetic on the overwhelmingly common unchanged path. The accessor is added
+        // only to the exact reviewed MutableStat; any missing linkage disables this memo and
+        // delegates forever.
+        method.instructions.add(fastStart);
+        loadStat(method, TRADE_FIELD, 8);
+        loadStat(method, TRADE_PLUS_FIELD, 9);
+        loadStat(method, TRADE_MINUS_FIELD, 10);
+        loadStat(method, AVAILABLE_FIELD, 2);
+        compareReference(method, TRADE_STAT_REF, 8, delegated);
+        compareReference(method, TRADE_PLUS_STAT_REF, 9, delegated);
+        compareReference(method, TRADE_MINUS_STAT_REF, 10, delegated);
+        compareReference(method, AVAILABLE_STAT_REF, 2, delegated);
+        compareClean(method, 8, delegated);
+        compareClean(method, 9, delegated);
+        compareClean(method, 10, delegated);
+        compareClean(method, 2, delegated);
+        compareStatValue(method, TRADE, 8, delegated);
+        compareStatValue(method, TRADE_PLUS, 9, delegated);
+        compareStatValue(method, TRADE_MINUS, 10, delegated);
+        compareStatValue(method, AVAILABLE, 2, delegated);
+
+        captureEventMod(method);
         compareReference(method, EVENT_MOD_REF, 4, delegated);
+        compare(method, EVENT_MOD, 5, delegated);
         compareReference(method, EVENT_MOD_DESC, 7, delegated);
+        compareEconUnitIfRelevant(method, delegated);
+        method.instructions.add(fastEnd);
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "hit", "()V", false));
         method.instructions.add(new InsnNode(Opcodes.RETURN));
+
+        method.instructions.add(linkageFailure);
+        method.instructions.add(new InsnNode(Opcodes.POP));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "fastValidationUnavailable", "()V", false));
+        method.instructions.add(new JumpInsnNode(Opcodes.GOTO, delegated));
+        method.tryCatchBlocks.add(new TryCatchBlockNode(
+                fastStart, fastEnd, linkageFailure, "java/lang/LinkageError"));
 
         method.instructions.add(delegated);
         method.instructions.add(new MethodInsnNode(
@@ -117,8 +163,15 @@ final class CommodityEventModMemoPlan {
         captureFingerprint(method);
         store(method, QUANTITY, 1);
         store(method, AVAILABLE, 3);
+        storeStatValue(method, TRADE, 8);
+        storeStatValue(method, TRADE_PLUS, 9);
+        storeStatValue(method, TRADE_MINUS, 10);
         store(method, EVENT_MOD, 5);
         store(method, ECON_UNIT, 6);
+        storeReference(method, AVAILABLE_STAT_REF, 2);
+        storeReference(method, TRADE_STAT_REF, 8);
+        storeReference(method, TRADE_PLUS_STAT_REF, 9);
+        storeReference(method, TRADE_MINUS_STAT_REF, 10);
         storeReference(method, EVENT_MOD_REF, 4);
         storeReference(method, EVENT_MOD_DESC, 7);
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
@@ -134,14 +187,34 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL, TARGET_CLASS, QUANTITY_METHOD, QUANTITY_DESCRIPTOR, false));
         method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 1));
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKEVIRTUAL, TARGET_CLASS, AVAILABLE_METHOD, AVAILABLE_DESCRIPTOR, false));
-        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 2));
+        loadStat(method, TRADE_FIELD, 8);
+        loadStat(method, TRADE_PLUS_FIELD, 9);
+        loadStat(method, TRADE_MINUS_FIELD, 10);
+        loadStat(method, AVAILABLE_FIELD, 2);
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL, MUTABLE_TEMP, "getModifiedValue", "()F", false));
         method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 3));
+        captureEventMod(method);
+
+        method.instructions.add(new InsnNode(Opcodes.FCONST_0));
+        method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 6));
+        LabelNode noQuantity = new LabelNode();
+        method.instructions.add(new VarInsnNode(Opcodes.FLOAD, 1));
+        method.instructions.add(new InsnNode(Opcodes.FCONST_0));
+        method.instructions.add(new InsnNode(Opcodes.FCMPL));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, noQuantity));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL, TARGET_CLASS, COMMODITY_METHOD, COMMODITY_DESCRIPTOR, false));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL, COMMODITY, "getEconUnit", "()F", false));
+        method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 6));
+        method.instructions.add(noQuantity);
+    }
+
+    /** Captures the current eMod object, value, and description into locals 4, 5, and 7. */
+    private static void captureEventMod(MethodNode method) {
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
         method.instructions.add(new LdcInsnNode("eMod"));
         method.instructions.add(new MethodInsnNode(
@@ -164,11 +237,14 @@ final class CommodityEventModMemoPlan {
                 Opcodes.INVOKEVIRTUAL, STAT_MOD, "getDesc", "()Ljava/lang/String;", false));
         method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 7));
         method.instructions.add(noEventMod);
+    }
 
-        method.instructions.add(new InsnNode(Opcodes.FCONST_0));
-        method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 6));
+    private static void compareEconUnitIfRelevant(MethodNode method, LabelNode mismatch) {
         LabelNode noQuantity = new LabelNode();
-        method.instructions.add(new VarInsnNode(Opcodes.FLOAD, 1));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, QUANTITY, "I"));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, "java/lang/Float", "intBitsToFloat", "(I)F", false));
         method.instructions.add(new InsnNode(Opcodes.FCONST_0));
         method.instructions.add(new InsnNode(Opcodes.FCMPL));
         method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, noQuantity));
@@ -178,7 +254,46 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKEVIRTUAL, COMMODITY, "getEconUnit", "()F", false));
         method.instructions.add(new VarInsnNode(Opcodes.FSTORE, 6));
+        compare(method, ECON_UNIT, 6, mismatch);
         method.instructions.add(noQuantity);
+    }
+
+    private static void loadStat(MethodNode method, String field, int local) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.GETFIELD, TARGET_CLASS, field, "L" + MUTABLE_TEMP + ";"));
+        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, local));
+    }
+
+    private static void compareClean(MethodNode method, int local, LabelNode mismatch) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, local));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL,
+                MUTABLE,
+                MutableStatDirtyAccessorPlan.ACCESSOR,
+                MutableStatDirtyAccessorPlan.ACCESSOR_DESCRIPTOR,
+                false));
+        method.instructions.add(new JumpInsnNode(Opcodes.IFNE, mismatch));
+    }
+
+    private static void compareStatValue(
+            MethodNode method, String memoField, int local, LabelNode mismatch) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, memoField, "I"));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, local));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, MUTABLE, "modified", "F"));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, "java/lang/Float", "floatToIntBits", "(F)I", false));
+        method.instructions.add(new JumpInsnNode(Opcodes.IF_ICMPNE, mismatch));
+    }
+
+    private static void storeStatValue(MethodNode method, String memoField, int local) {
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, local));
+        method.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, MUTABLE, "modified", "F"));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, "java/lang/Float", "floatToIntBits", "(F)I", false));
+        method.instructions.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS, memoField, "I"));
     }
 
     private static void compare(MethodNode method, String field, int local, LabelNode mismatch) {
@@ -225,8 +340,15 @@ final class CommodityEventModMemoPlan {
         owner.fields.add(new FieldNode(access, VALID, "Z", null, null));
         owner.fields.add(new FieldNode(access, QUANTITY, "I", null, null));
         owner.fields.add(new FieldNode(access, AVAILABLE, "I", null, null));
+        owner.fields.add(new FieldNode(access, TRADE, "I", null, null));
+        owner.fields.add(new FieldNode(access, TRADE_PLUS, "I", null, null));
+        owner.fields.add(new FieldNode(access, TRADE_MINUS, "I", null, null));
         owner.fields.add(new FieldNode(access, EVENT_MOD, "I", null, null));
         owner.fields.add(new FieldNode(access, ECON_UNIT, "I", null, null));
+        owner.fields.add(new FieldNode(access, AVAILABLE_STAT_REF, "Ljava/lang/Object;", null, null));
+        owner.fields.add(new FieldNode(access, TRADE_STAT_REF, "Ljava/lang/Object;", null, null));
+        owner.fields.add(new FieldNode(access, TRADE_PLUS_STAT_REF, "Ljava/lang/Object;", null, null));
+        owner.fields.add(new FieldNode(access, TRADE_MINUS_STAT_REF, "Ljava/lang/Object;", null, null));
         owner.fields.add(new FieldNode(access, EVENT_MOD_REF, "Ljava/lang/Object;", null, null));
         owner.fields.add(new FieldNode(access, EVENT_MOD_DESC, "Ljava/lang/Object;", null, null));
     }

@@ -15,6 +15,7 @@ public final class CommodityEventModMemoRuntime {
     // avoid putting an atomic read-modify-write on every commodity's frame-time fast path.
     private static long hits;
     private static long delegated;
+    private static long fastValidationUnavailable;
 
     private CommodityEventModMemoRuntime() {
     }
@@ -41,14 +42,21 @@ public final class CommodityEventModMemoRuntime {
         delegated++;
     }
 
+    /** Permanently fails open if the exact MutableStat accessor was not installed. */
+    public static void fastValidationUnavailable() {
+        fastValidationUnavailable++;
+        enabled = false;
+    }
+
     static Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("planId", PLAN_ID);
         values.put("installed", installed);
         values.put("enabled", enabled());
-        values.put("validationStrategy", "exact-post-state-fingerprint");
+        values.put("validationStrategy", "clean-stat-fast-path-and-exact-post-state-fingerprint");
         values.put("hits", hits);
         values.put("delegated", delegated);
+        values.put("fastValidationUnavailable", fastValidationUnavailable);
         return values;
     }
 
@@ -57,5 +65,6 @@ public final class CommodityEventModMemoRuntime {
         enabled = false;
         hits = 0L;
         delegated = 0L;
+        fastValidationUnavailable = 0L;
     }
 }

@@ -60,6 +60,18 @@ class CommodityEventModMemoInstalledAdapterIT {
         System.setProperty(CommodityEventModMemoRuntime.ENABLED_PROPERTY, "true");
         byte[] transformed = CommodityEventModMemoPlan.transform(signature, original);
         assertNotNull(transformed);
+        byte[] mutableOriginal;
+        Path apiArchive = archive.resolveSibling("starfarer.api.jar");
+        try (JarFile jar = new JarFile(apiArchive.toFile())) {
+            var entry = jar.getJarEntry(MutableStatDirtyAccessorPlan.TARGET_CLASS + ".class");
+            assertNotNull(entry);
+            try (var input = jar.getInputStream(entry)) {
+                mutableOriginal = input.readAllBytes();
+            }
+        }
+        byte[] mutableTransformed = MutableStatDirtyAccessorPlan.transform(
+                ClassSignature.parse(mutableOriginal), mutableOriginal);
+        assertNotNull(mutableTransformed);
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
@@ -85,6 +97,8 @@ class CommodityEventModMemoInstalledAdapterIT {
         try (InstalledLoader loader = new InstalledLoader(
                 classpath.urls(), Map.of(
                         CommodityEventModMemoPlan.TARGET_CLASS.replace('/', '.'), executable,
+                        MutableStatDirtyAccessorPlan.TARGET_CLASS.replace('/', '.'),
+                        mutableTransformed,
                         "com.fs.starfarer.loading.return", commodityStub()))) {
             Class<?> commodityType = loader.loadAndResolve(
                     CommodityEventModMemoPlan.TARGET_CLASS.replace('/', '.'));
@@ -107,8 +121,68 @@ class CommodityEventModMemoInstalledAdapterIT {
                     statConstructor.newInstance(0f),
                     statConstructor.newInstance(0f),
                     commoditySpecType.getConstructor(float.class).newInstance(1f));
-            assertEquals(5L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
-            assertEquals(5L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+            assertEquals(7L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+            assertEquals(7L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+            assertEquals(0L,
+                    CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
+        }
+    }
+
+    @Test
+    void missingDirtyAccessorDisablesMemoAndContinuesWithVanilla() throws Throwable {
+        String configured = System.getProperty("preflight.starsector.core.jar", "").trim();
+        Assumptions.assumeTrue(!configured.isEmpty(),
+                "set -Dpreflight.starsector.core.jar=<starfarer_obf.jar>");
+        Path archive = Path.of(configured).toAbsolutePath().normalize();
+        Assumptions.assumeTrue(Files.isRegularFile(archive));
+
+        byte[] original;
+        try (JarFile jar = new JarFile(archive.toFile())) {
+            var entry = jar.getJarEntry(CommodityEventModMemoPlan.TARGET_CLASS + ".class");
+            assertNotNull(entry);
+            try (var input = jar.getInputStream(entry)) {
+                original = input.readAllBytes();
+            }
+        }
+        System.setProperty(CommodityEventModMemoRuntime.ENABLED_PROPERTY, "true");
+        byte[] transformed = CommodityEventModMemoPlan.transform(
+                ClassSignature.parse(original), original);
+        assertNotNull(transformed);
+        byte[] executable = withTestExercise(transformed);
+        ListWithArchive classpath = gameClasspath(archive);
+
+        // Deliberately omit MutableStatDirtyAccessorPlan's transformed class. The second call sees
+        // the missing method, catches LinkageError inside the wrapper, and permanently fails open.
+        try (InstalledLoader loader = new InstalledLoader(
+                classpath.urls(), Map.of(
+                        CommodityEventModMemoPlan.TARGET_CLASS.replace('/', '.'), executable,
+                        "com.fs.starfarer.loading.return", commodityStub()))) {
+            Class<?> commodityType = loader.loadAndResolve(
+                    CommodityEventModMemoPlan.TARGET_CLASS.replace('/', '.'));
+            Class<?> statType = loader.loadClass(
+                    "com.fs.starfarer.api.combat.MutableStatWithTempMods");
+            Class<?> commoditySpecType = loader.loadClass("com.fs.starfarer.loading.return");
+            Object commodity = unsafe().allocateInstance(commodityType);
+            var statConstructor = statType.getConstructor(float.class);
+            Object available = statConstructor.newInstance(0f);
+            var exercise = MethodHandles.publicLookup().findStatic(
+                    commodityType,
+                    "preflight$testExercise",
+                    MethodType.methodType(void.class,
+                            Object.class, Object.class, Object.class, Object.class, Object.class,
+                            Object.class));
+            exercise.invokeWithArguments(
+                    commodity,
+                    available,
+                    statConstructor.newInstance(0f),
+                    statConstructor.newInstance(0f),
+                    statConstructor.newInstance(0f),
+                    commoditySpecType.getConstructor(float.class).newInstance(1f));
+            assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+            assertEquals(2L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+            assertEquals(1L,
+                    CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
+            assertEquals(false, CommodityEventModMemoRuntime.telemetry().get("enabled"));
         }
     }
 
@@ -191,6 +265,33 @@ class CommodityEventModMemoInstalledAdapterIT {
                 "modifyFlat",
                 "(Ljava/lang/String;FLjava/lang/String;)V",
                 false));
+        invokeReapply(method);
+        invokeReapply(method);
+        // A direct write to MutableStat's public aggregate does not set its dirty bit. The exact
+        // value snapshot must still reject the hit just as getModifiedValue would observe it.
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        method.instructions.add(new TypeInsnNode(
+                Opcodes.CHECKCAST, "com/fs/starfarer/api/combat/MutableStat"));
+        method.instructions.add(new LdcInsnNode(9f));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.PUTFIELD,
+                "com/fs/starfarer/api/combat/MutableStat",
+                "modified",
+                "F"));
+        invokeReapply(method);
+        invokeReapply(method);
+        // Replacing a whole backing stat object also invalidates even when its value is identical.
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new TypeInsnNode(
+                Opcodes.CHECKCAST, CommodityEventModMemoPlan.TARGET_CLASS));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        method.instructions.add(new TypeInsnNode(
+                Opcodes.CHECKCAST, "com/fs/starfarer/api/combat/MutableStatWithTempMods"));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.PUTFIELD,
+                CommodityEventModMemoPlan.TARGET_CLASS,
+                "tradeMod",
+                "Lcom/fs/starfarer/api/combat/MutableStatWithTempMods;"));
         invokeReapply(method);
         invokeReapply(method);
         method.instructions.add(new InsnNode(Opcodes.RETURN));

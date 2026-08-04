@@ -78,3 +78,28 @@ enough to claim the 3.69-point difference as a precise speedup, but the live hit
 proves the intended redundant work exists at very high volume and that changed states continue to
 reach vanilla. A controlled identical-save A/B would be needed for an exact frame-time attribution;
 live compatibility and the optimization boundary are now validated.
+
+## Clean-stat fast path
+
+That live recording also showed why the first memo did not remove the entire stack. Even a 98.78%
+hit called `getCombinedTradeModQuantity`, which in turn called three `MutableStat.getModifiedValue`
+methods; the wrapper also called it once for `available`. The quantity method alone remained the
+leaf in 30/580 campaign samples (5.17%), split between memo validation and the much rarer but more
+expensive vanilla delegations.
+
+The refined hit path exact-gates a companion transformation of the shipped `MutableStat` from
+`starfarer.api.jar`. It adds one public final synthetic accessor that only reads the existing private
+transient `needsRecompute` flag. A valid commodity entry now requires the same four backing stat
+objects, all four flags clean, and exact float-bit matches against their public authoritative
+`modified` values. It still checks the `eMod` object, value, description reference, and the relevant
+econ unit. Hits therefore skip all four getters and the combined-quantity arithmetic. Dirty stats,
+direct public aggregate writes, backing-object replacement, event-mod relabels, and econ-unit drift
+all delegate and refresh the complete post-vanilla fingerprint.
+
+Both classes, both containing archives, method shapes, Java version, source kind, path, and app
+loader are pinned. If the accessor is absent despite those gates, the commodity wrapper catches the
+linkage failure, disables the memo for the session, and continues through vanilla. Synthetic tests
+cover both exact shapes and the linkage fail-open. The installed-class execution test uses the
+game's real `MutableStatWithTempMods` for dirty mutations, direct `modified` writes, whole-stat
+replacement, zero/non-zero quantities, and same-value description changes. Full `mvn verify` is
+green. A new campaign pilot remains required to measure how much of the residual 5.17% disappears.

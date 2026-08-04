@@ -50,7 +50,10 @@ final class AdapterTransformationRegistry {
         // Inert until --campaign-entity-index/--fast enables its runtime property. The exact
         // wrapper retains and delegates to the reviewed vanilla method on every cache miss.
         if (CommodityEventModMemoRuntime.PLAN_ID.equals(target.planId())) {
-            return CommodityEventModMemoPlan.transform(signature, originalBytes);
+            byte[] dirtyAccessor = MutableStatDirtyAccessorPlan.transform(signature, originalBytes);
+            return dirtyAccessor != null
+                    ? dirtyAccessor
+                    : CommodityEventModMemoPlan.transform(signature, originalBytes);
         }
         // Always-on inside adapter mode. The exact refit UI target returns the shipped list unless
         // Starsector's own variant registry proves that one of its merged CSV ids is invalid.
