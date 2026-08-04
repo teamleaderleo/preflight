@@ -37,6 +37,7 @@ final class AdapterRuntime {
         EntityLookupRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
+        FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -110,6 +111,10 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
+                if (FrameTimeRuntime.enabled()) {
+                    registry = registry.withFrameTimeTarget();
+                    report.diagnostic("Loaded the exact opt-in LWJGL frame-time probe target");
+                }
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
                     report.diagnostic("Loaded the exact ResourceLoaderState and SpecStore startup-phase probe targets");

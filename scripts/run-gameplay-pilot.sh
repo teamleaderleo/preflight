@@ -101,7 +101,7 @@ echo "Launching now; wrapper output is being saved to $OUT/wrapper.log"
 # _JAVA_OPTIONS is intentionally used here: HotSpot applies it after command-line flags, so this
 # overrides a launcher's earlier +ShowMessageBoxOnError without editing the user's installation.
 PILOT_CRASH_REPORT="$OUT/hs_err_pid%p.log"
-PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT'"
+PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT' -Dpreflight.frameTimes=true"
 export _JAVA_OPTIONS="${_JAVA_OPTIONS:+$_JAVA_OPTIONS }$PILOT_CRASH_OPTIONS"
 
 RUN_ARGS=(run \
@@ -150,7 +150,7 @@ if [[ -f "$OUT/adapter-health.json" ]]; then
 fi
 if [[ -f "$OUT/adapter.json" ]]; then
     echo "Probe telemetry:"
-    jq '{graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, campaignEntityIndex, deploymentIconCache, simOpponentSafety}' \
+    jq '{graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, frameTimes, campaignEntityIndex, deploymentIconCache, simOpponentSafety}' \
         "$OUT/adapter.json"
 else
     echo "No adapter report was produced; inspect $OUT/wrapper.log" >&2

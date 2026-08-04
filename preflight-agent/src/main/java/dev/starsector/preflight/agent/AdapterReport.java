@@ -305,6 +305,8 @@ final class AdapterReport {
                 .append(Json.value(StelnetMarketUpdaterRuntime.telemetry())).append(',');
         key(output, "macMemoryWarning")
                 .append(Json.value(MacMemoryWarningRuntime.telemetry())).append(',');
+        key(output, "frameTimes")
+                .append(Json.value(FrameTimeRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

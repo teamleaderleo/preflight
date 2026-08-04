@@ -272,6 +272,25 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** LWJGL 2's display boundary, enabled only for explicit frame-time pilots. */
+    static AdapterTarget frameTimeTarget() {
+        return new AdapterTarget(
+                "lwjgl-2-display-frame-time-probe",
+                FrameTimePlan.TARGET_CLASS,
+                FrameTimePlan.ORIGINAL_SHA256,
+                FrameTimeRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.UPDATE_METHOD, FrameTimePlan.UPDATE_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FrameTimePlan.ACTIVE_METHOD, FrameTimePlan.ACTIVE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/lwjgl.jar",
+                "527d509f60132e5b2653c7fc0f8cf299d6f698f4a8013342bef47705dc57ed3f",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /**
      * The campaign's per-location entity lookup, in {@code starfarer_obf.jar} rather than the
      * graphics jar every other target lives in.
@@ -894,6 +913,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withGraphicsLibInsigniaManagerCacheTarget() {
         return withTarget(graphicsLibInsigniaManagerCacheTarget());
+    }
+
+    AdapterTargetRegistry withFrameTimeTarget() {
+        return withTarget(frameTimeTarget());
     }
 
     AdapterTargetRegistry withTextureTarget(TextureAdapterMode mode) {

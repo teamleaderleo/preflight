@@ -91,6 +91,13 @@ public final class StartupPhaseRuntime {
             // This code is woven into startup. Diagnostics are never allowed to become startup.
         }
         if (LOADING_FINISHED.equals(name)) {
+            try {
+                FrameTimeRuntime.markStartupComplete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable ignored) {
+                // Frame telemetry is optional and never allowed to affect startup.
+            }
             // The general merged-read cache has no single loader to publish at the end of -- it
             // serves every caller, including mod callbacks, which run right up to here. This is the
             // first moment at which everything it could learn has been learned and vanilla is known
