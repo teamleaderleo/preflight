@@ -679,6 +679,13 @@ The warm journal path then dropped its redundant preliminary regular-file stat: 
 attribute capture still proves non-symlink regular-file identity, size, and nanosecond mtime. A
 clean unattended menu gate retained 6,184/6,184 hits with zero fallback and exactly 6,184 metadata
 probes; the exact validation seam fell from 197ms to 131ms and the menu marker arrived at 25.40s.
+Adapter source binding had another Rosetta-only repetition: the game JVM rehashed 11 exact source
+JARs (16.9MB) on every launch even when their filesystem identity, size, and nanosecond mtime were
+unchanged. A fail-open advisory journal now retains those complete SHA-256 answers. The population
+gate measured 98ms hashing; the adjacent warm gate served all 11, hashed zero bytes, and retained
+all 33 transformations with zero decline/failure. Their menu markers were 24.96s/25.07s. Any
+metadata mismatch or malformed journal rehashes content, and the independent target-class/source/
+loader gates remain.
 The next exact callback profile found AshLib scanning all 8,622 variant ids for each of 547 modular
 or station hull lookups. A callback-scoped index now preserves first-match and fallback ordering;
 the live gate served all 547 lookups with zero failure and reduced that exact seam from 160ms to
@@ -701,6 +708,7 @@ construction. The retained breakdown is measurement-only and opt-in.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
+`docs/evidence/2026-08-05-adapter-source-hash-journal.md`, and
 `docs/evidence/2026-08-05-ashlib-variant-index.md`, and
 `docs/evidence/2026-08-05-magiclib-optional-paintjob-json.md`, and
 `docs/evidence/2026-08-05-nexerelin-faction-config-startup.md`.

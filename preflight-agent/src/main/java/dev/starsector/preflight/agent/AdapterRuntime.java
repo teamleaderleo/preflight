@@ -23,6 +23,7 @@ final class AdapterRuntime {
     static Session start(AgentOptions options, Instrumentation instrumentation) {
         Objects.requireNonNull(options, "options");
         Objects.requireNonNull(instrumentation, "instrumentation");
+        SourceArchiveHashes.beginSession();
         TextureCompatibilityRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
@@ -99,6 +100,7 @@ final class AdapterRuntime {
         }
 
         if (options.adapterMode() == AdapterMode.ENABLED) {
+            SourceArchiveHashes.configure(options.textureCacheDirectory());
             TextureCompatibilityRuntime.configure(
                     options.textureCacheDirectory(),
                     options.textureManifest(),
