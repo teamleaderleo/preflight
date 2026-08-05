@@ -115,7 +115,7 @@ final class AdapterRuntime {
             GraphicsLibInsigniaManagerCacheRuntime.configure(
                     options.graphicsLibInsigniaManagerCache());
             if (options.ruleTokenCache()) {
-                RuleTokenCacheRuntime.enable();
+                RuleTokenCacheRuntime.configure(options.rulesCsvCache());
             }
             ResourceProbeRuntime.enable(options.resourceProbeCache());
             LoadJsonMemoRuntime.enable(options.loadJsonMemo());

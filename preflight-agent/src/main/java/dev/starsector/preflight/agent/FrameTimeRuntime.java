@@ -117,6 +117,7 @@ public final class FrameTimeRuntime {
         if (enabled) startupComplete = true;
         LoadJsonMemoRuntime.markStartupComplete();
         MergedReadCacheRuntime.complete();
+        RuleTokenCacheRuntime.complete();
     }
 
     static synchronized void recordBoundary(long now) {

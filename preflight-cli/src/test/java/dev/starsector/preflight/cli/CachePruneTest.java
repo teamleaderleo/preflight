@@ -115,6 +115,25 @@ class CachePruneTest {
         assertFalse(Files.exists(stale));
     }
 
+    @Test
+    void stalePreparedRuleTokensArePrunedByTheirRulesIdentity() throws Exception {
+        PreflightHome preflight = home();
+        String liveIdentity = "3".repeat(64);
+        String staleIdentity = "4".repeat(64);
+        Path corpus = preflight.cache().resolve("spec-store/rules-csv");
+        Files.createDirectories(corpus);
+        Path live = corpus.resolve(liveIdentity + ".sprt");
+        Path stale = corpus.resolve(staleIdentity + ".sprt");
+        Files.writeString(live, "live");
+        Files.writeString(stale, "stale");
+
+        CachePrune.Plan plan = CachePrune.plan(
+                preflight, Set.of("5".repeat(64)), Set.of(liveIdentity));
+
+        assertTrue(removedNames(plan).contains(stale.getFileName().toString()));
+        assertFalse(removedNames(plan).contains(live.getFileName().toString()));
+    }
+
     private PreflightHome home() {
         return PreflightHome.resolve(Platform.MAC, home, Map.of());
     }

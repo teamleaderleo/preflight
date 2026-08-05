@@ -35,7 +35,7 @@ import java.util.Set;
 final class CachePrune {
     /** Spec-store corpora, and the extension each writes. */
     private static final List<String> SPEC_STORE_EXTENSIONS =
-            List.of(".spvj", ".spwj", ".sppj", ".sphj", ".sprc", ".sprk", ".spmr");
+            List.of(".spvj", ".spwj", ".sppj", ".sphj", ".sprc", ".sprk", ".sprt", ".spmr");
 
     private CachePrune() {
     }
