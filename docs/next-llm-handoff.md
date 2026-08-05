@@ -106,13 +106,16 @@ with zero unavailable capture or accessor fallback. `getFlatStatMod` fell from 1
 campaign samples; all five survivors were legitimate vanilla delegations. The wrapper itself is now
 a 6.82% compiled leaf. A later 99.72%-hit profile localized 131/1,474 campaign samples (8.89%) to
 the v3 VarHandle `modCount` validation itself. On Starsector's exact x86-64 Zulu 17/Rosetta JVM, five
-fresh 100-million-iteration runs measured direct exact-key lookup at 1.543-1.561ns/op versus
-3.669-4.235ns/op for the retained-entry/VarHandle check. Offline-green v4 now validates the current
+fresh 100-million-iteration, 1,024-map runs measured direct exact-key lookup at 2.835-2.849ns/op
+versus 4.506-4.725ns/op for the retained-entry/VarHandle check. An `Unsafe` generation-read variant
+managed only 2.356-2.371ns/op, too small a gain to justify internal-JVM coupling. V4 validates the current
 `eMod` mapping directly through the exact flat-map accessor. This preserves every relevant mutation
 boundary—unrelated map structure is not an input—while removing the slow validation seam and its
 extra transient snapshot field. Synthetic, fail-open, exact installed-class execution, and full
-`mvn verify` pass. **Next step: live-profile v4 and confirm the 131-sample VarHandle stack disappears
-without fallback or a changed hit/delegate pattern.**
+`mvn verify` pass. The live v4 profile exited normally with ACTIVE health, served 117,907,677 hits
+and 223,330 delegations with no fallback, and removed the complete VarHandle validation stack. Its
+14.73% memo sample share versus 15.67% in the non-identical prior run is directional only; most
+remaining work is now an inlined compiled wrapper leaf.
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
 The same campaign profile put vanilla's `com.fs.starfarer.coreui.A.oOoO.renderStuff` at 22/174
@@ -515,6 +518,15 @@ every non-empty loop, including `Iterator.remove`, remains byte-for-byte in plac
 empty/non-empty execution, exact installed-class transformation, the existing kill switch, and full
 `mvn verify` pass. The combined live gate skipped 4,526,048 empty expiration iterators and 4,604,109
 empty requirement iterators while retaining 343,913 and 265,852 non-empty paths respectively.
+The later v4 allocation profile found a separate one-shot `Memory.replaceIdsWithEntities` campaign-
+restore seam: 24/1,887 campaign execution samples and 23.49MB of sampled allocation weight. Exact
+bytecode takes a stable `new ArrayList(map.keySet())` snapshot, then compiles literal regexes after
+already proving `enRef_` or `mRef_` prefixes. An offline-green extension preserves the stable key
+snapshot with `toArray()` plus the existing private iterator, removes only the unused wrapper, and
+replaces those anchored literal removals with `substring(6)`/`substring(5)`. Synthetic execution and
+mutation-during-traversal, exact installed-class, and full `mvn verify` tests pass; any class or
+shape drift retains vanilla. **Next step: live-load one save and confirm restoration telemetry and
+the regex/allocation stack disappearance.**
 The adjacent paused-economy path also constructs `new ArrayList(market.getConditions())` for every
 market. Existing JFR samples assign nine events / about 25.2MB of sampled weight to that unused
 wrapper, while the separate 45.0MB source-array site is necessary for callback-mutation isolation.

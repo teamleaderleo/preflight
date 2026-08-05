@@ -45,6 +45,8 @@ final class CampaignEntityMaintenancePlan {
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
     static final String PAUSED_CONDITIONS_METHOD = "advanceMarketConditionsWhenPaused";
+    static final String RESTORE_MEMORY_IDS_METHOD = "replaceIdsWithEntities";
+    static final String RESTORE_MEMORY_IDS_DESCRIPTOR = "(Ljava/util/LinkedHashMap;)V";
     static final String ACTIVE_LOCATION_METHOD = "advance";
     static final String PAUSED_LOCATION_METHOD = "advanceEvenIfPaused";
     static final String LOCATION_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
@@ -182,7 +184,11 @@ final class CampaignEntityMaintenancePlan {
     private static byte[] transformMemory(byte[] originalBytes) {
         ClassNode owner = read(originalBytes);
         MethodNode method = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
-        if (method == null || callsRuntime(method) != 0) return null;
+        MethodNode restoration = unique(
+                owner, RESTORE_MEMORY_IDS_METHOD, RESTORE_MEMORY_IDS_DESCRIPTOR);
+        if (method == null || restoration == null
+                || callsRuntime(method) != 0 || callsRuntime(restoration) != 0
+                || !rewriteMemoryIdRestoration(restoration)) return null;
 
         List<IteratorStart> expires = iteratorStarts(
                 method, "expire", "Ljava/util/List;", "java/util/List", null);
@@ -220,6 +226,74 @@ final class CampaignEntityMaintenancePlan {
 
         CampaignEntityMaintenanceRuntime.memoryInstalled();
         return write(owner);
+    }
+
+    /** Retains the stable key snapshot while removing its ArrayList and two literal regexes. */
+    private static boolean rewriteMemoryIdRestoration(MethodNode method) {
+        List<MethodInsnNode> constructors = matching(
+                method, "java/util/ArrayList", "<init>", "(Ljava/util/Collection;)V");
+        if (constructors.size() != 1) return false;
+        MethodInsnNode constructor = constructors.get(0);
+        AbstractInsnNode keySet = previousMeaningful(constructor);
+        AbstractInsnNode loadMap = previousMeaningful(keySet);
+        AbstractInsnNode duplicate = previousMeaningful(loadMap);
+        AbstractInsnNode allocation = previousMeaningful(duplicate);
+        AbstractInsnNode iterator = nextMeaningful(constructor);
+        if (!(keySet instanceof MethodInsnNode keys)
+                || keys.getOpcode() != Opcodes.INVOKEVIRTUAL
+                || !"java/util/LinkedHashMap".equals(keys.owner)
+                || !"keySet".equals(keys.name) || !"()Ljava/util/Set;".equals(keys.desc)
+                || !(loadMap instanceof VarInsnNode load)
+                || load.getOpcode() != Opcodes.ALOAD || load.var != 1
+                || duplicate.getOpcode() != Opcodes.DUP
+                || !(allocation instanceof TypeInsnNode type)
+                || allocation.getOpcode() != Opcodes.NEW
+                || !"java/util/ArrayList".equals(type.desc)
+                || !(iterator instanceof MethodInsnNode cursor)
+                || cursor.getOpcode() != Opcodes.INVOKEVIRTUAL
+                || !"java/util/ArrayList".equals(cursor.owner)
+                || !"iterator".equals(cursor.name)
+                || !"()Ljava/util/Iterator;".equals(cursor.desc)) return false;
+
+        List<MethodInsnNode> replacements = matching(
+                method, "java/lang/String", "replaceFirst",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+        if (replacements.size() != 2) return false;
+        boolean entity = false;
+        boolean market = false;
+        for (MethodInsnNode replacement : replacements) {
+            AbstractInsnNode empty = previousMeaningful(replacement);
+            AbstractInsnNode prefix = previousMeaningful(empty);
+            if (!(empty instanceof LdcInsnNode emptyString) || !"".equals(emptyString.cst)
+                    || !(prefix instanceof LdcInsnNode prefixString)
+                    || !(prefixString.cst instanceof String value)) return false;
+            int length;
+            if ("enRef_".equals(value) && !entity) {
+                entity = true;
+                length = 6;
+            } else if ("mRef_".equals(value) && !market) {
+                market = true;
+                length = 5;
+            } else {
+                return false;
+            }
+            method.instructions.insertBefore(prefix, new LdcInsnNode(length));
+            method.instructions.remove(prefix);
+            method.instructions.remove(empty);
+            replacement.name = "substring";
+            replacement.desc = "(I)Ljava/lang/String;";
+        }
+        if (!entity || !market) return false;
+
+        method.instructions.insertBefore(iterator, new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "memoryIdSnapshotIterator",
+                "(Ljava/util/Map;)Ljava/util/Iterator;", false));
+        method.instructions.remove(allocation);
+        method.instructions.remove(duplicate);
+        method.instructions.remove(keySet);
+        method.instructions.remove(constructor);
+        method.instructions.remove(iterator);
+        return true;
     }
 
     private static byte[] transformEconomy(byte[] originalBytes) {

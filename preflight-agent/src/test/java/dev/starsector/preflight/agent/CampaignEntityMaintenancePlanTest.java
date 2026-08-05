@@ -211,6 +211,11 @@ class CampaignEntityMaintenancePlanTest {
         String runtime = CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/');
         assertEquals(1, calls(advance, runtime, "memoryExpirationsPresent"));
         assertEquals(1, calls(advance, runtime, "memoryRequirementsPresent"));
+        MethodNode restoration = method(
+                transformed, CampaignEntityMaintenancePlan.RESTORE_MEMORY_IDS_METHOD);
+        assertEquals(1, calls(restoration, runtime, "memoryIdSnapshotIterator"));
+        assertEquals(0, calls(restoration, "java/lang/String", "replaceFirst"));
+        assertEquals(2, calls(restoration, "java/lang/String", "substring"));
         assertNull(CampaignEntityMaintenancePlan.transform(
                 ClassSignature.parse(transformed), transformed));
 
@@ -224,6 +229,11 @@ class CampaignEntityMaintenancePlanTest {
         addToList(memoryType, memory, "expire", new Object());
         addToMap(memoryType, memory, "require", "key", new Object());
         method.invoke(memory, 1f);
+        var restore = memoryType.getMethod(
+                CampaignEntityMaintenancePlan.RESTORE_MEMORY_IDS_METHOD, LinkedHashMap.class);
+        var restoredValues = new LinkedHashMap<String, Object>();
+        restoredValues.put("enRef_example", new Object());
+        restore.invoke(memory, restoredValues);
 
         Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
         assertEquals(true, telemetry.get("memoryInstalled"));
@@ -231,6 +241,20 @@ class CampaignEntityMaintenancePlanTest {
         assertEquals(1L, telemetry.get("nonEmptyMemoryExpirations"));
         assertEquals(1L, telemetry.get("emptyMemoryRequirements"));
         assertEquals(1L, telemetry.get("nonEmptyMemoryRequirements"));
+        assertEquals(1L, telemetry.get("nonEmptyMemoryIdRestorations"));
+
+        var values = new LinkedHashMap<String, Object>();
+        values.put("alpha", 1);
+        values.put("beta", 2);
+        Iterator<?> snapshot = CampaignEntityMaintenanceRuntime.memoryIdSnapshotIterator(values);
+        values.remove("alpha");
+        values.put("gamma", 3);
+        assertEquals(List.of("alpha", "beta"), List.of(snapshot.next(), snapshot.next()));
+        assertFalse(snapshot.hasNext());
+        assertFalse(CampaignEntityMaintenanceRuntime.memoryIdSnapshotIterator(Map.of()).hasNext());
+        telemetry = CampaignEntityMaintenanceRuntime.telemetry();
+        assertEquals(2L, telemetry.get("nonEmptyMemoryIdRestorations"));
+        assertEquals(1L, telemetry.get("emptyMemoryIdRestorations"));
     }
 
     private static byte[] entityFixture() {
@@ -397,6 +421,8 @@ class CampaignEntityMaintenancePlanTest {
         writer.visitField(Opcodes.ACC_PRIVATE, "expire", "Ljava/util/List;", null, null).visitEnd();
         writer.visitField(Opcodes.ACC_PRIVATE, "require", "Ljava/util/LinkedHashMap;", null, null)
                 .visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE, "data", "Ljava/util/LinkedHashMap;", null, null)
+                .visitEnd();
         MethodVisitor constructor = writer.visitMethod(
                 Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
         constructor.visitCode();
@@ -418,6 +444,14 @@ class CampaignEntityMaintenancePlanTest {
         constructor.visitFieldInsn(Opcodes.PUTFIELD,
                 CampaignEntityMaintenancePlan.MEMORY_CLASS,
                 "require", "Ljava/util/LinkedHashMap;");
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitTypeInsn(Opcodes.NEW, "java/util/LinkedHashMap");
+        constructor.visitInsn(Opcodes.DUP);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/util/LinkedHashMap", "<init>", "()V", false);
+        constructor.visitFieldInsn(Opcodes.PUTFIELD,
+                CampaignEntityMaintenancePlan.MEMORY_CLASS,
+                "data", "Ljava/util/LinkedHashMap;");
         constructor.visitInsn(Opcodes.RETURN);
         constructor.visitMaxs(3, 1);
         constructor.visitEnd();
@@ -470,6 +504,38 @@ class CampaignEntityMaintenancePlanTest {
         advance.visitInsn(Opcodes.RETURN);
         advance.visitMaxs(1, 4);
         advance.visitEnd();
+
+        MethodVisitor restoration = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.RESTORE_MEMORY_IDS_METHOD,
+                CampaignEntityMaintenancePlan.RESTORE_MEMORY_IDS_DESCRIPTOR, null, null);
+        restoration.visitCode();
+        restoration.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        restoration.visitInsn(Opcodes.DUP);
+        restoration.visitVarInsn(Opcodes.ALOAD, 1);
+        restoration.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "java/util/LinkedHashMap", "keySet", "()Ljava/util/Set;", false);
+        restoration.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/util/ArrayList", "<init>", "(Ljava/util/Collection;)V", false);
+        restoration.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "java/util/ArrayList", "iterator", "()Ljava/util/Iterator;", false);
+        restoration.visitInsn(Opcodes.POP);
+        restoration.visitLdcInsn("enRef_example");
+        restoration.visitLdcInsn("enRef_");
+        restoration.visitLdcInsn("");
+        restoration.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "java/lang/String", "replaceFirst",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        restoration.visitInsn(Opcodes.POP);
+        restoration.visitLdcInsn("mRef_example");
+        restoration.visitLdcInsn("mRef_");
+        restoration.visitLdcInsn("");
+        restoration.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "java/lang/String", "replaceFirst",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        restoration.visitInsn(Opcodes.POP);
+        restoration.visitInsn(Opcodes.RETURN);
+        restoration.visitMaxs(4, 2);
+        restoration.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

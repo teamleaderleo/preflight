@@ -175,10 +175,13 @@ samples. On the hit path, however, 89 samples stop in `VarHandleGuards.guard_L_I
 for 131/1,474 campaign samples (**8.89%**), despite avoiding the ordinary map lookup it replaced.
 
 The reproducible benchmark in
-`docs/evidence/2026-08-05-event-mod-map-validation-benchmark.java` runs both checks for 100 million
-iterations on Starsector's own x86-64 Zulu 17 JVM under Rosetta. Across five fresh JVMs, direct
-`map.get("eMod") == expected` took **1.543-1.561 ns/op**. The retained-entry plus VarHandle
-generation check took **3.669-4.235 ns/op**, or roughly 2.4-2.7 times as long. This is a narrow
+`docs/evidence/2026-08-05-event-mod-map-validation-benchmark.java` cycles 1,024 maps for 100 million
+checks on Starsector's own x86-64 Zulu 17 JVM under Rosetta, preventing the JIT from treating one
+constant map as invariant. Across five fresh JVMs, direct `map.get("eMod") == expected` took
+**2.835-2.849 ns/op**. The retained-entry plus VarHandle generation check took
+**4.506-4.725 ns/op**, or roughly 1.6 times as long. A deliberately investigated `Unsafe`
+generation read took **2.356-2.371 ns/op**, only about 17% less than the direct lookup; that marginal
+gain does not justify a production dependency on internal JVM layout. This is a narrow
 microbenchmark, not an FPS claim, but it directly measures the exact operation that dominated the
 sampled hit path on the exact production JVM.
 
@@ -193,5 +196,13 @@ The VarHandle snapshot and its extra transient field are no longer on the produc
 Synthetic shape and fail-open tests pass. The exact installed `CommodityOnMarket` and `MutableStat`
 execution test passes against the game's real jars and retains all external-mutation cases. Full
 `mvn verify` is green (core 195; CLI unit 375; integration 38 with one expected skip; synthetic 22
-with one expected skip). A live state-separated profile is still required before claiming the
-sample reduction or committing to an FPS delta.
+with one expected skip).
+
+The live `commodity-direct-key-v4-20260805-111253` state-separated profile then exited normally
+with ACTIVE health: 38 transformations applied, zero declines, and zero contained failures. It
+served **117,907,677** memo hits, delegated **223,330** real changes, and reported zero unavailable
+fast validations. The old validation stack disappeared completely: no `VarHandleGuards`,
+`EventModMapSnapshotRuntime.unchanged`, or VarHandle field-read sample remains. The memo occupied
+278/1,887 campaign samples (14.73%), versus 231/1,474 (15.67%) in the non-identical preceding run;
+this modest sample-share change is directional evidence only, not an FPS claim. Most remaining hit
+samples are now attributed to the compiled wrapper leaf, with direct map work inlined into it.

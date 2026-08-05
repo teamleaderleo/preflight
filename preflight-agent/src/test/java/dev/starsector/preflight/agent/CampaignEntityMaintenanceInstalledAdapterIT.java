@@ -105,6 +105,13 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
                 CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR);
         assertEquals(1L, calls(memoryAdvance, maintenanceRuntime, "memoryExpirationsPresent"));
         assertEquals(1L, calls(memoryAdvance, maintenanceRuntime, "memoryRequirementsPresent"));
+        MethodNode memoryRestoration = method(read(memoryMaintenance),
+                CampaignEntityMaintenancePlan.RESTORE_MEMORY_IDS_METHOD,
+                CampaignEntityMaintenancePlan.RESTORE_MEMORY_IDS_DESCRIPTOR);
+        assertEquals(1L, calls(
+                memoryRestoration, maintenanceRuntime, "memoryIdSnapshotIterator"));
+        assertEquals(0L, calls(memoryRestoration, "java/lang/String", "replaceFirst"));
+        assertEquals(2L, calls(memoryRestoration, "java/lang/String", "substring"));
 
         byte[] economy = entry(archive, CampaignEntityMaintenancePlan.ECONOMY_CLASS);
         ClassSignature economySignature = ClassSignature.parse(economy);

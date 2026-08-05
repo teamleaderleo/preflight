@@ -40,6 +40,8 @@ public final class CampaignEntityMaintenanceRuntime {
     private static long nonEmptyMemoryExpirations;
     private static long emptyMemoryRequirements;
     private static long nonEmptyMemoryRequirements;
+    private static long emptyMemoryIdRestorations;
+    private static long nonEmptyMemoryIdRestorations;
     private static long emptyPausedMarketConditions;
     private static long nonEmptyPausedMarketConditions;
     private static long emptyPausedLocationEntities;
@@ -75,6 +77,8 @@ public final class CampaignEntityMaintenanceRuntime {
         nonEmptyMemoryExpirations = 0L;
         emptyMemoryRequirements = 0L;
         nonEmptyMemoryRequirements = 0L;
+        emptyMemoryIdRestorations = 0L;
+        nonEmptyMemoryIdRestorations = 0L;
         emptyPausedMarketConditions = 0L;
         nonEmptyPausedMarketConditions = 0L;
         emptyPausedLocationEntities = 0L;
@@ -161,6 +165,16 @@ public final class CampaignEntityMaintenanceRuntime {
         return true;
     }
 
+    /** Retains vanilla's stable key traversal while omitting its otherwise unused ArrayList. */
+    public static Iterator<?> memoryIdSnapshotIterator(Map<?, ?> values) {
+        if (values.isEmpty()) {
+            emptyMemoryIdRestorations++;
+            return Collections.emptyIterator();
+        }
+        nonEmptyMemoryIdRestorations++;
+        return new SnapshotIterator(values.keySet().toArray());
+    }
+
     /** Retains the stable location snapshot while omitting its otherwise unused ArrayList. */
     public static Object[] locationSnapshot(List<?> values, int kind) {
         if (values.isEmpty()) {
@@ -205,6 +219,8 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("nonEmptyMemoryExpirations", nonEmptyMemoryExpirations);
         result.put("emptyMemoryRequirements", emptyMemoryRequirements);
         result.put("nonEmptyMemoryRequirements", nonEmptyMemoryRequirements);
+        result.put("emptyMemoryIdRestorations", emptyMemoryIdRestorations);
+        result.put("nonEmptyMemoryIdRestorations", nonEmptyMemoryIdRestorations);
         result.put("emptyPausedMarketConditions", emptyPausedMarketConditions);
         result.put("nonEmptyPausedMarketConditions", nonEmptyPausedMarketConditions);
         result.put("emptyPausedLocationEntities", emptyPausedLocationEntities);

@@ -354,6 +354,33 @@ installed class transforms at both exact iterator sites. Full `mvn verify` passe
 combined gate below exercised both branches at campaign scale; no FPS delta or byte-exact total
 allocation claim is made.
 
+## Restored memory-ID traversal
+
+The later `commodity-direct-key-v4-20260805-111253` allocation profile exposed a separate,
+one-shot cost in `Memory.replaceIdsWithEntities(LinkedHashMap)` while loading a campaign. It was a
+pure execution leaf in 24/1,887 campaign samples (1.27%) and carried 23.49MB of sampled allocation
+weight across ten allocation events. The largest classified pieces were about 8.0MB each for the
+stable key-snapshot object array and a primitive array, plus about 2.0MB each for `ArrayList$Itr`
+and regex compilation and about 1.75MB each for the `LinkedHashMap` key view and `ArrayList`.
+Sampling weight is not a literal heap census.
+
+Exact installed bytecode makes `new ArrayList(map.keySet()).iterator()` because the restoration loop
+can remove and replace entries while traversing. It also checks `startsWith("enRef_")` before
+`replaceFirst("enRef_", "")`, and likewise checks `startsWith("mRef_")` before
+`replaceFirst("mRef_", "")`. The stable snapshot is semantically required, but its `ArrayList`
+wrapper is not: an object-array snapshot plus a private iterator preserves the same pre-mutation key
+sequence. After the proven prefix tests, the two literal regex operations are exactly `substring(6)`
+and `substring(5)`.
+
+The exact `Memory` adapter now performs those three substitutions. It retains the source snapshot,
+entry order, all entity/market lookups, every map mutation, and vanilla behavior for empty and
+non-empty inputs. It additionally reports empty and non-empty restoration traversals. The rewrite
+requires the current class hash, exact method descriptor, one exact snapshot-construction shape,
+and exactly the two reviewed literal replacement sites; any drift retains vanilla. Synthetic
+transformed execution and mutation-during-traversal coverage, the exact installed-class transform,
+and full `mvn verify` pass. This targets campaign-load latency and transient allocation, not
+steady-state FPS.
+
 ## Compact paused-condition snapshots
 
 `Economy.advanceMarketConditionsWhenPaused(float)` is another measured allocation leaf. The same
