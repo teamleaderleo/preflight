@@ -48,6 +48,12 @@ java -jar preflight.jar texture build --game "/path/to/Starsector.app"
 java -jar preflight.jar texture build --index profile.spfi --cache-dir cache
 ```
 
+The build also materializes the profile's distinct SPFT blobs into one indexed SPFP pack. Runtime
+reads use one validated channel and fail open to the loose content-addressed blobs if the pack is
+absent or fails. A successful launch records a checksummed access-order hint; the next build
+reorders the same pack for that profile and appends unseen assets deterministically. The command's
+JSON reports `pack`, `packHit`, `packBytes`, `packedBlobs`, and `packDurationMs`.
+
 ### Deterministic subset builds
 
 For profiling and staged rollouts, pass a newline-delimited list of logical resource paths:

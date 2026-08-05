@@ -2,11 +2,15 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePack;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.TextureManifestIO;
 import dev.starsector.preflight.core.TextureManifestValidator;
@@ -17,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +59,9 @@ class TextureBatchBuilderTest {
         assertEquals(0, first.cacheHitBlobs());
         assertEquals(1, first.deduplicatedEntries());
         assertEquals(3, first.manifest().entryCount());
+        assertFalse(first.packHit());
+        assertEquals(2, first.packedBlobs());
+        assertTrue(Files.isRegularFile(first.packPath()));
         assertTrue(TextureManifestValidator.validate(cache, first.manifest()).valid());
         assertEquals(
                 first.manifest().entry("graphics/a.png").orElseThrow().blobRelativePath(),
@@ -66,6 +74,16 @@ class TextureBatchBuilderTest {
                 a,
                 PreparedTexture.Transformation.IDENTITY);
         assertEquals(referenceTexture, builtTexture);
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                first.packPath(),
+                first.manifest().profileFingerprint(),
+                first.manifest().entries().values().stream()
+                        .map(entry -> entry.blobRelativePath())
+                        .collect(java.util.stream.Collectors.toSet()))) {
+            assertEquals(2, pack.entryCount());
+            assertEquals(referenceTexture, pack.readTrusted(
+                    first.manifest().entry("graphics/a.png").orElseThrow().blobRelativePath()));
+        }
 
         TextureBatchBuilder.Result second = TextureBatchBuilder.build(
                 index,
@@ -73,6 +91,7 @@ class TextureBatchBuilderTest {
                 new TextureBatchBuilder.Options(2, 16 * MIB));
         assertEquals(2, second.cacheHitBlobs());
         assertEquals(0, second.builtBlobs());
+        assertTrue(second.packHit());
 
         Path corruptBlob = cache.resolve(
                 second.manifest().entry("graphics/a.png").orElseThrow().blobRelativePath());
@@ -142,6 +161,39 @@ class TextureBatchBuilderTest {
                 new TextureBatchBuilder.Options(2, 16 * MIB));
         assertEquals(1, changed.builtBlobs());
         assertEquals(1, changed.cacheHitBlobs());
+    }
+
+    @Test
+    void observedOrderRebuildsThePackOnceThenHits() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        writeImage(root.resolve("graphics/a.png"), Color.RED);
+        writeImage(root.resolve("graphics/b.png"), Color.BLUE);
+        ResourceIndex index = index(root, "profile", List.of("graphics/a.png", "graphics/b.png"));
+        Path cache = temporaryDirectory.resolve("cache");
+
+        TextureBatchBuilder.Result first = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        List<String> reversed = first.manifest().entries().values().stream()
+                .map(entry -> entry.blobRelativePath())
+                .distinct()
+                .toList();
+        reversed = new java.util.ArrayList<>(reversed);
+        Collections.reverse(reversed);
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(cache, first.manifest().profileFingerprint()),
+                first.manifest().profileFingerprint(), reversed);
+
+        TextureBatchBuilder.Result reordered = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        assertFalse(reordered.packHit());
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                reordered.packPath(), reordered.manifest().profileFingerprint(), reversed)) {
+            assertTrue(pack.hasEntryOrder(reversed));
+        }
+
+        TextureBatchBuilder.Result reused = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        assertTrue(reused.packHit());
     }
 
     @Test

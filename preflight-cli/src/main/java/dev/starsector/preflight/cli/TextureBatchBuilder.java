@@ -3,6 +3,9 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePack;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
@@ -162,11 +165,17 @@ final class TextureBatchBuilder {
             Path manifestPath = cacheRoot.resolve("manifests")
                     .resolve(index.profileFingerprint() + ".spfm");
             TextureManifestIO.write(manifestPath, manifest);
+            PackResult pack = ensurePack(cacheRoot, manifest);
 
             long sourceBytes = hashed.stream().mapToLong(HashedCandidate::sourceBytes).sum();
             return new Result(
                     manifest,
                     manifestPath,
+                    pack.path(),
+                    pack.hit(),
+                    pack.bytes(),
+                    pack.entries(),
+                    pack.durationNanos(),
                     candidates.size(),
                     hashed.size(),
                     groups.size(),
@@ -184,6 +193,59 @@ final class TextureBatchBuilder {
         } finally {
             executor.shutdownNow();
             executor.awaitTermination(30, TimeUnit.SECONDS);
+        }
+    }
+
+    private static PackResult ensurePack(Path cacheRoot, TextureManifest manifest) throws IOException {
+        long started = System.nanoTime();
+        List<String> logicalOrder = manifest.entries().values().stream()
+                .map(TextureManifest.Entry::blobRelativePath)
+                .distinct()
+                .toList();
+        List<String> blobs = preferredPackOrder(cacheRoot, manifest.profileFingerprint(), logicalOrder);
+        Path path = PreparedTexturePackIO.path(cacheRoot, manifest.profileFingerprint());
+        if (blobs.isEmpty()) {
+            return new PackResult(path, false, 0, 0, System.nanoTime() - started);
+        }
+        if (Files.isRegularFile(path)) {
+            try (PreparedTexturePack existing =
+                    PreparedTexturePackIO.open(path, manifest.profileFingerprint(), blobs)) {
+                if (existing.hasEntryOrder(blobs)) {
+                    return new PackResult(
+                            path, true, existing.fileBytes(), existing.entryCount(),
+                            System.nanoTime() - started);
+                }
+            } catch (IOException ignored) {
+                // The loose content-addressed blobs remain authoritative and rebuild the pack.
+            }
+        }
+        PreparedTexturePackIO.write(path, manifest.profileFingerprint(), cacheRoot, blobs);
+        try (PreparedTexturePack built =
+                PreparedTexturePackIO.open(path, manifest.profileFingerprint(), blobs)) {
+            return new PackResult(
+                    path, false, built.fileBytes(), built.entryCount(),
+                    System.nanoTime() - started);
+        }
+    }
+
+    private static List<String> preferredPackOrder(
+            Path cacheRoot, String profile, List<String> logicalOrder) {
+        Path sidecar = PreparedTexturePackOrderIO.path(cacheRoot, profile);
+        if (!Files.isRegularFile(sidecar)) {
+            return logicalOrder;
+        }
+        try {
+            Set<String> available = Set.copyOf(logicalOrder);
+            LinkedHashSet<String> ordered = new LinkedHashSet<>();
+            for (String observed : PreparedTexturePackOrderIO.read(sidecar, profile)) {
+                if (available.contains(observed)) {
+                    ordered.add(observed);
+                }
+            }
+            ordered.addAll(logicalOrder);
+            return List.copyOf(ordered);
+        } catch (IOException | IllegalArgumentException ignored) {
+            return logicalOrder;
         }
     }
 
@@ -568,6 +630,11 @@ final class TextureBatchBuilder {
     record Result(
             TextureManifest manifest,
             Path manifestPath,
+            Path packPath,
+            boolean packHit,
+            long packBytes,
+            int packedBlobs,
+            long packDurationNanos,
             long candidateEntries,
             long hashedEntries,
             long uniqueContent,
@@ -585,6 +652,14 @@ final class TextureBatchBuilder {
         double durationMillis() {
             return durationNanos / 1_000_000.0;
         }
+
+        double packDurationMillis() {
+            return packDurationNanos / 1_000_000.0;
+        }
+    }
+
+    private record PackResult(
+            Path path, boolean hit, long bytes, int entries, long durationNanos) {
     }
 
     @FunctionalInterface

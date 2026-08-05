@@ -175,6 +175,13 @@ regression was measurable on the reviewed macOS/Rosetta system. Existing manifes
 until preparation runs again. After changing policies, `java -jar preflight.jar cache prune`
 previews the superseded blobs that can be reclaimed; add `--yes` only after reviewing that plan.
 
+Preparation also creates one indexed texture pack per profile. The game opens that pack once and
+falls back to the loose blobs on any problem. After a successful launch, the next preparation can
+use its checksummed access-order hint to tune physical layout automatically; missing or corrupt
+hints are ignored. The packed copy currently retains loose blobs for repair and fail-open safety,
+so profile pruning is the supported way to reclaim obsolete versions while the GUI storage-policy
+controls are still being built.
+
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 
 ## What is next

@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -56,6 +58,59 @@ class TextureCompatibilityRuntimeTest {
         assertEquals(1L, telemetry.get("hits"));
         assertEquals(0L, telemetry.get("fallbacks"));
         assertEquals(12L, telemetry.get("bytesServed"));
+    }
+
+    @Test
+    void validProfilePackServesWithoutOpeningTheLooseBlob() throws Exception {
+        Fixture fixture = fixture();
+        TextureManifest manifest = TextureManifestIO.read(fixture.manifest());
+        String relative = manifest.entries().firstEntry().getValue().blobRelativePath();
+        Path pack = PreparedTexturePackIO.path(fixture.cache(), manifest.profileFingerprint());
+        PreparedTexturePackIO.write(
+                pack, manifest.profileFingerprint(), fixture.cache(), List.of(relative));
+        Files.delete(fixture.blob());
+
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+
+        Map<String, Object> telemetry = TextureCompatibilityRuntime.telemetry();
+        assertEquals(true, telemetry.get("packedStoreAvailable"));
+        assertEquals(true, telemetry.get("packedStoreActive"));
+        assertEquals(1L, telemetry.get("packHits"));
+        assertEquals(12L, telemetry.get("packBytes"));
+        assertEquals(0L, telemetry.get("packFailures"));
+
+        TextureCompatibilityRuntime.beginSession();
+        assertEquals(
+                List.of(relative),
+                PreparedTexturePackOrderIO.read(
+                        PreparedTexturePackOrderIO.path(
+                                fixture.cache(), manifest.profileFingerprint()),
+                        manifest.profileFingerprint()));
+    }
+
+    @Test
+    void packReadFailureDisablesItAndFallsBackToTheLooseBlob() throws Exception {
+        Fixture fixture = fixture();
+        TextureManifest manifest = TextureManifestIO.read(fixture.manifest());
+        String relative = manifest.entries().firstEntry().getValue().blobRelativePath();
+        Path pack = PreparedTexturePackIO.path(fixture.cache(), manifest.profileFingerprint());
+        PreparedTexturePackIO.write(
+                pack, manifest.profileFingerprint(), fixture.cache(), List.of(relative));
+
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        Files.write(pack, new byte[] {1});
+
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        Map<String, Object> telemetry = TextureCompatibilityRuntime.telemetry();
+        assertEquals(true, telemetry.get("packedStoreAvailable"));
+        assertEquals(false, telemetry.get("packedStoreActive"));
+        assertEquals(0L, telemetry.get("packHits"));
+        assertEquals(1L, telemetry.get("packFailures"));
+        assertEquals(1L, telemetry.get("hits"));
+        assertEquals(0L, telemetry.get("fallbacks"));
     }
 
     /**

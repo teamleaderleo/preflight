@@ -58,22 +58,30 @@ public final class PreparedTextureIO {
      */
     public static PreparedTexture readTrusted(Path source) throws IOException {
         try (FileChannel channel = FileChannel.open(source, StandardOpenOption.READ)) {
-            long size = channel.size();
-            if (size < minimumFileBytes()) {
-                throw new IOException("Prepared texture blob is too small: " + source);
-            }
-            if (size > MAX_FILE_BYTES) {
-                throw new IOException(
-                        "Prepared texture blob exceeds the " + MAX_FILE_BYTES + " byte safety limit: " + source);
-            }
+            return readTrusted(channel, 0, channel.size(), source.toString());
+        }
+    }
 
+    /** Reads one complete SPFT blob stored at an indexed range in a shared pack channel. */
+    public static PreparedTexture readTrusted(
+            FileChannel channel, long offset, long size, String sourceLabel) throws IOException {
+        Objects.requireNonNull(channel, "channel");
+        String label = sourceLabel == null ? "prepared texture range" : sourceLabel;
+        if (offset < 0 || size < minimumFileBytes()) {
+            throw new IOException("Prepared texture blob is too small: " + label);
+        }
+        if (size > MAX_FILE_BYTES || offset > Long.MAX_VALUE - size) {
+            throw new IOException(
+                    "Prepared texture blob range exceeds the safety limit: " + label);
+        }
+        long[] position = {offset};
+        try {
             // The trusted serving path does not need the payload checksum. Read fixed metadata
             // separately; raw pixels go directly into their final adopted array, while LZ4 input
-            // uses bounded scratch before decompression into its final array. This avoids both the
-            // old complete-file copy and one compressed-sized allocation per balanced texture.
+            // uses bounded scratch before decompression into its final array.
             ByteBuffer metadata = ByteBuffer.allocate(
                     MAGIC.length + Integer.BYTES * 2 + PAYLOAD_FIXED_BYTES).order(ByteOrder.BIG_ENDIAN);
-            readFully(channel, metadata, "Prepared texture ended inside its metadata");
+            readFully(channel, position, metadata, "Prepared texture ended inside its metadata");
             metadata.flip();
 
             byte[] magic = new byte[MAGIC.length];
@@ -110,10 +118,10 @@ public final class PreparedTextureIO {
                 throw new IOException("Prepared texture dimensions or channel count are invalid");
             }
             long expectedPixels = Math.multiplyExact(
-                    Math.multiplyExact((long) uploadWidth, uploadHeight),
-                    channels);
+                    Math.multiplyExact((long) uploadWidth, uploadHeight), channels);
             int storedLength = payloadLength - PAYLOAD_FIXED_BYTES;
-            if (pixelLength < 0 || expectedPixels != pixelLength || storedLength < 0 || pixelLength > MAX_FILE_BYTES) {
+            if (pixelLength < 0 || expectedPixels != pixelLength || storedLength < 0
+                    || pixelLength > MAX_FILE_BYTES) {
                 throw new IOException(
                         "Prepared texture pixel length is " + pixelLength + "; expected " + expectedPixels);
             }
@@ -121,9 +129,9 @@ public final class PreparedTextureIO {
             byte[] storedPixels = storageCodec == StorageCodec.LZ4
                     ? trustedLz4Scratch(storedLength)
                     : new byte[storedLength];
-            readFully(channel, ByteBuffer.wrap(storedPixels, 0, storedLength),
+            readFully(channel, position, ByteBuffer.wrap(storedPixels, 0, storedLength),
                     "Prepared texture ended inside its pixels");
-            if (channel.position() != size - CHECKSUM_BYTES) {
+            if (position[0] != offset + size - CHECKSUM_BYTES) {
                 throw new IOException("Prepared texture payload contains trailing data");
             }
             byte[] pixels = decodePixels(storageCodec, storedPixels, storedLength, pixelLength);
@@ -290,11 +298,17 @@ public final class PreparedTextureIO {
         }
     }
 
-    private static void readFully(FileChannel channel, ByteBuffer target, String eofMessage) throws IOException {
+    private static void readFully(
+            FileChannel channel, long[] position, ByteBuffer target, String eofMessage) throws IOException {
         while (target.hasRemaining()) {
-            if (channel.read(target) < 0) {
+            int read = channel.read(target, position[0]);
+            if (read < 0) {
                 throw new EOFException(eofMessage);
             }
+            if (read == 0) {
+                throw new IOException("Prepared texture range read made no progress");
+            }
+            position[0] += read;
         }
     }
 

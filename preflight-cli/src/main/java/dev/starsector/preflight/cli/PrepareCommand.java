@@ -236,6 +236,11 @@ final class PrepareCommand {
                     TextureManifestValidator.Result validation = TextureManifestValidator.validate(cache, built.manifest());
                     Map<String, Object> details = new LinkedHashMap<>();
                     details.put("manifest", built.manifestPath());
+                    details.put("pack", built.packPath());
+                    details.put("packHit", built.packHit());
+                    details.put("packBytes", built.packBytes());
+                    details.put("packedBlobs", built.packedBlobs());
+                    details.put("packDurationMs", built.packDurationMillis());
                     details.put("candidateEntries", built.candidateEntries());
                     details.put("hashedEntries", built.hashedEntries());
                     details.put("uniqueContent", built.uniqueContent());

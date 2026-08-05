@@ -74,6 +74,11 @@ final class TextureBatchCommand {
         report.put("profileFingerprint", activeIndex.profileFingerprint());
         report.put("selection", selection == null ? null : selection.toMap());
         report.put("manifest", result.manifestPath());
+        report.put("pack", result.packPath());
+        report.put("packHit", result.packHit());
+        report.put("packBytes", result.packBytes());
+        report.put("packedBlobs", result.packedBlobs());
+        report.put("packDurationMs", result.packDurationMillis());
         report.put("manifestEntries", result.manifest().entryCount());
         report.put("candidateEntries", result.candidateEntries());
         report.put("hashedEntries", result.hashedEntries());

@@ -915,6 +915,18 @@ Whole launches were 22.77s and 22.35s; use the seam delta as the causal result. 
 after premain validation intentionally takes effect next launch. `--recheck-texture-sources` and the
 existing content-hash diagnostic restore the stronger live checks. See
 `docs/evidence/2026-08-06-validated-texture-index-snapshot.md`.
+Balanced prepared textures are now also served from one profile pack instead of 15,469 loose-file
+opens. The reviewed 2.204GB pack holds 30,638 distinct blobs for 32,919 manifest entries, validates
+as an unchanged hit in 67ms, and fails open to the authoritative loose blobs on any pack problem.
+The runtime writes a checksummed successful-access-order hint at normal shutdown; the next prepare
+lays those blobs out first and appends unseen blobs in stable logical order. Missing/corrupt hints
+are ignored. The final clean learned-order gate reached the menu in **18.80s** with 15,470 pack
+reads, identical 15,469 game-facing hits / 2,116,422,119 bytes / three known misses, zero pack
+failure, and a 1,632ms exact load seam versus 4,559ms for validated loose blobs (-2,927ms, -64.2%).
+The adjacent logical-order learning run was already 19.12s; treat whole-run differences as
+supporting single diagnostics, not a cohort. A 16MiB read-ahead window was rejected and deleted
+after reading 132.2GB and regressing wall time to 35.59s. See
+`docs/evidence/2026-08-06-packed-texture-store.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
