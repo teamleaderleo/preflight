@@ -229,7 +229,10 @@ final class PrepareCommand {
                     TextureBatchBuilder.Result built = TextureBatchBuilder.build(
                             resourceIndex,
                             cache,
-                            new TextureBatchBuilder.Options(options.workers(), options.memoryMib() * 1024L * 1024L));
+                            new TextureBatchBuilder.Options(
+                                    options.workers(),
+                                    options.memoryMib() * 1024L * 1024L,
+                                    options.textureStorage().codec()));
                     TextureManifestValidator.Result validation = TextureManifestValidator.validate(cache, built.manifest());
                     Map<String, Object> details = new LinkedHashMap<>();
                     details.put("manifest", built.manifestPath());
@@ -245,6 +248,7 @@ final class PrepareCommand {
                     details.put("sourceBytes", built.sourceBytes());
                     details.put("uniquePixelBytes", built.uniquePixelBytes());
                     details.put("uniqueBlobBytes", built.uniqueBlobBytes());
+                    details.put("textureStorage", options.textureStorage().optionValue());
                     details.put("memoryEstimate", TextureMemoryEstimator.estimate(built.manifest()).toReportValues());
                     details.put("buildDiagnostics", built.diagnostics());
                     details.put("valid", validation.valid());
@@ -402,6 +406,7 @@ final class PrepareCommand {
         boolean resourceIndex = true;
         boolean classpath = true;
         boolean textures = true;
+        TextureStoragePolicy textureStorage = TextureStoragePolicy.FASTEST;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
@@ -417,6 +422,8 @@ final class PrepareCommand {
                 case "--no-resource-index" -> resourceIndex = false;
                 case "--no-classpath" -> classpath = false;
                 case "--no-textures" -> textures = false;
+                case "--texture-storage" -> textureStorage =
+                        TextureStoragePolicy.parse(requireValue(args, ++i, "--texture-storage"));
                 default -> throw new IllegalArgumentException("Unknown prepare option: " + args[i]);
             }
         }
@@ -431,7 +438,7 @@ final class PrepareCommand {
         }
         return new Options(
                 game, launcher, cache, report, workers, memoryMib, deep, verifyLookups,
-                lookupQueries, seed, resourceIndex, classpath, textures);
+                lookupQueries, seed, resourceIndex, classpath, textures, textureStorage);
     }
 
     private static String requireValue(String[] args, int index, String option) {
@@ -479,7 +486,8 @@ final class PrepareCommand {
             long seed,
             boolean resourceIndex,
             boolean classpath,
-            boolean textures) {
+            boolean textures,
+            TextureStoragePolicy textureStorage) {
         Map<String, Object> toMap() {
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("workers", workers);
@@ -491,6 +499,7 @@ final class PrepareCommand {
             values.put("resourceIndex", resourceIndex);
             values.put("classpath", classpath);
             values.put("textures", textures);
+            values.put("textureStorage", textureStorage.optionValue());
             return values;
         }
     }

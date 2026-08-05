@@ -41,6 +41,41 @@ were projected to load faster while occupying one quarter of the VRAM. It is del
 per-texture fidelity-gated, and still lacks its runtime consumer. It must remain a distinct opt-in
 policy rather than silently replacing the exact cache.
 
+## Implemented exact texture policies
+
+The full 30,639-blob texture corpus was subsequently measured with pure-Java codecs on both the
+native preparation JVM and Starsector's exact x86 JVM under Rosetta. LZ4 was selected for the first
+space-saving policy because its materially lighter decode path fit the startup goal better than
+Zstandard:
+
+| codec | stored bytes | ratio | Rosetta encode | Rosetta decode |
+| --- | ---: | ---: | ---: | ---: |
+| raw pixels | 5,331,615,734 | 1.00x | | |
+| LZ4 | 2,197,372,392 | 2.43x | 5.451s | 1.533s |
+| Zstandard | 1,635,009,747 | 3.26x | 21.743s | 5.318s |
+
+Preflight now exposes `--texture-storage fastest|balanced` on both `prepare` and `texture build`.
+`fastest` remains the default and preserves the existing raw files byte-for-byte. `balanced` uses
+lossless LZ4 inside the existing checksummed SPFT envelope, with a distinct blob filename. The
+runtime reconstructs the exact same RGB/RGBA array; an unknown codec, malformed stream, checksum
+failure, missing blob, or resource-profile mismatch falls through to the original game path.
+
+A real deep `balanced` preparation built 30,638 unique supported blobs from 32,920 candidate
+entries, skipped the one fidelity-gated WebP, and validated all 32,919 manifest entries with zero
+failure. The final artifacts occupy **2,200,772,280 bytes (2.05 GiB)** versus **5,335,292,414 bytes
+(4.97 GiB)** for raw on disk, saving **3.13 GB (58.8%)**.
+
+The live profiled gate reached the menu in 24.27s with 15,469 texture hits, three expected dynamic
+misses, zero retained prefetch work, and zero transform failure. A following one-minute-cooled
+five-run cohort measured **22.59/23.21/23.14/23.15/23.18s (23.15s median)**. The adjacent raw cohort
+was **23.08s median**, so the observed 0.07s difference is below launch noise and no regression is
+claimed. Evidence is retained under benchmark runs `20260806-003317` and `20260806-003416`; the
+preparation report is `preparation-balanced-lz4.json`.
+
+Switching policies updates the current manifest atomically. Both representations may coexist until
+the user runs `preflight cache prune`; its normal dry run derives reachability from that manifest,
+and `--yes` removes only the superseded representation after the plan is readable and complete.
+
 ## Zero-cost generated-bytecode cleanup
 
 The generated-bytecode directory held three complete compiler contexts of about 146 MB each. The

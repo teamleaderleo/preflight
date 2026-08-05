@@ -189,6 +189,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-05 resource-priority index cohort (5 runs)** | **23.68 median (23.39--24.35)** |
 | **2026-08-05 WebP prefetch-tail cohort (5 runs)** | **23.03 median (22.90--23.34)** |
 | **2026-08-06 direct trusted-texture read cohort (5 runs)** | **23.08 median (22.54--23.19)** |
+| **2026-08-06 balanced LZ4 texture-storage cohort (5 runs)** | **23.15 median (22.59--23.21)** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -816,6 +817,15 @@ cohort measured **23.19/22.88/23.08/23.09/22.54s (23.08s median)** versus the ad
 this is retained as a CPU/allocation/thermal-headroom win with no claimed median wall shift. All
 runs remained exact and fail-open. See
 `docs/evidence/2026-08-06-trusted-texture-direct-read.md`.
+The exact texture cache now has explicit storage policies. `fastest` remains the raw default;
+`balanced` uses pure-Java lossless LZ4 in the existing checksummed SPFT envelope and a distinct blob
+name. On the full real corpus it stores 2.201GB instead of 5.335GB, saving 3.13GB. A deep preparation
+validated 32,919 entries with zero failure and one already-known fidelity-gated WebP fallback. The
+live gate served 15,469 prepared textures with zero retained prefetch work or transform failure, and
+the cooled balanced cohort measured **23.15s median (22.59--23.21)** versus the adjacent raw 23.08s.
+That 0.07s difference is below noise. Switching updates the manifest; the existing conservative
+`cache prune` can then reclaim the unreferenced representation explicitly. See
+`docs/evidence/2026-08-06-balanced-texture-storage.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

@@ -95,7 +95,8 @@ final class TextureBatchBuilder {
                         group.getKey(),
                         group.getValue().get(0),
                         budget,
-                        snapshotReader));
+                        snapshotReader,
+                        options.storageCodec()));
             }
 
             Map<BlobKey, BlobResult> blobs = new HashMap<>();
@@ -277,9 +278,10 @@ final class TextureBatchBuilder {
             BlobKey key,
             HashedCandidate representative,
             MemoryBudget budget,
-            SnapshotReader snapshotReader) {
+            SnapshotReader snapshotReader,
+            PreparedTextureIO.StorageCodec storageCodec) {
         return () -> {
-            String relative = blobRelativePath(key);
+            String relative = blobRelativePath(key, storageCodec);
             Path blob = cacheRoot.resolve(relative).normalize();
             if (!blob.startsWith(cacheRoot)) {
                 return BlobResult.failure(key, relative, false, "Blob path escaped the cache root");
@@ -306,7 +308,14 @@ final class TextureBatchBuilder {
             boolean quarantined = false;
             if (Files.isRegularFile(blob)) {
                 long blobSize = Files.size(blob);
-                long reservation = budget.acquire(saturatedMultiply(blobSize, ESTIMATED_BLOB_READ_MULTIPLIER));
+                // Checked LZ4 validation temporarily owns the encoded file, checked payload and
+                // decoded pixels. The compression ratio is intentionally unbounded, so serialize
+                // these preparation-only reads inside the declared budget instead of estimating
+                // decoded memory from compressed bytes and risking concurrent high-ratio blobs.
+                long estimatedReadBytes = storageCodec == PreparedTextureIO.StorageCodec.LZ4
+                        ? budget.maximum()
+                        : saturatedMultiply(blobSize, ESTIMATED_BLOB_READ_MULTIPLIER);
+                long reservation = budget.acquire(estimatedReadBytes);
                 try {
                     PreparedTexture existing = PreparedTextureIO.read(blob);
                     if (existing.sourceSha256().equals(key.sourceSha256())
@@ -382,7 +391,7 @@ final class TextureBatchBuilder {
                         encoded,
                         key.sourceSha256(),
                         key.transformation());
-                PreparedTextureIO.write(blob, texture);
+                PreparedTextureIO.write(blob, texture, storageCodec);
                 return BlobResult.success(
                         key,
                         relative,
@@ -503,10 +512,13 @@ final class TextureBatchBuilder {
         return value * multiplier;
     }
 
-    private static String blobRelativePath(BlobKey key) {
+    private static String blobRelativePath(BlobKey key, PreparedTextureIO.StorageCodec storageCodec) {
         String suffix = key.transformation().name().toLowerCase(Locale.ROOT).replace('_', '-');
+        String codecSuffix = storageCodec == PreparedTextureIO.StorageCodec.RAW
+                ? ""
+                : "-" + storageCodec.suffix();
         return "blobs/" + key.sourceSha256().substring(0, 2) + "/"
-                + key.sourceSha256() + "-" + suffix + ".spft";
+                + key.sourceSha256() + "-" + suffix + codecSuffix + ".spft";
     }
 
     private static String extension(String path) {
@@ -534,7 +546,14 @@ final class TextureBatchBuilder {
         };
     }
 
-    record Options(int workers, long memoryBudgetBytes) {
+    record Options(
+            int workers,
+            long memoryBudgetBytes,
+            PreparedTextureIO.StorageCodec storageCodec) {
+        Options(int workers, long memoryBudgetBytes) {
+            this(workers, memoryBudgetBytes, PreparedTextureIO.StorageCodec.RAW);
+        }
+
         Options {
             if (workers < 1 || workers > 64) {
                 throw new IllegalArgumentException("Texture workers must be between 1 and 64");
@@ -542,6 +561,7 @@ final class TextureBatchBuilder {
             if (memoryBudgetBytes < 16L * 1024 * 1024) {
                 throw new IllegalArgumentException("Texture memory budget must be at least 16 MiB");
             }
+            Objects.requireNonNull(storageCodec, "storageCodec");
         }
     }
 

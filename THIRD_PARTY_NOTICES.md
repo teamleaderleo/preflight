@@ -11,3 +11,10 @@ normal-map generation requests during the first traversal, and replays that comp
 instead of walking every specification a second time. Preflight additionally represents captured
 requests using existing JVM types so the replacement remains a single-class, mod-classloader-safe
 artifact. The source changes are based on GraphicsLib commits `7434a75` and `abb1ffa`.
+
+## Aircompressor
+
+`preflight-core` uses Airlift Aircompressor's pure-Java LZ4 implementation for the optional
+lossless balanced prepared-texture format. Aircompressor is copyright The Airlift Project and is
+licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). Source:
+[airlift/aircompressor](https://github.com/airlift/aircompressor).

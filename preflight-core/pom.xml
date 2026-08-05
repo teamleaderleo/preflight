@@ -11,6 +11,12 @@
   <artifactId>preflight-core</artifactId>
 
   <dependencies>
+    <!-- Pure-Java lossless codecs keep prepared caches portable across every game platform. -->
+    <dependency>
+      <groupId>io.airlift</groupId>
+      <artifactId>aircompressor</artifactId>
+      <version>${aircompressor.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>

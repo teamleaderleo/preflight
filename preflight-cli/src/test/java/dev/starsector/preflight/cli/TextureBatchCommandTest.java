@@ -38,7 +38,8 @@ class TextureBatchCommandTest {
                 "--game", temporaryDirectory.toString(),
                 "--cache-dir", cache.toString(),
                 "--workers", "2",
-                "--memory-mb", "16"
+                "--memory-mb", "16",
+                "--texture-storage", "balanced"
         }));
 
         Path manifestFile;
@@ -47,6 +48,7 @@ class TextureBatchCommandTest {
         }
         TextureManifest manifest = TextureManifestIO.read(manifestFile);
         assertEquals(2, manifest.entryCount());
+        assertTrue(manifest.entry("graphics/mod.png").orElseThrow().blobRelativePath().endsWith("-lz4.spft"));
 
         String inspectOutput = captureStdout(() -> assertEquals(0, PreflightCli.run(new String[] {
                 "texture", "manifest", "inspect", manifestFile.toString()
@@ -74,7 +76,8 @@ class TextureBatchCommandTest {
                 "--game", temporaryDirectory.toString(),
                 "--cache-dir", cache.toString(),
                 "--workers", "1",
-                "--memory-mb", "16"
+                "--memory-mb", "16",
+                "--texture-storage", "balanced"
         }));
         assertTrue(Files.isDirectory(cache.resolve("quarantine")));
     }

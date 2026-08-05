@@ -1,5 +1,8 @@
 package dev.starsector.preflight.core;
 
+import io.airlift.compress.MalformedInputException;
+import io.airlift.compress.lz4.Lz4Compressor;
+import io.airlift.compress.lz4.Lz4Decompressor;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -14,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Objects;
 
 /** Versioned raw blob persistence for upload-ready texture data. */
 public final class PreparedTextureIO {
@@ -21,14 +25,20 @@ public final class PreparedTextureIO {
     private static final int CHECKSUM_BYTES = 32;
     private static final int SHA256_BYTES = 32;
     private static final int CODEC_RAW = 0;
+    private static final int CODEC_LZ4 = 1;
     private static final int PAYLOAD_FIXED_BYTES = SHA256_BYTES + Integer.BYTES * 11;
     private static final int MAX_FILE_BYTES = 512 * 1024 * 1024;
+    private static final Lz4Decompressor LZ4_DECOMPRESSOR = new Lz4Decompressor();
 
     private PreparedTextureIO() {
     }
 
     public static void write(Path target, PreparedTexture texture) throws IOException {
         AtomicBlobs.write(target, toBytes(texture));
+    }
+
+    public static void write(Path target, PreparedTexture texture, StorageCodec codec) throws IOException {
+        AtomicBlobs.write(target, toBytes(texture, codec));
     }
 
     public static PreparedTexture read(Path source) throws IOException {
@@ -91,28 +101,25 @@ public final class PreparedTextureIO {
             if (payloadLength < PAYLOAD_FIXED_BYTES || expectedLength != size) {
                 throw new IOException("Prepared texture payload length is invalid");
             }
-            if (codec != CODEC_RAW) {
-                throw new IOException("Unsupported prepared texture codec: " + codec);
-            }
+            StorageCodec storageCodec = StorageCodec.fromId(codec);
             if (uploadWidth <= 0 || uploadHeight <= 0 || (channels != 3 && channels != 4)) {
                 throw new IOException("Prepared texture dimensions or channel count are invalid");
             }
             long expectedPixels = Math.multiplyExact(
                     Math.multiplyExact((long) uploadWidth, uploadHeight),
                     channels);
-            if (pixelLength < 0
-                    || expectedPixels != pixelLength
-                    || payloadLength != PAYLOAD_FIXED_BYTES + (long) pixelLength
-                    || pixelLength > MAX_FILE_BYTES) {
+            int storedLength = payloadLength - PAYLOAD_FIXED_BYTES;
+            if (pixelLength < 0 || expectedPixels != pixelLength || storedLength < 0 || pixelLength > MAX_FILE_BYTES) {
                 throw new IOException(
                         "Prepared texture pixel length is " + pixelLength + "; expected " + expectedPixels);
             }
 
-            byte[] pixels = new byte[pixelLength];
-            readFully(channel, ByteBuffer.wrap(pixels), "Prepared texture ended inside its pixels");
+            byte[] storedPixels = new byte[storedLength];
+            readFully(channel, ByteBuffer.wrap(storedPixels), "Prepared texture ended inside its pixels");
             if (channel.position() != size - CHECKSUM_BYTES) {
                 throw new IOException("Prepared texture payload contains trailing data");
             }
+            byte[] pixels = decodePixels(storageCodec, storedPixels, pixelLength);
             return PreparedTexture.adopting(
                     java.util.HexFormat.of().formatHex(sourceHash),
                     transformation,
@@ -142,12 +149,16 @@ public final class PreparedTextureIO {
     }
 
     public static byte[] toBytes(PreparedTexture texture) throws IOException {
-        long payloadSize = PAYLOAD_FIXED_BYTES + (long) texture.pixelBytes();
-        long total = minimumFileBytes() + payloadSize;
+        return toBytes(texture, StorageCodec.RAW);
+    }
+
+    public static byte[] toBytes(PreparedTexture texture, StorageCodec codec) throws IOException {
+        Objects.requireNonNull(codec, "codec");
+        byte[] payload = encodePayload(texture, codec);
+        long total = minimumFileBytes() + payload.length;
         if (total > MAX_FILE_BYTES) {
             throw new IOException("Prepared texture blob exceeds the " + MAX_FILE_BYTES + " byte safety limit");
         }
-        byte[] payload = encodePayload(texture, (int) payloadSize);
         byte[] checksum = Hashes.sha256Bytes(payload);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream((int) total);
         try (DataOutputStream output = new DataOutputStream(bytes)) {
@@ -199,7 +210,10 @@ public final class PreparedTextureIO {
         }
     }
 
-    private static byte[] encodePayload(PreparedTexture texture, int payloadSize) throws IOException {
+    private static byte[] encodePayload(PreparedTexture texture, StorageCodec codec) throws IOException {
+        byte[] pixels = texture.pixels();
+        byte[] storedPixels = encodePixels(codec, pixels);
+        int payloadSize = Math.addExact(PAYLOAD_FIXED_BYTES, storedPixels.length);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream(payloadSize);
         try (DataOutputStream output = new DataOutputStream(bytes)) {
             output.write(Hashes.decodeSha256(texture.sourceSha256()));
@@ -212,9 +226,9 @@ public final class PreparedTextureIO {
             output.writeInt(texture.color0Rgba());
             output.writeInt(texture.color1Rgba());
             output.writeInt(texture.color2Rgba());
-            output.writeInt(CODEC_RAW);
+            output.writeInt(codec.id());
             output.writeInt(texture.pixelBytes());
-            output.write(texture.pixels());
+            output.write(storedPixels);
         }
         return bytes.toByteArray();
     }
@@ -234,10 +248,7 @@ public final class PreparedTextureIO {
             int color0 = input.readInt();
             int color1 = input.readInt();
             int color2 = input.readInt();
-            int codec = input.readInt();
-            if (codec != CODEC_RAW) {
-                throw new IOException("Unsupported prepared texture codec: " + codec);
-            }
+            StorageCodec codec = StorageCodec.fromId(input.readInt());
             int pixelLength = input.readInt();
             if (uploadWidth <= 0 || uploadHeight <= 0 || (channels != 3 && channels != 4)) {
                 throw new IOException("Prepared texture dimensions or channel count are invalid");
@@ -249,13 +260,11 @@ public final class PreparedTextureIO {
                 throw new IOException(
                         "Prepared texture pixel length is " + pixelLength + "; expected " + expectedPixels);
             }
-            byte[] pixels = input.readNBytes(pixelLength);
-            if (pixels.length != pixelLength) {
+            byte[] storedPixels = input.readAllBytes();
+            if (storedPixels.length == 0 && pixelLength != 0) {
                 throw new EOFException("Prepared texture ended inside its pixels");
             }
-            if (input.available() != 0) {
-                throw new IOException("Prepared texture payload contains trailing data");
-            }
+            byte[] pixels = decodePixels(codec, storedPixels, pixelLength);
             // The array was just read from this stream and no other reference to it exists, so
             // the constructor's defensive copy would only duplicate the pixels the blob was read
             // for -- 2.53 GB of them across one launch of the reviewed profile.
@@ -279,6 +288,68 @@ public final class PreparedTextureIO {
             if (channel.read(target) < 0) {
                 throw new EOFException(eofMessage);
             }
+        }
+    }
+
+    private static byte[] encodePixels(StorageCodec codec, byte[] pixels) throws IOException {
+        if (codec == StorageCodec.RAW) {
+            return pixels;
+        }
+        Lz4Compressor compressor = new Lz4Compressor();
+        byte[] compressed = new byte[compressor.maxCompressedLength(pixels.length)];
+        int length = compressor.compress(pixels, 0, pixels.length, compressed, 0, compressed.length);
+        return Arrays.copyOf(compressed, length);
+    }
+
+    private static byte[] decodePixels(StorageCodec codec, byte[] stored, int pixelLength) throws IOException {
+        if (codec == StorageCodec.RAW) {
+            if (stored.length != pixelLength) {
+                throw new IOException(
+                        "Prepared texture raw pixel length is " + stored.length + "; expected " + pixelLength);
+            }
+            return stored;
+        }
+        byte[] pixels = new byte[pixelLength];
+        try {
+            int restored = LZ4_DECOMPRESSOR.decompress(
+                    stored, 0, stored.length, pixels, 0, pixels.length);
+            if (restored != pixelLength) {
+                throw new IOException(
+                        "Prepared texture decompressed to " + restored + " bytes; expected " + pixelLength);
+            }
+            return pixels;
+        } catch (MalformedInputException error) {
+            throw new IOException("Prepared texture LZ4 payload is malformed", error);
+        }
+    }
+
+    public enum StorageCodec {
+        RAW(CODEC_RAW, "raw"),
+        LZ4(CODEC_LZ4, "lz4");
+
+        private final int id;
+        private final String suffix;
+
+        StorageCodec(int id, String suffix) {
+            this.id = id;
+            this.suffix = suffix;
+        }
+
+        public int id() {
+            return id;
+        }
+
+        public String suffix() {
+            return suffix;
+        }
+
+        private static StorageCodec fromId(int id) throws IOException {
+            for (StorageCodec codec : values()) {
+                if (codec.id == id) {
+                    return codec;
+                }
+            }
+            throw new IOException("Unsupported prepared texture codec: " + id);
         }
     }
 

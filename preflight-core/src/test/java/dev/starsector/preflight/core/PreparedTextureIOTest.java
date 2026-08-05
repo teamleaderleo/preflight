@@ -32,6 +32,33 @@ class PreparedTextureIOTest {
     }
 
     @Test
+    void roundTripsLosslessLz4StorageAndTrustedRead() throws Exception {
+        byte[] pixels = new byte[64 * 1024];
+        Arrays.fill(pixels, (byte) 0x5a);
+        PreparedTexture texture = new PreparedTexture(
+                "cd".repeat(32),
+                PreparedTexture.Transformation.IDENTITY,
+                128,
+                128,
+                128,
+                128,
+                4,
+                PreparedTexture.rgba(1, 2, 3, 255),
+                PreparedTexture.rgba(4, 5, 6, 255),
+                PreparedTexture.rgba(7, 8, 9, 255),
+                pixels);
+
+        byte[] raw = PreparedTextureIO.toBytes(texture);
+        byte[] compressed = PreparedTextureIO.toBytes(texture, PreparedTextureIO.StorageCodec.LZ4);
+        assertTrue(compressed.length < raw.length / 10);
+        assertEquals(texture, PreparedTextureIO.fromBytes(compressed));
+
+        Path output = temporaryDirectory.resolve("compressed.spft");
+        PreparedTextureIO.write(output, texture, PreparedTextureIO.StorageCodec.LZ4);
+        assertEquals(texture, PreparedTextureIO.readTrusted(output));
+    }
+
+    @Test
     void rejectsCorruptionAndTruncation() throws Exception {
         byte[] bytes = PreparedTextureIO.toBytes(fixture());
         byte[] corrupt = bytes.clone();

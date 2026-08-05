@@ -63,7 +63,8 @@ final class TextureBatchCommand {
         TextureBatchBuilder.Result result = TextureBatchBuilder.build(
                 activeIndex,
                 cacheDirectory,
-                new TextureBatchBuilder.Options(options.workers(), options.memoryBudgetBytes()));
+                new TextureBatchBuilder.Options(
+                        options.workers(), options.memoryBudgetBytes(), options.storagePolicy().codec()));
 
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("cacheDirectory", cacheDirectory);
@@ -88,6 +89,7 @@ final class TextureBatchCommand {
         report.put("uniqueBlobBytes", result.uniqueBlobBytes());
         report.put("workers", options.workers());
         report.put("memoryBudgetBytes", options.memoryBudgetBytes());
+        report.put("textureStorage", options.storagePolicy().optionValue());
         report.put("durationMs", result.durationMillis());
         report.put("diagnostics", result.diagnostics());
         System.out.println(Json.object(report));
@@ -110,6 +112,7 @@ final class TextureBatchCommand {
         Path pathsFile = null;
         int workers = defaultWorkers();
         long memoryBudgetBytes = defaultMemoryBudgetBytes();
+        TextureStoragePolicy storagePolicy = TextureStoragePolicy.FASTEST;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
@@ -122,13 +125,16 @@ final class TextureBatchCommand {
                     long memoryMb = positiveLong(requireValue(args, ++i, "--memory-mb"), "memory-mb");
                     memoryBudgetBytes = Math.multiplyExact(memoryMb, MIB);
                 }
+                case "--texture-storage" -> storagePolicy =
+                        TextureStoragePolicy.parse(requireValue(args, ++i, "--texture-storage"));
                 default -> throw new IllegalArgumentException("Unknown texture build option: " + args[i]);
             }
         }
         if (index != null && (game != null || launcher != null)) {
             throw new IllegalArgumentException("Use either --index or game discovery options, not both");
         }
-        return new Options(game, launcher, index, cacheDirectory, pathsFile, workers, memoryBudgetBytes);
+        return new Options(
+                game, launcher, index, cacheDirectory, pathsFile, workers, memoryBudgetBytes, storagePolicy);
     }
 
     private static int defaultWorkers() {
@@ -174,6 +180,7 @@ final class TextureBatchCommand {
             Path cacheDirectory,
             Path pathsFile,
             int workers,
-            long memoryBudgetBytes) {
+            long memoryBudgetBytes,
+            TextureStoragePolicy storagePolicy) {
     }
 }

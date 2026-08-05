@@ -33,6 +33,7 @@ class PrepareCommandTest {
                 "--report", report.toString(),
                 "--workers", "2",
                 "--memory-mb", "32",
+                "--texture-storage", "balanced",
                 "--deep",
                 "--verify-lookups",
                 "--lookup-queries", "250",
@@ -51,6 +52,7 @@ class PrepareCommandTest {
         assertTrue(first.contains("\"artifactHit\":false"), first);
         assertTrue(first.contains("\"profileHit\":false"), first);
         assertTrue(first.contains("\"builtBlobs\":2"), first);
+        assertTrue(first.contains("\"textureStorage\":\"balanced\""), first);
         assertTrue(first.contains("\"liveAdapterIntegrated\":true"), first);
         assertTrue(first.contains("\"liveAdapterEnabledByPreparation\":false"), first);
         assertTrue(first.contains("\"vanillaAdapter\":\"compatibility-v2-behaviorally-accepted\""), first);
