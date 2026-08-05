@@ -64,8 +64,50 @@ final class StartupCallBreakdownPlan {
                                     "loadWeaponPaintjobs",
                                     "(Lcom/fs/starfarer/api/ModSpecAPI;)Ljava/util/List;",
                                     "magic.paintjobs.weaponRows"),
+                            callsIn("loadPaintjobs", "()Lkotlin/Pair;", "org/json/JSONObject",
+                                    List.of("getString", "optString", "getJSONObject",
+                                            "optBoolean"),
+                                    "magic.paintjobs.jsonAccess"),
+                            callsIn("loadPaintjobs", "()Lkotlin/Pair;",
+                                    "org/lazywizard/lazylib/ext/json/JSONExtensionsKt",
+                                    List.of("optFloat"), "magic.paintjobs.floatAccess"),
+                            callsIn("loadPaintjobs", "()Lkotlin/Pair;",
+                                    "com/fs/starfarer/api/util/Misc", List.of("optColor"),
+                                    "magic.paintjobs.colorAccess"),
+                            callsIn("loadPaintjobs", "()Lkotlin/Pair;", "kotlin/text/StringsKt",
+                                    List.of("trim", "isBlank", "split$default"),
+                                    "magic.paintjobs.stringOps"),
+                            call("loadPaintjobs", "()Lkotlin/Pair;",
+                                    "org/magiclib/util/MagicTxt", "ellipsizeStringAfterLength",
+                                    null, "magic.paintjobs.ellipsize"),
                             anyCall("org/apache/log4j/Logger", "info",
                                     "magic.paintjobs.infoLog"))),
+            new Probe(
+                    "org/magiclib/Magic_modPlugin",
+                    "0ef80d14aa00142bf5dd4d8eb8448cc5dbd342d47d4b48fbe9e57c6b22c00000",
+                    List.of(
+                            topCall("data/scripts/Magic_modPlugin", "onApplicationLoad",
+                                    "magic.legacyPlugin"),
+                            topCall("org/magiclib/util/MagicSettings", "loadModSettings",
+                                    "magic.settings"),
+                            topCall("org/magiclib/bounty/MagicBountyLoader",
+                                    "loadBountiesFromJSON", "magic.devBounties"),
+                            topCall("org/magiclib/util/MagicInterference", "loadInterference",
+                                    "magic.interference"),
+                            topCall("org/magiclib/plugins/MagicAutoTrails", "getTrailData",
+                                    "magic.autoTrails"),
+                            topCall("org/magiclib/util/MagicVariables", "loadThemesBlacklist",
+                                    "magic.themesBlacklist"),
+                            topCall("org/magiclib/util/MagicSettings", "getBoolean",
+                                    "magic.booleanSetting"),
+                            topCall("org/magiclib/achievements/MagicAchievementManager",
+                                    "getInstance", "magic.achievementInstance"),
+                            topCall("org/magiclib/achievements/MagicAchievementManager",
+                                    "onApplicationLoad", "magic.achievementLoad"),
+                            topCall("org/magiclib/paintjobs/MagicPaintjobManager",
+                                    "onApplicationLoad", "magic.paintjobs"),
+                            topCall("org/magiclib/subsystems/MagicSubsystemsManager", "initialize",
+                                    "magic.subsystems"))),
             new Probe(
                     "exerelin/utilities/NexConfig",
                     "a59894d38876b8ed92d3d11726d776743b1203177ccacc8a6f8d79f7fd71ff7c",
@@ -186,7 +228,7 @@ final class StartupCallBreakdownPlan {
             List<Match> matches = new ArrayList<>();
             for (AbstractInsnNode instruction : method.instructions.toArray()) {
                 if (!(instruction instanceof MethodInsnNode invoked)
-                        || invoked.getOpcode() == Opcodes.INVOKESPECIAL) {
+                        || "<init>".equals(invoked.name)) {
                     continue;
                 }
                 for (CallMatcher call : probe.calls()) {

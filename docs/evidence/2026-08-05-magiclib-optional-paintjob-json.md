@@ -52,3 +52,29 @@ Relevant runs:
 - `~/.starsector-preflight/runs/magic-optional-json-v1-retry-20260805-151800`
 - `~/.starsector-preflight/runs/magic-optional-json-ab-baseline-20260805-151926`
 - `~/.starsector-preflight/runs/magic-optional-json-ab-optimized-20260805-152019`
+
+## Follow-up: the remaining callback is first-use initialization, not JSON
+
+A later exact top-level probe placed 470--560ms of MagicLib's 650--770ms application callback in
+`MagicPaintjobManager.onApplicationLoad`. A second exact probe split the already-reviewed manager
+further. On the retained 560ms sample:
+
+- five `loadWeaponPaintjobs` calls took 240ms total, but the first alone took 220ms;
+- eight CSV reads took 40ms;
+- 4,374 ship-row `JSONObject` accesses took less than 10ms;
+- 6,578 Kotlin trim/blank/split operations took about 10ms;
+- hull validation and optional JSON were below the timer's 10ms reporting resolution.
+
+The one-large-first-call shape agrees with the bytecode: the first weapon row brings
+`MagicWeaponPaintjobSpec`, Kotlin reflection/collection helpers, and related parser classes into the
+JVM, while later mod calls are cheap. The ship path similarly constructs MagicLib's nested engine,
+shield, and paintjob classes for the first time. Caching JSON or Kotlin string results cannot recover
+the observed block. Lazy-loading the manager could move it out of startup, but would introduce the
+same class-load/parsing hitch on the first refit/paintjob interaction and has not been retained.
+
+The attribution is opt-in and changes no return value or control flow. It now includes MagicLib's
+complete application callback plus the private weapon-row call, JSON, float/color, Kotlin string,
+and ellipsize boundaries. Retained runs:
+
+- `~/.starsector-preflight/runs/magic-callback-breakdown-20260805-160645`
+- `~/.starsector-preflight/runs/magic-paintjob-inner-breakdown-20260805-160849`

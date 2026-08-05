@@ -697,6 +697,12 @@ shortcut now proves those misses from the current mod root and otherwise invokes
 unchanged. Clean live gates kept the same 437/775 ship/weapon paintjob counts, reported 874 proven
 misses with zero delegation/failure, and reached the menu normally. Nearby callback timings support
 only a modest tens-of-ms claim because the 0.7--0.95s callback is noisy.
+The remaining MagicLib boundary is now exactly attributed too. `MagicPaintjobManager` accounts for
+about 0.47--0.56s, including five weapon loaders at 0.24s; one first weapon call alone is 0.22s.
+CSV is 0.04s, 4,374 JSON field accesses are below 0.01s, and 6,578 Kotlin string operations are
+about 0.01s. Bytecode and that one-large-first-call shape point to required Magic/Kotlin class
+definition and initialization. Do not add another JSON/string cache here. Deferring the manager
+would move the same work to the first refit/paintjob interaction and was not retained.
 Nexerelin's remaining 0.6--0.9s callback is now exactly attributed rather than guessed at. Across
 75 faction configs, cached merged reads cost only 0.11--0.15s and 6,655 JSON accesses only
 0.06--0.09s. About 0.30s comes from the first missing `doesVariantExist` call constructing the

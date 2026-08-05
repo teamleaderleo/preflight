@@ -44,6 +44,23 @@ class StartupCallBreakdownPlanTest {
         assertEquals(6, runtimeCalls(transformed));
     }
 
+    @Test
+    void wrapsMagicLibApplicationLoadBoundaries() throws Exception {
+        StartupCallBreakdownPlan.Probe magic = StartupCallBreakdownPlan.probes().stream()
+                .filter(probe -> "org/magiclib/Magic_modPlugin".equals(probe.className()))
+                .findFirst()
+                .orElseThrow();
+        byte[] original = magicFixture();
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature exact = new ClassSignature(parsed.internalName(), magic.sha256(),
+                parsed.majorVersion(), parsed.access(), parsed.methods());
+
+        byte[] transformed = StartupCallBreakdownPlan.transform(exact, original);
+
+        assertNotNull(transformed);
+        assertEquals(24, runtimeCalls(transformed));
+    }
+
     private static byte[] fixture() {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, PROBE.className(),
@@ -100,6 +117,36 @@ class StartupCallBreakdownPlanTest {
         load.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
+    }
+
+    private static byte[] magicFixture() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                "org/magiclib/Magic_modPlugin", null, "java/lang/Object", null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                "onApplicationLoad", "()V", null, null);
+        method.visitCode();
+        invoke(method, "data/scripts/Magic_modPlugin", "onApplicationLoad");
+        invoke(method, "org/magiclib/util/MagicSettings", "loadModSettings");
+        invoke(method, "org/magiclib/bounty/MagicBountyLoader", "loadBountiesFromJSON");
+        invoke(method, "org/magiclib/util/MagicInterference", "loadInterference");
+        invoke(method, "org/magiclib/plugins/MagicAutoTrails", "getTrailData");
+        invoke(method, "org/magiclib/util/MagicVariables", "loadThemesBlacklist");
+        invoke(method, "org/magiclib/util/MagicSettings", "getBoolean");
+        invoke(method, "org/magiclib/achievements/MagicAchievementManager", "getInstance");
+        invoke(method, "org/magiclib/achievements/MagicAchievementManager", "getInstance");
+        invoke(method, "org/magiclib/achievements/MagicAchievementManager", "onApplicationLoad");
+        invoke(method, "org/magiclib/paintjobs/MagicPaintjobManager", "onApplicationLoad");
+        invoke(method, "org/magiclib/subsystems/MagicSubsystemsManager", "initialize");
+        method.visitInsn(Opcodes.RETURN);
+        method.visitMaxs(0, 0);
+        method.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static void invoke(MethodVisitor method, String owner, String name) {
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, owner, name, "()V", false);
     }
 
     private static ClassSignature exactSignature(byte[] bytes) throws Exception {

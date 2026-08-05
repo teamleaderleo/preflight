@@ -323,6 +323,21 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Exact MagicLib callback, timed only by the opt-in startup phase probe. */
+    static AdapterTarget startupMagicLibBreakdownTarget() {
+        return new AdapterTarget(
+                "magiclib-1.5.6-startup-callback-breakdown",
+                "org/magiclib/Magic_modPlugin",
+                "0ef80d14aa00142bf5dd4d8eb8448cc5dbd342d47d4b48fbe9e57c6b22c00000",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("onApplicationLoad", "()V")),
+                "MOD",
+                "MagicLib.jar",
+                "af028fcd67dd537024eab0082d3e78cac8508355dbd5f8731b6c243c60dae0d5",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** Exact Nexerelin settings loader, timed only by the opt-in startup phase probe. */
     static AdapterTarget startupNexConfigBreakdownTarget() {
         return new AdapterTarget(
@@ -1318,6 +1333,7 @@ final class AdapterTargetRegistry {
         }
         return registry
                 .withTarget(startupGraphicsBreakdownTarget())
+                .withTarget(startupMagicLibBreakdownTarget())
                 .withTarget(startupNexConfigBreakdownTarget())
                 .withTarget(startupNexFactionConfigBreakdownTarget())
                 .withTarget(mergedReadProbeTarget());
