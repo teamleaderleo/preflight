@@ -230,7 +230,17 @@ final class AdapterTransformationRegistry {
             return MagicLibPaintjobPlan.transform(signature, originalBytes);
         }
         if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(target.planId())) {
-            return MagicLibPaintjobNotificationPlan.transform(signature, originalBytes);
+            byte[] notification =
+                    MagicLibPaintjobNotificationPlan.transform(signature, originalBytes);
+            byte[] current = notification == null ? originalBytes : notification;
+            byte[] optionalJson = MagicLibPaintjobLoadPlan.transform(signature, current);
+            boolean changed = notification != null || optionalJson != null;
+            current = optionalJson == null ? current : optionalJson;
+            if (changed && StartupPhaseRuntime.phaseProbeEnabled()) {
+                byte[] timed = StartupCallBreakdownPlan.transform(signature, current);
+                current = timed == null ? current : timed;
+            }
+            return changed ? current : null;
         }
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(target.planId())) {
             return StelnetMarketUpdaterPlan.transform(signature, originalBytes);

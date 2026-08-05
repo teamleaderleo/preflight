@@ -320,6 +320,8 @@ final class AdapterReport {
                 .append(Json.value(MagicLibPaintjobRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjobNotification")
                 .append(Json.value(MagicLibPaintjobNotificationRuntime.telemetry())).append(',');
+        key(output, "magicLibPaintjobLoad")
+                .append(Json.value(MagicLibPaintjobLoadRuntime.telemetry())).append(',');
         key(output, "stelnetMarketUpdater")
                 .append(Json.value(StelnetMarketUpdaterRuntime.telemetry())).append(',');
         key(output, "logisticsNotificationsFuel")

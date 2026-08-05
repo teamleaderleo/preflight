@@ -50,6 +50,23 @@ final class StartupCallBreakdownPlan {
                             anyCall("com/fs/starfarer/api/SettingsAPI", "loadJSON",
                                     "ash.renderInfo.loadJSON"))),
             new Probe(
+                    "org/magiclib/paintjobs/MagicPaintjobManager",
+                    "841f945d675920e0fad9ccf13c7fa3144b6437489b6ba11e121a3267e6b8993c",
+                    List.of(
+                            anyCall("com/fs/starfarer/api/SettingsAPI", "loadCSV",
+                                    "magic.paintjobs.loadCSV"),
+                            anyCall("com/fs/starfarer/api/SettingsAPI", "loadJSON",
+                                    "magic.paintjobs.optionalJSON"),
+                            anyCall("com/fs/starfarer/api/SettingsAPI", "getHullSpec",
+                                    "magic.paintjobs.hullValidation"),
+                            call("loadPaintjobs", "()Lkotlin/Pair;",
+                                    "org/magiclib/paintjobs/MagicPaintjobManager",
+                                    "loadWeaponPaintjobs",
+                                    "(Lcom/fs/starfarer/api/ModSpecAPI;)Ljava/util/List;",
+                                    "magic.paintjobs.weaponRows"),
+                            anyCall("org/apache/log4j/Logger", "info",
+                                    "magic.paintjobs.infoLog"))),
+            new Probe(
                     "org/dark/shaders/ShaderModPlugin",
                     "5863b38d7ea73ed65fb8d214e525daed0318f4563b92a15d22e0981cec275981",
                     List.of(

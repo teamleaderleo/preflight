@@ -680,10 +680,17 @@ or station hull lookups. A callback-scoped index now preserves first-match and f
 the live gate served all 547 lookups with zero failure and reduced that exact seam from 160ms to
 19--20ms. The same scope now reuses the pinned render-info class's private, non-escaping, read-only
 hull JSON objects: 17,051 hits removed 17,433 `loadJSON` calls and reduced that exact seam by 65ms.
+MagicLib's paintjob loader was the next callback reviewed. Its 437 rows made 874 restricted
+`loadJSON` attempts for optional `.paintjob` files, and every one was absent. An exact, path-confined
+shortcut now proves those misses from the current mod root and otherwise invokes the original API
+unchanged. Clean live gates kept the same 437/775 ship/weapon paintjob counts, reported 874 proven
+misses with zero delegation/failure, and reached the menu normally. Nearby callback timings support
+only a modest tens-of-ms claim because the 0.7--0.95s callback is noisy.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
-`docs/evidence/2026-08-05-ashlib-variant-index.md`.
+`docs/evidence/2026-08-05-ashlib-variant-index.md`, and
+`docs/evidence/2026-08-05-magiclib-optional-paintjob-json.md`.
 
 ## Environment notes that cost time to rediscover
 
