@@ -2,8 +2,7 @@
 
 Date: 2026-08-05
 
-Status: market/fleet drill-down complete; three exact maintenance shortcuts live-verified and three
-launch-free verified
+Status: market/fleet drill-down complete; all six exact maintenance shortcuts live-verified
 
 ## Why another layer was necessary
 
@@ -317,11 +316,10 @@ The two reviewed class identities are SHA-256
 `fs.common_obf.jar`; their archive hashes are pinned separately. Executable synthetic coverage
 proves disabled, enabled, disabled-again, partial-install, kill-switch, and second-transform
 behavior. Both real installed classes transform under their exact archives, and full `mvn verify`
-passes. Live telemetry reports avoided and delegated labels, but no live campaign gate has yet been
-run successfully: the first attempt matched both exact targets but correctly retained vanilla
-because the separate plan-availability registry entry was missing. That entry and a regression test
-covering both production targets are now present. This remains an allocation-removal candidate with
-no measured count or FPS claim until a later live run.
+passes. The first live attempt matched both exact targets but correctly retained vanilla because the
+separate plan-availability registry entry was missing. That entry and a regression test covering
+both production targets are now present. The clean combined gate below installed both owners and
+avoided 100,354 dynamic labels with zero delegation while the profiler remained disabled.
 
 The same attempted gate did complete the compact market iterator's live verification. It exited
 normally with zero contained failures and exercised 2,840,164 condition snapshots plus 2,840,164
@@ -352,9 +350,9 @@ This fourth maintenance target pins `Memory.class` SHA-256
 method, Java version, source, and loader. Changed or second-transformed code declines, and
 `preflight.campaign.entityMaintenance.disabled=true` restores vanilla together with the other
 maintenance shortcuts. Synthetic execution covers empty and non-empty collections; the real
-installed class transforms at both exact iterator sites. Full `mvn verify` passes. The adapter is
-launch-free verified and reports empty/non-empty counts for a later ordinary campaign gate; no FPS
-or total allocation claim is made yet.
+installed class transforms at both exact iterator sites. Full `mvn verify` passes. The clean
+combined gate below exercised both branches at campaign scale; no FPS delta or byte-exact total
+allocation claim is made.
 
 ## Compact paused-condition snapshots
 
@@ -377,4 +375,22 @@ method, exact constructor/producer/iterator sequence, source, and loader. It com
 opt-in economy attribution rewrite on the same owner while the original identity is available.
 Synthetic shape/stable-snapshot coverage, exact installed transformation, exact composition, and
 full `mvn verify` pass. Telemetry separates paused condition snapshots from ordinary market
-snapshots. This is launch-free verified sampled-allocation evidence, not an FPS claim.
+snapshots.
+
+## Combined maintenance live gate
+
+`campaign-maintenance-v3-20260805-102924` loaded the representative save, exercised ordinary
+campaign and paused UI state, and exited normally. Adapter health was `ACTIVE`: all 40 reviewed
+transformations applied, with zero declines, unavailable plans, or contained failures. The exact
+new owners all installed and produced the following counters:
+
+- memory expiration lists: **4,526,048 empty** / 343,913 non-empty;
+- memory requirement maps: **4,604,109 empty** / 265,852 non-empty;
+- paused market-condition snapshots: **270,072 non-empty**;
+- fleet-AI profiler labels: **100,354 avoided** / zero delegated, with profiling disabled.
+
+The previously live-gated maintenance paths also remained active: 4,215,903 empty entity-script
+lists skipped their defensive copy, while ordinary market traversal recorded 329,336 condition and
+329,336 industry snapshots. The run validates exact installation, substantial use, fail-closed
+plumbing, and normal campaign exit. It is not a controlled A/B, so its FPS distribution is retained
+as diagnostic telemetry rather than attributed to these allocation removals.

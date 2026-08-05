@@ -492,10 +492,11 @@ when profiling is enabled, and delegates on every partial-install or drift case.
 off/on/off execution, kill-switch and exact installed-archive tests pass, as does full
 `mvn verify`. Its first live attempt matched both exact owners but retained vanilla because the
 separate plan-availability registry entry was missing; this correctly failed closed and explains
-the run's two unavailable plans. The entry now exists with a regression test. It remains launch-free
-verified and needs a later clean campaign run for avoided/delegated counts. That attempted run did
-live-gate the final compact market iterator: all three maintenance hooks installed, 5,680,328 total
-market snapshots exercised, zero contained failures, and normal exit.
+the run's two unavailable plans. The entry now exists with a regression test. A later clean combined
+gate installed both owners and avoided 100,354 dynamic labels with zero delegation while profiling
+remained disabled. The earlier attempt also live-gated the final compact market iterator: all three
+maintenance hooks installed, 5,680,328 total market snapshots exercised, zero contained failures,
+and normal exit.
 Offline allocation analysis then exposed `Memory.advance(float)` allocating an expiry-list iterator
 and requirement-map values view/iterator even when those private collections are empty. A prior
 campaign JFR attributed 50 allocation samples / about 114.3MB of sampled weight to that method,
@@ -505,14 +506,17 @@ maintenance adapter now guards each iterator site after vanilla's restoration, p
 conversion work. Empty expiry lists jump to the requirement gate and empty requirement maps return;
 every non-empty loop, including `Iterator.remove`, remains byte-for-byte in place. Synthetic
 empty/non-empty execution, exact installed-class transformation, the existing kill switch, and full
-`mvn verify` pass. It is launch-free verified and has telemetry for the next ordinary campaign run.
+`mvn verify` pass. The combined live gate skipped 4,526,048 empty expiration iterators and 4,604,109
+empty requirement iterators while retaining 343,913 and 265,852 non-empty paths respectively.
 The adjacent paused-economy path also constructs `new ArrayList(market.getConditions())` for every
 market. Existing JFR samples assign nine events / about 25.2MB of sampled weight to that unused
 wrapper, while the separate 45.0MB source-array site is necessary for callback-mutation isolation.
 The exact `Economy` adapter now uses the same stable `toArray()` plus private iterator as ordinary
 market snapshots, omitting only the wrapper. It deliberately retains the outer virtual
 `getMarketsCopy()` call. Synthetic and installed-class shapes, composition with the opt-in economy
-timer, full `mvn verify`, kill switch, and separate telemetry pass. It is launch-free verified.
+timer, full `mvn verify`, kill switch, and separate telemetry pass. The combined live gate compacted
+270,072 non-empty paused-condition snapshots. It exited normally with ACTIVE health: 40 applied
+transformations and zero decline, unavailable plans, or contained failure.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from
