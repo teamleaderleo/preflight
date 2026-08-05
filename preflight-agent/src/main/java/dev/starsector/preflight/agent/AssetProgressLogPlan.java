@@ -33,12 +33,21 @@ final class AssetProgressLogPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        Expected expected = expected(signature.internalName());
-        if (expected == null || !expected.methodsPresent(signature)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        Expected expected = expected(signature.internalName());
+        if (expected == null || !expected.methodsPresent(signature)) {
+            return false;
+        }
         List<Block> blocks = new ArrayList<>();
         for (MethodNode method : owner.methods) {
             if (!expected.method(method)) {
@@ -51,14 +60,14 @@ final class AssetProgressLogPlan {
                         && expected.prefixes.contains(prefix)) {
                     Block block = exactBlock(method, constant);
                     if (block == null) {
-                        return null;
+                        return false;
                     }
                     blocks.add(block);
                 }
             }
         }
         if (blocks.size() != expected.count) {
-            return null;
+            return false;
         }
         for (Block block : blocks) {
             AbstractInsnNode cursor = block.first;
@@ -71,9 +80,7 @@ final class AssetProgressLogPlan {
                 cursor = next;
             }
         }
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 
     private static Block exactBlock(MethodNode method, LdcInsnNode prefix) {

@@ -26,18 +26,25 @@ final class VariantJsonCachePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET.equals(signature.internalName())
-                || !signature.hasMethod(VariantLoaderPhasePlan.METHOD, VariantLoaderPhasePlan.DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        return write(owner);
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET.equals(signature.internalName())
+                || !signature.hasMethod(VariantLoaderPhasePlan.METHOD, VariantLoaderPhasePlan.DESCRIPTOR)) {
+            return false;
+        }
         MethodNode method = uniqueMethod(
                 owner, VariantLoaderPhasePlan.METHOD, VariantLoaderPhasePlan.DESCRIPTOR);
         MethodInsnNode originalCall = uniqueJsonCall(method);
         AbstractInsnNode methodReturn = uniqueReturn(method);
         if (method == null || originalCall == null || methodReturn == null || hasRuntimeCalls(method)) {
-            return null;
+            return false;
         }
 
         int pathLocal = method.maxLocals++;
@@ -64,6 +71,10 @@ final class VariantJsonCachePlan {
         method.instructions.insertBefore(methodReturn, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "complete", "()V", false));
 
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();

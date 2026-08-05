@@ -25,28 +25,38 @@ final class SpecStorePhasePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        StartupPhaseRuntime.installed();
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
+            return false;
+        }
         MethodNode init = uniqueMethod(owner, INIT_METHOD, INIT_DESCRIPTOR);
         if (init == null || hasRuntimeCalls(init)) {
-            return null;
+            return false;
         }
 
         MethodInsnNode first = uniqueCall(init, TARGET_CLASS, "new", INIT_DESCRIPTOR);
         MethodInsnNode last = uniqueCall(init, "com/fs/starfarer/campaign/rules/Rules",
                 "super", INIT_DESCRIPTOR);
         if (first == null || last == null || !comesBefore(first, last)) {
-            return null;
+            return false;
         }
 
         List<MethodInsnNode> loaders = staticVoidCalls(first, last);
         if (loaders.size() != EXPECTED_TOP_LEVEL_LOADERS
                 || loaders.get(0) != first || loaders.get(loaders.size() - 1) != last) {
-            return null;
+            return false;
         }
 
         for (int index = 0; index < loaders.size(); index++) {
@@ -56,10 +66,7 @@ final class SpecStorePhasePlan {
                     Opcodes.INVOKESTATIC, RUNTIME, "specLoaderEnd", "()V", false));
         }
 
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        StartupPhaseRuntime.installed();
-        return writer.toByteArray();
+        return true;
     }
 
     private static InsnList start(String label) {

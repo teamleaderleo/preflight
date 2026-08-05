@@ -26,15 +26,24 @@ final class FactionLoaderPhasePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
+            return false;
+        }
         MethodNode load = uniqueMethod(owner, LOAD_METHOD, LOAD_DESCRIPTOR);
         if (load == null || hasRuntimeCalls(load)) {
-            return null;
+            return false;
         }
 
         List<MethodInsnNode> json = calls(load, LOADING_UTILS, "Ó00000",
@@ -52,7 +61,7 @@ final class FactionLoaderPhasePlan {
                 "(Lcom/fs/starfarer/loading/ResourceLoaderState$o;Ljava/lang/String;I)V");
         if (json.size() != 5 || csv.size() != 1 || priorityTables.size() != 8
                 || specLookups.size() != 3 || names.size() != 18 || queues.size() != 6) {
-            return null;
+            return false;
         }
 
         json.forEach(call -> wrapCall(load, call, "faction-json-read"));
@@ -62,9 +71,7 @@ final class FactionLoaderPhasePlan {
         names.forEach(call -> wrapCall(load, call, "faction-json-name-snapshot"));
         queues.forEach(call -> wrapCall(load, call, "faction-resource-queue"));
 
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 
     private static void wrapCall(MethodNode method, MethodInsnNode call, String label) {

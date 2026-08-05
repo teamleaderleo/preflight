@@ -154,9 +154,13 @@ final class AdapterProbeTransformer implements ClassFileTransformer {
                     report.eligible(target);
                     continue;
                 }
-                byte[] transformed = AdapterTransformationRegistry.transform(target, signature, classfileBuffer);
+                long transformationStarted = System.nanoTime();
+                byte[] transformed = AdapterTransformationRegistry.transform(
+                        target, signature, classfileBuffer);
+                long transformationNanos = System.nanoTime() - transformationStarted;
                 if (transformed != null) {
-                    report.transformed(target);
+                    report.transformed(target, transformationNanos,
+                            classfileBuffer.length, transformed.length);
                     return transformed;
                 }
                 report.declined(target);

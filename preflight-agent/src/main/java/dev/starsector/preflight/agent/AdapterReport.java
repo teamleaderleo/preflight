@@ -49,6 +49,8 @@ final class AdapterReport {
     private long transformationEligible;
     private long transformationDeclined;
     private long transformationsApplied;
+    private long transformationNanos;
+    private final List<TransformationTiming> transformationTimings = new ArrayList<>();
     private long shadowedTargets;
     private final Map<String, String> shadowingSources = new LinkedHashMap<>();
     private long containedFailures;
@@ -182,8 +184,13 @@ final class AdapterReport {
                 + "; original bytes retained");
     }
 
-    synchronized void transformed(AdapterTarget target) {
+    synchronized void transformed(
+            AdapterTarget target, long elapsedNanos, int inputBytes, int outputBytes) {
         transformationsApplied++;
+        transformationNanos += Math.max(0, elapsedNanos);
+        transformationTimings.add(new TransformationTiming(
+                target.id(), target.internalClassName(), target.planId(),
+                Math.max(0, elapsedNanos), inputBytes, outputBytes));
         diagnostic("Applied transformation plan " + target.planId() + " to " + target.internalClassName());
     }
 
@@ -258,6 +265,7 @@ final class AdapterReport {
         numberField(output, "transformationEligible", transformationEligible);
         numberField(output, "transformationDeclined", transformationDeclined);
         numberField(output, "transformationsApplied", transformationsApplied);
+        numberField(output, "transformationNanos", transformationNanos);
         numberField(output, "shadowedTargets", shadowedTargets);
         arrayField(output, "shadowedBy", shadowingSources.entrySet().stream()
                 .map(entry -> entry.getKey() + " <- " + entry.getValue())
@@ -349,6 +357,24 @@ final class AdapterReport {
                 .append(Json.value(CampaignMarketFleetTimeRuntime.telemetry())).append(',');
         key(output, "campaignEntityMaintenance")
                 .append(Json.value(CampaignEntityMaintenanceRuntime.telemetry())).append(',');
+
+        key(output, "transformationTimings").append('[');
+        List<TransformationTiming> orderedTimings = transformationTimings.stream()
+                .sorted(Comparator.comparingLong(TransformationTiming::elapsedNanos).reversed())
+                .toList();
+        for (int i = 0; i < orderedTimings.size(); i++) {
+            if (i > 0) output.append(',');
+            TransformationTiming timing = orderedTimings.get(i);
+            output.append('{');
+            field(output, "targetId", timing.targetId());
+            field(output, "className", timing.className());
+            field(output, "planId", timing.planId());
+            numberField(output, "elapsedNanos", timing.elapsedNanos());
+            numberField(output, "inputBytes", timing.inputBytes());
+            numberField(output, "outputBytes", timing.outputBytes());
+            trimComma(output).append('}');
+        }
+        output.append("],");
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {
@@ -536,5 +562,14 @@ final class AdapterReport {
         private Evaluation {
             problems = List.copyOf(problems);
         }
+    }
+
+    private record TransformationTiming(
+            String targetId,
+            String className,
+            String planId,
+            long elapsedNanos,
+            int inputBytes,
+            int outputBytes) {
     }
 }

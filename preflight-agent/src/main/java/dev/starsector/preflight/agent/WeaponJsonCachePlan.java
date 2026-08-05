@@ -26,6 +26,13 @@ final class WeaponJsonCachePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        return write(owner);
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
         if (!TARGET.equals(signature.internalName())
                 || !signature.hasMethod(
                         WeaponLoaderPhasePlan.LOAD_ALL_METHOD,
@@ -33,10 +40,8 @@ final class WeaponJsonCachePlan {
                 || !signature.hasMethod(
                         WeaponLoaderPhasePlan.LOAD_ONE_METHOD,
                         WeaponLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)) {
-            return null;
+            return false;
         }
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode loadAll = uniqueMethod(
                 owner, WeaponLoaderPhasePlan.LOAD_ALL_METHOD, WeaponLoaderPhasePlan.LOAD_ALL_DESCRIPTOR);
         MethodNode loadOne = uniqueMethod(
@@ -45,7 +50,7 @@ final class WeaponJsonCachePlan {
         AbstractInsnNode loadAllReturn = uniqueReturn(loadAll);
         if (loadAll == null || loadOne == null || originalCall == null || loadAllReturn == null
                 || hasRuntimeCalls(loadAll) || hasRuntimeCalls(loadOne)) {
-            return null;
+            return false;
         }
 
         int pathLocal = loadOne.maxLocals++;
@@ -72,6 +77,10 @@ final class WeaponJsonCachePlan {
         loadAll.instructions.insertBefore(loadAllReturn, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "complete", "()V", false));
 
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();

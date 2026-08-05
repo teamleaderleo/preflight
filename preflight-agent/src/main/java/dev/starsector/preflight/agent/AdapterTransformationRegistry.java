@@ -1,5 +1,9 @@
 package dev.starsector.preflight.agent;
 
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.ClassNode;
+
 /** Registry for manually reviewed target-specific bytecode rewrites. */
 final class AdapterTransformationRegistry {
     private AdapterTransformationRegistry() {
@@ -97,8 +101,16 @@ final class AdapterTransformationRegistry {
             if (startupPhases != null) {
                 return startupPhases;
             }
+            byte[] composedSpecStore = specStorePlans(signature, originalBytes);
+            if (composedSpecStore != null) {
+                return composedSpecStore;
+            }
             byte[] specStoreBase = SpecStorePhasePlan.transform(signature, originalBytes);
             if (specStoreBase == null) {
+                byte[] composedWeaponLoader = weaponLoaderPlans(signature, originalBytes);
+                if (composedWeaponLoader != null) {
+                    return composedWeaponLoader;
+                }
                 byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
                 if (weaponPhases == null) {
                     byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
@@ -325,6 +337,67 @@ final class AdapterTransformationRegistry {
         return null;
     }
 
+    /** Applies every independent WeaponSpecLoader rewrite to one tree and computes frames once. */
+    private static byte[] weaponLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        if (!WeaponLoaderPhasePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            if (!WeaponLoaderPhasePlan.apply(signature, owner)) {
+                return null;
+            }
+            ProjectileLoaderPhasePlan.apply(signature, owner);
+            if (WeaponJsonCacheRuntime.ready()) {
+                WeaponJsonCachePlan.apply(signature, owner);
+            }
+            if (ProjectileJsonCacheRuntime.ready()) {
+                ProjectileJsonCachePlan.apply(signature, owner);
+            }
+            if (AssetProgressLogRuntime.suppress()) {
+                AssetProgressLogPlan.apply(signature, owner);
+            }
+            return WeaponJsonCachePlan.write(owner);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The caller retains the old independently fail-open pipeline as a fallback.
+            return null;
+        }
+    }
+
+    /** Applies every independent SpecStore rewrite to one tree and computes its frames once. */
+    private static byte[] specStorePlans(ClassSignature signature, byte[] originalBytes) {
+        if (!SpecStorePhasePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            if (!SpecStorePhasePlan.apply(signature, owner)) {
+                return null;
+            }
+            FactionLoaderPhasePlan.apply(signature, owner);
+            VariantLoaderPhasePlan.apply(signature, owner);
+            if (VariantJsonCacheRuntime.ready()) {
+                VariantJsonCachePlan.apply(signature, owner);
+            }
+            SpecStoreQuoteNormalizationPlan.apply(signature, owner);
+            if (AssetProgressLogRuntime.suppress()) {
+                AssetProgressLogPlan.apply(signature, owner);
+            }
+            byte[] transformed = VariantJsonCachePlan.write(owner);
+            StartupPhaseRuntime.installed();
+            return transformed;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The caller retains the old independently fail-open pipeline as a fallback.
+            return null;
+        }
+    }
+
     /**
      * Composes the four independent rewrites that share {@code LoadingUtils}.
      *
@@ -338,45 +411,29 @@ final class AdapterTransformationRegistry {
      * mine" from "nothing left to add".
      */
     private static byte[] loadingUtilsPlans(ClassSignature signature, byte[] originalBytes) {
-        byte[] current = originalBytes;
-        ClassSignature currentSignature = signature;
+        if (!LoadingUtilsReaderPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
         boolean changed = false;
         try {
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
             if (MergedReadCacheRuntime.ready()) {
-                byte[] cached = MergedReadCachePlan.transform(currentSignature, current);
-                if (cached != null) {
-                    current = cached;
-                    currentSignature = ClassSignature.parse(current);
-                    changed = true;
-                }
+                changed |= MergedReadCachePlan.apply(signature, owner);
             }
             if (StartupPhaseRuntime.mergedReadProbeEnabled()) {
-                byte[] probed = MergedReadProbePlan.transform(currentSignature, current);
-                if (probed != null) {
-                    current = probed;
-                    currentSignature = ClassSignature.parse(current);
-                    changed = true;
-                }
+                changed |= MergedReadProbePlan.apply(signature, owner);
             }
             if (LoadJsonMemoRuntime.ready()) {
-                byte[] memoised = LoadJsonMemoPlan.transform(currentSignature, current);
-                if (memoised != null) {
-                    current = memoised;
-                    currentSignature = ClassSignature.parse(current);
-                    changed = true;
-                }
+                changed |= LoadJsonMemoPlan.apply(signature, owner);
             }
-            byte[] reader = LoadingUtilsReaderPlan.transform(currentSignature, current);
-            if (reader != null) {
-                current = reader;
-                changed = true;
-            }
-            return changed ? current : null;
+            changed |= LoadingUtilsReaderPlan.apply(signature, owner);
+            return changed ? LoadingUtilsReaderPlan.write(owner) : null;
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
-            // Whatever already applied is valid bytecode; losing the rest is the safe direction.
-            return changed ? current : null;
+            // A partial in-memory rewrite is never published. The original class remains active.
+            return null;
         }
     }
 

@@ -54,17 +54,26 @@ final class MergedReadProbePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
         if (!TARGET_CLASS.equals(signature.internalName())
                 || !signature.hasMethod(MERGED_METHOD, CSV_DESCRIPTOR)
                 || !signature.hasMethod(MERGED_METHOD, JSON_DESCRIPTOR)) {
-            return null;
+            return false;
         }
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         // A class file older than 51 cannot carry a MethodHandle constant, and raising its version
         // to make room would change how it is verified. Decline instead.
         if ((owner.version & 0xFFFF) < Opcodes.V1_7) {
-            return null;
+            return false;
         }
 
         MethodNode csv = null;
@@ -74,36 +83,33 @@ final class MergedReadProbePlan {
                     || MergedReadCachePlan.CSV_VANILLA_METHOD.equals(method.name)
                     || MergedReadCachePlan.JSON_VANILLA_METHOD.equals(method.name)) {
                 // Already rewritten, by this plan or by the cache that serves the same pair.
-                return null;
+                return false;
             }
             if (!MERGED_METHOD.equals(method.name)) {
                 continue;
             }
             if (CSV_DESCRIPTOR.equals(method.desc)) {
                 if (csv != null) {
-                    return null;
+                    return false;
                 }
                 csv = method;
             } else if (JSON_DESCRIPTOR.equals(method.desc)) {
                 if (json != null) {
-                    return null;
+                    return false;
                 }
                 json = method;
             }
         }
         if (csv == null || json == null
                 || (csv.access & Opcodes.ACC_STATIC) == 0 || (json.access & Opcodes.ACC_STATIC) == 0) {
-            return null;
+            return false;
         }
 
         rename(csv, CSV_VANILLA_METHOD);
         rename(json, JSON_VANILLA_METHOD);
         owner.methods.add(csvEntry());
         owner.methods.add(jsonEntry());
-
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 
     private static void rename(MethodNode method, String name) {

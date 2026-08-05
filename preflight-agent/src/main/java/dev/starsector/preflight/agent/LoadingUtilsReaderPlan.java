@@ -23,24 +23,31 @@ final class LoadingUtilsReaderPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(METHOD, DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        return write(owner);
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !signature.hasMethod(METHOD, DESCRIPTOR)) {
+            return false;
+        }
         MethodNode target = null;
         for (MethodNode method : owner.methods) {
             if (METHOD.equals(method.name) && DESCRIPTOR.equals(method.desc)) {
-                if (target != null) return null;
+                if (target != null) return false;
                 target = method;
             }
         }
-        if (target == null || (target.access & Opcodes.ACC_STATIC) == 0) return null;
+        if (target == null || (target.access & Opcodes.ACC_STATIC) == 0) return false;
         for (AbstractInsnNode instruction : target.instructions) {
             if (instruction instanceof MethodInsnNode call
                     && RUNTIME.equals(call.owner) && "readUtf8".equals(call.name)) {
-                return null;
+                return false;
             }
         }
 
@@ -54,6 +61,10 @@ final class LoadingUtilsReaderPlan {
                 DESCRIPTOR, false));
         target.instructions.add(new InsnNode(Opcodes.ARETURN));
 
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(
                 ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);

@@ -27,14 +27,23 @@ final class VariantLoaderPhasePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET.equals(signature.internalName()) || !signature.hasMethod(METHOD, DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET.equals(signature.internalName()) || !signature.hasMethod(METHOD, DESCRIPTOR)) {
+            return false;
+        }
         MethodNode method = uniqueMethod(owner, METHOD, DESCRIPTOR);
         if (method == null || hasRuntimeCalls(method)) {
-            return null;
+            return false;
         }
 
         List<MethodInsnNode> listing = calls(method, LOADING_UTILS, "super",
@@ -52,7 +61,7 @@ final class VariantLoaderPhasePlan {
         if (listing.size() != 2 || directories.size() != 1 || json.size() != 1
                 || constructors.size() != 1 || registration.size() != 1 || postPass.size() != 1
                 || !registration.get(0).owner.equals(postPass.get(0).owner)) {
-            return null;
+            return false;
         }
 
         listing.forEach(call -> wrapCall(method, call, "variant-file-listing"));
@@ -63,7 +72,7 @@ final class VariantLoaderPhasePlan {
         MethodInsnNode constructor = constructors.get(0);
         TypeInsnNode allocation = previousNew(constructor, VARIANT);
         if (allocation == null) {
-            return null;
+            return false;
         }
         method.instructions.insertBefore(allocation, start("variant-object-construction"));
         method.instructions.insert(constructor, end());
@@ -71,14 +80,12 @@ final class VariantLoaderPhasePlan {
         MethodInsnNode postPassStart = postPass.get(0);
         AbstractInsnNode methodReturn = uniqueReturn(method);
         if (methodReturn == null || !comesBefore(postPassStart, methodReturn)) {
-            return null;
+            return false;
         }
         method.instructions.insertBefore(postPassStart, start("variant-post-pass"));
         method.instructions.insertBefore(methodReturn, end());
 
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 
     private static void wrapCall(MethodNode method, MethodInsnNode call, String label) {

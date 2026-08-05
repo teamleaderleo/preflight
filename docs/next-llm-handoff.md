@@ -963,6 +963,16 @@ passes measured 1.10x balanced at 1137.457ms and learned-order raw at 691.143ms 
 -39.2%) for identical output. The corrected real `fastest` gate reached a new record 18.71s with a
 1,445ms texture seam, all 15,469 hits, zero cache/transform failure, and clean shutdown. It costs
 about 3.08GB over balanced, so it remains explicit rather than the default.
+Preflight's own exact transformations were the next exposed startup seam: the first per-plan timed
+launch spent 1,348.566ms across 40 transforms, led by SpecStore at 274.520ms, MagicLib paintjobs at
+228.754ms, and WeaponSpecLoader at 103.313ms. LoadingUtils, SpecStore, and WeaponSpecLoader now apply
+their independent rewrites to one parsed tree and serialize once, retaining standalone transforms
+and fail-open fallback. Two clean learned-order `fastest` gates reached **18.42s** and **18.67s**;
+SpecStore fell to 78--87ms and WeaponSpecLoader to 79--85ms, with all 40 transforms applied and zero
+decline/failure. Full `mvn verify` is green. MagicLib's 0.2--0.3s transformation is now the clearest
+sub-18 target; simple frame-flag changes did not measure as a win, so use a streaming visitor or an
+agent/source-bound transformed-class cache instead. See
+`docs/evidence/2026-08-06-adapter-transformation-pipelines.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

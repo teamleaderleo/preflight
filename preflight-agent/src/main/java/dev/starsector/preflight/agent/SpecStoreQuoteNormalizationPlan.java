@@ -32,28 +32,35 @@ final class SpecStoreQuoteNormalizationPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(METHOD, DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !signature.hasMethod(METHOD, DESCRIPTOR)) {
+            return false;
+        }
         MethodNode method = uniqueMethod(owner);
         if (method == null || hasRuntimeCall(method)) {
-            return null;
+            return false;
         }
         List<MethodInsnNode> calls = replacementCalls(method);
         if (calls.size() != 2
                 || !hasConstants(calls.get(0), DOUBLE_REGEX, "\"")
                 || !hasConstants(calls.get(1), SINGLE_REGEX, "'")) {
-            return null;
+            return false;
         }
         calls.forEach(call -> method.instructions.set(call, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, REPLACE, STATIC_DESCRIPTOR, false)));
 
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 
     private static boolean hasConstants(MethodInsnNode call, String regex, String replacement) {

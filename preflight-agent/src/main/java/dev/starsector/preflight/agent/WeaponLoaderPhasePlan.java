@@ -28,17 +28,24 @@ final class WeaponLoaderPhasePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
         if (!TARGET_CLASS.equals(signature.internalName())
                 || !signature.hasMethod(LOAD_ALL_METHOD, LOAD_ALL_DESCRIPTOR)
                 || !signature.hasMethod(LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR)) {
-            return null;
+            return false;
         }
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode loadAll = uniqueMethod(owner, LOAD_ALL_METHOD, LOAD_ALL_DESCRIPTOR);
         MethodNode loadOne = uniqueMethod(owner, LOAD_ONE_METHOD, LOAD_ONE_DESCRIPTOR);
         if (loadAll == null || loadOne == null || hasRuntimeCalls(loadAll) || hasRuntimeCalls(loadOne)) {
-            return null;
+            return false;
         }
 
         List<MethodInsnNode> listings = calls(loadAll, LOADING_UTILS, "super",
@@ -51,7 +58,7 @@ final class WeaponLoaderPhasePlan {
                 "(Ljava/lang/String;Lcom/fs/starfarer/loading/specs/BaseWeaponSpec;)V");
         if (listings.size() != 2 || itemLoads.size() != 2 || json.size() != 1
                 || scripts.size() != 3 || registrations.size() != 2) {
-            return null;
+            return false;
         }
 
         listings.forEach(call -> wrapCall(loadAll, call, "weapon-file-listing"));
@@ -59,9 +66,7 @@ final class WeaponLoaderPhasePlan {
         scripts.forEach(call -> wrapCall(loadOne, call, "weapon-script-registration"));
         registrations.forEach(call -> wrapCall(loadOne, call, "weapon-registry-insert"));
 
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 
     private static void wrapCall(MethodNode method, MethodInsnNode call, String label) {
