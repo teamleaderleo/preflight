@@ -20,6 +20,34 @@ final class StartupCallBreakdownPlan {
 
     private static final List<Probe> PROBES = List.of(
             new Probe(
+                    CampaignEngineTimePlan.TARGET_CLASS,
+                    CampaignEngineTimePlan.ORIGINAL_SHA256,
+                    List.of(
+                            call("getInstance",
+                                    "()Lcom/fs/starfarer/campaign/CampaignEngine;",
+                                    CampaignEngineTimePlan.TARGET_CLASS, "setInstance",
+                                    "(Lcom/fs/starfarer/campaign/CampaignEngine;)V",
+                                    "campaignEngine.publish"),
+                            call("setInstance",
+                                    "(Lcom/fs/starfarer/campaign/CampaignEngine;)V",
+                                    "com/fs/starfarer/api/Global", "setSector",
+                                    "(Lcom/fs/starfarer/api/campaign/SectorAPI;)V",
+                                    "campaignEngine.setSector"),
+                            call("setInstance",
+                                    "(Lcom/fs/starfarer/campaign/CampaignEngine;)V",
+                                    "com/fs/starfarer/api/Global", "setFactory",
+                                    "(Lcom/fs/starfarer/api/FactoryAPI;)V",
+                                    "campaignEngine.setFactory"),
+                            call("setInstance",
+                                    "(Lcom/fs/starfarer/campaign/CampaignEngine;)V",
+                                    "com/fs/starfarer/combat/CombatEngine", "destroyInstance",
+                                    "()V", "campaignEngine.destroyCombat"),
+                            call("setInstance",
+                                    "(Lcom/fs/starfarer/campaign/CampaignEngine;)V",
+                                    "com/fs/starfarer/combat/CombatEngine", "getInstance",
+                                    "()Lcom/fs/starfarer/combat/CombatEngine;",
+                                    "campaignEngine.combatEngine"))),
+            new Probe(
                     "ashlib/data/plugins/repositories/ShipRenderInfoRepo",
                     "5955d8f27dba81580e2648bbc0a7a16a9924bcd1734baf7937ab1d3417e6507f",
                     List.of(
@@ -318,6 +346,7 @@ final class StartupCallBreakdownPlan {
                     && name.equals(invoked.name)
                     && (descriptor == null || descriptor.equals(invoked.desc));
         }
+
     }
 
     record CallGroup(String caller, String callerDescriptor, String owner, List<String> names,
@@ -328,6 +357,7 @@ final class StartupCallBreakdownPlan {
                     && owner.equals(invoked.owner)
                     && names.contains(invoked.name);
         }
+
     }
 
     private record Match(String label, MethodInsnNode instruction) {

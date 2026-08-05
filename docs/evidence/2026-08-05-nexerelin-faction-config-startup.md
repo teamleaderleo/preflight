@@ -35,6 +35,21 @@ cost. A future improvement would need to change Nexerelin's initialization model
 campaign-engine constructor itself cheaper while preserving all of its global publication side
 effects.
 
+An exact follow-up split the bootstrap without changing it. Global sector/factory publication and
+combat-engine initialization took only about 20ms of the 390ms variant-existence outlier. A
+temporary constructor drill then distributed the rest across first-use initialization of the
+vanilla campaign object graph: Hyperspace, `FactionManager`, and `CampaignClock` were the largest
+individual owners, at roughly 40ms each in one run, with no single removable algorithm. The
+high-cardinality drill was removed after measurement because its extra labels crowded the general
+startup report. The five-call publication split remains opt-in; it confirms that bypassing global
+publication could recover almost nothing and that deferring the constructor would merely move a
+first-use hitch.
+
+Retained follow-up runs:
+
+- `~/.starsector-preflight/runs/campaign-bootstrap-breakdown-20260805-161627`
+- `~/.starsector-preflight/runs/campaign-constructor-breakdown-20260805-161825`
+
 One attempted detailed probe hit the known bundled x86 JVM SIGSEGV at 0.835 seconds, before resource
 initialization, and is excluded. Its exact retry reached the main menu and produced the detailed
 attribution, but forced harness shutdown emitted OpenAL teardown errors; it is useful as timing

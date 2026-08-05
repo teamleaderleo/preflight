@@ -14,7 +14,11 @@ import org.objectweb.asm.tree.MethodInsnNode;
 
 class StartupCallBreakdownPlanTest {
     private static final StartupCallBreakdownPlan.Probe PROBE =
-            StartupCallBreakdownPlan.probes().get(0);
+            StartupCallBreakdownPlan.probes().stream()
+                    .filter(probe -> "ashlib/data/plugins/repositories/ShipRenderInfoRepo"
+                            .equals(probe.className()))
+                    .findFirst()
+                    .orElseThrow();
 
     @Test
     void wrapsReviewedCallSiteAndDeclinesUnknownIdentity() throws Exception {
@@ -59,6 +63,23 @@ class StartupCallBreakdownPlanTest {
 
         assertNotNull(transformed);
         assertEquals(24, runtimeCalls(transformed));
+    }
+
+    @Test
+    void wrapsCampaignEnginePublicationBoundaries() throws Exception {
+        StartupCallBreakdownPlan.Probe campaign = StartupCallBreakdownPlan.probes().stream()
+                .filter(probe -> CampaignEngineTimePlan.TARGET_CLASS.equals(probe.className()))
+                .findFirst()
+                .orElseThrow();
+        byte[] original = campaignFixture();
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature exact = new ClassSignature(parsed.internalName(), campaign.sha256(),
+                parsed.majorVersion(), parsed.access(), parsed.methods());
+
+        byte[] transformed = StartupCallBreakdownPlan.transform(exact, original);
+
+        assertNotNull(transformed);
+        assertEquals(10, runtimeCalls(transformed));
     }
 
     private static byte[] fixture() {
@@ -141,6 +162,42 @@ class StartupCallBreakdownPlanTest {
         method.visitInsn(Opcodes.RETURN);
         method.visitMaxs(0, 0);
         method.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] campaignFixture() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, CampaignEngineTimePlan.TARGET_CLASS,
+                null, "java/lang/Object", null);
+        MethodVisitor get = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "getInstance", "()Lcom/fs/starfarer/campaign/CampaignEngine;", null, null);
+        get.visitCode();
+        get.visitInsn(Opcodes.ACONST_NULL);
+        get.visitMethodInsn(Opcodes.INVOKESTATIC, CampaignEngineTimePlan.TARGET_CLASS,
+                "setInstance", "(Lcom/fs/starfarer/campaign/CampaignEngine;)V", false);
+        get.visitInsn(Opcodes.ACONST_NULL);
+        get.visitInsn(Opcodes.ARETURN);
+        get.visitMaxs(0, 0);
+        get.visitEnd();
+
+        MethodVisitor set = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "setInstance", "(Lcom/fs/starfarer/campaign/CampaignEngine;)V", null, null);
+        set.visitCode();
+        set.visitInsn(Opcodes.ACONST_NULL);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/api/Global", "setSector",
+                "(Lcom/fs/starfarer/api/campaign/SectorAPI;)V", false);
+        set.visitInsn(Opcodes.ACONST_NULL);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/api/Global", "setFactory",
+                "(Lcom/fs/starfarer/api/FactoryAPI;)V", false);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/combat/CombatEngine",
+                "destroyInstance", "()V", false);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/combat/CombatEngine",
+                "getInstance", "()Lcom/fs/starfarer/combat/CombatEngine;", false);
+        set.visitInsn(Opcodes.POP);
+        set.visitInsn(Opcodes.RETURN);
+        set.visitMaxs(0, 0);
+        set.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

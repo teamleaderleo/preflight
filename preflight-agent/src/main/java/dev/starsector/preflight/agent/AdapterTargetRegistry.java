@@ -338,6 +338,25 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Exact vanilla campaign bootstrap, timed only by the opt-in startup phase probe. */
+    static AdapterTarget startupCampaignEngineBreakdownTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-engine-startup-bootstrap-breakdown",
+                CampaignEngineTimePlan.TARGET_CLASS,
+                CampaignEngineTimePlan.ORIGINAL_SHA256,
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                "getInstance", "()Lcom/fs/starfarer/campaign/CampaignEngine;"),
+                        new AdapterTarget.RequiredMethod(
+                                "setInstance", "(Lcom/fs/starfarer/campaign/CampaignEngine;)V")),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact Nexerelin settings loader, timed only by the opt-in startup phase probe. */
     static AdapterTarget startupNexConfigBreakdownTarget() {
         return new AdapterTarget(
@@ -1332,6 +1351,7 @@ final class AdapterTargetRegistry {
             registry = registry.withTarget(startupAshRenderInfoBreakdownTarget());
         }
         return registry
+                .withTarget(startupCampaignEngineBreakdownTarget())
                 .withTarget(startupGraphicsBreakdownTarget())
                 .withTarget(startupMagicLibBreakdownTarget())
                 .withTarget(startupNexConfigBreakdownTarget())
