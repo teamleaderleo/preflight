@@ -474,13 +474,15 @@ and 14.03 FPS 1% low; first-30-second versus later averages were 45.11 and 53.28
 allocation-volume reduction, not an FPS delta, because the route was not a controlled A/B. The run
 also caught the disabled location timer composing behind the entity index; filtering a campaign
 timing plan now shuts its runtime gate as well as removing its targets. The next exact market
-candidate initially wrapped both defensive snapshots in `Market.advance`.
-Its clean live gate exited normally with ACTIVE health and all four heavy campaign timers disabled,
-but the counters rejected half the idea: conditions were empty only 416 / 1,368,227 times (0.0304%),
-while industries were empty 205,888 times (15.0478%). The final adapter leaves conditions vanilla
-and shortcuts only empty industry snapshots; on that route it avoids about 411,776 heap objects.
-Non-empty industry lists still receive vanilla's defensive copy, the exact installed class composes
-with the opt-in timer, and full `mvn verify` passes. This is allocation evidence, not an FPS claim.
+candidate wrapped both defensive snapshots in `Market.advance`. Its clean live gate exited normally
+with ACTIVE health and all four heavy campaign timers disabled: conditions were empty only 416 /
+1,368,227 times (0.0304%), while industries were empty 205,888 times (15.0478%). That rejects an
+empty-only condition branch. The final form instead preserves each stable snapshot as the source
+`toArray()` plus a private array iterator, omitting vanilla's otherwise unused `ArrayList` wrapper
+for every non-empty traversal and all three objects when empty. The observed route implies about
+3,149,062 avoided heap objects. Cross-frame caching is unsafe because `getIndustries()` exposes the
+mutable backing list directly. The exact installed class composes with the opt-in timer and full
+`mvn verify` passes. This is allocation evidence, not an FPS claim.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from

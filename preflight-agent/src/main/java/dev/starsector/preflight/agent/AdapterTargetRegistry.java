@@ -631,7 +631,7 @@ final class AdapterTargetRegistry {
 
     static AdapterTarget campaignMarketSnapshotTarget() {
         return new AdapterTarget(
-                "vanilla-campaign-market-empty-industry-snapshot-0.98a-rc8",
+                "vanilla-campaign-market-compact-snapshots-0.98a-rc8",
                 CampaignEntityMaintenancePlan.MARKET_CLASS,
                 CampaignEntityMaintenancePlan.MARKET_SHA256,
                 CampaignEntityMaintenanceRuntime.PLAN_ID,

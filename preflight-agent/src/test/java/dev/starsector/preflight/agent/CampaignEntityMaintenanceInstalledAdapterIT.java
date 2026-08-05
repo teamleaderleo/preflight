@@ -78,10 +78,10 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
         byte[] marketMaintenance = CampaignEntityMaintenancePlan.transform(marketSignature, market);
         assertNotNull(marketMaintenance);
         String maintenanceRuntime = CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/');
-        assertEquals(1L, calls(method(read(marketMaintenance),
+        assertEquals(2L, calls(method(read(marketMaintenance),
                 CampaignEntityMaintenancePlan.ADVANCE_METHOD,
                 CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR),
-                maintenanceRuntime, "marketIndustrySnapshotIterator"));
+                maintenanceRuntime, "marketSnapshotIterator"));
 
         CampaignMarketFleetTimeRuntime.beginSession(true);
         byte[] composedMarket = AdapterTransformationRegistry.transform(
@@ -90,8 +90,7 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
         MethodNode composedAdvance = method(read(composedMarket),
                 CampaignEntityMaintenancePlan.ADVANCE_METHOD,
                 CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR);
-        assertEquals(1L, calls(composedAdvance, maintenanceRuntime,
-                "marketIndustrySnapshotIterator"));
+        assertEquals(2L, calls(composedAdvance, maintenanceRuntime, "marketSnapshotIterator"));
         String timingRuntime = CampaignMarketFleetTimeRuntime.class.getName().replace('.', '/');
         assertEquals(8L, calls(composedAdvance, timingRuntime, "enter"));
         assertEquals(3L, calls(composedAdvance, timingRuntime, "enterClass"));

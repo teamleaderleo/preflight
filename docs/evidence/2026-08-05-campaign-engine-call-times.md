@@ -276,10 +276,19 @@ timing plans were actually disabled. Across 1,368,227 market advances per list:
 - conditions were empty only **416 times / 0.0304%**;
 - industries were empty **205,888 times / 15.0478%**.
 
-That evidence rejects the condition branch: checking 1.368 million calls to avoid 416 snapshots is
-the wrong trade. The final adapter leaves `new ArrayList(getConditions())` byte-for-byte vanilla and
-shortcuts only the industry snapshot. On this route that would avoid 205,888 `ArrayList` objects and
-their 205,888 collection-array snapshots, about 411,776 heap objects total. Non-empty industries
-still keep the defensive copy. The exact installed archive test proves the one maintenance helper
-composes with all eight ordinary and three class-grouped timing entries. This is a measured
-allocation-volume reduction, not an FPS claim; the operator-driven route is not a controlled A/B.
+That evidence rejects an *empty-only* condition branch: checking 1.368 million calls merely to avoid
+416 snapshots is the wrong trade. Inspecting `ArrayList(Collection)` exposed a stronger safe form,
+however. Vanilla materializes a stable source array, wraps it in an `ArrayList`, and then allocates
+the wrapper's iterator. Neither loop exposes the private wrapper or calls `Iterator.remove()`.
+The final helper therefore snapshots with `values.toArray()` and traverses it with a tiny private
+array iterator. Non-empty lists retain the same stable pre-callback contents with two objects instead
+of three; empty lists use the shared empty iterator with no allocation.
+
+The final adapter applies this compact snapshot to conditions and industries. On this route the
+2,530,150 non-empty list traversals each avoid their unused `ArrayList`, while 206,304 empty
+traversals avoid the array, wrapper, and iterator. That is about **3,149,062 avoided heap objects**.
+The exact installed archive test proves both maintenance helpers compose with all eight ordinary and
+three class-grouped timing entries. Cross-frame snapshot caching was explicitly rejected because
+`Market.getIndustries()` exposes the mutable backing list directly to mods. This is a measured
+call-volume-derived allocation reduction, not an FPS claim; the compact iterator itself remains
+launch-free verified and the operator-driven route is not a controlled A/B.
