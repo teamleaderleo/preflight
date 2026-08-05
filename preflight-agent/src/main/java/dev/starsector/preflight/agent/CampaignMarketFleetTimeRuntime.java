@@ -57,6 +57,8 @@ public final class CampaignMarketFleetTimeRuntime {
     private static volatile boolean enabled;
     private static volatile boolean marketInstalled;
     private static volatile boolean fleetInstalled;
+    private static long zeroMarketAdvances;
+    private static long nonZeroMarketAdvances;
 
     static {
         for (int id = 0; id < fixed.length; id++) fixed[id] = new Stats(FIXED_SAMPLE_RATES[id]);
@@ -71,6 +73,8 @@ public final class CampaignMarketFleetTimeRuntime {
         enabled = requested;
         marketInstalled = false;
         fleetInstalled = false;
+        zeroMarketAdvances = 0L;
+        nonZeroMarketAdvances = 0L;
         for (Stats stats : fixed) stats.reset();
         for (int group = 0; group < classGroups.length; group++) {
             classGroups[group].clear();
@@ -96,6 +100,15 @@ public final class CampaignMarketFleetTimeRuntime {
         Stats stats = fixed[id];
         long attempt = ++stats.attempts;
         return sampled(attempt, stats.sampleRate) ? System.nanoTime() : 0L;
+    }
+
+    /** Counts exact zero-delta market calls before considering a guarded fast path. */
+    public static void observeMarketAmount(float amount) {
+        if (amount == 0f) {
+            zeroMarketAdvances++;
+        } else {
+            nonZeroMarketAdvances++;
+        }
     }
 
     public static void exit(int id, long startedNanos) {
@@ -127,6 +140,8 @@ public final class CampaignMarketFleetTimeRuntime {
         result.put("enabled", enabled);
         result.put("marketInstalled", marketInstalled);
         result.put("fleetInstalled", fleetInstalled);
+        result.put("zeroMarketAdvances", zeroMarketAdvances);
+        result.put("nonZeroMarketAdvances", nonZeroMarketAdvances);
 
         List<Map<String, Object>> phases = new ArrayList<>();
         for (int id = 0; id < fixed.length; id++) phases.add(fixed[id].report(FIXED_NAMES[id]));

@@ -34,8 +34,13 @@ class CampaignMarketFleetTimeRuntimeTest {
                 ai, CampaignMarketFleetTimeRuntime.FLEET_AI);
         CampaignMarketFleetTimeRuntime.exitClass(
                 ai, CampaignMarketFleetTimeRuntime.FLEET_AI, byClass);
+        CampaignMarketFleetTimeRuntime.observeMarketAmount(0f);
+        CampaignMarketFleetTimeRuntime.observeMarketAmount(-0f);
+        CampaignMarketFleetTimeRuntime.observeMarketAmount(0.25f);
 
         Map<String, Object> report = CampaignMarketFleetTimeRuntime.telemetry();
+        assertEquals(2L, report.get("zeroMarketAdvances"));
+        assertEquals(1L, report.get("nonZeroMarketAdvances"));
         List<Map<String, Object>> phases = (List<Map<String, Object>>) report.get("phases");
         assertEquals(32L, phases.get(CampaignMarketFleetTimeRuntime.MARKET_MEMORY).get("calls"));
         assertEquals(1L,

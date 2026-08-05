@@ -40,6 +40,7 @@ class CampaignMarketFleetTimePlanTest {
         MethodNode method = method(transformed);
         assertEquals(8, calls(method, "enter"));
         assertEquals(3, calls(method, "enterClass"));
+        assertEquals(1, calls(method, "observeMarketAmount"));
         assertEquals(16, calls(method, "exit"));
         assertEquals(6, calls(method, "exitClass"));
         assertNull(CampaignMarketFleetTimePlan.transform(

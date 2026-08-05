@@ -74,6 +74,11 @@ final class CampaignMarketFleetTimePlan {
         addExactly(probes, method, "com/fs/starfarer/api/campaign/econ/Industry",
                 "advance", "(F)V", 1, CampaignMarketFleetTimeRuntime.MARKET_INDUSTRIES, true);
         if (probes.stream().anyMatch(probe -> probe.call == null)) return null;
+        InsnList amountProbe = new InsnList();
+        amountProbe.add(new VarInsnNode(Opcodes.FLOAD, 1));
+        amountProbe.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME,
+                "observeMarketAmount", "(F)V", false));
+        method.instructions.insert(amountProbe);
         for (Probe probe : probes) instrument(method, probe);
         CampaignMarketFleetTimeRuntime.marketInstalled();
         return write(owner);

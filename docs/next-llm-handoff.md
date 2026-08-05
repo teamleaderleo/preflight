@@ -493,6 +493,13 @@ for every non-empty traversal and all three objects when empty. The observed rou
 3,149,062 avoided heap objects. Cross-frame caching is unsafe because `getIndustries()` exposes the
 mutable backing list directly. The exact installed class composes with the opt-in timer and full
 `mvn verify` passes. This is allocation evidence, not an FPS claim.
+The latest short campaign gate still counted 640,354 `Market.advance` calls and 61,473,984
+commodity event-mod passes. Exact bytecode passes the original frame amount to plugins but advances
+the four temporary commodity stats with converted days and reapplies every event mod unconditionally.
+Before considering a zero-delta shortcut, the opt-in market attribution plan now reports exact zero
+versus nonzero market-advance amounts. This counter-only probe changes no behavior, exact-transforms
+the installed class, and passes full `mvn verify`. **Next step: spend time both paused and unpaused in
+one live profile and inspect `zeroMarketAdvances`/`nonZeroMarketAdvances`.**
 The next exact `ModularFleetAI` candidate removes another disabled-observer cost. Vanilla builds a
 dynamic `Ability [id]` profiler label on every ability advance even though its profiler is normally
 off and immediately returns. Plan `vanilla-fleet-ai-profiler-label-v1` substitutes an interned

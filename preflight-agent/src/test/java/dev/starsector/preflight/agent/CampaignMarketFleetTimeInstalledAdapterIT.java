@@ -47,6 +47,7 @@ class CampaignMarketFleetTimeInstalledAdapterIT {
         MethodNode marketAdvance = method(transformedMarket);
         assertEquals(8, calls(marketAdvance, runtime, "enter"));
         assertEquals(3, calls(marketAdvance, runtime, "enterClass"));
+        assertEquals(1, calls(marketAdvance, runtime, "observeMarketAmount"));
         assertNull(CampaignMarketFleetTimePlan.transform(
                 ClassSignature.parse(transformedMarket), transformedMarket));
 
