@@ -319,6 +319,8 @@ final class AdapterReport {
                 .append(Json.value(MagicLibPaintjobNotificationRuntime.telemetry())).append(',');
         key(output, "stelnetMarketUpdater")
                 .append(Json.value(StelnetMarketUpdaterRuntime.telemetry())).append(',');
+        key(output, "logisticsNotificationsFuel")
+                .append(Json.value(LogisticsNotificationsFuelRuntime.telemetry())).append(',');
         key(output, "macMemoryWarning")
                 .append(Json.value(MacMemoryWarningRuntime.telemetry())).append(',');
         key(output, "combatRuntimeIntegrity")

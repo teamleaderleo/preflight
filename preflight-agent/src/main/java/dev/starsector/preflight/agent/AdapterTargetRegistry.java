@@ -338,6 +338,23 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Logistics Notifications 1.7.1's uninitialized load-time fuel snapshot. */
+    static AdapterTarget logisticsNotificationsFuelTarget() {
+        return new AdapterTarget(
+                "logistics-notifications-1.7.1-initial-fuel-snapshot",
+                LogisticsNotificationsFuelPlan.TARGET_CLASS,
+                LogisticsNotificationsFuelPlan.ORIGINAL_SHA256,
+                LogisticsNotificationsFuelRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        LogisticsNotificationsFuelPlan.CONSTRUCTOR,
+                        LogisticsNotificationsFuelPlan.CONSTRUCTOR_DESCRIPTOR)),
+                "MOD",
+                "LogNot.jar",
+                "42ca235605cec137c66d50f46269b61c9569133f9f16e532db695e25ea71465e",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** Vanilla 0.98a-RC8's literal-free-memory warning, corrected for macOS memory pressure. */
     static AdapterTarget macMemoryWarningTarget() {
         return new AdapterTarget(
@@ -1411,6 +1428,7 @@ final class AdapterTargetRegistry {
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())
                 .withTarget(stelnetMarketUpdaterTarget())
+                .withTarget(logisticsNotificationsFuelTarget())
                 .withTarget(macMemoryWarningTarget())
                 .withTarget(combatRuntimeIntegrityTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {

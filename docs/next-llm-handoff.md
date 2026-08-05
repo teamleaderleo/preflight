@@ -506,7 +506,19 @@ samples. An offline-green exact API-class rewrite hoists its four clamped bounds
 while preserving every cell/edge rule. Exhaustive rectangular-grid equivalence and the installed
 class pass. On five fresh game JVMs the exact copied operation fell from 9.224-11.808ns to
 5.605-6.558ns (37-52%), and full `mvn verify` passes. **Next step: live-profile the automaton
-stack and confirm normal hyperspace behavior plus removal of the old leaf.**
+stack and confirm normal hyperspace behavior plus removal of the old leaf.** The live profile has
+now completed normally: ACTIVE health, 47/47 transforms, zero fallback/failure, and the automaton
+hook installed and exercised beneath vanilla and More Planetary Conditions terrain. JFR cannot
+separate the inlined replacement from its caller, so the operation benchmark remains the speed
+evidence rather than a live FPS claim.
+
+That load displayed a false Logistics Notifications 1.7.1 fuel alarm at 0.0 light-years despite a
+full tank. Local source proves a mod race: `_fuelLYRemaining` starts at zero, its tracker does not
+run while paused, and the paused alarm's first 0.9-second path skips its normal pause guard. A new
+exact `LogNot.jar` repair calls the mod's own `updateFuelLY()` once before the tracker constructor
+returns, preserving all of its fuel math and later updates. Synthetic execution and the exact
+installed-jar transform pass. **Next step: run one ordinary load and confirm the adapter installs
+and the false notification is absent.**
 The next exact `ModularFleetAI` candidate removes another disabled-observer cost. Vanilla builds a
 dynamic `Ability [id]` profiler label on every ability advance even though its profiler is normally
 off and immediately returns. Plan `vanilla-fleet-ai-profiler-label-v1` substitutes an interned

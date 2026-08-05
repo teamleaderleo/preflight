@@ -220,6 +220,9 @@ final class AdapterTransformationRegistry {
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(target.planId())) {
             return StelnetMarketUpdaterPlan.transform(signature, originalBytes);
         }
+        if (LogisticsNotificationsFuelRuntime.PLAN_ID.equals(target.planId())) {
+            return LogisticsNotificationsFuelPlan.transform(signature, originalBytes);
+        }
         if (MacMemoryWarningRuntime.PLAN_ID.equals(target.planId())) {
             return MacMemoryWarningPlan.transform(signature, originalBytes);
         }
@@ -551,6 +554,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (LogisticsNotificationsFuelRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (MacMemoryWarningRuntime.PLAN_ID.equals(planId)) {

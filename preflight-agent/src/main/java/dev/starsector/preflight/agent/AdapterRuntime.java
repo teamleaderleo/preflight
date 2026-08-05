@@ -51,6 +51,7 @@ final class AdapterRuntime {
         CampaignEntityMaintenanceRuntime.beginSession();
         FleetAiProfilerRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
+        LogisticsNotificationsFuelRuntime.reset();
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));

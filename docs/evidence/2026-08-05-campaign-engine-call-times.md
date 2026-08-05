@@ -525,3 +525,30 @@ calls. The reproducible benchmark in
 Starsector's own x86-64 Zulu 17 JVM under Rosetta. Across five fresh JVMs, the copied vanilla loop
 took **9.224-11.808 ns/op** and the equivalent Preflight loop took **5.605-6.558 ns/op**, about
 37-52% less time. This is an operation-level benchmark and a measured hotspot, not yet an FPS claim.
+
+`hyperspace-neighbor-v1-20260805-114747` then loaded the representative save, exercised the
+campaign for roughly one minute, and exited normally. Adapter health was `ACTIVE`: all 47 exact
+transformations applied with zero unavailable plans, declines, or contained failures, and
+`hyperspaceAutomatonInstalled` was true. The optimized method remained live beneath both vanilla
+hyperspace terrain and More Planetary Conditions' realspace-hyperspace condition. JFR attributed
+16/1,739 campaign samples to the transformed method; the injected helper was inlined, so stack
+sampling cannot separate old and new loop bodies. This is a clean behavioral/install gate. The
+operation-level Rosetta benchmark above remains the performance evidence.
+
+## Logistics Notifications false zero-fuel alarm
+
+The same live gate surfaced a red notification claiming only 0.0 light-years of fuel immediately
+after loading despite a full fuel tank. It is not produced by vanilla or the automaton. Logistics
+Notifications 1.7.1 initializes `SupplyDataTracking._fuelLYRemaining` to zero and updates it only
+from `advance`; that tracker returns false from `runWhilePaused`. Its separate `AlarmController`
+runs while paused and, on its first update after a 0.9-second delay, calls `setAlarm` without the
+ordinary paused guard. It can therefore read the initial zero before the tracker has advanced.
+
+The exact repair inserts one call to the mod's own private `updateFuelLY()` at the end of the
+tracker constructor. This uses the mod's existing fleet, cargo, logistics-cost, in-hyperspace, and
+clamping logic; later refreshes remain untouched. The adapter pins `SupplyDataTracking.class`
+SHA-256 `357a9ef8ddb5de3c99417c5df2ed431d897cea07e091e38cbf961c4cbd1df7d2`,
+`LogNot.jar` SHA-256 `42ca235605cec137c66d50f46269b61c9569133f9f16e532db695e25ea71465e`,
+Java 17, constructor/update/field shape, mod source, and URL classloader. Any mod update or second
+transform keeps the original implementation. Executed synthetic behavior and the exact installed
+jar transform pass; a live load remains the final acceptance gate.
