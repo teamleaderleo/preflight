@@ -260,6 +260,38 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    static AdapterTarget ashLibVariantRepositoryTarget() {
+        return new AdapterTarget(
+                "ashlib-2.2.3-callback-scoped-variant-index",
+                AshLibVariantLookupPlan.REPOSITORY_CLASS,
+                AshLibVariantLookupPlan.REPOSITORY_SHA256,
+                AshLibVariantLookupRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        AshLibVariantLookupPlan.POPULATE,
+                        AshLibVariantLookupPlan.POPULATE_DESCRIPTOR)),
+                "MOD",
+                "ashlib.jar",
+                "634a0542d2e934df3a212050633462475e3cc48faf4bb417dd5114dfc2fd1dfa",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    static AdapterTarget ashLibVariantLookupTarget() {
+        return new AdapterTarget(
+                "ashlib-2.2.3-variant-lookup",
+                AshLibVariantLookupPlan.LOOKUP_CLASS,
+                AshLibVariantLookupPlan.LOOKUP_SHA256,
+                AshLibVariantLookupRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        AshLibVariantLookupPlan.LOOKUP,
+                        AshLibVariantLookupPlan.LOOKUP_DESCRIPTOR)),
+                "MOD",
+                "ashlib.jar",
+                "634a0542d2e934df3a212050633462475e3cc48faf4bb417dd5114dfc2fd1dfa",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** Exact GraphicsLib callback, timed only by the opt-in startup phase probe. */
     static AdapterTarget startupGraphicsBreakdownTarget() {
         return new AdapterTarget(
@@ -1221,14 +1253,19 @@ final class AdapterTargetRegistry {
     }
 
     AdapterTargetRegistry withStartupPhaseTarget() {
-        return withTarget(startupPhaseTarget())
+        AdapterTargetRegistry registry = withTarget(startupPhaseTarget())
                 .withTarget(specStorePhaseTarget())
                 .withTarget(weaponLoaderPhaseTarget())
                 .withTarget(shipHullLoaderPhaseTarget())
                 .withTarget(rulesLoaderPhaseTarget())
-                .withTarget(ruleExpressionPhaseTarget())
-                .withTarget(startupAshRepoBreakdownTarget())
-                .withTarget(startupAshRenderInfoBreakdownTarget())
+                .withTarget(ruleExpressionPhaseTarget());
+        // The production AshLib target composes this diagnostic rewrite itself. Registering a
+        // second exact target for the same class would leave one apparently unavailable because a
+        // transformer returns after the first successful rewrite.
+        if (forClass(AshLibVariantLookupPlan.REPOSITORY_CLASS).isEmpty()) {
+            registry = registry.withTarget(startupAshRepoBreakdownTarget());
+        }
+        return registry.withTarget(startupAshRenderInfoBreakdownTarget())
                 .withTarget(startupGraphicsBreakdownTarget())
                 .withTarget(mergedReadProbeTarget());
     }
@@ -1507,6 +1544,8 @@ final class AdapterTargetRegistry {
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioResourceFallbackTarget())
                 .withTarget(aiTweaksEngagementRangeTarget())
+                .withTarget(ashLibVariantRepositoryTarget())
+                .withTarget(ashLibVariantLookupTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())

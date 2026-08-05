@@ -198,6 +198,15 @@ final class AdapterTransformationRegistry {
         if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
             return AiTweaksEngagementRangePlan.transform(signature, originalBytes);
         }
+        if (AshLibVariantLookupRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] optimized = AshLibVariantLookupPlan.transform(signature, originalBytes);
+            if (optimized == null || !StartupPhaseRuntime.phaseProbeEnabled()
+                    || !AshLibVariantLookupPlan.REPOSITORY_CLASS.equals(signature.internalName())) {
+                return optimized;
+            }
+            byte[] timed = StartupCallBreakdownPlan.transform(signature, optimized);
+            return timed == null ? optimized : timed;
+        }
         if (GraphicsLibCompactReplayPlan.PLAN_ID.equals(target.planId())) {
             return GraphicsLibCompactReplayPlan.ready()
                     ? GraphicsLibCompactReplayPlan.transform(signature)
@@ -557,6 +566,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AshLibVariantLookupRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(planId)) {

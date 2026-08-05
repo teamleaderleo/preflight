@@ -672,6 +672,17 @@ the in-memory resource index rather than decoding a full class-entry index. Fast
 system classloader is detected and owns this seam, so Janino preparation is suppressed there while
 independent Preflight caches remain available.
 
+**Latest startup work.** Persistent rule-token shapes reduced the exact warm tokenizer from 600ms
+to 89ms and the whole rules loader from 1.688s to 1.262s. GraphicsLib's generated-normal validation
+journal reduced complete PNG checking from 1.196s to 197ms while retaining all 6,184 lazy hits.
+The next exact callback profile found AshLib scanning all 8,622 variant ids for each of 547 modular
+or station hull lookups. A callback-scoped index now preserves first-match and fallback ordering;
+the live gate served all 547 lookups with zero failure and reduced that exact seam from 160ms to
+19ms. Evidence:
+`docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
+`docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
+`docs/evidence/2026-08-05-ashlib-variant-index.md`.
+
 ## Environment notes that cost time to rediscover
 
 - Launch the game with `--direct`; without it the run stalls on the launcher's Play button and

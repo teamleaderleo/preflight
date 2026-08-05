@@ -41,6 +41,7 @@ final class AdapterRuntime {
         AudioResourceFallbackRuntime.beginSession();
         AudioMusicTransitionRuntime.beginSession();
         AiTweaksEngagementRangeRuntime.beginSession();
+        AshLibVariantLookupRuntime.beginSession();
         GraphicsLibCompactReplayPlan.beginSession();
         JaninoBytecodeCacheRuntime.beginSession();
         GraphicsLibInsigniaManagerCacheRuntime.beginSession();
@@ -144,6 +145,7 @@ final class AdapterRuntime {
                 }
                 report.diagnostic("Loaded the exact sound classpath-root resource fallback target");
                 report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
+                report.diagnostic("Loaded the exact AshLib callback-scoped variant index targets");
                 if (FrameTimeRuntime.enabled()) {
                     registry = registry.withFrameTimeTarget()
                             .withCampaignCallTimeTargets()
