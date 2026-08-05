@@ -7,9 +7,13 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -42,7 +46,91 @@ public final class PreparedAudioIO {
      * it has selected the blob by the exact source and decoder identities encoded in its path.
      */
     public static PreparedAudio readTrusted(Path source) throws IOException {
-        return read(source, false);
+        Path absolute = source.toAbsolutePath().normalize();
+        if (Files.isSymbolicLink(absolute)
+                || !Files.isRegularFile(absolute, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Prepared audio path is not a regular file: " + absolute);
+        }
+        try (FileChannel channel = FileChannel.open(absolute, StandardOpenOption.READ)) {
+            long size = channel.size();
+            if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
+                throw new IOException("Prepared audio file size is invalid: " + size);
+            }
+
+            // Read fixed metadata and then PCM straight into the array the model adopts. The old
+            // trusted path materialized the whole file, copied its payload, copied PCM out of that,
+            // and cloned PCM into the model before the runtime cloned it once more for OpenAL.
+            ByteBuffer metadata = ByteBuffer.allocate(
+                    MAGIC.length + Integer.BYTES * 2 + PAYLOAD_FIXED_BYTES)
+                    .order(ByteOrder.BIG_ENDIAN);
+            readFully(channel, metadata, "Prepared audio ended inside its metadata");
+            metadata.flip();
+
+            byte[] magic = new byte[MAGIC.length];
+            metadata.get(magic);
+            if (!Arrays.equals(MAGIC, magic)) {
+                throw new IOException("Prepared audio magic header is invalid");
+            }
+            int version = metadata.getInt();
+            if (version != PreparedAudio.FORMAT_VERSION) {
+                throw new IOException("Unsupported prepared audio version: " + version);
+            }
+            int payloadLength = metadata.getInt();
+            long expectedLength = minimumFileBytes() + (long) payloadLength;
+            if (payloadLength < PAYLOAD_FIXED_BYTES || expectedLength != size) {
+                throw new IOException("Prepared audio payload length is invalid");
+            }
+
+            byte[] sourceHash = new byte[SHA256_BYTES];
+            metadata.get(sourceHash);
+            byte[] decoderHash = new byte[SHA256_BYTES];
+            metadata.get(decoderHash);
+            PreparedAudio.Policy policy = PreparedAudio.Policy.fromId(metadata.getInt());
+            PreparedAudio.PcmEncoding encoding = PreparedAudio.PcmEncoding.fromId(metadata.getInt());
+            int bitsPerSample = metadata.getInt();
+            PreparedAudio.ByteOrder byteOrder = PreparedAudio.ByteOrder.fromId(metadata.getInt());
+            int sampleRate = metadata.getInt();
+            int channels = metadata.getInt();
+            long frameCount = metadata.getLong();
+            long sampleCount = metadata.getLong();
+            int pcmLength = metadata.getInt();
+            // Trusted mode deliberately skips both stored checksums. Advance over the inner PCM
+            // hash without allocating or hashing; the content-addressed lookup and embedded source
+            // and decoder identities are checked by the runtime after this structural read.
+            metadata.position(metadata.position() + SHA256_BYTES);
+            if (pcmLength < 0 || pcmLength > PreparedAudio.MAX_PCM_BYTES
+                    || payloadLength - PAYLOAD_FIXED_BYTES != pcmLength) {
+                throw new IOException("Prepared audio PCM length is invalid: " + pcmLength);
+            }
+
+            byte[] pcm = new byte[pcmLength];
+            readFully(channel, ByteBuffer.wrap(pcm), "Prepared audio ended inside its PCM payload");
+            if (channel.position() != size - CHECKSUM_BYTES) {
+                throw new IOException("Prepared audio payload contains trailing data");
+            }
+            readFully(channel, ByteBuffer.allocate(CHECKSUM_BYTES),
+                    "Prepared audio ended inside its checksum");
+            if (channel.position() != size || channel.size() != size) {
+                throw new IOException("Prepared audio file changed while it was read");
+            }
+            PreparedAudio audio = PreparedAudio.adopting(
+                    HexFormat.of().formatHex(sourceHash),
+                    HexFormat.of().formatHex(decoderHash),
+                    policy,
+                    encoding,
+                    bitsPerSample,
+                    byteOrder,
+                    sampleRate,
+                    channels,
+                    frameCount,
+                    pcm);
+            if (audio.sampleCount() != sampleCount) {
+                throw new IOException("Prepared audio sample count is invalid: " + sampleCount);
+            }
+            return audio;
+        } catch (IllegalArgumentException | ArithmeticException error) {
+            throw new IOException("Prepared audio contains invalid data: " + error.getMessage(), error);
+        }
     }
 
     private static PreparedAudio read(Path source, boolean verifyChecksum) throws IOException {
@@ -200,6 +288,15 @@ public final class PreparedAudioIO {
                 throw new IOException("Prepared audio grew beyond its file safety limit");
             }
             return bytes;
+        }
+    }
+
+    private static void readFully(FileChannel channel, ByteBuffer destination, String message)
+            throws IOException {
+        while (destination.hasRemaining()) {
+            if (channel.read(destination) < 0) {
+                throw new EOFException(message);
+            }
         }
     }
 

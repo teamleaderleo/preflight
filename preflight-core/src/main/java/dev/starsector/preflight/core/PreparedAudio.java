@@ -1,5 +1,6 @@
 package dev.starsector.preflight.core;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
@@ -23,7 +24,7 @@ public final class PreparedAudio {
     private final long sampleCount;
     private final byte[] pcmBytes;
 
-    public PreparedAudio(
+    private PreparedAudio(
             String sourceSha256,
             String decoderPolicyIdentitySha256,
             Policy policy,
@@ -33,7 +34,8 @@ public final class PreparedAudio {
             int sampleRateHz,
             int channels,
             long frameCount,
-            byte[] pcmBytes) {
+            byte[] pcmBytes,
+            boolean adopt) {
         Hashes.decodeSha256(sourceSha256);
         Hashes.decodeSha256(decoderPolicyIdentitySha256);
         this.sourceSha256 = sourceSha256.toLowerCase(Locale.ROOT);
@@ -67,7 +69,38 @@ public final class PreparedAudio {
             throw new IllegalArgumentException(
                     "PCM payload length is " + pcmBytes.length + "; expected " + expected);
         }
-        this.pcmBytes = pcmBytes.clone();
+        this.pcmBytes = adopt ? pcmBytes : pcmBytes.clone();
+    }
+
+    public PreparedAudio(
+            String sourceSha256,
+            String decoderPolicyIdentitySha256,
+            Policy policy,
+            PcmEncoding encoding,
+            int bitsPerSample,
+            ByteOrder byteOrder,
+            int sampleRateHz,
+            int channels,
+            long frameCount,
+            byte[] pcmBytes) {
+        this(sourceSha256, decoderPolicyIdentitySha256, policy, encoding, bitsPerSample, byteOrder,
+                sampleRateHz, channels, frameCount, pcmBytes, false);
+    }
+
+    /** Takes ownership of a freshly read PCM array that no other caller can reach. */
+    static PreparedAudio adopting(
+            String sourceSha256,
+            String decoderPolicyIdentitySha256,
+            Policy policy,
+            PcmEncoding encoding,
+            int bitsPerSample,
+            ByteOrder byteOrder,
+            int sampleRateHz,
+            int channels,
+            long frameCount,
+            byte[] pcmBytes) {
+        return new PreparedAudio(sourceSha256, decoderPolicyIdentitySha256, policy, encoding,
+                bitsPerSample, byteOrder, sampleRateHz, channels, frameCount, pcmBytes, true);
     }
 
     public String sourceSha256() {
@@ -136,6 +169,15 @@ public final class PreparedAudio {
             throw new IndexOutOfBoundsException("PCM destination is too small");
         }
         System.arraycopy(pcmBytes, 0, destination, offset, pcmBytes.length);
+    }
+
+    /** Copies the immutable PCM payload directly into its final native-facing buffer. */
+    public void copyPcmTo(ByteBuffer destination) {
+        Objects.requireNonNull(destination, "destination");
+        if (destination.remaining() < pcmBytes.length) {
+            throw new java.nio.BufferOverflowException();
+        }
+        destination.put(pcmBytes);
     }
 
     byte[] internalPcmBytes() {

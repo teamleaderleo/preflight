@@ -249,11 +249,10 @@ public final class PreparedAudioRuntime {
         if (!resolveShape()) {
             return null;
         }
-        byte[] pcm = audio.pcmBytes();
         // alBufferData needs a direct buffer, and the vanilla decoder hands back a direct one with
         // position 0. Anything else is a different object than the loader was written against.
-        ByteBuffer buffer = ByteBuffer.allocateDirect(pcm.length);
-        buffer.put(pcm);
+        ByteBuffer buffer = ByteBuffer.allocateDirect(audio.pcmByteCount());
+        audio.copyPcmTo(buffer);
         buffer.flip();
 
         Object result = resultClass.getDeclaredConstructor().newInstance();
@@ -261,7 +260,7 @@ public final class PreparedAudioRuntime {
         rateField.setInt(result, audio.sampleRateHz());
         pcmField.set(result, buffer);
         served.incrementAndGet();
-        servedBytes.addAndGet(pcm.length);
+        servedBytes.addAndGet(audio.pcmByteCount());
         return result;
     }
 

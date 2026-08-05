@@ -852,6 +852,18 @@ warm native cached classpath-index builds moved from a 371.05ms median to 337.46
 pretyping experiment was rejected and deleted: exact installed-json replay regressed 4.596 ->
 5.350ms. Do not retry reflective post-decode number promotion. See
 `docs/evidence/2026-08-06-remaining-path-regex.md`.
+The prepared-audio runtime has now removed the redundant heap-copy chain that remained after trusted
+reads. On the exact game JVM, the same 519-blob/297MB subset moved from a 394.604ms legacy median to
+218.149ms direct (**1.81x, -176.455ms, -44.7%**). Complete checked-versus-trusted equality passed
+for all 2,020 distinct installed blobs and 1,212,686,724 PCM bytes. For the live launch's logical
+1,226,415,962 served PCM bytes, four eliminated PCM-sized intermediates represent about 4.91GB of
+avoided transient heap traffic; the final direct OpenAL copy necessarily remains. The checked
+tooling reader and public defensive model boundary are unchanged, while malformed/changed blobs
+still fail open. The unattended live gate reached the menu in 22.36s, served 2,049/2,050 decodes and
+1,226,415,962 PCM bytes with the expected one fallback and zero failure, applied all 40 exact
+transformations, stopped cleanly, and left no JVM. It is an encouraging single diagnostic, not a
+new startup cohort or attributed wall-time claim. See
+`docs/evidence/2026-08-06-prepared-audio-direct-read.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete
