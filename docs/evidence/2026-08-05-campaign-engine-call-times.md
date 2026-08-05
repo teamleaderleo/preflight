@@ -224,5 +224,10 @@ and Java 17 version. Changed classes decline. A runtime kill switch
 `preflight.campaign.entityMaintenance.disabled=true` restores vanilla. Synthetic execution proves
 empty lists return, non-empty lists still invoke the original script path, and a second transform
 declines. The exact installed archive transforms both owners, and full `mvn verify` passes. A short
-live campaign run remains before making a performance claim; telemetry reports both installations
-and empty/non-empty script-list counts.
+live campaign run applied the fleet-view shortcut and exited normally with ACTIVE health, but
+telemetry caught the entity shortcut missing: the earlier entity-index target already transformed
+`BaseCampaignEntity`, after which the transformer correctly returned. The production path now
+composes the disjoint id-mutation and `runScripts` rewrites while the original exact source identity
+is still available. An installed-archive test proves both hooks coexist, and full `mvn verify`
+passes again. One short linkage rerun remains before making a performance claim; telemetry reports
+both installations and empty/non-empty script-list counts.

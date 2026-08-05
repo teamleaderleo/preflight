@@ -463,8 +463,12 @@ Reliable enclosing totals put `ModularFleetAI` at 2.783s, inherited `BaseCampaig
 list and reuse `CampaignFleetView.advance`'s already-live sorted-member snapshot instead of asking
 for the identical snapshot twice. Non-empty script lists enter the renamed unchanged vanilla body;
 both transforms exact-pin the shipped owners and archive and have a kill switch. Synthetic woven
-execution, exact installed-archive checks, and full `mvn verify` pass; a short live campaign run is
-the remaining gate before any speed claim. The earlier run also logged 28 caught Industrial
+execution, exact installed-archive checks, and full `mvn verify` pass. The first live gate exited
+normally and installed the fleet-view shortcut, but telemetry caught `BaseCampaignEntity` being
+claimed first by the existing entity-index target. The production entity-index path now composes
+both disjoint rewrites under the original exact identity, and the installed-archive test proves both
+hooks coexist. One short linkage rerun remains before any speed claim. The earlier run also logged
+28 caught Industrial
 Evolution Codex NPEs from
 synthetic markets with null location/system; treat that as a separate exact compatibility-guard
 candidate. Do not add overlapping totals to a speed claim.

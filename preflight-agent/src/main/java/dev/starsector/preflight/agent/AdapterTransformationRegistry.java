@@ -44,8 +44,18 @@ final class AdapterTransformationRegistry {
                 return timed == null ? location : timed;
             }
             byte[] repository = EntityRepositoryListPlan.transform(signature, originalBytes);
-            return repository != null
-                    ? repository : EntityIdMutationPlan.transform(signature, originalBytes);
+            if (repository != null) {
+                return repository;
+            }
+            byte[] entity = EntityIdMutationPlan.transform(signature, originalBytes);
+            if (entity == null) {
+                return null;
+            }
+            // BaseCampaignEntity also carries the empty-script maintenance shortcut. The
+            // transformer returns after this entity-index target succeeds, so compose the
+            // disjoint runScripts rewrite while retaining the original exact source identity.
+            byte[] maintained = CampaignEntityMaintenancePlan.transform(signature, entity);
+            return maintained == null ? entity : maintained;
         }
         // Like the campaign index, this wrapper is inert until its system property is enabled.
         if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {
