@@ -97,8 +97,8 @@ final class AdapterTransformationRegistry {
             if (startupPhases != null) {
                 return startupPhases;
             }
-            byte[] specStore = SpecStorePhasePlan.transform(signature, originalBytes);
-            if (specStore == null) {
+            byte[] specStoreBase = SpecStorePhasePlan.transform(signature, originalBytes);
+            if (specStoreBase == null) {
                 byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
                 if (weaponPhases == null) {
                     byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
@@ -117,10 +117,8 @@ final class AdapterTransformationRegistry {
                                     memoised == null ? originalBytes : memoised);
                             return shortcut == null ? memoised : shortcut;
                         }
-                        byte[] optimized = rulesOptimizations(rulesPhases);
-                        byte[] rules = optimized == null ? rulesPhases : optimized;
-                        byte[] published = ruleCommandClassPublish(rules);
-                        return published == null ? rules : published;
+                        byte[] optimized = rulesLoaderPlans(signature, rulesPhases);
+                        return optimized == null ? rulesPhases : optimized;
                     }
                     if (!HullJsonCacheRuntime.ready()) {
                         return hullPhases;
@@ -143,6 +141,8 @@ final class AdapterTransformationRegistry {
                     return weaponPhases;
                 }
             }
+            byte[] factionPhases = FactionLoaderPhasePlan.transform(signature, specStoreBase);
+            byte[] specStore = factionPhases == null ? specStoreBase : factionPhases;
             try {
                 byte[] variantPhases = VariantLoaderPhasePlan.transform(
                         ClassSignature.parse(specStore), specStore);
@@ -172,8 +172,9 @@ final class AdapterTransformationRegistry {
                     : null;
         }
         if (RulesDuplicateIndexRuntime.PLAN_ID.equals(target.planId())
-                || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return rulesOptimizations(originalBytes);
+                || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())
+                || RulesRegexCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return rulesLoaderPlans(signature, originalBytes);
         }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(target.planId())
                 || MergedReadCacheRuntime.PLAN_ID.equals(target.planId())) {
@@ -279,9 +280,7 @@ final class AdapterTransformationRegistry {
                 return null;
             }
             byte[] shortcut = RuleCommandClassCachePlan.transform(signature, originalBytes);
-            return shortcut != null
-                    ? shortcut
-                    : RuleCommandClassCachePlan.transformLoader(signature, originalBytes);
+            return shortcut != null ? shortcut : rulesLoaderPlans(signature, originalBytes);
         }
         return null;
     }
@@ -384,6 +383,29 @@ final class AdapterTransformationRegistry {
         } catch (java.io.IOException ignored) {
             return changed ? current : null;
         }
+    }
+
+    /** Composes every independent rewrite on the exact campaign-rules loader. */
+    private static byte[] rulesLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+
+        byte[] optimized = rulesOptimizations(current);
+        if (optimized != null) {
+            current = optimized;
+            changed = true;
+        }
+        byte[] regex = RulesRegexCachePlan.transform(signature, current);
+        if (regex != null) {
+            current = regex;
+            changed = true;
+        }
+        byte[] published = ruleCommandClassPublish(current);
+        if (published != null) {
+            current = published;
+            changed = true;
+        }
+        return changed ? current : null;
     }
 
     /**
@@ -509,6 +531,9 @@ final class AdapterTransformationRegistry {
         }
         if (RulesCsvCacheRuntime.PLAN_ID.equals(planId)) {
             return RulesCsvCacheRuntime.ready();
+        }
+        if (RulesRegexCacheRuntime.PLAN_ID.equals(planId)) {
+            return true;
         }
         if (RuleTokenCacheRuntime.PLAN_ID.equals(planId)) {
             return RuleTokenCacheRuntime.ready();

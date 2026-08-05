@@ -33,6 +33,7 @@ final class AdapterRuntime {
         RulesCsvCacheRuntime.beginSession();
         RulesDuplicateIndexRuntime.beginSession();
         RuleTokenCacheRuntime.beginSession();
+        RulesRegexCacheRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         LoadJsonMemoRuntime.reset();
@@ -189,6 +190,8 @@ final class AdapterRuntime {
                     registry = registry.withRulesDuplicateIndexTarget();
                     report.diagnostic("Loaded the exact rules duplicate-index target");
                 }
+                registry = registry.withRulesRegexCacheTarget();
+                report.diagnostic("Loaded the exact rules fixed-pattern cache target");
                 if (RuleTokenCacheRuntime.ready()) {
                     registry = registry.withRuleTokenCacheTarget();
                     report.diagnostic("Loaded the exact rule-expression tokenizer memo target");

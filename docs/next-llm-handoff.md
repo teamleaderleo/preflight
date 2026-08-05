@@ -225,6 +225,16 @@ four GraphicsLib preload passes with live VRAM changes, and exited 0 with ACTIVE
 transforms, and zero decline/failure. No GraphicsLib load/fatal error appeared. Evidence:
 `docs/evidence/2026-08-05-graphicslib-lazy-generated-normals.md`.
 
+The next core-spec probe split the 0.6--0.8s faction loader. Its 683,270 spec lookups cost only
+39ms; the dominant 334ms is a tight candidate/tag expansion. Two exact caches were live-tested and
+deleted because this corpus has far more distinct ids, tag combinations, and individual tags than
+expected: they regressed the block to 806ms and 381--471ms. The observation-only faction split is
+retained. Separately, the rules loader's five fixed `replaceAll` and five fixed `split` sites execute
+205,686 times. Reusing five compiled patterns reduced that exact label 257 -> 202ms and the whole
+rules loader 1.743 -> 1.682s. The equivalent `Matcher.replaceAll`/`Pattern.split(input, 0)` path is
+exact-gated, composed into ordinary adapter launches, live ACTIVE, and full-verify green. Evidence:
+`docs/evidence/2026-08-05-core-spec-faction-and-rules.md`.
+
 The next startup recording exposed a new Rosetta-specific residual in Preflight itself: 452 sampled
 ticks recomputed the payload checksum over 1.21 GB of prepared PCM on the game's two audio loader
 threads, after the encoded input had already been hashed to select an exact content-addressed blob.

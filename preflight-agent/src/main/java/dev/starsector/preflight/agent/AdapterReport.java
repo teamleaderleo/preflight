@@ -278,6 +278,7 @@ final class AdapterReport {
                 .append(Json.value(RuleCommandClassCacheRuntime.telemetry())).append(',');
         key(output, "rulesDuplicateIndex").append(Json.value(RulesDuplicateIndexRuntime.telemetry())).append(',');
         key(output, "ruleTokenCache").append(Json.value(RuleTokenCacheRuntime.telemetry())).append(',');
+        key(output, "rulesRegexCache").append(Json.value(RulesRegexCacheRuntime.telemetry())).append(',');
         key(output, "mergedReadCache").append(Json.value(MergedReadCacheRuntime.telemetry())).append(',');
         key(output, "campaignEntityIndex").append(Json.value(EntityLookupRuntime.counters())).append(',');
         key(output, "fleetAiProfiler")

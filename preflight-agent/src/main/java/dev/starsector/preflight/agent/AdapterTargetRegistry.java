@@ -864,8 +864,12 @@ final class AdapterTargetRegistry {
                 SpecStorePhasePlan.TARGET_CLASS,
                 "1947fee1403e93b27ae89b4995fcfde5f65b8ffe1ef3f564b4daaed3a5e69821",
                 StartupPhaseRuntime.PLAN_ID,
-                List.of(new AdapterTarget.RequiredMethod(
-                        SpecStorePhasePlan.INIT_METHOD, SpecStorePhasePlan.INIT_DESCRIPTOR)),
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                SpecStorePhasePlan.INIT_METHOD, SpecStorePhasePlan.INIT_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                FactionLoaderPhasePlan.LOAD_METHOD,
+                                FactionLoaderPhasePlan.LOAD_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
@@ -999,6 +1003,23 @@ final class AdapterTargetRegistry {
                 List.of(new AdapterTarget.RequiredMethod(
                         RulesLoaderPhasePlan.LOAD_METHOD,
                         RulesLoaderPhasePlan.LOAD_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Exact campaign-rules loader used by the fixed-pattern regex cache. */
+    static AdapterTarget rulesRegexCacheTarget() {
+        return new AdapterTarget(
+                "vanilla-rules-loader-0.98a-rc8-regex-cache",
+                RulesRegexCachePlan.TARGET_CLASS,
+                "61f5432f35037ac48cb665930652f01e72e4ea94085ddf0676cd80b07b98d996",
+                RulesRegexCacheRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        RulesRegexCachePlan.LOAD_METHOD,
+                        RulesRegexCachePlan.LOAD_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
@@ -1234,6 +1255,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withRulesCsvCacheTarget() {
         return withTarget(rulesCsvCacheTarget());
+    }
+
+    AdapterTargetRegistry withRulesRegexCacheTarget() {
+        return withTarget(rulesRegexCacheTarget());
     }
 
     AdapterTargetRegistry withRuleTokenCacheTarget() {
