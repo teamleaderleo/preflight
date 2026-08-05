@@ -93,6 +93,14 @@ class CommandLineAdapterTest {
     }
 
     @Test
+    void fastUsesAcceptedTrueSizeTexturesInsteadOfPaddedNpotCarriers() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+
+        assertEquals(true, fast.unpadded());
+        assertEquals(false, fast.npotDirect());
+    }
+
+    @Test
     void fastExcludesTheResourceProbeCacheAfterTheConservativeMemoAlsoLostAFile() {
         CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
         CommandLine explicit = CommandLine.parse(

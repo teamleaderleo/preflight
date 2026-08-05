@@ -132,7 +132,11 @@ record CommandLine(
                     textureAuto = true;
                     textureAdapterMode = TextureAdapterMode.PREPARED_PIXELS;
                     textureModeSpecified = true;
-                    npotDirect = true;
+                    // The true-size path passed a full live load with the allocation/buffer
+                    // invariant composed and fail-closed. It removes the power-of-two padding
+                    // entirely; coherent-direct keeps the same padding while only bypassing the
+                    // decoder, so it is now the explicit conservative alternative.
+                    unpadded = true;
                     campaignEntityIndex = true;
                     ruleTokenCache = true;
                     ruleCommandClassCache = true;
