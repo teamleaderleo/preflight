@@ -148,6 +148,14 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
         assertEquals(0L, calls(pausedLocation, "java/util/ArrayList", "<init>"));
         assertEquals(2L, calls(pausedLocation,
                 "dev/starsector/preflight/agent/CampaignLocationEconomyTimeRuntime", "enterClass"));
+        MethodNode activeLocation = method(composedLocationOwner,
+                CampaignEntityMaintenancePlan.ACTIVE_LOCATION_METHOD,
+                CampaignEntityMaintenancePlan.LOCATION_DESCRIPTOR);
+        assertEquals(3L, calls(activeLocation, maintenanceRuntime, "locationSnapshot"));
+        assertEquals(3L, calls(activeLocation, maintenanceRuntime, "locationSnapshotIterator"));
+        assertEquals(0L, calls(activeLocation, "java/util/ArrayList", "<init>"));
+        assertEquals(1L, calls(activeLocation,
+                "dev/starsector/preflight/agent/CampaignLocationEconomyTimeRuntime", "enterClass"));
         assertEquals(1L, calls(method(composedLocationOwner,
                 EntityLookupPlan.LOOKUP_METHOD, EntityLookupPlan.LOOKUP_DESCRIPTOR),
                 EntityLookupRuntime.class.getName().replace('.', '/'), "lookup"));

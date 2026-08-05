@@ -161,7 +161,7 @@ class CampaignEntityMaintenancePlanTest {
     }
 
     @Test
-    void pausedLocationReusesOneEntitySnapshotAndCompactsTheScriptSnapshot() throws Exception {
+    void locationSnapshotsRetainPassStructureWithoutArrayListWrappers() throws Exception {
         byte[] original = locationFixture();
         byte[] transformed = CampaignEntityMaintenancePlan.transform(
                 exact(original, CampaignEntityMaintenancePlan.LOCATION_SHA256), original);
@@ -172,6 +172,11 @@ class CampaignEntityMaintenancePlanTest {
         assertEquals(2, calls(method, runtime, "locationSnapshot"));
         assertEquals(3, calls(method, runtime, "locationSnapshotIterator"));
         assertEquals(0, calls(method, "java/util/ArrayList", "<init>"));
+        MethodNode active = method(
+                transformed, CampaignEntityMaintenancePlan.ACTIVE_LOCATION_METHOD);
+        assertEquals(3, calls(active, runtime, "locationSnapshot"));
+        assertEquals(3, calls(active, runtime, "locationSnapshotIterator"));
+        assertEquals(0, calls(active, "java/util/ArrayList", "<init>"));
         assertNull(CampaignEntityMaintenancePlan.transform(
                 ClassSignature.parse(transformed), transformed));
 
@@ -191,6 +196,7 @@ class CampaignEntityMaintenancePlanTest {
         assertFalse(CampaignEntityMaintenanceRuntime.locationSnapshotIterator(empty).hasNext());
         Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
         assertEquals(true, telemetry.get("pausedLocationSnapshotsInstalled"));
+        assertEquals(true, telemetry.get("activeLocationSnapshotsInstalled"));
         assertEquals(1L, telemetry.get("nonEmptyPausedLocationEntities"));
         assertEquals(1L, telemetry.get("emptyPausedLocationScripts"));
     }
@@ -503,6 +509,35 @@ class CampaignEntityMaintenancePlanTest {
         writer.visitField(Opcodes.ACC_PRIVATE, "objects",
                 "Lcom/fs/util/container/repo/ObjectRepository;", null, null).visitEnd();
         writer.visitField(Opcodes.ACC_PRIVATE, "scripts", "Ljava/util/List;", null, null).visitEnd();
+        MethodVisitor active = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.ACTIVE_LOCATION_METHOD,
+                CampaignEntityMaintenancePlan.LOCATION_DESCRIPTOR, null, null);
+        active.visitCode();
+        emitRepositorySnapshot(active, "com/fs/starfarer/campaign/CampaignEntity", 4);
+        emitRepositorySnapshot(active,
+                CampaignEntityMaintenancePlan.LOCATION_CLASS + "$LocationToken", 5);
+        active.visitVarInsn(Opcodes.ALOAD, 0);
+        active.visitFieldInsn(Opcodes.GETFIELD, CampaignEntityMaintenancePlan.LOCATION_CLASS,
+                "objects", "Lcom/fs/util/container/repo/ObjectRepository;");
+        active.visitLdcInsn(org.objectweb.asm.Type.getObjectType(
+                "com/fs/starfarer/campaign/BaseCampaignEntity"));
+        active.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "com/fs/util/container/repo/ObjectRepository", "getList",
+                "(Ljava/lang/Class;)Ljava/util/List;", false);
+        active.visitVarInsn(Opcodes.ASTORE, 10);
+        active.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        active.visitInsn(Opcodes.DUP);
+        active.visitVarInsn(Opcodes.ALOAD, 10);
+        active.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>",
+                "(Ljava/util/Collection;)V", false);
+        active.visitVarInsn(Opcodes.ASTORE, 10);
+        active.visitVarInsn(Opcodes.ALOAD, 10);
+        active.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/List", "iterator", "()Ljava/util/Iterator;", true);
+        active.visitInsn(Opcodes.POP);
+        active.visitInsn(Opcodes.RETURN);
+        active.visitMaxs(4, 11);
+        active.visitEnd();
         MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC,
                 CampaignEntityMaintenancePlan.PAUSED_LOCATION_METHOD,
                 CampaignEntityMaintenancePlan.LOCATION_DESCRIPTOR, null, null);
@@ -545,6 +580,26 @@ class CampaignEntityMaintenancePlanTest {
         method.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
+    }
+
+    private static void emitRepositorySnapshot(
+            MethodVisitor method, String requestedType, int local) {
+        method.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        method.visitInsn(Opcodes.DUP);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitFieldInsn(Opcodes.GETFIELD, CampaignEntityMaintenancePlan.LOCATION_CLASS,
+                "objects", "Lcom/fs/util/container/repo/ObjectRepository;");
+        method.visitLdcInsn(org.objectweb.asm.Type.getObjectType(requestedType));
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "com/fs/util/container/repo/ObjectRepository", "getList",
+                "(Ljava/lang/Class;)Ljava/util/List;", false);
+        method.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>",
+                "(Ljava/util/Collection;)V", false);
+        method.visitVarInsn(Opcodes.ASTORE, local);
+        method.visitVarInsn(Opcodes.ALOAD, local);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/List", "iterator", "()Ljava/util/Iterator;", true);
+        method.visitInsn(Opcodes.POP);
     }
 
     private static void initializeList(MethodVisitor constructor, String field) {

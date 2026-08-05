@@ -45,6 +45,7 @@ final class CampaignEntityMaintenancePlan {
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
     static final String PAUSED_CONDITIONS_METHOD = "advanceMarketConditionsWhenPaused";
+    static final String ACTIVE_LOCATION_METHOD = "advance";
     static final String PAUSED_LOCATION_METHOD = "advanceEvenIfPaused";
     static final String LOCATION_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
 
@@ -61,6 +62,9 @@ final class CampaignEntityMaintenancePlan {
     private static final int PAUSED_MARKET_CONDITIONS = 2;
     private static final int PAUSED_LOCATION_ENTITIES = 3;
     private static final int PAUSED_LOCATION_SCRIPTS = 4;
+    private static final int ACTIVE_LOCATION_ENTITIES = 5;
+    private static final int ACTIVE_LOCATION_TOKENS = 6;
+    private static final int ACTIVE_ENGAGEMENT_ENTITIES = 7;
 
     private CampaignEntityMaintenancePlan() {
     }
@@ -240,14 +244,33 @@ final class CampaignEntityMaintenancePlan {
 
     private static byte[] transformLocation(byte[] originalBytes) {
         ClassNode owner = read(originalBytes);
-        MethodNode method = unique(owner, PAUSED_LOCATION_METHOD, LOCATION_DESCRIPTOR);
-        if (method == null || callsRuntime(method) != 0) return null;
-        List<LocationSnapshot> snapshots = locationSnapshots(method);
-        if (snapshots.size() != 2
-                || snapshots.stream().filter(snapshot ->
+        MethodNode active = unique(owner, ACTIVE_LOCATION_METHOD, LOCATION_DESCRIPTOR);
+        MethodNode paused = unique(owner, PAUSED_LOCATION_METHOD, LOCATION_DESCRIPTOR);
+        if (active == null || paused == null
+                || callsRuntime(active) != 0 || callsRuntime(paused) != 0) return null;
+        List<LocationSnapshot> pausedSnapshots = pausedLocationSnapshots(paused);
+        if (pausedSnapshots.size() != 2
+                || pausedSnapshots.stream().filter(snapshot ->
                         snapshot.kind == PAUSED_LOCATION_ENTITIES).count() != 1
-                || snapshots.stream().filter(snapshot ->
+                || pausedSnapshots.stream().filter(snapshot ->
                         snapshot.kind == PAUSED_LOCATION_SCRIPTS).count() != 1) return null;
+        List<LocationSnapshot> activeSnapshots = activeLocationSnapshots(active);
+        if (activeSnapshots.size() != 3
+                || activeSnapshots.stream().filter(snapshot ->
+                        snapshot.kind == ACTIVE_LOCATION_ENTITIES).count() != 1
+                || activeSnapshots.stream().filter(snapshot ->
+                        snapshot.kind == ACTIVE_LOCATION_TOKENS).count() != 1
+                || activeSnapshots.stream().filter(snapshot ->
+                        snapshot.kind == ACTIVE_ENGAGEMENT_ENTITIES).count() != 1) return null;
+        rewriteLocationSnapshots(paused, pausedSnapshots);
+        rewriteLocationSnapshots(active, activeSnapshots);
+        CampaignEntityMaintenanceRuntime.pausedLocationSnapshotsInstalled();
+        CampaignEntityMaintenanceRuntime.activeLocationSnapshotsInstalled();
+        return write(owner);
+    }
+
+    private static void rewriteLocationSnapshots(
+            MethodNode method, List<LocationSnapshot> snapshots) {
         for (LocationSnapshot snapshot : snapshots) {
             method.instructions.remove(snapshot.allocation);
             method.instructions.remove(snapshot.duplicate);
@@ -263,11 +286,9 @@ final class CampaignEntityMaintenancePlan {
                 method.instructions.remove(iterator);
             }
         }
-        CampaignEntityMaintenanceRuntime.pausedLocationSnapshotsInstalled();
-        return write(owner);
     }
 
-    private static List<LocationSnapshot> locationSnapshots(MethodNode method) {
+    private static List<LocationSnapshot> pausedLocationSnapshots(MethodNode method) {
         List<LocationSnapshot> result = new ArrayList<>();
         for (AbstractInsnNode instruction : method.instructions) {
             if (!(instruction instanceof MethodInsnNode constructor)
@@ -328,6 +349,9 @@ final class CampaignEntityMaintenancePlan {
             List<MethodInsnNode> iterators = new ArrayList<>();
             for (AbstractInsnNode candidate = store.getNext(); candidate != null;
                     candidate = candidate.getNext()) {
+                if (candidate instanceof VarInsnNode overwrite
+                        && overwrite.getOpcode() == Opcodes.ASTORE
+                        && overwrite.var == local) break;
                 if (!(candidate instanceof MethodInsnNode iterator)
                         || iterator.getOpcode() != Opcodes.INVOKEINTERFACE
                         || !"java/util/List".equals(iterator.owner)
@@ -338,6 +362,106 @@ final class CampaignEntityMaintenancePlan {
                         && load.var == local) iterators.add(iterator);
             }
             if (iterators.size() != expectedIterators) return List.of();
+            result.add(new LocationSnapshot(
+                    allocation, duplicate, constructor, List.copyOf(iterators), kind));
+        }
+        return result;
+    }
+
+    private static List<LocationSnapshot> activeLocationSnapshots(MethodNode method) {
+        List<LocationSnapshot> result = new ArrayList<>();
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (!(instruction instanceof MethodInsnNode constructor)
+                    || constructor.getOpcode() != Opcodes.INVOKESPECIAL
+                    || !"java/util/ArrayList".equals(constructor.owner)
+                    || !"<init>".equals(constructor.name)
+                    || !"(Ljava/util/Collection;)V".equals(constructor.desc)) continue;
+            AbstractInsnNode producer = previousMeaningful(constructor);
+            AbstractInsnNode duplicate;
+            AbstractInsnNode allocation;
+            int kind;
+            int local;
+            if (producer instanceof MethodInsnNode list
+                    && list.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && "com/fs/util/container/repo/ObjectRepository".equals(list.owner)
+                    && "getList".equals(list.name)
+                    && "(Ljava/lang/Class;)Ljava/util/List;".equals(list.desc)) {
+                AbstractInsnNode requestedType = previousMeaningful(producer);
+                AbstractInsnNode objects = previousMeaningful(requestedType);
+                AbstractInsnNode loadThis = previousMeaningful(objects);
+                duplicate = previousMeaningful(loadThis);
+                allocation = previousMeaningful(duplicate);
+                if (!(requestedType instanceof LdcInsnNode constant)
+                        || !(constant.cst instanceof Type type)
+                        || !(objects instanceof FieldInsnNode field)
+                        || field.getOpcode() != Opcodes.GETFIELD
+                        || !LOCATION_CLASS.equals(field.owner) || !"objects".equals(field.name)
+                        || !"Lcom/fs/util/container/repo/ObjectRepository;".equals(field.desc)
+                        || !(loadThis instanceof VarInsnNode load)
+                        || load.getOpcode() != Opcodes.ALOAD || load.var != 0) return List.of();
+                if ("com/fs/starfarer/campaign/CampaignEntity".equals(type.getInternalName())) {
+                    kind = ACTIVE_LOCATION_ENTITIES;
+                    local = 4;
+                } else if ((LOCATION_CLASS + "$LocationToken").equals(type.getInternalName())) {
+                    kind = ACTIVE_LOCATION_TOKENS;
+                    local = 5;
+                } else {
+                    return List.of();
+                }
+            } else if (producer instanceof VarInsnNode source
+                    && source.getOpcode() == Opcodes.ALOAD && source.var == 10) {
+                duplicate = previousMeaningful(source);
+                allocation = previousMeaningful(duplicate);
+                AbstractInsnNode sourceStore = previousMeaningful(allocation);
+                AbstractInsnNode list = previousMeaningful(sourceStore);
+                AbstractInsnNode requestedType = previousMeaningful(list);
+                AbstractInsnNode objects = previousMeaningful(requestedType);
+                AbstractInsnNode loadThis = previousMeaningful(objects);
+                if (!(sourceStore instanceof VarInsnNode store)
+                        || store.getOpcode() != Opcodes.ASTORE || store.var != 10
+                        || !(list instanceof MethodInsnNode call)
+                        || call.getOpcode() != Opcodes.INVOKEVIRTUAL
+                        || !"com/fs/util/container/repo/ObjectRepository".equals(call.owner)
+                        || !"getList".equals(call.name)
+                        || !"(Ljava/lang/Class;)Ljava/util/List;".equals(call.desc)
+                        || !(requestedType instanceof LdcInsnNode constant)
+                        || !(constant.cst instanceof Type type)
+                        || !"com/fs/starfarer/campaign/BaseCampaignEntity".equals(
+                                type.getInternalName())
+                        || !(objects instanceof FieldInsnNode field)
+                        || field.getOpcode() != Opcodes.GETFIELD
+                        || !LOCATION_CLASS.equals(field.owner) || !"objects".equals(field.name)
+                        || !"Lcom/fs/util/container/repo/ObjectRepository;".equals(field.desc)
+                        || !(loadThis instanceof VarInsnNode load)
+                        || load.getOpcode() != Opcodes.ALOAD || load.var != 0) return List.of();
+                kind = ACTIVE_ENGAGEMENT_ENTITIES;
+                local = 10;
+            } else {
+                return List.of();
+            }
+            AbstractInsnNode store = nextMeaningful(constructor);
+            if (duplicate == null || duplicate.getOpcode() != Opcodes.DUP
+                    || !(allocation instanceof TypeInsnNode type)
+                    || allocation.getOpcode() != Opcodes.NEW
+                    || !"java/util/ArrayList".equals(type.desc)
+                    || !(store instanceof VarInsnNode variable)
+                    || store.getOpcode() != Opcodes.ASTORE || variable.var != local) return List.of();
+            List<MethodInsnNode> iterators = new ArrayList<>();
+            for (AbstractInsnNode candidate = store.getNext(); candidate != null;
+                    candidate = candidate.getNext()) {
+                if (candidate instanceof VarInsnNode overwrite
+                        && overwrite.getOpcode() == Opcodes.ASTORE
+                        && overwrite.var == local) break;
+                if (!(candidate instanceof MethodInsnNode iterator)
+                        || iterator.getOpcode() != Opcodes.INVOKEINTERFACE
+                        || !"java/util/List".equals(iterator.owner)
+                        || !"iterator".equals(iterator.name)
+                        || !"()Ljava/util/Iterator;".equals(iterator.desc)) continue;
+                AbstractInsnNode receiver = previousMeaningful(iterator);
+                if (receiver instanceof VarInsnNode load && load.getOpcode() == Opcodes.ALOAD
+                        && load.var == local) iterators.add(iterator);
+            }
+            if (iterators.size() != 1) return List.of();
             result.add(new LocationSnapshot(
                     allocation, duplicate, constructor, List.copyOf(iterators), kind));
         }

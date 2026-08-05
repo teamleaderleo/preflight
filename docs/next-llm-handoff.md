@@ -522,9 +522,12 @@ two passes and one defensive script copy used for one pass. A new maintenance co
 the two stable source arrays and three independent traversal cursors but omits both unused
 `ArrayList` wrappers; empty lists use shared array/iterator objects. It pins the existing exact
 `BaseLocation` identity and reviewed producer/local/iterator shapes, composes after the entity index
-and before optional location timing, and shares the maintenance kill switch. Synthetic snapshot
-semantics, exact installed-class composition, and full `mvn verify` pass. It is launch-free verified
-and reports separate empty/non-empty entity and script counts for the next ordinary campaign run.
+and before optional location timing, and shares the maintenance kill switch. The same transform now
+also removes the wrappers from the ordinary active method's three stable snapshots: campaign
+entities, location tokens, and the conditional per-eligible-fleet engagement scan. Every source
+array, callback boundary, iterator count, and conditional remains. Synthetic snapshot semantics and
+exact installed-class composition pass, as does full `mvn verify`. It is launch-free verified and
+reports separate empty/non-empty counts for all five snapshot kinds.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from

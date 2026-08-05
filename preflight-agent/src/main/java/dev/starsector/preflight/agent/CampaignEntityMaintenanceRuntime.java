@@ -16,6 +16,9 @@ public final class CampaignEntityMaintenanceRuntime {
     static final int PAUSED_MARKET_CONDITIONS = 2;
     static final int PAUSED_LOCATION_ENTITIES = 3;
     static final int PAUSED_LOCATION_SCRIPTS = 4;
+    static final int ACTIVE_LOCATION_ENTITIES = 5;
+    static final int ACTIVE_LOCATION_TOKENS = 6;
+    static final int ACTIVE_ENGAGEMENT_ENTITIES = 7;
 
     private static final Object[] EMPTY_SNAPSHOT = new Object[0];
 
@@ -26,6 +29,7 @@ public final class CampaignEntityMaintenanceRuntime {
     private static volatile boolean memoryInstalled;
     private static volatile boolean pausedConditionsInstalled;
     private static volatile boolean pausedLocationSnapshotsInstalled;
+    private static volatile boolean activeLocationSnapshotsInstalled;
     private static long emptyScriptLists;
     private static long nonEmptyScriptLists;
     private static long emptyMarketConditions;
@@ -42,6 +46,12 @@ public final class CampaignEntityMaintenanceRuntime {
     private static long nonEmptyPausedLocationEntities;
     private static long emptyPausedLocationScripts;
     private static long nonEmptyPausedLocationScripts;
+    private static long emptyActiveLocationEntities;
+    private static long nonEmptyActiveLocationEntities;
+    private static long emptyActiveLocationTokens;
+    private static long nonEmptyActiveLocationTokens;
+    private static long emptyActiveEngagementEntities;
+    private static long nonEmptyActiveEngagementEntities;
 
     private CampaignEntityMaintenanceRuntime() {
     }
@@ -54,6 +64,7 @@ public final class CampaignEntityMaintenanceRuntime {
         memoryInstalled = false;
         pausedConditionsInstalled = false;
         pausedLocationSnapshotsInstalled = false;
+        activeLocationSnapshotsInstalled = false;
         emptyScriptLists = 0L;
         nonEmptyScriptLists = 0L;
         emptyMarketConditions = 0L;
@@ -70,6 +81,12 @@ public final class CampaignEntityMaintenanceRuntime {
         nonEmptyPausedLocationEntities = 0L;
         emptyPausedLocationScripts = 0L;
         nonEmptyPausedLocationScripts = 0L;
+        emptyActiveLocationEntities = 0L;
+        nonEmptyActiveLocationEntities = 0L;
+        emptyActiveLocationTokens = 0L;
+        nonEmptyActiveLocationTokens = 0L;
+        emptyActiveEngagementEntities = 0L;
+        nonEmptyActiveEngagementEntities = 0L;
     }
 
     static boolean enabled() {
@@ -98,6 +115,10 @@ public final class CampaignEntityMaintenanceRuntime {
 
     static void pausedLocationSnapshotsInstalled() {
         pausedLocationSnapshotsInstalled = true;
+    }
+
+    static void activeLocationSnapshotsInstalled() {
+        activeLocationSnapshotsInstalled = true;
     }
 
     public static void emptyScriptList() {
@@ -145,10 +166,16 @@ public final class CampaignEntityMaintenanceRuntime {
         if (values.isEmpty()) {
             if (kind == PAUSED_LOCATION_ENTITIES) emptyPausedLocationEntities++;
             if (kind == PAUSED_LOCATION_SCRIPTS) emptyPausedLocationScripts++;
+            if (kind == ACTIVE_LOCATION_ENTITIES) emptyActiveLocationEntities++;
+            if (kind == ACTIVE_LOCATION_TOKENS) emptyActiveLocationTokens++;
+            if (kind == ACTIVE_ENGAGEMENT_ENTITIES) emptyActiveEngagementEntities++;
             return EMPTY_SNAPSHOT;
         }
         if (kind == PAUSED_LOCATION_ENTITIES) nonEmptyPausedLocationEntities++;
         if (kind == PAUSED_LOCATION_SCRIPTS) nonEmptyPausedLocationScripts++;
+        if (kind == ACTIVE_LOCATION_ENTITIES) nonEmptyActiveLocationEntities++;
+        if (kind == ACTIVE_LOCATION_TOKENS) nonEmptyActiveLocationTokens++;
+        if (kind == ACTIVE_ENGAGEMENT_ENTITIES) nonEmptyActiveEngagementEntities++;
         return values.toArray();
     }
 
@@ -167,6 +194,7 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("memoryInstalled", memoryInstalled);
         result.put("pausedConditionsInstalled", pausedConditionsInstalled);
         result.put("pausedLocationSnapshotsInstalled", pausedLocationSnapshotsInstalled);
+        result.put("activeLocationSnapshotsInstalled", activeLocationSnapshotsInstalled);
         result.put("emptyScriptLists", emptyScriptLists);
         result.put("nonEmptyScriptLists", nonEmptyScriptLists);
         result.put("emptyMarketConditions", emptyMarketConditions);
@@ -183,6 +211,12 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("nonEmptyPausedLocationEntities", nonEmptyPausedLocationEntities);
         result.put("emptyPausedLocationScripts", emptyPausedLocationScripts);
         result.put("nonEmptyPausedLocationScripts", nonEmptyPausedLocationScripts);
+        result.put("emptyActiveLocationEntities", emptyActiveLocationEntities);
+        result.put("nonEmptyActiveLocationEntities", nonEmptyActiveLocationEntities);
+        result.put("emptyActiveLocationTokens", emptyActiveLocationTokens);
+        result.put("nonEmptyActiveLocationTokens", nonEmptyActiveLocationTokens);
+        result.put("emptyActiveEngagementEntities", emptyActiveEngagementEntities);
+        result.put("nonEmptyActiveEngagementEntities", nonEmptyActiveEngagementEntities);
         return result;
     }
 

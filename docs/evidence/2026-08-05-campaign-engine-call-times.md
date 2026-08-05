@@ -3,7 +3,7 @@
 Date: 2026-08-05
 
 Status: market/fleet drill-down complete; six exact maintenance shortcuts live-verified and the
-next paused-location snapshot cleanup launch-free verified
+next active/paused location snapshot cleanup launch-free verified
 
 ## Why another layer was necessary
 
@@ -396,7 +396,7 @@ lists skipped their defensive copy, while ordinary market traversal recorded 329
 plumbing, and normal campaign exit. It is not a controlled A/B, so its FPS distribution is retained
 as diagnostic telemetry rather than attributed to these allocation removals.
 
-## Compact paused-location snapshots
+## Compact active and paused location snapshots
 
 Exact installed `BaseLocation.advanceEvenIfPaused(float, B)` bytecode creates two defensive
 `ArrayList` copies on every call. The first snapshots the location's campaign entities once and
@@ -411,6 +411,14 @@ moment, order, null handling, two-pass reuse, and callback-mutation isolation wh
 unused `ArrayList` wrappers. Empty sources use a shared empty array and iterator. The three vanilla
 loops use only `next()` and `hasNext()`; none exposes the old wrapper or calls `remove()`.
 
+The same exact class's ordinary `advance(float, B)` method contains three more copies with the same
+safe boundary. It snapshots campaign entities for the main advancement loop, location tokens for
+orbit updates, and—inside eligible-fleet encounter processing—the base-entity list for a proximity
+scan. Each copy is traversed exactly once through `next()` and `hasNext()`. The adapter likewise
+keeps all three source arrays and callback boundaries while omitting their private wrappers. The
+conditional encounter snapshot remains conditional; no collection is cached across calls or
+frames.
+
 This shares the already-pinned `BaseLocation.class` SHA-256
 `ab16080b8c40d8f61d522089f3c3696fe3b7c8d8f8b287f9c12a47fa449bae24` and core archive identity.
 Production composition applies the entity index, this maintenance rewrite, and then the optional
@@ -418,8 +426,11 @@ location timer while the original exact identity is still available. Changed own
 constructor/producer/local/iterator shapes, Java versions, or second transforms decline; the common
 `preflight.campaign.entityMaintenance.disabled=true` switch restores vanilla.
 
-Synthetic execution proves one stable entity array supports two independent passes after the source
-list changes and that the empty script path is allocation-free. The exact installed class transforms
-to two snapshot captures and three cursors while retaining the entity-index wrapper. The focused
-installed-class test and full `mvn verify` pass. This change is launch-free verified; telemetry is in
-place to measure empty/non-empty entity and script snapshot counts in a later ordinary run.
+Synthetic execution proves one stable paused-entity array supports two independent passes after the
+source list changes and that the empty script path is allocation-free. The exact installed class
+transforms to two paused snapshot captures with three cursors and three active captures with three
+cursors, with zero remaining collection-copy constructors in either method. The entity-index wrapper
+and all three optional location timers coexist in the transformed class. The focused installed-class
+test and full `mvn verify` pass. This change remains launch-free verified; telemetry separately
+measures empty/non-empty active entities, location tokens, engagement entities, paused entities,
+and paused scripts.
