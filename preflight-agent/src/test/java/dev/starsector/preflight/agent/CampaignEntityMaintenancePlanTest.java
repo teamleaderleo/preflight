@@ -92,16 +92,16 @@ class CampaignEntityMaintenancePlanTest {
     }
 
     @Test
-    void marketAllocatesOnlyForNonEmptyDefensiveSnapshots() throws Exception {
+    void marketAllocatesIndustrySnapshotOnlyWhenNonEmpty() throws Exception {
         byte[] original = marketFixture();
         byte[] transformed = CampaignEntityMaintenancePlan.transform(
                 exact(original, CampaignEntityMaintenancePlan.MARKET_SHA256), original);
         assertNotNull(transformed);
         MethodNode advance = method(transformed, CampaignEntityMaintenancePlan.ADVANCE_METHOD);
-        assertEquals(2, calls(advance,
+        assertEquals(1, calls(advance,
                 CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/'),
-                "marketSnapshotIterator"));
-        assertEquals(0, calls(advance, "java/util/ArrayList", "<init>"));
+                "marketIndustrySnapshotIterator"));
+        assertEquals(1, calls(advance, "java/util/ArrayList", "<init>"));
         assertNull(CampaignEntityMaintenancePlan.transform(
                 ClassSignature.parse(transformed), transformed));
 
@@ -117,8 +117,6 @@ class CampaignEntityMaintenancePlanTest {
         method.invoke(market, 1f);
 
         Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
-        assertEquals(1L, telemetry.get("emptyMarketConditions"));
-        assertEquals(1L, telemetry.get("nonEmptyMarketConditions"));
         assertEquals(1L, telemetry.get("emptyMarketIndustries"));
         assertEquals(1L, telemetry.get("nonEmptyMarketIndustries"));
     }
@@ -126,14 +124,12 @@ class CampaignEntityMaintenancePlanTest {
     @Test
     void nonEmptyMarketIteratorRetainsVanillaSnapshotSemantics() {
         List<String> source = new ArrayList<>(List.of("first"));
-        Iterator<?> snapshot = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
-                source, CampaignEntityMaintenanceRuntime.MARKET_CONDITIONS);
+        Iterator<?> snapshot = CampaignEntityMaintenanceRuntime.marketIndustrySnapshotIterator(source);
         source.add("second");
         assertEquals("first", snapshot.next());
         assertFalse(snapshot.hasNext());
 
-        Iterator<?> empty = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
-                List.of(), CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES);
+        Iterator<?> empty = CampaignEntityMaintenanceRuntime.marketIndustrySnapshotIterator(List.of());
         assertFalse(empty.hasNext());
     }
 

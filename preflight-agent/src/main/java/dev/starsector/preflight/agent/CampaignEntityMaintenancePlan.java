@@ -11,7 +11,6 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
-import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
@@ -42,6 +41,8 @@ final class CampaignEntityMaintenancePlan {
     private static final String CAMPAIGN_FLEET = "com/fs/starfarer/campaign/fleet/CampaignFleet";
     private static final String SORTED_MEMBERS = "getSortedMembers";
     private static final String SORTED_DESCRIPTOR = "()Ljava/util/List;";
+    private static final int MARKET_CONDITIONS = 0;
+    private static final int MARKET_INDUSTRIES = 1;
 
     private CampaignEntityMaintenancePlan() {
     }
@@ -126,23 +127,21 @@ final class CampaignEntityMaintenancePlan {
 
         List<MarketSnapshot> snapshots = marketSnapshots(method);
         if (snapshots.size() != 2
-                || snapshots.stream().filter(snapshot ->
-                        snapshot.kind == CampaignEntityMaintenanceRuntime.MARKET_CONDITIONS).count() != 1
-                || snapshots.stream().filter(snapshot ->
-                        snapshot.kind == CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES).count() != 1) {
+                || snapshots.stream().filter(snapshot -> snapshot.kind == MARKET_CONDITIONS).count() != 1
+                || snapshots.stream().filter(snapshot -> snapshot.kind == MARKET_INDUSTRIES).count() != 1) {
             return null;
         }
         for (MarketSnapshot snapshot : snapshots) {
+            if (snapshot.kind != MARKET_INDUSTRIES) continue;
             method.instructions.remove(snapshot.allocation);
             method.instructions.remove(snapshot.duplicate);
-            method.instructions.insertBefore(snapshot.constructor, new LdcInsnNode(snapshot.kind));
             method.instructions.insertBefore(snapshot.constructor, new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "marketSnapshotIterator",
-                    "(Ljava/util/List;I)Ljava/util/Iterator;", false));
+                    Opcodes.INVOKESTATIC, RUNTIME, "marketIndustrySnapshotIterator",
+                    "(Ljava/util/List;)Ljava/util/Iterator;", false));
             method.instructions.remove(snapshot.constructor);
             method.instructions.remove(snapshot.iterator);
         }
-        CampaignEntityMaintenanceRuntime.marketSnapshotsInstalled();
+        CampaignEntityMaintenanceRuntime.marketIndustrySnapshotInstalled();
         return write(owner);
     }
 
@@ -174,12 +173,12 @@ final class CampaignEntityMaintenancePlan {
                     && call.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && MARKET_CLASS.equals(call.owner) && "getConditions".equals(call.name)
                     && "()Ljava/util/List;".equals(call.desc)) {
-                kind = CampaignEntityMaintenanceRuntime.MARKET_CONDITIONS;
+                kind = MARKET_CONDITIONS;
             } else if (producer instanceof FieldInsnNode field
                     && field.getOpcode() == Opcodes.GETFIELD
                     && MARKET_CLASS.equals(field.owner) && "industries".equals(field.name)
                     && "Ljava/util/List;".equals(field.desc)) {
-                kind = CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES;
+                kind = MARKET_INDUSTRIES;
             } else {
                 return List.of();
             }

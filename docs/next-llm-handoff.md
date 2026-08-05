@@ -473,7 +473,15 @@ the unchanged vanilla path, a 98.176% fast-path rate. Campaign averaged 51.03 FP
 and 14.03 FPS 1% low; first-30-second versus later averages were 45.11 and 53.28 FPS. This proves the
 allocation-volume reduction, not an FPS delta, because the route was not a controlled A/B. The run
 also caught the disabled location timer composing behind the entity index; filtering a campaign
-timing plan now shuts its runtime gate as well as removing its targets. The earlier run also logged
+timing plan now shuts its runtime gate as well as removing its targets. The next exact market
+candidate initially wrapped both defensive snapshots in `Market.advance`.
+Its clean live gate exited normally with ACTIVE health and all four heavy campaign timers disabled,
+but the counters rejected half the idea: conditions were empty only 416 / 1,368,227 times (0.0304%),
+while industries were empty 205,888 times (15.0478%). The final adapter leaves conditions vanilla
+and shortcuts only empty industry snapshots; on that route it avoids about 411,776 heap objects.
+Non-empty industry lists still receive vanilla's defensive copy, the exact installed class composes
+with the opt-in timer, and full `mvn verify` passes. This is allocation evidence, not an FPS claim.
+The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from
 synthetic markets with null location/system; treat that as a separate exact compatibility-guard

@@ -253,20 +253,33 @@ copies before iterating: `new ArrayList(getConditions())` and `new ArrayList(ind
 is necessary when either list is non-empty because a condition or industry callback may mutate its
 authoritative list. It has no semantic purpose when the authoritative list is empty.
 
-The maintenance plan now replaces only those two exact constructor/iterator sequences with a
-runtime helper. Empty lists return Java's shared empty iterator; non-empty lists still return an
-iterator over `new ArrayList(values)`. The shipped method uses these iterators only through
-`hasNext()` and `next()`, never `remove()`, so the empty branch does not expose a different mutation
-contract. Synthetic execution proves the non-empty iterator remains isolated if its source list is
-changed after creation.
+The first candidate replaced both exact constructor/iterator sequences with a runtime helper.
+Empty lists returned Java's shared empty iterator; non-empty lists still returned an iterator over
+`new ArrayList(values)`. The shipped method uses these iterators only through `hasNext()` and
+`next()`, never `remove()`, so the empty branch did not expose a different mutation contract.
+Synthetic execution proved the non-empty iterator remained isolated if its source list changed
+after creation.
 
 This third shortcut is pinned to the same exact installed `Market` class and core archive as the
 existing attribution probe. Production target ordering composes maintenance first and the opt-in
-market timer second while retaining the original source identity. The installed archive test proves
-both rewrites coexist: two maintenance helper calls plus all eight ordinary and three class-grouped
-timing entries. Changed hashes, bytecode shapes, Java versions, and second transforms decline; the
-existing `preflight.campaign.entityMaintenance.disabled=true` switch restores vanilla.
+market timer second while retaining the original source identity. Changed hashes, bytecode shapes,
+Java versions, and second transforms decline; the existing
+`preflight.campaign.entityMaintenance.disabled=true` switch restores vanilla.
 
 Full `mvn verify` passes: core 195, CLI unit 375, failsafe 38 with one expected skip, and synthetic
-22 with one expected skip. A live run is still required to establish the empty/non-empty rate and
-normal game health; no FPS or allocation-volume claim is made yet.
+22 with one expected skip.
+
+The clean `campaign-market-snapshots-v1-20260805-090403` live gate exited normally with ACTIVE
+health, 34 transformations, zero declines, and zero contained failures. All four heavy campaign
+timing plans were actually disabled. Across 1,368,227 market advances per list:
+
+- conditions were empty only **416 times / 0.0304%**;
+- industries were empty **205,888 times / 15.0478%**.
+
+That evidence rejects the condition branch: checking 1.368 million calls to avoid 416 snapshots is
+the wrong trade. The final adapter leaves `new ArrayList(getConditions())` byte-for-byte vanilla and
+shortcuts only the industry snapshot. On this route that would avoid 205,888 `ArrayList` objects and
+their 205,888 collection-array snapshots, about 411,776 heap objects total. Non-empty industries
+still keep the defensive copy. The exact installed archive test proves the one maintenance helper
+composes with all eight ordinary and three class-grouped timing entries. This is a measured
+allocation-volume reduction, not an FPS claim; the operator-driven route is not a controlled A/B.
