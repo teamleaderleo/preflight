@@ -406,7 +406,7 @@ final class PrepareCommand {
         boolean resourceIndex = true;
         boolean classpath = true;
         boolean textures = true;
-        TextureStoragePolicy textureStorage = TextureStoragePolicy.FASTEST;
+        TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));

@@ -112,7 +112,7 @@ final class TextureBatchCommand {
         Path pathsFile = null;
         int workers = defaultWorkers();
         long memoryBudgetBytes = defaultMemoryBudgetBytes();
-        TextureStoragePolicy storagePolicy = TextureStoragePolicy.FASTEST;
+        TextureStoragePolicy storagePolicy = TextureStoragePolicy.DEFAULT;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));

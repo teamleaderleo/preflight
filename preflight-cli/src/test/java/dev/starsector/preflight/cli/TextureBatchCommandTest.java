@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.TextureManifest;
@@ -38,8 +39,7 @@ class TextureBatchCommandTest {
                 "--game", temporaryDirectory.toString(),
                 "--cache-dir", cache.toString(),
                 "--workers", "2",
-                "--memory-mb", "16",
-                "--texture-storage", "balanced"
+                "--memory-mb", "16"
         }));
 
         Path manifestFile;
@@ -80,6 +80,18 @@ class TextureBatchCommandTest {
                 "--texture-storage", "balanced"
         }));
         assertTrue(Files.isDirectory(cache.resolve("quarantine")));
+
+        assertEquals(0, PreflightCli.run(new String[] {
+                "texture", "build",
+                "--game", temporaryDirectory.toString(),
+                "--cache-dir", cache.toString(),
+                "--workers", "1",
+                "--memory-mb", "16",
+                "--texture-storage", "fastest"
+        }));
+        TextureManifest fastest = TextureManifestIO.read(manifestFile);
+        assertFalse(fastest.entry("graphics/mod.png").orElseThrow()
+                .blobRelativePath().endsWith("-lz4.spft"));
     }
 
     private static void writeImage(Path path, Color color) throws Exception {

@@ -8,6 +8,8 @@ enum TextureStoragePolicy {
     FASTEST(PreparedTextureIO.StorageCodec.RAW),
     BALANCED(PreparedTextureIO.StorageCodec.LZ4);
 
+    static final TextureStoragePolicy DEFAULT = BALANCED;
+
     private final PreparedTextureIO.StorageCodec codec;
 
     TextureStoragePolicy(PreparedTextureIO.StorageCodec codec) {

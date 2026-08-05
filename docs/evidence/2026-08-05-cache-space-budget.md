@@ -55,7 +55,8 @@ Zstandard:
 | Zstandard | 1,635,009,747 | 3.26x | 21.743s | 5.318s |
 
 Preflight now exposes `--texture-storage fastest|balanced` on both `prepare` and `texture build`.
-`fastest` remains the default and preserves the existing raw files byte-for-byte. `balanced` uses
+`balanced` is the default; `fastest` remains explicit and preserves the existing raw files
+byte-for-byte. `balanced` uses
 lossless LZ4 inside the existing checksummed SPFT envelope, with a distinct blob filename. The
 runtime reconstructs the exact same RGB/RGBA array; an unknown codec, malformed stream, checksum
 failure, missing blob, or resource-profile mismatch falls through to the original game path.

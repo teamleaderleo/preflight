@@ -238,7 +238,7 @@ public final class PreflightCli {
                         + " switch; --fast enables all three."));
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
-                "  fastest stores raw upload-ready pixels; balanced stores exact lossless LZ4 and uses less disk"));
+                "  balanced (default) stores exact lossless LZ4 and uses less disk; fastest stores raw upload-ready pixels"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
         usage.put("launch-settings", List.of(
                 "preflight launch-settings [--json]",
@@ -279,6 +279,7 @@ public final class PreflightCli {
                 "preflight texture verify <image> <texture.spft>",
                 "preflight texture benchmark <image> <texture.spft> [--runs <count>]",
                 "preflight texture build [--game <path> | --index <index.spfi>] [--cache-dir <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced]",
+                "  balanced is the default; fastest trades substantially more disk space for minimum decode CPU",
                 "preflight texture manifest inspect <manifest.spfm>",
                 "preflight texture manifest query <manifest.spfm> <logical-path> [--cache-dir <path>]",
                 "preflight texture manifest validate <manifest.spfm> [--cache-dir <path>]"));

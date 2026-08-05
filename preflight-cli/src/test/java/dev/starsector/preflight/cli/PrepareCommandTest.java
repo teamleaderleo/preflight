@@ -33,7 +33,6 @@ class PrepareCommandTest {
                 "--report", report.toString(),
                 "--workers", "2",
                 "--memory-mb", "32",
-                "--texture-storage", "balanced",
                 "--deep",
                 "--verify-lookups",
                 "--lookup-queries", "250",

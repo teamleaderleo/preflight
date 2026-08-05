@@ -817,8 +817,8 @@ cohort measured **23.19/22.88/23.08/23.09/22.54s (23.08s median)** versus the ad
 this is retained as a CPU/allocation/thermal-headroom win with no claimed median wall shift. All
 runs remained exact and fail-open. See
 `docs/evidence/2026-08-06-trusted-texture-direct-read.md`.
-The exact texture cache now has explicit storage policies. `fastest` remains the raw default;
-`balanced` uses pure-Java lossless LZ4 in the existing checksummed SPFT envelope and a distinct blob
+The exact texture cache now has explicit storage policies. `balanced` is the default and uses
+pure-Java lossless LZ4 in the existing checksummed SPFT envelope and a distinct blob
 name. On the full real corpus it stores 2.201GB instead of 5.335GB, saving 3.13GB. A deep preparation
 validated 32,919 entries with zero failure and one already-known fidelity-gated WebP fallback. The
 live gate served 15,469 prepared textures with zero retained prefetch work or transform failure, and

@@ -9,8 +9,8 @@ Prepared textures now support two exact storage policies:
 
 | policy | representation | real blob bytes | behavior |
 | --- | --- | ---: | --- |
-| `fastest` (default) | raw RGB/RGBA | 5,335,292,414 | minimum runtime CPU |
-| `balanced` | lossless LZ4 | 2,200,772,280 | 3.13 GB smaller |
+| `fastest` | raw RGB/RGBA | 5,335,292,414 | minimum runtime CPU |
+| `balanced` (default) | lossless LZ4 | 2,200,772,280 | 3.13 GB smaller |
 
 Both policies reconstruct byte-identical upload-ready pixels. `balanced` reduces this profile's
 texture store by **58.8%**, from 4.97 GiB to 2.05 GiB. Its one-minute-cooled five-launch cohort had a
@@ -98,6 +98,11 @@ The adjacent raw cohort was 23.19/22.88/23.08/23.09/22.54s, or 23.08s median. Th
 shuffled A/B, so the defensible statement is that balanced storage showed no measurable startup
 regression—not that compression made launch faster.
 
+The 58.8% space reduction and lack of a measurable regression make `balanced` the general default.
+The format is platform-independent, but the launch cohort above is macOS/Rosetta evidence rather
+than a universal AMD/Intel timing result. Lower-end CPUs could make LZ4 decode more visible, so
+`fastest` remains an explicit supported choice instead of being removed.
+
 ## User operation
 
 ```bash
@@ -105,8 +110,10 @@ java -jar preflight.jar prepare --texture-storage fastest
 java -jar preflight.jar prepare --texture-storage balanced
 ```
 
-The default is `fastest`. A switch publishes the new manifest only after preparation succeeds. Old
-blobs remain recoverable until explicitly cleaned:
+The default is `balanced`. Existing installations keep using their currently published manifest
+until preparation runs again; the default change does not rewrite a live cache during launch. A
+switch publishes the new manifest only after preparation succeeds. Old blobs remain recoverable
+until explicitly cleaned:
 
 ```bash
 java -jar preflight.jar cache prune

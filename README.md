@@ -160,9 +160,9 @@ Prepare every reusable cache for the current profile:
 java -jar preflight.jar prepare
 ```
 
-Prepared textures have two exact, lossless storage policies. `fastest` is the default and keeps
-upload-ready pixels raw; `balanced` compresses them with LZ4 to use substantially less disk while
-retaining the same runtime pixels and fail-open behavior:
+Prepared textures have two exact, lossless storage policies. `balanced` is the default and
+compresses them with LZ4 to use substantially less disk while retaining the same runtime pixels and
+fail-open behavior; `fastest` keeps upload-ready pixels raw for minimum decode CPU:
 
 ```bash
 java -jar preflight.jar prepare --texture-storage fastest
@@ -171,8 +171,9 @@ java -jar preflight.jar prepare --texture-storage balanced
 
 On the 83-mod development profile, `balanced` reduced texture blobs from 5.33 GB to 2.20 GB. Its
 five-launch median was 23.15s versus the adjacent raw cohort's 23.08s, so no material startup
-regression was measurable. After changing policies, `java -jar preflight.jar cache prune` previews
-the superseded blobs that can be reclaimed; add `--yes` only after reviewing that plan.
+regression was measurable on the reviewed macOS/Rosetta system. Existing manifests remain active
+until preparation runs again. After changing policies, `java -jar preflight.jar cache prune`
+previews the superseded blobs that can be reclaimed; add `--yes` only after reviewing that plan.
 
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 
