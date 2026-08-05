@@ -844,6 +844,14 @@ main-thread normalizer samples 8 -> 3; every survivor was only the unchanged `Lo
 lowercase call, while the removed regex/container stack fell to zero. Its 23.60s sampled wall time
 is diagnostic, not an attributed launch claim. See
 `docs/evidence/2026-08-06-resource-path-normalization.md`.
+The remaining regex-backed path seams are now allocation-light too. Across 22,128 real cached JAR
+entry names, the shared scanner measured 440.09 -> 51.73ns/name (8.51x); across all 12,584 prepared
+spec keys, the exact drive scanner measured 350.12 -> 100.51ns/key (3.48x). More importantly, ten
+warm native cached classpath-index builds moved from a 371.05ms median to 337.46ms, saving 33.59ms
+(9.1%) without changing any cache format or identity. An adjacent schema-scoped projectile-number
+pretyping experiment was rejected and deleted: exact installed-json replay regressed 4.596 ->
+5.350ms. Do not retry reflective post-decode number promotion. See
+`docs/evidence/2026-08-06-remaining-path-regex.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

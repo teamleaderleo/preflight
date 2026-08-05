@@ -46,7 +46,7 @@ final class SpecCacheKey {
             return null;
         }
         String value = rawPath.replace('\\', '/');
-        boolean absolute = value.startsWith("/") || value.matches("^[A-Za-z]:.*");
+        boolean absolute = value.startsWith("/") || windowsAbsolute(value);
         try {
             if (!absolute) {
                 String path = ResourceIndex.normalizeLogicalPath(value);
@@ -61,6 +61,28 @@ final class SpecCacheKey {
         } catch (RuntimeException ignored) {
             return null;
         }
+    }
+
+    /** Equivalent to {@code ^[A-Za-z]:.*} without compiling a regex for every cache lookup. */
+    private static boolean windowsAbsolute(String value) {
+        if (value.length() < 2 || !asciiLetter(value.charAt(0)) || value.charAt(1) != ':') {
+            return false;
+        }
+        // Java regex dot does not consume line terminators unless DOTALL is enabled. They are not
+        // valid path characters here, but retaining that detail keeps classification exact before
+        // the normalizer rejects the malformed input.
+        for (int index = 2; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (current == '\n' || current == '\r' || current == '\u0085'
+                    || current == '\u2028' || current == '\u2029') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean asciiLetter(char value) {
+        return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z');
     }
 
     /**
