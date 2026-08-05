@@ -220,6 +220,61 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Exact AshLib repository loop, timed only by the opt-in startup phase probe. */
+    static AdapterTarget startupAshRepoBreakdownTarget() {
+        return new AdapterTarget(
+                "ashlib-2.2.3-startup-repository-breakdown",
+                "ashlib/data/plugins/repositories/ShipRenderInfoRepo",
+                "5955d8f27dba81580e2648bbc0a7a16a9924bcd1734baf7937ab1d3417e6507f",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod("populateRenderInfoRepo", "()V"),
+                        new AdapterTarget.RequiredMethod("populateShip",
+                                "(Lcom/fs/starfarer/api/combat/ShipHullSpecAPI;)V")),
+                "MOD",
+                "ashlib.jar",
+                "634a0542d2e934df3a212050633462475e3cc48faf4bb417dd5114dfc2fd1dfa",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** Exact AshLib render-info builder, timed only by the opt-in startup phase probe. */
+    static AdapterTarget startupAshRenderInfoBreakdownTarget() {
+        return new AdapterTarget(
+                "ashlib-2.2.3-startup-render-info-breakdown",
+                "ashlib/data/plugins/models/ShipRenderInfo",
+                "bb8d74bfb775f63ba79aa802c7e67158b5eea80c2d3057f9fd40350fd99e1aed",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod("getModuleSlotsFromVariantFile",
+                                "(Ljava/lang/String;)V"),
+                        new AdapterTarget.RequiredMethod("populateSlotShipHullsMap", "()V"),
+                        new AdapterTarget.RequiredMethod("populateBuiltInList",
+                                "(Ljava/lang/String;Z)Ljava/util/ArrayList;"),
+                        new AdapterTarget.RequiredMethod("populateModuleList",
+                                "(Ljava/lang/String;)V")),
+                "MOD",
+                "ashlib.jar",
+                "634a0542d2e934df3a212050633462475e3cc48faf4bb417dd5114dfc2fd1dfa",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** Exact GraphicsLib callback, timed only by the opt-in startup phase probe. */
+    static AdapterTarget startupGraphicsBreakdownTarget() {
+        return new AdapterTarget(
+                "graphicslib-1.12.1-startup-callback-breakdown",
+                "org/dark/shaders/ShaderModPlugin",
+                "5863b38d7ea73ed65fb8d214e525daed0318f4563b92a15d22e0981cec275981",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("onApplicationLoad", "()V")),
+                "MOD",
+                "graphics.jar",
+                "832064013fe853731941e547842884ba121fb8b20eff08d24137f7a2c916903a",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** Janino 2.7.8's exact complete-map compiler seam in Starsector 0.98a-RC8. */
     static AdapterTarget janinoBytecodeCacheTarget() {
         return new AdapterTarget(
@@ -1151,6 +1206,9 @@ final class AdapterTargetRegistry {
                 .withTarget(shipHullLoaderPhaseTarget())
                 .withTarget(rulesLoaderPhaseTarget())
                 .withTarget(ruleExpressionPhaseTarget())
+                .withTarget(startupAshRepoBreakdownTarget())
+                .withTarget(startupAshRenderInfoBreakdownTarget())
+                .withTarget(startupGraphicsBreakdownTarget())
                 .withTarget(mergedReadProbeTarget());
     }
 

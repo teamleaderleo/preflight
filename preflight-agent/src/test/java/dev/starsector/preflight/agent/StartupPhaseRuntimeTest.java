@@ -25,6 +25,8 @@ class StartupPhaseRuntimeTest {
         StartupPhaseRuntime.specSubphaseStart("variant-object-construction");
         StartupPhaseRuntime.specSubphaseEnd();
         StartupPhaseRuntime.specLoaderEnd();
+        long hotCall = StartupPhaseRuntime.hotCallStart();
+        StartupPhaseRuntime.hotCallEnd("gfx.autoGenMissingNormals", hotCall);
         StartupPhaseRuntime.pluginStart(new ExamplePlugin());
         StartupPhaseRuntime.pluginEnd();
         StartupPhaseRuntime.mark("resource-init-complete");
@@ -40,6 +42,7 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"label\":\"1:SpecStore.new\""));
         assertTrue(json.contains("\"label\":\"variant-object-construction\""));
         assertTrue(json.contains("\"calls\":2"));
+        assertTrue(json.contains("\"label\":\"gfx.autoGenMissingNormals\""));
         assertTrue(json.contains("StartupPhaseRuntimeTest$ExamplePlugin"));
         assertTrue(json.contains("\"completed\":true"));
     }

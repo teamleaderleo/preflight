@@ -185,7 +185,7 @@ public final class MergedReadCacheRuntime {
         return state.artifact != null && MergedReadKey.singleJson(path) != null;
     }
 
-    /** Learns one unrestricted post-startup JSON file under the same full-data profile identity. */
+    /** Learns one unrestricted profile-stable JSON file under the full-data profile identity. */
     static boolean captureSingleJson(String path, Object produced) {
         State current = state;
         if (current.artifact == null) return false;

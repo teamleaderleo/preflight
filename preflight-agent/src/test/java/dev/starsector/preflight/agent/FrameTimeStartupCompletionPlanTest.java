@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.MethodNode;
 
 class FrameTimeStartupCompletionPlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
+    private static final String JSON_RUNTIME = LoadJsonMemoRuntime.class.getName().replace('.', '/');
 
     @AfterEach
     void reset() {
@@ -34,6 +35,7 @@ class FrameTimeStartupCompletionPlanTest {
 
         MethodNode init = method(transformed);
         assertEquals(1, calls(init, RUNTIME, "markStartupComplete", "()V"));
+        assertEquals(1, calls(init, JSON_RUNTIME, "markProfileStable", "()V"));
         assertNull(FrameTimeStartupCompletionPlan.transform(
                 ClassSignature.parse(transformed), transformed));
     }

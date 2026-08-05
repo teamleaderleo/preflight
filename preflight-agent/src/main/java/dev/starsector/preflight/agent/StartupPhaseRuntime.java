@@ -22,6 +22,7 @@ public final class StartupPhaseRuntime {
     private static final int MAX_PLUGINS = 128;
     private static final int MAX_SPEC_LOADERS = 64;
     private static final int MAX_SPEC_SUBPHASES = 32;
+    private static final int MAX_HOT_CALL_GROUPS = 64;
     private static final int MAX_MERGED_READ_GROUPS = 512;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
@@ -35,6 +36,7 @@ public final class StartupPhaseRuntime {
     private static final List<Map<String, Object>> plugins = new ArrayList<>();
     private static final List<Map<String, Object>> specLoaders = new ArrayList<>();
     private static final Map<String, SpecSubphase> specSubphases = new LinkedHashMap<>();
+    private static final Map<String, HotCall> hotCalls = new LinkedHashMap<>();
     private static final Map<String, MergedRead> mergedReads = new LinkedHashMap<>();
     private static volatile boolean mergedReadProbe;
     private static String activePlugin;
@@ -61,6 +63,7 @@ public final class StartupPhaseRuntime {
         plugins.clear();
         specLoaders.clear();
         specSubphases.clear();
+        hotCalls.clear();
         mergedReads.clear();
         activePlugin = null;
         activePluginNanos = 0L;
@@ -80,6 +83,7 @@ public final class StartupPhaseRuntime {
 
     /** The phase that means vanilla finished loading everything, without dying on the way. */
     private static final String LOADING_FINISHED = "resource-init-complete";
+    private static final String PROFILE_STABLE = "resource-init-enter";
 
     /** Called from the reviewed game class. It must never let probe failure affect startup. */
     public static synchronized void mark(String name) {
@@ -89,6 +93,15 @@ public final class StartupPhaseRuntime {
             throw fatal;
         } catch (Throwable ignored) {
             // This code is woven into startup. Diagnostics are never allowed to become startup.
+        }
+        if (PROFILE_STABLE.equals(name)) {
+            try {
+                LoadJsonMemoRuntime.markProfileStable();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable ignored) {
+                // Persistent JSON reuse is optional; vanilla remains available.
+            }
         }
         if (LOADING_FINISHED.equals(name)) {
             try {
@@ -236,6 +249,10 @@ public final class StartupPhaseRuntime {
         return mergedReadProbe;
     }
 
+    static boolean phaseProbeEnabled() {
+        return destination != null;
+    }
+
     /**
      * Times one merged CSV read and returns exactly what the original returned.
      *
@@ -272,6 +289,26 @@ public final class StartupPhaseRuntime {
         }
     }
 
+    /** Returns the entry token for one exact, opt-in startup call-site timer. */
+    public static long hotCallStart() {
+        return System.nanoTime();
+    }
+
+    /** Aggregates a reviewed AshLib or GraphicsLib call without writing in the hot path. */
+    public static void hotCallEnd(String label, long startedNanos) {
+        try {
+            long duration = System.nanoTime() - startedNanos;
+            if (label == null || duration < 0L) {
+                return;
+            }
+            recordHotCall(label, duration);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Woven diagnostics are never allowed to affect startup.
+        }
+    }
+
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("installed", installed);
@@ -282,6 +319,7 @@ public final class StartupPhaseRuntime {
         output.put("specLoaders", List.copyOf(specLoaders));
         output.put("specSubphases", specSubphases.values().stream()
                 .map(SpecSubphase::toMap).toList());
+        output.put("hotCalls", hotCalls.values().stream().map(HotCall::toMap).toList());
         output.put("mergedReads", mergedReads.values().stream().map(MergedRead::toMap).toList());
         output.put("activePlugin", activePlugin);
         output.put("activeSpecLoader", activeSpecLoader);
@@ -396,6 +434,21 @@ public final class StartupPhaseRuntime {
         timing.record(Math.max(0L, durationNanos));
     }
 
+    private static synchronized void recordHotCall(String label, long durationNanos) {
+        HotCall timing = hotCalls.get(label);
+        if (timing == null) {
+            if (hotCalls.size() >= MAX_HOT_CALL_GROUPS) {
+                label = "<overflow>";
+                timing = hotCalls.get(label);
+            }
+            if (timing == null) {
+                timing = new HotCall(label);
+                hotCalls.put(label, timing);
+            }
+        }
+        timing.record(durationNanos);
+    }
+
     private static long millis(long nanos) {
         return Math.max(0L, nanos / 1_000_000L);
     }
@@ -453,6 +506,32 @@ public final class StartupPhaseRuntime {
             Map<String, Object> timing = new LinkedHashMap<>();
             timing.put("kind", kind);
             timing.put("group", group);
+            timing.put("calls", calls);
+            timing.put("durationMillis", millis(totalNanos));
+            timing.put("maxCallMillis", millis(maxNanos));
+            return timing;
+        }
+    }
+
+    private static final class HotCall {
+        private final String label;
+        private long calls;
+        private long totalNanos;
+        private long maxNanos;
+
+        private HotCall(String label) {
+            this.label = label;
+        }
+
+        private void record(long durationNanos) {
+            calls++;
+            totalNanos = Math.addExact(totalNanos, durationNanos);
+            maxNanos = Math.max(maxNanos, durationNanos);
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> timing = new LinkedHashMap<>();
+            timing.put("label", label);
             timing.put("calls", calls);
             timing.put("durationMillis", millis(totalNanos));
             timing.put("maxCallMillis", millis(maxNanos));

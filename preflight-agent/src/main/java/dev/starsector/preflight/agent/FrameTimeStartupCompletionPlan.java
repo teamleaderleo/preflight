@@ -18,6 +18,8 @@ final class FrameTimeStartupCompletionPlan {
     static final String INIT_DESCRIPTOR = StartupPhasePlan.INIT_DESCRIPTOR;
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/FrameTimeRuntime";
+    private static final String JSON_RUNTIME =
+            "dev/starsector/preflight/agent/LoadJsonMemoRuntime";
 
     private FrameTimeStartupCompletionPlan() {
     }
@@ -34,10 +36,12 @@ final class FrameTimeStartupCompletionPlan {
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode init = uniqueMethod(owner, INIT_METHOD, INIT_DESCRIPTOR);
         AbstractInsnNode onlyReturn = init == null ? null : uniqueReturn(init);
-        if (onlyReturn == null || callsMarker(init) != 0) {
+        if (onlyReturn == null || callsMarker(init) != 0 || callsProfileMarker(init) != 0) {
             return null;
         }
 
+        init.instructions.insert(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, JSON_RUNTIME, "markProfileStable", "()V", false));
         init.instructions.insertBefore(onlyReturn, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "markStartupComplete", "()V", false));
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
@@ -75,6 +79,20 @@ final class FrameTimeStartupCompletionPlan {
             if (instruction instanceof MethodInsnNode call
                     && RUNTIME.equals(call.owner)
                     && "markStartupComplete".equals(call.name)
+                    && "()V".equals(call.desc)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int callsProfileMarker(MethodNode method) {
+        int count = 0;
+        for (AbstractInsnNode instruction = method.instructions.getFirst();
+                instruction != null; instruction = instruction.getNext()) {
+            if (instruction instanceof MethodInsnNode call
+                    && JSON_RUNTIME.equals(call.owner)
+                    && "markProfileStable".equals(call.name)
                     && "()V".equals(call.desc)) {
                 count++;
             }

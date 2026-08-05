@@ -65,7 +65,20 @@ final class GraphicsLibCompactReplayPlan {
             return null;
         }
         APPLIED.incrementAndGet();
-        return current.replacement.clone();
+        byte[] replacement = current.replacement.clone();
+        if (StartupPhaseRuntime.phaseProbeEnabled()) {
+            try {
+                byte[] probed = StartupGraphicsTextureBreakdownPlan.transform(replacement);
+                if (probed != null) {
+                    return probed;
+                }
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable ignored) {
+                // Attribution is optional; the reviewed compact replacement remains valid.
+            }
+        }
+        return replacement;
     }
 
     static Map<String, Object> telemetry() {

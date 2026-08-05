@@ -89,6 +89,10 @@ final class AdapterTransformationRegistry {
             if (loadingUtils != null) {
                 return loadingUtils;
             }
+            byte[] callbackBreakdown = StartupCallBreakdownPlan.transform(signature, originalBytes);
+            if (callbackBreakdown != null) {
+                return callbackBreakdown;
+            }
             byte[] startupPhases = StartupPhasePlan.transform(signature, originalBytes);
             if (startupPhases != null) {
                 return startupPhases;
@@ -330,6 +334,7 @@ final class AdapterTransformationRegistry {
             return changed ? current : null;
         }
     }
+
 
     /** Composes the two independent method-pair rewrites that share WeaponSpecLoader. */
     private static byte[] weaponJsonCaches(byte[] originalBytes) {

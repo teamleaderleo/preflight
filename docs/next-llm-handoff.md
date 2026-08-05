@@ -180,9 +180,12 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | 2026-08-04 Janino warm pilot | **29.46** |
 | 2026-08-04 controlled v3 warm probe | **31.90** |
 | **2026-08-05 corrected `--fast` pair** | **31.76 / 32.64** |
+| 2026-08-05 immediately before early JSON restore | **33.22 / 32.98** |
+| **2026-08-05 profile-stable JSON warm cohort (5 runs)** | **29.61 median (29.25--30.16)** |
 
-Two runs, because single-launch variance on this profile is about **±1.4s**. Anything worth less than
-that cannot be measured by launching the game and has to be measured by replay instead.
+Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
+the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
+single game launch and has to be measured by replay instead.
 
 **The repeated measured 33.0s goal is now met.** The corrected unattended pair reached 31.76s and
 32.64s (32.20s median, 0.88s range). Both runs served 21,652 prepared textures, bypassed all 21,652
@@ -193,6 +196,19 @@ semantic drift produced 54.23s and 58.13s diagnostic launches. The old subset is
 `compatibility`, while `fast` invokes the exact installed-launcher preset and has the stricter
 prepared-pixel acceptance gate. Evidence:
 `docs/evidence/2026-08-05-startup-benchmark-fast-preset.md`.
+
+**The 29-second startup goal is now met as a five-run cohort.** Exact startup callback probes found
+that AshLib and GraphicsLib were rereading thousands of single JSON files before the persistent
+single-JSON cache became eligible. The full profile identity and enabled roots are already fixed at
+resource-loader entry, so eligibility now begins there while one-shot restricted reads still bypass
+and consume their resolver state. A learning launch added 6,799 exact-profile trees; the next five
+accepted warm launches measured 29.30, 29.61, 29.25, 30.16, and 29.92 seconds (29.61s median,
+0.91s range), versus the immediately preceding 33.22/32.98 pair. Representative warm telemetry had
+7,356 prepared single-JSON hits, 8,825 total tree restores in 217ms, zero cache failures or
+collisions, 228/228 Janino hits, and 30 exact transforms with zero decline/failure. The next startup
+target is GraphicsLib's remaining `autoGenNormalMap` path, about 1.7--1.8s across 6,184 calls; the
+broader core-spec phase remains roughly six seconds. Evidence:
+`docs/evidence/2026-08-05-profile-stable-startup-json-cache.md`.
 
 The next startup recording exposed a new Rosetta-specific residual in Preflight itself: 452 sampled
 ticks recomputed the payload checksum over 1.21 GB of prepared PCM on the game's two audio loader
