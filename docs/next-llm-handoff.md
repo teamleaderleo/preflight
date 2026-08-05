@@ -447,10 +447,18 @@ state. Its first live pilot completed normally and measured the campaign at 52.7
 9.15 FPS 1% low) than later play (55.47 average, 20.45 FPS 1% low). Location advancement consumed
 19.04s of inclusive CPU and economy 11.49s. Stellar Networks' updater had a 131.03ms call inside a
 143.26ms frame; MagicLib's bounty board had a 50.87ms call inside a 66.43ms frame. A deeper opt-in
-probe now attributes location entity/script calls by concrete class and splits economy into its
-location-map, stepper, and market-advance seams. Synthetic and exact installed-archive gates pass,
-including composition with the existing `BaseLocation` entity index; run one short campaign pilot
-before choosing a behavioral optimization. Do not add overlapping totals to a speed claim.
+probe attributed location entity/script calls by concrete class and split economy into its
+location-map, stepper, and market-advance seams. Its live run completed normally: 2.12 million
+market advances consumed 15.11s, about 89% of the 16.99s economy total, while 232,195 vanilla
+`CampaignFleet` advances consumed 10.56s. The broad entity timers themselves covered tens of
+millions of tiny calls, so those FPS numbers are diagnostic-only. Active/paused entity timing is
+now sampled 1-in-64, and a new exact Market/CampaignFleet drill-down samples market plugin seams
+1-in-32 while measuring fleet AI on every call. It groups condition, submarket, industry, AI, and
+hullmod callbacks by concrete class and times the fixed vanilla subphases. Synthetic and exact
+installed-archive gates plus full `mvn verify` pass; run one short campaign pilot before choosing a
+behavioral optimization. The same run logged 28 caught Industrial Evolution Codex NPEs from
+synthetic markets with null location/system; treat that as a separate exact compatibility-guard
+candidate. Do not add overlapping totals to a speed claim.
 See
 `docs/evidence/2026-08-05-campaign-engine-call-times.md`.
 

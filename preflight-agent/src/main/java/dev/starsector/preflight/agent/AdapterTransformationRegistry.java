@@ -223,6 +223,9 @@ final class AdapterTransformationRegistry {
         if (CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(target.planId())) {
             return CampaignLocationEconomyTimePlan.transform(signature, originalBytes);
         }
+        if (CampaignMarketFleetTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CampaignMarketFleetTimePlan.transform(signature, originalBytes);
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
         }
@@ -537,6 +540,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CampaignMarketFleetTimeRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {

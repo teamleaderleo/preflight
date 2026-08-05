@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: first live pilot complete; deeper location/economy attribution implemented and exact-verified
+Status: deeper location/economy pilot complete; market/fleet drill-down next
 
 ## Why another layer was necessary
 
@@ -114,5 +114,66 @@ and rethrows the original exception. The `BaseLocation` instrumentation composes
 entity-index rewrite because both exact targets share the class and touch disjoint methods.
 
 Synthetic shape/runtime coverage and an exact installed-archive test pass, including composition
-with the entity index. A short ordinary campaign pilot is the remaining gate before choosing a
-behavioral optimization.
+with the entity index.
+
+## Deeper live result
+
+`campaign-location-economy-v1-20260805-080636` loaded the same campaign, exercised ordinary
+campaign play, and exited normally. Adapter health remained `ACTIVE`: 40 exact transformations,
+zero declines, and zero contained failures.
+
+The economy result is unusually decisive. During 11,352 economy calls:
+
+- location-map maintenance used **342.0ms**;
+- the reach-economy stepper used **1,471.5ms**; and
+- 2,120,837 market advances used **15,109.8ms**.
+
+Market advancement is therefore about 89% of the measured 16,994.1ms economy total. A market call
+averaged only 7.12 microseconds, but each economy tick advanced about 187 markets. This is an
+aggregate-throughput target, not one pathological long call: the largest market advance was only
+12.20ms.
+
+Active location entities were led by:
+
+- vanilla `CampaignFleet`: 232,195 calls / **10,564.1ms**, maximum 101.84ms;
+- vanilla `CampaignTerrain`: 659,766 calls / **4,494.5ms**;
+- vanilla `CampaignPlanet`: 492,811 calls / **2,378.7ms**; and
+- `CustomCampaignEntity`: 3,491,990 calls / **1,325.2ms**.
+
+The many individually tiny asteroid, jump-point, and gravity-well calls made this attribution run
+deliberately intrusive, so its FPS is not a regression result. The next probe must sample those
+high-frequency paths and drill into only `Market.advance` and `CampaignFleet.advance`.
+
+Location scripts also found two material spikes: vanilla `Battle.advance` reached 97.47ms, while
+`data.campaign.procgen.GestaltSeededFleetManager` reached 39.71ms. They remain secondary to the
+fleet and market totals.
+
+The launch log contains 28 caught `NullPointerException` traces from Industrial Evolution while
+vanilla `CodexDataV2` asks industries for demand/supply on a synthetic market. `MilitaryRelay`
+assumes `getContainingLocation()` is non-null and `ArtilleryStation` assumes `getStarSystem()` is
+non-null. These occur during title-screen Codex initialization, not inside the measured campaign
+loop. They are retained as a separate exact compatibility-guard candidate rather than folded into
+the performance work or hidden by a broad exception handler.
+
+## Sampled market/fleet drill-down
+
+Probe `campaign-market-fleet-call-time-probe-v1` exact-pins the installed vanilla `Market` and
+`CampaignFleet` classes and refuses any changed owner hash, Java version, method descriptor, call
+count, or second transformation. It preserves receivers and every argument in fresh locals around
+the original calls; normal and exceptional exits close the timer and rethrow the original failure.
+
+Market attribution separates condition plugins, submarket plugins, industries, memory, people,
+commodity temporary stats, commodity event mods, and the market power stat. The high-frequency
+market/plugin seams use deterministic 1-in-32 sampling and report both measured and estimated
+totals. Fleet attribution separates AI by concrete class, commander/officers, base-entity work,
+fleet stats, accidents, logistics, count updates, movement, member buffs, fleet view, and both
+hullmod campaign callbacks. Fleet AI and ordinary fleet phases are measured on every call; only the
+potentially much larger hullmod/member loops are sampled.
+
+The preceding broad `BaseLocation` entity-class probe now also samples active and paused entity
+calls 1-in-64 while retaining unsampled location-script timing. This removes the tens of millions
+of `nanoTime` pairs that made the first attribution run intentionally non-representative.
+
+Synthetic shape/runtime tests and exact installed-archive transformations pass for both new
+owners. Full `mvn verify` passes. One short campaign run is the remaining live-linkage and
+attribution gate before selecting an actual behavior optimization.

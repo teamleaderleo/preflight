@@ -55,6 +55,7 @@ final class AdapterRuntime {
         CampaignCallTimeRuntime.beginSession(FrameTimeRuntime.enabled());
         CampaignEngineTimeRuntime.beginSession(FrameTimeRuntime.enabled());
         CampaignLocationEconomyTimeRuntime.beginSession(FrameTimeRuntime.enabled());
+        CampaignMarketFleetTimeRuntime.beginSession(FrameTimeRuntime.enabled());
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -141,7 +142,8 @@ final class AdapterRuntime {
                     registry = registry.withFrameTimeTarget()
                             .withCampaignCallTimeTargets()
                             .withCampaignEngineTimeTarget()
-                            .withCampaignLocationEconomyTimeTargets();
+                            .withCampaignLocationEconomyTimeTargets()
+                            .withCampaignMarketFleetTimeTargets();
                     report.diagnostic(
                             "Loaded the exact opt-in frame-time and campaign call-time probe targets");
                 }
