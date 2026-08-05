@@ -11,13 +11,18 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Indexes the large preferred-resource membership test before vanilla restores its list order. */
 public final class ResourcePriorityRuntime {
-    static final String PLAN_ID = "vanilla-resource-priority-index-v1";
+    static final String PLAN_ID = "vanilla-resource-priority-index-v2";
+    private static final long PROGRESS_FRAME_NANOS = 16_666_667L;
     private static final AtomicLong CALLS = new AtomicLong();
     private static final AtomicLong RESOURCES = new AtomicLong();
     private static final AtomicLong PRIORITIZED = new AtomicLong();
     private static final AtomicLong BASELINE_NANOS = new AtomicLong();
     private static final AtomicLong INDEXED_NANOS = new AtomicLong();
     private static final AtomicLong COMPARISON_MISMATCHES = new AtomicLong();
+    private static final AtomicLong PROGRESS_CALLS = new AtomicLong();
+    private static final AtomicLong PROGRESS_RENDERS = new AtomicLong();
+    private static final AtomicLong PROGRESS_SKIPS = new AtomicLong();
+    private static volatile long lastProgressRenderNanos;
 
     private ResourcePriorityRuntime() {
     }
@@ -51,6 +56,20 @@ public final class ResourcePriorityRuntime {
         return changed;
     }
 
+    /** Keeps the loading window responsive without redrawing it hundreds of times per second. */
+    public static boolean shouldRenderProgress(float progress) {
+        PROGRESS_CALLS.incrementAndGet();
+        long now = System.nanoTime();
+        long previous = lastProgressRenderNanos;
+        if (progress >= 1f || previous == 0L || now - previous >= PROGRESS_FRAME_NANOS) {
+            lastProgressRenderNanos = now;
+            PROGRESS_RENDERS.incrementAndGet();
+            return true;
+        }
+        PROGRESS_SKIPS.incrementAndGet();
+        return false;
+    }
+
     static void beginSession() {
         CALLS.set(0);
         RESOURCES.set(0);
@@ -58,6 +77,10 @@ public final class ResourcePriorityRuntime {
         BASELINE_NANOS.set(0);
         INDEXED_NANOS.set(0);
         COMPARISON_MISMATCHES.set(0);
+        PROGRESS_CALLS.set(0);
+        PROGRESS_RENDERS.set(0);
+        PROGRESS_SKIPS.set(0);
+        lastProgressRenderNanos = 0L;
     }
 
     static Map<String, Object> telemetry() {
@@ -68,6 +91,10 @@ public final class ResourcePriorityRuntime {
         values.put("baselineNanos", BASELINE_NANOS.get());
         values.put("indexedNanos", INDEXED_NANOS.get());
         values.put("comparisonMismatches", COMPARISON_MISMATCHES.get());
+        values.put("progressCalls", PROGRESS_CALLS.get());
+        values.put("progressRenders", PROGRESS_RENDERS.get());
+        values.put("progressSkips", PROGRESS_SKIPS.get());
+        values.put("progressFrameNanos", PROGRESS_FRAME_NANOS);
         return values;
     }
 }

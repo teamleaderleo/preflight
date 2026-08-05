@@ -32,7 +32,8 @@ final class StartupGraphicsTextureBreakdownPlan {
         ClassSignature signature = ClassSignature.parse(replacement);
         if (!TEXTURE_DATA.equals(signature.internalName())
                 || !(GraphicsLibLazyNormalPlan.BASE_SHA256.equals(signature.sha256())
-                || GraphicsLibLazyNormalPlan.OPTIMIZED_SHA256.equals(signature.sha256()))) {
+                || GraphicsLibLazyNormalPlan.OPTIMIZED_SHA256.equals(signature.sha256())
+                || GraphicsLibCompactReplayPlan.REPLACEMENT_SHA256.equals(signature.sha256()))) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
@@ -141,6 +142,16 @@ final class StartupGraphicsTextureBreakdownPlan {
     }
 
     private static String label(MethodNode method, MethodInsnNode call) {
+        if ("org/dark/shaders/ShaderModPlugin".equals(call.owner)
+                && "refresh".equals(call.name)
+                && "()V".equals(call.desc)) {
+            return switch (method.name) {
+                case "readTextureDataCSVInner" -> "gfx.textureCsv.refresh";
+                case "autoGenMissingNormalMapsInner" -> "gfx.autoGen.traversalRefresh";
+                case "autoGenMissingNormalMaps" -> "gfx.autoGen.replayRefresh";
+                default -> null;
+            };
+        }
         if ("autoGenMissingNormalMaps".equals(method.name)) {
             if (TEXTURE_DATA.equals(call.owner) && INNER.equals(call.name)) {
                 AbstractInsnNode previous = previousOpcode(call);

@@ -12,12 +12,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Exact whole-class replacement for GraphicsLib 1.12.1's repeated normal-map traversal. */
 final class GraphicsLibCompactReplayPlan {
-    static final String PLAN_ID = "graphicslib-1.12.1-compact-autogen-replay-v1";
+    static final String PLAN_ID = "graphicslib-1.12.1-compact-autogen-replay-v3";
     static final String TARGET_CLASS = "org/dark/shaders/util/TextureData";
     static final String ORIGINAL_SHA256 =
             "6a4302bcacd2dd90f6637c815d1443ddfdb3d28ff59095d48c875358de4e8594";
     static final String REPLACEMENT_SHA256 =
-            GraphicsLibLazyNormalPlan.OPTIMIZED_SHA256;
+            "f2f4c45d9d19f1dbc51821779ee2efca1817c96ac680d67e442cdb5180ef15ff";
 
     private static final String RESOURCE =
             "/dev/starsector/preflight/agent/graphicslib-texture-data-1.12.1.class.b64";
@@ -45,6 +45,8 @@ final class GraphicsLibCompactReplayPlan {
         try {
             GraphicsLibNormalCacheRuntime.configure(cacheDirectory);
             byte[] replacement = GraphicsLibLazyNormalPlan.transform(loadReplacement());
+            replacement = replacement == null
+                    ? null : GraphicsLibRefreshCadencePlan.transform(replacement);
             if (replacement == null
                     || !REPLACEMENT_SHA256.equals(ClassSignature.parse(replacement).sha256())) {
                 throw new IOException("lazy normal-map optimization differs");

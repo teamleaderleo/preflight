@@ -868,7 +868,8 @@ final class AdapterTransformationRegistry {
                     ? StartupPhasePlan.apply(signature, owner)
                     : FrameTimeStartupCompletionPlan.apply(signature, owner);
             boolean indexed = ResourcePriorityPlan.apply(signature, owner);
-            if (!marked && !indexed) return null;
+            boolean rateLimited = ResourceProgressRateLimitPlan.apply(signature, owner);
+            if (!marked && !indexed && !rateLimited) return null;
             byte[] transformed = ResourcePriorityPlan.write(owner);
             if (marked && StartupPhaseRuntime.phaseProbeEnabled()) {
                 StartupPhaseRuntime.installed();
@@ -897,6 +898,11 @@ final class AdapterTransformationRegistry {
             byte[] indexed = ResourcePriorityPlan.transform(ClassSignature.parse(current), current);
             if (indexed != null) {
                 current = indexed;
+                changed = true;
+            }
+            byte[] rateLimited = ResourceProgressRateLimitPlan.transform(signature, current);
+            if (rateLimited != null) {
+                current = rateLimited;
                 changed = true;
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
