@@ -246,7 +246,8 @@ public final class PreflightCli {
                         + " switch; --fast enables all three."));
         usage.put("prepare", List.of(
                 "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
-                "  balanced (default) stores exact lossless LZ4 and uses less disk; fastest stores raw upload-ready pixels"));
+                "  balanced (default) uses exact lossless LZ4 except where compression saves under"
+                        + " 9.1%; fastest stores every upload-ready pixel array raw"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
         usage.put("launch-settings", List.of(
                 "preflight launch-settings [--json]",

@@ -48,7 +48,8 @@ class TextureBatchCommandTest {
         }
         TextureManifest manifest = TextureManifestIO.read(manifestFile);
         assertEquals(2, manifest.entryCount());
-        assertTrue(manifest.entry("graphics/mod.png").orElseThrow().blobRelativePath().endsWith("-lz4.spft"));
+        assertFalse(manifest.entry("graphics/mod.png").orElseThrow()
+                .blobRelativePath().endsWith("-lz4.spft"));
 
         String inspectOutput = captureStdout(() -> assertEquals(0, PreflightCli.run(new String[] {
                 "texture", "manifest", "inspect", manifestFile.toString()

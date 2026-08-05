@@ -64,7 +64,10 @@ final class TextureBatchCommand {
                 activeIndex,
                 cacheDirectory,
                 new TextureBatchBuilder.Options(
-                        options.workers(), options.memoryBudgetBytes(), options.storagePolicy().codec()));
+                        options.workers(),
+                        options.memoryBudgetBytes(),
+                        options.storagePolicy().codec(),
+                        options.storagePolicy().rawWhenCompressionIsIneffective()));
 
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("cacheDirectory", cacheDirectory);
@@ -78,6 +81,8 @@ final class TextureBatchCommand {
         report.put("packHit", result.packHit());
         report.put("packBytes", result.packBytes());
         report.put("packedBlobs", result.packedBlobs());
+        report.put("rawBlobs", result.rawBlobs());
+        report.put("lz4Blobs", result.lz4Blobs());
         report.put("packDurationMs", result.packDurationMillis());
         report.put("manifestEntries", result.manifest().entryCount());
         report.put("candidateEntries", result.candidateEntries());

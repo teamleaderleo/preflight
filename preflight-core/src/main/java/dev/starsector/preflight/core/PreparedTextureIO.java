@@ -62,6 +62,15 @@ public final class PreparedTextureIO {
         }
     }
 
+    /** Encoded pixel bytes inside a complete SPFT file, excluding metadata and checksum. */
+    public static long storedPixelBytes(Path source) throws IOException {
+        long stored = Files.size(source) - minimumFileBytes() - PAYLOAD_FIXED_BYTES;
+        if (stored < 0 || stored > MAX_FILE_BYTES) {
+            throw new IOException("Prepared texture stored pixel length is invalid: " + source);
+        }
+        return stored;
+    }
+
     /** Reads one complete SPFT blob stored at an indexed range in a shared pack channel. */
     public static PreparedTexture readTrusted(
             FileChannel channel, long offset, long size, String sourceLabel) throws IOException {

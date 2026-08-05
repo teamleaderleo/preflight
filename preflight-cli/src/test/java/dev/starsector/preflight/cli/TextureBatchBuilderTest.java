@@ -197,6 +197,82 @@ class TextureBatchBuilderTest {
     }
 
     @Test
+    void observedOrderSurvivesSwitchingBetweenRawAndBalancedStorage() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        writeImage(root.resolve("graphics/a.png"), Color.RED);
+        writeImage(root.resolve("graphics/b.png"), Color.BLUE);
+        ResourceIndex index = index(root, "profile", List.of("graphics/a.png", "graphics/b.png"));
+        Path cache = temporaryDirectory.resolve("cache");
+        TextureBatchBuilder.Options raw = new TextureBatchBuilder.Options(
+                1, 16 * MIB, PreparedTextureIO.StorageCodec.RAW);
+        TextureBatchBuilder.Options balanced = new TextureBatchBuilder.Options(
+                1, 16 * MIB, PreparedTextureIO.StorageCodec.LZ4);
+
+        TextureBatchBuilder.Result rawResult = TextureBatchBuilder.build(index, cache, raw);
+        List<String> observedRaw = new java.util.ArrayList<>(rawResult.manifest().entries().values()
+                .stream().map(entry -> entry.blobRelativePath()).distinct().toList());
+        Collections.reverse(observedRaw);
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(cache, rawResult.manifest().profileFingerprint()),
+                rawResult.manifest().profileFingerprint(), observedRaw);
+
+        TextureBatchBuilder.Result balancedResult = TextureBatchBuilder.build(index, cache, balanced);
+        List<String> expectedBalanced = observedRaw.stream()
+                .map(path -> path.substring(0, path.length() - ".spft".length()) + "-lz4.spft")
+                .toList();
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                balancedResult.packPath(), balancedResult.manifest().profileFingerprint(),
+                expectedBalanced)) {
+            assertTrue(pack.hasEntryOrder(expectedBalanced));
+        }
+
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(cache, rawResult.manifest().profileFingerprint()),
+                rawResult.manifest().profileFingerprint(), expectedBalanced);
+        TextureBatchBuilder.Result rawAgain = TextureBatchBuilder.build(index, cache, raw);
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                rawAgain.packPath(), rawAgain.manifest().profileFingerprint(), observedRaw)) {
+            assertTrue(pack.hasEntryOrder(observedRaw));
+        }
+    }
+
+    @Test
+    void balancedStoresOnlyIneffectivelyCompressedPixelsRaw() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        Path noisy = root.resolve("graphics/noisy.png");
+        Path solid = root.resolve("graphics/solid.png");
+        writeNoisyImage(noisy);
+        writeLargeSolidImage(solid);
+        ResourceIndex index = index(
+                root, "profile", List.of("graphics/noisy.png", "graphics/solid.png"));
+        Path cache = temporaryDirectory.resolve("cache");
+        TextureBatchBuilder.Options balanced = new TextureBatchBuilder.Options(
+                1, 32 * MIB, PreparedTextureIO.StorageCodec.LZ4, true);
+
+        TextureBatchBuilder.Result first = TextureBatchBuilder.build(index, cache, balanced);
+        String noisyBlob = first.manifest().entry("graphics/noisy.png")
+                .orElseThrow().blobRelativePath();
+        String solidBlob = first.manifest().entry("graphics/solid.png")
+                .orElseThrow().blobRelativePath();
+        assertFalse(noisyBlob.endsWith("-lz4.spft"));
+        assertTrue(solidBlob.endsWith("-lz4.spft"));
+        assertEquals(1, first.rawBlobs());
+        assertEquals(1, first.lz4Blobs());
+        assertEquals(PreparedTextureIO.read(cache.resolve(noisyBlob)),
+                BulkTexturePreprocessor.prepare(
+                        noisy, PreparedTexture.Transformation.IDENTITY));
+
+        TextureBatchBuilder.Result second = TextureBatchBuilder.build(index, cache, balanced);
+        assertEquals(2, second.cacheHitBlobs());
+        assertEquals(0, second.builtBlobs());
+        assertTrue(second.packHit());
+        assertEquals(noisyBlob, second.manifest().entry("graphics/noisy.png")
+                .orElseThrow().blobRelativePath());
+        assertEquals(solidBlob, second.manifest().entry("graphics/solid.png")
+                .orElseThrow().blobRelativePath());
+    }
+
+    @Test
     void rejectsSourceChangedAfterContentGrouping() throws Exception {
         Path root = temporaryDirectory.resolve("root");
         Path source = root.resolve("graphics/a.png");
@@ -370,6 +446,25 @@ class TextureBatchBuilderTest {
             for (int x = 0; x < image.getWidth(); x++) {
                 image.setRGB(x, y, color.getRGB());
             }
+        }
+        assertTrue(ImageIO.write(image, "png", path.toFile()));
+    }
+
+    private static void writeLargeSolidImage(Path path) throws Exception {
+        Files.createDirectories(path.getParent());
+        BufferedImage image = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, Color.RED.getRGB());
+        }
+        assertTrue(ImageIO.write(image, "png", path.toFile()));
+    }
+
+    private static void writeNoisyImage(Path path) throws Exception {
+        Files.createDirectories(path.getParent());
+        BufferedImage image = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        java.util.Random random = new java.util.Random(0x5eedL);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, random.nextInt());
         }
         assertTrue(ImageIO.write(image, "png", path.toFile()));
     }

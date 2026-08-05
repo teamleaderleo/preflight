@@ -232,7 +232,8 @@ final class PrepareCommand {
                             new TextureBatchBuilder.Options(
                                     options.workers(),
                                     options.memoryMib() * 1024L * 1024L,
-                                    options.textureStorage().codec()));
+                                    options.textureStorage().codec(),
+                                    options.textureStorage().rawWhenCompressionIsIneffective()));
                     TextureManifestValidator.Result validation = TextureManifestValidator.validate(cache, built.manifest());
                     Map<String, Object> details = new LinkedHashMap<>();
                     details.put("manifest", built.manifestPath());
@@ -240,6 +241,8 @@ final class PrepareCommand {
                     details.put("packHit", built.packHit());
                     details.put("packBytes", built.packBytes());
                     details.put("packedBlobs", built.packedBlobs());
+                    details.put("rawBlobs", built.rawBlobs());
+                    details.put("lz4Blobs", built.lz4Blobs());
                     details.put("packDurationMs", built.packDurationMillis());
                     details.put("candidateEntries", built.candidateEntries());
                     details.put("hashedEntries", built.hashedEntries());

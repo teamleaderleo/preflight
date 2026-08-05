@@ -55,6 +55,7 @@ class PreparedTextureIOTest {
 
         Path output = temporaryDirectory.resolve("compressed.spft");
         PreparedTextureIO.write(output, texture, PreparedTextureIO.StorageCodec.LZ4);
+        assertEquals(compressed.length - 120L, PreparedTextureIO.storedPixelBytes(output));
         assertEquals(texture, PreparedTextureIO.readTrusted(output));
 
         // Grow this thread's trusted-read scratch, then reuse it for the smaller blob above. The
