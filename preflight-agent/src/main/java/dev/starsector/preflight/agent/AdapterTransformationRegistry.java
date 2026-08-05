@@ -83,8 +83,8 @@ final class AdapterTransformationRegistry {
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
             // LoadingUtils is reached by this plan, by the merged-read cache's and by the loadJSON
-            // memo's, and only one target per class ever transforms, so every branch composes all
-            // three.
+            // memo's and by the shared reader rewrite. Only one target per class ever transforms,
+            // so every branch composes all four.
             byte[] loadingUtils = loadingUtilsPlans(signature, originalBytes);
             if (loadingUtils != null) {
                 return loadingUtils;
@@ -326,7 +326,7 @@ final class AdapterTransformationRegistry {
     }
 
     /**
-     * Composes the three independent rewrites that share {@code LoadingUtils}.
+     * Composes the four independent rewrites that share {@code LoadingUtils}.
      *
      * <p>The cache goes first because it and the probe weave the same pair of merged readers and
      * only one of them can: each declines a class already carrying the other's renamed methods.
@@ -362,8 +362,14 @@ final class AdapterTransformationRegistry {
                 byte[] memoised = LoadJsonMemoPlan.transform(currentSignature, current);
                 if (memoised != null) {
                     current = memoised;
+                    currentSignature = ClassSignature.parse(current);
                     changed = true;
                 }
+            }
+            byte[] reader = LoadingUtilsReaderPlan.transform(currentSignature, current);
+            if (reader != null) {
+                current = reader;
+                changed = true;
             }
             return changed ? current : null;
         } catch (ThreadDeath | VirtualMachineError fatal) {

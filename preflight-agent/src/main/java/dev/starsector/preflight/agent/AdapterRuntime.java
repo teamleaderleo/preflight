@@ -38,6 +38,7 @@ final class AdapterRuntime {
         ResourcePriorityRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
+        LoadingUtilsReaderRuntime.beginSession();
         LoadJsonMemoRuntime.reset();
         AudioStreamSourceErrorRuntime.beginSession();
         AudioResourceFallbackRuntime.beginSession();

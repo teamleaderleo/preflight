@@ -281,6 +281,8 @@ final class AdapterReport {
         key(output, "rulesRegexCache").append(Json.value(RulesRegexCacheRuntime.telemetry())).append(',');
         key(output, "resourcePriority").append(Json.value(ResourcePriorityRuntime.telemetry())).append(',');
         key(output, "mergedReadCache").append(Json.value(MergedReadCacheRuntime.telemetry())).append(',');
+        key(output, "loadingUtilsReader")
+                .append(Json.value(LoadingUtilsReaderRuntime.telemetry())).append(',');
         key(output, "sourceArchiveHashes")
                 .append(Json.value(SourceArchiveHashes.telemetry())).append(',');
         key(output, "campaignEntityIndex").append(Json.value(EntityLookupRuntime.counters())).append(',');

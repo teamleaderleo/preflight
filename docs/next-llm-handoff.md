@@ -927,6 +927,27 @@ The adjacent logical-order learning run was already 19.12s; treat whole-run diff
 supporting single diagnostics, not a cohort. A 16MiB read-ahead window was rejected and deleted
 after reading 132.2GB and regressing wall time to 35.59s. See
 `docs/evidence/2026-08-06-packed-texture-store.md`.
+Dynamic AppCDS was then tested against the real bundled JVM rather than inferred from the existing
+small capability probe. Plain dumping refuses a Java agent; HotSpot's diagnostic agent override is
+explicitly testing-only and forces remote verification during dumping. Starsector's shipped
+obfuscation immediately fails that verification (`Illegal field name "for.Object"` in
+`StarfarerSettings`) before resource loading. No transform or game state was reached and the test
+archive was deleted. Do not retry AppCDS on this game build; the gate can be revisited only when the
+shipped classes are verifier-valid and the exact JVM supports production agent-assisted archives.
+See `docs/evidence/2026-08-06-appcds-obfuscated-class-gate.md`.
+A subsequent exact-profile GraphicsLib experiment recorded and replayed 47,339 calls through the
+mod's public mapping API. It was rejected: reflection expanded the generated-normal path from 0.25s
+to 1.20s and the callback from 1.03s to 1.70s, with no attributable wall-time win. The implementation
+and its 4.19MiB artifact were deleted. Do not retry public-call traversal replay; see
+`docs/evidence/2026-08-06-graphicslib-traversal-replay-rejected.md`.
+The shared vanilla text reader is now allocation-light as well. Instead of a fresh 1MiB buffer,
+`StringBuffer`, final copy, and CR-removal regex per input, the exact LoadingUtils rewrite reads once,
+compacts CR bytes in place, and decodes once. Across all 17,666 installed spec files on the bundled
+x86 JVM, the median moved 761.978->276.073ms (-485.905ms, -63.8%, 2.76x) with exact text equality.
+The clean live gate used it 1,300 times for 3.12MB in 150ms, applied all 40 transforms without
+failure, preserved every texture/normal cache count, reached the menu in 18.88s, and stopped
+normally. The exact corpus result is causal; the single wall time only supports no regression. See
+`docs/evidence/2026-08-06-loading-utils-reader.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
