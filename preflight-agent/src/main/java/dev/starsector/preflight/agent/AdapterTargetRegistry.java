@@ -452,6 +452,46 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** LunaLib 2.0.5's version checker, which duplicates Nexerelin's remote reads. */
+    static AdapterTarget lunaVersionCheckResponseDedupTarget() {
+        return new AdapterTarget(
+                "lunalib-2.0.5-version-check-response-dedup",
+                VersionCheckResponseDedupPlan.LUNA_CLASS,
+                VersionCheckResponseDedupPlan.LUNA_SHA256,
+                VersionCheckResponseDedupRuntime.PLAN_ID,
+                versionCheckMethods(),
+                "MOD",
+                "lunalib.jar",
+                "d20304b9404f03392482703a55e655cadb0a1735d78c9b2da6b209e1217bbbfd",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** Nexerelin 0.12.2b's older version-checker fork over the same mod URL set. */
+    static AdapterTarget nexVersionCheckResponseDedupTarget() {
+        return new AdapterTarget(
+                "nexerelin-0.12.2b-version-check-response-dedup",
+                VersionCheckResponseDedupPlan.NEX_CLASS,
+                VersionCheckResponseDedupPlan.NEX_SHA256,
+                VersionCheckResponseDedupRuntime.PLAN_ID,
+                versionCheckMethods(),
+                "MOD",
+                "exerelincore.jar",
+                "3d3bb30c44eec9060a7777317af519dd695a1aa31d75f478036fc338870b3b71",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    private static List<AdapterTarget.RequiredMethod> versionCheckMethods() {
+        return List.of(
+                new AdapterTarget.RequiredMethod(
+                        VersionCheckResponseDedupPlan.REMOTE_METHOD,
+                        VersionCheckResponseDedupPlan.REMOTE_DESCRIPTOR),
+                new AdapterTarget.RequiredMethod(
+                        VersionCheckResponseDedupPlan.LATEST_METHOD,
+                        VersionCheckResponseDedupPlan.LATEST_DESCRIPTOR));
+    }
+
     /** MagicLib 1.5.6's allocation-heavy unlocked-paintjob extension. */
     static AdapterTarget magicLibPaintjobTarget() {
         return new AdapterTarget(
@@ -1656,6 +1696,8 @@ final class AdapterTargetRegistry {
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())
+                .withTarget(lunaVersionCheckResponseDedupTarget())
+                .withTarget(nexVersionCheckResponseDedupTarget())
                 .withTarget(stelnetMarketUpdaterTarget())
                 .withTarget(logisticsNotificationsFuelTarget())
                 .withTarget(macMemoryWarningTarget())

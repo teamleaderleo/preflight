@@ -826,6 +826,14 @@ the cooled balanced cohort measured **23.15s median (22.59--23.21)** versus the 
 That 0.07s difference is below noise. Switching updates the manifest; the existing conservative
 `cache prune` can then reclaim the unreferenced representation explicitly. See
 `docs/evidence/2026-08-06-balanced-texture-storage.md`.
+LunaLib 2.0.5 and Nexerelin 0.12.2b also run forks of the same asynchronous version checker over
+the same 74 mod URLs. Exact, source-bound adapters now share only successful HTTP(S) response bytes
+within one game process; callers receive independent streams, failures retry independently,
+non-HTTP URLs bypass, and nothing persists across launches. The unattended profiled gate installed
+both targets and observed 31 reused responses against 41 network fetches before main-menu shutdown,
+holding 16,010 bytes. It exited ACTIVE with zero decline/failure. This is a measured network/CPU/
+thermal-load reduction, not a wall-time claim. See
+`docs/evidence/2026-08-06-version-check-response-dedup.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

@@ -319,6 +319,8 @@ final class AdapterReport {
                 .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
         key(output, "graphicsLibHotSettings")
                 .append(Json.value(GraphicsLibHotSettingsRuntime.telemetry())).append(',');
+        key(output, "versionCheckResponseDedup")
+                .append(Json.value(VersionCheckResponseDedupRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjob")
                 .append(Json.value(MagicLibPaintjobRuntime.telemetry())).append(',');
         key(output, "magicLibPaintjobNotification")

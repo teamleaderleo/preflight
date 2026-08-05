@@ -234,6 +234,9 @@ final class AdapterTransformationRegistry {
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
             return GraphicsLibHotSettingsPlan.transform(signature, originalBytes);
         }
+        if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(target.planId())) {
+            return VersionCheckResponseDedupPlan.transform(signature, originalBytes);
+        }
         if (MagicLibPaintjobRuntime.PLAN_ID.equals(target.planId())) {
             return MagicLibPaintjobPlan.transform(signature, originalBytes);
         }
@@ -614,6 +617,9 @@ final class AdapterTransformationRegistry {
             return GraphicsLibInsigniaManagerCacheRuntime.ready();
         }
         if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (MagicLibPaintjobRuntime.PLAN_ID.equals(planId)) {
