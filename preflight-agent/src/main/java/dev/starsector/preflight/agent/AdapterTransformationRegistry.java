@@ -37,11 +37,13 @@ final class AdapterTransformationRegistry {
         if (EntityLookupRuntime.PLAN_ID.equals(target.planId())) {
             byte[] location = EntityLookupPlan.transform(signature, originalBytes);
             if (location != null) {
-                // BaseLocation is also the deeper opt-in campaign attribution target. The
-                // transformer returns after the first exact target, so compose the disjoint
-                // method rewrites here while the original class/source identity is still known.
-                byte[] timed = CampaignLocationEconomyTimePlan.transform(signature, location);
-                return timed == null ? location : timed;
+                // BaseLocation also carries paused snapshot maintenance and deeper opt-in
+                // attribution. Compose the disjoint rewrites while the original exact source
+                // identity is still known.
+                byte[] maintained = CampaignEntityMaintenancePlan.transform(signature, location);
+                byte[] base = maintained == null ? location : maintained;
+                byte[] timed = CampaignLocationEconomyTimePlan.transform(signature, base);
+                return timed == null ? base : timed;
             }
             byte[] repository = EntityRepositoryListPlan.transform(signature, originalBytes);
             if (repository != null) {

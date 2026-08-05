@@ -161,6 +161,41 @@ class CampaignEntityMaintenancePlanTest {
     }
 
     @Test
+    void pausedLocationReusesOneEntitySnapshotAndCompactsTheScriptSnapshot() throws Exception {
+        byte[] original = locationFixture();
+        byte[] transformed = CampaignEntityMaintenancePlan.transform(
+                exact(original, CampaignEntityMaintenancePlan.LOCATION_SHA256), original);
+        assertNotNull(transformed);
+        MethodNode method = method(
+                transformed, CampaignEntityMaintenancePlan.PAUSED_LOCATION_METHOD);
+        String runtime = CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/');
+        assertEquals(2, calls(method, runtime, "locationSnapshot"));
+        assertEquals(3, calls(method, runtime, "locationSnapshotIterator"));
+        assertEquals(0, calls(method, "java/util/ArrayList", "<init>"));
+        assertNull(CampaignEntityMaintenancePlan.transform(
+                ClassSignature.parse(transformed), transformed));
+
+        List<String> source = new ArrayList<>(List.of("first"));
+        Object[] snapshot = CampaignEntityMaintenanceRuntime.locationSnapshot(
+                source, CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_ENTITIES);
+        source.add("second");
+        Iterator<?> firstPass = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(snapshot);
+        Iterator<?> secondPass = CampaignEntityMaintenanceRuntime.locationSnapshotIterator(snapshot);
+        assertEquals("first", firstPass.next());
+        assertEquals("first", secondPass.next());
+        assertFalse(firstPass.hasNext());
+        assertFalse(secondPass.hasNext());
+
+        Object[] empty = CampaignEntityMaintenanceRuntime.locationSnapshot(
+                List.of(), CampaignEntityMaintenanceRuntime.PAUSED_LOCATION_SCRIPTS);
+        assertFalse(CampaignEntityMaintenanceRuntime.locationSnapshotIterator(empty).hasNext());
+        Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
+        assertEquals(true, telemetry.get("pausedLocationSnapshotsInstalled"));
+        assertEquals(1L, telemetry.get("nonEmptyPausedLocationEntities"));
+        assertEquals(1L, telemetry.get("emptyPausedLocationScripts"));
+    }
+
+    @Test
     void memorySkipsEmptyIteratorsAndRetainsNonEmptyLoops() throws Exception {
         byte[] original = memoryFixture();
         byte[] transformed = CampaignEntityMaintenancePlan.transform(
@@ -456,6 +491,57 @@ class CampaignEntityMaintenancePlanTest {
         method.visitInsn(Opcodes.POP);
         method.visitInsn(Opcodes.RETURN);
         method.visitMaxs(4, 3);
+        method.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] locationFixture() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.LOCATION_CLASS, null, "java/lang/Object", null);
+        writer.visitField(Opcodes.ACC_PRIVATE, "objects",
+                "Lcom/fs/util/container/repo/ObjectRepository;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE, "scripts", "Ljava/util/List;", null, null).visitEnd();
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.PAUSED_LOCATION_METHOD,
+                CampaignEntityMaintenancePlan.LOCATION_DESCRIPTOR, null, null);
+        method.visitCode();
+        method.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        method.visitInsn(Opcodes.DUP);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitFieldInsn(Opcodes.GETFIELD, CampaignEntityMaintenancePlan.LOCATION_CLASS,
+                "objects", "Lcom/fs/util/container/repo/ObjectRepository;");
+        method.visitLdcInsn(org.objectweb.asm.Type.getObjectType(
+                "com/fs/starfarer/campaign/CampaignEntity"));
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "com/fs/util/container/repo/ObjectRepository", "getList",
+                "(Ljava/lang/Class;)Ljava/util/List;", false);
+        method.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>",
+                "(Ljava/util/Collection;)V", false);
+        method.visitVarInsn(Opcodes.ASTORE, 3);
+        method.visitVarInsn(Opcodes.ALOAD, 3);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/List", "iterator", "()Ljava/util/Iterator;", true);
+        method.visitInsn(Opcodes.POP);
+        method.visitVarInsn(Opcodes.ALOAD, 3);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/List", "iterator", "()Ljava/util/Iterator;", true);
+        method.visitInsn(Opcodes.POP);
+        method.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        method.visitInsn(Opcodes.DUP);
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitFieldInsn(Opcodes.GETFIELD, CampaignEntityMaintenancePlan.LOCATION_CLASS,
+                "scripts", "Ljava/util/List;");
+        method.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>",
+                "(Ljava/util/Collection;)V", false);
+        method.visitVarInsn(Opcodes.ASTORE, 4);
+        method.visitVarInsn(Opcodes.ALOAD, 4);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/List", "iterator", "()Ljava/util/Iterator;", true);
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.RETURN);
+        method.visitMaxs(4, 5);
         method.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();

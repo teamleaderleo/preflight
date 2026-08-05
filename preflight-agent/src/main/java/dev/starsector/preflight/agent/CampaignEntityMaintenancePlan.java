@@ -5,6 +5,7 @@ import java.util.List;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -38,9 +39,14 @@ final class CampaignEntityMaintenancePlan {
     static final String ECONOMY_CLASS = "com/fs/starfarer/campaign/econ/Economy";
     static final String ECONOMY_SHA256 =
             "e3c66eca6a70cdfb17b298f45b020994146a1c29cd64422401dbdf11107cb529";
+    static final String LOCATION_CLASS = "com/fs/starfarer/campaign/BaseLocation";
+    static final String LOCATION_SHA256 =
+            "ab16080b8c40d8f61d522089f3c3696fe3b7c8d8f8b287f9c12a47fa449bae24";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
     static final String PAUSED_CONDITIONS_METHOD = "advanceMarketConditionsWhenPaused";
+    static final String PAUSED_LOCATION_METHOD = "advanceEvenIfPaused";
+    static final String LOCATION_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
 
     private static final String ORIGINAL_SCRIPT = "preflight$original$runScripts";
     private static final String SCRIPTS_FIELD = "scripts";
@@ -53,6 +59,8 @@ final class CampaignEntityMaintenancePlan {
     private static final int MARKET_CONDITIONS = 0;
     private static final int MARKET_INDUSTRIES = 1;
     private static final int PAUSED_MARKET_CONDITIONS = 2;
+    private static final int PAUSED_LOCATION_ENTITIES = 3;
+    private static final int PAUSED_LOCATION_SCRIPTS = 4;
 
     private CampaignEntityMaintenancePlan() {
     }
@@ -77,6 +85,10 @@ final class CampaignEntityMaintenancePlan {
         if (ECONOMY_CLASS.equals(signature.internalName())
                 && ECONOMY_SHA256.equals(signature.sha256())) {
             return transformEconomy(originalBytes);
+        }
+        if (LOCATION_CLASS.equals(signature.internalName())
+                && LOCATION_SHA256.equals(signature.sha256())) {
+            return transformLocation(originalBytes);
         }
         return null;
     }
@@ -224,6 +236,112 @@ final class CampaignEntityMaintenancePlan {
         method.instructions.remove(snapshot.iterator);
         CampaignEntityMaintenanceRuntime.pausedConditionsInstalled();
         return write(owner);
+    }
+
+    private static byte[] transformLocation(byte[] originalBytes) {
+        ClassNode owner = read(originalBytes);
+        MethodNode method = unique(owner, PAUSED_LOCATION_METHOD, LOCATION_DESCRIPTOR);
+        if (method == null || callsRuntime(method) != 0) return null;
+        List<LocationSnapshot> snapshots = locationSnapshots(method);
+        if (snapshots.size() != 2
+                || snapshots.stream().filter(snapshot ->
+                        snapshot.kind == PAUSED_LOCATION_ENTITIES).count() != 1
+                || snapshots.stream().filter(snapshot ->
+                        snapshot.kind == PAUSED_LOCATION_SCRIPTS).count() != 1) return null;
+        for (LocationSnapshot snapshot : snapshots) {
+            method.instructions.remove(snapshot.allocation);
+            method.instructions.remove(snapshot.duplicate);
+            method.instructions.insertBefore(snapshot.constructor, new LdcInsnNode(snapshot.kind));
+            method.instructions.insertBefore(snapshot.constructor, new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "locationSnapshot",
+                    "(Ljava/util/List;I)[Ljava/lang/Object;", false));
+            method.instructions.remove(snapshot.constructor);
+            for (MethodInsnNode iterator : snapshot.iterators) {
+                method.instructions.insertBefore(iterator, new MethodInsnNode(
+                        Opcodes.INVOKESTATIC, RUNTIME, "locationSnapshotIterator",
+                        "([Ljava/lang/Object;)Ljava/util/Iterator;", false));
+                method.instructions.remove(iterator);
+            }
+        }
+        CampaignEntityMaintenanceRuntime.pausedLocationSnapshotsInstalled();
+        return write(owner);
+    }
+
+    private static List<LocationSnapshot> locationSnapshots(MethodNode method) {
+        List<LocationSnapshot> result = new ArrayList<>();
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (!(instruction instanceof MethodInsnNode constructor)
+                    || constructor.getOpcode() != Opcodes.INVOKESPECIAL
+                    || !"java/util/ArrayList".equals(constructor.owner)
+                    || !"<init>".equals(constructor.name)
+                    || !"(Ljava/util/Collection;)V".equals(constructor.desc)) continue;
+            AbstractInsnNode producer = previousMeaningful(constructor);
+            AbstractInsnNode duplicate;
+            AbstractInsnNode allocation;
+            int kind;
+            int local;
+            int expectedIterators;
+            if (producer instanceof MethodInsnNode list
+                    && list.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && "com/fs/util/container/repo/ObjectRepository".equals(list.owner)
+                    && "getList".equals(list.name)
+                    && "(Ljava/lang/Class;)Ljava/util/List;".equals(list.desc)) {
+                AbstractInsnNode entityType = previousMeaningful(producer);
+                AbstractInsnNode objects = previousMeaningful(entityType);
+                AbstractInsnNode loadThis = previousMeaningful(objects);
+                duplicate = previousMeaningful(loadThis);
+                allocation = previousMeaningful(duplicate);
+                if (!(entityType instanceof LdcInsnNode constant)
+                        || !(constant.cst instanceof Type type)
+                        || !"com/fs/starfarer/campaign/CampaignEntity".equals(type.getInternalName())
+                        || !(objects instanceof FieldInsnNode field)
+                        || field.getOpcode() != Opcodes.GETFIELD
+                        || !LOCATION_CLASS.equals(field.owner) || !"objects".equals(field.name)
+                        || !"Lcom/fs/util/container/repo/ObjectRepository;".equals(field.desc)
+                        || !(loadThis instanceof VarInsnNode load)
+                        || load.getOpcode() != Opcodes.ALOAD || load.var != 0) return List.of();
+                kind = PAUSED_LOCATION_ENTITIES;
+                local = 3;
+                expectedIterators = 2;
+            } else if (producer instanceof FieldInsnNode field
+                    && field.getOpcode() == Opcodes.GETFIELD
+                    && LOCATION_CLASS.equals(field.owner) && "scripts".equals(field.name)
+                    && "Ljava/util/List;".equals(field.desc)) {
+                AbstractInsnNode loadThis = previousMeaningful(producer);
+                duplicate = previousMeaningful(loadThis);
+                allocation = previousMeaningful(duplicate);
+                if (!(loadThis instanceof VarInsnNode load)
+                        || load.getOpcode() != Opcodes.ALOAD || load.var != 0) return List.of();
+                kind = PAUSED_LOCATION_SCRIPTS;
+                local = 4;
+                expectedIterators = 1;
+            } else {
+                return List.of();
+            }
+            AbstractInsnNode store = nextMeaningful(constructor);
+            if (duplicate == null || duplicate.getOpcode() != Opcodes.DUP
+                    || !(allocation instanceof TypeInsnNode type)
+                    || allocation.getOpcode() != Opcodes.NEW
+                    || !"java/util/ArrayList".equals(type.desc)
+                    || !(store instanceof VarInsnNode variable)
+                    || store.getOpcode() != Opcodes.ASTORE || variable.var != local) return List.of();
+            List<MethodInsnNode> iterators = new ArrayList<>();
+            for (AbstractInsnNode candidate = store.getNext(); candidate != null;
+                    candidate = candidate.getNext()) {
+                if (!(candidate instanceof MethodInsnNode iterator)
+                        || iterator.getOpcode() != Opcodes.INVOKEINTERFACE
+                        || !"java/util/List".equals(iterator.owner)
+                        || !"iterator".equals(iterator.name)
+                        || !"()Ljava/util/Iterator;".equals(iterator.desc)) continue;
+                AbstractInsnNode receiver = previousMeaningful(iterator);
+                if (receiver instanceof VarInsnNode load && load.getOpcode() == Opcodes.ALOAD
+                        && load.var == local) iterators.add(iterator);
+            }
+            if (iterators.size() != expectedIterators) return List.of();
+            result.add(new LocationSnapshot(
+                    allocation, duplicate, constructor, List.copyOf(iterators), kind));
+        }
+        return result;
     }
 
     private static List<MarketSnapshot> pausedConditionSnapshots(MethodNode method) {
@@ -423,5 +541,13 @@ final class CampaignEntityMaintenancePlan {
     }
 
     private record IteratorStart(AbstractInsnNode loadThis) {
+    }
+
+    private record LocationSnapshot(
+            AbstractInsnNode allocation,
+            AbstractInsnNode duplicate,
+            MethodInsnNode constructor,
+            List<MethodInsnNode> iterators,
+            int kind) {
     }
 }

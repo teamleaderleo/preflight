@@ -14,6 +14,10 @@ public final class CampaignEntityMaintenanceRuntime {
     static final int MARKET_CONDITIONS = 0;
     static final int MARKET_INDUSTRIES = 1;
     static final int PAUSED_MARKET_CONDITIONS = 2;
+    static final int PAUSED_LOCATION_ENTITIES = 3;
+    static final int PAUSED_LOCATION_SCRIPTS = 4;
+
+    private static final Object[] EMPTY_SNAPSHOT = new Object[0];
 
     private static volatile boolean enabled;
     private static volatile boolean entityScriptsInstalled;
@@ -21,6 +25,7 @@ public final class CampaignEntityMaintenanceRuntime {
     private static volatile boolean marketSnapshotsInstalled;
     private static volatile boolean memoryInstalled;
     private static volatile boolean pausedConditionsInstalled;
+    private static volatile boolean pausedLocationSnapshotsInstalled;
     private static long emptyScriptLists;
     private static long nonEmptyScriptLists;
     private static long emptyMarketConditions;
@@ -33,6 +38,10 @@ public final class CampaignEntityMaintenanceRuntime {
     private static long nonEmptyMemoryRequirements;
     private static long emptyPausedMarketConditions;
     private static long nonEmptyPausedMarketConditions;
+    private static long emptyPausedLocationEntities;
+    private static long nonEmptyPausedLocationEntities;
+    private static long emptyPausedLocationScripts;
+    private static long nonEmptyPausedLocationScripts;
 
     private CampaignEntityMaintenanceRuntime() {
     }
@@ -44,6 +53,7 @@ public final class CampaignEntityMaintenanceRuntime {
         marketSnapshotsInstalled = false;
         memoryInstalled = false;
         pausedConditionsInstalled = false;
+        pausedLocationSnapshotsInstalled = false;
         emptyScriptLists = 0L;
         nonEmptyScriptLists = 0L;
         emptyMarketConditions = 0L;
@@ -56,6 +66,10 @@ public final class CampaignEntityMaintenanceRuntime {
         nonEmptyMemoryRequirements = 0L;
         emptyPausedMarketConditions = 0L;
         nonEmptyPausedMarketConditions = 0L;
+        emptyPausedLocationEntities = 0L;
+        nonEmptyPausedLocationEntities = 0L;
+        emptyPausedLocationScripts = 0L;
+        nonEmptyPausedLocationScripts = 0L;
     }
 
     static boolean enabled() {
@@ -80,6 +94,10 @@ public final class CampaignEntityMaintenanceRuntime {
 
     static void pausedConditionsInstalled() {
         pausedConditionsInstalled = true;
+    }
+
+    static void pausedLocationSnapshotsInstalled() {
+        pausedLocationSnapshotsInstalled = true;
     }
 
     public static void emptyScriptList() {
@@ -122,6 +140,23 @@ public final class CampaignEntityMaintenanceRuntime {
         return true;
     }
 
+    /** Retains the stable location snapshot while omitting its otherwise unused ArrayList. */
+    public static Object[] locationSnapshot(List<?> values, int kind) {
+        if (values.isEmpty()) {
+            if (kind == PAUSED_LOCATION_ENTITIES) emptyPausedLocationEntities++;
+            if (kind == PAUSED_LOCATION_SCRIPTS) emptyPausedLocationScripts++;
+            return EMPTY_SNAPSHOT;
+        }
+        if (kind == PAUSED_LOCATION_ENTITIES) nonEmptyPausedLocationEntities++;
+        if (kind == PAUSED_LOCATION_SCRIPTS) nonEmptyPausedLocationScripts++;
+        return values.toArray();
+    }
+
+    /** Creates a fresh traversal cursor for each vanilla pass over the same stable snapshot. */
+    public static Iterator<?> locationSnapshotIterator(Object[] values) {
+        return values.length == 0 ? Collections.emptyIterator() : new SnapshotIterator(values);
+    }
+
     static Map<String, Object> telemetry() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
@@ -131,6 +166,7 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("marketSnapshotsInstalled", marketSnapshotsInstalled);
         result.put("memoryInstalled", memoryInstalled);
         result.put("pausedConditionsInstalled", pausedConditionsInstalled);
+        result.put("pausedLocationSnapshotsInstalled", pausedLocationSnapshotsInstalled);
         result.put("emptyScriptLists", emptyScriptLists);
         result.put("nonEmptyScriptLists", nonEmptyScriptLists);
         result.put("emptyMarketConditions", emptyMarketConditions);
@@ -143,6 +179,10 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("nonEmptyMemoryRequirements", nonEmptyMemoryRequirements);
         result.put("emptyPausedMarketConditions", emptyPausedMarketConditions);
         result.put("nonEmptyPausedMarketConditions", nonEmptyPausedMarketConditions);
+        result.put("emptyPausedLocationEntities", emptyPausedLocationEntities);
+        result.put("nonEmptyPausedLocationEntities", nonEmptyPausedLocationEntities);
+        result.put("emptyPausedLocationScripts", emptyPausedLocationScripts);
+        result.put("nonEmptyPausedLocationScripts", nonEmptyPausedLocationScripts);
         return result;
     }
 

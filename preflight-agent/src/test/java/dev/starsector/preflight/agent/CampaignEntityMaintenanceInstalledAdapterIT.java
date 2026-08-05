@@ -131,6 +131,26 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
                 CampaignEntityMaintenancePlan.ADVANCE_METHOD,
                 CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR),
                 "dev/starsector/preflight/agent/CampaignLocationEconomyTimeRuntime", "enter"));
+
+        CampaignLocationEconomyTimeRuntime.beginSession(true);
+        byte[] location = entry(archive, CampaignEntityMaintenancePlan.LOCATION_CLASS);
+        ClassSignature locationSignature = ClassSignature.parse(location);
+        assertEquals(CampaignEntityMaintenancePlan.LOCATION_SHA256, locationSignature.sha256());
+        byte[] composedLocation = AdapterTransformationRegistry.transform(
+                AdapterTargetRegistry.campaignEntityIndexTarget(), locationSignature, location);
+        assertNotNull(composedLocation);
+        ClassNode composedLocationOwner = read(composedLocation);
+        MethodNode pausedLocation = method(composedLocationOwner,
+                CampaignEntityMaintenancePlan.PAUSED_LOCATION_METHOD,
+                CampaignEntityMaintenancePlan.LOCATION_DESCRIPTOR);
+        assertEquals(2L, calls(pausedLocation, maintenanceRuntime, "locationSnapshot"));
+        assertEquals(3L, calls(pausedLocation, maintenanceRuntime, "locationSnapshotIterator"));
+        assertEquals(0L, calls(pausedLocation, "java/util/ArrayList", "<init>"));
+        assertEquals(2L, calls(pausedLocation,
+                "dev/starsector/preflight/agent/CampaignLocationEconomyTimeRuntime", "enterClass"));
+        assertEquals(1L, calls(method(composedLocationOwner,
+                EntityLookupPlan.LOOKUP_METHOD, EntityLookupPlan.LOOKUP_DESCRIPTOR),
+                EntityLookupRuntime.class.getName().replace('.', '/'), "lookup"));
     }
 
     private static ClassNode read(byte[] bytes) {

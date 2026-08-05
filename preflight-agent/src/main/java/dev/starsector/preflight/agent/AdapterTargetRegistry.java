@@ -451,7 +451,10 @@ final class AdapterTargetRegistry {
                         new AdapterTarget.RequiredMethod(
                                 EntityLookupPlan.ENTITIES_METHOD, EntityLookupPlan.ENTITIES_DESCRIPTOR),
                         new AdapterTarget.RequiredMethod(
-                                EntityLookupPlan.OBJECTS_METHOD, EntityLookupPlan.OBJECTS_DESCRIPTOR)),
+                                EntityLookupPlan.OBJECTS_METHOD, EntityLookupPlan.OBJECTS_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                CampaignEntityMaintenancePlan.PAUSED_LOCATION_METHOD,
+                                CampaignEntityMaintenancePlan.LOCATION_DESCRIPTOR)),
                 "STARSECTOR_CORE",
                 "contents/resources/java/starfarer_obf.jar",
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",

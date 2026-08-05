@@ -517,6 +517,14 @@ market snapshots, omitting only the wrapper. It deliberately retains the outer v
 timer, full `mvn verify`, kill switch, and separate telemetry pass. The combined live gate compacted
 270,072 non-empty paused-condition snapshots. It exited normally with ACTIVE health: 40 applied
 transformations and zero decline, unavailable plans, or contained failure.
+The adjacent exact `BaseLocation.advanceEvenIfPaused` path makes one defensive entity copy used for
+two passes and one defensive script copy used for one pass. A new maintenance composition retains
+the two stable source arrays and three independent traversal cursors but omits both unused
+`ArrayList` wrappers; empty lists use shared array/iterator objects. It pins the existing exact
+`BaseLocation` identity and reviewed producer/local/iterator shapes, composes after the entity index
+and before optional location timing, and shares the maintenance kill switch. Synthetic snapshot
+semantics, exact installed-class composition, and full `mvn verify` pass. It is launch-free verified
+and reports separate empty/non-empty entity and script counts for the next ordinary campaign run.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from
