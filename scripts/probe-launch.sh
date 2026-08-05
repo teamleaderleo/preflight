@@ -126,11 +126,13 @@ fi
 WRAPPER_PID=$!
 
 QUIET_LOGS=false
-for flag in "${EXTRA[@]}"; do
-    if [[ "$flag" == "--quiet-logs" ]]; then
-        QUIET_LOGS=true
-    fi
-done
+if (( ${#EXTRA[@]} )); then
+    for flag in "${EXTRA[@]}"; do
+        if [[ "$flag" == "--quiet-logs" ]]; then
+            QUIET_LOGS=true
+        fi
+    done
+fi
 
 if [[ "$QUIET_LOGS" == true ]]; then
     # The main-menu log marker can legitimately remain in log4j's final 64 KiB buffer until the
