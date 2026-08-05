@@ -716,6 +716,15 @@ synchronous rolling-file writes. The installed-log4j replay prices that crash-sa
 38 exact transformations without fallback, ended the 6.3MB log on a complete newline, and left no
 JVM. Buffered `--quiet-logs` remains explicit because only it can lose the final 64KiB on a hard
 crash.
+The fast preset's two rule-expression caches shared one exact class, and ordinary target selection
+was installing only the token memo even though the report said the command artifact was loaded.
+The token-target branch now composes the command shortcut too. An adjacent exact control reduced
+the 25,762-call command phase from 524ms to 376ms and its containing rules loader from 1.302s to
+1.122s. The live gate matched all 47 ordered packages, served all 671 prepared winners, retained
+all 62,340 token hits, and had zero miss/disagreement/failure. A pre-fix five-run real `--fast`
+cohort was 25.71/25.72/26.57/26.06/26.77s; the rising tail is fanless thermal drift, so do not use
+its median as a clean before/after. See
+`docs/evidence/2026-08-05-rule-command-cache-composition.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

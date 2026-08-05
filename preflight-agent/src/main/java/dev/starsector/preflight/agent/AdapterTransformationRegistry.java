@@ -289,9 +289,14 @@ final class AdapterTransformationRegistry {
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             return CombatRuntimeIntegrityPlan.transform(signature, originalBytes);
         }
-        // The memo can install on its own, without the attribution probe in front of it.
+        // The token target normally wins selection for this shared class. Compose the command-name
+        // shortcut here too; otherwise --fast can configure both caches while silently installing
+        // only the tokenizer memo. Either optimization may still install on its own.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return ruleTokenCache(originalBytes, null);
+            byte[] memoised = ruleTokenCache(originalBytes, null);
+            byte[] current = memoised == null ? originalBytes : memoised;
+            byte[] shortcut = ruleCommandClassLookup(current);
+            return shortcut == null ? memoised : shortcut;
         }
         // Two classes share this plan: the expression class carries the shortcut, the rules loader
         // carries the publish. Only one of them can match any given signature.
