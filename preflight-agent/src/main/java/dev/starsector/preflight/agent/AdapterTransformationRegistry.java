@@ -177,6 +177,9 @@ final class AdapterTransformationRegistry {
         if (ResourcePriorityRuntime.PLAN_ID.equals(target.planId())) {
             return resourceLoaderPlans(signature, originalBytes);
         }
+        if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
+            return SaveDescriptorCompatibilityPlan.transform(signature, originalBytes);
+        }
         if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())
                 || SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(target.planId())) {
             return specStoreOptimizations(signature, originalBytes);
@@ -719,6 +722,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (ResourcePriorityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (RuleTokenCacheRuntime.PLAN_ID.equals(planId)) {

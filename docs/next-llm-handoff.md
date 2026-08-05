@@ -193,6 +193,8 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | 2026-08-06 learned-order raw record before pipeline follow-up | **18.42 / 18.67** |
 | **2026-08-06 all-collapsed near-sub-18 pair** | **18.01 / 18.04** |
 | **2026-08-06 60Hz loading-screen redraw pair** | **17.09 / 16.68** |
+| **2026-08-06 30Hz loading-screen redraw pair** | **17.26 / 16.11** |
+| **2026-08-06 title-screen descriptor-memo warm gate** | **16.21** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -994,13 +996,24 @@ default-balanced main-menu launch. Full `mvn verify` is green. See the same evid
 implementation and gates.
 The next exposed vanilla seam was the loading screen itself. The 55,359-resource loop rendered and
 called `Display.update()` 2,618 times in 5.941s—roughly 440 native redraws per second. The exact
-ResourceLoaderState adapter now admits redraws at 60Hz and forces the original method once at 100%.
-Two clean gates rendered 200/202 frames, skipped 2,419/2,417 redundant frames, and reduced the exact
-post-SpecStore resource interval to 4.542s and 4.725s (-1.399s/-1.216s). They reached **17.09s** and
-**16.68s**, with ACTIVE health, all 40 transformations, and zero decline/failure. The same pass
-reduced GraphicsLib's three startup message-pump loops from 1,431 calls / 177ms to 48 / 17ms while
-retaining 6,184/6,184 normal-cache hits and zero fallback. See
+ResourceLoaderState adapter now admits redraws at 30Hz and forces the original method once at 100%.
+The 60Hz gates rendered 200/202 frames and reduced the exact post-SpecStore interval to 4.542s and
+4.725s; the final 30Hz gates rendered 107/108 and reached **17.26s / 16.11s**. The additional native
+call reduction is exact, while its wall effect is smaller than launch noise. The same pass reduced
+GraphicsLib's three startup message-pump loops from 1,431 calls / 177ms to 48 / 17ms while retaining
+6,184/6,184 normal-cache hits and zero fallback. See
 `docs/evidence/2026-08-06-loading-screen-redraw-rate.md`.
+
+A full-depth title-screen recording then exposed vanilla calling the same save-compatibility method
+twice. Each call constructs XStream and deserializes the current save descriptor merely to decide
+whether Continue is enabled. The exact adapter now lets the first call remain vanilla and memoises
+its boolean only for the second identical call in the same JVM. The unchanged-binary warm gate hit
+41/41 transformed classes, recorded one descriptor miss/record/hit with zero fingerprint failure,
+and reached **16.21s** with ACTIVE health. A byte-perfect cross-launch variant was deliberately
+rejected: by removing even the first parse's roughly half-second ordering delay, it reproducibly
+exposed a GraphicsLib background-texture race and a two-minute cleanup storm, including after a
+cooldown. Never persist this result across launches. See
+`docs/evidence/2026-08-06-main-menu-save-descriptor-memo.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

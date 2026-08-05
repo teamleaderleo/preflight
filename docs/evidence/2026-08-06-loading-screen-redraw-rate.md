@@ -17,7 +17,7 @@ The rate has no relationship to elapsed time. The adjacent baseline completed th
 resource interval in 5.941 seconds, so it was asking the native display for roughly 440 updates per
 second.
 
-Preflight now admits one progress render every 16.667ms and explicitly invokes the original method
+Preflight now admits one progress render every 33.333ms and explicitly invokes the original method
 with `1.0f` before the resource executor shuts down. Data loading, iteration order, progress-weight
 arithmetic, close-request checks, audio tasks, and the original render method are unchanged.
 
@@ -28,17 +28,24 @@ arithmetic, close-request checks, audio tasks, and the original render method ar
 | adjacent baseline | 2,618 | 2,618 | 0 | 5.941s | 17.79s |
 | 60Hz gate | 2,619 | 200 | 2,419 | **4.542s** | **17.09s** |
 | adjacent warm gate | 2,619 | 202 | 2,417 | **4.725s** | **16.68s** |
+| 30Hz gate | 2,619 | 107 | 2,512 | **4.616s** | **17.26s** |
+| adjacent 30Hz warm gate | 2,619 | 108 | 2,511 | **4.494s** | **16.11s** |
 
-The exact resource interval improved by 1.399s and 1.216s. The two whole launches are supporting
-evidence; their mod callbacks varied independently. Both reached the main menu, stopped normally,
-and reported ACTIVE adapter health, 40 exact transformations, zero decline or contained failure,
-55,359 resources, 4,479 prioritized resources, and no priority comparison mismatch.
+The exact 60Hz resource interval improved by 1.399s and 1.216s. Moving from 60Hz to 30Hz removes
+another 94--95 native display updates per launch, but does not establish another wall-time delta:
+the 4.494--4.616s exact intervals remain inside the preceding 4.542--4.725s band. The exact native
+call and CPU-work reduction is the claim; the 16.11s whole launch is supporting evidence because
+mod callbacks vary independently. Every gate reached the main menu, stopped normally, and reported
+ACTIVE adapter health, all exact transformations, zero decline or contained failure, 55,359
+resources, 4,479 prioritized resources, and no priority comparison mismatch.
 
 Runs:
 
 - `graphics-refresh-cadence-v3-warm-20260806-065940`
 - `progress-render-60hz-20260806-070453`
 - `progress-render-60hz-warm-20260806-070538`
+- `progress-render-30hz-20260806-071608`
+- `progress-render-30hz-warm-20260806-071659`
 
 ## GraphicsLib's nested pumps
 

@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Indexes the large preferred-resource membership test before vanilla restores its list order. */
 public final class ResourcePriorityRuntime {
-    static final String PLAN_ID = "vanilla-resource-priority-index-v2";
-    private static final long PROGRESS_FRAME_NANOS = 16_666_667L;
+    static final String PLAN_ID = "vanilla-resource-priority-index-v3";
+    private static final long PROGRESS_FRAME_NANOS = 33_333_334L;
     private static final AtomicLong CALLS = new AtomicLong();
     private static final AtomicLong RESOURCES = new AtomicLong();
     private static final AtomicLong PRIORITIZED = new AtomicLong();

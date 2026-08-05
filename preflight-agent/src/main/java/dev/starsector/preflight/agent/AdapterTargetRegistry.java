@@ -632,6 +632,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Vanilla parses an entire save descriptor merely to enable the Continue button. */
+    static AdapterTarget saveDescriptorCompatibilityTarget() {
+        return new AdapterTarget(
+                "vanilla-save-descriptor-compatibility-0.98a-rc8",
+                SaveDescriptorCompatibilityPlan.TARGET_CLASS,
+                SaveDescriptorCompatibilityPlan.ORIGINAL_SHA256,
+                SaveDescriptorCompatibilityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        SaveDescriptorCompatibilityPlan.METHOD,
+                        SaveDescriptorCompatibilityPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Vanilla campaign loop used only to segment opt-in frame-time recordings. */
     static AdapterTarget campaignFrameTimeStateTarget() {
         return frameTimeStateTarget(
@@ -1708,6 +1725,7 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(resourcePriorityTarget())
+                .withTarget(saveDescriptorCompatibilityTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioResourceFallbackTarget())
                 .withTarget(aiTweaksEngagementRangeTarget())

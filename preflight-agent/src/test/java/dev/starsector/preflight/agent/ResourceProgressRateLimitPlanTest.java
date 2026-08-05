@@ -49,6 +49,8 @@ class ResourceProgressRateLimitPlanTest {
         assertEquals(1L, ResourcePriorityRuntime.telemetry().get("progressSkips"));
         assertEquals(1L + attemptedIntermediateFrames,
                 ResourcePriorityRuntime.telemetry().get("progressRenders"));
+        assertEquals(33_333_334L,
+                ResourcePriorityRuntime.telemetry().get("progressFrameNanos"));
     }
 
     private static ClassNode fixture() {

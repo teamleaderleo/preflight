@@ -65,6 +65,9 @@ final class AdapterInstallationEffects {
         if (RadarRenderRuntime.PLAN_ID.equals(target.planId())) {
             RadarRenderRuntime.installed();
         }
+        if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
+            SaveDescriptorCompatibilityRuntime.installed();
+        }
         if (SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())
                 && SimOpponentSafetyPlan.TARGET_CLASS.equals(className)) {
             SimOpponentSafetyRuntime.installed();

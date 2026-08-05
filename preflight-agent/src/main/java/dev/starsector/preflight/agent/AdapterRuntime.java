@@ -37,6 +37,7 @@ final class AdapterRuntime {
         RuleTokenCacheRuntime.beginSession();
         RulesRegexCacheRuntime.beginSession();
         ResourcePriorityRuntime.beginSession();
+        SaveDescriptorCompatibilityRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         LoadingUtilsReaderRuntime.beginSession();
@@ -143,6 +144,7 @@ final class AdapterRuntime {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
                 report.diagnostic("Loaded the exact startup resource-priority index target");
+                report.diagnostic("Loaded the exact save-descriptor compatibility memo target");
                 report.diagnostic("Loaded the exact campaign commodity event-mod memo target");
                 report.diagnostic("Loaded the exact campaign entity-maintenance targets");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
