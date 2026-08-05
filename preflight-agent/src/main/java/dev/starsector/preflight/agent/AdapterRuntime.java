@@ -48,6 +48,7 @@ final class AdapterRuntime {
         RadarRenderRuntime.beginSession();
         DeploymentIconCacheRuntime.beginSession();
         CommodityEventModMemoRuntime.beginSession();
+        CampaignEntityMaintenanceRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
@@ -128,6 +129,7 @@ final class AdapterRuntime {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
                 report.diagnostic("Loaded the exact campaign commodity event-mod memo target");
+                report.diagnostic("Loaded the exact campaign entity-maintenance targets");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
                 report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
                 report.diagnostic("Loaded the exact GraphicsLib hot-settings cache target");

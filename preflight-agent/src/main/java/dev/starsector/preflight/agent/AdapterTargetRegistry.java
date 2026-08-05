@@ -597,6 +597,38 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget campaignEntityScriptsTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-entity-empty-scripts-0.98a-rc8",
+                CampaignEntityMaintenancePlan.ENTITY_CLASS,
+                CampaignEntityMaintenancePlan.ENTITY_SHA256,
+                CampaignEntityMaintenanceRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignEntityMaintenancePlan.SCRIPT_METHOD,
+                        CampaignEntityMaintenancePlan.SCRIPT_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    static AdapterTarget campaignFleetViewSnapshotTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-fleet-view-single-snapshot-0.98a-rc8",
+                CampaignEntityMaintenancePlan.FLEET_VIEW_CLASS,
+                CampaignEntityMaintenancePlan.FLEET_VIEW_SHA256,
+                CampaignEntityMaintenanceRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                        CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The exact refit simulator method that consumes the merged simulation-opponent id list. */
     static AdapterTarget simOpponentSafetyTarget() {
         return new AdapterTarget(
@@ -976,6 +1008,11 @@ final class AdapterTargetRegistry {
                 .withTarget(mutableStatDirtyAccessorTarget());
     }
 
+    AdapterTargetRegistry withCampaignEntityMaintenanceTargets() {
+        return withTarget(campaignEntityScriptsTarget())
+                .withTarget(campaignFleetViewSnapshotTarget());
+    }
+
     AdapterTargetRegistry withSimOpponentSafetyTarget() {
         return withTarget(simOpponentSafetyTarget()).withTarget(simOpponentDialogProbeTarget());
     }
@@ -1247,6 +1284,8 @@ final class AdapterTargetRegistry {
                 .withTarget(deploymentIconCacheTarget())
                 .withTarget(commodityEventModMemoTarget())
                 .withTarget(mutableStatDirtyAccessorTarget())
+                .withTarget(campaignEntityScriptsTarget())
+                .withTarget(campaignFleetViewSnapshotTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())

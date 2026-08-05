@@ -452,11 +452,20 @@ location-map, stepper, and market-advance seams. Its live run completed normally
 market advances consumed 15.11s, about 89% of the 16.99s economy total, while 232,195 vanilla
 `CampaignFleet` advances consumed 10.56s. The broad entity timers themselves covered tens of
 millions of tiny calls, so those FPS numbers are diagnostic-only. Active/paused entity timing is
-now sampled 1-in-64, and a new exact Market/CampaignFleet drill-down samples market plugin seams
-1-in-32 while measuring fleet AI on every call. It groups condition, submarket, industry, AI, and
-hullmod callbacks by concrete class and times the fixed vanilla subphases. Synthetic and exact
-installed-archive gates plus full `mvn verify` pass; run one short campaign pilot before choosing a
-behavioral optimization. The same run logged 28 caught Industrial Evolution Codex NPEs from
+now sampled 1-in-64, and an exact Market/CampaignFleet drill-down samples market plugin seams
+1-in-32 while measuring fleet AI on every call. Its live pilot completed normally with 43 applied
+transforms and zero declines/failures. It counted 483.77 million commodity-stat accesses and 120.94
+million event-mod accesses; their approximately 43ns sampled means are below trustworthy timer
+resolution, so their extrapolated totals are instrumentation-inflated and are not speed claims.
+Reliable enclosing totals put `ModularFleetAI` at 2.783s, inherited `BaseCampaignEntity` work at
+1.462s, and `CampaignFleetView` at 772ms. The first two exact behavior shortcuts now skip
+`BaseCampaignEntity.runScripts`' defensive `ArrayList` allocation only for an empty authoritative
+list and reuse `CampaignFleetView.advance`'s already-live sorted-member snapshot instead of asking
+for the identical snapshot twice. Non-empty script lists enter the renamed unchanged vanilla body;
+both transforms exact-pin the shipped owners and archive and have a kill switch. Synthetic woven
+execution, exact installed-archive checks, and full `mvn verify` pass; a short live campaign run is
+the remaining gate before any speed claim. The earlier run also logged 28 caught Industrial
+Evolution Codex NPEs from
 synthetic markets with null location/system; treat that as a separate exact compatibility-guard
 candidate. Do not add overlapping totals to a speed claim.
 See

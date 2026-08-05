@@ -331,6 +331,8 @@ final class AdapterReport {
                 .append(Json.value(CampaignLocationEconomyTimeRuntime.telemetry())).append(',');
         key(output, "campaignMarketFleetTimes")
                 .append(Json.value(CampaignMarketFleetTimeRuntime.telemetry())).append(',');
+        key(output, "campaignEntityMaintenance")
+                .append(Json.value(CampaignEntityMaintenanceRuntime.telemetry())).append(',');
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {

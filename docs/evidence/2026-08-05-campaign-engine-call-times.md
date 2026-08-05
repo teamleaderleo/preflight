@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: deeper location/economy pilot complete; market/fleet drill-down next
+Status: market/fleet drill-down complete; two exact maintenance shortcuts offline-verified
 
 ## Why another layer was necessary
 
@@ -175,5 +175,54 @@ calls 1-in-64 while retaining unsampled location-script timing. This removes the
 of `nanoTime` pairs that made the first attribution run intentionally non-representative.
 
 Synthetic shape/runtime tests and exact installed-archive transformations pass for both new
-owners. Full `mvn verify` passes. One short campaign run is the remaining live-linkage and
-attribution gate before selecting an actual behavior optimization.
+owners. Full `mvn verify` passes.
+
+## Market/fleet live result
+
+`campaign-market-fleet-v1-20260805-082230` loaded the representative save, exercised campaign play,
+and exited normally. Adapter health remained `ACTIVE`: 43 exact transformations, zero declines,
+and zero contained failures. Campaign throughput was 49.80 average FPS, 58.14 median FPS, 12.77 FPS
+1% low, 34.0ms p95, and 78.3ms p99 across 5,649 frames. The user-driven route differed from prior
+runs, so these numbers validate the probe rather than form an A/B performance claim.
+
+The unsampled enclosing timings retained the earlier result: 1,072,831 market advances consumed
+9,924.5ms. The exact commodity memo served 120,810,713 hits and delegated 257,999 changed/first
+states, with all entry-snapshot capabilities available. The drill-down counted 483,766,272
+commodity-stat accesses and 120,941,568 event-mod accesses inside those market advances. Their
+individual sampled means were about 43ns, near or below the cost of the timing operation itself;
+therefore the reported extrapolated 8.14s and 3.71s are instrumentation-inflated and must not be
+added to other totals. The call volumes are valid and explain why reducing even tiny validation
+work at an outer exact boundary matters.
+
+The reliable fleet totals were more directly actionable:
+
+- `ModularFleetAI.advance`: 87,759 calls / **2,783.1ms**, maximum 83.19ms;
+- inherited `BaseCampaignEntity.advance`: 132,549 calls / **1,461.8ms**, maximum 20.82ms;
+- `CampaignFleetView.advance`: 37,589 calls / **772.3ms**, maximum 16.04ms; and
+- fleet logistics: 132,549 calls / 273.7ms.
+
+The sampled plugin rankings are leads, not speed claims. `niko_MPC_derelictEscort` contained a
+20.52ms sampled condition call, Nexerelin's local-resource submarket averaged 13.5 microseconds,
+`Boggled_Genelab` averaged 17.4 microseconds, and UAF's `SUSynchrotonFuelCalibrator` contained a
+15.38ms sampled fleet callback. The sparse condition outlier in particular has only 82 samples and
+must be reproduced before adapting mod behavior.
+
+## First exact behavior optimization
+
+Exact installed bytecode exposed two semantics-preserving redundancies below the fleet total:
+
+- `BaseCampaignEntity.runScripts(float)` always constructs `new ArrayList(scripts)` even when the
+  authoritative list is empty. The adapter returns before that allocation only when
+  `List.isEmpty()` is true; non-empty lists enter a renamed byte-for-byte vanilla method, preserving
+  its defensive snapshot and script behavior.
+- `CampaignFleetView.advance(float)` obtains the same sorted-member snapshot twice in one method,
+  with no intervening mutation; the second result is used only for `size()`. The adapter reuses the
+  already-live first local snapshot.
+
+Both owners are gated on the exact 0.98a-RC8 class and core-archive hashes, reviewed method shapes,
+and Java 17 version. Changed classes decline. A runtime kill switch
+`preflight.campaign.entityMaintenance.disabled=true` restores vanilla. Synthetic execution proves
+empty lists return, non-empty lists still invoke the original script path, and a second transform
+declines. The exact installed archive transforms both owners, and full `mvn verify` passes. A short
+live campaign run remains before making a performance claim; telemetry reports both installations
+and empty/non-empty script-list counts.

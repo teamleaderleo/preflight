@@ -200,7 +200,7 @@ if [[ -f "$OUT/adapter-health.json" ]]; then
 fi
 if [[ -f "$OUT/adapter.json" ]]; then
     echo "Probe telemetry:"
-    jq '{preparedAudio, audioStreamSourceError, audioResourceFallback, audioMusicTransitions, aiTweaksEngagementRange, graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, graphicsLibHotSettings, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, combatRuntimeIntegrity, frameTimes: (.frameTimes | .allActive |= del(.worstFrames) | .postStartupActive |= del(.worstFrames) | .campaignActive |= del(.worstFrames) | .combatActive |= del(.worstFrames)), campaignCallTimes, campaignEngineTimes, campaignLocationEconomyTimes, campaignMarketFleetTimes, campaignEntityIndex, campaignRadarRender, deploymentIconCache, commodityEventModMemo, simOpponentSafety}' \
+    jq '{preparedAudio, audioStreamSourceError, audioResourceFallback, audioMusicTransitions, aiTweaksEngagementRange, graphicsLibCompactReplay, janinoBytecodeCache, graphicsLibInsigniaManagerCache, graphicsLibHotSettings, magicLibPaintjob, magicLibPaintjobNotification, stelnetMarketUpdater, macMemoryWarning, combatRuntimeIntegrity, frameTimes: (.frameTimes | .allActive |= del(.worstFrames) | .postStartupActive |= del(.worstFrames) | .campaignActive |= del(.worstFrames) | .combatActive |= del(.worstFrames)), campaignCallTimes, campaignEngineTimes, campaignLocationEconomyTimes, campaignMarketFleetTimes, campaignEntityMaintenance, campaignEntityIndex, campaignRadarRender, deploymentIconCache, commodityEventModMemo, simOpponentSafety}' \
         "$OUT/adapter.json"
 else
     echo "No adapter report was produced; inspect $OUT/wrapper.log" >&2
