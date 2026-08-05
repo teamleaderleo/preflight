@@ -185,6 +185,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | 2026-08-05 GraphicsLib lazy-normal diagnostic | **27.23** |
 | **2026-08-05 deduplicated-Janino-pack cohort (5 runs)** | **25.58 median (25.08--25.80)** |
 | **2026-08-05 prepared-audio path-index cohort (3 runs)** | **24.76 median (24.61--24.81)** |
+| **2026-08-05 exact-target transformer cohort (5 runs)** | **24.12 median (23.93--24.43)** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -771,6 +772,15 @@ Separately, `cache prune` now identifies the exact live Janino context and prove
 byte-identical to its deduplicated pack before planning their removal. The real dry run finds **505
 MB / 693 files** reclaimable without losing a current cache hit; it remains preview-only without
 `--yes`. See `docs/evidence/2026-08-05-cache-space-budget.md`.
+Ordinary enabled launches also no longer build the adapter probe's broad game-class inventory.
+Exact registry targets and specialized compatibility observers are sufficient for normal use;
+`--adapter-probe` retains the broad scan for discovering renamed targets after patches. The live
+gate reduced parsed classes from 2,612 to 38 (**98.5%**) while applying all 38 exact transformations
+with zero decline/failure. A following five-run, one-minute-cooled cohort measured
+**24.41/24.12/23.93/24.43/23.98s (24.12s median, 0.50s range)**; all launches stopped normally and
+all exact transforms applied. This was not a shuffled A/B against the 24.76s cohort, so attribute
+the eliminated parsing/CPU work, not the full median difference, to the change. See
+`docs/evidence/2026-08-05-exact-target-transformer.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete
