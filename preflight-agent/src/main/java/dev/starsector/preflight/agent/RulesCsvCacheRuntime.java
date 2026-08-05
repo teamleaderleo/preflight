@@ -2,7 +2,6 @@ package dev.starsector.preflight.agent;
 
 import dev.starsector.preflight.core.PreparedRulesCsvCache;
 import dev.starsector.preflight.core.PreparedRulesCsvCacheIO;
-import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -16,14 +15,14 @@ public final class RulesCsvCacheRuntime {
     public static final String PLAN_ID = "vanilla-rules-merged-csv-cache-v1";
 
     private static volatile State state = State.disabled();
-    private static volatile Constructor<?> jsonConstructor;
+    private static final SeamTimer REHYDRATE_CLOCK = new SeamTimer();
 
     private RulesCsvCacheRuntime() {
     }
 
     static void beginSession() {
         state = State.disabled();
-        jsonConstructor = null;
+        REHYDRATE_CLOCK.reset();
     }
 
     static void configure(Path artifact) {
@@ -38,13 +37,13 @@ public final class RulesCsvCacheRuntime {
             return;
         }
         String profile = fileName.substring(0, 64);
-        String json = null;
+        byte[] tree = null;
         String diagnostic = "capture";
         if (Files.isRegularFile(absolute)) {
             try {
                 PreparedRulesCsvCache stored = PreparedRulesCsvCacheIO.read(absolute);
                 if (profile.equals(stored.profileIdentitySha256())) {
-                    json = stored.mergedJson();
+                    tree = stored.mergedTree();
                     diagnostic = "hit";
                 } else {
                     diagnostic = "profile-mismatch";
@@ -53,7 +52,7 @@ public final class RulesCsvCacheRuntime {
                 diagnostic = "rejected:" + message(error);
             }
         }
-        state = new State(absolute, profile, json, diagnostic);
+        state = new State(absolute, profile, tree, diagnostic);
     }
 
     static boolean ready() {
@@ -67,13 +66,18 @@ public final class RulesCsvCacheRuntime {
     /** Returns a fresh game JSONArray, or null so the woven call site executes vanilla. */
     public static Object cached() {
         State current = state;
-        String json = current.mergedJson;
-        if (current.artifact == null || json == null || current.badEntry.get()) {
+        byte[] tree = current.mergedTree;
+        if (current.artifact == null || tree == null || current.badEntry.get()) {
             current.misses.incrementAndGet();
             return null;
         }
+        long entry = REHYDRATE_CLOCK.enter();
         try {
-            Object result = constructor().newInstance(json);
+            GameJson bridge = GameJson.bridge();
+            Object result = bridge.decode(tree);
+            if (!bridge.isGameArray(result)) {
+                throw new IllegalArgumentException("prepared rules tree is not an array");
+            }
             current.hits.incrementAndGet();
             return result;
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -81,8 +85,10 @@ public final class RulesCsvCacheRuntime {
         } catch (Throwable error) {
             current.badEntry.set(true);
             current.misses.incrementAndGet();
-            current.diagnose("cached rules JSON could not be reconstructed: " + message(error));
+            current.diagnose("cached rules tree could not be reconstructed: " + message(error));
             return null;
+        } finally {
+            REHYDRATE_CLOCK.exit(entry);
         }
     }
 
@@ -93,22 +99,22 @@ public final class RulesCsvCacheRuntime {
             return;
         }
         try {
-            String encoded = json.toString();
-            if (encoded != null && !encoded.isBlank()) {
-                current.learnedJson = encoded;
+            GameJson bridge = GameJson.bridge();
+            if (bridge.isGameArray(json)) {
+                current.learnedTree = bridge.encode(json);
                 current.captures.incrementAndGet();
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable error) {
-            current.diagnose("vanilla rules JSON could not be captured: " + message(error));
+            current.diagnose("vanilla rules tree could not be captured: " + message(error));
         }
     }
 
     /** Publishes only after vanilla finishes the complete rules loader normally. */
     public static void complete() {
         State current = state;
-        String learned = current.learnedJson;
+        byte[] learned = current.learnedTree;
         if (current.artifact == null || learned == null
                 || !current.completed.compareAndSet(false, true)) {
             return;
@@ -121,20 +127,8 @@ public final class RulesCsvCacheRuntime {
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable error) {
-            current.diagnose("merged rules JSON cache could not be written: " + message(error));
+            current.diagnose("merged rules tree cache could not be written: " + message(error));
         }
-    }
-
-    private static Constructor<?> constructor() throws ReflectiveOperationException {
-        Constructor<?> existing = jsonConstructor;
-        if (existing != null) {
-            return existing;
-        }
-        ClassLoader context = Thread.currentThread().getContextClassLoader();
-        Class<?> type = Class.forName("org.json.JSONArray", true, context);
-        Constructor<?> resolved = type.getConstructor(String.class);
-        jsonConstructor = resolved;
-        return resolved;
     }
 
     static Map<String, Object> telemetry() {
@@ -143,11 +137,12 @@ public final class RulesCsvCacheRuntime {
         values.put("status", current.diagnostic);
         values.put("profileIdentity", current.profileIdentity);
         values.put("artifact", current.artifact);
-        values.put("prepared", current.mergedJson != null);
+        values.put("prepared", current.mergedTree != null);
         values.put("hits", current.hits.get());
         values.put("misses", current.misses.get());
         values.put("captures", current.captures.get());
         values.put("writes", current.writes.get());
+        values.putAll(REHYDRATE_CLOCK.snapshot("rehydrate"));
         return values;
     }
 
@@ -161,9 +156,9 @@ public final class RulesCsvCacheRuntime {
     private static final class State {
         private final Path artifact;
         private final String profileIdentity;
-        private final String mergedJson;
+        private final byte[] mergedTree;
         private final String diagnostic;
-        private volatile String learnedJson;
+        private volatile byte[] learnedTree;
         private final AtomicBoolean badEntry = new AtomicBoolean();
         private final AtomicBoolean completed = new AtomicBoolean();
         private final AtomicBoolean diagnosed = new AtomicBoolean();
@@ -172,10 +167,10 @@ public final class RulesCsvCacheRuntime {
         private final AtomicLong captures = new AtomicLong();
         private final AtomicLong writes = new AtomicLong();
 
-        private State(Path artifact, String profileIdentity, String mergedJson, String diagnostic) {
+        private State(Path artifact, String profileIdentity, byte[] mergedTree, String diagnostic) {
             this.artifact = artifact;
             this.profileIdentity = profileIdentity;
-            this.mergedJson = mergedJson;
+            this.mergedTree = mergedTree;
             this.diagnostic = diagnostic;
         }
 

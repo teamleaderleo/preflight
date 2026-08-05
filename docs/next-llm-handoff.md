@@ -740,6 +740,18 @@ tail and the intervening rule-command repair prevent a clean whole-launch attrib
 cool run makes sub-25 plausible, not yet established. Full verification and a third-fresh-loader
 installed-Janino outer/nested replay pass. See
 `docs/evidence/2026-08-05-janino-deduplicated-pack.md`.
+The last text-backed spec artifact was then removed. The prepared rules CSV still stored a 12MiB
+`JSONArray.toString()` result and paid `new JSONArray(text)` on its one warm hit. SPRC v2 now carries
+the same production tagged tree used by the other spec caches and rebuilds a fresh independent game
+array through `GameJson`; malformed data or a non-array root falls through to vanilla. The first
+live launch rejected v1, retained the untouched loader, captured its authoritative result, and wrote
+v2 atomically. The adjacent warm gate hit once with zero fallback/rewrite and reduced the exact
+rules reconstruction from 194ms to **6ms (-188ms, -96.9%)**. The artifact is 8,810,607 bytes. Both
+launches applied all 38 transforms with zero decline/failure and stopped normally; full verification
+passes. The prior coolest ordinary launch was 25.08s, making 24.89s theoretically supported after
+this exact reduction. A three-minute-cooled non-probed follow-up reached 25.092602s with the rules
+hit in 9ms, exit 0, and zero transform failure: just 93ms short, but still not a sub-25 claim. See
+`docs/evidence/2026-08-05-tagged-rules-csv.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

@@ -8,7 +8,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,7 +22,7 @@ public final class PreparedRulesCsvCacheIO {
     private static final int CHECKSUM_BYTES = 32;
     private static final int SHA256_BYTES = 32;
     private static final int MAX_FILE_BYTES = 512 * 1024 * 1024;
-    private static final int MAX_JSON_BYTES = 256 * 1024 * 1024;
+    private static final int MAX_TREE_BYTES = 256 * 1024 * 1024;
 
     private PreparedRulesCsvCacheIO() {
     }
@@ -120,7 +119,7 @@ public final class PreparedRulesCsvCacheIO {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream output = new DataOutputStream(bytes)) {
             output.write(Hashes.decodeSha256(cache.profileIdentitySha256()));
-            writeString(output, cache.mergedJson());
+            writeTree(output, cache.mergedTree());
         }
         return bytes.toByteArray();
     }
@@ -131,33 +130,32 @@ public final class PreparedRulesCsvCacheIO {
             if (profile.length != SHA256_BYTES) {
                 throw new EOFException("Prepared rules cache ended inside its profile identity");
             }
-            String json = readString(input);
+            byte[] tree = readTree(input);
             if (input.read() != -1) {
                 throw new IOException("Prepared rules cache payload has trailing bytes");
             }
-            return new PreparedRulesCsvCache(java.util.HexFormat.of().formatHex(profile), json);
+            return new PreparedRulesCsvCache(java.util.HexFormat.of().formatHex(profile), tree);
         }
     }
 
-    private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length > MAX_JSON_BYTES) {
-            throw new IOException("Prepared rules JSON exceeds the safety limit");
+    private static void writeTree(DataOutputStream output, byte[] tree) throws IOException {
+        if (tree.length > MAX_TREE_BYTES) {
+            throw new IOException("Prepared rules tree exceeds the safety limit");
         }
-        output.writeInt(bytes.length);
-        output.write(bytes);
+        output.writeInt(tree.length);
+        output.write(tree);
     }
 
-    private static String readString(DataInputStream input) throws IOException {
+    private static byte[] readTree(DataInputStream input) throws IOException {
         int length = input.readInt();
-        if (length < 0 || length > MAX_JSON_BYTES) {
-            throw new IOException("Prepared rules JSON length is invalid: " + length);
+        if (length < 1 || length > MAX_TREE_BYTES) {
+            throw new IOException("Prepared rules tree length is invalid: " + length);
         }
         byte[] bytes = input.readNBytes(length);
         if (bytes.length != length) {
-            throw new EOFException("Prepared rules cache ended inside its JSON");
+            throw new EOFException("Prepared rules cache ended inside its tree");
         }
-        return new String(bytes, StandardCharsets.UTF_8);
+        return bytes;
     }
 
     private static int minimumFileBytes() {

@@ -76,6 +76,10 @@ final class GameJson {
         return value != null && (objectType.isInstance(value) || arrayType.isInstance(value));
     }
 
+    boolean isGameArray(Object value) {
+        return value != null && arrayType.isInstance(value);
+    }
+
     /** Encodes what the game produced, or throws if it holds something the format cannot carry. */
     byte[] encode(Object value) throws ReflectiveOperationException {
         return JsonTree.encode(toTree(value));
