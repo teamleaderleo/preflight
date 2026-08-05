@@ -19,10 +19,11 @@ final class StartupGraphicsTextureBreakdownPlan {
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/StartupPhaseRuntime";
     private static final String TEXTURE_DATA = "org/dark/shaders/util/TextureData";
-    private static final String REPLACEMENT_SHA256 =
-            "88745c0a99c38732a1b8ad3660be18daa086dbd912989107f70b526731bc8795";
     private static final String INNER = "autoGenMissingNormalMapsInner";
     private static final String MAP = "mapSpriteToMNSWithAutoGen";
+    private static final String NORMAL_MAP_DESCRIPTOR =
+            "(Ljava/lang/String;Ljava/lang/String;Lorg/dark/shaders/util/"
+                    + "TextureData$ObjectType;I)Lcom/fs/starfarer/api/graphics/SpriteAPI;";
 
     private StartupGraphicsTextureBreakdownPlan() {
     }
@@ -30,13 +31,15 @@ final class StartupGraphicsTextureBreakdownPlan {
     static byte[] transform(byte[] replacement) throws IOException {
         ClassSignature signature = ClassSignature.parse(replacement);
         if (!TEXTURE_DATA.equals(signature.internalName())
-                || !REPLACEMENT_SHA256.equals(signature.sha256())) {
+                || !(GraphicsLibLazyNormalPlan.BASE_SHA256.equals(signature.sha256())
+                || GraphicsLibLazyNormalPlan.OPTIMIZED_SHA256.equals(signature.sha256()))) {
             return null;
         }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(replacement).accept(owner, ClassReader.EXPAND_FRAMES);
         boolean changed = false;
         for (MethodNode method : owner.methods) {
+            changed |= instrumentNormalMapPath(method);
             List<Site> sites = sites(method);
             if (sites.isEmpty()) {
                 continue;
@@ -69,16 +72,72 @@ final class StartupGraphicsTextureBreakdownPlan {
 
     private static List<Site> sites(MethodNode method) {
         List<Site> sites = new ArrayList<>();
+        int normalGetSprite = 0;
+        int normalLoadTexture = 0;
+        int normalForceMipmaps = 0;
         for (AbstractInsnNode instruction : method.instructions.toArray()) {
             if (!(instruction instanceof MethodInsnNode call)) {
                 continue;
             }
             String label = label(method, call);
+            if ("autoGenNormalMap".equals(method.name)
+                    && "com/fs/starfarer/api/SettingsAPI".equals(call.owner)) {
+                if ("getSprite".equals(call.name)) {
+                    label = switch (++normalGetSprite) {
+                        case 1 -> "gfx.normal.cachedSpriteProbe";
+                        case 2 -> "gfx.normal.cachedSpriteAfterLoad";
+                        case 3 -> "gfx.normal.sourceSprite";
+                        case 4 -> "gfx.normal.generatedSpriteAfterWrite";
+                        default -> "gfx.normal.extraGetSprite";
+                    };
+                } else if ("loadTexture".equals(call.name)) {
+                    label = ++normalLoadTexture == 1
+                            ? "gfx.normal.loadCachedTexture" : "gfx.normal.loadGeneratedTexture";
+                } else if ("forceMipmapsFor".equals(call.name)) {
+                    label = ++normalForceMipmaps == 1
+                            ? "gfx.normal.forceCachedMipmaps"
+                            : "gfx.normal.forceGeneratedMipmaps";
+                }
+            }
             if (label != null) {
                 sites.add(new Site(call, label));
             }
         }
         return sites;
+    }
+
+    private static boolean instrumentNormalMapPath(MethodNode method) {
+        if (!"autoGenNormalMap".equals(method.name)
+                || !NORMAL_MAP_DESCRIPTOR.equals(method.desc)) {
+            return false;
+        }
+        VarInsnNode store = null;
+        for (AbstractInsnNode instruction : method.instructions.toArray()) {
+            if (instruction instanceof MethodInsnNode call
+                    && call.getOpcode() == Opcodes.INVOKESTATIC
+                    && TEXTURE_DATA.equals(call.owner)
+                    && "filePathForCache".equals(call.name)) {
+                if (store != null) {
+                    return false;
+                }
+                AbstractInsnNode next = nextOpcode(call);
+                if (!(next instanceof VarInsnNode variable)
+                        || variable.getOpcode() != Opcodes.ASTORE) {
+                    return false;
+                }
+                store = variable;
+            }
+        }
+        if (store == null) {
+            return false;
+        }
+        InsnList record = new InsnList();
+        record.add(new LdcInsnNode("gfx.normal.cachePath"));
+        record.add(new VarInsnNode(Opcodes.ALOAD, store.var));
+        record.add(new MethodInsnNode(Opcodes.INVOKESTATIC, RUNTIME,
+                "hotPath", "(Ljava/lang/String;Ljava/lang/String;)V", false));
+        method.instructions.insert(store, record);
+        return true;
     }
 
     private static String label(MethodNode method, MethodInsnNode call) {
@@ -129,6 +188,14 @@ final class StartupGraphicsTextureBreakdownPlan {
             previous = previous.getPrevious();
         }
         return previous;
+    }
+
+    private static AbstractInsnNode nextOpcode(AbstractInsnNode instruction) {
+        AbstractInsnNode next = instruction.getNext();
+        while (next != null && next.getOpcode() < 0) {
+            next = next.getNext();
+        }
+        return next;
     }
 
     private record Site(MethodInsnNode call, String label) {

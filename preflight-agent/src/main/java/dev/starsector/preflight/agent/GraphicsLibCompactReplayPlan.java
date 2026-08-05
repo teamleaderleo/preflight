@@ -16,7 +16,7 @@ final class GraphicsLibCompactReplayPlan {
     static final String ORIGINAL_SHA256 =
             "6a4302bcacd2dd90f6637c815d1443ddfdb3d28ff59095d48c875358de4e8594";
     static final String REPLACEMENT_SHA256 =
-            "88745c0a99c38732a1b8ad3660be18daa086dbd912989107f70b526731bc8795";
+            GraphicsLibLazyNormalPlan.OPTIMIZED_SHA256;
 
     private static final String RESOURCE =
             "/dev/starsector/preflight/agent/graphicslib-texture-data-1.12.1.class.b64";
@@ -32,6 +32,7 @@ final class GraphicsLibCompactReplayPlan {
 
     static void beginSession() {
         APPLIED.set(0);
+        GraphicsLibNormalCacheRuntime.beginSession();
         state = State.disabled();
     }
 
@@ -41,7 +42,11 @@ final class GraphicsLibCompactReplayPlan {
             return;
         }
         try {
-            byte[] replacement = loadReplacement();
+            byte[] replacement = GraphicsLibLazyNormalPlan.transform(loadReplacement());
+            if (replacement == null
+                    || !REPLACEMENT_SHA256.equals(ClassSignature.parse(replacement).sha256())) {
+                throw new IOException("lazy normal-map optimization differs");
+            }
             state = new State(true, replacement, "ready");
         } catch (IOException | RuntimeException error) {
             state = new State(true, null, "rejected:" + message(error));
@@ -90,6 +95,7 @@ final class GraphicsLibCompactReplayPlan {
         values.put("targetClassSha256", ORIGINAL_SHA256);
         values.put("replacementClassSha256", REPLACEMENT_SHA256);
         values.put("applications", APPLIED.get());
+        values.put("lazyNormalCache", GraphicsLibNormalCacheRuntime.telemetry());
         return values;
     }
 
@@ -109,7 +115,7 @@ final class GraphicsLibCompactReplayPlan {
         if (!TARGET_CLASS.equals(signature.internalName())) {
             throw new IOException("embedded replacement class name differs");
         }
-        if (!REPLACEMENT_SHA256.equals(signature.sha256())) {
+        if (!GraphicsLibLazyNormalPlan.BASE_SHA256.equals(signature.sha256())) {
             throw new IOException("embedded replacement SHA-256 differs");
         }
         if (signature.majorVersion() != 61) {

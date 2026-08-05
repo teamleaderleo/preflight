@@ -27,6 +27,9 @@ class StartupPhaseRuntimeTest {
         StartupPhaseRuntime.specLoaderEnd();
         long hotCall = StartupPhaseRuntime.hotCallStart();
         StartupPhaseRuntime.hotCallEnd("gfx.autoGenMissingNormals", hotCall);
+        StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/a.png");
+        StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/a.png");
+        StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/b.png");
         StartupPhaseRuntime.pluginStart(new ExamplePlugin());
         StartupPhaseRuntime.pluginEnd();
         StartupPhaseRuntime.mark("resource-init-complete");
@@ -43,6 +46,8 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"label\":\"variant-object-construction\""));
         assertTrue(json.contains("\"calls\":2"));
         assertTrue(json.contains("\"label\":\"gfx.autoGenMissingNormals\""));
+        assertTrue(json.contains("\"label\":\"gfx.normal.cachePath\""));
+        assertTrue(json.contains("\"distinctPaths\":2"));
         assertTrue(json.contains("StartupPhaseRuntimeTest$ExamplePlugin"));
         assertTrue(json.contains("\"completed\":true"));
     }

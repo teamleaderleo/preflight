@@ -182,6 +182,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-05 corrected `--fast` pair** | **31.76 / 32.64** |
 | 2026-08-05 immediately before early JSON restore | **33.22 / 32.98** |
 | **2026-08-05 profile-stable JSON warm cohort (5 runs)** | **29.61 median (29.25--30.16)** |
+| 2026-08-05 GraphicsLib lazy-normal diagnostic | **27.23** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -209,6 +210,20 @@ collisions, 228/228 Janino hits, and 30 exact transforms with zero decline/failu
 target is GraphicsLib's remaining `autoGenNormalMap` path, about 1.7--1.8s across 6,184 calls; the
 broader core-spec phase remains roughly six seconds. Evidence:
 `docs/evidence/2026-08-05-profile-stable-startup-json-cache.md`.
+
+That next GraphicsLib seam is now implemented and live-verified at the main menu. Exact bytecode
+showed GraphicsLib decoding/uploading 6,184 current generated-normal PNGs and immediately unloading
+and deleting every GL texture when `preloadAllMaps=false`. The exact compact replacement now fully
+validates each contained PNG and installs GraphicsLib's own unloaded-entry state; any missing,
+corrupt, unresolvable, or changed input executes the untouched load/regenerate path. The diagnostic
+served 6,184/6,184 lazy hits with zero fallback, removed the 1.97-second texture-load seam, spent
+1.13 seconds validating 215.6MB, and reached the menu in 27.23 seconds with ACTIVE health and 33
+transforms. Whole-launch timing is not yet a cooled cohort. A following profiled pilot hit a native
+HotSpot/Rosetta SIGSEGV during projectile loading, before GraphicsLib's callback, and is excluded;
+the clean non-JFR retry then loaded a campaign, entered/exited a 500-opponent simulation, crossed
+four GraphicsLib preload passes with live VRAM changes, and exited 0 with ACTIVE health, 50
+transforms, and zero decline/failure. No GraphicsLib load/fatal error appeared. Evidence:
+`docs/evidence/2026-08-05-graphicslib-lazy-generated-normals.md`.
 
 The next startup recording exposed a new Rosetta-specific residual in Preflight itself: 452 sampled
 ticks recomputed the payload checksum over 1.21 GB of prepared PCM on the game's two audio loader

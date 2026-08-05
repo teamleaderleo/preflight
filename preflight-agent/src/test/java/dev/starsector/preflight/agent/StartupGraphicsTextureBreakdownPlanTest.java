@@ -24,17 +24,23 @@ class StartupGraphicsTextureBreakdownPlanTest {
         byte[] transformed = StartupGraphicsTextureBreakdownPlan.transform(replacement);
         assertNotNull(transformed);
         assertTrue(runtimeCalls(transformed) > 10);
+        assertTrue(runtimeCalls(transformed, "hotPath") == 1);
         assertNull(StartupGraphicsTextureBreakdownPlan.transform(transformed));
     }
 
     private static int runtimeCalls(byte[] bytes) {
+        return runtimeCalls(bytes, null);
+    }
+
+    private static int runtimeCalls(byte[] bytes, String methodName) {
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(bytes).accept(owner, 0);
         int calls = 0;
         for (var method : owner.methods) {
             for (var instruction : method.instructions) {
                 if (instruction instanceof MethodInsnNode invoked
-                        && "dev/starsector/preflight/agent/StartupPhaseRuntime".equals(invoked.owner)) {
+                        && "dev/starsector/preflight/agent/StartupPhaseRuntime".equals(invoked.owner)
+                        && (methodName == null || methodName.equals(invoked.name))) {
                     calls++;
                 }
             }

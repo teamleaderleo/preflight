@@ -11,9 +11,11 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Direct, low-overhead timing for work hidden before, during, and after loading progress. */
 public final class StartupPhaseRuntime {
@@ -23,6 +25,8 @@ public final class StartupPhaseRuntime {
     private static final int MAX_SPEC_LOADERS = 64;
     private static final int MAX_SPEC_SUBPHASES = 32;
     private static final int MAX_HOT_CALL_GROUPS = 64;
+    private static final int MAX_HOT_PATH_GROUPS = 16;
+    private static final int MAX_DISTINCT_HOT_PATHS = 65_536;
     private static final int MAX_MERGED_READ_GROUPS = 512;
     private static final int[] PROGRESS_MILESTONES = {1, 5, 10, 25, 50, 75, 90, 95, 99, 100};
 
@@ -37,6 +41,7 @@ public final class StartupPhaseRuntime {
     private static final List<Map<String, Object>> specLoaders = new ArrayList<>();
     private static final Map<String, SpecSubphase> specSubphases = new LinkedHashMap<>();
     private static final Map<String, HotCall> hotCalls = new LinkedHashMap<>();
+    private static final Map<String, HotPath> hotPaths = new LinkedHashMap<>();
     private static final Map<String, MergedRead> mergedReads = new LinkedHashMap<>();
     private static volatile boolean mergedReadProbe;
     private static String activePlugin;
@@ -64,6 +69,7 @@ public final class StartupPhaseRuntime {
         specLoaders.clear();
         specSubphases.clear();
         hotCalls.clear();
+        hotPaths.clear();
         mergedReads.clear();
         activePlugin = null;
         activePluginNanos = 0L;
@@ -309,6 +315,20 @@ public final class StartupPhaseRuntime {
         }
     }
 
+    /** Counts calls and distinct logical paths at one exact, opt-in startup call site. */
+    public static void hotPath(String label, String path) {
+        try {
+            if (label == null) {
+                return;
+            }
+            recordHotPath(label, path);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Woven diagnostics are never allowed to affect startup.
+        }
+    }
+
     static synchronized Map<String, Object> telemetry() {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("installed", installed);
@@ -320,6 +340,7 @@ public final class StartupPhaseRuntime {
         output.put("specSubphases", specSubphases.values().stream()
                 .map(SpecSubphase::toMap).toList());
         output.put("hotCalls", hotCalls.values().stream().map(HotCall::toMap).toList());
+        output.put("hotPaths", hotPaths.values().stream().map(HotPath::toMap).toList());
         output.put("mergedReads", mergedReads.values().stream().map(MergedRead::toMap).toList());
         output.put("activePlugin", activePlugin);
         output.put("activeSpecLoader", activeSpecLoader);
@@ -449,6 +470,21 @@ public final class StartupPhaseRuntime {
         timing.record(durationNanos);
     }
 
+    private static synchronized void recordHotPath(String label, String path) {
+        HotPath paths = hotPaths.get(label);
+        if (paths == null) {
+            if (hotPaths.size() >= MAX_HOT_PATH_GROUPS) {
+                label = "<overflow>";
+                paths = hotPaths.get(label);
+            }
+            if (paths == null) {
+                paths = new HotPath(label);
+                hotPaths.put(label, paths);
+            }
+        }
+        paths.record(path);
+    }
+
     private static long millis(long nanos) {
         return Math.max(0L, nanos / 1_000_000L);
     }
@@ -536,6 +572,39 @@ public final class StartupPhaseRuntime {
             timing.put("durationMillis", millis(totalNanos));
             timing.put("maxCallMillis", millis(maxNanos));
             return timing;
+        }
+    }
+
+    private static final class HotPath {
+        private final String label;
+        private final Set<String> distinct = new HashSet<>();
+        private long calls;
+        private long nullPaths;
+        private boolean truncated;
+
+        private HotPath(String label) {
+            this.label = label;
+        }
+
+        private void record(String path) {
+            calls++;
+            if (path == null) {
+                nullPaths++;
+            } else if (distinct.size() < MAX_DISTINCT_HOT_PATHS) {
+                distinct.add(path);
+            } else if (!distinct.contains(path)) {
+                truncated = true;
+            }
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> paths = new LinkedHashMap<>();
+            paths.put("label", label);
+            paths.put("calls", calls);
+            paths.put("distinctPaths", distinct.size());
+            paths.put("nullPaths", nullPaths);
+            paths.put("truncated", truncated);
+            return paths;
         }
     }
 
