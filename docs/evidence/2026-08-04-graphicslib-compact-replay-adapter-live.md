@@ -56,3 +56,23 @@ performance evidence.
 Full `mvn verify` passes, including the installed Graphics.jar transform integration test. The live
 adapter remains explicit and retains original bytes on every class, archive, source-kind, loader,
 or replacement-resource mismatch.
+
+## Rejected normal-only replay follow-up
+
+On 2026-08-05 the retained startup breakdown showed the compact replay making 9,336 calls through
+GraphicsLib's public material/normal/surface mapper. An exact, exception-safe experiment skipped the
+already-completed material and surface branches only for that captured-request replay. It removed
+exactly 18,672 texture-data lookups while leaving every other mapper call and the runtime-enable
+fallback unchanged.
+
+The adjacent live result did not justify the extra bytecode:
+
+| run | compact replay | complete auto-generation block |
+| --- | ---: | ---: |
+| retained implementation | **0.28s** | **0.61s** |
+| normal-only experiment 1 | 0.35s | 0.68s |
+| normal-only experiment 2 | 0.30s | 0.70s |
+
+The second run reached the menu at 24.72s, so this was not general machine slowdown. Branch/wrapper
+overhead and first-use variance consumed the redundant lookup savings. The experiment was deleted;
+do not reintroduce it without a design that avoids per-request control-flow machinery.

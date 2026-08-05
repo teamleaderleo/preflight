@@ -716,6 +716,11 @@ synchronous rolling-file writes. The installed-log4j replay prices that crash-sa
 38 exact transformations without fallback, ended the 6.3MB log on a complete newline, and left no
 JVM. Buffered `--quiet-logs` remains explicit because only it can lose the final 64KiB on a hard
 crash.
+GraphicsLib's compact replay was also tested with its already-completed material and surface
+branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
+measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete
+auto-generation block likewise rose from 0.61s to 0.68--0.70s. The exact exception-safe transform
+was deleted. Do not repeat this branch-per-request approach.
 Nexerelin's remaining 0.6--0.9s callback is now exactly attributed rather than guessed at. Across
 75 faction configs, cached merged reads cost only 0.11--0.15s and 6,655 JSON accesses only
 0.06--0.09s. About 0.30s comes from the first missing `doesVariantExist` call constructing the
