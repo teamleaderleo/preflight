@@ -508,7 +508,9 @@ independent Preflight caches remain available.
 - Launch the game with `--direct`; without it the run stalls on the launcher's Play button and
   measures nothing. Leo runs the launches; keep other CPU off the machine while one is measuring.
 - `ls` is aliased to `eza` — use `command ls`. `grep --include=*.java` fails under this zsh.
-  `mvn -pl X test` needs `-am`; `-Dtest=` needs `-Dsurefire.failIfNoSpecifiedTests=false`.
+  `.mvn/maven.config` supplies `--also-make`, so narrow `mvn -pl X ...` commands cannot silently
+  compile against stale installed reactor dependencies. `-Dtest=` still needs
+  `-Dsurefire.failIfNoSpecifiedTests=false` when upstream modules are included.
 - The game's JRE has no compiler module, so single-file source launch fails with
   `InternalError: Module jdk.compiler not in boot Layer`. Compile with `javac --release 17` on the
   system JDK, then run the `.class` on the game's `java`.
