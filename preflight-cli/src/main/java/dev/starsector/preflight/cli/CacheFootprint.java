@@ -23,17 +23,19 @@ import java.util.TreeMap;
  */
 final class CacheFootprint {
     /** Directories under the home whose contents are reported separately. */
-    private static final Map<String, String> CATEGORIES = new LinkedHashMap<>(Map.of(
-            "cache/blobs", "prepared texture payloads, shared across profiles by content hash",
-            "cache/resource-indexes", "one per prepared profile",
-            "cache/manifests", "one per prepared profile",
-            "cache/spec-store", "prepared JSON, rules and command-class artifacts",
-            "cache/classpath", "mod jar and class inventories",
-            "cache/comparison-state-snapshots", "benchmark comparison inputs",
-            "cache/reports", "generated reports",
-            "runs", "per-launch evidence: adapter reports, phase timings, recordings",
-            "benchmarks", "recorded benchmark scenarios",
-            "bin", "the installed copy of preflight.jar"));
+    private static final Map<String, String> CATEGORIES = new LinkedHashMap<>(Map.ofEntries(
+            Map.entry("cache/blobs", "prepared texture payloads, shared across profiles by content hash"),
+            Map.entry("cache/resource-indexes", "one per prepared profile"),
+            Map.entry("cache/manifests", "one per prepared profile"),
+            Map.entry("cache/spec-store", "prepared JSON, rules and command-class artifacts"),
+            Map.entry("cache/prepared-audio", "decoded PCM and exact-profile audio manifests"),
+            Map.entry("cache/generated-bytecode", "exact-context Janino class maps and deduplicated packs"),
+            Map.entry("cache/classpath", "mod jar and class inventories"),
+            Map.entry("cache/comparison-state-snapshots", "benchmark comparison inputs"),
+            Map.entry("cache/reports", "generated reports"),
+            Map.entry("runs", "per-launch evidence: adapter reports, phase timings, recordings"),
+            Map.entry("benchmarks", "recorded benchmark scenarios"),
+            Map.entry("bin", "the installed copy of preflight.jar")));
 
     private CacheFootprint() {
     }

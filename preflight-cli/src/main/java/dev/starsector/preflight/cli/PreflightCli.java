@@ -260,7 +260,9 @@ public final class PreflightCli {
                 "  one the current install matches.",
                 "preflight cache prune [--yes]",
                 "  Removes every profile except the current one, including the texture blobs",
-                "  no surviving profile references. Prints the plan and exits unless --yes."));
+                "  no surviving profile references, stale Janino contexts, and per-request",
+                "  bytecode bundles exactly represented by the retained deduplicated pack.",
+                "  Prints the plan and exits unless --yes."));
         usage.put("scan", List.of(
                 "preflight scan [--game <path>] [--launcher <path>] [--json <profile.json>] [--vram-budget <size>] [--max-texture-size <pixels>]",
                 "  --vram-budget accepts bytes or a K/M/G suffix (e.g. 4G); adds a decoded-VRAM budget verdict",

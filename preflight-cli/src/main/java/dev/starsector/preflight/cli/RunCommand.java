@@ -876,7 +876,7 @@ final class RunCommand {
         }
     }
 
-    private static String janinoLaunchContract(
+    static String janinoLaunchContract(
             ProfileIdentityContext context, LaunchTarget target) throws IOException {
         List<Path> candidates = List.of(
                 target.launcher(),

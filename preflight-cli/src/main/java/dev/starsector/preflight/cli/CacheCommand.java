@@ -59,7 +59,9 @@ final class CacheCommand {
         }
 
         Set<String> keepIdentities = liveSpecStoreIdentities(home, current);
-        CachePrune.Plan plan = CachePrune.plan(home, Set.of(current), keepIdentities);
+        Set<String> keepJaninoContexts = liveJaninoContexts(home, current);
+        CachePrune.Plan plan = CachePrune.plan(
+                home, Set.of(current), keepIdentities, keepJaninoContexts);
 
         if (!plan.safe()) {
             System.err.println("Refusing to prune:");
@@ -81,6 +83,12 @@ final class CacheCommand {
         long blobRemovals = plan.removals().stream()
                 .filter(removal -> "unreferenced blob".equals(removal.reason()))
                 .count();
+        long redundantBytecode = plan.removals().stream()
+                .filter(removal -> "redundant generated-bytecode bundle".equals(removal.reason()))
+                .count();
+        long staleBytecode = plan.removals().stream()
+                .filter(removal -> removal.reason().startsWith("stale generated-bytecode context "))
+                .count();
         out.printf(Locale.ROOT, "Keeping profile %s (the current install).%n%n",
                 current.substring(0, 16));
         out.printf(Locale.ROOT, "%s %,d files, freeing %s:%n",
@@ -89,8 +97,15 @@ final class CacheCommand {
                 CacheFootprint.humanBytes(plan.bytes()));
         out.printf(Locale.ROOT, "  %,d unreferenced texture blobs (%,d stay, still referenced)%n",
                 blobRemovals, plan.reachableBlobs());
+        if (redundantBytecode > 0 || staleBytecode > 0) {
+            out.printf(Locale.ROOT,
+                    "  %,d redundant and %,d stale-context generated-bytecode files%n",
+                    redundantBytecode, staleBytecode);
+        }
         for (CachePrune.Removal removal : plan.removals()) {
-            if (!"unreferenced blob".equals(removal.reason())) {
+            if (!"unreferenced blob".equals(removal.reason())
+                    && !"redundant generated-bytecode bundle".equals(removal.reason())
+                    && !removal.reason().startsWith("stale generated-bytecode context ")) {
                 out.printf(Locale.ROOT, "  %-28s %9s  %s%n",
                         removal.reason(),
                         CacheFootprint.humanBytes(removal.bytes()),
@@ -109,6 +124,30 @@ final class CacheCommand {
         out.printf(Locale.ROOT, "Freed %s.%n", CacheFootprint.humanBytes(freed));
         out.println("The kept profile is untouched, so the next launch is still a warm one.");
         return 0;
+    }
+
+    /** Exact compiler context reachable from the current install, or empty to retain them all. */
+    private static Set<String> liveJaninoContexts(PreflightHome home, String fingerprint) {
+        Path index = home.cache().resolve("resource-indexes").resolve(fingerprint + ".spfi");
+        if (!Files.isRegularFile(index)) return Set.of();
+        try {
+            DiscoveryResult discovery = StarsectorDiscovery.discover(
+                    Platform.current(),
+                    Path.of(System.getProperty("user.home")),
+                    Path.of(System.getProperty("user.dir")),
+                    System.getenv(), null, null);
+            LaunchTarget target = discovery.selected();
+            if (target == null) return Set.of();
+            try (ProfileIdentityContext context =
+                         ProfileIdentityContext.open(target.installRoot(), index)) {
+                var archives = JaninoProfileIdentityBuilder.discoverOrderedArchives(context);
+                String launchContract = RunCommand.janinoLaunchContract(context, target);
+                return Set.of(JaninoProfileIdentityBuilder.build(
+                        context, archives, launchContract).context().keySha256());
+            }
+        } catch (Exception unreadable) {
+            return Set.of();
+        }
     }
 
     /**

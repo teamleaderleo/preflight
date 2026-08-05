@@ -146,6 +146,21 @@ public final class GeneratedBytecodePack {
         return result;
     }
 
+    /** Whether this pack makes one older per-request bundle byte-for-byte redundant. */
+    public boolean exactlyContains(GeneratedBytecodeBundle bundle) {
+        Objects.requireNonNull(bundle, "bundle");
+        if (!contextKeySha256.equals(bundle.contextKeySha256())) return false;
+        List<String> members = requests.get(bundle.requestedClassName());
+        Map<String, byte[]> bundled = bundle.internalClasses();
+        if (members == null || members.size() != bundled.size()) return false;
+        for (String member : members) {
+            byte[] packed = classes.get(member);
+            byte[] separate = bundled.get(member);
+            if (packed == null || separate == null || !Arrays.equals(packed, separate)) return false;
+        }
+        return true;
+    }
+
     public static Path path(Path cacheRoot, String contextKeySha256) {
         Hashes.decodeSha256(contextKeySha256);
         String context = contextKeySha256.toLowerCase(Locale.ROOT);

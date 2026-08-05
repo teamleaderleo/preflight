@@ -4,11 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.GeneratedBytecodeBundle;
+import dev.starsector.preflight.core.GeneratedBytecodeCache;
+import dev.starsector.preflight.core.GeneratedBytecodePack;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -134,6 +138,44 @@ class CachePruneTest {
         assertFalse(removedNames(plan).contains(live.getFileName().toString()));
     }
 
+    @Test
+    void staleJaninoContextsAndBundlesProvenRedundantByThePackArePruned() throws Exception {
+        PreflightHome preflight = home();
+        String liveContext = "6".repeat(64);
+        String staleContext = "7".repeat(64);
+        byte[] bytecode = classBytes(JaninoFixture.class);
+        GeneratedBytecodeBundle bundle = new GeneratedBytecodeBundle(
+                liveContext,
+                JaninoFixture.class.getName(),
+                Map.of(JaninoFixture.class.getName(), bytecode));
+        GeneratedBytecodeCache.write(preflight.cache(), bundle);
+        Path separate = GeneratedBytecodeCache.bundlePath(
+                preflight.cache(), liveContext, JaninoFixture.class.getName());
+        GeneratedBytecodePack.Builder builder = new GeneratedBytecodePack.Builder(liveContext);
+        assertTrue(builder.record(bundle.requestedClassName(), bundle.classes()));
+        Path pack = GeneratedBytecodePack.path(preflight.cache(), liveContext);
+        GeneratedBytecodePack.write(pack, builder.build());
+
+        Path stale = preflight.cache().resolve("generated-bytecode/77")
+                .resolve(staleContext).resolve("old.spjb");
+        Files.createDirectories(stale.getParent());
+        Files.writeString(stale, "old context");
+
+        CachePrune.Plan plan = CachePrune.plan(
+                preflight, Set.of("8".repeat(64)), Set.of(), Set.of(liveContext));
+
+        assertTrue(plan.removals().stream().anyMatch(removal -> removal.path().equals(separate)
+                && "redundant generated-bytecode bundle".equals(removal.reason())));
+        assertTrue(plan.removals().stream().anyMatch(removal -> removal.path().equals(stale)
+                && removal.reason().startsWith("stale generated-bytecode context ")));
+        assertFalse(plan.removals().stream().anyMatch(removal -> removal.path().equals(pack)));
+
+        CachePrune.apply(plan);
+        assertTrue(Files.isRegularFile(pack));
+        assertFalse(Files.exists(separate));
+        assertFalse(Files.exists(stale));
+    }
+
     private PreflightHome home() {
         return PreflightHome.resolve(Platform.MAC, home, Map.of());
     }
@@ -183,5 +225,16 @@ class CachePruneTest {
         TextureManifestIO.write(
                 preflight.cache().resolve("manifests").resolve(fingerprint + ".spfm"),
                 new TextureManifest(fingerprint, entries));
+    }
+
+    private static byte[] classBytes(Class<?> type) throws IOException {
+        String resource = "/" + type.getName().replace('.', '/') + ".class";
+        try (InputStream input = type.getResourceAsStream(resource)) {
+            if (input == null) throw new IOException("Missing class bytes for " + type.getName());
+            return input.readAllBytes();
+        }
+    }
+
+    private static final class JaninoFixture {
     }
 }

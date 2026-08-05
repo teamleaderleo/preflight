@@ -159,6 +159,12 @@ class GeneratedBytecodeBundleTest {
         GeneratedBytecodePack decoded = GeneratedBytecodePack.fromBytes(encoded);
         Map<String, byte[]> first = decoded.classesFor(Alpha.class.getName());
         Map<String, byte[]> second = decoded.classesFor(Beta.class.getName());
+        assertTrue(decoded.exactlyContains(new GeneratedBytecodeBundle(
+                context, Alpha.class.getName(), both)));
+        assertTrue(!decoded.exactlyContains(new GeneratedBytecodeBundle(
+                context, Alpha.class.getName(), Map.of(Alpha.class.getName(), alpha))));
+        assertTrue(!decoded.exactlyContains(new GeneratedBytecodeBundle(
+                "0".repeat(64), Alpha.class.getName(), both)));
         assertEquals(first.keySet(), second.keySet());
         first.put("synthetic.Extra", new byte[] {1});
         first.get(Alpha.class.getName())[4] ^= 1;
