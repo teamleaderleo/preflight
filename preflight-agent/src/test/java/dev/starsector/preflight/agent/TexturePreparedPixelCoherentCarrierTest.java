@@ -238,6 +238,36 @@ class TexturePreparedPixelCoherentCarrierTest {
         }
     }
 
+    @Test
+    void directUploadDoesNotMaterializeTheReadableCarrierUntilAnotherConsumerAsks() throws Exception {
+        byte[] bottomUpRgb = sequential(12);
+        Fixture fixture = fixture(2, 2, 3, bottomUpRgb);
+        configure(fixture);
+
+        BufferedImage carrier = TexturePreparedPixelRuntime.load("graphics/test.png");
+        assertTrue(TexturePreparedPixelRuntime.isCarrier(carrier));
+        assertEquals(0xff070809, carrier.getRGB(0, 0));
+        assertEquals(0xff0a0b0c, carrier.getRGB(1, 0));
+
+        Map<String, Object> beforeUpload = TexturePreparedPixelRuntime.telemetry();
+        assertEquals(0L, beforeUpload.get("carrierRasterMaterializations"));
+        assertEquals(0L, beforeUpload.get("carrierRasterBytes"));
+
+        TexturePreparedPixelRuntime.PreparedPixel prepared = TexturePreparedPixelRuntime.prepare(carrier);
+        assertNotNull(prepared);
+        assertArrayEquals(bottomUpRgb, bytes(prepared.buffer()));
+        TexturePreparedPixelRuntime.release(prepared.buffer());
+
+        Map<String, Object> afterUpload = TexturePreparedPixelRuntime.telemetry();
+        assertEquals(0L, afterUpload.get("carrierRasterMaterializations"));
+        assertEquals(0L, afterUpload.get("carrierRasterBytes"));
+
+        assertTrue(carrier.getRaster().getDataBuffer() instanceof java.awt.image.DataBufferByte);
+        Map<String, Object> afterRasterAccess = TexturePreparedPixelRuntime.telemetry();
+        assertEquals(1L, afterRasterAccess.get("carrierRasterMaterializations"));
+        assertEquals(12L, afterRasterAccess.get("carrierRasterBytes"));
+    }
+
     private void configure(Fixture fixture) {
         TexturePreparedPixelRuntime.beginSession();
         assertTrue(TextureCompatibilityRuntime.configure(

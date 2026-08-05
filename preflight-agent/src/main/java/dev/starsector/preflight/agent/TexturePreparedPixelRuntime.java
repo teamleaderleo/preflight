@@ -3,7 +3,14 @@ package dev.starsector.preflight.agent;
 import dev.starsector.preflight.core.GpuTextureFootprint;
 import dev.starsector.preflight.core.PreparedTexture;
 import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
+import java.awt.image.ImageProducer;
+import java.awt.image.Raster;
+import java.awt.image.SampleModel;
+import java.awt.image.WritableRaster;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -79,10 +86,11 @@ public final class TexturePreparedPixelRuntime {
      * paths to the cache crashed the load in {@code com.fs.graphics.oO0O}, a greyscale-to-alpha mask
      * converter, on 2026-08-01, and the prefetch bypass had to be disabled here as a result.
      *
-     * <p>It is now false, because {@link CarrierImage} always materialises a readable raster. The
-     * boolean is kept rather than deleted: it names the hazard, and reintroducing a token carrier
-     * for any subset of textures means making this true again for that subset. The invariant itself
-     * is pinned by a test that walks the whole raster of a carrier, not by this method.
+     * <p>It is now false, because {@link CarrierImage} always has a full-size readable surface. Its
+     * ordinary surface maps top-down raster reads onto immutable bottom-up prepared pixels without
+     * copying them; it materialises a conventional writable raster before exposing one to another
+     * consumer. The invariant itself is pinned by a test that walks the whole raster of a carrier,
+     * not by this method.
      */
     static boolean servesUnreadableCarriers() {
         return false;
@@ -630,6 +638,7 @@ public final class TexturePreparedPixelRuntime {
         private final boolean coherentDirect;
         private final int rasterBytes;
         private final AtomicBoolean sharedHitCredited = new AtomicBoolean();
+        private volatile BufferedImage materialized;
 
         private CarrierImage(
                 String logicalPath,
@@ -641,14 +650,10 @@ public final class TexturePreparedPixelRuntime {
                     logicalPath,
                     texture,
                     layout,
-                    // Every carrier is readable, unconditionally. The old alternative was a 1x1
-                    // raster that reported the texture's real dimensions, which is only safe while
-                    // the rewritten conversion is the sole consumer -- and it stopped being the
-                    // sole consumer the moment this mode could take the prefetch bypass. The
-                    // materialisation this costs was already being paid for 6,123 of 6,651
-                    // carriers on the measured profile, because every NPOT texture took the
-                    // coherent path already. See servesUnreadableCarriers().
-                    TexturePreparedPixelCarrierSurface.coherent(texture),
+                    // Full-size and readable from construction, but backed by the immutable SPFT
+                    // array through a bottom-up row mapping. A conventional DataBufferByte surface
+                    // is created only if another consumer asks for a raster or mutation API.
+                    TexturePreparedPixelCarrierSurface.lazy(texture),
                     coherentOriginalConvert,
                     coherentDirect);
         }
@@ -677,6 +682,24 @@ public final class TexturePreparedPixelRuntime {
             return sharedHitCredited.compareAndSet(false, true);
         }
 
+        private BufferedImage materialized() {
+            BufferedImage existing = materialized;
+            if (existing != null) {
+                return existing;
+            }
+            synchronized (this) {
+                existing = materialized;
+                if (existing == null) {
+                    TexturePreparedPixelCarrierSurface.Surface surface =
+                            TexturePreparedPixelCarrierSurface.coherent(texture);
+                    existing = new BufferedImage(surface.colorModel(), surface.raster(), false, null);
+                    materialized = existing;
+                    TELEMETRY.materialized(surface.rasterBytes(), coherent());
+                }
+            }
+            return existing;
+        }
+
         @Override
         public int getWidth() {
             return texture.originalWidth();
@@ -686,11 +709,99 @@ public final class TexturePreparedPixelRuntime {
         public int getHeight() {
             return texture.originalHeight();
         }
+
+        @Override
+        public WritableRaster getRaster() {
+            return materialized().getRaster();
+        }
+
+        @Override
+        public WritableRaster getAlphaRaster() {
+            return materialized().getAlphaRaster();
+        }
+
+        @Override
+        public SampleModel getSampleModel() {
+            return materialized().getSampleModel();
+        }
+
+        @Override
+        public Raster getTile(int tileX, int tileY) {
+            return materialized().getTile(tileX, tileY);
+        }
+
+        @Override
+        public Raster getData() {
+            return materialized().getData();
+        }
+
+        @Override
+        public Raster getData(Rectangle rectangle) {
+            return materialized().getData(rectangle);
+        }
+
+        @Override
+        public WritableRaster copyData(WritableRaster destination) {
+            return materialized().copyData(destination);
+        }
+
+        @Override
+        public WritableRaster getWritableTile(int tileX, int tileY) {
+            return materialized().getWritableTile(tileX, tileY);
+        }
+
+        @Override
+        public void setData(Raster source) {
+            materialized().setData(source);
+        }
+
+        @Override
+        public void setRGB(int x, int y, int rgb) {
+            materialized().setRGB(x, y, rgb);
+        }
+
+        @Override
+        public void setRGB(int startX, int startY, int width, int height,
+                int[] rgbArray, int offset, int scansize) {
+            materialized().setRGB(startX, startY, width, height, rgbArray, offset, scansize);
+        }
+
+        @Override
+        public Graphics getGraphics() {
+            return materialized().getGraphics();
+        }
+
+        @Override
+        public Graphics2D createGraphics() {
+            return materialized().createGraphics();
+        }
+
+        @Override
+        public ImageProducer getSource() {
+            return materialized().getSource();
+        }
+
+        @Override
+        public BufferedImage getSubimage(int x, int y, int width, int height) {
+            return materialized().getSubimage(x, y, width, height);
+        }
+
+        @Override
+        public void coerceData(boolean alphaPremultiplied) {
+            // BufferedImage's constructor invokes this method virtually before CarrierImage's
+            // fields are assigned. Both surfaces are created non-premultiplied and the constructor
+            // passes false, so there is nothing to coerce during that one pre-initialisation call.
+            if (texture == null) {
+                return;
+            }
+            materialized().coerceData(alphaPremultiplied);
+        }
     }
 
     private static final class Telemetry {
         private long carriers;
         private long carrierRasterBytes;
+        private long carrierRasterMaterializations;
         private long coherentCarriers;
         private long coherentCarrierBytes;
         private long coherentDirectCarriers;
@@ -715,6 +826,7 @@ public final class TexturePreparedPixelRuntime {
         synchronized void reset() {
             carriers = 0;
             carrierRasterBytes = 0;
+            carrierRasterMaterializations = 0;
             coherentCarriers = 0;
             coherentCarrierBytes = 0;
             coherentDirectCarriers = 0;
@@ -739,9 +851,6 @@ public final class TexturePreparedPixelRuntime {
 
         synchronized void carrier(long rasterBytes, boolean coherent, boolean coherentDirect) {
             carriers++;
-            // Every carrier materialises a readable raster now, so this is the mode's true
-            // materialisation cost. coherentCarrierBytes below still counts only the carriers the
-            // NPOT policy flags select, which is a strictly smaller set.
             carrierRasterBytes = saturatedAdd(carrierRasterBytes, rasterBytes);
             if (coherent) {
                 coherentCarriers++;
@@ -749,6 +858,14 @@ public final class TexturePreparedPixelRuntime {
             }
             if (coherentDirect) {
                 coherentDirectCarriers++;
+            }
+        }
+
+        synchronized void materialized(long rasterBytes, boolean coherent) {
+            carrierRasterMaterializations++;
+            carrierRasterBytes = saturatedAdd(carrierRasterBytes, rasterBytes);
+            if (coherent) {
+                coherentCarrierBytes = saturatedAdd(coherentCarrierBytes, rasterBytes);
             }
         }
 
@@ -833,6 +950,7 @@ public final class TexturePreparedPixelRuntime {
             values.put("maxActiveBuffers", MAX_ACTIVE_BUFFERS);
             values.put("maxLayoutObservations", MAX_LAYOUT_OBSERVATIONS);
             values.put("carriers", carriers);
+            values.put("carrierRasterMaterializations", carrierRasterMaterializations);
             values.put("carrierRasterBytes", carrierRasterBytes);
             values.put("coherentCarriers", coherentCarriers);
             values.put("coherentCarrierBytes", coherentCarrierBytes);

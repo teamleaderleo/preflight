@@ -140,7 +140,8 @@ class TexturePreparedPixelAgentIT {
         assertTrue(report.contains("\"coherentDirectCarriers\":1"), report);
         assertTrue(report.contains("\"coherentDirectHits\":1"), report);
         assertTrue(report.contains("\"coherentCarriers\":1"), report);
-        assertTrue(report.contains("\"coherentCarrierBytes\":27"), report);
+        assertTrue(report.contains("\"carrierRasterMaterializations\":0"), report);
+        assertTrue(report.contains("\"coherentCarrierBytes\":0"), report);
         assertTrue(report.contains("\"hits\":1"), report);
         assertTrue(report.contains("\"fallbacks\":0"), report);
         assertTrue(report.contains("\"npotProbeFallbacks\":0"), report);
