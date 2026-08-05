@@ -49,6 +49,7 @@ final class AdapterRuntime {
         DeploymentIconCacheRuntime.beginSession();
         CommodityEventModMemoRuntime.beginSession();
         CampaignEntityMaintenanceRuntime.beginSession();
+        FleetAiProfilerRuntime.beginSession();
         SimOpponentSafetyRuntime.beginSession();
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();

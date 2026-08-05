@@ -645,6 +645,38 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget fleetAiProfilerLabelTarget() {
+        return new AdapterTarget(
+                "vanilla-modular-fleet-ai-profiler-label-0.98a-rc8",
+                FleetAiProfilerPlan.FLEET_AI_CLASS,
+                FleetAiProfilerPlan.FLEET_AI_SHA256,
+                FleetAiProfilerRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FleetAiProfilerPlan.ADVANCE,
+                        FleetAiProfilerPlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    static AdapterTarget profilerToggleTarget() {
+        return new AdapterTarget(
+                "vanilla-profiler-state-publish-0.98a-rc8",
+                FleetAiProfilerPlan.PROFILER_CLASS,
+                FleetAiProfilerPlan.PROFILER_SHA256,
+                FleetAiProfilerRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        FleetAiProfilerPlan.PROFILER_TOGGLE,
+                        FleetAiProfilerPlan.PROFILER_TOGGLE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/fs.common_obf.jar",
+                "10d89e113f6d1627cc7bc90b692e8a7f450fdd820c5a4ac5edaecd6710afe708",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The exact refit simulator method that consumes the merged simulation-opponent id list. */
     static AdapterTarget simOpponentSafetyTarget() {
         return new AdapterTarget(
@@ -1030,6 +1062,10 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignMarketSnapshotTarget());
     }
 
+    AdapterTargetRegistry withFleetAiProfilerTargets() {
+        return withTarget(fleetAiProfilerLabelTarget()).withTarget(profilerToggleTarget());
+    }
+
     AdapterTargetRegistry withSimOpponentSafetyTarget() {
         return withTarget(simOpponentSafetyTarget()).withTarget(simOpponentDialogProbeTarget());
     }
@@ -1304,6 +1340,8 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignEntityScriptsTarget())
                 .withTarget(campaignFleetViewSnapshotTarget())
                 .withTarget(campaignMarketSnapshotTarget())
+                .withTarget(fleetAiProfilerLabelTarget())
+                .withTarget(profilerToggleTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())

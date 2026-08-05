@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: market/fleet drill-down complete; two exact maintenance shortcuts live-verified and one
+Status: market/fleet drill-down complete; two exact maintenance shortcuts live-verified and two
 launch-free verified
 
 ## Why another layer was necessary
@@ -292,3 +292,30 @@ three class-grouped timing entries. Cross-frame snapshot caching was explicitly 
 `Market.getIndustries()` exposes the mutable backing list directly to mods. This is a measured
 call-volume-derived allocation reduction, not an FPS claim; the compact iterator itself remains
 launch-free verified and the operator-driven route is not a controlled A/B.
+
+## Disabled fleet-AI profiler labels
+
+The market/fleet drill-down measured 87,759 calls and 2,783.1ms in
+`ModularFleetAI.advance(float)`. Exact installed bytecode exposes an unconditional dynamic label
+inside that path: every ability advance builds `"Ability [" + ability.getId() + "]"` with a new
+`StringBuilder`, then passes it to `com.fs.profiler.Profiler.new(String)`. The shipped profiler is
+disabled by default, and its begin method returns immediately while disabled, so the dynamic string
+and builder have no observable consumer in ordinary play.
+
+Plan `vanilla-fleet-ai-profiler-label-v1` replaces only that exact allocation expression with the
+interned constant `"Ability"` while the profiler is off. A second exact transform publishes the
+state written by the profiler's real `o00000(boolean)` toggle. When profiling is enabled, the
+original bytecode still obtains the ability id and constructs the full label. The shortcut also
+requires both owners to have installed successfully; a partial install, changed class or archive,
+wrong Java version, second transform, or runtime kill switch delegates to the vanilla expression.
+The kill switch is `preflight.campaign.fleetAiProfiler.disabled=true`.
+
+The two reviewed class identities are SHA-256
+`71117478e53743a6950b0062409d51b2194f6cb8a2588d7e1388c365752fdb13` for
+`ModularFleetAI` in `starfarer_obf.jar` and
+`1aa03bca3fc5f39fe3bd7e8c1070be7bf7823336e1e6090916c3c5fcd44a04cf` for `Profiler` in
+`fs.common_obf.jar`; their archive hashes are pinned separately. Executable synthetic coverage
+proves disabled, enabled, disabled-again, partial-install, kill-switch, and second-transform
+behavior. Both real installed classes transform under their exact archives, and full `mvn verify`
+passes. Live telemetry reports avoided and delegated labels, but no live campaign gate has yet been
+run; this is therefore an allocation-removal candidate with no measured count or FPS claim.

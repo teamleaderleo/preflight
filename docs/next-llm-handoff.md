@@ -483,6 +483,15 @@ for every non-empty traversal and all three objects when empty. The observed rou
 3,149,062 avoided heap objects. Cross-frame caching is unsafe because `getIndustries()` exposes the
 mutable backing list directly. The exact installed class composes with the opt-in timer and full
 `mvn verify` passes. This is allocation evidence, not an FPS claim.
+The next exact `ModularFleetAI` candidate removes another disabled-observer cost. Vanilla builds a
+dynamic `Ability [id]` profiler label on every ability advance even though its profiler is normally
+off and immediately returns. Plan `vanilla-fleet-ai-profiler-label-v1` substitutes an interned
+constant only while the profiler is disabled. It exact-transforms the profiler's real toggle to
+publish state, requires both exact owners before taking the shortcut, preserves the complete label
+when profiling is enabled, and delegates on every partial-install or drift case. Synthetic
+off/on/off execution, kill-switch and exact installed-archive tests pass, as does full
+`mvn verify`. It is launch-free verified; the next clean campaign run should live-gate both this
+plan's avoided/delegated counters and the final compact market iterator.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from

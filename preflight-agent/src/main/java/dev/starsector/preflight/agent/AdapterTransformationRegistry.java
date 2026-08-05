@@ -245,6 +245,9 @@ final class AdapterTransformationRegistry {
             byte[] timed = CampaignMarketFleetTimePlan.transform(signature, maintained);
             return timed == null ? maintained : timed;
         }
+        if (FleetAiProfilerRuntime.PLAN_ID.equals(target.planId())) {
+            return FleetAiProfilerPlan.transform(signature, originalBytes);
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);
         }
