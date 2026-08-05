@@ -527,7 +527,13 @@ also removes the wrappers from the ordinary active method's three stable snapsho
 entities, location tokens, and the conditional per-eligible-fleet engagement scan. Every source
 array, callback boundary, iterator count, and conditional remains. Synthetic snapshot semantics and
 exact installed-class composition pass, as does full `mvn verify`. It is launch-free verified and
-reports separate empty/non-empty counts for all five snapshot kinds.
+reports separate empty/non-empty counts for all five snapshot kinds. The subsequent live gate exited
+normally with ACTIVE health, 37 applied transforms, and zero unavailable plans, declines, or failures.
+It exercised 25,529 paused entity, 25,529 paused script, 17,820 active entity, 17,820 active token,
+and 902 conditional engagement captures. Empty scripts (16,766) and tokens (12,495) made the shared
+empty path material. The route avoided 87,600 wrappers plus 58,522 empty-path arrays/iterators,
+about 146,122 heap objects under the shipped `ArrayList` implementation. This is allocation-volume
+evidence rather than an FPS A/B.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from

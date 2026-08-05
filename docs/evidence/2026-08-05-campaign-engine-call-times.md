@@ -2,8 +2,7 @@
 
 Date: 2026-08-05
 
-Status: market/fleet drill-down complete; six exact maintenance shortcuts live-verified and the
-next active/paused location snapshot cleanup launch-free verified
+Status: market/fleet drill-down complete; all current exact maintenance shortcuts live-verified
 
 ## Why another layer was necessary
 
@@ -431,6 +430,21 @@ source list changes and that the empty script path is allocation-free. The exact
 transforms to two paused snapshot captures with three cursors and three active captures with three
 cursors, with zero remaining collection-copy constructors in either method. The entity-index wrapper
 and all three optional location timers coexist in the transformed class. The focused installed-class
-test and full `mvn verify` pass. This change remains launch-free verified; telemetry separately
-measures empty/non-empty active entities, location tokens, engagement entities, paused entities,
-and paused scripts.
+test and full `mvn verify` pass. Telemetry separately measures empty/non-empty active entities,
+location tokens, engagement entities, paused entities, and paused scripts.
+
+`location-snapshots-v2-20260805-104410` then loaded the representative campaign, exercised active
+and paused campaign state, and exited normally. Adapter health was `ACTIVE`: 37 reviewed transforms
+loaded and applied, with zero unavailable plans, declines, or contained failures. Both location
+snapshot hooks installed. The five capture kinds reported:
+
+- paused entities: 0 empty / **25,529 non-empty**;
+- paused scripts: **16,766 empty** / 8,763 non-empty;
+- active entities: 0 empty / **17,820 non-empty**;
+- active location tokens: **12,495 empty** / 5,325 non-empty; and
+- conditional engagement entities: 0 empty / **902 non-empty**.
+
+Every one of the 87,600 captures avoids its private wrapper. Under the shipped `ArrayList`
+implementation, the 29,261 empty script/token captures also avoid a source array and iterator, for
+about **146,122 avoided heap objects** on this short route. This is a call-volume-derived allocation
+count, not an FPS claim; the operator-driven run is not a controlled A/B.
