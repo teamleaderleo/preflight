@@ -356,8 +356,8 @@ allocation claim is made.
 
 ## Restored memory-ID traversal
 
-The later `commodity-direct-key-v4-20260805-111253` allocation profile exposed a separate,
-one-shot cost in `Memory.replaceIdsWithEntities(LinkedHashMap)` while loading a campaign. It was a
+The later `commodity-direct-key-v4-20260805-111253` allocation profile exposed a separate
+per-`Memory` restoration cost in `Memory.replaceIdsWithEntities(LinkedHashMap)`. It was a
 pure execution leaf in 24/1,887 campaign samples (1.27%) and carried 23.49MB of sampled allocation
 weight across ten allocation events. The largest classified pieces were about 8.0MB each for the
 stable key-snapshot object array and a primitive array, plus about 2.0MB each for `ArrayList$Itr`
@@ -380,6 +380,19 @@ and exactly the two reviewed literal replacement sites; any drift retains vanill
 transformed execution and mutation-during-traversal coverage, the exact installed-class transform,
 and full `mvn verify` pass. This targets campaign-load latency and transient allocation, not
 steady-state FPS.
+
+The live `memory-id-restoration-v1-20260805-112758` gate exited normally with ACTIVE adapter health:
+45 transformations applied, zero declined, and zero contained failures. It exercised far more of
+the path than sparse JFR sampling suggested: **69,937 empty** and **9,313 non-empty** restoration
+traversals across the loaded object graph. Empty inputs now return the shared iterator without
+allocating a wrapper, iterator, or array.
+
+At the exact `replaceIdsWithEntities` allocation stack, the preceding recording contained 11
+sampled events / 25.49MB of sampled weight. The live gate contained one event / 1.97MB, a roughly
+**92% sampled-weight reduction**. All five old events containing regex or `ArrayList$Itr` frames
+disappeared. The sole survivor was a `HashMap.resize` underneath a real vanilla map update and is
+deliberately retained. The runs were not identical and the second had external memory load, so this
+is strong stack-removal/allocation evidence rather than a campaign-load timing claim.
 
 ## Compact paused-condition snapshots
 

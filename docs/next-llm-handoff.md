@@ -518,15 +518,18 @@ every non-empty loop, including `Iterator.remove`, remains byte-for-byte in plac
 empty/non-empty execution, exact installed-class transformation, the existing kill switch, and full
 `mvn verify` pass. The combined live gate skipped 4,526,048 empty expiration iterators and 4,604,109
 empty requirement iterators while retaining 343,913 and 265,852 non-empty paths respectively.
-The later v4 allocation profile found a separate one-shot `Memory.replaceIdsWithEntities` campaign-
+The later v4 allocation profile found a separate per-`Memory` `replaceIdsWithEntities` campaign-
 restore seam: 24/1,887 campaign execution samples and 23.49MB of sampled allocation weight. Exact
 bytecode takes a stable `new ArrayList(map.keySet())` snapshot, then compiles literal regexes after
 already proving `enRef_` or `mRef_` prefixes. An offline-green extension preserves the stable key
 snapshot with `toArray()` plus the existing private iterator, removes only the unused wrapper, and
 replaces those anchored literal removals with `substring(6)`/`substring(5)`. Synthetic execution and
 mutation-during-traversal, exact installed-class, and full `mvn verify` tests pass; any class or
-shape drift retains vanilla. **Next step: live-load one save and confirm restoration telemetry and
-the regex/allocation stack disappearance.**
+shape drift retains vanilla. The live gate exited ACTIVE with 45/45 transformations and exercised
+69,937 empty plus 9,313 non-empty traversals. At the exact helper stack, sampled allocation fell
+from 11 events / 25.49MB to one event / 1.97MB; every regex and `ArrayList$Itr` event disappeared.
+The survivor was a required vanilla `HashMap.resize` during a real update. This is allocation-stack
+evidence, not an identical-workload load-time claim.
 The adjacent paused-economy path also constructs `new ArrayList(market.getConditions())` for every
 market. Existing JFR samples assign nine events / about 25.2MB of sampled weight to that unused
 wrapper, while the separate 45.0MB source-array site is necessary for callback-mutation isolation.
