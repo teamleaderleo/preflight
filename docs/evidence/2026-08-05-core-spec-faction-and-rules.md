@@ -61,3 +61,18 @@ the main menu, reported ACTIVE health with 33 transformations, and shut down aut
 regex rewrite is composed with the rules CSV cache, duplicate index, command-class publisher, and
 startup attribution whichever exact target wins selection; it is therefore present in ordinary
 adapter/`--fast` launches, not only diagnostic probes.
+
+## Quoted-number memo rejected
+
+A SAMPLE recording put 14 of the 36 main-thread `WeaponSpecLoader` stacks under the bundled
+`JSONObject`'s quoted-number conversion and `FloatingDecimal`. An exact `json.jar` experiment
+therefore memoised the successful `Double.valueOf(String)` calls shared by `getDouble` and
+`optDouble`. It linked and executed against the installation's own `JSONObject`, preserved numeric
+edge cases, and saw **224,406 hits against 2,357 misses**.
+
+Despite the 99.0% hit rate, the generic map lookup was not cheaper on this Rosetta JVM. The first
+version's projectile/weapon loaders measured 746ms/582ms, versus the preceding 668ms/466ms. Replacing
+contended atomic telemetry with striped counters still produced 650ms/644ms and a 6.34s SpecStore.
+Both implementations, their exact target, tests, and telemetry were deleted. The remaining
+projectile/weapon hydration needs a narrower representation-specific shortcut, not a numeric-string
+cache underneath every JSON consumer.

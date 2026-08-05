@@ -235,6 +235,10 @@ rules loader 1.743 -> 1.682s. The equivalent `Matcher.replaceAll`/`Pattern.split
 exact-gated, composed into ordinary adapter launches, live ACTIVE, and full-verify green. Evidence:
 `docs/evidence/2026-08-05-core-spec-faction-and-rules.md`.
 
+Do not retry a generic quoted-number memo in bundled `JSONObject`: an exact live version reached
+224,406/2,357 hits/misses but regressed weapon hydration, even after removing contended counters.
+It and all plumbing were deleted; the same evidence note records both measured attempts.
+
 The next startup recording exposed a new Rosetta-specific residual in Preflight itself: 452 sampled
 ticks recomputed the payload checksum over 1.21 GB of prepared PCM on the game's two audio loader
 threads, after the encoded input had already been hashed to select an exact content-addressed blob.
