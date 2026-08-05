@@ -18,12 +18,17 @@ public final class CampaignEntityMaintenanceRuntime {
     private static volatile boolean entityScriptsInstalled;
     private static volatile boolean fleetViewInstalled;
     private static volatile boolean marketSnapshotsInstalled;
+    private static volatile boolean memoryInstalled;
     private static long emptyScriptLists;
     private static long nonEmptyScriptLists;
     private static long emptyMarketConditions;
     private static long nonEmptyMarketConditions;
     private static long emptyMarketIndustries;
     private static long nonEmptyMarketIndustries;
+    private static long emptyMemoryExpirations;
+    private static long nonEmptyMemoryExpirations;
+    private static long emptyMemoryRequirements;
+    private static long nonEmptyMemoryRequirements;
 
     private CampaignEntityMaintenanceRuntime() {
     }
@@ -33,12 +38,17 @@ public final class CampaignEntityMaintenanceRuntime {
         entityScriptsInstalled = false;
         fleetViewInstalled = false;
         marketSnapshotsInstalled = false;
+        memoryInstalled = false;
         emptyScriptLists = 0L;
         nonEmptyScriptLists = 0L;
         emptyMarketConditions = 0L;
         nonEmptyMarketConditions = 0L;
         emptyMarketIndustries = 0L;
         nonEmptyMarketIndustries = 0L;
+        emptyMemoryExpirations = 0L;
+        nonEmptyMemoryExpirations = 0L;
+        emptyMemoryRequirements = 0L;
+        nonEmptyMemoryRequirements = 0L;
     }
 
     static boolean enabled() {
@@ -55,6 +65,10 @@ public final class CampaignEntityMaintenanceRuntime {
 
     static void marketSnapshotsInstalled() {
         marketSnapshotsInstalled = true;
+    }
+
+    static void memoryInstalled() {
+        memoryInstalled = true;
     }
 
     public static void emptyScriptList() {
@@ -77,6 +91,24 @@ public final class CampaignEntityMaintenanceRuntime {
         return new SnapshotIterator(values.toArray());
     }
 
+    public static boolean memoryExpirationsPresent(List<?> values) {
+        if (values.isEmpty()) {
+            emptyMemoryExpirations++;
+            return false;
+        }
+        nonEmptyMemoryExpirations++;
+        return true;
+    }
+
+    public static boolean memoryRequirementsPresent(Map<?, ?> values) {
+        if (values.isEmpty()) {
+            emptyMemoryRequirements++;
+            return false;
+        }
+        nonEmptyMemoryRequirements++;
+        return true;
+    }
+
     static Map<String, Object> telemetry() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planId", PLAN_ID);
@@ -84,12 +116,17 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("entityScriptsInstalled", entityScriptsInstalled);
         result.put("fleetViewInstalled", fleetViewInstalled);
         result.put("marketSnapshotsInstalled", marketSnapshotsInstalled);
+        result.put("memoryInstalled", memoryInstalled);
         result.put("emptyScriptLists", emptyScriptLists);
         result.put("nonEmptyScriptLists", nonEmptyScriptLists);
         result.put("emptyMarketConditions", emptyMarketConditions);
         result.put("nonEmptyMarketConditions", nonEmptyMarketConditions);
         result.put("emptyMarketIndustries", emptyMarketIndustries);
         result.put("nonEmptyMarketIndustries", nonEmptyMarketIndustries);
+        result.put("emptyMemoryExpirations", emptyMemoryExpirations);
+        result.put("nonEmptyMemoryExpirations", nonEmptyMemoryExpirations);
+        result.put("emptyMemoryRequirements", emptyMemoryRequirements);
+        result.put("nonEmptyMemoryRequirements", nonEmptyMemoryRequirements);
         return result;
     }
 

@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: market/fleet drill-down complete; two exact maintenance shortcuts live-verified and two
+Status: market/fleet drill-down complete; three exact maintenance shortcuts live-verified and two
 launch-free verified
 
 ## Why another layer was necessary
@@ -328,3 +328,30 @@ normally with zero contained failures and exercised 2,840,164 condition snapshot
 industry snapshots. Conditions were empty 860 times; industries were empty 441,318 times. The three
 market-maintenance hooks all installed. The run's PARTIAL health was caused solely by the two
 fleet-profiler targets retained through the missing availability entry, not by the market adapter.
+
+## Empty memory maintenance
+
+The state-separated allocation samples also expose a high-frequency empty-collection cost in
+`com.fs.starfarer.campaign.rules.Memory.advance(float)`. In the pre-maintenance
+`commodity-event-entry-v3-20260805-035020` recording it was the allocation leaf in 50 campaign
+samples with about 114.3MB of sampled allocation weight: 106.9MB attributed to `ArrayList$Itr`,
+6.3MB to `LinkedHashMap$LinkedKeyIterator`, and 1.0MB to the map's values view. Sampling weight is
+statistical evidence, not a byte-for-byte heap census. The array-list iterators and values view are
+the targeted unconditional allocations. The linked-key iterator occurs inside an active nested
+requirement-set scan and is deliberately retained.
+
+Exact installed bytecode always asks the private expiry list for an iterator and the private
+requirement map for `values().iterator()`. It does this even when either collection is empty. The
+new guards run after vanilla's restoration, pause, clock, and day-conversion work. An empty expiry
+list jumps directly to the requirement gate; an empty requirement map returns. Non-empty lists and
+maps enter their unchanged original loops. In particular, expiry decrement, `unset`, and
+`Iterator.remove` behavior remain untouched, as does the complete requirement scan/removal path.
+
+This fourth maintenance target pins `Memory.class` SHA-256
+`48811db41f31f2bafdeaf73e2f98f864a055efa69dfd8442400042ab967b77d3` and the reviewed core archive,
+method, Java version, source, and loader. Changed or second-transformed code declines, and
+`preflight.campaign.entityMaintenance.disabled=true` restores vanilla together with the other
+maintenance shortcuts. Synthetic execution covers empty and non-empty collections; the real
+installed class transforms at both exact iterator sites. Full `mvn verify` passes. The adapter is
+launch-free verified and reports empty/non-empty counts for a later ordinary campaign gate; no FPS
+or total allocation claim is made yet.

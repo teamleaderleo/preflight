@@ -645,6 +645,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget campaignMemoryMaintenanceTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-memory-empty-maintenance-0.98a-rc8",
+                CampaignEntityMaintenancePlan.MEMORY_CLASS,
+                CampaignEntityMaintenancePlan.MEMORY_SHA256,
+                CampaignEntityMaintenanceRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                        CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     static AdapterTarget fleetAiProfilerLabelTarget() {
         return new AdapterTarget(
                 "vanilla-modular-fleet-ai-profiler-label-0.98a-rc8",
@@ -1059,7 +1075,8 @@ final class AdapterTargetRegistry {
     AdapterTargetRegistry withCampaignEntityMaintenanceTargets() {
         return withTarget(campaignEntityScriptsTarget())
                 .withTarget(campaignFleetViewSnapshotTarget())
-                .withTarget(campaignMarketSnapshotTarget());
+                .withTarget(campaignMarketSnapshotTarget())
+                .withTarget(campaignMemoryMaintenanceTarget());
     }
 
     AdapterTargetRegistry withFleetAiProfilerTargets() {
@@ -1340,6 +1357,7 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignEntityScriptsTarget())
                 .withTarget(campaignFleetViewSnapshotTarget())
                 .withTarget(campaignMarketSnapshotTarget())
+                .withTarget(campaignMemoryMaintenanceTarget())
                 .withTarget(fleetAiProfilerLabelTarget())
                 .withTarget(profilerToggleTarget())
                 .withTarget(simOpponentSafetyTarget())

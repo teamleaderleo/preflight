@@ -496,6 +496,16 @@ the run's two unavailable plans. The entry now exists with a regression test. It
 verified and needs a later clean campaign run for avoided/delegated counts. That attempted run did
 live-gate the final compact market iterator: all three maintenance hooks installed, 5,680,328 total
 market snapshots exercised, zero contained failures, and normal exit.
+Offline allocation analysis then exposed `Memory.advance(float)` allocating an expiry-list iterator
+and requirement-map values view/iterator even when those private collections are empty. A prior
+campaign JFR attributed 50 allocation samples / about 114.3MB of sampled weight to that method,
+mostly the targeted `ArrayList$Itr`; this is statistical weight, not literal allocated bytes. A
+smaller linked-key iterator belongs to active nested requirement scanning and remains. The exact
+maintenance adapter now guards each iterator site after vanilla's restoration, pause, clock and day
+conversion work. Empty expiry lists jump to the requirement gate and empty requirement maps return;
+every non-empty loop, including `Iterator.remove`, remains byte-for-byte in place. Synthetic
+empty/non-empty execution, exact installed-class transformation, the existing kill switch, and full
+`mvn verify` pass. It is launch-free verified and has telemetry for the next ordinary campaign run.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from

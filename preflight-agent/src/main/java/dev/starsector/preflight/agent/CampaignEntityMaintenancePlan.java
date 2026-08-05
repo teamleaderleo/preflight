@@ -8,6 +8,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
@@ -31,6 +32,9 @@ final class CampaignEntityMaintenancePlan {
     static final String MARKET_CLASS = "com/fs/starfarer/campaign/econ/Market";
     static final String MARKET_SHA256 =
             "8e9c1e400b1491406836378df83976c31eec453d2a77f8f13c6d030a52bbc0ae";
+    static final String MEMORY_CLASS = "com/fs/starfarer/campaign/rules/Memory";
+    static final String MEMORY_SHA256 =
+            "48811db41f31f2bafdeaf73e2f98f864a055efa69dfd8442400042ab967b77d3";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
 
@@ -60,6 +64,10 @@ final class CampaignEntityMaintenancePlan {
         if (MARKET_CLASS.equals(signature.internalName())
                 && MARKET_SHA256.equals(signature.sha256())) {
             return transformMarket(originalBytes);
+        }
+        if (MEMORY_CLASS.equals(signature.internalName())
+                && MEMORY_SHA256.equals(signature.sha256())) {
+            return transformMemory(originalBytes);
         }
         return null;
     }
@@ -144,6 +152,83 @@ final class CampaignEntityMaintenancePlan {
         }
         CampaignEntityMaintenanceRuntime.marketSnapshotsInstalled();
         return write(owner);
+    }
+
+    private static byte[] transformMemory(byte[] originalBytes) {
+        ClassNode owner = read(originalBytes);
+        MethodNode method = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+        if (method == null || callsRuntime(method) != 0) return null;
+
+        List<IteratorStart> expires = iteratorStarts(
+                method, "expire", "Ljava/util/List;", "java/util/List", null);
+        List<IteratorStart> requirements = iteratorStarts(
+                method, "require", "Ljava/util/LinkedHashMap;",
+                "java/util/Collection", "java/util/LinkedHashMap");
+        if (expires.size() != 1 || requirements.size() != 1) return null;
+
+        IteratorStart expire = expires.get(0);
+        IteratorStart require = requirements.get(0);
+        LabelNode requireGate = new LabelNode();
+        LabelNode requireBody = new LabelNode();
+        InsnList requireGuard = new InsnList();
+        requireGuard.add(requireGate);
+        requireGuard.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        requireGuard.add(new FieldInsnNode(
+                Opcodes.GETFIELD, MEMORY_CLASS, "require", "Ljava/util/LinkedHashMap;"));
+        requireGuard.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "memoryRequirementsPresent",
+                "(Ljava/util/Map;)Z", false));
+        requireGuard.add(new JumpInsnNode(Opcodes.IFNE, requireBody));
+        requireGuard.add(new InsnNode(Opcodes.RETURN));
+        requireGuard.add(requireBody);
+        method.instructions.insertBefore(require.loadThis, requireGuard);
+
+        InsnList expireGuard = new InsnList();
+        expireGuard.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        expireGuard.add(new FieldInsnNode(
+                Opcodes.GETFIELD, MEMORY_CLASS, "expire", "Ljava/util/List;"));
+        expireGuard.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "memoryExpirationsPresent",
+                "(Ljava/util/List;)Z", false));
+        expireGuard.add(new JumpInsnNode(Opcodes.IFEQ, requireGate));
+        method.instructions.insertBefore(expire.loadThis, expireGuard);
+
+        CampaignEntityMaintenanceRuntime.memoryInstalled();
+        return write(owner);
+    }
+
+    private static List<IteratorStart> iteratorStarts(
+            MethodNode method,
+            String fieldName,
+            String fieldDescriptor,
+            String iteratorOwner,
+            String viewOwner) {
+        List<IteratorStart> result = new ArrayList<>();
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (!(instruction instanceof MethodInsnNode iterator)
+                    || iterator.getOpcode() != Opcodes.INVOKEINTERFACE
+                    || !iteratorOwner.equals(iterator.owner)
+                    || !"iterator".equals(iterator.name)
+                    || !"()Ljava/util/Iterator;".equals(iterator.desc)) continue;
+            AbstractInsnNode producer = previousMeaningful(iterator);
+            if (viewOwner != null) {
+                if (!(producer instanceof MethodInsnNode view)
+                        || view.getOpcode() != Opcodes.INVOKEVIRTUAL
+                        || !viewOwner.equals(view.owner) || !"values".equals(view.name)
+                        || !"()Ljava/util/Collection;".equals(view.desc)) continue;
+                producer = previousMeaningful(view);
+            }
+            AbstractInsnNode loadThis = previousMeaningful(producer);
+            if (producer instanceof FieldInsnNode field
+                    && field.getOpcode() == Opcodes.GETFIELD
+                    && MEMORY_CLASS.equals(field.owner) && fieldName.equals(field.name)
+                    && fieldDescriptor.equals(field.desc)
+                    && loadThis instanceof VarInsnNode load
+                    && load.getOpcode() == Opcodes.ALOAD && load.var == 0) {
+                result.add(new IteratorStart(loadThis));
+            }
+        }
+        return result;
     }
 
     private static List<MarketSnapshot> marketSnapshots(MethodNode method) {
@@ -271,5 +356,8 @@ final class CampaignEntityMaintenancePlan {
             MethodInsnNode constructor,
             MethodInsnNode iterator,
             int kind) {
+    }
+
+    private record IteratorStart(AbstractInsnNode loadThis) {
     }
 }

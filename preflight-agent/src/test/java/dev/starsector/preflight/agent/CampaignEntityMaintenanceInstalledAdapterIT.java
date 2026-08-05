@@ -94,6 +94,17 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
         String timingRuntime = CampaignMarketFleetTimeRuntime.class.getName().replace('.', '/');
         assertEquals(8L, calls(composedAdvance, timingRuntime, "enter"));
         assertEquals(3L, calls(composedAdvance, timingRuntime, "enterClass"));
+
+        byte[] memory = entry(archive, CampaignEntityMaintenancePlan.MEMORY_CLASS);
+        ClassSignature memorySignature = ClassSignature.parse(memory);
+        assertEquals(CampaignEntityMaintenancePlan.MEMORY_SHA256, memorySignature.sha256());
+        byte[] memoryMaintenance = CampaignEntityMaintenancePlan.transform(memorySignature, memory);
+        assertNotNull(memoryMaintenance);
+        MethodNode memoryAdvance = method(read(memoryMaintenance),
+                CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR);
+        assertEquals(1L, calls(memoryAdvance, maintenanceRuntime, "memoryExpirationsPresent"));
+        assertEquals(1L, calls(memoryAdvance, maintenanceRuntime, "memoryRequirementsPresent"));
     }
 
     private static ClassNode read(byte[] bytes) {

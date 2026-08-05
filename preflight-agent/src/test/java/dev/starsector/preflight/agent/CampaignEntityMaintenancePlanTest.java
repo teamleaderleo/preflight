@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -135,6 +136,38 @@ class CampaignEntityMaintenancePlanTest {
         Iterator<?> empty = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
                 List.of(), CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES);
         assertFalse(empty.hasNext());
+    }
+
+    @Test
+    void memorySkipsEmptyIteratorsAndRetainsNonEmptyLoops() throws Exception {
+        byte[] original = memoryFixture();
+        byte[] transformed = CampaignEntityMaintenancePlan.transform(
+                exact(original, CampaignEntityMaintenancePlan.MEMORY_SHA256), original);
+        assertNotNull(transformed);
+        MethodNode advance = method(transformed, CampaignEntityMaintenancePlan.ADVANCE_METHOD);
+        String runtime = CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/');
+        assertEquals(1, calls(advance, runtime, "memoryExpirationsPresent"));
+        assertEquals(1, calls(advance, runtime, "memoryRequirementsPresent"));
+        assertNull(CampaignEntityMaintenancePlan.transform(
+                ClassSignature.parse(transformed), transformed));
+
+        ByteArrayLoader loader = new ByteArrayLoader(Map.of(
+                CampaignEntityMaintenancePlan.MEMORY_CLASS.replace('/', '.'), transformed));
+        Class<?> memoryType = loader.loadClass(
+                CampaignEntityMaintenancePlan.MEMORY_CLASS.replace('/', '.'));
+        Object memory = memoryType.getConstructor().newInstance();
+        var method = memoryType.getMethod(CampaignEntityMaintenancePlan.ADVANCE_METHOD, float.class);
+        method.invoke(memory, 1f);
+        addToList(memoryType, memory, "expire", new Object());
+        addToMap(memoryType, memory, "require", "key", new Object());
+        method.invoke(memory, 1f);
+
+        Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
+        assertEquals(true, telemetry.get("memoryInstalled"));
+        assertEquals(1L, telemetry.get("emptyMemoryExpirations"));
+        assertEquals(1L, telemetry.get("nonEmptyMemoryExpirations"));
+        assertEquals(1L, telemetry.get("emptyMemoryRequirements"));
+        assertEquals(1L, telemetry.get("nonEmptyMemoryRequirements"));
     }
 
     private static byte[] entityFixture() {
@@ -294,6 +327,90 @@ class CampaignEntityMaintenancePlanTest {
         return writer.toByteArray();
     }
 
+    private static byte[] memoryFixture() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.MEMORY_CLASS, null, "java/lang/Object", null);
+        writer.visitField(Opcodes.ACC_PRIVATE, "expire", "Ljava/util/List;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE, "require", "Ljava/util/LinkedHashMap;", null, null)
+                .visitEnd();
+        MethodVisitor constructor = writer.visitMethod(
+                Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/lang/Object", "<init>", "()V", false);
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        constructor.visitInsn(Opcodes.DUP);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/util/ArrayList", "<init>", "()V", false);
+        constructor.visitFieldInsn(Opcodes.PUTFIELD,
+                CampaignEntityMaintenancePlan.MEMORY_CLASS, "expire", "Ljava/util/List;");
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitTypeInsn(Opcodes.NEW, "java/util/LinkedHashMap");
+        constructor.visitInsn(Opcodes.DUP);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/util/LinkedHashMap", "<init>", "()V", false);
+        constructor.visitFieldInsn(Opcodes.PUTFIELD,
+                CampaignEntityMaintenancePlan.MEMORY_CLASS,
+                "require", "Ljava/util/LinkedHashMap;");
+        constructor.visitInsn(Opcodes.RETURN);
+        constructor.visitMaxs(3, 1);
+        constructor.visitEnd();
+
+        MethodVisitor advance = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR, null, null);
+        advance.visitCode();
+        advance.visitVarInsn(Opcodes.ALOAD, 0);
+        advance.visitFieldInsn(Opcodes.GETFIELD,
+                CampaignEntityMaintenancePlan.MEMORY_CLASS, "expire", "Ljava/util/List;");
+        advance.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/List", "iterator", "()Ljava/util/Iterator;", true);
+        advance.visitVarInsn(Opcodes.ASTORE, 2);
+        org.objectweb.asm.Label expireCheck = new org.objectweb.asm.Label();
+        org.objectweb.asm.Label requireStart = new org.objectweb.asm.Label();
+        advance.visitLabel(expireCheck);
+        advance.visitVarInsn(Opcodes.ALOAD, 2);
+        advance.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/Iterator", "hasNext", "()Z", true);
+        advance.visitJumpInsn(Opcodes.IFEQ, requireStart);
+        advance.visitVarInsn(Opcodes.ALOAD, 2);
+        advance.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
+        advance.visitInsn(Opcodes.POP);
+        advance.visitJumpInsn(Opcodes.GOTO, expireCheck);
+        advance.visitLabel(requireStart);
+        advance.visitVarInsn(Opcodes.ALOAD, 0);
+        advance.visitFieldInsn(Opcodes.GETFIELD,
+                CampaignEntityMaintenancePlan.MEMORY_CLASS,
+                "require", "Ljava/util/LinkedHashMap;");
+        advance.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "java/util/LinkedHashMap", "values", "()Ljava/util/Collection;", false);
+        advance.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/Collection", "iterator", "()Ljava/util/Iterator;", true);
+        advance.visitVarInsn(Opcodes.ASTORE, 3);
+        org.objectweb.asm.Label requireCheck = new org.objectweb.asm.Label();
+        org.objectweb.asm.Label done = new org.objectweb.asm.Label();
+        advance.visitLabel(requireCheck);
+        advance.visitVarInsn(Opcodes.ALOAD, 3);
+        advance.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/Iterator", "hasNext", "()Z", true);
+        advance.visitJumpInsn(Opcodes.IFEQ, done);
+        advance.visitVarInsn(Opcodes.ALOAD, 3);
+        advance.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
+        advance.visitInsn(Opcodes.POP);
+        advance.visitJumpInsn(Opcodes.GOTO, requireCheck);
+        advance.visitLabel(done);
+        advance.visitInsn(Opcodes.RETURN);
+        advance.visitMaxs(1, 4);
+        advance.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
     private static void initializeList(MethodVisitor constructor, String field) {
         constructor.visitVarInsn(Opcodes.ALOAD, 0);
         constructor.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
@@ -310,6 +427,14 @@ class CampaignEntityMaintenancePlanTest {
         var field = owner.getDeclaredField(name);
         field.setAccessible(true);
         ((List<Object>) field.get(instance)).add(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addToMap(
+            Class<?> owner, Object instance, String name, Object key, Object value) throws Exception {
+        var field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        ((LinkedHashMap<Object, Object>) field.get(instance)).put(key, value);
     }
 
     private static ClassSignature exact(byte[] bytes, String hash) throws Exception {
