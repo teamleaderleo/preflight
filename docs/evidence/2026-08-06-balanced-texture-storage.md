@@ -1,9 +1,10 @@
 # Balanced texture storage removes 3.13 GB without a measurable startup regression
 
-> **Later update:** `balanced` now leaves blobs raw when LZ4 saves less than 9.1%, reducing the
-> exact startup pack replay by 57.903ms for 9.78MB of pack growth. The original all-LZ4 cohort below
-> remains the evidence that established the policy; current behavior and its codec-independent
-> learned ordering are documented in `2026-08-06-balanced-hybrid-texture-pack.md`.
+> **Later update:** `balanced` now leaves blobs raw when LZ4 saves less than 23.1%. A threshold
+> sweep selected that compact knee, and codec-independent learned ordering made `fastest`
+> materially faster than the earlier poisoned-layout test. The original all-LZ4 cohort below
+> remains the evidence that established the policy; current behavior is documented in
+> `2026-08-06-balanced-hybrid-texture-pack.md`.
 
 **Date:** 2026-08-06
 **Profile:** Starsector 0.98a-RC8, 83 enabled mods, macOS on Apple M5

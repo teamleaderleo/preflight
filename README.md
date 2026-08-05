@@ -161,7 +161,7 @@ java -jar preflight.jar prepare
 ```
 
 Prepared textures have two exact, lossless storage policies. `balanced` is the default and
-compresses them with LZ4 to use substantially less disk, except where compression saves under 9.1%
+compresses them with LZ4 to use substantially less disk, except where compression saves under 23.1%
 and raw storage is faster for nearly no space cost. It retains the same runtime pixels and fail-open
 behavior; `fastest` keeps every upload-ready pixel array raw for minimum decode CPU:
 
@@ -170,10 +170,11 @@ java -jar preflight.jar prepare --texture-storage fastest
 java -jar preflight.jar prepare --texture-storage balanced
 ```
 
-On the 83-mod development profile, `balanced` reduced texture blobs from 5.33 GB to 2.21 GB. Its
-five-launch median was 23.15s versus the adjacent raw cohort's 23.08s, so no material startup
-regression was measurable on the reviewed macOS/Rosetta system. Existing manifests remain active
-until preparation runs again. After changing policies, `java -jar preflight.jar cache prune`
+On the 83-mod development profile, `balanced` reduced the texture pack from 5.34 GB to 2.26 GB.
+Ten shuffled fresh-game-JVM replays measured the exact startup access order at 1,137ms balanced
+versus 691ms fastest; fastest buys about 446ms for 3.08GB. A real learned-order fastest gate reached
+the menu in 18.71s with zero cache or transform failure. Existing manifests remain active until
+preparation runs again. After changing policies, `java -jar preflight.jar cache prune`
 previews the superseded blobs that can be reclaimed; add `--yes` only after reviewing that plan.
 
 Preparation also creates one indexed texture pack per profile. The game opens that pack once and

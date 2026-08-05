@@ -948,16 +948,21 @@ The clean live gate used it 1,300 times for 3.12MB in 150ms, applied all 40 tran
 failure, preserved every texture/normal cache count, reached the menu in 18.88s, and stopped
 normally. The exact corpus result is causal; the single wall time only supports no regression. See
 `docs/evidence/2026-08-06-loading-utils-reader.md`.
-Balanced texture storage now skips LZ4 only where it is objectively ineffective. The installed
-profile selects 1,476 raw and 29,162 LZ4 blobs, growing the 2.204GB pack by only 9.78MB. Seven
-alternating fresh bundled-JVM replays of the exact 14,774-entry startup order moved the pack-read
-median from 1248.789ms to 1190.886ms (-57.903ms, -4.6%) with identical 2.074GB output and checksum.
+Balanced texture storage now skips LZ4 only where it is objectively ineffective. A later threshold
+sweep selected a 1.30x cutoff: the installed profile uses 3,440 raw and 27,198 LZ4 blobs, growing
+the all-LZ4 pack by 54.9MB. Ten shuffled bundled-JVM replays moved the exact 14,774-entry startup
+order from 1122.878ms at 1.10x to 1067.301ms at 1.30x (-55.577ms, -4.9%).
 The live mixed-pack gate preserved every texture/cache count, applied all 40 transforms without
 failure, reached the menu in 19.30s, and stopped normally. Storage-policy switching also preserves
 learned pack order now: observations match by codec-independent content/transformation identity, so
 testing `fastest` can no longer poison the next `balanced` layout. The repaired all-LZ4 layout gate
 was 18.92s and clean. See
 `docs/evidence/2026-08-06-balanced-hybrid-texture-pack.md`.
+That order repair also reversed the earlier conclusion about all-raw. Ten shuffled fresh-JVM
+passes measured 1.10x balanced at 1137.457ms and learned-order raw at 691.143ms (-446.314ms,
+-39.2%) for identical output. The corrected real `fastest` gate reached a new record 18.71s with a
+1,445ms texture seam, all 15,469 hits, zero cache/transform failure, and clean shutdown. It costs
+about 3.08GB over balanced, so it remains explicit rather than the default.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

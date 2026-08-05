@@ -43,7 +43,7 @@ final class TextureBatchBuilder {
     private static final Set<String> IMAGE_IO_READER_EXTENSIONS = imageIoReaderExtensions();
     private static final long ESTIMATED_BUILD_BYTES_PER_PIXEL = 24L;
     private static final long ESTIMATED_BLOB_READ_MULTIPLIER = 3L;
-    static final double BALANCED_RAW_BELOW_RATIO = 1.10;
+    static final double BALANCED_RAW_BELOW_RATIO = 1.30;
 
     private TextureBatchBuilder() {
     }
