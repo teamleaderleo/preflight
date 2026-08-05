@@ -58,14 +58,16 @@ class PreflightCliHelpTest {
     }
 
     @Test
-    void runHelpDisclosesQuietLoggingBenefitAndCrashTradeoff() throws Exception {
+    void runHelpSeparatesCrashSafeFileOnlyLogsFromBufferedQuietLogs() throws Exception {
         String output = capture(new String[] {"run", "--help"}).standardOutput();
 
         assertTrue(output.contains("--fast enables every startup and gameplay cache"), output);
+        assertTrue(output.contains("--file-only-logs"), output);
         assertTrue(output.contains("--quiet-logs"), output);
         assertTrue(output.contains("about 0.40s"), output);
+        assertTrue(output.contains("synchronous, crash-safe INFO writes"), output);
         assertTrue(output.contains("hard crash can lose the final 64 KiB"), output);
-        assertTrue(output.contains("not implied by --fast"), output);
+        assertTrue(output.contains("explicit upgrade over --fast"), output);
     }
 
     @Test

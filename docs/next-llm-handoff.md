@@ -410,7 +410,8 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | | worth | notes |
 | --- | ---: | --- |
 | general merged-read cache | **1.87s direct / 1.31s whole launch** | verified in flight, above |
-| `--quiet-logs` | **0.403s** | merged in #315; replay + real smoke pass |
+| crash-safe file-only logs | **0.249s** | included by `--fast`; unbuffered rolling file retained |
+| `--quiet-logs` | **0.403s total / 0.154s beyond file-only** | merged in #315; replay + real smoke pass |
 | tagged-tree rehydration for the four spec caches | **0.261s** | merged in #316; 394ms -> 132/134ms exact seam |
 | persisted Janino complete maps | **15.650s direct aggregate / 5.37s whole launch** | exact full-profile identity; clean cold/warm live pilot; included by `--fast` |
 | GraphicsLib compact startup replay | **3.038s exact callback** | clean live adapter application; PR #318 |
@@ -419,14 +420,15 @@ parameter `mergedReadCache64`, and `.spmr` in `CachePrune`.
 | OpenAL streaming-source error order | 1 stale error recovered / 0 real generation errors | live exact vanilla repair; false 516ms retry removed |
 | AI Tweaks target-selection range snapshot | 13,405 live selections; four derived calls removed; v2 removes per-candidate range boxing | v1 live; v2 offline/exact green, live FPS/allocation follow-up pending |
 
-**`--quiet-logs` (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
+**File-only and quiet logs (implemented).** The launch emits 122,437 lines, 28,963 of them from `ScriptStore` on `Thread-4`
 contending for log4j 1.2's per-append lock. Replayed from two threads on the game's own JVM and log4j
-jar, the loading thread pays 0.488s as shipped and **0.085s** with the console appender dropped and
-the file appender buffered — and that loses no line, because the file appender already receives
-everything the console does. Route: write a `log4j.properties` override and pass
+jar, the loading thread pays 0.491s as shipped, **0.242s** with the duplicate console appender
+dropped, and **0.088s** when the file appender is buffered too. The crash-safe unbuffered mode is
+included by `--fast`; it retains every synchronous rolling-file write and saves 0.249s. Route:
+write a `log4j.properties` override and pass
 `-Dlog4j.configuration=file:...`; the game's config is a classpath resource inside
 `starfarer_obf.jar`, so log4j 1.2's `LogManager` honours the property without touching the jar.
-Buffering costs the tail on a hard crash, so it is an explicit flag and is not folded into `--fast`.
+Buffering can cost the tail on a hard crash, so only that extra 0.154s remains an explicit flag.
 Normal exit and SIGTERM flush through the existing agent shutdown hook. Current replay measured
 0.491s shipped versus 0.088s quiet, the installed-log4j fidelity probe retained all 10,001 lines,
 and a real 83-mod smoke reached the main-menu marker with a complete newline-terminated log. See
@@ -708,6 +710,12 @@ operations, 105,295 are only CR/LF removal or trailing default-regex whitespace 
 empty replacement. Equivalent character scans reduced the exact regex block from 207ms to 130ms
 and the complete rules loader from 1.282s to 1.214s. A custom literal splitter was tested first,
 raised the block to 267ms, and was deleted; keep Java's reused `Pattern.split`.
+The fast preset now also drops log4j's duplicate console appender while retaining unbuffered,
+synchronous rolling-file writes. The installed-log4j replay prices that crash-safe change at
+0.249s (0.491s to 0.242s). An unattended 83-mod gate reached the menu marker at 25.32s, applied all
+38 exact transformations without fallback, ended the 6.3MB log on a complete newline, and left no
+JVM. Buffered `--quiet-logs` remains explicit because only it can lose the final 64KiB on a hard
+crash.
 Nexerelin's remaining 0.6--0.9s callback is now exactly attributed rather than guessed at. Across
 75 faction configs, cached merged reads cost only 0.11--0.15s and 6,655 JSON accesses only
 0.06--0.09s. About 0.30s comes from the first missing `doesVariantExist` call constructing the

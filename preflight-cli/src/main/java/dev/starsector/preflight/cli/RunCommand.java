@@ -72,8 +72,8 @@ final class RunCommand {
         Path metadata = runDirectory.resolve("run.json");
         Path profile = runDirectory.resolve("profile.json");
         Path console = runDirectory.resolve("console.txt");
-        Path quietLogConfiguration = options.quietLogs()
-                ? QuietLogConfiguration.path(runDirectory)
+        Path logConfiguration = options.fileOnlyLogs()
+                ? QuietLogConfiguration.path(runDirectory, options.quietLogs())
                 : null;
         Path agentJar = SelfJar.locate();
 
@@ -134,10 +134,10 @@ final class RunCommand {
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
-        if (quietLogConfiguration != null) {
+        if (logConfiguration != null) {
             javaToolOptions = appendJavaOptions(
                     javaToolOptions,
-                    List.of(QuietLogConfiguration.javaOption(quietLogConfiguration)));
+                    List.of(QuietLogConfiguration.javaOption(logConfiguration)));
         }
         String javaOptions = CombatJvmSafeguard.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
@@ -163,8 +163,8 @@ final class RunCommand {
 
         RunIdentity runIdentity = RunIdentity.capture(agentJar);
         Files.createDirectories(runDirectory);
-        if (quietLogConfiguration != null) {
-            QuietLogConfiguration.write(quietLogConfiguration);
+        if (logConfiguration != null) {
+            QuietLogConfiguration.write(logConfiguration, options.quietLogs());
         }
         // The census is a third full walk of the same 61,693 files -- 854ms on the reviewed profile
         // -- and nothing about the launch reads its output. It writes profile.json, which is a
@@ -632,8 +632,9 @@ final class RunCommand {
         values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
         values.put("quietLogs", options.quietLogs());
-        values.put("quietLogConfiguration", options.quietLogs()
-                ? QuietLogConfiguration.path(path.getParent())
+        values.put("fileOnlyLogs", options.fileOnlyLogs());
+        values.put("quietLogConfiguration", options.fileOnlyLogs()
+                ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())
                 : null);
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());

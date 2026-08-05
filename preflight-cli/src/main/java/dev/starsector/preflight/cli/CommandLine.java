@@ -37,6 +37,7 @@ record CommandLine(
         boolean janinoBytecodeCache,
         boolean graphicsLibInsigniaManagerCache,
         boolean directLaunch,
+        boolean fileOnlyLogs,
         boolean quietLogs,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
@@ -62,6 +63,7 @@ record CommandLine(
         boolean janinoBytecodeCache = false;
         boolean graphicsLibInsigniaManagerCache = false;
         boolean directLaunch = false;
+        boolean fileOnlyLogs = false;
         boolean quietLogs = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
@@ -117,7 +119,11 @@ record CommandLine(
                 case "--janino-bytecode-cache" -> janinoBytecodeCache = true;
                 case "--graphicslib-insignia-cache" -> graphicsLibInsigniaManagerCache = true;
                 case "--direct" -> directLaunch = true;
-                case "--quiet-logs" -> quietLogs = true;
+                case "--file-only-logs" -> fileOnlyLogs = true;
+                case "--quiet-logs" -> {
+                    fileOnlyLogs = true;
+                    quietLogs = true;
+                }
                 // One flag for everything that has landed and is safe to turn on. Experimental
                 // adapters stay individually addressable for isolated pilots, but do not belong in
                 // the normal launch path until live runs have established their correctness.
@@ -135,6 +141,7 @@ record CommandLine(
                     graphicsLibCompactReplay = true;
                     janinoBytecodeCache = true;
                     graphicsLibInsigniaManagerCache = true;
+                    fileOnlyLogs = true;
                     recordingMode = RecordingMode.OFF;
                 }
                 case "--texture-mode" -> {
@@ -259,6 +266,7 @@ record CommandLine(
                 janinoBytecodeCache,
                 graphicsLibInsigniaManagerCache,
                 directLaunch,
+                fileOnlyLogs,
                 quietLogs,
                 List.copyOf(forwarded));
     }

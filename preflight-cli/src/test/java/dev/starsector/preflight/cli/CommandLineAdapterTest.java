@@ -40,11 +40,13 @@ class CommandLineAdapterTest {
         assertEquals(AdapterMode.OFF, defaults.adapterMode());
         assertEquals(TextureAdapterMode.COMPATIBILITY, defaults.textureAdapterMode());
         assertEquals(false, defaults.directLaunch());
+        assertEquals(false, defaults.fileOnlyLogs());
         assertEquals(false, defaults.quietLogs());
 
         CommandLine direct = CommandLine.parse(
                 new String[] {"run", "--direct", "--quiet-logs"}, 1);
         assertEquals(true, direct.directLaunch());
+        assertEquals(true, direct.fileOnlyLogs());
         assertEquals(true, direct.quietLogs());
 
         CommandLine probe = CommandLine.parse(
@@ -79,12 +81,14 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void fastDoesNotSilentlyTradeAwayTheHardCrashLogTail() {
+    void fastDropsOnlyTheDuplicateConsoleAndKeepsTheHardCrashLogTail() {
         CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
         CommandLine explicit = CommandLine.parse(
                 new String[] {"run", "--fast", "--quiet-logs"}, 1);
 
+        assertEquals(true, fast.fileOnlyLogs());
         assertEquals(false, fast.quietLogs());
+        assertEquals(true, explicit.fileOnlyLogs());
         assertEquals(true, explicit.quietLogs());
     }
 

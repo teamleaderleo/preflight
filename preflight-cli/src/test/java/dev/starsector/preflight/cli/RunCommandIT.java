@@ -124,7 +124,31 @@ class RunCommandIT {
         assertTrue(injected.contains(",quietLogs=on"), injected);
 
         Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals(Boolean.TRUE, report.get("fileOnlyLogs"));
         assertEquals(Boolean.TRUE, report.get("quietLogs"));
+        assertEquals(configuration.toString(), report.get("quietLogConfiguration"));
+    }
+
+    @Test
+    void fileOnlyLoggingKeepsTheAppenderUnbuffered() throws Exception {
+        Path game = temporaryDirectory.resolve("File Only Synthetic Starsector");
+        Files.createDirectories(game.resolve("logs"));
+        Path launcher = fakeLauncher(game, LauncherMode.CLEAN_ZERO);
+        Path trace = temporaryDirectory.resolve("file-only-log-trace");
+
+        ProcessResult result = run(game, launcher, trace, List.of(
+                "--no-adapter", "--file-only-logs"));
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        Path configuration = trace.resolve(QuietLogConfiguration.FILE_ONLY_NAME)
+                .toAbsolutePath().normalize();
+        String content = Files.readString(configuration);
+        assertFalse(content.contains("BufferedIO"));
+        assertFalse(content.contains("ConsoleAppender"));
+        Map<String, Object> report = StrictJson.object(Files.readString(trace.resolve("run.json")));
+        assertEquals(Boolean.TRUE, report.get("fileOnlyLogs"));
+        assertEquals(Boolean.FALSE, report.get("quietLogs"));
         assertEquals(configuration.toString(), report.get("quietLogConfiguration"));
     }
 
@@ -316,9 +340,14 @@ class RunCommandIT {
         Path java = Path.of(System.getProperty("java.home"), "bin", windows ? "java.exe" : "java");
         Path jar = Path.of("target", "preflight.jar").toAbsolutePath().normalize();
         assertTrue(Files.isRegularFile(jar), "missing packaged CLI: " + jar);
+        String reactorClasses = Path.of("target", "classes").toAbsolutePath().normalize().toString();
+        String testClasspath = reactorClasses + System.getProperty("path.separator")
+                + System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"));
         List<String> command = new ArrayList<>(List.of(
                 java.toString(),
-                "-jar", jar.toString(),
+                "-D" + SelfJar.CLASSES_OVERRIDE_PROPERTY + "=" + jar,
+                "-cp", testClasspath,
+                PreflightCli.class.getName(),
                 "run",
                 "--game", game.toString(),
                 "--launcher", launcher.toString(),
