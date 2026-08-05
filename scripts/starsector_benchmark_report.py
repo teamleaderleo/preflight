@@ -39,6 +39,7 @@ LABELS = {
     "prepared": "prepared pixels",
     "prepared-unpadded": "prepared pixels, unpadded",
     "profile": "sampling (diagnostic)",
+    "fast-profile": "current --fast sampling (diagnostic)",
 }
 # Conditions that exist to be analysed, not timed. They are reported so their runs are
 # visible, but they never enter a comparison and never hold back the campaign gate: a

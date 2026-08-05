@@ -35,7 +35,7 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       a reportable claim). Fewer rounds cannot reach significance: with
                       three per condition the smallest possible p-value is 0.1.
   --conditions LIST   Comma-separated subset of vanilla,agent,enabled,compatibility,fast,full,
-                      profile,prepared
+                      profile,fast-profile,prepared
                       (default vanilla,agent,enabled,fast; every other condition is opt-in).
   --unattended        Start the game without its launcher and stop it once the main menu is
                       up, so the campaign needs no clicks at all. Uses Starsector's own
@@ -82,6 +82,9 @@ Conditions:
             where the time goes with comparable timestamps across the full startup. Not a
             timing condition: it records, so it is slower than fast. Analyse its recording
             with `preflight analyze`; do not read its wall clock as a performance result.
+  fast-profile
+            the current --fast preset plus sampling. Use this to find the next hotspot in the
+            actual user configuration; like `profile`, its wall clock is diagnostic only.
 
 Each launch costs about 90 seconds plus your two clicks, so the default 5 rounds across
 four conditions is roughly 45 minutes. Ctrl-C is safe at any point: completed runs are
@@ -144,7 +147,7 @@ done
 IFS=',' read -r -a CONDITION_LIST <<< "$CONDITIONS"
 for condition in "${CONDITION_LIST[@]}"; do
     case "$condition" in
-        vanilla|agent|enabled|compatibility|fast|full|profile|prepared|prepared-unpadded) ;;
+        vanilla|agent|enabled|compatibility|fast|full|profile|fast-profile|prepared|prepared-unpadded) ;;
         *) bad "Unknown condition: $condition"; exit 2 ;;
     esac
 done
@@ -512,6 +515,10 @@ launch_once() {
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
                      --profile --single-chunk-recording) ;;
+        fast-profile)
+            command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
+                     --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE"
+                     --profile --single-chunk-recording) ;;
         full)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
@@ -638,10 +645,11 @@ launch_once() {
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
     elif [[ "$condition" == prepared || "$condition" == prepared-unpadded \
-            || "$condition" == fast || "$condition" == full ]] \
+            || "$condition" == fast || "$condition" == fast-profile || "$condition" == full ]] \
             && { ! served_prepared_textures "$run_dir" || ! bypassed_pixel_conversions "$run_dir"; }; then
         status=excluded; reason="prepared-pixels-served-nothing"
-    elif [[ "$condition" == enabled || "$condition" == compatibility || "$condition" == profile ]] \
+    elif [[ "$condition" == enabled || "$condition" == compatibility \
+            || "$condition" == profile ]] \
             && ! served_prepared_textures "$run_dir"; then
         # The adapter is fail-open by design, so a launch where it served nothing looks
         # exactly like a normal launch. Timing it would measure the baseline twice and
