@@ -570,6 +570,9 @@ final class AdapterTransformationRegistry {
         if (CampaignEntityMaintenanceRuntime.PLAN_ID.equals(planId)) {
             return CampaignEntityMaintenanceRuntime.enabled();
         }
+        if (FleetAiProfilerRuntime.PLAN_ID.equals(planId)) {
+            return FleetAiProfilerRuntime.enabled();
+        }
         if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
             return true;
         }

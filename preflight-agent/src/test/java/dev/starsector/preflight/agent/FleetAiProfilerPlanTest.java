@@ -87,6 +87,14 @@ class FleetAiProfilerPlanTest {
                 exact(fleet, FleetAiProfilerPlan.FLEET_AI_SHA256), fleet));
     }
 
+    @Test
+    void bothTargetsHaveACompiledPlan() {
+        assertTrue(AdapterTransformationRegistry.hasPlan(
+                AdapterTargetRegistry.fleetAiProfilerLabelTarget().planId()));
+        assertTrue(AdapterTransformationRegistry.hasPlan(
+                AdapterTargetRegistry.profilerToggleTarget().planId()));
+    }
+
     private static byte[] fleetFixture() {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,

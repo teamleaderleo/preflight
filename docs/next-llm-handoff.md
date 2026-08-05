@@ -490,8 +490,12 @@ constant only while the profiler is disabled. It exact-transforms the profiler's
 publish state, requires both exact owners before taking the shortcut, preserves the complete label
 when profiling is enabled, and delegates on every partial-install or drift case. Synthetic
 off/on/off execution, kill-switch and exact installed-archive tests pass, as does full
-`mvn verify`. It is launch-free verified; the next clean campaign run should live-gate both this
-plan's avoided/delegated counters and the final compact market iterator.
+`mvn verify`. Its first live attempt matched both exact owners but retained vanilla because the
+separate plan-availability registry entry was missing; this correctly failed closed and explains
+the run's two unavailable plans. The entry now exists with a regression test. It remains launch-free
+verified and needs a later clean campaign run for avoided/delegated counts. That attempted run did
+live-gate the final compact market iterator: all three maintenance hooks installed, 5,680,328 total
+market snapshots exercised, zero contained failures, and normal exit.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from

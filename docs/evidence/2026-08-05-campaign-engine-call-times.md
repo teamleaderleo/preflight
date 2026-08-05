@@ -318,4 +318,13 @@ The two reviewed class identities are SHA-256
 proves disabled, enabled, disabled-again, partial-install, kill-switch, and second-transform
 behavior. Both real installed classes transform under their exact archives, and full `mvn verify`
 passes. Live telemetry reports avoided and delegated labels, but no live campaign gate has yet been
-run; this is therefore an allocation-removal candidate with no measured count or FPS claim.
+run successfully: the first attempt matched both exact targets but correctly retained vanilla
+because the separate plan-availability registry entry was missing. That entry and a regression test
+covering both production targets are now present. This remains an allocation-removal candidate with
+no measured count or FPS claim until a later live run.
+
+The same attempted gate did complete the compact market iterator's live verification. It exited
+normally with zero contained failures and exercised 2,840,164 condition snapshots plus 2,840,164
+industry snapshots. Conditions were empty 860 times; industries were empty 441,318 times. The three
+market-maintenance hooks all installed. The run's PARTIAL health was caused solely by the two
+fleet-profiler targets retained through the missing availability entry, not by the market adapter.
