@@ -239,6 +239,7 @@ final class AdapterRuntime {
             }
             Set<String> disabledPlans = disabledPlans(System.getProperties());
             if (!disabledPlans.isEmpty()) {
+                applyDisabledDiagnosticRuntimeGates(disabledPlans);
                 int before = registry.targets().size();
                 registry = registry.withoutPlans(disabledPlans);
                 report.diagnostic("Diagnostic plan filter omitted "
@@ -287,6 +288,22 @@ final class AdapterRuntime {
             if (!plan.isEmpty()) plans.add(plan);
         }
         return Set.copyOf(plans);
+    }
+
+    /** Keeps composed diagnostic probes off when their standalone registry target is filtered. */
+    static void applyDisabledDiagnosticRuntimeGates(Set<String> disabledPlans) {
+        if (disabledPlans.contains(CampaignCallTimeRuntime.PLAN_ID)) {
+            CampaignCallTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CampaignEngineTimeRuntime.PLAN_ID)) {
+            CampaignEngineTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CampaignLocationEconomyTimeRuntime.PLAN_ID)) {
+            CampaignLocationEconomyTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CampaignMarketFleetTimeRuntime.PLAN_ID)) {
+            CampaignMarketFleetTimeRuntime.beginSession(false);
+        }
     }
 
     private static BytecodeShapeReport.CaptureTarget janinoTarget() {

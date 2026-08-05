@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: market/fleet drill-down complete; two exact maintenance shortcuts offline-verified
+Status: market/fleet drill-down complete; two exact maintenance shortcuts live-verified
 
 ## Why another layer was necessary
 
@@ -229,5 +229,17 @@ telemetry caught the entity shortcut missing: the earlier entity-index target al
 `BaseCampaignEntity`, after which the transformer correctly returned. The production path now
 composes the disjoint id-mutation and `runScripts` rewrites while the original exact source identity
 is still available. An installed-archive test proves both hooks coexist, and full `mvn verify`
-passes again. One short linkage rerun remains before making a performance claim; telemetry reports
-both installations and empty/non-empty script-list counts.
+passes again.
+
+The corrected `campaign-maintenance-v2-20260805-084353` run exited normally with ACTIVE health, 33
+transformations, zero declines, and zero contained failures. Both maintenance hooks installed.
+Across the campaign it observed **15,402,921 empty** script lists and only **286,218 non-empty**
+lists: the new path avoided the defensive snapshot on 98.176% of 15,689,139 calls. This proves a
+large allocation-volume reduction, not an FPS delta; a user-driven run is not a controlled A/B.
+
+With the heavy market/fleet targets omitted, campaign throughput was 51.03 average FPS, 59.17
+median, and 14.03 FPS 1% low over 5,574 frames. Warm-up remained visible: the first 30 seconds were
+45.11 average / 10.80 FPS 1% low, while later play was 53.28 average / 17.01 FPS 1% low. The run also
+revealed that filtering the location/economy target did not disable its composition behind the
+entity-index target. The diagnostic filter now resets all four campaign timing runtimes when their
+plan IDs are omitted, so future clean FPS passes cannot accidentally retain a composed timer.

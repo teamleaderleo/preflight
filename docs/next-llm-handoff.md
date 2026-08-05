@@ -467,7 +467,13 @@ execution, exact installed-archive checks, and full `mvn verify` pass. The first
 normally and installed the fleet-view shortcut, but telemetry caught `BaseCampaignEntity` being
 claimed first by the existing entity-index target. The production entity-index path now composes
 both disjoint rewrites under the original exact identity, and the installed-archive test proves both
-hooks coexist. One short linkage rerun remains before any speed claim. The earlier run also logged
+hooks coexist. The corrected live gate exited normally with ACTIVE health and both hooks installed:
+15,402,921 empty script-list calls skipped the defensive snapshot while 286,218 non-empty calls kept
+the unchanged vanilla path, a 98.176% fast-path rate. Campaign averaged 51.03 FPS with a 59.17 median
+and 14.03 FPS 1% low; first-30-second versus later averages were 45.11 and 53.28 FPS. This proves the
+allocation-volume reduction, not an FPS delta, because the route was not a controlled A/B. The run
+also caught the disabled location timer composing behind the entity index; filtering a campaign
+timing plan now shuts its runtime gate as well as removing its targets. The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from
 synthetic markets with null location/system; treat that as a separate exact compatibility-guard

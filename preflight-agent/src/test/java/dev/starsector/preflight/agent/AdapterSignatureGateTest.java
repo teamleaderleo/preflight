@@ -282,6 +282,25 @@ class AdapterSignatureGateTest {
                 .anyMatch(target -> SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())));
     }
 
+    @Test
+    void diagnosticPlanFilterAlsoDisablesComposedRuntimeGates() {
+        CampaignCallTimeRuntime.beginSession(true);
+        CampaignEngineTimeRuntime.beginSession(true);
+        CampaignLocationEconomyTimeRuntime.beginSession(true);
+        CampaignMarketFleetTimeRuntime.beginSession(true);
+
+        AdapterRuntime.applyDisabledDiagnosticRuntimeGates(Set.of(
+                CampaignCallTimeRuntime.PLAN_ID,
+                CampaignEngineTimeRuntime.PLAN_ID,
+                CampaignLocationEconomyTimeRuntime.PLAN_ID,
+                CampaignMarketFleetTimeRuntime.PLAN_ID));
+
+        assertFalse((Boolean) CampaignCallTimeRuntime.telemetry().get("enabled"));
+        assertFalse((Boolean) CampaignEngineTimeRuntime.telemetry().get("enabled"));
+        assertFalse((Boolean) CampaignLocationEconomyTimeRuntime.telemetry().get("enabled"));
+        assertFalse((Boolean) CampaignMarketFleetTimeRuntime.telemetry().get("enabled"));
+    }
+
     private static ProtectionDomain domain(Path path) throws Exception {
         return new ProtectionDomain(
                 new CodeSource(path.toUri().toURL(), (Certificate[]) null),
