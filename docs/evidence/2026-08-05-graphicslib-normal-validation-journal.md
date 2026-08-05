@@ -37,6 +37,29 @@ The unattended probe sends `SIGTERM`, allowing that hook to publish the cold lau
 validated entries. Unit coverage proves warm reuse, changed-file revalidation, corrupt-PNG
 fallback, path containment, and malformed-journal fallback.
 
+## Follow-up: one metadata probe per warm hit
+
+The first journal implementation resolved each direct-child cache path with
+`Files.isRegularFile()` and then immediately captured `BasicFileAttributes` for the actual journal
+comparison. Both operations query the same filesystem metadata. The authoritative attribute
+capture already rejects missing files, directories, and symlinks before comparing size,
+nanosecond mtime, and file identity, so the preliminary query contributed no safety.
+
+The runtime now validates the exact `cache/<direct-child>_normal.png` syntax without touching the
+filesystem, then performs the one authoritative attribute capture. Telemetry counts those probes.
+An unattended warm launch retained 6,184/6,184 hits, zero fallback, zero validated bytes, and
+exactly 6,184 metadata probes. Validation fell from the retained 197ms warm result to 131ms (33.5%
+less), and the main-menu marker arrived at 25.40s. Full `mvn verify` passed.
+
+Retained run:
+
+- `~/.starsector-preflight/benchmarks/20260805-155203/runs/fast-1`
+
+The harness deliberately terminated the game after detecting the menu, so `run.json` records the
+expected launcher exit 143. Its lifecycle scan found no fatal evidence and the benchmark accepted
+the run. This is evidence for the validation seam, not a 66ms end-to-end startup claim; whole-launch
+noise is larger.
+
 ## Exact measurements
 
 Cold population:

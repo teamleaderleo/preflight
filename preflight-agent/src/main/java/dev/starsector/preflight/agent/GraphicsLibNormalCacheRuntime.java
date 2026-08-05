@@ -58,6 +58,7 @@ public final class GraphicsLibNormalCacheRuntime {
     private static final AtomicLong JOURNAL_MISSES = new AtomicLong();
     private static final AtomicLong JOURNAL_LOAD_FAILURES = new AtomicLong();
     private static final AtomicLong JOURNAL_WRITE_FAILURES = new AtomicLong();
+    private static final AtomicLong METADATA_PROBES = new AtomicLong();
     private static final AtomicBoolean SHUTDOWN_HOOK_INSTALLED = new AtomicBoolean();
     private static final ThreadLocal<byte[]> READ_BUFFER =
             ThreadLocal.withInitial(() -> new byte[BUFFER_BYTES]);
@@ -87,6 +88,7 @@ public final class GraphicsLibNormalCacheRuntime {
         JOURNAL_MISSES.set(0);
         JOURNAL_LOAD_FAILURES.set(0);
         JOURNAL_WRITE_FAILURES.set(0);
+        METADATA_PROBES.set(0);
         cacheRoot = null;
         journalFile = null;
         journalRoot = null;
@@ -169,6 +171,7 @@ public final class GraphicsLibNormalCacheRuntime {
         values.put("journalEntries", verified.size());
         values.put("journalLoadFailures", JOURNAL_LOAD_FAILURES.get());
         values.put("journalWriteFailures", JOURNAL_WRITE_FAILURES.get());
+        values.put("metadataProbes", METADATA_PROBES.get());
         return values;
     }
 
@@ -320,22 +323,16 @@ public final class GraphicsLibNormalCacheRuntime {
     }
 
     private static Path resolveCacheFile(Path root, String resourcePath) throws IOException {
-        if (resourcePath == null || resourcePath.indexOf('\\') >= 0) {
+        if (resourcePath == null || !resourcePath.startsWith("cache/")) {
             throw new IOException("invalid GraphicsLib cache path");
         }
-        Path relative = Path.of(resourcePath).normalize();
-        if (relative.isAbsolute()
-                || relative.getNameCount() != 2
-                || !"cache".equals(relative.getName(0).toString())
-                || !relative.getFileName().toString().endsWith("_normal.png")) {
+        String name = resourcePath.substring("cache/".length());
+        if (!validCacheName(name)) {
             throw new IOException("path is outside GraphicsLib's generated-normal cache");
         }
-        Path png = root.resolve(relative.getFileName()).normalize();
-        if (!png.getParent().equals(root)
-                || !Files.isRegularFile(png, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IOException("generated normal is missing or not a regular file");
-        }
-        return png;
+        // FileStamp.capture() is the authoritative regular-file and symlink check. Avoiding a
+        // preceding Files.isRegularFile() halves metadata syscalls on every warm journal hit.
+        return root.resolve(name);
     }
 
     /** Returns the number of bytes consumed when the file is a complete, CRC-valid PNG. */
@@ -537,6 +534,7 @@ public final class GraphicsLibNormalCacheRuntime {
 
     private record FileStamp(long size, long modifiedNanos, String fileKey) {
         static FileStamp capture(Path path) throws IOException {
+            METADATA_PROBES.incrementAndGet();
             BasicFileAttributes attributes = Files.readAttributes(
                     path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
             if (!attributes.isRegularFile() || attributes.isSymbolicLink()) {

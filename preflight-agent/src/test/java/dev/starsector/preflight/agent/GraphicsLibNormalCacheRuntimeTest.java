@@ -37,6 +37,7 @@ class GraphicsLibNormalCacheRuntimeTest {
         assertTrue(GraphicsLibNormalCacheRuntime.isLazySprite(marker));
         assertEquals(1.0f, ((TestSprite) marker).getHeight());
         assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("hits"));
+        assertEquals(2L, GraphicsLibNormalCacheRuntime.telemetry().get("metadataProbes"));
         assertEquals(Files.size(png), GraphicsLibNormalCacheRuntime.telemetry().get("validatedBytes"));
     }
 
@@ -75,6 +76,7 @@ class GraphicsLibNormalCacheRuntimeTest {
         GraphicsLibNormalCacheRuntime.configureForTest(cache, journal, TestSprite.class);
         assertNotNull(GraphicsLibNormalCacheRuntime.lazySprite("cache/valid_normal.png"));
         assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("journalHits"));
+        assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("metadataProbes"));
         assertEquals(0L, GraphicsLibNormalCacheRuntime.telemetry().get("validatedBytes"));
 
         assertTrue(ImageIO.write(new BufferedImage(4, 2, BufferedImage.TYPE_INT_ARGB), "png",

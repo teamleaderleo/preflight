@@ -675,6 +675,10 @@ independent Preflight caches remain available.
 **Latest startup work.** Persistent rule-token shapes reduced the exact warm tokenizer from 600ms
 to 89ms and the whole rules loader from 1.688s to 1.262s. GraphicsLib's generated-normal validation
 journal reduced complete PNG checking from 1.196s to 197ms while retaining all 6,184 lazy hits.
+The warm journal path then dropped its redundant preliminary regular-file stat: the authoritative
+attribute capture still proves non-symlink regular-file identity, size, and nanosecond mtime. A
+clean unattended menu gate retained 6,184/6,184 hits with zero fallback and exactly 6,184 metadata
+probes; the exact validation seam fell from 197ms to 131ms and the menu marker arrived at 25.40s.
 The next exact callback profile found AshLib scanning all 8,622 variant ids for each of 547 modular
 or station hull lookups. A callback-scoped index now preserves first-match and fallback ordering;
 the live gate served all 547 lookups with zero failure and reduced that exact seam from 160ms to
