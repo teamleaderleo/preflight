@@ -834,6 +834,16 @@ both targets and observed 31 reused responses against 41 network fetches before 
 holding 16,010 bytes. It exited ACTIVE with zero decline/failure. This is a measured network/CPU/
 thermal-load reduction, not a wall-time claim. See
 `docs/evidence/2026-08-06-version-check-response-dedup.md`.
+The fresh profile also exposed Preflight's own generic resource-path normalizer under the hull,
+weapon, projectile, variant, and texture caches. Its regex drive check and split plus deque/list/join
+pipeline are now one validation scan; already-normalized paths return unchanged and only paths that
+actually need slash/dot cleanup allocate a rebuilt string. A 20,000-path equivalence corpus includes
+Unicode and rejection cases. On the bundled x86 JVM the exact eight-path microbenchmark improved
+from a 371.85ns median to 54.03ns (**6.88x**). The following live gate remained ACTIVE and reduced
+main-thread normalizer samples 8 -> 3; every survivor was only the unchanged `Locale.ROOT`
+lowercase call, while the removed regex/container stack fell to zero. Its 23.60s sampled wall time
+is diagnostic, not an attributed launch claim. See
+`docs/evidence/2026-08-06-resource-path-normalization.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete
