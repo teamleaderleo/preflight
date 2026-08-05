@@ -27,6 +27,13 @@ final class AshLibVariantLookupPlan {
     static final String LOOKUP = "getVaraint";
     static final String LOOKUP_DESCRIPTOR =
             "(Lcom/fs/starfarer/api/combat/ShipHullSpecAPI;)Ljava/lang/String;";
+    static final String SHIP_JSON_CLASS = "ashlib/data/plugins/models/ShipRenderInfo";
+    static final String SHIP_JSON_SHA256 =
+            "bb8d74bfb775f63ba79aa802c7e67158b5eea80c2d3057f9fd40350fd99e1aed";
+    static final String SHIP_JSON_METHOD = "getShipJson";
+    static final String SHIP_JSON_DESCRIPTOR =
+            "(Ljava/lang/String;)Lorg/json/JSONObject;";
+    private static final String ORIGINAL_SHIP_JSON = "preflight$original$getShipJson";
 
     private static final String GLOBAL = "com/fs/starfarer/api/Global";
     private static final String SETTINGS = "com/fs/starfarer/api/SettingsAPI";
@@ -43,6 +50,9 @@ final class AshLibVariantLookupPlan {
         }
         if (LOOKUP_CLASS.equals(signature.internalName())) {
             return transformLookup(signature, originalBytes);
+        }
+        if (SHIP_JSON_CLASS.equals(signature.internalName())) {
+            return transformShipJson(signature, originalBytes);
         }
         return null;
     }
@@ -126,6 +136,92 @@ final class AshLibVariantLookupPlan {
         owner.accept(writer);
         AshLibVariantLookupRuntime.lookupInstalled();
         return writer.toByteArray();
+    }
+
+    private static byte[] transformShipJson(ClassSignature signature, byte[] originalBytes) {
+        if (!SHIP_JSON_SHA256.equals(signature.sha256())
+                || !signature.hasMethod(SHIP_JSON_METHOD, SHIP_JSON_DESCRIPTOR)) {
+            return null;
+        }
+        ClassNode owner = read(originalBytes);
+        MethodNode original = unique(owner, SHIP_JSON_METHOD, SHIP_JSON_DESCRIPTOR);
+        if (original == null || (original.access & Opcodes.ACC_STATIC) == 0
+                || unique(owner, ORIGINAL_SHIP_JSON, SHIP_JSON_DESCRIPTOR) != null
+                || hasRuntimeCall(original) || calls(owner, SHIP_JSON_METHOD, SHIP_JSON_DESCRIPTOR) != 4
+                || mutatesJson(owner)) {
+            return null;
+        }
+        int access = original.access;
+        original.name = ORIGINAL_SHIP_JSON;
+        original.access |= Opcodes.ACC_SYNTHETIC;
+
+        MethodNode wrapper = new MethodNode(
+                Opcodes.ASM9,
+                access,
+                SHIP_JSON_METHOD,
+                SHIP_JSON_DESCRIPTOR,
+                original.signature,
+                original.exceptions == null ? null : original.exceptions.toArray(String[]::new));
+        LabelNode load = new LabelNode();
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        wrapper.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "cachedShipJson",
+                "(Ljava/lang/String;)Ljava/lang/Object;", false));
+        wrapper.instructions.add(new org.objectweb.asm.tree.InsnNode(Opcodes.DUP));
+        wrapper.instructions.add(new JumpInsnNode(Opcodes.IFNULL, load));
+        wrapper.instructions.add(new org.objectweb.asm.tree.TypeInsnNode(
+                Opcodes.CHECKCAST, "org/json/JSONObject"));
+        wrapper.instructions.add(new org.objectweb.asm.tree.InsnNode(Opcodes.ARETURN));
+        wrapper.instructions.add(load);
+        wrapper.instructions.add(new org.objectweb.asm.tree.InsnNode(Opcodes.POP));
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        wrapper.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, SHIP_JSON_CLASS, ORIGINAL_SHIP_JSON,
+                SHIP_JSON_DESCRIPTOR, false));
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ASTORE, 1));
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        wrapper.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "rememberShipJson",
+                "(Ljava/lang/String;Ljava/lang/Object;)V", false));
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        wrapper.instructions.add(new org.objectweb.asm.tree.InsnNode(Opcodes.ARETURN));
+        owner.methods.add(wrapper);
+
+        ClassWriter writer = new SafeClassWriter(
+                ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        AshLibVariantLookupRuntime.shipJsonInstalled();
+        return writer.toByteArray();
+    }
+
+    private static int calls(ClassNode owner, String name, String descriptor) {
+        int count = 0;
+        for (MethodNode method : owner.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode call
+                        && SHIP_JSON_CLASS.equals(call.owner)
+                        && name.equals(call.name) && descriptor.equals(call.desc)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static boolean mutatesJson(ClassNode owner) {
+        for (MethodNode method : owner.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode call
+                        && "org/json/JSONObject".equals(call.owner)
+                        && ("put".equals(call.name) || "remove".equals(call.name)
+                        || "append".equals(call.name) || "accumulate".equals(call.name)
+                        || "increment".equals(call.name))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static ClassNode read(byte[] bytes) {

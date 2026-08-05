@@ -201,7 +201,8 @@ final class AdapterTransformationRegistry {
         if (AshLibVariantLookupRuntime.PLAN_ID.equals(target.planId())) {
             byte[] optimized = AshLibVariantLookupPlan.transform(signature, originalBytes);
             if (optimized == null || !StartupPhaseRuntime.phaseProbeEnabled()
-                    || !AshLibVariantLookupPlan.REPOSITORY_CLASS.equals(signature.internalName())) {
+                    || (!AshLibVariantLookupPlan.REPOSITORY_CLASS.equals(signature.internalName())
+                    && !AshLibVariantLookupPlan.SHIP_JSON_CLASS.equals(signature.internalName()))) {
                 return optimized;
             }
             byte[] timed = StartupCallBreakdownPlan.transform(signature, optimized);

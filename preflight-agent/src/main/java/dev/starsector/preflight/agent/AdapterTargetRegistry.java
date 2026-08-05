@@ -292,6 +292,22 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    static AdapterTarget ashLibShipJsonTarget() {
+        return new AdapterTarget(
+                "ashlib-2.2.3-callback-scoped-ship-json",
+                AshLibVariantLookupPlan.SHIP_JSON_CLASS,
+                AshLibVariantLookupPlan.SHIP_JSON_SHA256,
+                AshLibVariantLookupRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        AshLibVariantLookupPlan.SHIP_JSON_METHOD,
+                        AshLibVariantLookupPlan.SHIP_JSON_DESCRIPTOR)),
+                "MOD",
+                "ashlib.jar",
+                "634a0542d2e934df3a212050633462475e3cc48faf4bb417dd5114dfc2fd1dfa",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** Exact GraphicsLib callback, timed only by the opt-in startup phase probe. */
     static AdapterTarget startupGraphicsBreakdownTarget() {
         return new AdapterTarget(
@@ -1265,7 +1281,10 @@ final class AdapterTargetRegistry {
         if (forClass(AshLibVariantLookupPlan.REPOSITORY_CLASS).isEmpty()) {
             registry = registry.withTarget(startupAshRepoBreakdownTarget());
         }
-        return registry.withTarget(startupAshRenderInfoBreakdownTarget())
+        if (forClass(AshLibVariantLookupPlan.SHIP_JSON_CLASS).isEmpty()) {
+            registry = registry.withTarget(startupAshRenderInfoBreakdownTarget());
+        }
+        return registry
                 .withTarget(startupGraphicsBreakdownTarget())
                 .withTarget(mergedReadProbeTarget());
     }
@@ -1546,6 +1565,7 @@ final class AdapterTargetRegistry {
                 .withTarget(aiTweaksEngagementRangeTarget())
                 .withTarget(ashLibVariantRepositoryTarget())
                 .withTarget(ashLibVariantLookupTarget())
+                .withTarget(ashLibShipJsonTarget())
                 .withTarget(magicLibPaintjobTarget())
                 .withTarget(magicLibPaintjobNotificationTarget())
                 .withTarget(graphicsLibHotSettingsTarget())

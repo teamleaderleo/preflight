@@ -24,6 +24,8 @@ class AshLibVariantLookupInstalledAdapterIT {
                     AshLibVariantLookupPlan.REPOSITORY_SHA256);
             assertTransforms(jar, AshLibVariantLookupPlan.LOOKUP_CLASS,
                     AshLibVariantLookupPlan.LOOKUP_SHA256);
+            assertTransforms(jar, AshLibVariantLookupPlan.SHIP_JSON_CLASS,
+                    AshLibVariantLookupPlan.SHIP_JSON_SHA256);
         }
     }
 

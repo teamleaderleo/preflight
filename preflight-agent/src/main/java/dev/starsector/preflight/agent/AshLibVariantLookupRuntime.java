@@ -20,8 +20,12 @@ public final class AshLibVariantLookupRuntime {
     private static final AtomicLong FALLBACK_NAME_HITS = new AtomicLong();
     private static final AtomicLong NULL_RESULTS = new AtomicLong();
     private static final AtomicLong BUILD_FAILURES = new AtomicLong();
+    private static final AtomicLong SHIP_JSON_HITS = new AtomicLong();
+    private static final AtomicLong SHIP_JSON_MISSES = new AtomicLong();
+    private static final AtomicLong SHIP_JSON_CAPTURES = new AtomicLong();
     private static volatile boolean repositoryInstalled;
     private static volatile boolean lookupInstalled;
+    private static volatile boolean shipJsonInstalled;
 
     private AshLibVariantLookupRuntime() {
     }
@@ -35,8 +39,12 @@ public final class AshLibVariantLookupRuntime {
         FALLBACK_NAME_HITS.set(0);
         NULL_RESULTS.set(0);
         BUILD_FAILURES.set(0);
+        SHIP_JSON_HITS.set(0);
+        SHIP_JSON_MISSES.set(0);
+        SHIP_JSON_CAPTURES.set(0);
         repositoryInstalled = false;
         lookupInstalled = false;
+        shipJsonInstalled = false;
     }
 
     static void repositoryInstalled() {
@@ -45,6 +53,10 @@ public final class AshLibVariantLookupRuntime {
 
     static void lookupInstalled() {
         lookupInstalled = true;
+    }
+
+    static void shipJsonInstalled() {
+        shipJsonInstalled = true;
     }
 
     /** Builds from the same ordered live list AshLib is about to scan. Any disagreement disables it. */
@@ -90,7 +102,8 @@ public final class AshLibVariantLookupRuntime {
                 }
                 firstByHull.putIfAbsent(hullId, id);
             }
-            ACTIVE.set(new State(Map.copyOf(firstByHull), List.copyOf(orderedIds)));
+            ACTIVE.set(new State(
+                    Map.copyOf(firstByHull), List.copyOf(orderedIds), new LinkedHashMap<>()));
             BUILDS.incrementAndGet();
             INDEXED_VARIANTS.addAndGet(orderedIds.size());
         } catch (ThreadDeath | VirtualMachineError fatal) {
@@ -133,10 +146,37 @@ public final class AshLibVariantLookupRuntime {
         return null;
     }
 
+    /** Returns a read-only callback-local JSON value previously produced by AshLib, or null. */
+    public static Object cachedShipJson(String hullId) {
+        State state = ACTIVE.get();
+        if (state == null) {
+            return null;
+        }
+        Object cached = state.shipJsonByHull.get(hullId);
+        if (cached == null) {
+            SHIP_JSON_MISSES.incrementAndGet();
+        } else {
+            SHIP_JSON_HITS.incrementAndGet();
+        }
+        return cached;
+    }
+
+    /** Remembers only a successful non-null result from AshLib's unchanged loader. */
+    public static void rememberShipJson(String hullId, Object json) {
+        State state = ACTIVE.get();
+        if (state == null || json == null) {
+            return;
+        }
+        if (state.shipJsonByHull.putIfAbsent(hullId, json) == null) {
+            SHIP_JSON_CAPTURES.incrementAndGet();
+        }
+    }
+
     static Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("repositoryInstalled", repositoryInstalled);
         values.put("lookupInstalled", lookupInstalled);
+        values.put("shipJsonInstalled", shipJsonInstalled);
         values.put("builds", BUILDS.get());
         values.put("indexedVariants", INDEXED_VARIANTS.get());
         values.put("lookups", LOOKUPS.get());
@@ -144,6 +184,9 @@ public final class AshLibVariantLookupRuntime {
         values.put("fallbackNameHits", FALLBACK_NAME_HITS.get());
         values.put("nullResults", NULL_RESULTS.get());
         values.put("buildFailures", BUILD_FAILURES.get());
+        values.put("shipJsonHits", SHIP_JSON_HITS.get());
+        values.put("shipJsonMisses", SHIP_JSON_MISSES.get());
+        values.put("shipJsonCaptures", SHIP_JSON_CAPTURES.get());
         return values;
     }
 
@@ -155,6 +198,9 @@ public final class AshLibVariantLookupRuntime {
         }
     }
 
-    private record State(Map<String, String> firstByHull, List<String> orderedIds) {
+    private record State(
+            Map<String, String> firstByHull,
+            List<String> orderedIds,
+            Map<String, Object> shipJsonByHull) {
     }
 }

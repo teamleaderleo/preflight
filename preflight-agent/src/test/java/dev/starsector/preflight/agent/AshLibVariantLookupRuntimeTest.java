@@ -34,11 +34,18 @@ class AshLibVariantLookupRuntimeTest {
         assertEquals("first", AshLibVariantLookupRuntime.lookup("hull-a"));
         assertEquals("ODD_HULL", AshLibVariantLookupRuntime.lookup("odd"));
         assertNull(AshLibVariantLookupRuntime.lookup("absent"));
+        Object json = new Object();
+        assertNull(AshLibVariantLookupRuntime.cachedShipJson("hull-a"));
+        AshLibVariantLookupRuntime.rememberShipJson("hull-a", json);
+        assertEquals(json, AshLibVariantLookupRuntime.cachedShipJson("hull-a"));
         assertEquals(1L, AshLibVariantLookupRuntime.telemetry().get("builds"));
         assertEquals(4L, AshLibVariantLookupRuntime.telemetry().get("indexedVariants"));
         assertEquals(1L, AshLibVariantLookupRuntime.telemetry().get("exactHits"));
         assertEquals(1L, AshLibVariantLookupRuntime.telemetry().get("fallbackNameHits"));
         assertEquals(1L, AshLibVariantLookupRuntime.telemetry().get("nullResults"));
+        assertEquals(1L, AshLibVariantLookupRuntime.telemetry().get("shipJsonHits"));
+        assertEquals(1L, AshLibVariantLookupRuntime.telemetry().get("shipJsonMisses"));
+        assertEquals(1L, AshLibVariantLookupRuntime.telemetry().get("shipJsonCaptures"));
 
         AshLibVariantLookupRuntime.end();
         assertFalse(AshLibVariantLookupRuntime.active());

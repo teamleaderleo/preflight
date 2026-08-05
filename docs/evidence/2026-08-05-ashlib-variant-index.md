@@ -1,4 +1,4 @@
-# AshLib variant lookup is indexed only during repository population
+# AshLib repository inputs are reused only during repository population
 
 Date: 2026-08-05
 
@@ -13,7 +13,7 @@ exact callback-scoped index reduced that measured call site from **160ms to 19ms
 the mod's first-match and fallback ordering.
 
 The retained final unattended run is
-`~/.starsector-preflight/runs/ash-variant-index-final-20260805-145452`. It reached the main menu in 24.88s,
+`~/.starsector-preflight/runs/ash-ship-json-scope-20260805-145915`. It reached the main menu in 24.66s,
 shut down automatically with wrapper exit 0, and reported ACTIVE adapter health: 34 transforms,
 zero declines, zero unavailable plans, and zero contained failures.
 
@@ -26,16 +26,31 @@ Live telemetry reported:
 - 182 null results; and
 - zero build failures.
 
-AshLib's complete application callback measured 502ms. The immediately preceding no-record probe
-without this change measured the exact lookup at about 160ms and the callback at about 680ms. The
-141ms exact call-site reduction is the attribution claim; the whole callback difference is
+The first indexed run measured AshLib's complete application callback at 502ms. The immediately
+preceding no-record probe without the index measured the exact lookup at about 160ms and the
+callback at about 680ms. The 140ms exact call-site reduction is the attribution claim; the whole callback difference is
 consistent corroboration, not a whole-launch claim.
+
+## Private read-only hull JSON
+
+The same pinned `ShipRenderInfo` class calls its private `getShipJson(String)` four times from
+different read-only construction paths. Across the callback, those paths repeatedly ask for the
+same hull. Exact bytecode contains no `JSONObject` mutation call anywhere in the class, the private
+helper's result never escapes the class's construction routines, and the surrounding callback
+already defines a narrow lifetime.
+
+The callback state therefore also retains each successful non-null helper result by hull id. The
+final live gate reported 17,051 hits, 6,041 misses, and 6,039 captures. Actual `loadJSON` calls in
+the class fell **27,294 -> 9,861** and their exact measured time fell **220ms -> 155ms**. The
+complete AshLib callback fell **502ms -> 430ms** in the adjacent runs, consistent with the 65ms
+call-site reduction. The final adapter reported all three AshLib owners installed with zero build
+failure, decline, unavailable plan, or contained failure.
 
 ## Boundary and failure behavior
 
-The index exists in a `ThreadLocal` only between entry and normal return of AshLib's exact
+The index and private JSON map exist in a `ThreadLocal` only during AshLib's exact
 `ShipRenderInfoRepo.populateRenderInfoRepo()` method. Outside that callback,
-`AshMisc.getVaraint()` executes its original bytecode. The index is built from the same live ordered
+`AshMisc.getVaraint()` and `ShipRenderInfo.getShipJson()` execute their original bytecode. The index is built from the same live ordered
 `SettingsAPI.getAllVariantIds()` list and applies the same two decisions as the mod:
 
 1. the first variant with a non-null file path whose hull id exactly matches; then
@@ -48,6 +63,6 @@ runs the untouched AshLib scan. The repository class, lookup class, methods, com
 owning `ashlib.jar` hash, source kind, and mod classloader are all pinned.
 
 Unit coverage proves duplicate first-match ordering, ignored null file paths, case-insensitive
-fallback order, null results, malformed-registry fallback, transform shape, double-transform
-rejection, and source binding. The installed AshLib archive transforms both exact classes, and the
+fallback order, null results, malformed-registry fallback, private JSON hit/miss isolation,
+transform shape, double-transform rejection, and source binding. The installed AshLib archive transforms all three exact classes, and the
 full Maven reactor passes.

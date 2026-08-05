@@ -678,7 +678,9 @@ journal reduced complete PNG checking from 1.196s to 197ms while retaining all 6
 The next exact callback profile found AshLib scanning all 8,622 variant ids for each of 547 modular
 or station hull lookups. A callback-scoped index now preserves first-match and fallback ordering;
 the live gate served all 547 lookups with zero failure and reduced that exact seam from 160ms to
-19ms. Evidence:
+19--20ms. The same scope now reuses the pinned render-info class's private, non-escaping, read-only
+hull JSON objects: 17,051 hits removed 17,433 `loadJSON` calls and reduced that exact seam by 65ms.
+Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
 `docs/evidence/2026-08-05-ashlib-variant-index.md`.
