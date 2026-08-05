@@ -28,7 +28,10 @@ public final class PreparedTextureIO {
     private static final int CODEC_LZ4 = 1;
     private static final int PAYLOAD_FIXED_BYTES = SHA256_BYTES + Integer.BYTES * 11;
     private static final int MAX_FILE_BYTES = 512 * 1024 * 1024;
+    private static final int MAX_TRUSTED_LZ4_SCRATCH_BYTES = 16 * 1024 * 1024;
     private static final Lz4Decompressor LZ4_DECOMPRESSOR = new Lz4Decompressor();
+    private static final ThreadLocal<byte[]> TRUSTED_LZ4_SCRATCH =
+            ThreadLocal.withInitial(() -> new byte[0]);
 
     private PreparedTextureIO() {
     }
@@ -64,9 +67,10 @@ public final class PreparedTextureIO {
                         "Prepared texture blob exceeds the " + MAX_FILE_BYTES + " byte safety limit: " + source);
             }
 
-            // The trusted serving path does not need the payload checksum. Read the fixed metadata
-            // and pixels directly into their final array instead of Files.readAllBytes() followed
-            // by DataInputStream.readNBytes(), which copied every served texture a second time.
+            // The trusted serving path does not need the payload checksum. Read fixed metadata
+            // separately; raw pixels go directly into their final adopted array, while LZ4 input
+            // uses bounded scratch before decompression into its final array. This avoids both the
+            // old complete-file copy and one compressed-sized allocation per balanced texture.
             ByteBuffer metadata = ByteBuffer.allocate(
                     MAGIC.length + Integer.BYTES * 2 + PAYLOAD_FIXED_BYTES).order(ByteOrder.BIG_ENDIAN);
             readFully(channel, metadata, "Prepared texture ended inside its metadata");
@@ -114,12 +118,15 @@ public final class PreparedTextureIO {
                         "Prepared texture pixel length is " + pixelLength + "; expected " + expectedPixels);
             }
 
-            byte[] storedPixels = new byte[storedLength];
-            readFully(channel, ByteBuffer.wrap(storedPixels), "Prepared texture ended inside its pixels");
+            byte[] storedPixels = storageCodec == StorageCodec.LZ4
+                    ? trustedLz4Scratch(storedLength)
+                    : new byte[storedLength];
+            readFully(channel, ByteBuffer.wrap(storedPixels, 0, storedLength),
+                    "Prepared texture ended inside its pixels");
             if (channel.position() != size - CHECKSUM_BYTES) {
                 throw new IOException("Prepared texture payload contains trailing data");
             }
-            byte[] pixels = decodePixels(storageCodec, storedPixels, pixelLength);
+            byte[] pixels = decodePixels(storageCodec, storedPixels, storedLength, pixelLength);
             return PreparedTexture.adopting(
                     java.util.HexFormat.of().formatHex(sourceHash),
                     transformation,
@@ -302,17 +309,22 @@ public final class PreparedTextureIO {
     }
 
     private static byte[] decodePixels(StorageCodec codec, byte[] stored, int pixelLength) throws IOException {
+        return decodePixels(codec, stored, stored.length, pixelLength);
+    }
+
+    private static byte[] decodePixels(
+            StorageCodec codec, byte[] stored, int storedLength, int pixelLength) throws IOException {
         if (codec == StorageCodec.RAW) {
-            if (stored.length != pixelLength) {
+            if (storedLength != pixelLength || stored.length != storedLength) {
                 throw new IOException(
-                        "Prepared texture raw pixel length is " + stored.length + "; expected " + pixelLength);
+                        "Prepared texture raw pixel length is " + storedLength + "; expected " + pixelLength);
             }
             return stored;
         }
         byte[] pixels = new byte[pixelLength];
         try {
             int restored = LZ4_DECOMPRESSOR.decompress(
-                    stored, 0, stored.length, pixels, 0, pixels.length);
+                    stored, 0, storedLength, pixels, 0, pixels.length);
             if (restored != pixelLength) {
                 throw new IOException(
                         "Prepared texture decompressed to " + restored + " bytes; expected " + pixelLength);
@@ -321,6 +333,23 @@ public final class PreparedTextureIO {
         } catch (MalformedInputException error) {
             throw new IOException("Prepared texture LZ4 payload is malformed", error);
         }
+    }
+
+    private static byte[] trustedLz4Scratch(int required) {
+        if (required > MAX_TRUSTED_LZ4_SCRATCH_BYTES) {
+            return new byte[required];
+        }
+        byte[] current = TRUSTED_LZ4_SCRATCH.get();
+        if (current.length >= required) {
+            return current;
+        }
+        int capacity = Integer.highestOneBit(Math.max(1, required - 1)) << 1;
+        if (capacity <= 0 || capacity > MAX_TRUSTED_LZ4_SCRATCH_BYTES) {
+            capacity = MAX_TRUSTED_LZ4_SCRATCH_BYTES;
+        }
+        byte[] replacement = new byte[capacity];
+        TRUSTED_LZ4_SCRATCH.set(replacement);
+        return replacement;
     }
 
     public enum StorageCodec {

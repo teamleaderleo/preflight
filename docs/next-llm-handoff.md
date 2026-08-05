@@ -826,6 +826,15 @@ the cooled balanced cohort measured **23.15s median (22.59--23.21)** versus the 
 That 0.07s difference is below noise. Switching updates the manifest; the existing conservative
 `cache prune` can then reclaim the unreferenced representation explicitly. See
 `docs/evidence/2026-08-06-balanced-texture-storage.md`.
+Balanced serving now also reuses a bounded compressed-input scratch per loader thread. The full
+installed LZ4 corpus previously allocated and discarded 2.20GB of encoded arrays on its way to the
+required 5.33GB of final pixels. On the bundled JVM, an alternating 5,000-blob replay moved from
+629.025ms to 607.822ms median (**-3.4%**) and eliminated 359.9MB of transient allocation; complete
+old/new replay produced the same checksum for all 30,638 blobs. The final live gate served 15,469
+prepared textures with zero corruption, quarantine, decode fallback, or internal failure and
+reached the menu in 21.61s. Raw/`fastest`, checked tooling reads, formats, and identities are
+unchanged. Treat this as allocation/GC/thermal headroom, not a whole-launch timing claim. See
+`docs/evidence/2026-08-06-balanced-texture-scratch.md`.
 LunaLib 2.0.5 and Nexerelin 0.12.2b also run forks of the same asynchronous version checker over
 the same 74 mod URLs. Exact, source-bound adapters now share only successful HTTP(S) response bytes
 within one game process; callers receive independent streams, failures retry independently,

@@ -56,6 +56,27 @@ class PreparedTextureIOTest {
         Path output = temporaryDirectory.resolve("compressed.spft");
         PreparedTextureIO.write(output, texture, PreparedTextureIO.StorageCodec.LZ4);
         assertEquals(texture, PreparedTextureIO.readTrusted(output));
+
+        // Grow this thread's trusted-read scratch, then reuse it for the smaller blob above. The
+        // decompressor must consume the encoded length, not stale bytes in the retained capacity.
+        byte[] largerPixels = new byte[256 * 256 * 4];
+        Arrays.fill(largerPixels, (byte) 0x37);
+        PreparedTexture larger = new PreparedTexture(
+                "ef".repeat(32),
+                PreparedTexture.Transformation.IDENTITY,
+                256,
+                256,
+                256,
+                256,
+                4,
+                PreparedTexture.rgba(1, 2, 3, 255),
+                PreparedTexture.rgba(4, 5, 6, 255),
+                PreparedTexture.rgba(7, 8, 9, 255),
+                largerPixels);
+        Path largerOutput = temporaryDirectory.resolve("larger-compressed.spft");
+        PreparedTextureIO.write(largerOutput, larger, PreparedTextureIO.StorageCodec.LZ4);
+        assertEquals(larger, PreparedTextureIO.readTrusted(largerOutput));
+        assertEquals(texture, PreparedTextureIO.readTrusted(output));
     }
 
     @Test
