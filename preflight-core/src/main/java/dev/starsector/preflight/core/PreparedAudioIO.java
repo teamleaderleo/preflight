@@ -30,6 +30,22 @@ public final class PreparedAudioIO {
     }
 
     public static PreparedAudio read(Path source) throws IOException {
+        return read(source, true);
+    }
+
+    /**
+     * Reads an atomically-written local cache blob without recomputing its payload checksum.
+     *
+     * <p>Magic, version, file and payload lengths, enum values, audio dimensions, PCM length,
+     * sample count, EOF, and trailing-data checks still run. Builders and cache inspection tools
+     * must use {@link #read(Path)}; this entrypoint is for the latency-sensitive game runtime after
+     * it has selected the blob by the exact source and decoder identities encoded in its path.
+     */
+    public static PreparedAudio readTrusted(Path source) throws IOException {
+        return read(source, false);
+    }
+
+    private static PreparedAudio read(Path source, boolean verifyChecksum) throws IOException {
         Path absolute = source.toAbsolutePath().normalize();
         if (Files.isSymbolicLink(absolute) || !Files.isRegularFile(absolute, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("Prepared audio path is not a regular file: " + absolute);
@@ -38,7 +54,7 @@ public final class PreparedAudioIO {
         if (size < minimumFileBytes() || size > MAX_FILE_BYTES) {
             throw new IOException("Prepared audio file size is invalid: " + size);
         }
-        return fromBytes(readBounded(absolute));
+        return fromBytes(readBounded(absolute), verifyChecksum);
     }
 
     public static byte[] toBytes(PreparedAudio audio) throws IOException {
@@ -61,6 +77,10 @@ public final class PreparedAudioIO {
     }
 
     public static PreparedAudio fromBytes(byte[] bytes) throws IOException {
+        return fromBytes(bytes, true);
+    }
+
+    private static PreparedAudio fromBytes(byte[] bytes, boolean verifyChecksum) throws IOException {
         if (bytes == null || bytes.length < minimumFileBytes()) {
             throw new IOException("Prepared audio is too small");
         }
@@ -85,7 +105,7 @@ public final class PreparedAudioIO {
             if (payload.length != payloadLength || checksum.length != CHECKSUM_BYTES) {
                 throw new EOFException("Prepared audio ended before its checksum");
             }
-            if (!MessageDigest.isEqual(checksum, Hashes.sha256Bytes(payload))) {
+            if (verifyChecksum && !MessageDigest.isEqual(checksum, Hashes.sha256Bytes(payload))) {
                 throw new IOException("Prepared audio checksum mismatch");
             }
             return decodePayload(payload);

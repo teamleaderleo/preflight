@@ -194,6 +194,18 @@ semantic drift produced 54.23s and 58.13s diagnostic launches. The old subset is
 prepared-pixel acceptance gate. Evidence:
 `docs/evidence/2026-08-05-startup-benchmark-fast-preset.md`.
 
+The next startup recording exposed a new Rosetta-specific residual in Preflight itself: 452 sampled
+ticks recomputed the payload checksum over 1.21 GB of prepared PCM on the game's two audio loader
+threads, after the encoded input had already been hashed to select an exact content-addressed blob.
+On Starsector's bundled x86 JVM, verified reads over a 268.6 MB real-corpus slice took
+1.06--1.12s versus 0.132--0.135s for the same structural reader without the redundant payload hash,
+an 8.0--8.4x difference. The runtime now uses the trusted reader by default, still matches embedded
+source/decoder/policy identities to the lookup, and retains every bounded shape/EOF check;
+`-Dpreflight.audio.verifyBlobChecksum=true` restores the hash. The same audit removed redundant
+per-class hashes inside an already-checksummed Janino bundle. Focused tests and the exact-runtime
+replay pass; a controlled live pair remains to establish wall time. Evidence:
+`docs/evidence/2026-08-05-prepared-audio-trusted-read-benchmark.md`.
+
 A prior controlled warm probe reproduced the
 sub-32 result at 31.90s: adapter health was ACTIVE, all 16 exact transformations applied, Janino
 served 228/228 calls, the merged-read cache served 1,469/1,469 keyed calls, and GraphicsLib compact

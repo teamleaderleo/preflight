@@ -98,6 +98,23 @@ class PreparedAudioRuntimeTest {
     }
 
     @Test
+    void aCrossKeyBlobIsNotServedEvenByTheTrustedReader() throws Throwable {
+        byte[] other = "different encoded source".getBytes(StandardCharsets.UTF_8);
+        byte[] pcm = pcm(128);
+        PreparedAudio audio = prepared(other, DECODER, pcm, 1, 22_050);
+        Path expected = PreparedAudioCache.blobPath(cache, Hashes.sha256(ENCODED), DECODER,
+                PreparedAudio.Policy.FULLY_DECODED_EFFECT);
+        Files.createDirectories(expected.getParent());
+        Files.write(expected, PreparedAudioIO.toBytes(audio));
+        Vanilla vanilla = new Vanilla();
+
+        PreparedAudioRuntime.decode(null, new ByteArrayInputStream(ENCODED), vanilla.handle());
+
+        assertEquals(1, vanilla.calls);
+        assertArrayEquals(ENCODED, vanilla.seen);
+    }
+
+    @Test
     void anUnconfiguredRuntimeIsExactlyTheGameDecoder() throws Throwable {
         PreparedAudioRuntime.configure(null, null);
         assertFalse(PreparedAudioRuntime.ready());
@@ -115,14 +132,19 @@ class PreparedAudioRuntimeTest {
 
     private void bakeUnder(String decoder, byte[] encoded, byte[] pcm, int channels, int rate)
             throws Exception {
-        PreparedAudio audio = new PreparedAudio(
-                Hashes.sha256(encoded), decoder, PreparedAudio.Policy.FULLY_DECODED_EFFECT,
-                PreparedAudio.PcmEncoding.PCM_SIGNED, 16, PreparedAudio.ByteOrder.LITTLE_ENDIAN,
-                rate, channels, pcm.length / (long) (channels * 2), pcm);
+        PreparedAudio audio = prepared(encoded, decoder, pcm, channels, rate);
         Path blob = PreparedAudioCache.blobPath(cache, Hashes.sha256(encoded), decoder,
                 PreparedAudio.Policy.FULLY_DECODED_EFFECT);
         Files.createDirectories(blob.getParent());
         Files.write(blob, PreparedAudioIO.toBytes(audio));
+    }
+
+    private static PreparedAudio prepared(
+            byte[] encoded, String decoder, byte[] pcm, int channels, int rate) {
+        return new PreparedAudio(
+                Hashes.sha256(encoded), decoder, PreparedAudio.Policy.FULLY_DECODED_EFFECT,
+                PreparedAudio.PcmEncoding.PCM_SIGNED, 16, PreparedAudio.ByteOrder.LITTLE_ENDIAN,
+                rate, channels, pcm.length / (long) (channels * 2), pcm);
     }
 
     private static byte[] pcm(int bytes) {

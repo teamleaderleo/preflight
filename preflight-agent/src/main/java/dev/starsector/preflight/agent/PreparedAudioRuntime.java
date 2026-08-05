@@ -45,6 +45,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class PreparedAudioRuntime {
     static final String PLAN_ID = "prepared-audio-v1";
     private static final String ENABLED_PROPERTY = "preflight.audio.prepared";
+    /** Opt back in to hashing every prepared PCM blob on the game's two loader threads. */
+    public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.audio.verifyBlobChecksum";
 
     /** {@code sound.F}: the decoded-audio object the loader expects back. */
     private static final String RESULT_CLASS = "sound.F";
@@ -128,15 +130,26 @@ public final class PreparedAudioRuntime {
 
     private static Object serve(byte[] encoded) throws ReflectiveOperationException,
             java.io.IOException {
+        String sourceSha256 = Hashes.sha256(encoded);
         Path blob = PreparedAudioCache.blobPath(
                 cacheDirectory,
-                Hashes.sha256(encoded),
+                sourceSha256,
                 decoderPolicyIdentity,
                 PreparedAudio.Policy.FULLY_DECODED_EFFECT);
         if (!Files.isRegularFile(blob)) {
             return null;
         }
-        PreparedAudio audio = PreparedAudioIO.fromBytes(Files.readAllBytes(blob));
+        PreparedAudio audio = Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY)
+                ? PreparedAudioIO.read(blob)
+                : PreparedAudioIO.readTrusted(blob);
+        // The path is content-addressed, but match its contents as well. This catches accidental
+        // cross-key substitution even in trusted-read mode and ensures a blob can only stand in for
+        // the exact encoded input and decoder policy the game was about to execute.
+        if (!audio.sourceSha256().equals(sourceSha256)
+                || !audio.decoderPolicyIdentitySha256().equals(decoderPolicyIdentity)
+                || audio.policy() != PreparedAudio.Policy.FULLY_DECODED_EFFECT) {
+            return null;
+        }
         // The loader reads three fields and hands the buffer to alBufferData as 16-bit PCM. A blob
         // that is not that shape is not this decoder's output, whatever else it may be.
         if (audio.bitsPerSample() != 16
@@ -193,6 +206,7 @@ public final class PreparedAudioRuntime {
         report.put("pcmBytesServed", servedBytes.get());
         report.put("decodedByTheGame", misses.get());
         report.put("failures", failures.get());
+        report.put("blobChecksumVerification", Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY));
         return report;
     }
 

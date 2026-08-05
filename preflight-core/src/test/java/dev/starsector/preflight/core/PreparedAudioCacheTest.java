@@ -140,6 +140,25 @@ class PreparedAudioCacheTest {
     }
 
     @Test
+    void trustedBlobReadSkipsOnlyThePayloadChecksum() throws Exception {
+        PreparedAudio audio = audio("c", "d", pcm(16, 9));
+        Path blob = temporaryDirectory.resolve("trusted.spau");
+        PreparedAudioIO.write(blob, audio);
+
+        byte[] sameLengthCorruption = Files.readAllBytes(blob);
+        // The final PCM byte is immediately before the 32-byte outer checksum. Changing it keeps
+        // every structural and dimensional invariant valid while making the checksum stale.
+        sameLengthCorruption[sameLengthCorruption.length - 33] ^= 1;
+        Files.write(blob, sameLengthCorruption);
+        PreparedAudio trusted = PreparedAudioIO.readTrusted(blob);
+        assertEquals(audio.pcmByteCount(), trusted.pcmByteCount());
+        assertThrows(IOException.class, () -> PreparedAudioIO.read(blob));
+
+        Files.write(blob, java.util.Arrays.copyOf(sameLengthCorruption, sameLengthCorruption.length - 1));
+        assertThrows(IOException.class, () -> PreparedAudioIO.readTrusted(blob));
+    }
+
+    @Test
     void cacheIsContentAddressedFailOpenAndRejectsCrossKeySubstitution() throws Exception {
         Path cache = temporaryDirectory.resolve("cache");
         PreparedAudio first = audio("1", "2", pcm(16, 1));
