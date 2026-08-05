@@ -164,3 +164,34 @@ the 24.2-million-call hit path no longer performs the lookup. `CommodityOnMarket
 itself is now a compiled leaf in 67/983 samples (6.82%), so the next cost is the exact hit-path
 validation rather than another hidden vanilla call. Campaign frame time for this mixed interactive
 pilot was p50 16.8ms, p95 26.5ms, and p99 57.3ms; it is not an identical-workload frame-time A/B.
+
+## Direct exact-key validation (v4, offline-green)
+
+The later `post-location-hotspots-v1-20260805-105930` profile exercised 88,254,334 memo calls:
+88,009,670 hits and 244,664 delegations, a **99.72%** hit rate. Its 1,474 campaign main-thread
+samples contain 231 memo stacks. The retained vanilla method accounts for 58 legitimate-delegation
+samples. On the hit path, however, 89 samples stop in `VarHandleGuards.guard_L_I` and another 42 in
+`EventModMapSnapshotRuntime.unchanged`. Thus the defensive `HashMap.modCount` read itself accounts
+for 131/1,474 campaign samples (**8.89%**), despite avoiding the ordinary map lookup it replaced.
+
+The reproducible benchmark in
+`docs/evidence/2026-08-05-event-mod-map-validation-benchmark.java` runs both checks for 100 million
+iterations on Starsector's own x86-64 Zulu 17 JVM under Rosetta. Across five fresh JVMs, direct
+`map.get("eMod") == expected` took **1.543-1.561 ns/op**. The retained-entry plus VarHandle
+generation check took **3.669-4.235 ns/op**, or roughly 2.4-2.7 times as long. This is a narrow
+microbenchmark, not an FPS claim, but it directly measures the exact operation that dominated the
+sampled hit path on the exact production JVM.
+
+The v4 wrapper therefore reads the exact current `eMod` mapping directly through the already
+exact-gated `flatMods` accessor and compares its identity and public value/description fields.
+That is sufficient for this recomputation boundary: unrelated map mutations cannot affect the
+result, while removal, insertion, same-key replacement, whole-map replacement, and direct
+`StatMod` mutation all change one of the retained comparisons and delegate to vanilla. The other
+clean flags, backing-stat identities, float bits, and conditional econ-unit check are unchanged.
+The VarHandle snapshot and its extra transient field are no longer on the production path.
+
+Synthetic shape and fail-open tests pass. The exact installed `CommodityOnMarket` and `MutableStat`
+execution test passes against the game's real jars and retains all external-mutation cases. Full
+`mvn verify` is green (core 195; CLI unit 375; integration 38 with one expected skip; synthetic 22
+with one expected skip). A live state-separated profile is still required before claiming the
+sample reduction or committing to an FPS delta.

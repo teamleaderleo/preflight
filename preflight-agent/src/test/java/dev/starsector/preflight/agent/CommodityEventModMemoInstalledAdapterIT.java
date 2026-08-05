@@ -121,21 +121,10 @@ class CommodityEventModMemoInstalledAdapterIT {
                     statConstructor.newInstance(0f),
                     statConstructor.newInstance(0f),
                     commoditySpecType.getConstructor(float.class).newInstance(1f));
-            assertEquals(7L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
-            assertEquals(7L, CommodityEventModMemoRuntime.telemetry().get("hits"));
+            assertEquals(8L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+            assertEquals(8L, CommodityEventModMemoRuntime.telemetry().get("hits"));
             assertEquals(0L,
                     CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
-            if (EventModMapSnapshotRuntime.available()) {
-                assertEquals(7L,
-                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotsCaptured"));
-                assertEquals(0L,
-                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotUnavailable"));
-            } else {
-                assertEquals(0L,
-                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotsCaptured"));
-                assertEquals(7L,
-                        CommodityEventModMemoRuntime.telemetry().get("entrySnapshotUnavailable"));
-            }
         }
     }
 
@@ -162,9 +151,9 @@ class CommodityEventModMemoInstalledAdapterIT {
         byte[] executable = withTestExercise(transformed);
         ListWithArchive classpath = gameClasspath(archive);
 
-        // Deliberately omit MutableStatDirtyAccessorPlan's transformed class. Post-state capture
-        // sees the missing map accessor after vanilla completes, catches LinkageError inside the
-        // wrapper, and permanently fails open before the second call.
+        // Deliberately omit MutableStatDirtyAccessorPlan's transformed class. The first call authors
+        // and records vanilla state. The second call sees the missing fast-path accessor, catches
+        // LinkageError, permanently disables the memo, and delegates through vanilla again.
         try (InstalledLoader loader = new InstalledLoader(
                 classpath.urls(), Map.of(
                         CommodityEventModMemoPlan.TARGET_CLASS.replace('/', '.'), executable,
@@ -191,7 +180,7 @@ class CommodityEventModMemoInstalledAdapterIT {
                     statConstructor.newInstance(0f),
                     commoditySpecType.getConstructor(float.class).newInstance(1f));
             assertEquals(0L, CommodityEventModMemoRuntime.telemetry().get("hits"));
-            assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
+            assertEquals(2L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
             assertEquals(1L,
                     CommodityEventModMemoRuntime.telemetry().get("fastValidationUnavailable"));
             assertEquals(false, CommodityEventModMemoRuntime.telemetry().get("enabled"));
@@ -277,6 +266,67 @@ class CommodityEventModMemoInstalledAdapterIT {
                 "modifyFlat",
                 "(Ljava/lang/String;FLjava/lang/String;)V",
                 false));
+        invokeReapply(method);
+        invokeReapply(method);
+        // The public backing map permits direct same-key replacement without dirtying the stat.
+        // A new, equal-valued StatMod must still invalidate the retained object identity.
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        method.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST,
+                "com/fs/starfarer/api/combat/MutableStat"));
+        method.instructions.add(new LdcInsnNode("eMod"));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL,
+                "com/fs/starfarer/api/combat/MutableStat",
+                "getFlatStatMod",
+                "(Ljava/lang/String;)Lcom/fs/starfarer/api/combat/MutableStat$StatMod;",
+                false));
+        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 6));
+        method.instructions.add(new TypeInsnNode(
+                Opcodes.NEW, "com/fs/starfarer/api/combat/MutableStat$StatMod"));
+        method.instructions.add(new InsnNode(Opcodes.DUP));
+        method.instructions.add(new LdcInsnNode("eMod"));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.GETSTATIC,
+                "com/fs/starfarer/api/combat/MutableStat$StatModType",
+                "FLAT",
+                "Lcom/fs/starfarer/api/combat/MutableStat$StatModType;"));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 6));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.GETFIELD,
+                "com/fs/starfarer/api/combat/MutableStat$StatMod",
+                "value",
+                "F"));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 6));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.GETFIELD,
+                "com/fs/starfarer/api/combat/MutableStat$StatMod",
+                "desc",
+                "Ljava/lang/String;"));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESPECIAL,
+                "com/fs/starfarer/api/combat/MutableStat$StatMod",
+                "<init>",
+                "(Ljava/lang/String;Lcom/fs/starfarer/api/combat/MutableStat$StatModType;FLjava/lang/String;)V",
+                false));
+        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 7));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        method.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST,
+                "com/fs/starfarer/api/combat/MutableStat"));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL,
+                "com/fs/starfarer/api/combat/MutableStat",
+                "getFlatMods",
+                "()Ljava/util/HashMap;",
+                false));
+        method.instructions.add(new LdcInsnNode("eMod"));
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 7));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL,
+                "java/util/HashMap",
+                "put",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                false));
+        method.instructions.add(new InsnNode(Opcodes.POP));
         invokeReapply(method);
         invokeReapply(method);
         // A direct write to MutableStat's public aggregate does not set its dirty bit. The exact

@@ -104,8 +104,15 @@ real installed-class, and full `mvn verify` checks pass. The live v3 pilot then 
 hits, delegated/captured 223,219 exact post-vanilla states, and reported snapshot capability active
 with zero unavailable capture or accessor fallback. `getFlatStatMod` fell from 12.64% to 0.51% of
 campaign samples; all five survivors were legitimate vanilla delegations. The wrapper itself is now
-a 6.82% compiled leaf, so further commodity work must reduce exact validation cost or move the safe
-boundary outward rather than hunting another nested call.
+a 6.82% compiled leaf. A later 99.72%-hit profile localized 131/1,474 campaign samples (8.89%) to
+the v3 VarHandle `modCount` validation itself. On Starsector's exact x86-64 Zulu 17/Rosetta JVM, five
+fresh 100-million-iteration runs measured direct exact-key lookup at 1.543-1.561ns/op versus
+3.669-4.235ns/op for the retained-entry/VarHandle check. Offline-green v4 now validates the current
+`eMod` mapping directly through the exact flat-map accessor. This preserves every relevant mutation
+boundary—unrelated map structure is not an input—while removing the slow validation seam and its
+extra transient snapshot field. Synthetic, fail-open, exact installed-class execution, and full
+`mvn verify` pass. **Next step: live-profile v4 and confirm the 131-sample VarHandle stack disappears
+without fallback or a changed hit/delegate pattern.**
 Evidence: `docs/evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md`.
 
 The same campaign profile put vanilla's `com.fs.starfarer.coreui.A.oOoO.renderStuff` at 22/174

@@ -37,8 +37,6 @@ final class CommodityEventModMemoPlan {
     private static final String ORIGINAL = "preflight$original$reapplyEventMod";
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/CommodityEventModMemoRuntime";
-    private static final String MAP_RUNTIME =
-            "dev/starsector/preflight/agent/EventModMapSnapshotRuntime";
     private static final String MUTABLE = "com/fs/starfarer/api/combat/MutableStat";
     private static final String MUTABLE_TEMP =
             "com/fs/starfarer/api/combat/MutableStatWithTempMods";
@@ -62,7 +60,6 @@ final class CommodityEventModMemoPlan {
     private static final String TRADE_MINUS_STAT_REF = "preflight$eventModTradeMinusStatRef";
     private static final String EVENT_MOD_REF = "preflight$eventModRef";
     private static final String EVENT_MOD_DESC = "preflight$eventModDescriptionRef";
-    private static final String EVENT_MOD_MAP_SNAPSHOT = "preflight$eventModMapSnapshot";
 
     private CommodityEventModMemoPlan() {
     }
@@ -105,11 +102,6 @@ final class CommodityEventModMemoPlan {
         LabelNode fastStart = new LabelNode();
         LabelNode fastEnd = new LabelNode();
         LabelNode linkageFailure = new LabelNode();
-        LabelNode slowEventModLookup = new LabelNode();
-        LabelNode eventModCaptured = new LabelNode();
-        LabelNode snapshotStart = new LabelNode();
-        LabelNode snapshotEnd = new LabelNode();
-        LabelNode snapshotLinkageFailure = new LabelNode();
 
         method.instructions.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "enabled", "()Z", false));
@@ -145,32 +137,11 @@ final class CommodityEventModMemoPlan {
         compareStatValue(method, TRADE_MINUS, 10, delegated);
         compareStatValue(method, AVAILABLE, 2, delegated);
 
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        method.instructions.add(new FieldInsnNode(
-                Opcodes.GETFIELD,
-                TARGET_CLASS,
-                EVENT_MOD_MAP_SNAPSHOT,
-                "Ljava/lang/Object;"));
-        method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 11));
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 11));
-        method.instructions.add(new JumpInsnNode(Opcodes.IFNULL, slowEventModLookup));
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 11));
-        loadFlatModsReference(method, 2);
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        method.instructions.add(new FieldInsnNode(
-                Opcodes.GETFIELD, TARGET_CLASS, EVENT_MOD_REF, "Ljava/lang/Object;"));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC,
-                MAP_RUNTIME,
-                "unchanged",
-                "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Z",
-                false));
-        method.instructions.add(new JumpInsnNode(Opcodes.IFEQ, delegated));
-        captureCachedEventMod(method);
-        method.instructions.add(new JumpInsnNode(Opcodes.GOTO, eventModCaptured));
-        method.instructions.add(slowEventModLookup);
-        captureEventMod(method);
-        method.instructions.add(eventModCaptured);
+        // Reading the exact current key is both sufficient and materially cheaper than validating
+        // HashMap.modCount through a VarHandle on Starsector's Rosetta JVM. Unrelated map mutations
+        // cannot affect reapplyEventMod; replacement, removal, and insertion of eMod all change this
+        // identity and delegate to vanilla.
+        captureCurrentEventMod(method);
         compareReference(method, EVENT_MOD_REF, 4, delegated);
         compare(method, EVENT_MOD, 5, delegated);
         compareReference(method, EVENT_MOD_DESC, 7, delegated);
@@ -208,24 +179,11 @@ final class CommodityEventModMemoPlan {
         storeReference(method, TRADE_MINUS_STAT_REF, 10);
         storeReference(method, EVENT_MOD_REF, 4);
         storeReference(method, EVENT_MOD_DESC, 7);
-        method.instructions.add(snapshotStart);
-        storeEventModMapSnapshot(method);
-        method.instructions.add(snapshotEnd);
         method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         method.instructions.add(new InsnNode(Opcodes.ICONST_1));
         method.instructions.add(new FieldInsnNode(Opcodes.PUTFIELD, TARGET_CLASS, VALID, "Z"));
         method.instructions.add(new InsnNode(Opcodes.RETURN));
 
-        // The auxiliary accessor is deliberately version-pinned. If it was not installed, vanilla
-        // has already completed successfully; disable this memo and return without exposing the
-        // missing-linkage detail to the game.
-        method.instructions.add(snapshotLinkageFailure);
-        method.instructions.add(new InsnNode(Opcodes.POP));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, RUNTIME, "fastValidationUnavailable", "()V", false));
-        method.instructions.add(new InsnNode(Opcodes.RETURN));
-        method.tryCatchBlocks.add(new TryCatchBlockNode(
-                snapshotStart, snapshotEnd, snapshotLinkageFailure, "java/lang/LinkageError"));
         return method;
     }
 
@@ -287,11 +245,16 @@ final class CommodityEventModMemoPlan {
         method.instructions.add(noEventMod);
     }
 
-    /** Reads the cached StatMod object's mutable public fields without repeating the map lookup. */
-    private static void captureCachedEventMod(MethodNode method) {
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        method.instructions.add(new FieldInsnNode(
-                Opcodes.GETFIELD, TARGET_CLASS, EVENT_MOD_REF, "Ljava/lang/Object;"));
+    /** Reads the current exact-key mapping and its mutable public fields. */
+    private static void captureCurrentEventMod(MethodNode method) {
+        loadFlatModsReference(method, 2);
+        method.instructions.add(new LdcInsnNode("eMod"));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKEVIRTUAL,
+                "java/util/LinkedHashMap",
+                "get",
+                "(Ljava/lang/Object;)Ljava/lang/Object;",
+                false));
         method.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST, STAT_MOD));
         method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 4));
         method.instructions.add(new InsnNode(Opcodes.FCONST_0));
@@ -309,23 +272,6 @@ final class CommodityEventModMemoPlan {
                 Opcodes.GETFIELD, STAT_MOD, "desc", "Ljava/lang/String;"));
         method.instructions.add(new VarInsnNode(Opcodes.ASTORE, 7));
         method.instructions.add(noEventMod);
-    }
-
-    private static void storeEventModMapSnapshot(MethodNode method) {
-        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        loadFlatModsReference(method, 2);
-        method.instructions.add(new LdcInsnNode("eMod"));
-        method.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC,
-                MAP_RUNTIME,
-                "capture",
-                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                false));
-        method.instructions.add(new FieldInsnNode(
-                Opcodes.PUTFIELD,
-                TARGET_CLASS,
-                EVENT_MOD_MAP_SNAPSHOT,
-                "Ljava/lang/Object;"));
     }
 
     private static void loadFlatModsReference(MethodNode method, int statLocal) {
@@ -450,8 +396,6 @@ final class CommodityEventModMemoPlan {
         owner.fields.add(new FieldNode(access, TRADE_MINUS_STAT_REF, "Ljava/lang/Object;", null, null));
         owner.fields.add(new FieldNode(access, EVENT_MOD_REF, "Ljava/lang/Object;", null, null));
         owner.fields.add(new FieldNode(access, EVENT_MOD_DESC, "Ljava/lang/Object;", null, null));
-        owner.fields.add(new FieldNode(
-                access, EVENT_MOD_MAP_SNAPSHOT, "Ljava/lang/Object;", null, null));
     }
 
     private static boolean hasMemoFields(ClassNode owner) {

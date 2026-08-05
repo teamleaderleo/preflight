@@ -26,8 +26,6 @@ class CommodityEventModMemoPlanTest {
             CommodityEventModMemoRuntime.class.getName().replace('.', '/');
     private static final String MUTABLE_TEMP =
             "com/fs/starfarer/api/combat/MutableStatWithTempMods";
-    private static final String MAP_RUNTIME =
-            EventModMapSnapshotRuntime.class.getName().replace('.', '/');
 
     @BeforeEach
     @AfterEach
@@ -54,18 +52,17 @@ class CommodityEventModMemoPlanTest {
         assertEquals(1, calls(wrapper, MUTABLE_TEMP, "getModifiedValue"));
         assertEquals(4, calls(wrapper, "com/fs/starfarer/api/combat/MutableStat",
                 MutableStatDirtyAccessorPlan.ACCESSOR));
-        assertEquals(2, calls(wrapper, "com/fs/starfarer/api/combat/MutableStat",
+        assertEquals(1, calls(wrapper, "com/fs/starfarer/api/combat/MutableStat",
                 MutableStatDirtyAccessorPlan.FLAT_MODS_ACCESSOR));
-        assertEquals(1, calls(wrapper, MAP_RUNTIME, "capture"));
-        assertEquals(1, calls(wrapper, MAP_RUNTIME, "unchanged"));
-        assertEquals(2, calls(wrapper, RUNTIME, "fastValidationUnavailable"));
-        assertEquals(2, wrapper.tryCatchBlocks.stream()
+        assertEquals(1, calls(wrapper, "java/util/LinkedHashMap", "get"));
+        assertEquals(1, calls(wrapper, RUNTIME, "fastValidationUnavailable"));
+        assertEquals(1, wrapper.tryCatchBlocks.stream()
                 .filter(block -> "java/lang/LinkageError".equals(block.type)).count());
 
         List<FieldNode> memoFields = owner.fields.stream()
                 .filter(field -> field.name.startsWith("preflight$eventMod"))
                 .toList();
-        assertEquals(15, memoFields.size());
+        assertEquals(14, memoFields.size());
         assertTrue(memoFields.stream().allMatch(field -> (field.access & Opcodes.ACC_PRIVATE) != 0));
         assertTrue(memoFields.stream().allMatch(field -> (field.access & Opcodes.ACC_TRANSIENT) != 0));
     }
@@ -96,7 +93,7 @@ class CommodityEventModMemoPlanTest {
         CommodityEventModMemoRuntime.delegated();
         assertEquals(2L, CommodityEventModMemoRuntime.telemetry().get("hits"));
         assertEquals(1L, CommodityEventModMemoRuntime.telemetry().get("delegated"));
-        assertEquals("clean-stat-and-map-entry-fast-path-with-exact-post-state-fingerprint",
+        assertEquals("clean-stat-and-direct-exact-key-fast-path-with-exact-post-state-fingerprint",
                 CommodityEventModMemoRuntime.telemetry().get("validationStrategy"));
         CommodityEventModMemoRuntime.fastValidationUnavailable();
         assertFalse(CommodityEventModMemoRuntime.enabled());
