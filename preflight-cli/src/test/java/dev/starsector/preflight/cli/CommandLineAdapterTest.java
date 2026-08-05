@@ -42,6 +42,7 @@ class CommandLineAdapterTest {
         assertEquals(false, defaults.directLaunch());
         assertEquals(false, defaults.fileOnlyLogs());
         assertEquals(false, defaults.quietLogs());
+        assertEquals(false, defaults.suppressAssetProgressLogs());
 
         CommandLine direct = CommandLine.parse(
                 new String[] {"run", "--direct", "--quiet-logs"}, 1);
@@ -88,6 +89,10 @@ class CommandLineAdapterTest {
 
         assertEquals(true, fast.fileOnlyLogs());
         assertEquals(false, fast.quietLogs());
+        assertEquals(true, fast.suppressAssetProgressLogs());
+        assertEquals(false, CommandLine.parse(
+                new String[] {"run", "--fast", "--full-asset-progress-logs"}, 1)
+                .suppressAssetProgressLogs());
         assertEquals(true, explicit.fileOnlyLogs());
         assertEquals(true, explicit.quietLogs());
     }

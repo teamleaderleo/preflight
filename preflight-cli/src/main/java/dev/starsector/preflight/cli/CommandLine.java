@@ -39,6 +39,7 @@ record CommandLine(
         boolean directLaunch,
         boolean fileOnlyLogs,
         boolean quietLogs,
+        boolean suppressAssetProgressLogs,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -65,6 +66,7 @@ record CommandLine(
         boolean directLaunch = false;
         boolean fileOnlyLogs = false;
         boolean quietLogs = false;
+        boolean suppressAssetProgressLogs = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -124,6 +126,8 @@ record CommandLine(
                     fileOnlyLogs = true;
                     quietLogs = true;
                 }
+                case "--suppress-asset-progress-logs" -> suppressAssetProgressLogs = true;
+                case "--full-asset-progress-logs" -> suppressAssetProgressLogs = false;
                 // One flag for everything that has landed and is safe to turn on. Experimental
                 // adapters stay individually addressable for isolated pilots, but do not belong in
                 // the normal launch path until live runs have established their correctness.
@@ -146,6 +150,7 @@ record CommandLine(
                     janinoBytecodeCache = true;
                     graphicsLibInsigniaManagerCache = true;
                     fileOnlyLogs = true;
+                    suppressAssetProgressLogs = true;
                     recordingMode = RecordingMode.OFF;
                 }
                 case "--texture-mode" -> {
@@ -272,6 +277,7 @@ record CommandLine(
                 directLaunch,
                 fileOnlyLogs,
                 quietLogs,
+                suppressAssetProgressLogs,
                 List.copyOf(forwarded));
     }
 

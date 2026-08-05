@@ -185,6 +185,10 @@ public final class PreflightCli {
                 "    --fast enables every startup and gameplay cache that has passed its live gate,"
                         + " disables profiling and duplicate-console overhead, and leaves each exact adapter fail-closed."
                         + " Installed Preflight launchers use this preset by default.",
+                "    --suppress-asset-progress-logs removes only the reviewed vanilla per-file"
+                        + " weapon, projectile, hull, and variant INFO messages. Errors, warnings,"
+                        + " and phase summaries remain; it is included by --fast and can be"
+                        + " reversed by a later --full-asset-progress-logs.",
                 "    --file-only-logs keeps synchronous, crash-safe INFO writes in starsector.log"
                         + " but removes the duplicate console appender. It is included by --fast.",
                 "    --quiet-logs keeps every INFO line in the rolling starsector.log, removes the"

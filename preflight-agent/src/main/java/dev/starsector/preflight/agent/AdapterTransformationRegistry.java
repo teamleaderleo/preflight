@@ -121,14 +121,18 @@ final class AdapterTransformationRegistry {
                         return optimized == null ? rulesPhases : optimized;
                     }
                     if (!HullJsonCacheRuntime.ready()) {
-                        return hullPhases;
+                        byte[] concise = assetProgressLogs(hullPhases);
+                        return concise == null ? hullPhases : concise;
                     }
                     try {
                         byte[] cached = HullJsonCachePlan.transform(
                                 ClassSignature.parse(hullPhases), hullPhases);
-                        return cached == null ? hullPhases : cached;
+                        byte[] current = cached == null ? hullPhases : cached;
+                        byte[] concise = assetProgressLogs(current);
+                        return concise == null ? current : concise;
                     } catch (java.io.IOException ignored) {
-                        return hullPhases;
+                        byte[] concise = assetProgressLogs(hullPhases);
+                        return concise == null ? hullPhases : concise;
                     }
                 }
                 try {
@@ -166,9 +170,13 @@ final class AdapterTransformationRegistry {
             return weaponJsonCaches(originalBytes);
         }
         if (HullJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return HullJsonCacheRuntime.ready()
-                    ? HullJsonCachePlan.transform(signature, originalBytes)
-                    : null;
+            if (!HullJsonCacheRuntime.ready()) {
+                return null;
+            }
+            byte[] cached = HullJsonCachePlan.transform(signature, originalBytes);
+            byte[] current = cached == null ? originalBytes : cached;
+            byte[] concise = assetProgressLogs(current);
+            return concise == null ? cached : concise;
         }
         if (RulesDuplicateIndexRuntime.PLAN_ID.equals(target.planId())
                 || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())
@@ -386,6 +394,11 @@ final class AdapterTransformationRegistry {
                     changed = true;
                 }
             }
+            byte[] concise = assetProgressLogs(current);
+            if (concise != null) {
+                current = concise;
+                changed = true;
+            }
             return changed ? current : null;
         } catch (java.io.IOException ignored) {
             return changed ? current : null;
@@ -416,7 +429,23 @@ final class AdapterTransformationRegistry {
             // A valid prepared-variant transform remains useful if the disjoint rewrite cannot
             // inspect its output. Every original String.replaceAll call remains untouched.
         }
+        byte[] concise = assetProgressLogs(current);
+        if (concise != null) {
+            current = concise;
+            changed = true;
+        }
         return changed ? current : null;
+    }
+
+    private static byte[] assetProgressLogs(byte[] originalBytes) {
+        if (!AssetProgressLogRuntime.suppress()) {
+            return null;
+        }
+        try {
+            return AssetProgressLogPlan.transform(ClassSignature.parse(originalBytes), originalBytes);
+        } catch (java.io.IOException ignored) {
+            return null;
+        }
     }
 
     private static byte[] rulesOptimizations(byte[] originalBytes) {

@@ -900,6 +900,13 @@ only about 20ms; the remainder was distributed first-use construction, led by Hy
 `FactionManager`, and `CampaignClock` at roughly 40ms each in one sample. The constructor drill was
 removed after attribution because its extra labels overflowed the general startup report. Do not
 trade this startup cost for a later first-campaign-use hitch.
+`--fast` now also omits the exact reviewed per-file projectile, weapon, hull, and variant INFO
+messages while preserving warnings, errors, summaries, and `Skipping variant [...]`. The clean live
+gate removed 12,584 events / 1,560,182 formatted bytes and reduced the four affected loader calls by
+106ms in aggregate (545->501, 481->452, 420->415, and 300->272ms). It reached the menu in 22.77s and
+stopped normally. Treat this as a measured CPU/allocation/log-volume result, not an exact causal
+whole-launch claim. The transform is atomic per class and declines on instruction drift. See
+`docs/evidence/2026-08-06-concise-asset-progress-logs.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

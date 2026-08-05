@@ -130,6 +130,11 @@ final class RunCommand {
                     javaToolOptions,
                     List.of(QuietLogConfiguration.javaOption(logConfiguration)));
         }
+        if (options.suppressAssetProgressLogs()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.assetProgressLogs=off"));
+        }
         String javaOptions = CombatJvmSafeguard.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
 
@@ -624,6 +629,7 @@ final class RunCommand {
         values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
+        values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
         values.put("quietLogConfiguration", options.fileOnlyLogs()
                 ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())
                 : null);
