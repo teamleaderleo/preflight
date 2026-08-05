@@ -285,6 +285,24 @@ final class TextureBatchBuilder {
                 return BlobResult.failure(key, relative, false, "Blob path escaped the cache root");
             }
 
+            // Format policy is part of cache eligibility, not merely build eligibility. Check it
+            // before accepting an older blob so tightening the fidelity boundary cannot reuse an
+            // artifact produced under the previous policy.
+            if ("webp".equals(extension(representative.logicalPath()))) {
+                try (ImageInputStream input = ImageIO.createImageInputStream(representative.source().toFile())) {
+                    if (input == null) {
+                        throw new IOException("ImageIO could not open the source");
+                    }
+                    requireExactlyDecodableWebp(input);
+                } catch (UnsupportedImageException error) {
+                    return BlobResult.unsupported(
+                            key,
+                            relative,
+                            false,
+                            "Skipped unsupported texture " + representative.logicalPath() + ": " + error.getMessage());
+                }
+            }
+
             boolean quarantined = false;
             if (Files.isRegularFile(blob)) {
                 long blobSize = Files.size(blob);
@@ -399,6 +417,7 @@ final class TextureBatchBuilder {
             if (input == null) {
                 throw new IOException("ImageIO could not open the source");
             }
+            requireExactlyDecodableWebp(input);
             var readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext()) {
                 String sourceExtension = extension(source.getFileName().toString());
@@ -419,6 +438,34 @@ final class TextureBatchBuilder {
             } finally {
                 reader.dispose();
             }
+        }
+    }
+
+    /**
+     * The pure-Java and game-native readers are pixel-identical for simple lossless VP8L files.
+     * They are not identical for the reviewed extended lossy-alpha file, so those stay on the
+     * game's authoritative decoder instead of being baked into the exact prepared cache.
+     */
+    private static void requireExactlyDecodableWebp(ImageInputStream input) throws IOException {
+        long position = input.getStreamPosition();
+        byte[] header = new byte[16];
+        int offset = 0;
+        while (offset < header.length) {
+            int read = input.read(header, offset, header.length - offset);
+            if (read < 0) {
+                break;
+            }
+            offset += read;
+        }
+        input.seek(position);
+        boolean webp = offset >= 12
+                && header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F'
+                && header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P';
+        boolean simpleLossless = offset >= 16
+                && header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'L';
+        if (webp && !simpleLossless) {
+            throw new UnsupportedImageException(
+                    "Only simple lossless VP8L WebP is pixel-identical to the game decoder");
         }
     }
 

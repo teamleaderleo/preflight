@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.ResourceIndex;
@@ -238,7 +239,7 @@ class TextureBatchBuilderTest {
     }
 
     @Test
-    void preparesValidWebpThroughThePureJavaImageIoProvider() throws Exception {
+    void preparesSimpleLosslessWebpThroughThePureJavaImageIoProvider() throws Exception {
         Path root = temporaryDirectory.resolve("root");
         Path source = root.resolve("graphics/icon.webp");
         Files.createDirectories(source.getParent());
@@ -255,6 +256,42 @@ class TextureBatchBuilderTest {
         assertEquals(0, result.failedBlobs());
         assertEquals(0, result.skippedUnsupportedBlobs());
         assertTrue(result.manifest().entry("graphics/icon.webp").isPresent());
+    }
+
+    @Test
+    void extendedWebpStaysOnTheAuthoritativeGameDecoder() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        Path source = root.resolve("graphics/extended.webp");
+        Files.createDirectories(source.getParent());
+        Files.write(source, new byte[] {
+                'R', 'I', 'F', 'F', 8, 0, 0, 0, 'W', 'E', 'B', 'P', 'V', 'P', '8', 'X'
+        });
+        ResourceIndex index = index(root, "profile", List.of("graphics/extended.webp"));
+
+        Path cache = temporaryDirectory.resolve("cache");
+        String sourceHash = Hashes.sha256(source);
+        Path staleBlob = cache.resolve("blobs")
+                .resolve(sourceHash.substring(0, 2))
+                .resolve(sourceHash + "-identity.spft");
+        Files.createDirectories(staleBlob.getParent());
+        PreparedTexture stale = BulkTexturePreprocessor.prepare(
+                new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB),
+                sourceHash,
+                PreparedTexture.Transformation.IDENTITY);
+        PreparedTextureIO.write(staleBlob, stale);
+
+        TextureBatchBuilder.Result result = TextureBatchBuilder.build(
+                index,
+                cache,
+                new TextureBatchBuilder.Options(1, 16 * MIB));
+
+        assertEquals(0, result.builtBlobs());
+        assertEquals(0, result.cacheHitBlobs());
+        assertEquals(0, result.failedBlobs());
+        assertEquals(1, result.skippedUnsupportedBlobs());
+        assertTrue(result.manifest().entry("graphics/extended.webp").isEmpty());
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(message -> message.contains("pixel-identical to the game decoder")));
     }
 
     private static ResourceIndex index(Path root, String fingerprint, List<String> paths) throws Exception {

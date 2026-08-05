@@ -187,6 +187,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-05 prepared-audio path-index cohort (3 runs)** | **24.76 median (24.61--24.81)** |
 | **2026-08-05 exact-target transformer cohort (5 runs)** | **24.12 median (23.93--24.43)** |
 | **2026-08-05 resource-priority index cohort (5 runs)** | **23.68 median (23.39--24.35)** |
+| **2026-08-05 WebP prefetch-tail cohort (5 runs)** | **23.03 median (22.90--23.34)** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -793,6 +794,19 @@ The following one-minute-cooled ordinary cohort measured
 launch stopped normally with zero transform failure. The adjacent prior cooled cohort was 24.12s
 median, so the 0.44s wall shift is consistent with the exact seam reduction but is not a shuffled
 paired A/B. See `docs/evidence/2026-08-05-resource-priority-index.md`.
+The last visible texture-prefetch tail was one WebP resource. Preflight's arm64 preparation JVM had
+no reader, while Starsector initialized its old x86-native WebP provider under Rosetta and left the
+main thread polling the one-thread queue 117 times (about 1.27 corrected wall seconds). The
+preparation CLI now carries a pure-Java WebP ImageIO reader; canonical ARGB hashes matched
+Starsector's decoder for both simple lossless VP8L assets. The enabled extended lossy-alpha WebP
+did not match and is deliberately omitted from the prepared manifest, leaving the game's decoder
+authoritative. A deep real preparation validated the other 32,919 entries with one intentional
+unsupported fallback. The final live profile moved `prefetchKept` 1 -> 0 and main-thread prefetch
+sleeps 117 -> 0 while still reporting that one non-startup fallback. The following
+one-minute-cooled cohort measured
+**23.24/23.34/23.03/22.90/22.99s (23.03s median, 0.44s range)**, versus the adjacent prior 23.68s
+median. Every run applied all 33 exact transformations and stopped automatically. See
+`docs/evidence/2026-08-05-webp-prefetch-tail.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete
