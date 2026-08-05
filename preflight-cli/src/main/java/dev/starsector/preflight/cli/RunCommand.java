@@ -3,6 +3,8 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Json;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.PreparedAudioManifest;
+import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -78,24 +80,11 @@ final class RunCommand {
         Path agentJar = SelfJar.locate();
 
         // Prepared audio is served only when the cache the bake wrote is present *and* the decoder
-        // that baked it is still the decoder installed. Neither is worth guessing at: if the bake
-        // has not been run, or the game has been updated since, nothing is passed and the launch
-        // decodes exactly as it always did.
-        Path preparedAudioCache = null;
-        String audioDecoderIdentity = null;
-        if (options.preparedAudio()) {
-            Path candidate = Path.of(System.getProperty("user.home"))
-                    .resolve(".starsector-preflight").resolve("cache")
-                    .toAbsolutePath().normalize();
-            if (Files.isDirectory(candidate.resolve("prepared-audio"))) {
-                preparedAudioCache = candidate;
-                audioDecoderIdentity = PrepareAudioCommand.decoderPolicyIdentity(
-                        PrepareAudioCommand.jars(InstallRoot.resolve(options.game())));
-            } else {
-                System.out.println("No prepared audio for this installation yet; "
-                        + "run `preflight audio prepare` to build it.");
-            }
-        }
+        // that baked it is still the decoder installed. A current, fully content-validated manifest
+        // additionally enables path lookup; without one the original exact byte-hash lookup remains.
+        PreparedAudioCacheContext preparedAudio = specStoreCaches.preparedAudio();
+        Path preparedAudioCache = preparedAudio == null ? null : preparedAudio.cacheRoot();
+        String audioDecoderIdentity = preparedAudio == null ? null : preparedAudio.decoderIdentity();
         String javaToolOptions = AgentInjection.append(
                 System.getenv("JAVA_TOOL_OPTIONS"),
                 agentJar,
@@ -125,6 +114,8 @@ final class RunCommand {
                 options.loadJsonMemo(),
                 preparedAudioCache,
                 audioDecoderIdentity,
+                preparedAudio == null ? null : preparedAudio.manifest(),
+                preparedAudio == null ? null : preparedAudio.manifestIdentity(),
                 mergedReadCache == null ? null : mergedReadCache.artifact(),
                 options.quietLogs(),
                 options.graphicsLibCompactReplay(),
@@ -732,7 +723,7 @@ final class RunCommand {
             boolean janinoCacheOwned) {
         boolean textureProfiles = textures != null && textures.automatic();
         if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || (!textureProfiles && !janinoCacheOwned)) {
+                || (!textureProfiles && !janinoCacheOwned && !options.preparedAudio())) {
             return SpecStoreCacheContexts.none();
         }
         long opened = System.nanoTime();
@@ -761,6 +752,12 @@ final class RunCommand {
                     textureProfiles ? mergedReadCacheContext(context, textures) : null,
                     janinoCacheOwned
                             ? janinoBytecodeCacheContext(context, target, cacheRoot)
+                            : null,
+                    options.preparedAudio()
+                            ? preparedAudioCacheContext(
+                                    context,
+                                    PrepareCommand.defaultCacheDirectory()
+                                            .toAbsolutePath().normalize())
                             : null);
             }
         } catch (Exception error) {
@@ -797,6 +794,84 @@ final class RunCommand {
                     cacheRoot.toAbsolutePath().normalize(), profile.context().portableToken());
         } catch (Exception error) {
             declined("Janino bytecode", error);
+            return null;
+        }
+    }
+
+    /**
+     * Selects the path index only after hashing every winning audio source in the native launcher.
+     * The game may then use the manifest's source hashes without doing the same 133 MB SHA pass
+     * under Rosetta. Any drift declines only this shortcut; the ordinary byte-addressed prepared
+     * audio lookup remains available when no path manifest is supplied.
+     */
+    private static PreparedAudioCacheContext preparedAudioCacheContext(
+            ProfileIdentityContext context, Path cacheRoot) {
+        long started = System.nanoTime();
+        try {
+            Path preparedRoot = cacheRoot.resolve("prepared-audio");
+            if (!Files.isDirectory(preparedRoot)) {
+                System.out.println("No prepared audio for this installation yet; "
+                        + "run `preflight audio prepare` to build it.");
+                return null;
+            }
+            List<Path> gameJars = PrepareAudioCommand.jars(context.installRoot());
+            String decoder = PrepareAudioCommand.decoderPolicyIdentity(gameJars);
+            Path manifestPath = preparedRoot.resolve("manifests")
+                    .resolve(context.resources().profileFingerprint() + ".spam")
+                    .toAbsolutePath().normalize();
+            if (!Files.isRegularFile(manifestPath)) {
+                System.out.println("Prepared audio predates path-indexed lookup; "
+                        + "run `preflight audio prepare` once to refresh it.");
+                return new PreparedAudioCacheContext(cacheRoot, decoder, null, null);
+            }
+            PreparedAudioManifest manifest = PreparedAudioManifestIO.read(manifestPath);
+            if (!manifest.profileFingerprintSha256().equals(context.resources().profileFingerprint())
+                    || !manifest.starsectorBuildSha256().equals(context.gameJarSha256())
+                    || !manifest.decoderPolicyIdentitySha256().equals(decoder)) {
+                throw new IOException("prepared audio manifest identity does not match this launch");
+            }
+
+            List<PreparedAudioManifest.Entry> entries = manifest.entries().values().stream()
+                    .filter(entry -> entry.policy().cacheEligible())
+                    .toList();
+            List<ResourceIndex.Provider> providers = new ArrayList<>(entries.size());
+            for (PreparedAudioManifest.Entry entry : entries) {
+                ResourceIndex.Provider provider = context.resources().winner(entry.logicalPath())
+                        .orElseThrow(() -> new IOException(
+                                "prepared audio source is no longer present: " + entry.logicalPath()));
+                if (provider.size() != entry.sourceBytes()
+                        || provider.modifiedMillis() != entry.sourceModifiedMillis()) {
+                    throw new IOException("prepared audio source metadata changed: " + entry.logicalPath());
+                }
+                providers.add(provider);
+            }
+            List<Path> sources = context.resolveAll(providers);
+            List<String> hashes = context.sha256All(sources);
+            for (int index = 0; index < entries.size(); index++) {
+                if (!entries.get(index).sourceSha256().equals(hashes.get(index))) {
+                    throw new IOException(
+                            "prepared audio source content changed: " + entries.get(index).logicalPath());
+                }
+            }
+            System.out.printf(Locale.ROOT,
+                    "Preflight validated %,d prepared audio paths (%.1f MB) in %.1fms.%n",
+                    entries.size(),
+                    entries.stream().mapToLong(PreparedAudioManifest.Entry::sourceBytes).sum()
+                            / 1_000_000.0,
+                    (System.nanoTime() - started) / 1_000_000.0);
+            return new PreparedAudioCacheContext(
+                    cacheRoot, decoder, manifestPath, manifest.manifestSha256());
+        } catch (Exception error) {
+            declined("prepared audio path index", error);
+            try {
+                if (Files.isDirectory(cacheRoot.resolve("prepared-audio"))) {
+                    String decoder = PrepareAudioCommand.decoderPolicyIdentity(
+                            PrepareAudioCommand.jars(context.installRoot()));
+                    return new PreparedAudioCacheContext(cacheRoot, decoder, null, null);
+                }
+            } catch (Exception ignored) {
+                // The caller receives null and the game decodes exactly as vanilla would.
+            }
             return null;
         }
     }
@@ -981,10 +1056,11 @@ final class RunCommand {
             RulesCsvCacheContext rulesCsv,
             RuleCommandCacheContext ruleCommand,
             MergedReadCacheContext mergedRead,
-            JaninoBytecodeCacheContext janino) {
+            JaninoBytecodeCacheContext janino,
+            PreparedAudioCacheContext preparedAudio) {
 
         static SpecStoreCacheContexts none() {
-            return new SpecStoreCacheContexts(null, null, null, null, null, null, null, null);
+            return new SpecStoreCacheContexts(null, null, null, null, null, null, null, null, null);
         }
     }
 
@@ -1023,5 +1099,9 @@ final class RunCommand {
     }
 
     private record JaninoBytecodeCacheContext(Path cacheRoot, String contextToken) {
+    }
+
+    private record PreparedAudioCacheContext(
+            Path cacheRoot, String decoderIdentity, Path manifest, String manifestIdentity) {
     }
 }

@@ -126,7 +126,10 @@ final class AdapterRuntime {
             if (options.preparedAudioCache() != null && options.audioDecoderIdentity() != null) {
                 PreparedAudioRuntime.enable(true);
                 PreparedAudioRuntime.configure(
-                        options.preparedAudioCache(), options.audioDecoderIdentity());
+                        options.preparedAudioCache(),
+                        options.audioDecoderIdentity(),
+                        options.preparedAudioManifest(),
+                        options.preparedAudioManifestIdentity());
             }
         }
 

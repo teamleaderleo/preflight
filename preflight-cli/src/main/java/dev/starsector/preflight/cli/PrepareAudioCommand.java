@@ -90,6 +90,9 @@ public final class PrepareAudioCommand {
                 : SoundWrapperObservationRuntimeLauncher.selectJava(install, null).executable();
         List<Path> gameJars = jars(install);
         String decoderIdentity = decoderPolicyIdentity(gameJars);
+        String gameBuildIdentity = starsectorBuildIdentity(gameJars);
+        Path manifest = cache.resolve("prepared-audio").resolve("manifests")
+                .resolve(index.profileFingerprint() + ".spam");
 
         Path workFile = Files.createTempFile("preflight-prepared-audio", ".tsv");
         Files.writeString(workFile, String.join("\n", work), StandardCharsets.UTF_8);
@@ -111,6 +114,9 @@ public final class PrepareAudioCommand {
         command.add(cache.toString());
         command.add(decoderIdentity);
         command.add(output.toAbsolutePath().normalize().toString());
+        command.add(index.profileFingerprint());
+        command.add(gameBuildIdentity);
+        command.add(manifest.toAbsolutePath().normalize().toString());
 
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         String childOutput;
@@ -150,6 +156,15 @@ public final class PrepareAudioCommand {
             }
         }
         return Hashes.sha256(canonical.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String starsectorBuildIdentity(List<Path> gameJars) throws IOException {
+        for (Path jar : gameJars) {
+            if (jar.getFileName().toString().equals("starfarer_obf.jar")) {
+                return Hashes.sha256(jar);
+            }
+        }
+        throw new IOException("Could not find starfarer_obf.jar in the installation jar set");
     }
 
     static List<Path> jars(Path install) throws IOException {

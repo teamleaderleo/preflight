@@ -4,6 +4,9 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedAudio;
 import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioIO;
+import dev.starsector.preflight.core.PreparedAudioManifest;
+import dev.starsector.preflight.core.PreparedAudioManifestIO;
+import dev.starsector.preflight.core.ResourceIndex;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandle;
@@ -34,10 +37,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * state -- returning a {@code sound.F} of three public fields: channel count, a direct 16-bit PCM
  * buffer, and the sample rate. This produces that same object from a cached blob.
  *
- * <p>Lookup is by SHA-256 of the encoded bytes the decoder was handed, so a served blob is keyed by
- * exactly the input it replaces. Hashing the whole corpus costs 0.5 s of CPU across the pool's two
- * threads, which is the price of never having to reason about whether a path still means what it
- * meant when the cache was baked.
+ * <p>The native launcher content-validates a checksummed path-to-source-hash manifest for the exact
+ * resource profile before the x86 game starts. The reviewed sound-store callsite supplies that path
+ * beside the untouched input stream, avoiding a roughly 0.5 CPU-second SHA pass under Rosetta. An
+ * unknown path or any manifest/blob problem invokes this class's original byte-SHA lookup, so a
+ * served blob remains keyed by exactly the input it replaces whenever the stronger pre-launch proof
+ * is unavailable.
  *
  * <p>Every path fails open. A miss, a malformed blob, a shape that is not what was reviewed, or a
  * disabled runtime all end in the same vanilla decode, fed from the bytes already in hand.
@@ -65,6 +70,8 @@ public final class PreparedAudioRuntime {
      */
     private static volatile String decoderPolicyIdentity;
     private static volatile Path cacheDirectory;
+    private static volatile Map<String, String> sourceHashesByPath = Map.of();
+    private static volatile String pathManifestStatus = "not-configured";
 
     private static volatile boolean shapeResolved;
     private static volatile Class<?> resultClass;
@@ -77,6 +84,10 @@ public final class PreparedAudioRuntime {
     private static final AtomicLong servedBytes = new AtomicLong();
     private static final AtomicLong misses = new AtomicLong();
     private static final AtomicLong failures = new AtomicLong();
+    private static final AtomicLong pathLookups = new AtomicLong();
+    private static final AtomicLong pathHits = new AtomicLong();
+    private static final AtomicLong pathMisses = new AtomicLong();
+    private static final AtomicLong byteHashLookups = new AtomicLong();
 
     private static volatile boolean enabled = "on".equalsIgnoreCase(System.getProperty(ENABLED_PROPERTY));
 
@@ -91,9 +102,44 @@ public final class PreparedAudioRuntime {
         return enabled && cacheDirectory != null && decoderPolicyIdentity != null;
     }
 
+    static boolean pathLookupReady() {
+        return ready() && !sourceHashesByPath.isEmpty();
+    }
+
     static void configure(Path cache, String decoderIdentitySha256) {
+        configure(cache, decoderIdentitySha256, null, null);
+    }
+
+    static void configure(
+            Path cache,
+            String decoderIdentitySha256,
+            Path manifestPath,
+            String expectedManifestIdentity) {
         cacheDirectory = cache;
         decoderPolicyIdentity = decoderIdentitySha256;
+        sourceHashesByPath = Map.of();
+        pathManifestStatus = "not-configured";
+        if (manifestPath == null || expectedManifestIdentity == null) {
+            return;
+        }
+        try {
+            PreparedAudioManifest manifest = PreparedAudioManifestIO.read(manifestPath);
+            if (!manifest.manifestSha256().equals(expectedManifestIdentity)
+                    || !manifest.decoderPolicyIdentitySha256().equals(decoderIdentitySha256)) {
+                pathManifestStatus = "identity-mismatch";
+                return;
+            }
+            Map<String, String> paths = new LinkedHashMap<>();
+            for (PreparedAudioManifest.Entry entry : manifest.entries().values()) {
+                if (entry.policy().cacheEligible()) {
+                    paths.put(entry.logicalPath(), entry.sourceSha256());
+                }
+            }
+            sourceHashesByPath = Map.copyOf(paths);
+            pathManifestStatus = "ready";
+        } catch (RuntimeException | java.io.IOException unreadable) {
+            pathManifestStatus = "unreadable";
+        }
     }
 
     /**
@@ -130,7 +176,50 @@ public final class PreparedAudioRuntime {
 
     private static Object serve(byte[] encoded) throws ReflectiveOperationException,
             java.io.IOException {
+        byteHashLookups.incrementAndGet();
         String sourceSha256 = Hashes.sha256(encoded);
+        return serve(sourceSha256);
+    }
+
+    /**
+     * Uses the exact source hash selected and content-validated by the native launcher. The input
+     * stream remains untouched, so every failure can still execute the game's decoder on it.
+     */
+    public static Object decodePath(
+            Object decoder,
+            String logicalPath,
+            InputStream input,
+            MethodHandle decoderEntry) throws Throwable {
+        if (!ready() || sourceHashesByPath.isEmpty()) {
+            return decoderEntry.invoke(decoder, input);
+        }
+        pathLookups.incrementAndGet();
+        String sourceSha256 = null;
+        try {
+            sourceSha256 = sourceHashesByPath.get(ResourceIndex.normalizeLogicalPath(logicalPath));
+        } catch (IllegalArgumentException ignored) {
+            // An unfamiliar identifier is not a prepared resource path.
+        }
+        if (sourceSha256 != null) {
+            decodes.incrementAndGet();
+            try {
+                Object prepared = serve(sourceSha256);
+                if (prepared != null) {
+                    pathHits.incrementAndGet();
+                    return prepared;
+                }
+                misses.incrementAndGet();
+            } catch (RuntimeException | ReflectiveOperationException | java.io.IOException
+                    | LinkageError unexpected) {
+                failures.incrementAndGet();
+            }
+        }
+        pathMisses.incrementAndGet();
+        return decoderEntry.invoke(decoder, input);
+    }
+
+    private static Object serve(String sourceSha256) throws ReflectiveOperationException,
+            java.io.IOException {
         Path blob = PreparedAudioCache.blobPath(
                 cacheDirectory,
                 sourceSha256,
@@ -207,6 +296,12 @@ public final class PreparedAudioRuntime {
         report.put("decodedByTheGame", misses.get());
         report.put("failures", failures.get());
         report.put("blobChecksumVerification", Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY));
+        report.put("pathManifestStatus", pathManifestStatus);
+        report.put("pathManifestEntries", sourceHashesByPath.size());
+        report.put("pathLookups", pathLookups.get());
+        report.put("pathHits", pathHits.get());
+        report.put("pathMisses", pathMisses.get());
+        report.put("byteHashLookups", byteHashLookups.get());
         return report;
     }
 
@@ -216,6 +311,10 @@ public final class PreparedAudioRuntime {
         servedBytes.set(0);
         misses.set(0);
         failures.set(0);
+        pathLookups.set(0);
+        pathHits.set(0);
+        pathMisses.set(0);
+        byteHashLookups.set(0);
         shapeResolved = false;
         resultClass = null;
         channelsField = null;

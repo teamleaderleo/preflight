@@ -37,6 +37,8 @@ record AgentOptions(
         Path mergedReadCache,
         Path preparedAudioCache,
         String audioDecoderIdentity,
+        Path preparedAudioManifest,
+        String preparedAudioManifestIdentity,
         boolean graphicsLibCompactReplay,
         Path janinoBytecodeCache,
         String janinoBytecodeContext,
@@ -131,6 +133,8 @@ record AgentOptions(
         // decoder's output if it was baked by this decoder; without it nothing is served.
         Path preparedAudioCache = decodedPath(values, "preparedAudioCache64");
         String audioDecoderIdentity = values.get("audioDecoder");
+        Path preparedAudioManifest = decodedPath(values, "preparedAudioManifest64");
+        String preparedAudioManifestIdentity = values.get("preparedAudioManifestIdentity");
         boolean graphicsLibCompactReplay = "on".equalsIgnoreCase(values.get("graphicsLibCompactReplay"));
         Path janinoBytecodeCache = decodedPath(values, "janinoBytecodeCache64");
         String janinoBytecodeContext = values.get("janinoBytecodeContext");
@@ -163,6 +167,8 @@ record AgentOptions(
                 mergedReadCache,
                 preparedAudioCache,
                 audioDecoderIdentity,
+                preparedAudioManifest,
+                preparedAudioManifestIdentity,
                 graphicsLibCompactReplay,
                 janinoBytecodeCache,
                 janinoBytecodeContext,

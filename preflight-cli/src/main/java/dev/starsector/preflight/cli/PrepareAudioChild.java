@@ -5,6 +5,8 @@ import dev.starsector.preflight.core.Json;
 import dev.starsector.preflight.core.PreparedAudio;
 import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioIO;
+import dev.starsector.preflight.core.PreparedAudioManifest;
+import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -12,11 +14,13 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Decodes the profile's sound effects with the game's own decoder, inside the game's own runtime.
@@ -49,6 +53,9 @@ public final class PrepareAudioChild {
         Path cache = Path.of(args[1]);
         String decoderIdentity = args[2];
         Path output = Path.of(args[3]);
+        String profileFingerprint = args[4];
+        String starsectorBuildIdentity = args[5];
+        Path manifestOutput = Path.of(args[6]);
 
         Class<?> decoderClass = Class.forName(DECODER_CLASS);
         Method decode = decoderClass.getMethod(DECODE_METHOD, InputStream.class);
@@ -62,6 +69,7 @@ public final class PrepareAudioChild {
         long encodedBytes = 0;
         long pcmBytes = 0;
         List<String> skipped = new ArrayList<>();
+        Map<String, PreparedAudioManifest.Entry> manifestEntries = new TreeMap<>();
         long start = System.nanoTime();
 
         for (String line : Files.readAllLines(work, StandardCharsets.UTF_8)) {
@@ -122,6 +130,11 @@ public final class PrepareAudioChild {
                     cache, sourceSha256, decoderIdentity, PreparedAudio.Policy.FULLY_DECODED_EFFECT);
             Files.createDirectories(blob.getParent());
             PreparedAudioIO.write(blob, audio);
+            manifestEntries.put(logicalPath, PreparedAudioManifest.Entry.prepared(
+                    logicalPath,
+                    encoded.length,
+                    Files.getLastModifiedTime(file, LinkOption.NOFOLLOW_LINKS).toMillis(),
+                    audio));
             prepared++;
             pcmBytes += samples.length;
         }
@@ -135,6 +148,15 @@ public final class PrepareAudioChild {
         report.put("pcmBytes", pcmBytes);
         report.put("elapsedSeconds", Math.round((System.nanoTime() - start) / 1e6) / 1000.0);
         report.put("skippedExamples", skipped);
+        PreparedAudioManifest manifest = new PreparedAudioManifest(
+                profileFingerprint,
+                starsectorBuildIdentity,
+                decoderIdentity,
+                manifestEntries);
+        PreparedAudioManifestIO.write(manifestOutput, manifest);
+        report.put("manifest", manifestOutput.toAbsolutePath().normalize().toString());
+        report.put("manifestSha256", manifest.manifestSha256());
+        report.put("manifestEntries", manifest.entryCount());
         if (output.getParent() != null) {
             Files.createDirectories(output.getParent());
         }

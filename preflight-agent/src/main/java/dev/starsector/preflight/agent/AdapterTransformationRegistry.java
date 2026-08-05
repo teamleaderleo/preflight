@@ -193,7 +193,12 @@ final class AdapterTransformationRegistry {
             return AudioStreamSourceErrorPlan.transform(signature, originalBytes);
         }
         if (AudioResourceFallbackRuntime.PLAN_ID.equals(target.planId())) {
-            return AudioResourceFallbackPlan.transform(signature, originalBytes);
+            byte[] repaired = AudioResourceFallbackPlan.transform(signature, originalBytes);
+            if (repaired == null || !PreparedAudioRuntime.pathLookupReady()) {
+                return repaired;
+            }
+            byte[] pathIndexed = PreparedAudioPathPlan.transform(repaired);
+            return pathIndexed == null ? repaired : pathIndexed;
         }
         if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
             return AiTweaksEngagementRangePlan.transform(signature, originalBytes);

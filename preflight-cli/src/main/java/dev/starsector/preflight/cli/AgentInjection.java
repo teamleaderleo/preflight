@@ -553,7 +553,8 @@ final class AgentInjection {
                 campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
                 projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
                 ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
-                audioDecoderIdentity, mergedReadCache, quietLogs, false, null, null, false);
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, false,
+                null, null, false);
     }
 
     static String append(
@@ -594,7 +595,7 @@ final class AgentInjection {
                 campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
                 projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
                 ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
-                audioDecoderIdentity, mergedReadCache, quietLogs, graphicsLibCompactReplay,
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, graphicsLibCompactReplay,
                 null, null, false);
     }
 
@@ -637,7 +638,7 @@ final class AgentInjection {
                 campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
                 projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
                 ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
-                audioDecoderIdentity, mergedReadCache, quietLogs, graphicsLibCompactReplay,
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, graphicsLibCompactReplay,
                 null, null, graphicsLibInsigniaManagerCache);
     }
 
@@ -681,7 +682,7 @@ final class AgentInjection {
                 campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
                 projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
                 ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
-                audioDecoderIdentity, mergedReadCache, quietLogs, graphicsLibCompactReplay,
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, graphicsLibCompactReplay,
                 janinoBytecodeCache, janinoBytecodeContext, false);
     }
 
@@ -714,6 +715,8 @@ final class AgentInjection {
             boolean loadJsonMemo,
             Path preparedAudioCache,
             String audioDecoderIdentity,
+            Path preparedAudioManifest,
+            String preparedAudioManifestIdentity,
             Path mergedReadCache,
             boolean quietLogs,
             boolean graphicsLibCompactReplay,
@@ -732,6 +735,13 @@ final class AgentInjection {
         }
         if (preparedAudioCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Prepared audio requires the enabled adapter");
+        }
+        if ((preparedAudioManifest == null) != (preparedAudioManifestIdentity == null)) {
+            throw new IllegalArgumentException(
+                    "Prepared audio manifest and identity must be supplied together");
+        }
+        if (preparedAudioManifest != null && preparedAudioCache == null) {
+            throw new IllegalArgumentException("Prepared audio manifest requires the audio cache");
         }
         if (loadJsonMemo && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("loadJSON memo requires the enabled adapter");
@@ -840,6 +850,11 @@ final class AgentInjection {
         if (preparedAudioCache != null && audioDecoderIdentity != null) {
             appendPath(arguments, "preparedAudioCache64", preparedAudioCache);
             arguments.append(",audioDecoder=").append(audioDecoderIdentity);
+            if (preparedAudioManifest != null) {
+                appendPath(arguments, "preparedAudioManifest64", preparedAudioManifest);
+                arguments.append(",preparedAudioManifestIdentity=")
+                        .append(preparedAudioManifestIdentity);
+            }
         }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())

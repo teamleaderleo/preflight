@@ -184,6 +184,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-05 profile-stable JSON warm cohort (5 runs)** | **29.61 median (29.25--30.16)** |
 | 2026-08-05 GraphicsLib lazy-normal diagnostic | **27.23** |
 | **2026-08-05 deduplicated-Janino-pack cohort (5 runs)** | **25.58 median (25.08--25.80)** |
+| **2026-08-05 prepared-audio path-index cohort (3 runs)** | **24.76 median (24.61--24.81)** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -752,6 +753,16 @@ passes. The prior coolest ordinary launch was 25.08s, making 24.89s theoreticall
 this exact reduction. A three-minute-cooled non-probed follow-up reached 25.092602s with the rules
 hit in 9ms, exit 0, and zero transform failure: just 93ms short, but still not a sub-25 claim. See
 `docs/evidence/2026-08-05-tagged-rules-csv.md`.
+Prepared audio's final Rosetta-side corpus pass is now gone too. The bake persists a checksummed
+logical-path-to-source-hash manifest; before launch, native Preflight verifies the exact resource
+profile, game/decoder identities, winning providers, metadata, and all 133.3MB of source content in
+55--73ms wall. The exact sound-store callsite then uses its existing filename to select the same
+content-addressed blob without hashing the input under Rosetta. Every mismatch retains the untouched
+stream and falls through to the prior content-hash/vanilla path. A live gate served 2,049/2,050
+decodes by path with one hash fallback and zero failure. The following ordinary cohort measured
+**24.81/24.61/24.76s (24.76s median, 0.20s range)**, establishing repeatable sub-25 startup for the
+first time. Full verification and the exact installed sound-store rewrite pass. See
+`docs/evidence/2026-08-05-prepared-audio-path-index.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete
