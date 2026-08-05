@@ -243,6 +243,8 @@ final class AdapterTransformationRegistry {
             // first in production, so compose the probe here while the original exact source
             // identity is still available.
             byte[] timed = CampaignMarketFleetTimePlan.transform(signature, maintained);
+            if (timed != null) return timed;
+            timed = CampaignLocationEconomyTimePlan.transform(signature, maintained);
             return timed == null ? maintained : timed;
         }
         if (FleetAiProfilerRuntime.PLAN_ID.equals(target.planId())) {

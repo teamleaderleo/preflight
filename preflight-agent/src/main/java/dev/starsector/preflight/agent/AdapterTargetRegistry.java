@@ -661,6 +661,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget campaignPausedConditionSnapshotTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-paused-condition-compact-snapshot-0.98a-rc8",
+                CampaignEntityMaintenancePlan.ECONOMY_CLASS,
+                CampaignEntityMaintenancePlan.ECONOMY_SHA256,
+                CampaignEntityMaintenanceRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignEntityMaintenancePlan.PAUSED_CONDITIONS_METHOD,
+                        CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     static AdapterTarget fleetAiProfilerLabelTarget() {
         return new AdapterTarget(
                 "vanilla-modular-fleet-ai-profiler-label-0.98a-rc8",
@@ -1076,7 +1092,8 @@ final class AdapterTargetRegistry {
         return withTarget(campaignEntityScriptsTarget())
                 .withTarget(campaignFleetViewSnapshotTarget())
                 .withTarget(campaignMarketSnapshotTarget())
-                .withTarget(campaignMemoryMaintenanceTarget());
+                .withTarget(campaignMemoryMaintenanceTarget())
+                .withTarget(campaignPausedConditionSnapshotTarget());
     }
 
     AdapterTargetRegistry withFleetAiProfilerTargets() {
@@ -1358,6 +1375,7 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignFleetViewSnapshotTarget())
                 .withTarget(campaignMarketSnapshotTarget())
                 .withTarget(campaignMemoryMaintenanceTarget())
+                .withTarget(campaignPausedConditionSnapshotTarget())
                 .withTarget(fleetAiProfilerLabelTarget())
                 .withTarget(profilerToggleTarget())
                 .withTarget(simOpponentSafetyTarget())

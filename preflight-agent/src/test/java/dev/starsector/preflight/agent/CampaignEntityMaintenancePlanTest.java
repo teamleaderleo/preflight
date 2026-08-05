@@ -136,6 +136,28 @@ class CampaignEntityMaintenancePlanTest {
         Iterator<?> empty = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
                 List.of(), CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES);
         assertFalse(empty.hasNext());
+
+        Iterator<?> paused = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                List.of("condition"), CampaignEntityMaintenanceRuntime.PAUSED_MARKET_CONDITIONS);
+        assertEquals("condition", paused.next());
+        assertEquals(1L, CampaignEntityMaintenanceRuntime.telemetry()
+                .get("nonEmptyPausedMarketConditions"));
+    }
+
+    @Test
+    void pausedEconomyConditionsUseCompactStableSnapshots() throws Exception {
+        byte[] original = economyFixture();
+        byte[] transformed = CampaignEntityMaintenancePlan.transform(
+                exact(original, CampaignEntityMaintenancePlan.ECONOMY_SHA256), original);
+        assertNotNull(transformed);
+        MethodNode method = method(
+                transformed, CampaignEntityMaintenancePlan.PAUSED_CONDITIONS_METHOD);
+        assertEquals(1, calls(method,
+                CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/'),
+                "marketSnapshotIterator"));
+        assertEquals(0, calls(method, "java/util/ArrayList", "<init>"));
+        assertNull(CampaignEntityMaintenancePlan.transform(
+                ClassSignature.parse(transformed), transformed));
     }
 
     @Test
@@ -407,6 +429,34 @@ class CampaignEntityMaintenancePlanTest {
         advance.visitInsn(Opcodes.RETURN);
         advance.visitMaxs(1, 4);
         advance.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] economyFixture() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.ECONOMY_CLASS, null, "java/lang/Object", null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.PAUSED_CONDITIONS_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR, null, null);
+        method.visitCode();
+        method.visitInsn(Opcodes.ACONST_NULL);
+        method.visitVarInsn(Opcodes.ASTORE, 2);
+        method.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        method.visitInsn(Opcodes.DUP);
+        method.visitVarInsn(Opcodes.ALOAD, 2);
+        method.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "com/fs/starfarer/api/campaign/econ/MarketAPI",
+                "getConditions", "()Ljava/util/List;", true);
+        method.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/util/ArrayList", "<init>", "(Ljava/util/Collection;)V", false);
+        method.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "java/util/ArrayList", "iterator", "()Ljava/util/Iterator;", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.RETURN);
+        method.visitMaxs(4, 3);
+        method.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

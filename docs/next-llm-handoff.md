@@ -506,6 +506,13 @@ conversion work. Empty expiry lists jump to the requirement gate and empty requi
 every non-empty loop, including `Iterator.remove`, remains byte-for-byte in place. Synthetic
 empty/non-empty execution, exact installed-class transformation, the existing kill switch, and full
 `mvn verify` pass. It is launch-free verified and has telemetry for the next ordinary campaign run.
+The adjacent paused-economy path also constructs `new ArrayList(market.getConditions())` for every
+market. Existing JFR samples assign nine events / about 25.2MB of sampled weight to that unused
+wrapper, while the separate 45.0MB source-array site is necessary for callback-mutation isolation.
+The exact `Economy` adapter now uses the same stable `toArray()` plus private iterator as ordinary
+market snapshots, omitting only the wrapper. It deliberately retains the outer virtual
+`getMarketsCopy()` call. Synthetic and installed-class shapes, composition with the opt-in economy
+timer, full `mvn verify`, kill switch, and separate telemetry pass. It is launch-free verified.
 The earlier run also logged
 28 caught Industrial
 Evolution Codex NPEs from

@@ -105,6 +105,32 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
                 CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR);
         assertEquals(1L, calls(memoryAdvance, maintenanceRuntime, "memoryExpirationsPresent"));
         assertEquals(1L, calls(memoryAdvance, maintenanceRuntime, "memoryRequirementsPresent"));
+
+        byte[] economy = entry(archive, CampaignEntityMaintenancePlan.ECONOMY_CLASS);
+        ClassSignature economySignature = ClassSignature.parse(economy);
+        assertEquals(CampaignEntityMaintenancePlan.ECONOMY_SHA256, economySignature.sha256());
+        byte[] economyMaintenance = CampaignEntityMaintenancePlan.transform(
+                economySignature, economy);
+        assertNotNull(economyMaintenance);
+        assertEquals(1L, calls(method(read(economyMaintenance),
+                CampaignEntityMaintenancePlan.PAUSED_CONDITIONS_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR),
+                maintenanceRuntime, "marketSnapshotIterator"));
+
+        CampaignLocationEconomyTimeRuntime.beginSession(true);
+        byte[] composedEconomy = AdapterTransformationRegistry.transform(
+                AdapterTargetRegistry.campaignPausedConditionSnapshotTarget(),
+                economySignature, economy);
+        assertNotNull(composedEconomy);
+        ClassNode composedEconomyOwner = read(composedEconomy);
+        assertEquals(1L, calls(method(composedEconomyOwner,
+                CampaignEntityMaintenancePlan.PAUSED_CONDITIONS_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR),
+                maintenanceRuntime, "marketSnapshotIterator"));
+        assertEquals(3L, calls(method(composedEconomyOwner,
+                CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR),
+                "dev/starsector/preflight/agent/CampaignLocationEconomyTimeRuntime", "enter"));
     }
 
     private static ClassNode read(byte[] bytes) {

@@ -35,8 +35,12 @@ final class CampaignEntityMaintenancePlan {
     static final String MEMORY_CLASS = "com/fs/starfarer/campaign/rules/Memory";
     static final String MEMORY_SHA256 =
             "48811db41f31f2bafdeaf73e2f98f864a055efa69dfd8442400042ab967b77d3";
+    static final String ECONOMY_CLASS = "com/fs/starfarer/campaign/econ/Economy";
+    static final String ECONOMY_SHA256 =
+            "e3c66eca6a70cdfb17b298f45b020994146a1c29cd64422401dbdf11107cb529";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
+    static final String PAUSED_CONDITIONS_METHOD = "advanceMarketConditionsWhenPaused";
 
     private static final String ORIGINAL_SCRIPT = "preflight$original$runScripts";
     private static final String SCRIPTS_FIELD = "scripts";
@@ -48,6 +52,7 @@ final class CampaignEntityMaintenancePlan {
     private static final String SORTED_DESCRIPTOR = "()Ljava/util/List;";
     private static final int MARKET_CONDITIONS = 0;
     private static final int MARKET_INDUSTRIES = 1;
+    private static final int PAUSED_MARKET_CONDITIONS = 2;
 
     private CampaignEntityMaintenancePlan() {
     }
@@ -68,6 +73,10 @@ final class CampaignEntityMaintenancePlan {
         if (MEMORY_CLASS.equals(signature.internalName())
                 && MEMORY_SHA256.equals(signature.sha256())) {
             return transformMemory(originalBytes);
+        }
+        if (ECONOMY_CLASS.equals(signature.internalName())
+                && ECONOMY_SHA256.equals(signature.sha256())) {
+            return transformEconomy(originalBytes);
         }
         return null;
     }
@@ -195,6 +204,61 @@ final class CampaignEntityMaintenancePlan {
 
         CampaignEntityMaintenanceRuntime.memoryInstalled();
         return write(owner);
+    }
+
+    private static byte[] transformEconomy(byte[] originalBytes) {
+        ClassNode owner = read(originalBytes);
+        MethodNode method = unique(owner, PAUSED_CONDITIONS_METHOD, ADVANCE_DESCRIPTOR);
+        if (method == null || callsRuntime(method) != 0) return null;
+        List<MarketSnapshot> snapshots = pausedConditionSnapshots(method);
+        if (snapshots.size() != 1) return null;
+        MarketSnapshot snapshot = snapshots.get(0);
+        method.instructions.remove(snapshot.allocation);
+        method.instructions.remove(snapshot.duplicate);
+        method.instructions.insertBefore(snapshot.constructor,
+                new LdcInsnNode(PAUSED_MARKET_CONDITIONS));
+        method.instructions.insertBefore(snapshot.constructor, new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "marketSnapshotIterator",
+                "(Ljava/util/List;I)Ljava/util/Iterator;", false));
+        method.instructions.remove(snapshot.constructor);
+        method.instructions.remove(snapshot.iterator);
+        CampaignEntityMaintenanceRuntime.pausedConditionsInstalled();
+        return write(owner);
+    }
+
+    private static List<MarketSnapshot> pausedConditionSnapshots(MethodNode method) {
+        List<MarketSnapshot> result = new ArrayList<>();
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (!(instruction instanceof MethodInsnNode constructor)
+                    || constructor.getOpcode() != Opcodes.INVOKESPECIAL
+                    || !"java/util/ArrayList".equals(constructor.owner)
+                    || !"<init>".equals(constructor.name)
+                    || !"(Ljava/util/Collection;)V".equals(constructor.desc)) continue;
+            AbstractInsnNode producer = previousMeaningful(constructor);
+            AbstractInsnNode loadMarket = previousMeaningful(producer);
+            AbstractInsnNode duplicate = previousMeaningful(loadMarket);
+            AbstractInsnNode allocation = previousMeaningful(duplicate);
+            AbstractInsnNode next = nextMeaningful(constructor);
+            if (!(producer instanceof MethodInsnNode call)
+                    || call.getOpcode() != Opcodes.INVOKEINTERFACE
+                    || !"com/fs/starfarer/api/campaign/econ/MarketAPI".equals(call.owner)
+                    || !"getConditions".equals(call.name)
+                    || !"()Ljava/util/List;".equals(call.desc)
+                    || !(loadMarket instanceof VarInsnNode load)
+                    || load.getOpcode() != Opcodes.ALOAD
+                    || duplicate == null || duplicate.getOpcode() != Opcodes.DUP
+                    || !(allocation instanceof TypeInsnNode type)
+                    || allocation.getOpcode() != Opcodes.NEW
+                    || !"java/util/ArrayList".equals(type.desc)
+                    || !(next instanceof MethodInsnNode iterator)
+                    || iterator.getOpcode() != Opcodes.INVOKEVIRTUAL
+                    || !"java/util/ArrayList".equals(iterator.owner)
+                    || !"iterator".equals(iterator.name)
+                    || !"()Ljava/util/Iterator;".equals(iterator.desc)) return List.of();
+            result.add(new MarketSnapshot(
+                    allocation, duplicate, constructor, iterator, PAUSED_MARKET_CONDITIONS));
+        }
+        return result;
     }
 
     private static List<IteratorStart> iteratorStarts(

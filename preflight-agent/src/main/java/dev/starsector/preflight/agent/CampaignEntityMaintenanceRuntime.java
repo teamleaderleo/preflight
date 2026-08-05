@@ -13,12 +13,14 @@ public final class CampaignEntityMaintenanceRuntime {
     static final String DISABLED_PROPERTY = "preflight.campaign.entityMaintenance.disabled";
     static final int MARKET_CONDITIONS = 0;
     static final int MARKET_INDUSTRIES = 1;
+    static final int PAUSED_MARKET_CONDITIONS = 2;
 
     private static volatile boolean enabled;
     private static volatile boolean entityScriptsInstalled;
     private static volatile boolean fleetViewInstalled;
     private static volatile boolean marketSnapshotsInstalled;
     private static volatile boolean memoryInstalled;
+    private static volatile boolean pausedConditionsInstalled;
     private static long emptyScriptLists;
     private static long nonEmptyScriptLists;
     private static long emptyMarketConditions;
@@ -29,6 +31,8 @@ public final class CampaignEntityMaintenanceRuntime {
     private static long nonEmptyMemoryExpirations;
     private static long emptyMemoryRequirements;
     private static long nonEmptyMemoryRequirements;
+    private static long emptyPausedMarketConditions;
+    private static long nonEmptyPausedMarketConditions;
 
     private CampaignEntityMaintenanceRuntime() {
     }
@@ -39,6 +43,7 @@ public final class CampaignEntityMaintenanceRuntime {
         fleetViewInstalled = false;
         marketSnapshotsInstalled = false;
         memoryInstalled = false;
+        pausedConditionsInstalled = false;
         emptyScriptLists = 0L;
         nonEmptyScriptLists = 0L;
         emptyMarketConditions = 0L;
@@ -49,6 +54,8 @@ public final class CampaignEntityMaintenanceRuntime {
         nonEmptyMemoryExpirations = 0L;
         emptyMemoryRequirements = 0L;
         nonEmptyMemoryRequirements = 0L;
+        emptyPausedMarketConditions = 0L;
+        nonEmptyPausedMarketConditions = 0L;
     }
 
     static boolean enabled() {
@@ -71,6 +78,10 @@ public final class CampaignEntityMaintenanceRuntime {
         memoryInstalled = true;
     }
 
+    static void pausedConditionsInstalled() {
+        pausedConditionsInstalled = true;
+    }
+
     public static void emptyScriptList() {
         emptyScriptLists++;
     }
@@ -84,10 +95,12 @@ public final class CampaignEntityMaintenanceRuntime {
         if (values.isEmpty()) {
             if (kind == MARKET_CONDITIONS) emptyMarketConditions++;
             if (kind == MARKET_INDUSTRIES) emptyMarketIndustries++;
+            if (kind == PAUSED_MARKET_CONDITIONS) emptyPausedMarketConditions++;
             return Collections.emptyIterator();
         }
         if (kind == MARKET_CONDITIONS) nonEmptyMarketConditions++;
         if (kind == MARKET_INDUSTRIES) nonEmptyMarketIndustries++;
+        if (kind == PAUSED_MARKET_CONDITIONS) nonEmptyPausedMarketConditions++;
         return new SnapshotIterator(values.toArray());
     }
 
@@ -117,6 +130,7 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("fleetViewInstalled", fleetViewInstalled);
         result.put("marketSnapshotsInstalled", marketSnapshotsInstalled);
         result.put("memoryInstalled", memoryInstalled);
+        result.put("pausedConditionsInstalled", pausedConditionsInstalled);
         result.put("emptyScriptLists", emptyScriptLists);
         result.put("nonEmptyScriptLists", nonEmptyScriptLists);
         result.put("emptyMarketConditions", emptyMarketConditions);
@@ -127,6 +141,8 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("nonEmptyMemoryExpirations", nonEmptyMemoryExpirations);
         result.put("emptyMemoryRequirements", emptyMemoryRequirements);
         result.put("nonEmptyMemoryRequirements", nonEmptyMemoryRequirements);
+        result.put("emptyPausedMarketConditions", emptyPausedMarketConditions);
+        result.put("nonEmptyPausedMarketConditions", nonEmptyPausedMarketConditions);
         return result;
     }
 

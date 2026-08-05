@@ -2,7 +2,7 @@
 
 Date: 2026-08-05
 
-Status: market/fleet drill-down complete; three exact maintenance shortcuts live-verified and two
+Status: market/fleet drill-down complete; three exact maintenance shortcuts live-verified and three
 launch-free verified
 
 ## Why another layer was necessary
@@ -355,3 +355,26 @@ maintenance shortcuts. Synthetic execution covers empty and non-empty collection
 installed class transforms at both exact iterator sites. Full `mvn verify` passes. The adapter is
 launch-free verified and reports empty/non-empty counts for a later ordinary campaign gate; no FPS
 or total allocation claim is made yet.
+
+## Compact paused-condition snapshots
+
+`Economy.advanceMarketConditionsWhenPaused(float)` is another measured allocation leaf. The same
+campaign recording contains 30 samples / about 70.2MB of sampled weight in that method. Bytecode
+indices separate the sites: the per-market `new ArrayList(market.getConditions())` wrapper accounts
+for nine samples / 25.2MB, its necessary stable source array accounts for 21 / 45.0MB, and the outer
+market-list snapshot accounts for one further 2.1MB sample outside those 30 grouped events.
+
+The paused-condition loop never exposes the wrapper and uses its iterator only through `next()` and
+`hasNext()`. It now shares the already-live compact snapshot implementation: `toArray()` retains the
+stable pre-callback condition contents, while the private array iterator omits the unused
+`ArrayList`. The source array remains by design because a paused condition callback can mutate the
+market's authoritative list. The outer `getMarketsCopy()` also remains untouched because it is a
+public virtual method and bypassing it would change subclass dispatch semantics.
+
+The adapter pins `Economy.class` SHA-256
+`e3c66eca6a70cdfb17b298f45b020994146a1c29cd64422401dbdf11107cb529`, the core archive, Java version,
+method, exact constructor/producer/iterator sequence, source, and loader. It composes with the
+opt-in economy attribution rewrite on the same owner while the original identity is available.
+Synthetic shape/stable-snapshot coverage, exact installed transformation, exact composition, and
+full `mvn verify` pass. Telemetry separates paused condition snapshots from ordinary market
+snapshots. This is launch-free verified sampled-allocation evidence, not an FPS claim.
