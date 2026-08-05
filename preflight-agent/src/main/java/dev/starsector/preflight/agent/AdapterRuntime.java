@@ -24,6 +24,7 @@ final class AdapterRuntime {
         Objects.requireNonNull(options, "options");
         Objects.requireNonNull(instrumentation, "instrumentation");
         SourceArchiveHashes.beginSession();
+        AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
@@ -268,6 +269,12 @@ final class AdapterRuntime {
                         + (before - registry.targets().size()) + " target(s): "
                         + String.join(",", disabledPlans));
             }
+            if (options.adapterMode() == AdapterMode.ENABLED) {
+                AdapterTransformationCache.configure(
+                        options.textureCacheDirectory(), options, registry, System.getProperties());
+                report.diagnostic("Adapter transformation cache: "
+                        + AdapterTransformationCache.telemetry().get("status"));
+            }
         } catch (IOException | RuntimeException error) {
             report.contained("Could not load adapter target registry", error);
             return session;
@@ -423,6 +430,14 @@ final class AdapterRuntime {
                 throw fatal;
             } catch (Throwable error) {
                 System.err.println("[Preflight] Failed to publish Janino bytecode pack: "
+                        + error.getMessage());
+            }
+            try {
+                AdapterTransformationCache.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish adapter transformation cache: "
                         + error.getMessage());
             }
             try {

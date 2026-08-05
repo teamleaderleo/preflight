@@ -49,6 +49,7 @@ final class AdapterReport {
     private long transformationEligible;
     private long transformationDeclined;
     private long transformationsApplied;
+    private long transformationsFromCache;
     private long transformationNanos;
     private final List<TransformationTiming> transformationTimings = new ArrayList<>();
     private long shadowedTargets;
@@ -190,8 +191,19 @@ final class AdapterReport {
         transformationNanos += Math.max(0, elapsedNanos);
         transformationTimings.add(new TransformationTiming(
                 target.id(), target.internalClassName(), target.planId(),
-                Math.max(0, elapsedNanos), inputBytes, outputBytes));
+                Math.max(0, elapsedNanos), inputBytes, outputBytes, false));
         diagnostic("Applied transformation plan " + target.planId() + " to " + target.internalClassName());
+    }
+
+    synchronized void transformedFromCache(
+            AdapterTarget target, long elapsedNanos, int inputBytes, int outputBytes) {
+        transformationsApplied++;
+        transformationsFromCache++;
+        transformationTimings.add(new TransformationTiming(
+                target.id(), target.internalClassName(), target.planId(),
+                Math.max(0, elapsedNanos), inputBytes, outputBytes, true));
+        diagnostic("Restored cached transformation plan " + target.planId()
+                + " for " + target.internalClassName());
     }
 
     synchronized void contained(String detail, Throwable error) {
@@ -265,6 +277,7 @@ final class AdapterReport {
         numberField(output, "transformationEligible", transformationEligible);
         numberField(output, "transformationDeclined", transformationDeclined);
         numberField(output, "transformationsApplied", transformationsApplied);
+        numberField(output, "transformationsFromCache", transformationsFromCache);
         numberField(output, "transformationNanos", transformationNanos);
         numberField(output, "shadowedTargets", shadowedTargets);
         arrayField(output, "shadowedBy", shadowingSources.entrySet().stream()
@@ -276,6 +289,8 @@ final class AdapterReport {
         booleanField(output, "diagnosticsTruncated", diagnosticsTruncated);
         booleanField(output, "evaluationsTruncated", evaluationsTruncated);
         key(output, "textureCompatibility").append(Json.value(TextureCompatibilityRuntime.telemetry())).append(',');
+        key(output, "adapterTransformationCache")
+                .append(Json.value(AdapterTransformationCache.telemetry())).append(',');
         key(output, "startupPhases").append(Json.value(StartupPhaseRuntime.telemetry())).append(',');
         key(output, "variantJsonCache").append(Json.value(VariantJsonCacheRuntime.telemetry())).append(',');
         key(output, "weaponJsonCache").append(Json.value(WeaponJsonCacheRuntime.telemetry())).append(',');
@@ -372,6 +387,7 @@ final class AdapterReport {
             numberField(output, "elapsedNanos", timing.elapsedNanos());
             numberField(output, "inputBytes", timing.inputBytes());
             numberField(output, "outputBytes", timing.outputBytes());
+            booleanField(output, "cacheHit", timing.cacheHit());
             trimComma(output).append('}');
         }
         output.append("],");
@@ -570,6 +586,7 @@ final class AdapterReport {
             String planId,
             long elapsedNanos,
             int inputBytes,
-            int outputBytes) {
+            int outputBytes,
+            boolean cacheHit) {
     }
 }

@@ -982,9 +982,15 @@ resolver retains an explicit fallback that reapplies its always-on source-hint r
 the optional probe cannot compose. The best aggregate adapter time fell from 1,348.566ms to
 1,068.072ms. The final gates reached **18.01s** and **18.04s**, applied all 40 exact transforms, and
 reported zero decline/failure. `fastest` is still the explicit 5.3GB raw texture policy; preparation
-was restored to the default `balanced` policy after measurement. A persistent transformed-class
-cache is the next plausible adapter seam, but only with source-byte, agent-implementation,
-plan-selection, and runtime-readiness identities. See the same evidence note for the follow-up.
+was restored to the default `balanced` policy after measurement.
+A persistent transformed-class cache now removes that repeat work without weakening an identity.
+The live class still passes its exact byte/source/loader gates before lookup; the pack additionally
+binds the exact agent/core/ASM archives, effective ordered targets and methods, feature selections,
+and every `preflight.*` property. Corruption or uncertainty is a normal miss and the shutdown write
+is atomic. The final cold/warm pair moved adapter transformation CPU from **1,126.123ms to 0ms**,
+with **40/40** warm hits, identical installation telemetry, zero decline/failure, and a **17.80s**
+default-balanced main-menu launch. Full `mvn verify` is green. See the same evidence note for the
+implementation and gates.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

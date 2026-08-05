@@ -108,9 +108,40 @@ Runs:
 - `resource-collapsed-fastest-20260806-0625-20260806-062453`
 - `all-collapsed-fastest-20260806-0627-20260806-062645`
 
-## Next target
+## Follow-up: persistent exact transformed classes
 
-No remaining repeated transformation pipeline is individually large. MagicLib is still the largest
-adapter timer because the class itself is large; a persistent transformed-class cache could remove
-most repeat-launch adapter CPU, but its key must bind source bytes, agent implementation, selected
-plan, and runtime readiness. Do not weaken those identities merely to cross 18 seconds.
+No remaining repeated transformation pipeline was individually large, so the next follow-up moved
+from optimizing individual ASM passes to eliminating repeat-launch transformation work.
+
+The adapter now persists successful exact outputs in one checksummed, atomically replaced bytecode
+pack. A lookup still happens only after the live class has passed its original class SHA, required
+method, source archive SHA/suffix/kind, and classloader gates. The pack context additionally binds:
+
+- the exact runnable agent, core, and ASM implementation archive content;
+- the ordered effective target registry, including every plan and required method;
+- the effective texture, audio, JSON, rule, resource, GraphicsLib, campaign, and diagnostic feature
+  configuration; and
+- every `preflight.*` runtime property.
+
+Any missing, malformed, mismatched, or unwritable pack is an ordinary miss: the reviewed
+transformation runs and vanilla remains the outer fallback. Frame-time diagnostic transformations
+are deliberately not persistent because their per-probe registration is part of the measurement.
+Normal startup transformations replay their idempotent installation effects from the exact selected
+target and cached bytecode, so runtime gates and telemetry are the same as on a cold transformation.
+
+The final cold population gate reached the menu in **18.74s**, applied all 40 transformations, and
+spent **1,126.123ms** inside them. It wrote 40 classes. The immediately following exact-context
+launch restored **40/40** classes (**803,490 bytes**), reported zero transformation nanoseconds,
+zero misses, declines, read/write failures, or contained failures, and reached the menu in
+**17.80s**. Every installation-related telemetry field was identical between the cold and warm
+reports. Both launches used the default balanced texture policy and stopped through the normal
+shutdown path.
+
+Runs:
+
+- `transformed-cache-final-cold-20260806-064558`
+- `transformed-cache-final-warm-20260806-064638`
+
+The cold/warm adapter timers are the causal result: **1.126s -> 0ms**. The 0.94s whole-launch
+difference is supporting evidence because startup still contains unrelated scheduling and thermal
+noise. Full `mvn verify` is green.
