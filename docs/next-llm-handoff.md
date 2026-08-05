@@ -686,11 +686,20 @@ shortcut now proves those misses from the current mod root and otherwise invokes
 unchanged. Clean live gates kept the same 437/775 ship/weapon paintjob counts, reported 874 proven
 misses with zero delegation/failure, and reached the menu normally. Nearby callback timings support
 only a modest tens-of-ms claim because the 0.7--0.95s callback is noisy.
+Nexerelin's remaining 0.6--0.9s callback is now exactly attributed rather than guessed at. Across
+75 faction configs, cached merged reads cost only 0.11--0.15s and 6,655 JSON accesses only
+0.06--0.09s. About 0.30s comes from the first missing `doesVariantExist` call constructing the
+complete `CampaignEngine`. A temporary exact guard proved that this side effect is required:
+Nexerelin immediately dereferences `Global.getSector()` while loading relationship and faction
+data. The guard was deleted. Do not retry this as a lookup cache; removing the cost requires a
+different Nexerelin initialization boundary or a safe optimization inside campaign-engine
+construction. The retained breakdown is measurement-only and opt-in.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
 `docs/evidence/2026-08-05-ashlib-variant-index.md`, and
-`docs/evidence/2026-08-05-magiclib-optional-paintjob-json.md`.
+`docs/evidence/2026-08-05-magiclib-optional-paintjob-json.md`, and
+`docs/evidence/2026-08-05-nexerelin-faction-config-startup.md`.
 
 ## Environment notes that cost time to rediscover
 

@@ -13,7 +13,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Opt-in call-site attribution inside exact AshLib and GraphicsLib startup classes. */
+/** Opt-in call-site attribution inside exact reviewed mod startup classes. */
 final class StartupCallBreakdownPlan {
     private static final String RUNTIME =
             "dev/starsector/preflight/agent/StartupPhaseRuntime";
@@ -67,6 +67,90 @@ final class StartupCallBreakdownPlan {
                             anyCall("org/apache/log4j/Logger", "info",
                                     "magic.paintjobs.infoLog"))),
             new Probe(
+                    "exerelin/utilities/NexConfig",
+                    "a59894d38876b8ed92d3d11726d776743b1203177ccacc8a6f8d79f7fd71ff7c",
+                    List.of(
+                            call("loadSettings", "()V",
+                                    "com/fs/starfarer/api/SettingsAPI",
+                                    "getMergedJSONForMod",
+                                    "(Ljava/lang/String;Ljava/lang/String;)Lorg/json/JSONObject;",
+                                    "nex.config.mergedJSON"),
+                            call("loadSettings", "()V",
+                                    "exerelin/utilities/NexConfig", "loadModFactionList", "()V",
+                                    "nex.config.modFactionList"))),
+            new Probe(
+                    "exerelin/utilities/NexFactionConfig",
+                    "f6aa5a769744f82498c05c0a878ddd36bfa4b32e15136bf08e2dd996447c9c6f",
+                    List.of(
+                            call("<init>", "(Ljava/lang/String;)V",
+                                    "exerelin/utilities/StringHelper", "getString",
+                                    "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+                                    "nex.factionConfig.defaults"),
+                            call("<init>", "(Ljava/lang/String;)V",
+                                    "exerelin/utilities/NexFactionConfig", "loadFactionConfig",
+                                    "()V", "nex.factionConfig.load"),
+                            call("loadFactionConfig", "()V",
+                                    "com/fs/starfarer/api/SettingsAPI",
+                                    "getMergedJSONForMod",
+                                    "(Ljava/lang/String;Ljava/lang/String;)Lorg/json/JSONObject;",
+                                    "nex.factionConfig.mergedJSON"),
+                            callsIn("loadFactionConfig", "()V", "org/json/JSONObject",
+                                    List.of("optBoolean", "optDouble", "optString", "optInt",
+                                            "has", "getJSONArray", "getJSONObject", "getString",
+                                            "getDouble", "keys", "sortedKeys"),
+                                    "nex.factionConfig.jsonAccess"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/NexFactionConfig", "fillRelationshipMap",
+                                    "(Lorg/json/JSONObject;Ljava/util/Map;Ljava/lang/String;)V",
+                                    "nex.factionConfig.relationships"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/NexFactionConfig", "loadDispositions",
+                                    "(Lorg/json/JSONObject;)V",
+                                    "nex.factionConfig.dispositions"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/NexFactionConfig", "loadCustomStations",
+                                    "(Lorg/json/JSONObject;)V",
+                                    "nex.factionConfig.customStations"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/NexFactionConfig", "loadDefenceStations",
+                                    "(Lorg/json/JSONObject;)V",
+                                    "nex.factionConfig.defenceStations"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/NexFactionConfig", "loadVengeanceNames",
+                                    "(Lorg/json/JSONObject;)V",
+                                    "nex.factionConfig.vengeanceNames"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/NexFactionConfig", "loadStartSpecialItems",
+                                    "(Lorg/json/JSONObject;)V",
+                                    "nex.factionConfig.startSpecialItems"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/NexFactionConfig", "loadStartShips",
+                                    "(Lorg/json/JSONObject;)V",
+                                    "nex.factionConfig.startShips"),
+                            callsIn("loadFactionConfig", "()V", "exerelin/utilities/NexUtils",
+                                    List.of("JSONArrayToStringArray", "JSONArrayToArrayList",
+                                            "jsonToMap"),
+                                    "nex.factionConfig.conversions"),
+                            call("loadFactionConfig", "()V",
+                                    "exerelin/utilities/StringHelper", "flattenToAscii",
+                                    "(Ljava/lang/String;)Ljava/lang/String;",
+                                    "nex.factionConfig.flattenNames"),
+                            call("getStartShipTypeIfAvailable",
+                                    "(Lorg/json/JSONObject;Ljava/lang/String;"
+                                            + "Lexerelin/utilities/NexFactionConfig$StartFleetType;)V",
+                                    "exerelin/utilities/NexFactionConfig",
+                                    "isStartingFleetValid", "(Ljava/util/List;)Z",
+                                    "nex.startShips.validateFleet"),
+                            call("isStartingFleetValid", "(Ljava/util/List;)Z",
+                                    "com/fs/starfarer/api/SettingsAPI", "doesVariantExist",
+                                    "(Ljava/lang/String;)Z", "nex.startShips.variantExists"),
+                            call("getStartShipTypeIfAvailable",
+                                    "(Lorg/json/JSONObject;Ljava/lang/String;"
+                                            + "Lexerelin/utilities/NexFactionConfig$StartFleetType;)V",
+                                    "exerelin/utilities/NexUtils", "JSONArrayToArrayList",
+                                    "(Lorg/json/JSONArray;)Ljava/util/ArrayList;",
+                                    "nex.startShips.arrayConversion"))),
+            new Probe(
                     "org/dark/shaders/ShaderModPlugin",
                     "5863b38d7ea73ed65fb8d214e525daed0318f4563b92a15d22e0981cec275981",
                     List.of(
@@ -99,15 +183,15 @@ final class StartupCallBreakdownPlan {
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         boolean changed = false;
         for (MethodNode method : owner.methods) {
-            List<Call> matches = new ArrayList<>();
+            List<Match> matches = new ArrayList<>();
             for (AbstractInsnNode instruction : method.instructions.toArray()) {
                 if (!(instruction instanceof MethodInsnNode invoked)
                         || invoked.getOpcode() == Opcodes.INVOKESPECIAL) {
                     continue;
                 }
-                for (Call call : probe.calls()) {
+                for (CallMatcher call : probe.calls()) {
                     if (call.matches(method, invoked)) {
-                        matches.add(call.withInstruction(invoked));
+                        matches.add(new Match(call.label(), invoked));
                         break;
                     }
                 }
@@ -117,7 +201,7 @@ final class StartupCallBreakdownPlan {
             }
             int tokenLocal = method.maxLocals;
             method.maxLocals += 2;
-            for (Call match : matches) {
+            for (Match match : matches) {
                 MethodInsnNode invoked = match.instruction();
                 InsnList before = new InsnList();
                 before.add(new MethodInsnNode(
@@ -157,33 +241,53 @@ final class StartupCallBreakdownPlan {
     }
 
     private static Call topCall(String owner, String name, String label) {
-        return new Call("onApplicationLoad", "()V", owner, name, null, label, null);
+        return new Call("onApplicationLoad", "()V", owner, name, null, label);
     }
 
     private static Call anyCall(String owner, String name, String label) {
-        return new Call(null, null, owner, name, null, label, null);
+        return new Call(null, null, owner, name, null, label);
     }
 
     private static Call call(String caller, String callerDescriptor, String owner,
             String name, String descriptor, String label) {
-        return new Call(caller, callerDescriptor, owner, name, descriptor, label, null);
+        return new Call(caller, callerDescriptor, owner, name, descriptor, label);
     }
 
-    record Probe(String className, String sha256, List<Call> calls) {
+    private static CallGroup callsIn(String caller, String callerDescriptor, String owner,
+            List<String> names, String label) {
+        return new CallGroup(caller, callerDescriptor, owner, List.copyOf(names), label);
+    }
+
+    record Probe(String className, String sha256, List<? extends CallMatcher> calls) {
+    }
+
+    private interface CallMatcher {
+        boolean matches(MethodNode method, MethodInsnNode invoked);
+
+        String label();
     }
 
     record Call(String caller, String callerDescriptor, String owner, String name,
-            String descriptor, String label, MethodInsnNode instruction) {
-        boolean matches(MethodNode method, MethodInsnNode invoked) {
+            String descriptor, String label) implements CallMatcher {
+        public boolean matches(MethodNode method, MethodInsnNode invoked) {
             return (caller == null || caller.equals(method.name))
                     && (callerDescriptor == null || callerDescriptor.equals(method.desc))
                     && owner.equals(invoked.owner)
                     && name.equals(invoked.name)
                     && (descriptor == null || descriptor.equals(invoked.desc));
         }
+    }
 
-        Call withInstruction(MethodInsnNode value) {
-            return new Call(caller, callerDescriptor, owner, name, descriptor, label, value);
+    record CallGroup(String caller, String callerDescriptor, String owner, List<String> names,
+            String label) implements CallMatcher {
+        public boolean matches(MethodNode method, MethodInsnNode invoked) {
+            return caller.equals(method.name)
+                    && callerDescriptor.equals(method.desc)
+                    && owner.equals(invoked.owner)
+                    && names.contains(invoked.name);
         }
+    }
+
+    private record Match(String label, MethodInsnNode instruction) {
     }
 }

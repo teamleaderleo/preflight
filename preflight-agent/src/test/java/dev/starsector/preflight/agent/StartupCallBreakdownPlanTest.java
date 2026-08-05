@@ -27,6 +27,23 @@ class StartupCallBreakdownPlanTest {
         assertNull(StartupCallBreakdownPlan.transform(ClassSignature.parse(original), original));
     }
 
+    @Test
+    void wrapsNexerelinFactionLoadAndDefaultLookups() throws Exception {
+        StartupCallBreakdownPlan.Probe nex = StartupCallBreakdownPlan.probes().stream()
+                .filter(probe -> "exerelin/utilities/NexFactionConfig".equals(probe.className()))
+                .findFirst()
+                .orElseThrow();
+        byte[] original = nexFixture();
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature exact = new ClassSignature(parsed.internalName(), nex.sha256(),
+                parsed.majorVersion(), parsed.access(), parsed.methods());
+
+        byte[] transformed = StartupCallBreakdownPlan.transform(exact, original);
+
+        assertNotNull(transformed);
+        assertEquals(6, runtimeCalls(transformed));
+    }
+
     private static byte[] fixture() {
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, PROBE.className(),
@@ -42,6 +59,45 @@ class StartupCallBreakdownPlanTest {
         method.visitInsn(Opcodes.RETURN);
         method.visitMaxs(0, 0);
         method.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] nexFixture() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                "exerelin/utilities/NexFactionConfig", null, "java/lang/Object", null);
+        MethodVisitor constructor = writer.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
+                "(Ljava/lang/String;)V", null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/lang/Object", "<init>", "()V", false);
+        constructor.visitLdcInsn("exerelin_fleets");
+        constructor.visitLdcInsn("miningFleetName");
+        constructor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "exerelin/utilities/StringHelper", "getString",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        constructor.visitInsn(Opcodes.POP);
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "exerelin/utilities/NexFactionConfig", "loadFactionConfig", "()V", false);
+        constructor.visitInsn(Opcodes.RETURN);
+        constructor.visitMaxs(0, 0);
+        constructor.visitEnd();
+        MethodVisitor load = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                "loadFactionConfig", "()V", null, null);
+        load.visitCode();
+        load.visitInsn(Opcodes.ACONST_NULL);
+        load.visitLdcInsn("data/config/exerelinFactionConfig/test.json");
+        load.visitLdcInsn("nexerelin");
+        load.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "com/fs/starfarer/api/SettingsAPI", "getMergedJSONForMod",
+                "(Ljava/lang/String;Ljava/lang/String;)Lorg/json/JSONObject;", true);
+        load.visitInsn(Opcodes.POP);
+        load.visitInsn(Opcodes.RETURN);
+        load.visitMaxs(0, 0);
+        load.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
     }

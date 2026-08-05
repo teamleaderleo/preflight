@@ -300,7 +300,7 @@ public final class StartupPhaseRuntime {
         return System.nanoTime();
     }
 
-    /** Aggregates a reviewed AshLib or GraphicsLib call without writing in the hot path. */
+    /** Aggregates a reviewed startup call without writing in the hot path. */
     public static void hotCallEnd(String label, long startedNanos) {
         try {
             long duration = System.nanoTime() - startedNanos;

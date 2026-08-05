@@ -323,6 +323,38 @@ final class AdapterTargetRegistry {
                 "");
     }
 
+    /** Exact Nexerelin settings loader, timed only by the opt-in startup phase probe. */
+    static AdapterTarget startupNexConfigBreakdownTarget() {
+        return new AdapterTarget(
+                "nexerelin-0.12.2b-startup-config-breakdown",
+                "exerelin/utilities/NexConfig",
+                "a59894d38876b8ed92d3d11726d776743b1203177ccacc8a6f8d79f7fd71ff7c",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod("loadSettings", "()V")),
+                "MOD",
+                "ExerelinCore.jar",
+                "3d3bb30c44eec9060a7777317af519dd695a1aa31d75f478036fc338870b3b71",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    /** Exact Nexerelin faction-config constructor, timed only by the startup phase probe. */
+    static AdapterTarget startupNexFactionConfigBreakdownTarget() {
+        return new AdapterTarget(
+                "nexerelin-0.12.2b-startup-faction-config-breakdown",
+                "exerelin/utilities/NexFactionConfig",
+                "f6aa5a769744f82498c05c0a878ddd36bfa4b32e15136bf08e2dd996447c9c6f",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod("<init>", "(Ljava/lang/String;)V"),
+                        new AdapterTarget.RequiredMethod("loadFactionConfig", "()V")),
+                "MOD",
+                "ExerelinCore.jar",
+                "3d3bb30c44eec9060a7777317af519dd695a1aa31d75f478036fc338870b3b71",
+                "java/net/URLClassLoader",
+                "");
+    }
+
     /** Janino 2.7.8's exact complete-map compiler seam in Starsector 0.98a-RC8. */
     static AdapterTarget janinoBytecodeCacheTarget() {
         return new AdapterTarget(
@@ -1286,6 +1318,8 @@ final class AdapterTargetRegistry {
         }
         return registry
                 .withTarget(startupGraphicsBreakdownTarget())
+                .withTarget(startupNexConfigBreakdownTarget())
+                .withTarget(startupNexFactionConfigBreakdownTarget())
                 .withTarget(mergedReadProbeTarget());
     }
 
