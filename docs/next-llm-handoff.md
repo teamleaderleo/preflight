@@ -188,6 +188,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-05 exact-target transformer cohort (5 runs)** | **24.12 median (23.93--24.43)** |
 | **2026-08-05 resource-priority index cohort (5 runs)** | **23.68 median (23.39--24.35)** |
 | **2026-08-05 WebP prefetch-tail cohort (5 runs)** | **23.03 median (22.90--23.34)** |
+| **2026-08-06 direct trusted-texture read cohort (5 runs)** | **23.08 median (22.54--23.19)** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -807,6 +808,14 @@ one-minute-cooled cohort measured
 **23.24/23.34/23.03/22.90/22.99s (23.03s median, 0.44s range)**, versus the adjacent prior 23.68s
 median. Every run applied all 33 exact transformations and stopped automatically. See
 `docs/evidence/2026-08-05-webp-prefetch-tail.md`.
+The trusted SPFT reader still copied every prepared payload after reading the complete file. It now
+reads fixed metadata and then the pixels directly into their final adopted array. Across all 30,638
+unique real blobs (5.33 GB of pixels), alternating fresh-process passes moved a warm complete-cache
+read from 1.831s to 0.815s and removed one manifest-sized transient allocation. The cooled live
+cohort measured **23.19/22.88/23.08/23.09/22.54s (23.08s median)** versus the adjacent 23.03s, so
+this is retained as a CPU/allocation/thermal-headroom win with no claimed median wall shift. All
+runs remained exact and fail-open. See
+`docs/evidence/2026-08-06-trusted-texture-direct-read.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

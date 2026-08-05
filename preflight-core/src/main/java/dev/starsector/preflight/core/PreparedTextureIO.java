@@ -6,8 +6,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
 
@@ -40,7 +44,90 @@ public final class PreparedTextureIO {
      * manifest. Tools that build, inspect, or validate a cache must use {@link #read(Path)}.
      */
     public static PreparedTexture readTrusted(Path source) throws IOException {
-        return read(source, false);
+        try (FileChannel channel = FileChannel.open(source, StandardOpenOption.READ)) {
+            long size = channel.size();
+            if (size < minimumFileBytes()) {
+                throw new IOException("Prepared texture blob is too small: " + source);
+            }
+            if (size > MAX_FILE_BYTES) {
+                throw new IOException(
+                        "Prepared texture blob exceeds the " + MAX_FILE_BYTES + " byte safety limit: " + source);
+            }
+
+            // The trusted serving path does not need the payload checksum. Read the fixed metadata
+            // and pixels directly into their final array instead of Files.readAllBytes() followed
+            // by DataInputStream.readNBytes(), which copied every served texture a second time.
+            ByteBuffer metadata = ByteBuffer.allocate(
+                    MAGIC.length + Integer.BYTES * 2 + PAYLOAD_FIXED_BYTES).order(ByteOrder.BIG_ENDIAN);
+            readFully(channel, metadata, "Prepared texture ended inside its metadata");
+            metadata.flip();
+
+            byte[] magic = new byte[MAGIC.length];
+            metadata.get(magic);
+            if (!Arrays.equals(MAGIC, magic)) {
+                throw new IOException("Prepared texture magic header is invalid");
+            }
+            int version = metadata.getInt();
+            if (version != PreparedTexture.FORMAT_VERSION) {
+                throw new IOException("Unsupported prepared texture version: " + version);
+            }
+            int payloadLength = metadata.getInt();
+            byte[] sourceHash = new byte[SHA256_BYTES];
+            metadata.get(sourceHash);
+            PreparedTexture.Transformation transformation =
+                    PreparedTexture.Transformation.fromId(metadata.getInt());
+            int originalWidth = metadata.getInt();
+            int originalHeight = metadata.getInt();
+            int uploadWidth = metadata.getInt();
+            int uploadHeight = metadata.getInt();
+            int channels = metadata.getInt();
+            int color0 = metadata.getInt();
+            int color1 = metadata.getInt();
+            int color2 = metadata.getInt();
+            int codec = metadata.getInt();
+            int pixelLength = metadata.getInt();
+
+            long expectedLength = minimumFileBytes() + (long) payloadLength;
+            if (payloadLength < PAYLOAD_FIXED_BYTES || expectedLength != size) {
+                throw new IOException("Prepared texture payload length is invalid");
+            }
+            if (codec != CODEC_RAW) {
+                throw new IOException("Unsupported prepared texture codec: " + codec);
+            }
+            if (uploadWidth <= 0 || uploadHeight <= 0 || (channels != 3 && channels != 4)) {
+                throw new IOException("Prepared texture dimensions or channel count are invalid");
+            }
+            long expectedPixels = Math.multiplyExact(
+                    Math.multiplyExact((long) uploadWidth, uploadHeight),
+                    channels);
+            if (pixelLength < 0
+                    || expectedPixels != pixelLength
+                    || payloadLength != PAYLOAD_FIXED_BYTES + (long) pixelLength
+                    || pixelLength > MAX_FILE_BYTES) {
+                throw new IOException(
+                        "Prepared texture pixel length is " + pixelLength + "; expected " + expectedPixels);
+            }
+
+            byte[] pixels = new byte[pixelLength];
+            readFully(channel, ByteBuffer.wrap(pixels), "Prepared texture ended inside its pixels");
+            if (channel.position() != size - CHECKSUM_BYTES) {
+                throw new IOException("Prepared texture payload contains trailing data");
+            }
+            return PreparedTexture.adopting(
+                    java.util.HexFormat.of().formatHex(sourceHash),
+                    transformation,
+                    originalWidth,
+                    originalHeight,
+                    uploadWidth,
+                    uploadHeight,
+                    channels,
+                    color0,
+                    color1,
+                    color2,
+                    pixels);
+        } catch (IllegalArgumentException | ArithmeticException error) {
+            throw new IOException("Prepared texture contains invalid data: " + error.getMessage(), error);
+        }
     }
 
     private static PreparedTexture read(Path source, boolean verifyChecksum) throws IOException {
@@ -184,6 +271,14 @@ public final class PreparedTextureIO {
                     color1,
                     color2,
                     pixels);
+        }
+    }
+
+    private static void readFully(FileChannel channel, ByteBuffer target, String eofMessage) throws IOException {
+        while (target.hasRemaining()) {
+            if (channel.read(target) < 0) {
+                throw new EOFException(eofMessage);
+            }
         }
     }
 
