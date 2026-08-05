@@ -186,6 +186,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-05 deduplicated-Janino-pack cohort (5 runs)** | **25.58 median (25.08--25.80)** |
 | **2026-08-05 prepared-audio path-index cohort (3 runs)** | **24.76 median (24.61--24.81)** |
 | **2026-08-05 exact-target transformer cohort (5 runs)** | **24.12 median (23.93--24.43)** |
+| **2026-08-05 resource-priority index cohort (5 runs)** | **23.68 median (23.39--24.35)** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -781,6 +782,17 @@ with zero decline/failure. A following five-run, one-minute-cooled cohort measur
 all exact transforms applied. This was not a shuffled A/B against the 24.76s cohort, so attribute
 the eliminated parsing/CPU work, not the full median difference, to the change. See
 `docs/evidence/2026-08-05-exact-target-transformer.md`.
+The next current JFR hotspot was vanilla resource reprioritization, not another read. The exact
+`ResourceLoaderState.init` bytecode collected 4,479 priority entries from 55,359 resources, then
+used `ArrayList.removeAll`, performing a linear priority-list membership scan for every resource
+before prepending the unchanged priority list. An exact remove-then-prepend rewrite indexes only
+that membership test. A diagnostic same-launch control measured **558.257ms vanilla versus
+4.148ms indexed (-554.109ms, -99.3%)** and compared the complete ordered outputs with zero mismatch.
+The following one-minute-cooled ordinary cohort measured
+**23.39/23.63/23.93/24.35/23.68s (23.68s median)**; each indexed call took 2.019--2.184ms and every
+launch stopped normally with zero transform failure. The adjacent prior cooled cohort was 24.12s
+median, so the 0.44s wall shift is consistent with the exact seam reduction but is not a shuffled
+paired A/B. See `docs/evidence/2026-08-05-resource-priority-index.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete
