@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+import java.util.Random;
 import java.util.regex.PatternSyntaxException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,10 +47,39 @@ class RulesRegexCacheRuntimeTest {
     }
 
     @Test
+    void fixedFastPathsMatchRegexAcrossRandomRuleText() {
+        Random random = new Random(0x5eedL);
+        String alphabet = "ab:# OR\r\n\t\u000b\f\u00a0";
+        List<String> replacements = List.of("\\r", "\\n", "\\s+$");
+        List<String> splits = List.of("\\n", "\nOR\n", "\\Q:\\E");
+        for (int sample = 0; sample < 10_000; sample++) {
+            int length = random.nextInt(80);
+            StringBuilder input = new StringBuilder(length);
+            for (int index = 0; index < length; index++) {
+                input.append(alphabet.charAt(random.nextInt(alphabet.length())));
+            }
+            String value = input.toString();
+            for (String regex : replacements) {
+                assertEquals(value.replaceAll(regex, ""),
+                        RulesRegexCacheRuntime.replaceAll(value, regex, ""),
+                        () -> "replacement mismatch for " + printable(value) + " / " + regex);
+            }
+            for (String regex : splits) {
+                assertArrayEquals(value.split(regex), RulesRegexCacheRuntime.split(value, regex),
+                        () -> "split mismatch for " + printable(value) + " / " + regex);
+            }
+        }
+    }
+
+    @Test
     void invalidAndNullInputsFailLikeString() {
         assertThrows(PatternSyntaxException.class,
                 () -> RulesRegexCacheRuntime.split("x", "["));
         assertThrows(NullPointerException.class,
                 () -> RulesRegexCacheRuntime.replaceAll(null, "[", ""));
+    }
+
+    private static String printable(String value) {
+        return value.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t");
     }
 }

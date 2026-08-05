@@ -76,3 +76,23 @@ contended atomic telemetry with striped counters still produced 650ms/644ms and 
 Both implementations, their exact target, tests, and telemetry were deleted. The remaining
 projectile/weapon hydration needs a narrower representation-specific shortcut, not a numeric-string
 cache underneath every JSON consumer.
+
+## Follow-up: fixed empty replacements do not need a matcher
+
+The retained precompiled patterns still sent 105,295 fixed empty replacements through
+`Matcher.replaceAll`: carriage-return removal, line-feed removal, and trailing default-regex
+whitespace. The exact runtime now recognizes only those three pattern/replacement pairs and uses
+equivalent linear character scans; every other pattern or replacement still takes the existing
+compiled-regex path. A deterministic 10,000-string corpus, including CR, LF, tab, vertical tab,
+form feed, colon, non-ASCII whitespace, and empty strings, agrees with `String.replaceAll` for all
+three cases.
+
+A broader experiment also replaced the five fixed splits with literal scanning. It was
+byte-for-byte equivalent but slower: the exact regex block rose from 207ms to 267ms, so that code
+was deleted. Keeping Java's reused `Pattern.split` while specializing only empty replacements
+reduced the same 205,686-call block to 130ms and the whole rules loader from 1.282s to 1.214s.
+The retained unattended run reached the menu in 24.99s and stopped normally:
+
+- baseline: `~/.starsector-preflight/runs/campaign-bootstrap-breakdown-20260805-161627`
+- rejected splitter: `~/.starsector-preflight/runs/rules-literal-fastpath-20260805-162415`
+- retained replacements: `~/.starsector-preflight/runs/rules-replace-fastpath-20260805-162539`

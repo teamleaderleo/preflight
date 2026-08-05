@@ -703,6 +703,11 @@ CSV is 0.04s, 4,374 JSON field accesses are below 0.01s, and 6,578 Kotlin string
 about 0.01s. Bytecode and that one-large-first-call shape point to required Magic/Kotlin class
 definition and initialization. Do not add another JSON/string cache here. Deferring the manager
 would move the same work to the first refit/paintjob interaction and was not retained.
+The rules regex follow-up retained a narrower fixed-operation fast path. Of the 205,686 regex
+operations, 105,295 are only CR/LF removal or trailing default-regex whitespace removal with an
+empty replacement. Equivalent character scans reduced the exact regex block from 207ms to 130ms
+and the complete rules loader from 1.282s to 1.214s. A custom literal splitter was tested first,
+raised the block to 267ms, and was deleted; keep Java's reused `Pattern.split`.
 Nexerelin's remaining 0.6--0.9s callback is now exactly attributed rather than guessed at. Across
 75 faction configs, cached merged reads cost only 0.11--0.15s and 6,655 JSON accesses only
 0.06--0.09s. About 0.30s comes from the first missing `doesVariantExist` call constructing the
@@ -711,6 +716,11 @@ Nexerelin immediately dereferences `Global.getSector()` while loading relationsh
 data. The guard was deleted. Do not retry this as a lookup cache; removing the cost requires a
 different Nexerelin initialization boundary or a safe optimization inside campaign-engine
 construction. The retained breakdown is measurement-only and opt-in.
+That constructor was split once. Sector/factory publication plus combat-engine initialization was
+only about 20ms; the remainder was distributed first-use construction, led by Hyperspace,
+`FactionManager`, and `CampaignClock` at roughly 40ms each in one sample. The constructor drill was
+removed after attribution because its extra labels overflowed the general startup report. Do not
+trade this startup cost for a later first-campaign-use hitch.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and
