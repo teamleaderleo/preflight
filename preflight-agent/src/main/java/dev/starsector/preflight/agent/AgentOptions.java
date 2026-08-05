@@ -173,7 +173,7 @@ record AgentOptions(
                 janinoBytecodeCache,
                 janinoBytecodeContext,
                 graphicsLibInsigniaManagerCache,
-                DEFAULT_CANDIDATE_PREFIXES);
+                adapterMode == AdapterMode.PROBE ? DEFAULT_CANDIDATE_PREFIXES : List.of());
     }
 
     /** {@code flush=<seconds>}; {@code 0} turns sidecar flushing off. */

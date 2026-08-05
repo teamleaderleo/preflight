@@ -54,6 +54,14 @@ class AgentOptionsTest {
     }
 
     @Test
+    void enabledModeInspectsExactTargetsWithoutBuildingTheBroadProbeInventory() {
+        AgentOptions options = AgentOptions.parse("adapter=enabled");
+
+        assertEquals(AdapterMode.ENABLED, options.adapterMode());
+        assertTrue(options.candidatePrefixes().isEmpty());
+    }
+
+    @Test
     void parsesTextureCacheManifestIndexAndPreparedPixelMode() {
         AgentOptions options = AgentOptions.parse(
                 "adapter=enabled"
