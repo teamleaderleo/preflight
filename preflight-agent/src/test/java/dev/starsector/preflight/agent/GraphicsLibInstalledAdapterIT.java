@@ -44,7 +44,7 @@ class GraphicsLibInstalledAdapterIT {
         assertEquals(GraphicsLibCompactReplayPlan.ORIGINAL_SHA256,
                 ClassSignature.parse(original).sha256(), "configured jar is not reviewed stock 1.12.1");
 
-        GraphicsLibCompactReplayPlan.configure(true);
+        GraphicsLibCompactReplayPlan.configure(true, null);
         assertTrue(GraphicsLibCompactReplayPlan.ready(), GraphicsLibCompactReplayPlan.status());
         byte[] replacement = transform(exact, original, temporaryDirectory.resolve("exact-report.json"));
         assertNotNull(replacement, Files.readString(temporaryDirectory.resolve("exact-report.json")));

@@ -1,6 +1,9 @@
 package dev.starsector.preflight.agent;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,8 +13,14 @@ import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.CRC32;
 
@@ -20,6 +29,8 @@ import java.util.zip.CRC32;
  *
  * <p>The returned marker implements SpriteAPI at runtime, but carries no texture. The exact
  * GraphicsLib transform immediately converts it into GraphicsLib's existing unloaded-entry state.
+ * Complete validations are journaled with filesystem identity and metadata; changed or unknown
+ * files always return to complete structural and CRC validation.
  */
 public final class GraphicsLibNormalCacheRuntime {
     private static final byte[] PNG_SIGNATURE = {
@@ -32,6 +43,10 @@ public final class GraphicsLibNormalCacheRuntime {
     private static final int IEND = 0x49454E44;
     private static final String SPRITE_API = "com.fs.starfarer.api.graphics.SpriteAPI";
     private static final String GRAPHICSLIB_ID = "shaderLib";
+    private static final int JOURNAL_MAGIC = 0x50464E4A;
+    private static final int JOURNAL_VERSION = 1;
+    private static final int MAX_JOURNAL_ENTRIES = 100_000;
+    private static final String JOURNAL_NAME = "graphicslib-normal-validation-v1.bin";
 
     private static final AtomicLong CALLS = new AtomicLong();
     private static final AtomicLong HITS = new AtomicLong();
@@ -39,10 +54,20 @@ public final class GraphicsLibNormalCacheRuntime {
     private static final AtomicLong VALIDATED_BYTES = new AtomicLong();
     private static final AtomicLong VALIDATION_NANOS = new AtomicLong();
     private static final AtomicLong ROOT_FAILURES = new AtomicLong();
+    private static final AtomicLong JOURNAL_HITS = new AtomicLong();
+    private static final AtomicLong JOURNAL_MISSES = new AtomicLong();
+    private static final AtomicLong JOURNAL_LOAD_FAILURES = new AtomicLong();
+    private static final AtomicLong JOURNAL_WRITE_FAILURES = new AtomicLong();
+    private static final AtomicBoolean SHUTDOWN_HOOK_INSTALLED = new AtomicBoolean();
     private static final ThreadLocal<byte[]> READ_BUFFER =
             ThreadLocal.withInitial(() -> new byte[BUFFER_BYTES]);
+    private static final Map<String, FileStamp> verified = new ConcurrentHashMap<>();
 
     private static volatile Path cacheRoot;
+    private static volatile Path journalFile;
+    private static volatile Path journalRoot;
+    private static volatile boolean journalLoaded;
+    private static volatile boolean journalDirty;
     private static volatile boolean rootUnavailable;
     private static volatile Object lazyMarker;
     private static volatile Path testCacheRoot;
@@ -58,9 +83,34 @@ public final class GraphicsLibNormalCacheRuntime {
         VALIDATED_BYTES.set(0);
         VALIDATION_NANOS.set(0);
         ROOT_FAILURES.set(0);
+        JOURNAL_HITS.set(0);
+        JOURNAL_MISSES.set(0);
+        JOURNAL_LOAD_FAILURES.set(0);
+        JOURNAL_WRITE_FAILURES.set(0);
         cacheRoot = null;
+        journalFile = null;
+        journalRoot = null;
+        journalLoaded = false;
+        journalDirty = false;
+        verified.clear();
         rootUnavailable = false;
         lazyMarker = null;
+    }
+
+    static void configure(Path cacheDirectory) {
+        if (cacheDirectory == null) {
+            return;
+        }
+        journalFile = cacheDirectory.toAbsolutePath().normalize().resolve(JOURNAL_NAME);
+        if (SHUTDOWN_HOOK_INSTALLED.compareAndSet(false, true)) {
+            try {
+                Runtime.getRuntime().addShutdownHook(new Thread(
+                        GraphicsLibNormalCacheRuntime::flushJournal,
+                        "preflight-graphicslib-normal-journal"));
+            } catch (IllegalStateException | SecurityException ignored) {
+                // The journal is optional; validation remains complete without it.
+            }
+        }
     }
 
     /** Returns a marker SpriteAPI for a fully validated cache hit, otherwise {@code null}. */
@@ -70,8 +120,23 @@ public final class GraphicsLibNormalCacheRuntime {
         try {
             Path root = resolveCacheRoot();
             Path png = resolveCacheFile(root, resourcePath);
-            long bytes = validatePng(png);
-            VALIDATED_BYTES.addAndGet(bytes);
+            ensureJournalLoaded(root);
+            String name = png.getFileName().toString();
+            FileStamp before = FileStamp.capture(png);
+            if (before.equals(verified.get(name))) {
+                JOURNAL_HITS.incrementAndGet();
+            } else {
+                JOURNAL_MISSES.incrementAndGet();
+                verified.remove(name);
+                long bytes = validatePng(png);
+                FileStamp after = FileStamp.capture(png);
+                if (!before.equals(after)) {
+                    throw new IOException("generated normal changed during validation");
+                }
+                verified.put(name, after);
+                journalDirty = true;
+                VALIDATED_BYTES.addAndGet(bytes);
+            }
             Object marker = resolveMarker();
             HITS.incrementAndGet();
             return marker;
@@ -99,7 +164,108 @@ public final class GraphicsLibNormalCacheRuntime {
         values.put("validatedBytes", VALIDATED_BYTES.get());
         values.put("validationMillis", VALIDATION_NANOS.get() / 1_000_000L);
         values.put("rootFailures", ROOT_FAILURES.get());
+        values.put("journalHits", JOURNAL_HITS.get());
+        values.put("journalMisses", JOURNAL_MISSES.get());
+        values.put("journalEntries", verified.size());
+        values.put("journalLoadFailures", JOURNAL_LOAD_FAILURES.get());
+        values.put("journalWriteFailures", JOURNAL_WRITE_FAILURES.get());
         return values;
+    }
+
+    private static void ensureJournalLoaded(Path root) {
+        if (journalLoaded) {
+            return;
+        }
+        synchronized (GraphicsLibNormalCacheRuntime.class) {
+            if (journalLoaded) {
+                return;
+            }
+            journalRoot = root.toAbsolutePath().normalize();
+            Path source = journalFile;
+            if (source != null && Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+                try (DataInputStream input = new DataInputStream(new BufferedInputStream(
+                        Files.newInputStream(source, LinkOption.NOFOLLOW_LINKS)))) {
+                    if (input.readInt() != JOURNAL_MAGIC || input.readInt() != JOURNAL_VERSION
+                            || !journalRoot.toString().equals(input.readUTF())) {
+                        throw new IOException("GraphicsLib normal journal identity differs");
+                    }
+                    int count = input.readInt();
+                    if (count < 0 || count > MAX_JOURNAL_ENTRIES) {
+                        throw new IOException("GraphicsLib normal journal count is invalid");
+                    }
+                    for (int index = 0; index < count; index++) {
+                        String name = input.readUTF();
+                        if (!validCacheName(name) || verified.putIfAbsent(name,
+                                new FileStamp(input.readLong(), input.readLong(), input.readUTF()))
+                                != null) {
+                            throw new IOException("GraphicsLib normal journal entry is invalid");
+                        }
+                    }
+                    if (input.read() != -1) {
+                        throw new IOException("GraphicsLib normal journal has trailing data");
+                    }
+                } catch (IOException | RuntimeException ignored) {
+                    verified.clear();
+                    JOURNAL_LOAD_FAILURES.incrementAndGet();
+                }
+            }
+            journalLoaded = true;
+        }
+    }
+
+    private static boolean validCacheName(String name) {
+        return name != null && !name.isBlank() && name.length() <= 1024
+                && name.endsWith("_normal.png")
+                && name.indexOf('/') < 0 && name.indexOf('\\') < 0;
+    }
+
+    private static void flushJournal() {
+        Path destination = journalFile;
+        Path root = journalRoot;
+        if (!journalDirty || destination == null || root == null || verified.isEmpty()) {
+            return;
+        }
+        synchronized (GraphicsLibNormalCacheRuntime.class) {
+            if (!journalDirty) {
+                return;
+            }
+            Path temporary = null;
+            try {
+                Files.createDirectories(destination.getParent());
+                Map<String, FileStamp> snapshot = new TreeMap<>(verified);
+                temporary = Files.createTempFile(destination.getParent(),
+                        ".graphicslib-normal-validation-", ".tmp");
+                try (DataOutputStream output = new DataOutputStream(new BufferedOutputStream(
+                        Files.newOutputStream(temporary)))) {
+                    output.writeInt(JOURNAL_MAGIC);
+                    output.writeInt(JOURNAL_VERSION);
+                    output.writeUTF(root.toString());
+                    output.writeInt(snapshot.size());
+                    for (Map.Entry<String, FileStamp> entry : snapshot.entrySet()) {
+                        output.writeUTF(entry.getKey());
+                        output.writeLong(entry.getValue().size());
+                        output.writeLong(entry.getValue().modifiedNanos());
+                        output.writeUTF(entry.getValue().fileKey());
+                    }
+                }
+                try {
+                    Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException unsupported) {
+                    Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+                }
+                journalDirty = false;
+            } catch (IOException | RuntimeException ignored) {
+                JOURNAL_WRITE_FAILURES.incrementAndGet();
+                if (temporary != null) {
+                    try {
+                        Files.deleteIfExists(temporary);
+                    } catch (IOException alsoIgnored) {
+                        // Best-effort cleanup of an optional journal temporary.
+                    }
+                }
+            }
+        }
     }
 
     private static Path resolveCacheRoot() throws ReflectiveOperationException, IOException {
@@ -311,6 +477,16 @@ public final class GraphicsLibNormalCacheRuntime {
         beginSession();
     }
 
+    static void configureForTest(Path root, Path persistentCache, Class<?> spriteApi)
+            throws IOException {
+        configureForTest(root, spriteApi);
+        configure(persistentCache);
+    }
+
+    static void flushJournalForTest() {
+        flushJournal();
+    }
+
     static void clearTestConfiguration() {
         testCacheRoot = null;
         testSpriteApi = null;
@@ -356,6 +532,20 @@ public final class GraphicsLibNormalCacheRuntime {
                 return 0.0f;
             }
             return 0.0d;
+        }
+    }
+
+    private record FileStamp(long size, long modifiedNanos, String fileKey) {
+        static FileStamp capture(Path path) throws IOException {
+            BasicFileAttributes attributes = Files.readAttributes(
+                    path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            if (!attributes.isRegularFile() || attributes.isSymbolicLink()) {
+                throw new IOException("generated normal is not a regular file");
+            }
+            Object key = attributes.fileKey();
+            return new FileStamp(attributes.size(),
+                    attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS),
+                    key == null ? "" : key.toString());
         }
     }
 }

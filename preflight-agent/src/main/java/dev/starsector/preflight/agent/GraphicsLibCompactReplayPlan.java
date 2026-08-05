@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -36,12 +37,13 @@ final class GraphicsLibCompactReplayPlan {
         state = State.disabled();
     }
 
-    static void configure(boolean enabled) {
+    static void configure(boolean enabled, Path cacheDirectory) {
         if (!enabled) {
             state = State.disabled();
             return;
         }
         try {
+            GraphicsLibNormalCacheRuntime.configure(cacheDirectory);
             byte[] replacement = GraphicsLibLazyNormalPlan.transform(loadReplacement());
             if (replacement == null
                     || !REPLACEMENT_SHA256.equals(ClassSignature.parse(replacement).sha256())) {

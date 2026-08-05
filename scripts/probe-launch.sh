@@ -114,9 +114,15 @@ echo "flags:    --direct --adapter --startup-phase-probe --no-record ${EXTRA[*]:
 
 python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$OUT/before.json"
 
-java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
-    --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
-    ${EXTRA[@]+"${EXTRA[@]}"} >"$OUT/wrapper.log" 2>&1 &
+if (( ${#EXTRA[@]} )); then
+    java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
+        --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
+        "${EXTRA[@]}" >"$OUT/wrapper.log" 2>&1 &
+else
+    java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
+        --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
+        >"$OUT/wrapper.log" 2>&1 &
+fi
 WRAPPER_PID=$!
 
 QUIET_LOGS=false

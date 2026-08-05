@@ -20,7 +20,7 @@ class GraphicsLibCompactReplayPlanTest {
 
     @Test
     void embeddedReplacementIsExactSelfContainedJava17Class() throws Exception {
-        GraphicsLibCompactReplayPlan.configure(true);
+        GraphicsLibCompactReplayPlan.configure(true, null);
         assertTrue(GraphicsLibCompactReplayPlan.ready(), GraphicsLibCompactReplayPlan.status());
 
         byte[] replacement = GraphicsLibCompactReplayPlan.transform(originalSignature());
@@ -46,7 +46,7 @@ class GraphicsLibCompactReplayPlanTest {
         ClassSignature exact = originalSignature();
         assertNull(GraphicsLibCompactReplayPlan.transform(exact));
 
-        GraphicsLibCompactReplayPlan.configure(true);
+        GraphicsLibCompactReplayPlan.configure(true, null);
         assertNull(GraphicsLibCompactReplayPlan.transform(new ClassSignature(
                 exact.internalName(), "0".repeat(64), 61, exact.access(), exact.methods())));
         assertNull(GraphicsLibCompactReplayPlan.transform(new ClassSignature(

@@ -108,7 +108,8 @@ final class AdapterRuntime {
             RulesCsvCacheRuntime.configure(options.rulesCsvCache());
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             MergedReadCacheRuntime.configure(options.mergedReadCache());
-            GraphicsLibCompactReplayPlan.configure(options.graphicsLibCompactReplay());
+            GraphicsLibCompactReplayPlan.configure(
+                    options.graphicsLibCompactReplay(), options.textureCacheDirectory());
             JaninoBytecodeCacheRuntime.configure(
                     options.janinoBytecodeCache(), options.janinoBytecodeContext());
             GraphicsLibInsigniaManagerCacheRuntime.configure(

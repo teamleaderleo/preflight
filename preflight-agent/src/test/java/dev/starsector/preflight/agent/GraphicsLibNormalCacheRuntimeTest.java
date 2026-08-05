@@ -59,6 +59,49 @@ class GraphicsLibNormalCacheRuntimeTest {
         assertFalse(GraphicsLibNormalCacheRuntime.isLazySprite(new Object()));
     }
 
+    @Test
+    void persistentJournalSkipsUnchangedPngAndRevalidatesChangedPng() throws Exception {
+        Path cache = Files.createDirectory(temporary.resolve("cache"));
+        Path journal = Files.createDirectory(temporary.resolve("journal"));
+        Path png = cache.resolve("valid_normal.png");
+        assertTrue(ImageIO.write(new BufferedImage(3, 2, BufferedImage.TYPE_INT_ARGB), "png",
+                png.toFile()));
+
+        GraphicsLibNormalCacheRuntime.configureForTest(cache, journal, TestSprite.class);
+        assertNotNull(GraphicsLibNormalCacheRuntime.lazySprite("cache/valid_normal.png"));
+        assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("journalMisses"));
+        GraphicsLibNormalCacheRuntime.flushJournalForTest();
+
+        GraphicsLibNormalCacheRuntime.configureForTest(cache, journal, TestSprite.class);
+        assertNotNull(GraphicsLibNormalCacheRuntime.lazySprite("cache/valid_normal.png"));
+        assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("journalHits"));
+        assertEquals(0L, GraphicsLibNormalCacheRuntime.telemetry().get("validatedBytes"));
+
+        assertTrue(ImageIO.write(new BufferedImage(4, 2, BufferedImage.TYPE_INT_ARGB), "png",
+                png.toFile()));
+        GraphicsLibNormalCacheRuntime.configureForTest(cache, journal, TestSprite.class);
+        assertNotNull(GraphicsLibNormalCacheRuntime.lazySprite("cache/valid_normal.png"));
+        assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("journalMisses"));
+        assertEquals(Files.size(png), GraphicsLibNormalCacheRuntime.telemetry().get("validatedBytes"));
+    }
+
+    @Test
+    void malformedJournalFailsClosedToFullValidation() throws Exception {
+        Path cache = Files.createDirectory(temporary.resolve("cache"));
+        Path journal = Files.createDirectory(temporary.resolve("journal"));
+        Path png = cache.resolve("valid_normal.png");
+        assertTrue(ImageIO.write(new BufferedImage(3, 2, BufferedImage.TYPE_INT_ARGB), "png",
+                png.toFile()));
+        Files.write(journal.resolve("graphicslib-normal-validation-v1.bin"),
+                new byte[] {0x01, 0x02, 0x03});
+
+        GraphicsLibNormalCacheRuntime.configureForTest(cache, journal, TestSprite.class);
+        assertNotNull(GraphicsLibNormalCacheRuntime.lazySprite("cache/valid_normal.png"));
+        assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("journalLoadFailures"));
+        assertEquals(1L, GraphicsLibNormalCacheRuntime.telemetry().get("journalMisses"));
+        assertEquals(Files.size(png), GraphicsLibNormalCacheRuntime.telemetry().get("validatedBytes"));
+    }
+
     private interface TestSprite {
         float getHeight();
 
