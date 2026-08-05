@@ -147,12 +147,9 @@ final class AdapterTransformationRegistry {
                 byte[] variantPhases = VariantLoaderPhasePlan.transform(
                         ClassSignature.parse(specStore), specStore);
                 byte[] attributed = variantPhases == null ? specStore : variantPhases;
-                if (!VariantJsonCacheRuntime.ready()) {
-                    return attributed;
-                }
-                byte[] cached = VariantJsonCachePlan.transform(
+                byte[] optimized = specStoreOptimizations(
                         ClassSignature.parse(attributed), attributed);
-                return cached == null ? attributed : cached;
+                return optimized == null ? attributed : optimized;
             } catch (java.io.IOException ignored) {
                 return specStore;
             }
@@ -160,10 +157,9 @@ final class AdapterTransformationRegistry {
         if (ResourcePriorityRuntime.PLAN_ID.equals(target.planId())) {
             return resourceLoaderPlans(signature, originalBytes);
         }
-        if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return VariantJsonCacheRuntime.ready()
-                    ? VariantJsonCachePlan.transform(signature, originalBytes)
-                    : null;
+        if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())
+                || SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(target.planId())) {
+            return specStoreOptimizations(signature, originalBytes);
         }
         if (WeaponJsonCacheRuntime.PLAN_ID.equals(target.planId())
                 || ProjectileJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
@@ -396,7 +392,33 @@ final class AdapterTransformationRegistry {
         }
     }
 
-    /** Composes the merged-CSV cache and duplicate index that share the rules loader. */
+    /** Composes the prepared variant restore and the disjoint fixed quote normalization. */
+    private static byte[] specStoreOptimizations(
+            ClassSignature signature, byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+        if (VariantJsonCacheRuntime.ready()) {
+            byte[] cached = VariantJsonCachePlan.transform(signature, current);
+            if (cached != null) {
+                current = cached;
+                changed = true;
+            }
+        }
+        try {
+            ClassSignature currentSignature = changed ? ClassSignature.parse(current) : signature;
+            byte[] normalized = SpecStoreQuoteNormalizationPlan.transform(
+                    currentSignature, current);
+            if (normalized != null) {
+                current = normalized;
+                changed = true;
+            }
+        } catch (java.io.IOException ignored) {
+            // A valid prepared-variant transform remains useful if the disjoint rewrite cannot
+            // inspect its output. Every original String.replaceAll call remains untouched.
+        }
+        return changed ? current : null;
+    }
+
     private static byte[] rulesOptimizations(byte[] originalBytes) {
         byte[] current = originalBytes;
         boolean changed = false;
@@ -569,6 +591,9 @@ final class AdapterTransformationRegistry {
             return RulesCsvCacheRuntime.ready();
         }
         if (RulesRegexCacheRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(planId)) {
             return true;
         }
         if (ResourcePriorityRuntime.PLAN_ID.equals(planId)) {

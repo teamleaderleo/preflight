@@ -864,6 +864,15 @@ still fail open. The unattended live gate reached the menu in 22.36s, served 2,0
 transformations, stopped cleanly, and left no JVM. It is an encouraging single diagnostic, not a
 new startup cohort or attributed wall-time claim. See
 `docs/evidence/2026-08-06-prepared-audio-direct-read.md`.
+SpecStore's fixed smart-quote cleanup is now allocation-light too. Its exact normalizer compiled and
+ran two constant regexes for every one of 28,624 values in the live corpus. A hash- and shape-pinned
+rewrite uses equivalent linear scans, composes with the prepared-variant cache on the same class,
+and reports its own count. On the bundled game JVM, one million two-regex normalizations moved from
+1162.118ms to 288.858ms median (**4.02x, -873.260ms**), with identical output. The final unattended
+gate served 57,248 fast replacements, hit all 5,573 prepared variants, reached the menu in 21.93s,
+applied all 40 transformations with zero decline/failure, and stopped normally. This is a CPU and
+allocation result rather than an attributed whole-launch timing claim. See
+`docs/evidence/2026-08-06-spec-store-quote-normalization.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

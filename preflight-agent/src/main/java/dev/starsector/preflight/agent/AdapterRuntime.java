@@ -177,6 +177,10 @@ final class AdapterRuntime {
                     registry = registry.withVariantJsonCacheTarget();
                     report.diagnostic("Loaded the exact SpecStore variant JSON cache target ("
                             + VariantJsonCacheRuntime.status() + ")");
+                } else {
+                    // The variant target composes this disjoint rewrite whenever it is present.
+                    registry = registry.withSpecStoreQuoteNormalizationTarget();
+                    report.diagnostic("Loaded the exact SpecStore quote-normalization target");
                 }
                 if (WeaponJsonCacheRuntime.ready()) {
                     registry = registry.withWeaponJsonCacheTarget();

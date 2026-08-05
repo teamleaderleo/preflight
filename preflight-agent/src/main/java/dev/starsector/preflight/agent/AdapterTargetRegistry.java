@@ -1247,6 +1247,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact SpecStore smart-quote cleanup used when no prepared variant cache is available. */
+    static AdapterTarget specStoreQuoteNormalizationTarget() {
+        return new AdapterTarget(
+                "vanilla-spec-store-0.98a-rc8-quote-normalization",
+                SpecStoreQuoteNormalizationPlan.TARGET_CLASS,
+                "1947fee1403e93b27ae89b4995fcfde5f65b8ffe1ef3f564b4daaed3a5e69821",
+                SpecStoreQuoteNormalizationPlan.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        SpecStoreQuoteNormalizationPlan.METHOD,
+                        SpecStoreQuoteNormalizationPlan.DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact reviewed weapon loader used by the strict-profile merged-JSON cache. */
     static AdapterTarget weaponJsonCacheTarget() {
         return new AdapterTarget(
@@ -1417,6 +1434,10 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withVariantJsonCacheTarget() {
         return withTarget(variantJsonCacheTarget());
+    }
+
+    AdapterTargetRegistry withSpecStoreQuoteNormalizationTarget() {
+        return withTarget(specStoreQuoteNormalizationTarget());
     }
 
     AdapterTargetRegistry withWeaponJsonCacheTarget() {

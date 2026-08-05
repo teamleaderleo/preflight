@@ -72,6 +72,32 @@ class RulesRegexCacheRuntimeTest {
     }
 
     @Test
+    void smartQuoteFastPathsMatchRegexAcrossRandomText() {
+        Random random = new Random(0x51a7eL);
+        String alphabet = "ab \u201c\u201d\u2018\u2019\ufffd\ud83d\ude80";
+        List<List<String>> replacements = List.of(
+                List.of("[\\u201c\\u201d]+", "\""),
+                List.of("[\\u2018\\u2019\\ufffd]+", "'"));
+        for (int sample = 0; sample < 10_000; sample++) {
+            int length = random.nextInt(80);
+            StringBuilder input = new StringBuilder(length);
+            for (int index = 0; index < length; index++) {
+                input.append(alphabet.charAt(random.nextInt(alphabet.length())));
+            }
+            String value = input.toString();
+            for (List<String> replacement : replacements) {
+                String regex = replacement.get(0);
+                String result = replacement.get(1);
+                assertEquals(value.replaceAll(regex, result),
+                        RulesRegexCacheRuntime.replaceAll(value, regex, result),
+                        () -> "smart-quote mismatch for " + value + " / " + regex);
+            }
+        }
+        assertEquals(20_000L,
+                RulesRegexCacheRuntime.telemetry().get("smartQuoteReplacements"));
+    }
+
+    @Test
     void invalidAndNullInputsFailLikeString() {
         assertThrows(PatternSyntaxException.class,
                 () -> RulesRegexCacheRuntime.split("x", "["));
