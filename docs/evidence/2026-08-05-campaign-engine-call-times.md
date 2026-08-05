@@ -2,7 +2,8 @@
 
 Date: 2026-08-05
 
-Status: market/fleet drill-down complete; two exact maintenance shortcuts live-verified
+Status: market/fleet drill-down complete; two exact maintenance shortcuts live-verified and one
+launch-free verified
 
 ## Why another layer was necessary
 
@@ -243,3 +244,29 @@ median, and 14.03 FPS 1% low over 5,574 frames. Warm-up remained visible: the fi
 revealed that filtering the location/economy target did not disable its composition behind the
 entity-index target. The diagnostic filter now resets all four campaign timing runtimes when their
 plan IDs are omitted, so future clean FPS passes cannot accidentally retain a composed timer.
+
+## Empty market snapshots
+
+The exact `Market.advance(float)` bytecode exposed another allocation-only redundancy at the outer
+boundary of the 483.77-million commodity-stat calls. Every market advance constructs two defensive
+copies before iterating: `new ArrayList(getConditions())` and `new ArrayList(industries)`. The copy
+is necessary when either list is non-empty because a condition or industry callback may mutate its
+authoritative list. It has no semantic purpose when the authoritative list is empty.
+
+The maintenance plan now replaces only those two exact constructor/iterator sequences with a
+runtime helper. Empty lists return Java's shared empty iterator; non-empty lists still return an
+iterator over `new ArrayList(values)`. The shipped method uses these iterators only through
+`hasNext()` and `next()`, never `remove()`, so the empty branch does not expose a different mutation
+contract. Synthetic execution proves the non-empty iterator remains isolated if its source list is
+changed after creation.
+
+This third shortcut is pinned to the same exact installed `Market` class and core archive as the
+existing attribution probe. Production target ordering composes maintenance first and the opt-in
+market timer second while retaining the original source identity. The installed archive test proves
+both rewrites coexist: two maintenance helper calls plus all eight ordinary and three class-grouped
+timing entries. Changed hashes, bytecode shapes, Java versions, and second transforms decline; the
+existing `preflight.campaign.entityMaintenance.disabled=true` switch restores vanilla.
+
+Full `mvn verify` passes: core 195, CLI unit 375, failsafe 38 with one expected skip, and synthetic
+22 with one expected skip. A live run is still required to establish the empty/non-empty rate and
+normal game health; no FPS or allocation-volume claim is made yet.

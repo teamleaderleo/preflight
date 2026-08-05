@@ -1,11 +1,14 @@
 package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
@@ -86,6 +89,52 @@ class CampaignEntityMaintenancePlanTest {
         CampaignEntityMaintenanceRuntime.beginSession();
         assertNull(CampaignEntityMaintenancePlan.transform(
                 exact(original, CampaignEntityMaintenancePlan.FLEET_VIEW_SHA256), original));
+    }
+
+    @Test
+    void marketAllocatesOnlyForNonEmptyDefensiveSnapshots() throws Exception {
+        byte[] original = marketFixture();
+        byte[] transformed = CampaignEntityMaintenancePlan.transform(
+                exact(original, CampaignEntityMaintenancePlan.MARKET_SHA256), original);
+        assertNotNull(transformed);
+        MethodNode advance = method(transformed, CampaignEntityMaintenancePlan.ADVANCE_METHOD);
+        assertEquals(2, calls(advance,
+                CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/'),
+                "marketSnapshotIterator"));
+        assertEquals(0, calls(advance, "java/util/ArrayList", "<init>"));
+        assertNull(CampaignEntityMaintenancePlan.transform(
+                ClassSignature.parse(transformed), transformed));
+
+        ByteArrayLoader loader = new ByteArrayLoader(Map.of(
+                CampaignEntityMaintenancePlan.MARKET_CLASS.replace('/', '.'), transformed));
+        Class<?> marketType = loader.loadClass(
+                CampaignEntityMaintenancePlan.MARKET_CLASS.replace('/', '.'));
+        Object market = marketType.getConstructor().newInstance();
+        var method = marketType.getMethod(CampaignEntityMaintenancePlan.ADVANCE_METHOD, float.class);
+        method.invoke(market, 1f);
+        addToList(marketType, market, "conditions", new Object());
+        addToList(marketType, market, "industries", new Object());
+        method.invoke(market, 1f);
+
+        Map<String, Object> telemetry = CampaignEntityMaintenanceRuntime.telemetry();
+        assertEquals(1L, telemetry.get("emptyMarketConditions"));
+        assertEquals(1L, telemetry.get("nonEmptyMarketConditions"));
+        assertEquals(1L, telemetry.get("emptyMarketIndustries"));
+        assertEquals(1L, telemetry.get("nonEmptyMarketIndustries"));
+    }
+
+    @Test
+    void nonEmptyMarketIteratorRetainsVanillaSnapshotSemantics() {
+        List<String> source = new ArrayList<>(List.of("first"));
+        Iterator<?> snapshot = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                source, CampaignEntityMaintenanceRuntime.MARKET_CONDITIONS);
+        source.add("second");
+        assertEquals("first", snapshot.next());
+        assertFalse(snapshot.hasNext());
+
+        Iterator<?> empty = CampaignEntityMaintenanceRuntime.marketSnapshotIterator(
+                List.of(), CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES);
+        assertFalse(empty.hasNext());
     }
 
     private static byte[] entityFixture() {
@@ -183,6 +232,84 @@ class CampaignEntityMaintenancePlanTest {
         method.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();
+    }
+
+    private static byte[] marketFixture() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.MARKET_CLASS, null, "java/lang/Object", null);
+        writer.visitField(Opcodes.ACC_PRIVATE, "conditions", "Ljava/util/List;", null, null).visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE, "industries", "Ljava/util/List;", null, null).visitEnd();
+        MethodVisitor constructor = writer.visitMethod(
+                Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/lang/Object", "<init>", "()V", false);
+        initializeList(constructor, "conditions");
+        initializeList(constructor, "industries");
+        constructor.visitInsn(Opcodes.RETURN);
+        constructor.visitMaxs(3, 1);
+        constructor.visitEnd();
+
+        MethodVisitor getConditions = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                "getConditions", "()Ljava/util/List;", null, null);
+        getConditions.visitCode();
+        getConditions.visitVarInsn(Opcodes.ALOAD, 0);
+        getConditions.visitFieldInsn(Opcodes.GETFIELD,
+                CampaignEntityMaintenancePlan.MARKET_CLASS, "conditions", "Ljava/util/List;");
+        getConditions.visitInsn(Opcodes.ARETURN);
+        getConditions.visitMaxs(1, 1);
+        getConditions.visitEnd();
+
+        MethodVisitor advance = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR, null, null);
+        advance.visitCode();
+        advance.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        advance.visitInsn(Opcodes.DUP);
+        advance.visitVarInsn(Opcodes.ALOAD, 0);
+        advance.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                CampaignEntityMaintenancePlan.MARKET_CLASS,
+                "getConditions", "()Ljava/util/List;", false);
+        advance.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>",
+                "(Ljava/util/Collection;)V", false);
+        advance.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/ArrayList", "iterator",
+                "()Ljava/util/Iterator;", false);
+        advance.visitInsn(Opcodes.POP);
+        advance.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        advance.visitInsn(Opcodes.DUP);
+        advance.visitVarInsn(Opcodes.ALOAD, 0);
+        advance.visitFieldInsn(Opcodes.GETFIELD,
+                CampaignEntityMaintenancePlan.MARKET_CLASS, "industries", "Ljava/util/List;");
+        advance.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>",
+                "(Ljava/util/Collection;)V", false);
+        advance.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/ArrayList", "iterator",
+                "()Ljava/util/Iterator;", false);
+        advance.visitInsn(Opcodes.POP);
+        advance.visitInsn(Opcodes.RETURN);
+        advance.visitMaxs(4, 2);
+        advance.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static void initializeList(MethodVisitor constructor, String field) {
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        constructor.visitInsn(Opcodes.DUP);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/util/ArrayList", "<init>", "()V", false);
+        constructor.visitFieldInsn(Opcodes.PUTFIELD,
+                CampaignEntityMaintenancePlan.MARKET_CLASS, field, "Ljava/util/List;");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addToList(Class<?> owner, Object instance, String name, Object value)
+            throws Exception {
+        var field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        ((List<Object>) field.get(instance)).add(value);
     }
 
     private static ClassSignature exact(byte[] bytes, String hash) throws Exception {

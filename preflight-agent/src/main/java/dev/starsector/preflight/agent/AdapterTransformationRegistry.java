@@ -237,7 +237,13 @@ final class AdapterTransformationRegistry {
             return CampaignMarketFleetTimePlan.transform(signature, originalBytes);
         }
         if (CampaignEntityMaintenanceRuntime.PLAN_ID.equals(target.planId())) {
-            return CampaignEntityMaintenancePlan.transform(signature, originalBytes);
+            byte[] maintained = CampaignEntityMaintenancePlan.transform(signature, originalBytes);
+            if (maintained == null) return null;
+            // Market.advance is also an opt-in attribution target. Maintenance is registered
+            // first in production, so compose the probe here while the original exact source
+            // identity is still available.
+            byte[] timed = CampaignMarketFleetTimePlan.transform(signature, maintained);
+            return timed == null ? maintained : timed;
         }
         if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
             return FrameTimeStatePlan.transform(signature, originalBytes);

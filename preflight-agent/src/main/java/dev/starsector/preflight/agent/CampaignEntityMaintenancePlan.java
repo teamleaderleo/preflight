@@ -11,12 +11,13 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-/** Removes two redundant vanilla campaign-entity maintenance operations. */
+/** Removes redundant vanilla campaign-entity and market maintenance allocations. */
 final class CampaignEntityMaintenancePlan {
     static final String ENTITY_CLASS = "com/fs/starfarer/campaign/BaseCampaignEntity";
     static final String ENTITY_SHA256 =
@@ -27,6 +28,9 @@ final class CampaignEntityMaintenancePlan {
     static final String FLEET_VIEW_CLASS = "com/fs/starfarer/campaign/fleet/CampaignFleetView";
     static final String FLEET_VIEW_SHA256 =
             "55ad696cd51ec7b39a1d34797c77d78dfaebc386af6bb4d12015b235d3c28b2c";
+    static final String MARKET_CLASS = "com/fs/starfarer/campaign/econ/Market";
+    static final String MARKET_SHA256 =
+            "8e9c1e400b1491406836378df83976c31eec453d2a77f8f13c6d030a52bbc0ae";
     static final String ADVANCE_METHOD = "advance";
     static final String ADVANCE_DESCRIPTOR = "(F)V";
 
@@ -50,6 +54,10 @@ final class CampaignEntityMaintenancePlan {
         if (FLEET_VIEW_CLASS.equals(signature.internalName())
                 && FLEET_VIEW_SHA256.equals(signature.sha256())) {
             return transformFleetView(originalBytes);
+        }
+        if (MARKET_CLASS.equals(signature.internalName())
+                && MARKET_SHA256.equals(signature.sha256())) {
+            return transformMarket(originalBytes);
         }
         return null;
     }
@@ -111,6 +119,75 @@ final class CampaignEntityMaintenancePlan {
         return write(owner);
     }
 
+    private static byte[] transformMarket(byte[] originalBytes) {
+        ClassNode owner = read(originalBytes);
+        MethodNode method = unique(owner, ADVANCE_METHOD, ADVANCE_DESCRIPTOR);
+        if (method == null || callsRuntime(method) != 0) return null;
+
+        List<MarketSnapshot> snapshots = marketSnapshots(method);
+        if (snapshots.size() != 2
+                || snapshots.stream().filter(snapshot ->
+                        snapshot.kind == CampaignEntityMaintenanceRuntime.MARKET_CONDITIONS).count() != 1
+                || snapshots.stream().filter(snapshot ->
+                        snapshot.kind == CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES).count() != 1) {
+            return null;
+        }
+        for (MarketSnapshot snapshot : snapshots) {
+            method.instructions.remove(snapshot.allocation);
+            method.instructions.remove(snapshot.duplicate);
+            method.instructions.insertBefore(snapshot.constructor, new LdcInsnNode(snapshot.kind));
+            method.instructions.insertBefore(snapshot.constructor, new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, RUNTIME, "marketSnapshotIterator",
+                    "(Ljava/util/List;I)Ljava/util/Iterator;", false));
+            method.instructions.remove(snapshot.constructor);
+            method.instructions.remove(snapshot.iterator);
+        }
+        CampaignEntityMaintenanceRuntime.marketSnapshotsInstalled();
+        return write(owner);
+    }
+
+    private static List<MarketSnapshot> marketSnapshots(MethodNode method) {
+        List<MarketSnapshot> result = new ArrayList<>();
+        for (AbstractInsnNode instruction : method.instructions) {
+            if (!(instruction instanceof MethodInsnNode constructor)
+                    || constructor.getOpcode() != Opcodes.INVOKESPECIAL
+                    || !"java/util/ArrayList".equals(constructor.owner)
+                    || !"<init>".equals(constructor.name)
+                    || !"(Ljava/util/Collection;)V".equals(constructor.desc)) continue;
+            AbstractInsnNode producer = previousMeaningful(constructor);
+            AbstractInsnNode loadThis = previousMeaningful(producer);
+            AbstractInsnNode duplicate = previousMeaningful(loadThis);
+            AbstractInsnNode allocation = previousMeaningful(duplicate);
+            AbstractInsnNode next = nextMeaningful(constructor);
+            if (!(loadThis instanceof VarInsnNode load) || load.getOpcode() != Opcodes.ALOAD
+                    || load.var != 0 || duplicate == null || duplicate.getOpcode() != Opcodes.DUP
+                    || !(allocation instanceof TypeInsnNode type)
+                    || allocation.getOpcode() != Opcodes.NEW
+                    || !"java/util/ArrayList".equals(type.desc)
+                    || !(next instanceof MethodInsnNode iterator)
+                    || iterator.getOpcode() != Opcodes.INVOKEVIRTUAL
+                    || !"java/util/ArrayList".equals(iterator.owner)
+                    || !"iterator".equals(iterator.name)
+                    || !"()Ljava/util/Iterator;".equals(iterator.desc)) return List.of();
+            int kind;
+            if (producer instanceof MethodInsnNode call
+                    && call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && MARKET_CLASS.equals(call.owner) && "getConditions".equals(call.name)
+                    && "()Ljava/util/List;".equals(call.desc)) {
+                kind = CampaignEntityMaintenanceRuntime.MARKET_CONDITIONS;
+            } else if (producer instanceof FieldInsnNode field
+                    && field.getOpcode() == Opcodes.GETFIELD
+                    && MARKET_CLASS.equals(field.owner) && "industries".equals(field.name)
+                    && "Ljava/util/List;".equals(field.desc)) {
+                kind = CampaignEntityMaintenanceRuntime.MARKET_INDUSTRIES;
+            } else {
+                return List.of();
+            }
+            result.add(new MarketSnapshot(allocation, duplicate, constructor, iterator, kind));
+        }
+        return result;
+    }
+
     private static boolean reviewScriptShape(MethodNode method) {
         int snapshots = 0;
         int advances = 0;
@@ -136,6 +213,14 @@ final class CampaignEntityMaintenancePlan {
         while (current != null && (current.getType() == AbstractInsnNode.LABEL
                 || current.getType() == AbstractInsnNode.LINE
                 || current.getType() == AbstractInsnNode.FRAME)) current = current.getPrevious();
+        return current;
+    }
+
+    private static AbstractInsnNode nextMeaningful(AbstractInsnNode instruction) {
+        AbstractInsnNode current = instruction == null ? null : instruction.getNext();
+        while (current != null && (current.getType() == AbstractInsnNode.LABEL
+                || current.getType() == AbstractInsnNode.LINE
+                || current.getType() == AbstractInsnNode.FRAME)) current = current.getNext();
         return current;
     }
 
@@ -178,5 +263,13 @@ final class CampaignEntityMaintenancePlan {
             }
         }
         return result;
+    }
+
+    private record MarketSnapshot(
+            AbstractInsnNode allocation,
+            AbstractInsnNode duplicate,
+            MethodInsnNode constructor,
+            MethodInsnNode iterator,
+            int kind) {
     }
 }

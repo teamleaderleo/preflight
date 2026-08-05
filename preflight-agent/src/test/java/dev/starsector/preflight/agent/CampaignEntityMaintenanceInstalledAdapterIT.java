@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.jar.JarFile;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -21,6 +22,11 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
     @BeforeEach
     void enable() {
         CampaignEntityMaintenanceRuntime.beginSession();
+    }
+
+    @AfterEach
+    void reset() {
+        CampaignMarketFleetTimeRuntime.reset();
     }
 
     @Test
@@ -65,6 +71,29 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
                         && "getSortedMembers".equals(call.name))
                 .count();
         assertEquals(1L, snapshots);
+
+        byte[] market = entry(archive, CampaignEntityMaintenancePlan.MARKET_CLASS);
+        ClassSignature marketSignature = ClassSignature.parse(market);
+        assertEquals(CampaignEntityMaintenancePlan.MARKET_SHA256, marketSignature.sha256());
+        byte[] marketMaintenance = CampaignEntityMaintenancePlan.transform(marketSignature, market);
+        assertNotNull(marketMaintenance);
+        String maintenanceRuntime = CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/');
+        assertEquals(2L, calls(method(read(marketMaintenance),
+                CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR),
+                maintenanceRuntime, "marketSnapshotIterator"));
+
+        CampaignMarketFleetTimeRuntime.beginSession(true);
+        byte[] composedMarket = AdapterTransformationRegistry.transform(
+                AdapterTargetRegistry.campaignMarketSnapshotTarget(), marketSignature, market);
+        assertNotNull(composedMarket);
+        MethodNode composedAdvance = method(read(composedMarket),
+                CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR);
+        assertEquals(2L, calls(composedAdvance, maintenanceRuntime, "marketSnapshotIterator"));
+        String timingRuntime = CampaignMarketFleetTimeRuntime.class.getName().replace('.', '/');
+        assertEquals(8L, calls(composedAdvance, timingRuntime, "enter"));
+        assertEquals(3L, calls(composedAdvance, timingRuntime, "enterClass"));
     }
 
     private static ClassNode read(byte[] bytes) {

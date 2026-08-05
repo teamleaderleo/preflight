@@ -629,6 +629,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget campaignMarketSnapshotTarget() {
+        return new AdapterTarget(
+                "vanilla-campaign-market-empty-snapshots-0.98a-rc8",
+                CampaignEntityMaintenancePlan.MARKET_CLASS,
+                CampaignEntityMaintenancePlan.MARKET_SHA256,
+                CampaignEntityMaintenanceRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignEntityMaintenancePlan.ADVANCE_METHOD,
+                        CampaignEntityMaintenancePlan.ADVANCE_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** The exact refit simulator method that consumes the merged simulation-opponent id list. */
     static AdapterTarget simOpponentSafetyTarget() {
         return new AdapterTarget(
@@ -1010,7 +1026,8 @@ final class AdapterTargetRegistry {
 
     AdapterTargetRegistry withCampaignEntityMaintenanceTargets() {
         return withTarget(campaignEntityScriptsTarget())
-                .withTarget(campaignFleetViewSnapshotTarget());
+                .withTarget(campaignFleetViewSnapshotTarget())
+                .withTarget(campaignMarketSnapshotTarget());
     }
 
     AdapterTargetRegistry withSimOpponentSafetyTarget() {
@@ -1286,6 +1303,7 @@ final class AdapterTargetRegistry {
                 .withTarget(mutableStatDirtyAccessorTarget())
                 .withTarget(campaignEntityScriptsTarget())
                 .withTarget(campaignFleetViewSnapshotTarget())
+                .withTarget(campaignMarketSnapshotTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(sourceHintIsolationTarget())
