@@ -25,25 +25,33 @@ final class FrameTimeStartupCompletionPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        return write(owner);
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
         if ((!FrameTimeRuntime.enabled() && !LoadJsonMemoRuntime.ready())
                 || !TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
                 || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
-            return null;
+            return false;
         }
-
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode init = uniqueMethod(owner, INIT_METHOD, INIT_DESCRIPTOR);
         AbstractInsnNode onlyReturn = init == null ? null : uniqueReturn(init);
         if (onlyReturn == null || callsMarker(init) != 0 || callsProfileMarker(init) != 0) {
-            return null;
+            return false;
         }
 
         init.instructions.insert(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, JSON_RUNTIME, "markProfileStable", "()V", false));
         init.instructions.insertBefore(onlyReturn, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "markStartupComplete", "()V", false));
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();

@@ -19,6 +19,10 @@ final class SafeClassWriter extends ClassWriter {
         super(flags);
     }
 
+    SafeClassWriter(org.objectweb.asm.ClassReader reader, int flags) {
+        super(reader, flags);
+    }
+
     @Override
     protected String getCommonSuperClass(String type1, String type2) {
         return type1.equals(type2) ? type1 : "java/lang/Object";

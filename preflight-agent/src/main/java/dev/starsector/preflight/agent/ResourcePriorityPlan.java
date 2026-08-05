@@ -30,23 +30,32 @@ final class ResourcePriorityPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        return write(owner);
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
+            return false;
+        }
         MethodNode init = uniqueMethod(owner, INIT_METHOD, INIT_DESCRIPTOR);
         if (init == null || hasRuntimeCall(init)) {
-            return null;
+            return false;
         }
         List<MethodInsnNode> removals = calls(
                 init, Opcodes.INVOKEINTERFACE, LIST, REMOVE_ALL, REMOVE_DESCRIPTOR);
         if (removals.size() != 1 || !isReviewedPriorityMove(removals.get(0))) {
-            return null;
+            return false;
         }
         init.instructions.set(removals.get(0), new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, REMOVE_ALL, STATIC_DESCRIPTOR, false));
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();

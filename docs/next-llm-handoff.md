@@ -190,6 +190,8 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-05 WebP prefetch-tail cohort (5 runs)** | **23.03 median (22.90--23.34)** |
 | **2026-08-06 direct trusted-texture read cohort (5 runs)** | **23.08 median (22.54--23.19)** |
 | **2026-08-06 balanced LZ4 texture-storage cohort (5 runs)** | **23.15 median (22.59--23.21)** |
+| 2026-08-06 learned-order raw record before pipeline follow-up | **18.42 / 18.67** |
+| **2026-08-06 all-collapsed near-sub-18 pair** | **18.01 / 18.04** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -973,6 +975,16 @@ decline/failure. Full `mvn verify` is green. MagicLib's 0.2--0.3s transformation
 sub-18 target; simple frame-flag changes did not measure as a win, so use a streaming visitor or an
 agent/source-bound transformed-class cache instead. See
 `docs/evidence/2026-08-06-adapter-transformation-pipelines.md`.
+The follow-up has now completed that pipeline pass. MagicLib's large paintjob manager uses an exact
+review pass followed by a streaming rewrite that directly copies untouched methods. The hull loader,
+resource loader, and resource resolver now also share one parsed tree per class. The resource
+resolver retains an explicit fallback that reapplies its always-on source-hint race repair even if
+the optional probe cannot compose. The best aggregate adapter time fell from 1,348.566ms to
+1,068.072ms. The final gates reached **18.01s** and **18.04s**, applied all 40 exact transforms, and
+reported zero decline/failure. `fastest` is still the explicit 5.3GB raw texture policy; preparation
+was restored to the default `balanced` policy after measurement. A persistent transformed-class
+cache is the next plausible adapter seam, but only with source-byte, agent-implementation,
+plan-selection, and runtime-readiness identities. See the same evidence note for the follow-up.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

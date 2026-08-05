@@ -67,9 +67,50 @@ per-transformation timers are the causal boundary for the pipeline change.
 - A segmented memory-mapped texture payload copy measured 790.965ms versus 471.994ms for positional
   `FileChannel` heap copies and was deleted.
 
+## Follow-up: remaining shared pipelines
+
+The remaining large independent pipelines were then collapsed without weakening their existing
+shape checks or runtime fallbacks:
+
+- MagicLib's `MagicPaintjobManager` now uses a two-pass streaming visitor. The first pass proves the
+  exact field and call counts without mutation; the second directly copies untouched methods and
+  rewrites only the three reviewed methods. Stack maps and debug data remain the originals. The
+  executable same-size replacement/add fixture and fail-closed cases still pass.
+- `ShipHullSpecLoader` now applies its phase attribution, prepared hull JSON cache, and concise log
+  rewrite to one tree and computes frames once.
+- `ResourceLoaderState` now applies its phase/startup marker and priority index to one tree and
+  serializes once.
+- The resource resolver now applies the always-on thread-local source-hint correctness repair and
+  optional resource probe to one tree. Any composition exception retries the correctness repair on
+  the original bytes, so the optional optimization cannot suppress it.
+
+The causal per-class timers moved as follows across clean live samples:
+
+- MagicLib paintjob manager: the pre-change 201--316ms range became 187--227ms.
+- `ShipHullSpecLoader`: 39--45ms became 31--42ms.
+- `ResourceLoaderState`: 54--57ms became 34--41ms.
+- resource resolver: 51.839ms before its collapse and 36.797ms after.
+
+The best total time inside all 40 transformations was **1,068.072ms**, versus the first
+instrumented **1,348.566ms**. Per-plan JIT and class-loading order remain noisy, so the individual
+timers—not differences between whole launches—are the causal evidence.
+
+Four unattended learned-order `fastest` gates during the follow-up measured 19.24s, 18.75s,
+**18.01s**, 18.36s, and the final all-collapsed confirmation measured **18.04s**. The last two
+near-record runs establish a repeatable near-sub-18 floor. Every final run stopped the game, applied
+all 40 exact transformations, and reported zero decline and zero contained failure.
+
+Runs:
+
+- `magic-streaming-fastest-20260806-0620-20260806-062032`
+- `magic-streaming-confirmation-20260806-0622-20260806-062114`
+- `hull-collapsed-fastest-20260806-0623-20260806-062310`
+- `resource-collapsed-fastest-20260806-0625-20260806-062453`
+- `all-collapsed-fastest-20260806-0627-20260806-062645`
+
 ## Next target
 
-MagicLib's `MagicPaintjobManager` transformation remains the largest individual adapter cost at
-roughly 0.2--0.3s. Its reviewed changes are stack-neutral, but merely disabling frame recomputation
-did not reduce the live timer consistently. A streaming two-pass visitor or a source-and-agent-bound
-persistent transformed-class cache should be measured next; do not infer a win from writer flags.
+No remaining repeated transformation pipeline is individually large. MagicLib is still the largest
+adapter timer because the class itself is large; a persistent transformed-class cache could remove
+most repeat-launch adapter CPU, but its key must bind source bytes, agent implementation, selected
+plan, and runtime readiness. Do not weaken those identities merely to cross 18 seconds.

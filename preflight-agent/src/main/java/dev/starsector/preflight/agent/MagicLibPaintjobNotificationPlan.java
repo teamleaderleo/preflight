@@ -1,14 +1,13 @@
 package dev.starsector.preflight.agent;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.FieldNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
 
 /** Replaces MagicLib's per-frame linear scan of already-notified paintjob IDs. */
 final class MagicLibPaintjobNotificationPlan {
@@ -33,123 +32,265 @@ final class MagicLibPaintjobNotificationPlan {
                 || !signature.hasMethod(ADVANCE_METHOD, ADVANCE_DESCRIPTOR)) {
             return null;
         }
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
-        Review review = review(owner);
-        if (review == null) {
+
+        ClassReader reader = new ClassReader(originalBytes);
+        ReviewVisitor review = new ReviewVisitor();
+        reader.accept(review, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        if (!review.accepted()) {
             return null;
         }
 
-        review.contains.setOpcode(Opcodes.INVOKESTATIC);
-        review.contains.owner = RUNTIME;
-        review.contains.name = "contains";
-        review.contains.desc = "(Ljava/util/List;Ljava/lang/Object;)Z";
-        review.contains.itf = false;
-        for (MethodInsnNode clear : review.clears) {
-            containing(owner, clear).instructions.insert(clear, new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "mutated", "()V", false));
+        ClassWriter writer = new SafeClassWriter(reader, 0);
+        RewriteVisitor rewrite = new RewriteVisitor(writer, review.rewriteMethods);
+        reader.accept(rewrite, 0);
+        if (!rewrite.accepted()) {
+            return null;
         }
-        for (MethodInsnNode add : review.adds) {
-            containing(owner, add).instructions.insert(add, new MethodInsnNode(
-                    Opcodes.INVOKESTATIC, RUNTIME, "mutated", "(Z)Z", false));
-        }
-
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
         MagicLibPaintjobNotificationRuntime.installed();
         return writer.toByteArray();
     }
 
-    private static Review review(ClassNode owner) {
-        FieldNode field = owner.fields.stream()
-                .filter(candidate -> FIELD.equals(candidate.name)
-                        && LIST_DESCRIPTOR.equals(candidate.desc)
-                        && (candidate.access & Opcodes.ACC_STATIC) != 0
-                        && (candidate.access & Opcodes.ACC_FINAL) != 0)
-                .findFirst().orElse(null);
-        if (field == null) {
+    private static String methodKey(String name, String descriptor) {
+        return name + descriptor;
+    }
+
+    private static boolean isTrackedField(String owner, String name, String descriptor) {
+        return TARGET_CLASS.equals(owner) && FIELD.equals(name) && LIST_DESCRIPTOR.equals(descriptor);
+    }
+
+    /** Tracks the three-instruction lookback used by the reviewed tree implementation. */
+    private abstract static class TrackingMethodVisitor extends MethodVisitor {
+        private int instructionsSinceFieldRead = Integer.MAX_VALUE;
+
+        TrackingMethodVisitor(MethodVisitor delegate) {
+            super(Opcodes.ASM9, delegate);
+        }
+
+        final boolean referencesTrackedField() {
+            return instructionsSinceFieldRead < 3;
+        }
+
+        final void methodInstructionVisited() {
+            ordinaryInstructionVisited();
+        }
+
+        private void ordinaryInstructionVisited() {
+            if (instructionsSinceFieldRead < 3) {
+                instructionsSinceFieldRead++;
+            }
+        }
+
+        @Override
+        public void visitInsn(int opcode) {
+            super.visitInsn(opcode);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitIntInsn(int opcode, int operand) {
+            super.visitIntInsn(opcode, operand);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitVarInsn(int opcode, int variable) {
+            super.visitVarInsn(opcode, variable);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitTypeInsn(int opcode, String type) {
+            super.visitTypeInsn(opcode, type);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
+            super.visitFieldInsn(opcode, owner, name, descriptor);
+            if (opcode == Opcodes.GETSTATIC && isTrackedField(owner, name, descriptor)) {
+                instructionsSinceFieldRead = 0;
+            } else {
+                ordinaryInstructionVisited();
+            }
+        }
+
+        @Override
+        public void visitInvokeDynamicInsn(String name, String descriptor,
+                org.objectweb.asm.Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
+            super.visitInvokeDynamicInsn(
+                    name, descriptor, bootstrapMethodHandle, bootstrapMethodArguments);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitJumpInsn(int opcode, org.objectweb.asm.Label label) {
+            super.visitJumpInsn(opcode, label);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitLdcInsn(Object value) {
+            super.visitLdcInsn(value);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitIincInsn(int variable, int increment) {
+            super.visitIincInsn(variable, increment);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitTableSwitchInsn(int minimum, int maximum,
+                org.objectweb.asm.Label defaultLabel, org.objectweb.asm.Label... labels) {
+            super.visitTableSwitchInsn(minimum, maximum, defaultLabel, labels);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitLookupSwitchInsn(org.objectweb.asm.Label defaultLabel, int[] keys,
+                org.objectweb.asm.Label[] labels) {
+            super.visitLookupSwitchInsn(defaultLabel, keys, labels);
+            ordinaryInstructionVisited();
+        }
+
+        @Override
+        public void visitMultiANewArrayInsn(String descriptor, int dimensions) {
+            super.visitMultiANewArrayInsn(descriptor, dimensions);
+            ordinaryInstructionVisited();
+        }
+    }
+
+    private static final class ReviewVisitor extends ClassVisitor {
+        private final Set<String> rewriteMethods = new HashSet<>();
+        private int matchingFields;
+        private int fieldReads;
+        private int fieldWrites;
+        private int containsCalls;
+        private int clearCalls;
+        private int addCalls;
+        private boolean invalid;
+
+        private ReviewVisitor() {
+            super(Opcodes.ASM9);
+        }
+
+        @Override
+        public FieldVisitor visitField(int access, String name, String descriptor,
+                String signature, Object value) {
+            if (FIELD.equals(name) && LIST_DESCRIPTOR.equals(descriptor)
+                    && (access & Opcodes.ACC_STATIC) != 0
+                    && (access & Opcodes.ACC_FINAL) != 0) {
+                matchingFields++;
+            }
             return null;
         }
 
-        MethodInsnNode contains = null;
-        java.util.List<MethodInsnNode> clears = new java.util.ArrayList<>();
-        java.util.List<MethodInsnNode> adds = new java.util.ArrayList<>();
-        int fieldReads = 0;
-        int fieldWrites = 0;
-        for (MethodNode method : owner.methods) {
-            for (AbstractInsnNode instruction : method.instructions) {
-                if (instruction instanceof FieldInsnNode access
-                        && TARGET_CLASS.equals(access.owner)
-                        && FIELD.equals(access.name)
-                        && LIST_DESCRIPTOR.equals(access.desc)) {
-                    if (access.getOpcode() == Opcodes.GETSTATIC) {
-                        fieldReads++;
-                    } else if (access.getOpcode() == Opcodes.PUTSTATIC) {
-                        fieldWrites++;
-                    } else {
-                        return null;
+        @Override
+        public MethodVisitor visitMethod(int access, String name, String descriptor,
+                String signature, String[] exceptions) {
+            String key = methodKey(name, descriptor);
+            return new TrackingMethodVisitor(null) {
+                @Override
+                public void visitFieldInsn(
+                        int opcode, String owner, String fieldName, String fieldDescriptor) {
+                    if (isTrackedField(owner, fieldName, fieldDescriptor)) {
+                        if (opcode == Opcodes.GETSTATIC) {
+                            fieldReads++;
+                        } else if (opcode == Opcodes.PUTSTATIC) {
+                            fieldWrites++;
+                        } else {
+                            invalid = true;
+                        }
                     }
+                    super.visitFieldInsn(opcode, owner, fieldName, fieldDescriptor);
                 }
-                if (!(instruction instanceof MethodInsnNode call)
-                        || !"java/util/List".equals(call.owner)
-                        || !referencesField(call)) {
-                    continue;
+
+                @Override
+                public void visitMethodInsn(int opcode, String owner, String callName,
+                        String callDescriptor, boolean isInterface) {
+                    if ("java/util/List".equals(owner) && referencesTrackedField()) {
+                        if ("contains".equals(callName)
+                                && "(Ljava/lang/Object;)Z".equals(callDescriptor)
+                                && ADVANCE_METHOD.equals(name)
+                                && ADVANCE_DESCRIPTOR.equals(descriptor)) {
+                            containsCalls++;
+                        } else if ("clear".equals(callName) && "()V".equals(callDescriptor)) {
+                            clearCalls++;
+                        } else if ("add".equals(callName)
+                                && "(Ljava/lang/Object;)Z".equals(callDescriptor)) {
+                            addCalls++;
+                        } else {
+                            invalid = true;
+                        }
+                        rewriteMethods.add(key);
+                    }
+                    methodInstructionVisited();
                 }
-                if ("contains".equals(call.name) && "(Ljava/lang/Object;)Z".equals(call.desc)
-                        && ADVANCE_METHOD.equals(method.name)
-                        && ADVANCE_DESCRIPTOR.equals(method.desc)) {
-                    if (contains != null) return null;
-                    contains = call;
-                } else if ("clear".equals(call.name) && "()V".equals(call.desc)) {
-                    clears.add(call);
-                } else if ("add".equals(call.name) && "(Ljava/lang/Object;)Z".equals(call.desc)) {
-                    adds.add(call);
-                } else {
-                    return null;
+            };
+        }
+
+        private boolean accepted() {
+            return !invalid && matchingFields == 1 && fieldReads == 4 && fieldWrites == 1
+                    && containsCalls == 1 && clearCalls == 1 && addCalls == 2;
+        }
+    }
+
+    private static final class RewriteVisitor extends ClassVisitor {
+        private final Set<String> rewriteMethods;
+        private int containsCalls;
+        private int clearCalls;
+        private int addCalls;
+
+        private RewriteVisitor(ClassVisitor delegate, Set<String> rewriteMethods) {
+            super(Opcodes.ASM9, delegate);
+            this.rewriteMethods = rewriteMethods;
+        }
+
+        @Override
+        public MethodVisitor visitMethod(int access, String name, String descriptor,
+                String signature, String[] exceptions) {
+            MethodVisitor delegate = super.visitMethod(access, name, descriptor, signature, exceptions);
+            if (!rewriteMethods.contains(methodKey(name, descriptor))) {
+                return delegate;
+            }
+            return new TrackingMethodVisitor(delegate) {
+                @Override
+                public void visitMethodInsn(int opcode, String owner, String callName,
+                        String callDescriptor, boolean isInterface) {
+                    if ("java/util/List".equals(owner) && referencesTrackedField()) {
+                        if ("contains".equals(callName)
+                                && "(Ljava/lang/Object;)Z".equals(callDescriptor)
+                                && ADVANCE_METHOD.equals(name)
+                                && ADVANCE_DESCRIPTOR.equals(descriptor)) {
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME, "contains",
+                                    "(Ljava/util/List;Ljava/lang/Object;)Z", false);
+                            containsCalls++;
+                            methodInstructionVisited();
+                            return;
+                        }
+                        super.visitMethodInsn(opcode, owner, callName, callDescriptor, isInterface);
+                        if ("clear".equals(callName) && "()V".equals(callDescriptor)) {
+                            super.visitMethodInsn(
+                                    Opcodes.INVOKESTATIC, RUNTIME, "mutated", "()V", false);
+                            clearCalls++;
+                        } else if ("add".equals(callName)
+                                && "(Ljava/lang/Object;)Z".equals(callDescriptor)) {
+                            super.visitMethodInsn(
+                                    Opcodes.INVOKESTATIC, RUNTIME, "mutated", "(Z)Z", false);
+                            addCalls++;
+                        }
+                        methodInstructionVisited();
+                        return;
+                    }
+                    super.visitMethodInsn(opcode, owner, callName, callDescriptor, isInterface);
+                    methodInstructionVisited();
                 }
-            }
+            };
         }
-        return contains != null && clears.size() == 1 && adds.size() == 2
-                && fieldReads == 4 && fieldWrites == 1
-                ? new Review(contains, clears, adds)
-                : null;
-    }
 
-    /** The reviewed field load is at most two value-producing instructions before the call. */
-    private static boolean referencesField(MethodInsnNode call) {
-        AbstractInsnNode current = previousCode(call);
-        for (int i = 0; i < 3 && current != null; i++, current = previousCode(current)) {
-            if (current instanceof FieldInsnNode field
-                    && field.getOpcode() == Opcodes.GETSTATIC
-                    && TARGET_CLASS.equals(field.owner)
-                    && FIELD.equals(field.name)
-                    && LIST_DESCRIPTOR.equals(field.desc)) {
-                return true;
-            }
+        private boolean accepted() {
+            return containsCalls == 1 && clearCalls == 1 && addCalls == 2;
         }
-        return false;
-    }
-
-    private static AbstractInsnNode previousCode(AbstractInsnNode instruction) {
-        AbstractInsnNode current = instruction.getPrevious();
-        while (current != null && current.getOpcode() < 0) {
-            current = current.getPrevious();
-        }
-        return current;
-    }
-
-    private static MethodNode containing(ClassNode owner, AbstractInsnNode instruction) {
-        for (MethodNode method : owner.methods) {
-            for (AbstractInsnNode candidate : method.instructions) {
-                if (candidate == instruction) return method;
-            }
-        }
-        throw new IllegalStateException("reviewed instruction lost its owner");
-    }
-
-    private record Review(
-            MethodInsnNode contains,
-            java.util.List<MethodInsnNode> clears,
-            java.util.List<MethodInsnNode> adds) {
     }
 }

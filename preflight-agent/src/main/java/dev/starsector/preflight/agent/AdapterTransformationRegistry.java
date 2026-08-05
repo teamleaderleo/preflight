@@ -113,6 +113,10 @@ final class AdapterTransformationRegistry {
                 }
                 byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
                 if (weaponPhases == null) {
+                    byte[] composedHullLoader = shipHullLoaderPlans(signature, originalBytes);
+                    if (composedHullLoader != null) {
+                        return composedHullLoader;
+                    }
                     byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
                     if (hullPhases == null) {
                         byte[] rulesPhases = RulesLoaderPhasePlan.transform(signature, originalBytes);
@@ -359,6 +363,32 @@ final class AdapterTransformationRegistry {
                 AssetProgressLogPlan.apply(signature, owner);
             }
             return WeaponJsonCachePlan.write(owner);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The caller retains the old independently fail-open pipeline as a fallback.
+            return null;
+        }
+    }
+
+    /** Applies every independent ShipHullSpecLoader rewrite to one tree and frame pass. */
+    private static byte[] shipHullLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        if (!ShipHullLoaderPhasePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            if (!ShipHullLoaderPhasePlan.apply(signature, owner)) {
+                return null;
+            }
+            if (HullJsonCacheRuntime.ready()) {
+                HullJsonCachePlan.apply(signature, owner);
+            }
+            if (AssetProgressLogRuntime.suppress()) {
+                AssetProgressLogPlan.apply(signature, owner);
+            }
+            return ShipHullLoaderPhasePlan.write(owner);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
@@ -801,23 +831,25 @@ final class AdapterTransformationRegistry {
 
     /** Composes the always-on race fix with the optional probe cache on their shared resolver. */
     private static byte[] resourceResolverPlans(ClassSignature signature, byte[] originalBytes) {
-        byte[] current = SourceHintIsolationPlan.transform(signature, originalBytes);
-        boolean changed = current != null;
-        if (!changed) {
-            current = originalBytes;
+        if (!SourceHintIsolationPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
         }
-        if (ResourceProbeRuntime.ready()) {
-            try {
-                byte[] probed = ResourceProbePlan.transform(ClassSignature.parse(current), current);
-                if (probed != null) {
-                    current = probed;
-                    changed = true;
-                }
-            } catch (java.io.IOException ignored) {
-                // The source-hint rewrite, if installed, remains valid on its own.
-            }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            boolean isolated = SourceHintIsolationPlan.apply(signature, owner);
+            boolean probed = ResourceProbeRuntime.ready()
+                    && ResourceProbePlan.apply(signature, owner);
+            if (!isolated && !probed) return null;
+            byte[] transformed = SourceHintIsolationPlan.write(owner);
+            if (isolated) SourceHintIsolationRuntime.installed();
+            return transformed;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Preserve the correctness fix even if the optional optimization cannot compose.
+            return SourceHintIsolationPlan.transform(signature, originalBytes);
         }
-        return changed ? current : null;
     }
 
     static boolean anyPlanCompiled() {
@@ -826,6 +858,32 @@ final class AdapterTransformationRegistry {
 
     /** Composes the always-on priority index with either optional ResourceLoaderState marker. */
     private static byte[] resourceLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        if (!ResourcePriorityPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            boolean marked = StartupPhaseRuntime.phaseProbeEnabled()
+                    ? StartupPhasePlan.apply(signature, owner)
+                    : FrameTimeStartupCompletionPlan.apply(signature, owner);
+            boolean indexed = ResourcePriorityPlan.apply(signature, owner);
+            if (!marked && !indexed) return null;
+            byte[] transformed = ResourcePriorityPlan.write(owner);
+            if (marked && StartupPhaseRuntime.phaseProbeEnabled()) {
+                StartupPhaseRuntime.installed();
+            }
+            return transformed;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // A partial tree is never published. Retry the old independent fail-open pipeline.
+            return resourceLoaderPlansIndependently(signature, originalBytes);
+        }
+    }
+
+    private static byte[] resourceLoaderPlansIndependently(
+            ClassSignature signature, byte[] originalBytes) {
         byte[] current = originalBytes;
         boolean changed = false;
         try {
@@ -841,11 +899,11 @@ final class AdapterTransformationRegistry {
                 current = indexed;
                 changed = true;
             }
-            return changed ? current : null;
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
-            return changed ? current : null;
+            // Return whichever exact standalone transformation completed, if any.
         }
+        return changed ? current : null;
     }
 }

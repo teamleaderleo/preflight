@@ -42,20 +42,26 @@ final class SourceHintIsolationPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        byte[] transformed = write(owner);
+        SourceHintIsolationRuntime.installed();
+        return transformed;
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
         if (!TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
                 || signature.majorVersion() != 61
                 || !signature.hasMethod(SET_METHOD, SET_DESCRIPTOR)
                 || !signature.hasMethod(RESOLVE_METHOD, RESOLVE_DESCRIPTOR)) {
-            return null;
+            return false;
         }
-
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode setter = unique(owner, SET_METHOD, SET_DESCRIPTOR);
         MethodNode resolver = unique(owner, RESOLVE_METHOD, RESOLVE_DESCRIPTOR);
         if (setter == null || resolver == null || callsRuntime(setter) || callsRuntime(resolver)) {
-            return null;
+            return false;
         }
 
         List<AbstractInsnNode> set = meaningful(setter);
@@ -71,7 +77,7 @@ final class SourceHintIsolationPlan {
                 || !TARGET_CLASS.equals(write.owner)
                 || !STRING_DESCRIPTOR.equals(write.desc)
                 || set.get(3).getOpcode() != Opcodes.RETURN) {
-            return null;
+            return false;
         }
 
         List<AbstractInsnNode> resolve = meaningful(resolver);
@@ -96,7 +102,7 @@ final class SourceHintIsolationPlan {
                 || !TARGET_CLASS.equals(clear.owner)
                 || !write.name.equals(clear.name)
                 || !STRING_DESCRIPTOR.equals(clear.desc)) {
-            return null;
+            return false;
         }
 
         // Setter: ALOAD 0, ALOAD 1, PUTFIELD -> ALOAD 1, INVOKESTATIC set.
@@ -113,9 +119,12 @@ final class SourceHintIsolationPlan {
         resolver.instructions.remove(resolve.get(4));
         resolver.instructions.remove(resolve.get(5));
 
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
-        SourceHintIsolationRuntime.installed();
         return writer.toByteArray();
     }
 
