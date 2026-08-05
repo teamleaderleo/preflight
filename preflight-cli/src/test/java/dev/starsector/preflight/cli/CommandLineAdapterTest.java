@@ -43,6 +43,7 @@ class CommandLineAdapterTest {
         assertEquals(false, defaults.fileOnlyLogs());
         assertEquals(false, defaults.quietLogs());
         assertEquals(false, defaults.suppressAssetProgressLogs());
+        assertEquals(false, defaults.trustValidatedTextureIndex());
 
         CommandLine direct = CommandLine.parse(
                 new String[] {"run", "--direct", "--quiet-logs"}, 1);
@@ -90,9 +91,13 @@ class CommandLineAdapterTest {
         assertEquals(true, fast.fileOnlyLogs());
         assertEquals(false, fast.quietLogs());
         assertEquals(true, fast.suppressAssetProgressLogs());
+        assertEquals(true, fast.trustValidatedTextureIndex());
         assertEquals(false, CommandLine.parse(
                 new String[] {"run", "--fast", "--full-asset-progress-logs"}, 1)
                 .suppressAssetProgressLogs());
+        assertEquals(false, CommandLine.parse(
+                new String[] {"run", "--fast", "--recheck-texture-sources"}, 1)
+                .trustValidatedTextureIndex());
         assertEquals(true, explicit.fileOnlyLogs());
         assertEquals(true, explicit.quietLogs());
     }

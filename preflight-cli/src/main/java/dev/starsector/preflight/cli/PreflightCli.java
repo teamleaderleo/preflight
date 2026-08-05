@@ -189,6 +189,10 @@ public final class PreflightCli {
                         + " weapon, projectile, hull, and variant INFO messages. Errors, warnings,"
                         + " and phase summaries remain; it is included by --fast and can be"
                         + " reversed by a later --full-asset-progress-logs.",
+                "    --trust-validated-texture-index treats the complete configure-time provider"
+                        + " validation as this launch's immutable source snapshot, avoiding one"
+                        + " source filesystem round trip per texture. It is included by --fast"
+                        + " and can be reversed by a later --recheck-texture-sources.",
                 "    --file-only-logs keeps synchronous, crash-safe INFO writes in starsector.log"
                         + " but removes the duplicate console appender. It is included by --fast.",
                 "    --quiet-logs keeps every INFO line in the rolling starsector.log, removes the"

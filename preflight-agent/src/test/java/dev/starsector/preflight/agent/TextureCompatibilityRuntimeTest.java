@@ -34,6 +34,7 @@ class TextureCompatibilityRuntimeTest {
         TextureCompatibilityRuntime.beginSession();
         System.clearProperty(TextureCompatibilityRuntime.VERIFY_SOURCE_HASH_PROPERTY);
         System.clearProperty(TextureCompatibilityRuntime.VERIFY_BLOB_CHECKSUM_PROPERTY);
+        System.clearProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY);
     }
 
     @Test
@@ -138,6 +139,18 @@ class TextureCompatibilityRuntimeTest {
         Map<String, Object> reasons =
                 (Map<String, Object>) TextureCompatibilityRuntime.telemetry().get("fallbackReasons");
         assertEquals(1L, reasons.get("source-changed"));
+    }
+
+    @Test
+    void diagnosticValidatedIndexSnapshotSkipsOnlyPostConfigureSourceChanges() throws Exception {
+        Fixture fixture = fixture();
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        System.setProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY, "true");
+        Files.write(fixture.source(), new byte[] {9, 9, 9, 9, 9});
+
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        assertEquals(true, TextureCompatibilityRuntime.telemetry().get("trustedValidatedIndex"));
     }
 
     /**

@@ -135,6 +135,11 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.assetProgressLogs=off"));
         }
+        if (options.trustValidatedTextureIndex()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.texture.trustValidatedIndex=true"));
+        }
         String javaOptions = CombatJvmSafeguard.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
 
@@ -630,6 +635,7 @@ final class RunCommand {
         values.put("quietLogs", options.quietLogs());
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
+        values.put("trustedValidatedTextureIndex", options.trustValidatedTextureIndex());
         values.put("quietLogConfiguration", options.fileOnlyLogs()
                 ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())
                 : null);

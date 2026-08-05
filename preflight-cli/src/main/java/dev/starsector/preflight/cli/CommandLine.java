@@ -40,6 +40,7 @@ record CommandLine(
         boolean fileOnlyLogs,
         boolean quietLogs,
         boolean suppressAssetProgressLogs,
+        boolean trustValidatedTextureIndex,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -67,6 +68,7 @@ record CommandLine(
         boolean fileOnlyLogs = false;
         boolean quietLogs = false;
         boolean suppressAssetProgressLogs = false;
+        boolean trustValidatedTextureIndex = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -128,6 +130,8 @@ record CommandLine(
                 }
                 case "--suppress-asset-progress-logs" -> suppressAssetProgressLogs = true;
                 case "--full-asset-progress-logs" -> suppressAssetProgressLogs = false;
+                case "--trust-validated-texture-index" -> trustValidatedTextureIndex = true;
+                case "--recheck-texture-sources" -> trustValidatedTextureIndex = false;
                 // One flag for everything that has landed and is safe to turn on. Experimental
                 // adapters stay individually addressable for isolated pilots, but do not belong in
                 // the normal launch path until live runs have established their correctness.
@@ -151,6 +155,7 @@ record CommandLine(
                     graphicsLibInsigniaManagerCache = true;
                     fileOnlyLogs = true;
                     suppressAssetProgressLogs = true;
+                    trustValidatedTextureIndex = true;
                     recordingMode = RecordingMode.OFF;
                 }
                 case "--texture-mode" -> {
@@ -278,6 +283,7 @@ record CommandLine(
                 fileOnlyLogs,
                 quietLogs,
                 suppressAssetProgressLogs,
+                trustValidatedTextureIndex,
                 List.copyOf(forwarded));
     }
 

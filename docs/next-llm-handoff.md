@@ -907,6 +907,14 @@ gate removed 12,584 events / 1,560,182 formatted bytes and reduced the four affe
 stopped normally. Treat this as a measured CPU/allocation/log-volume result, not an exact causal
 whole-launch claim. The transform is atomic per class and declines on instruction drift. See
 `docs/evidence/2026-08-06-concise-asset-progress-logs.md`.
+The texture cache's configure-time full provider validation is now the immutable launch snapshot
+under `--fast`. This removes the redundant winner `toRealPath`/`readAttributes` round trip for each
+of 15,469 served textures. In the adjacent live pair the exact `load()` seam fell 4,962->4,559ms
+(-403ms), with identical 15,469 hits / 2,116,422,119 pixels / three known misses and zero failure.
+Whole launches were 22.77s and 22.35s; use the seam delta as the causal result. A source edit made
+after premain validation intentionally takes effect next launch. `--recheck-texture-sources` and the
+existing content-hash diagnostic restore the stronger live checks. See
+`docs/evidence/2026-08-06-validated-texture-index-snapshot.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

@@ -35,6 +35,8 @@ public final class TextureCompatibilityRuntime {
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
     /** Opt back in to hashing every prepared blob's pixels on the loading thread. */
     public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.texture.verifyBlobChecksum";
+    /** Diagnostic: use the configure-time full index validation as the launch snapshot. */
+    public static final String TRUST_VALIDATED_INDEX_PROPERTY = "preflight.texture.trustValidatedIndex";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
     static final int MAX_INTERNAL_ERRORS = 8;
@@ -222,24 +224,26 @@ public final class TextureCompatibilityRuntime {
                 TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
                 return null;
             }
-            Path source;
-            try {
-                source = PathContainment.existingInsideRealRoot(
-                        current.sourceRoots.get(winner.rootIndex()),
-                        current.index.resolve(winner));
-            } catch (IllegalArgumentException error) {
-                TELEMETRY.fallback(FallbackReason.PATH_INVALID);
-                return null;
-            } catch (IOException error) {
-                TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
-                return null;
-            }
-            SourceVerdict verdict = verifySource(source, winner, entry);
-            if (verdict != SourceVerdict.UNCHANGED) {
-                TELEMETRY.fallback(verdict == SourceVerdict.MISSING
-                        ? FallbackReason.SOURCE_MISSING
-                        : FallbackReason.SOURCE_CHANGED);
-                return null;
+            if (!trustValidatedIndex()) {
+                Path source;
+                try {
+                    source = PathContainment.existingInsideRealRoot(
+                            current.sourceRoots.get(winner.rootIndex()),
+                            current.index.resolve(winner));
+                } catch (IllegalArgumentException error) {
+                    TELEMETRY.fallback(FallbackReason.PATH_INVALID);
+                    return null;
+                } catch (IOException error) {
+                    TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
+                    return null;
+                }
+                SourceVerdict verdict = verifySource(source, winner, entry);
+                if (verdict != SourceVerdict.UNCHANGED) {
+                    TELEMETRY.fallback(verdict == SourceVerdict.MISSING
+                            ? FallbackReason.SOURCE_MISSING
+                            : FallbackReason.SOURCE_CHANGED);
+                    return null;
+                }
             }
             if (entry.transformation() != PreparedTexture.Transformation.IDENTITY) {
                 TELEMETRY.fallback(FallbackReason.UNSUPPORTED_TEXTURE);
@@ -370,12 +374,20 @@ public final class TextureCompatibilityRuntime {
     static Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>(TELEMETRY.snapshot(ready()));
         values.put("blobChecksumVerification", state.verifyBlobChecksum);
+        values.put("trustedValidatedIndex", trustValidatedIndex());
         // How long the game took over the textures, and how much of that was this seam. The
         // difference is the game's own per-texture work -- the decode this replaces is gone, but the
         // upload, the buffer teardown, and whatever else it does between two textures are not.
         values.putAll(SERVE_CLOCK.snapshot("serve"));
         values.put("preparedPixels", TexturePreparedPixelRuntime.telemetry());
         return Map.copyOf(values);
+    }
+
+    private static boolean trustValidatedIndex() {
+        // An explicit content-hash diagnostic is stronger than the snapshot optimization even if
+        // both properties were supplied by different launch layers.
+        return Boolean.getBoolean(TRUST_VALIDATED_INDEX_PROPERTY)
+                && !Boolean.getBoolean(VERIFY_SOURCE_HASH_PROPERTY);
     }
 
     private static boolean matches(TextureManifest.Entry entry, PreparedTexture texture) {
