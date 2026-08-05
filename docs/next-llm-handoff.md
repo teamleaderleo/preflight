@@ -518,7 +518,10 @@ run while paused, and the paused alarm's first 0.9-second path skips its normal 
 exact `LogNot.jar` repair calls the mod's own `updateFuelLY()` once before the tracker constructor
 returns, preserving all of its fuel math and later updates. Synthetic execution and the exact
 installed-jar transform pass. **Next step: run one ordinary load and confirm the adapter installs
-and the false notification is absent.**
+and the false notification is absent.** The same-save live acceptance run then remained in campaign
+play for over two minutes, briefly entered combat state, and exited normally with no false warning.
+Health was ACTIVE, 48/48 transforms applied, no fallback/failure, and the exact Log Not repair
+reported installed.
 The next exact `ModularFleetAI` candidate removes another disabled-observer cost. Vanilla builds a
 dynamic `Ability [id]` profiler label on every ability advance even though its profiler is normally
 off and immediately returns. Plan `vanilla-fleet-ai-profiler-label-v1` substitutes an interned

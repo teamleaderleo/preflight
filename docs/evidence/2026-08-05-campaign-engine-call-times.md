@@ -551,4 +551,8 @@ SHA-256 `357a9ef8ddb5de3c99417c5df2ed431d897cea07e091e38cbf961c4cbd1df7d2`,
 `LogNot.jar` SHA-256 `42ca235605cec137c66d50f46269b61c9569133f9f16e532db695e25ea71465e`,
 Java 17, constructor/update/field shape, mod source, and URL classloader. Any mod update or second
 transform keeps the original implementation. Executed synthetic behavior and the exact installed
-jar transform pass; a live load remains the final acceptance gate.
+jar transform pass. `logistics-fuel-load-v1-20260805-115635` then loaded the same save, remained in
+campaign play for over two minutes, briefly entered combat state, and exited normally. The false
+fuel warning did not recur. Adapter health was `ACTIVE`: all 48 reviewed transforms applied with
+zero unavailable plans, declines, or contained failures, and
+`logisticsNotificationsFuel.installed` was true. This closes the live acceptance gate.
