@@ -15,6 +15,7 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,12 +217,12 @@ class TextureBatchBuilderTest {
     }
 
     @Test
-    void unsupportedImageReaderIsSkippedWithoutFailingPreparedFallbacks() throws Exception {
+    void unsupportedImageFormatIsSkippedWithoutFailingPreparedFallbacks() throws Exception {
         Path root = temporaryDirectory.resolve("root");
-        Path source = root.resolve("graphics/unsupported.webp");
+        Path source = root.resolve("graphics/unsupported.tga");
         Files.createDirectories(source.getParent());
-        Files.write(source, new byte[] {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'});
-        ResourceIndex index = index(root, "profile", List.of("graphics/unsupported.webp"));
+        Files.write(source, new byte[] {0, 0, 0, 0});
+        ResourceIndex index = index(root, "profile", List.of("graphics/unsupported.tga"));
 
         TextureBatchBuilder.Result result = TextureBatchBuilder.build(
                 index,
@@ -234,6 +235,26 @@ class TextureBatchBuilderTest {
         assertEquals(0, result.manifest().entryCount());
         assertTrue(result.diagnostics().stream()
                 .anyMatch(message -> message.contains("Skipped unsupported texture")));
+    }
+
+    @Test
+    void preparesValidWebpThroughThePureJavaImageIoProvider() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        Path source = root.resolve("graphics/icon.webp");
+        Files.createDirectories(source.getParent());
+        Files.write(source, Base64.getDecoder().decode(
+                "UklGRiwAAABXRUJQVlA4TB8AAAAvAUAAAB8gEEjeHzqN+RcQFPwf3fxHZA/gBgwR/Q8BAA=="));
+        ResourceIndex index = index(root, "profile", List.of("graphics/icon.webp"));
+
+        TextureBatchBuilder.Result result = TextureBatchBuilder.build(
+                index,
+                temporaryDirectory.resolve("cache"),
+                new TextureBatchBuilder.Options(1, 16 * MIB));
+
+        assertEquals(1, result.builtBlobs());
+        assertEquals(0, result.failedBlobs());
+        assertEquals(0, result.skippedUnsupportedBlobs());
+        assertTrue(result.manifest().entry("graphics/icon.webp").isPresent());
     }
 
     private static ResourceIndex index(Path root, String fingerprint, List<String> paths) throws Exception {

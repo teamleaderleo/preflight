@@ -21,6 +21,13 @@
       <artifactId>preflight-agent</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Pure Java: preparation can decode the same WebP assets as Starsector without loading
+         the game's x86-only native ImageIO plug-in on Apple Silicon. -->
+    <dependency>
+      <groupId>com.twelvemonkeys.imageio</groupId>
+      <artifactId>imageio-webp</artifactId>
+      <version>${twelvemonkeys.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -61,6 +68,9 @@
                 </relocation>
               </relocations>
               <transformers>
+                <!-- ImageIO discovers WebPReader through META-INF/services. Keep that registry
+                     when dependencies are folded into the executable jar. -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <manifestEntries>
                     <Main-Class>dev.starsector.preflight.cli.PreflightCli</Main-Class>
