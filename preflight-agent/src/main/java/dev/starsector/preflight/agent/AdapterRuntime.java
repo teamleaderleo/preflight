@@ -408,6 +408,14 @@ final class AdapterRuntime {
                         + error.getMessage());
             }
             try {
+                JaninoBytecodeCacheRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish Janino bytecode pack: "
+                        + error.getMessage());
+            }
+            try {
                 report.write();
             } catch (IOException error) {
                 System.err.println("[Preflight] Failed to write adapter report: " + error.getMessage());

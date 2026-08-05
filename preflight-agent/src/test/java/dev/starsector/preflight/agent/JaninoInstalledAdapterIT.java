@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.GeneratedBytecodeCache;
 import dev.starsector.preflight.core.GeneratedBytecodeContext;
+import dev.starsector.preflight.core.GeneratedBytecodePack;
 import java.io.File;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
@@ -77,6 +78,19 @@ class JaninoInstalledAdapterIT {
             Class<?> nested = example.getClassLoader().loadClass("scripts.Example$Nested");
             assertEquals(8, nested.getMethod("value").invoke(nested.getConstructor().newInstance()));
             assertEquals(1L, JaninoBytecodeCacheRuntime.telemetry().get("hits"));
+        }
+
+        JaninoBytecodeCacheRuntime.complete();
+        assertTrue(Files.isRegularFile(GeneratedBytecodePack.path(
+                cache, context.keySha256())));
+        JaninoBytecodeCacheRuntime.beginSession();
+        JaninoBytecodeCacheRuntime.configure(cache, context.portableToken());
+        try (InstalledLoader packed = new InstalledLoader(janino, commons, transformed)) {
+            Class<?> example = compile(packed, sources);
+            assertEquals(7, example.getMethod("value").invoke(null));
+            Class<?> nested = example.getClassLoader().loadClass("scripts.Example$Nested");
+            assertEquals(8, nested.getMethod("value").invoke(nested.getConstructor().newInstance()));
+            assertEquals(1L, JaninoBytecodeCacheRuntime.telemetry().get("packHits"));
         }
 
         Path bundle = GeneratedBytecodeCache.bundlePath(

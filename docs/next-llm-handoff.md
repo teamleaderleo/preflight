@@ -183,6 +183,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | 2026-08-05 immediately before early JSON restore | **33.22 / 32.98** |
 | **2026-08-05 profile-stable JSON warm cohort (5 runs)** | **29.61 median (29.25--30.16)** |
 | 2026-08-05 GraphicsLib lazy-normal diagnostic | **27.23** |
+| **2026-08-05 deduplicated-Janino-pack cohort (5 runs)** | **25.58 median (25.08--25.80)** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -725,6 +726,20 @@ all 62,340 token hits, and had zero miss/disagreement/failure. A pre-fix five-ru
 cohort was 25.71/25.72/26.57/26.06/26.77s; the rising tail is fanless thermal drift, so do not use
 its median as a clean before/after. See
 `docs/evidence/2026-08-05-rule-command-cache-composition.md`.
+The original Janino cache stored the complete generated-class map independently for each request.
+The live 228-bundle corpus contained 149,732,372 expanded bytecode bytes but only 1,006,460 unique
+bytes across 280 classes: 148.77x duplication with no same-name conflict. A context-bound SPJP pack
+now stores each validated classfile once and each request as class indexes while still returning an
+independent mutable map and byte arrays. Corrupt, mismatched, incomplete, or unwritable packs fall
+through to the existing exact bundles/vanilla; partial packs expand atomically at shutdown and
+all-hit launches do not rewrite them. The artifact is 1,183,935 bytes versus 145.96MiB of bundles.
+One adjacent live gate reduced the exact warm Janino seam from 1,501ms to 29ms. A following ordinary
+five-launch fast cohort measured 25.08/25.58/25.45/25.79/25.80s (25.58s median); every run served all
+228 requests from the pack in 31--38ms with zero miss, fallback, error, or rewrite. Its rising thermal
+tail and the intervening rule-command repair prevent a clean whole-launch attribution. The 25.08s
+cool run makes sub-25 plausible, not yet established. Full verification and a third-fresh-loader
+installed-Janino outer/nested replay pass. See
+`docs/evidence/2026-08-05-janino-deduplicated-pack.md`.
 GraphicsLib's compact replay was also tested with its already-completed material and surface
 branches skipped. This removed exactly 18,672 texture-data lookups, but two fresh-process gates
 measured the 9,336-call replay at 0.35s and 0.30s versus the retained 0.28s; the complete

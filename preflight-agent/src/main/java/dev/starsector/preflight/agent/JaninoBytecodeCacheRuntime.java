@@ -2,13 +2,16 @@ package dev.starsector.preflight.agent;
 
 import dev.starsector.preflight.core.GeneratedBytecodeCacheWrapper;
 import dev.starsector.preflight.core.GeneratedBytecodeContext;
+import dev.starsector.preflight.core.GeneratedBytecodePack;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Fail-open runtime for Janino's exact complete-map compilation seam. */
@@ -27,6 +30,10 @@ public final class JaninoBytecodeCacheRuntime {
     private static final AtomicLong HIT_NANOS = new AtomicLong();
     private static final AtomicLong ORIGINAL_NANOS = new AtomicLong();
     private static final AtomicLong POLICY_DECLINED_NANOS = new AtomicLong();
+    private static final AtomicLong PACK_HITS = new AtomicLong();
+    private static final AtomicLong PACK_MISSES = new AtomicLong();
+    private static final AtomicLong PACK_WRITES = new AtomicLong();
+    private static final AtomicLong PACK_ERRORS = new AtomicLong();
     private static final ConcurrentHashMap<Class<?>, PolicyAccess> POLICY = new ConcurrentHashMap<>();
 
     private static volatile State state = State.disabled();
@@ -46,6 +53,10 @@ public final class JaninoBytecodeCacheRuntime {
         HIT_NANOS.set(0);
         ORIGINAL_NANOS.set(0);
         POLICY_DECLINED_NANOS.set(0);
+        PACK_HITS.set(0);
+        PACK_MISSES.set(0);
+        PACK_WRITES.set(0);
+        PACK_ERRORS.set(0);
         POLICY.clear();
         state = State.disabled();
     }
@@ -56,12 +67,33 @@ public final class JaninoBytecodeCacheRuntime {
             return;
         }
         try {
-            state = new State(
-                    cacheRoot.toAbsolutePath().normalize(),
-                    GeneratedBytecodeContext.fromPortableToken(contextToken),
-                    "ready");
+            Path root = cacheRoot.toAbsolutePath().normalize();
+            GeneratedBytecodeContext context =
+                    GeneratedBytecodeContext.fromPortableToken(contextToken);
+            Path packPath = GeneratedBytecodePack.path(root, context.keySha256());
+            GeneratedBytecodePack pack = null;
+            String packStatus = "capture";
+            long loadStarted = System.nanoTime();
+            if (Files.isRegularFile(packPath)) {
+                try {
+                    GeneratedBytecodePack candidate = GeneratedBytecodePack.read(packPath);
+                    if (context.keySha256().equals(candidate.contextKeySha256())) {
+                        pack = candidate;
+                        packStatus = "hit";
+                    } else {
+                        packStatus = "context-mismatch";
+                    }
+                } catch (Exception error) {
+                    packStatus = "rejected:" + message(error);
+                }
+            }
+            state = new State(root, context, "ready", packPath, pack, packStatus,
+                    (System.nanoTime() - loadStarted) / 1_000_000L,
+                    pack == null
+                            ? new GeneratedBytecodePack.Builder(context.keySha256())
+                            : new GeneratedBytecodePack.Builder(pack));
         } catch (RuntimeException error) {
-            state = new State(null, null, "rejected:" + message(error));
+            state = State.rejected("rejected:" + message(error));
         }
     }
 
@@ -92,12 +124,26 @@ public final class JaninoBytecodeCacheRuntime {
                 return invokeOriginal(loader, requestedClassName);
             }
 
+            if (current.pack != null) {
+                Map<String, byte[]> packed = current.pack.classesFor(requestedClassName);
+                if (packed != null) {
+                    HITS.incrementAndGet();
+                    PACK_HITS.incrementAndGet();
+                    timingPath = TimingPath.HIT;
+                    return packed;
+                }
+                PACK_MISSES.incrementAndGet();
+            }
+
             GeneratedBytecodeCacheWrapper.Result result = GeneratedBytecodeCacheWrapper.generate(
                     current.cacheRoot,
                     current.context,
                     requestedClassName,
                     ignored -> invokeOriginal(loader, requestedClassName));
             count(result);
+            if (result.cacheUsable() && current.builder != null) {
+                current.builder.record(requestedClassName, result.classes());
+            }
             timingPath = result.source() == GeneratedBytecodeCacheWrapper.Source.CACHE_HIT
                     ? TimingPath.HIT
                     : TimingPath.ORIGINAL;
@@ -123,7 +169,40 @@ public final class JaninoBytecodeCacheRuntime {
         values.put("hitInsideMillis", millis(HIT_NANOS.get()));
         values.put("originalInsideMillis", millis(ORIGINAL_NANOS.get()));
         values.put("livePolicyDeclinedInsideMillis", millis(POLICY_DECLINED_NANOS.get()));
+        values.put("packStatus", current.packStatus);
+        values.put("packArtifact", current.packPath);
+        values.put("packLoadMillis", current.packLoadMillis);
+        values.put("packRequests", current.pack == null ? 0 : current.pack.requestCount());
+        values.put("packClasses", current.pack == null ? 0 : current.pack.classCount());
+        values.put("packUniqueBytes", current.pack == null ? 0 : current.pack.uniqueBytecodeBytes());
+        values.put("packExpandedBytes", current.pack == null ? 0 : current.pack.expandedBytecodeBytes());
+        values.put("packHits", PACK_HITS.get());
+        values.put("packMisses", PACK_MISSES.get());
+        values.put("packWrites", PACK_WRITES.get());
+        values.put("packErrors", PACK_ERRORS.get());
         return values;
+    }
+
+    /** Publishes a deduplicated pack after a successful session; the next launch consumes it. */
+    static void complete() {
+        State current = state;
+        if (current.builder == null || current.packPath == null
+                || !current.completed.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            GeneratedBytecodePack pack = current.builder.build();
+            if (pack != null) {
+                GeneratedBytecodePack.write(current.packPath, pack);
+                PACK_WRITES.incrementAndGet();
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable error) {
+            PACK_ERRORS.incrementAndGet();
+            System.err.println("[Preflight] Janino bytecode pack could not be written: "
+                    + message(error) + "; individual bundles remain active");
+        }
     }
 
     private static void recordTiming(TimingPath path, long nanos) {
@@ -208,9 +287,35 @@ public final class JaninoBytecodeCacheRuntime {
         return value == null || value.isBlank() ? error.getClass().getSimpleName() : value;
     }
 
-    private record State(Path cacheRoot, GeneratedBytecodeContext context, String status) {
+    private record State(
+            Path cacheRoot,
+            GeneratedBytecodeContext context,
+            String status,
+            Path packPath,
+            GeneratedBytecodePack pack,
+            String packStatus,
+            long packLoadMillis,
+            GeneratedBytecodePack.Builder builder,
+            AtomicBoolean completed) {
+        private State(
+                Path cacheRoot,
+                GeneratedBytecodeContext context,
+                String status,
+                Path packPath,
+                GeneratedBytecodePack pack,
+                String packStatus,
+                long packLoadMillis,
+                GeneratedBytecodePack.Builder builder) {
+            this(cacheRoot, context, status, packPath, pack, packStatus, packLoadMillis, builder,
+                    new AtomicBoolean());
+        }
+
         static State disabled() {
-            return new State(null, null, "disabled");
+            return rejected("disabled");
+        }
+
+        static State rejected(String status) {
+            return new State(null, null, status, null, null, "disabled", 0L, null);
         }
     }
 

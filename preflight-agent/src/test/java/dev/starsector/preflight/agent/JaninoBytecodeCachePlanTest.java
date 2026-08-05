@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.GeneratedBytecodeCache;
 import dev.starsector.preflight.core.GeneratedBytecodeContext;
+import dev.starsector.preflight.core.GeneratedBytecodePack;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -93,6 +94,31 @@ class JaninoBytecodeCachePlanTest {
         assertEquals(2L, JaninoBytecodeCacheRuntime.telemetry().get("livePolicyDeclined"));
         assertFalse(Files.exists(GeneratedBytecodeCache.bundlePath(
                 temporaryDirectory, context.keySha256(), "scripts.Example")));
+    }
+
+    @Test
+    void publishesAndThenServesOneDeduplicatedSessionPack() throws Exception {
+        GeneratedBytecodeContext context = context();
+        JaninoBytecodeCacheRuntime.configure(temporaryDirectory, context.portableToken());
+        Object populationLoader = transformedLoader();
+        Method populationCompile = populationLoader.getClass().getMethod("compile", String.class);
+
+        Map<?, ?> populated = (Map<?, ?>) populationCompile.invoke(populationLoader, "scripts.Example");
+        JaninoBytecodeCacheRuntime.complete();
+        Path packPath = GeneratedBytecodePack.path(temporaryDirectory, context.keySha256());
+        assertTrue(Files.isRegularFile(packPath));
+        assertEquals(1, GeneratedBytecodePack.read(packPath).requestCount());
+
+        JaninoBytecodeCacheRuntime.beginSession();
+        JaninoBytecodeCacheRuntime.configure(temporaryDirectory, context.portableToken());
+        Object packedLoader = transformedLoader();
+        Map<?, ?> packed = (Map<?, ?>) packedLoader.getClass()
+                .getMethod("compile", String.class).invoke(packedLoader, "scripts.Example");
+
+        assertEquals(populated.keySet(), packed.keySet());
+        assertEquals(0, packedLoader.getClass().getField("originalCalls").getInt(packedLoader));
+        assertEquals(1L, JaninoBytecodeCacheRuntime.telemetry().get("packHits"));
+        assertEquals("hit", JaninoBytecodeCacheRuntime.telemetry().get("packStatus"));
     }
 
     @Test
