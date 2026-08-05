@@ -166,6 +166,24 @@ class CampaignEntityMaintenanceInstalledAdapterIT {
         assertEquals(1L, calls(method(composedLocationOwner,
                 EntityLookupPlan.LOOKUP_METHOD, EntityLookupPlan.LOOKUP_DESCRIPTOR),
                 EntityLookupRuntime.class.getName().replace('.', '/'), "lookup"));
+
+        Path apiArchive = archive.resolveSibling("starfarer.api.jar");
+        Assumptions.assumeTrue(Files.isRegularFile(apiArchive));
+        byte[] automaton = entry(
+                apiArchive, CampaignEntityMaintenancePlan.HYPERSPACE_AUTOMATON_CLASS);
+        ClassSignature automatonSignature = ClassSignature.parse(automaton);
+        assertEquals(CampaignEntityMaintenancePlan.HYPERSPACE_AUTOMATON_SHA256,
+                automatonSignature.sha256());
+        byte[] optimizedAutomaton = CampaignEntityMaintenancePlan.transform(
+                automatonSignature, automaton);
+        assertNotNull(optimizedAutomaton);
+        MethodNode neighborCount = method(read(optimizedAutomaton),
+                CampaignEntityMaintenancePlan.LIVE_NEIGHBOR_METHOD,
+                CampaignEntityMaintenancePlan.LIVE_NEIGHBOR_DESCRIPTOR);
+        assertEquals(1L, calls(neighborCount, maintenanceRuntime,
+                "hyperspaceLiveNeighborCount"));
+        assertEquals(0L, calls(neighborCount, "java/lang/Math", "max"));
+        assertEquals(0L, calls(neighborCount, "java/lang/Math", "min"));
     }
 
     private static ClassNode read(byte[] bytes) {

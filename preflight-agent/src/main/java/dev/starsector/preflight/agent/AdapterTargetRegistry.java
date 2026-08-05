@@ -683,6 +683,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    static AdapterTarget hyperspaceAutomatonNeighborTarget() {
+        return new AdapterTarget(
+                "vanilla-hyperspace-automaton-neighbor-count-0.98a-rc8",
+                CampaignEntityMaintenancePlan.HYPERSPACE_AUTOMATON_CLASS,
+                CampaignEntityMaintenancePlan.HYPERSPACE_AUTOMATON_SHA256,
+                CampaignEntityMaintenanceRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CampaignEntityMaintenancePlan.LIVE_NEIGHBOR_METHOD,
+                        CampaignEntityMaintenancePlan.LIVE_NEIGHBOR_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     static AdapterTarget fleetAiProfilerLabelTarget() {
         return new AdapterTarget(
                 "vanilla-modular-fleet-ai-profiler-label-0.98a-rc8",
@@ -1099,7 +1115,8 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignFleetViewSnapshotTarget())
                 .withTarget(campaignMarketSnapshotTarget())
                 .withTarget(campaignMemoryMaintenanceTarget())
-                .withTarget(campaignPausedConditionSnapshotTarget());
+                .withTarget(campaignPausedConditionSnapshotTarget())
+                .withTarget(hyperspaceAutomatonNeighborTarget());
     }
 
     AdapterTargetRegistry withFleetAiProfilerTargets() {
@@ -1382,6 +1399,7 @@ final class AdapterTargetRegistry {
                 .withTarget(campaignMarketSnapshotTarget())
                 .withTarget(campaignMemoryMaintenanceTarget())
                 .withTarget(campaignPausedConditionSnapshotTarget())
+                .withTarget(hyperspaceAutomatonNeighborTarget())
                 .withTarget(fleetAiProfilerLabelTarget())
                 .withTarget(profilerToggleTarget())
                 .withTarget(simOpponentSafetyTarget())

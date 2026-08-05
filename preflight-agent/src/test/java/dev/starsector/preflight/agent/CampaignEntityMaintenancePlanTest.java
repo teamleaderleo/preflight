@@ -257,6 +257,45 @@ class CampaignEntityMaintenancePlanTest {
         assertEquals(1L, telemetry.get("emptyMemoryIdRestorations"));
     }
 
+    @Test
+    void hyperspaceNeighborCountPreservesEveryEdgeAndCellState() throws Exception {
+        byte[] original = hyperspaceAutomatonFixture();
+        byte[] transformed = CampaignEntityMaintenancePlan.transform(
+                exact(original, CampaignEntityMaintenancePlan.HYPERSPACE_AUTOMATON_SHA256),
+                original);
+        assertNotNull(transformed);
+        MethodNode method = method(
+                transformed, CampaignEntityMaintenancePlan.LIVE_NEIGHBOR_METHOD);
+        String runtime = CampaignEntityMaintenanceRuntime.class.getName().replace('.', '/');
+        assertEquals(1, calls(method, runtime, "hyperspaceLiveNeighborCount"));
+        assertEquals(0, calls(method, "java/lang/Math", "max"));
+        assertEquals(0, calls(method, "java/lang/Math", "min"));
+        assertNull(CampaignEntityMaintenancePlan.transform(
+                ClassSignature.parse(transformed), transformed));
+
+        int[][] cells = {
+                {1, 0, 2, 1},
+                {0, 1, 1, 0},
+                {2, 1, 0, 1}
+        };
+        for (int x = 0; x < cells.length; x++) {
+            for (int y = 0; y < cells[0].length; y++) {
+                int expected = 0;
+                for (int column = Math.max(0, x - 1);
+                        column <= Math.min(x + 1, cells.length - 1); column++) {
+                    for (int row = Math.max(0, y - 1);
+                            row <= Math.min(y + 1, cells[0].length - 1); row++) {
+                        if ((column != x || row != y) && cells[column][row] == 1) expected++;
+                    }
+                }
+                assertEquals(expected,
+                        CampaignEntityMaintenanceRuntime.hyperspaceLiveNeighborCount(cells, x, y));
+            }
+        }
+        assertEquals(true, CampaignEntityMaintenanceRuntime.telemetry()
+                .get("hyperspaceAutomatonInstalled"));
+    }
+
     private static byte[] entityFixture() {
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
@@ -306,6 +345,48 @@ class CampaignEntityMaintenancePlanTest {
                 "com/fs/starfarer/api/EveryFrameScript", "advance", "(F)V", true);
         method.visitInsn(Opcodes.RETURN);
         method.visitMaxs(4, 2);
+        method.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] hyperspaceAutomatonFixture() {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                CampaignEntityMaintenancePlan.HYPERSPACE_AUTOMATON_CLASS,
+                null, "java/lang/Object", null);
+        writer.visitField(Opcodes.ACC_PROTECTED, "cells", "[[I", null, null).visitEnd();
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PROTECTED,
+                CampaignEntityMaintenancePlan.LIVE_NEIGHBOR_METHOD,
+                CampaignEntityMaintenancePlan.LIVE_NEIGHBOR_DESCRIPTOR, null, null);
+        method.visitCode();
+        method.visitInsn(Opcodes.ICONST_0);
+        method.visitVarInsn(Opcodes.ILOAD, 1);
+        method.visitInsn(Opcodes.ICONST_1);
+        method.visitInsn(Opcodes.ISUB);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "max", "(II)I", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.ICONST_0);
+        method.visitVarInsn(Opcodes.ILOAD, 2);
+        method.visitInsn(Opcodes.ICONST_1);
+        method.visitInsn(Opcodes.ISUB);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "max", "(II)I", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitVarInsn(Opcodes.ILOAD, 1);
+        method.visitInsn(Opcodes.ICONST_1);
+        method.visitInsn(Opcodes.IADD);
+        method.visitInsn(Opcodes.ICONST_2);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "min", "(II)I", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitVarInsn(Opcodes.ILOAD, 2);
+        method.visitInsn(Opcodes.ICONST_1);
+        method.visitInsn(Opcodes.IADD);
+        method.visitInsn(Opcodes.ICONST_2);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "min", "(II)I", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.ICONST_0);
+        method.visitInsn(Opcodes.IRETURN);
+        method.visitMaxs(3, 3);
         method.visitEnd();
         writer.visitEnd();
         return writer.toByteArray();

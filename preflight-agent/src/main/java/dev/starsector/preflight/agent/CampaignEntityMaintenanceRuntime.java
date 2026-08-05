@@ -30,6 +30,7 @@ public final class CampaignEntityMaintenanceRuntime {
     private static volatile boolean pausedConditionsInstalled;
     private static volatile boolean pausedLocationSnapshotsInstalled;
     private static volatile boolean activeLocationSnapshotsInstalled;
+    private static volatile boolean hyperspaceAutomatonInstalled;
     private static long emptyScriptLists;
     private static long nonEmptyScriptLists;
     private static long emptyMarketConditions;
@@ -67,6 +68,7 @@ public final class CampaignEntityMaintenanceRuntime {
         pausedConditionsInstalled = false;
         pausedLocationSnapshotsInstalled = false;
         activeLocationSnapshotsInstalled = false;
+        hyperspaceAutomatonInstalled = false;
         emptyScriptLists = 0L;
         nonEmptyScriptLists = 0L;
         emptyMarketConditions = 0L;
@@ -123,6 +125,26 @@ public final class CampaignEntityMaintenanceRuntime {
 
     static void activeLocationSnapshotsInstalled() {
         activeLocationSnapshotsInstalled = true;
+    }
+
+    static void hyperspaceAutomatonInstalled() {
+        hyperspaceAutomatonInstalled = true;
+    }
+
+    /** Counts live cells in vanilla's clamped 3x3 neighborhood, excluding the center cell. */
+    public static int hyperspaceLiveNeighborCount(int[][] cells, int x, int y) {
+        int minimumX = Math.max(0, x - 1);
+        int maximumX = Math.min(x + 1, cells.length - 1);
+        int minimumY = Math.max(0, y - 1);
+        int maximumY = Math.min(y + 1, cells[0].length - 1);
+        int count = 0;
+        for (int columnIndex = minimumX; columnIndex <= maximumX; columnIndex++) {
+            int[] column = cells[columnIndex];
+            for (int rowIndex = minimumY; rowIndex <= maximumY; rowIndex++) {
+                if ((columnIndex != x || rowIndex != y) && column[rowIndex] == 1) count++;
+            }
+        }
+        return count;
     }
 
     public static void emptyScriptList() {
@@ -209,6 +231,7 @@ public final class CampaignEntityMaintenanceRuntime {
         result.put("pausedConditionsInstalled", pausedConditionsInstalled);
         result.put("pausedLocationSnapshotsInstalled", pausedLocationSnapshotsInstalled);
         result.put("activeLocationSnapshotsInstalled", activeLocationSnapshotsInstalled);
+        result.put("hyperspaceAutomatonInstalled", hyperspaceAutomatonInstalled);
         result.put("emptyScriptLists", emptyScriptLists);
         result.put("nonEmptyScriptLists", nonEmptyScriptLists);
         result.put("emptyMarketConditions", emptyMarketConditions);

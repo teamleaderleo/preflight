@@ -499,7 +499,14 @@ the four temporary commodity stats with converted days and reapplies every event
 Before considering a zero-delta shortcut, the opt-in market attribution plan now reports exact zero
 versus nonzero market-advance amounts. This counter-only probe changes no behavior, exact-transforms
 the installed class, and passes full `mvn verify`. **Next step: spend time both paused and unpaused in
-one live profile and inspect `zeroMarketAdvances`/`nonZeroMarketAdvances`.**
+one live profile and inspect `zeroMarketAdvances`/`nonZeroMarketAdvances`.** That live run rejected
+the shortcut: just 218/737,211 market advances were exact zero (0.030%), so no market behavior was
+changed. The same profile exposed `HyperspaceAutomaton.getLiveCountAround` at 16/1,325 campaign
+samples. An offline-green exact API-class rewrite hoists its four clamped bounds and column lookup
+while preserving every cell/edge rule. Exhaustive rectangular-grid equivalence and the installed
+class pass. On five fresh game JVMs the exact copied operation fell from 9.224-11.808ns to
+5.605-6.558ns (37-52%), and full `mvn verify` passes. **Next step: live-profile the automaton
+stack and confirm normal hyperspace behavior plus removal of the old leaf.**
 The next exact `ModularFleetAI` candidate removes another disabled-observer cost. Vanilla builds a
 dynamic `Ability [id]` profiler label on every ability advance even though its profiler is normally
 off and immediately returns. Plan `vanilla-fleet-ai-profiler-label-v1` substitutes an interned

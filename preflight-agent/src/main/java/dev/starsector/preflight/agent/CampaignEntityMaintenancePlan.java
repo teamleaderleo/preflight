@@ -50,6 +50,12 @@ final class CampaignEntityMaintenancePlan {
     static final String ACTIVE_LOCATION_METHOD = "advance";
     static final String PAUSED_LOCATION_METHOD = "advanceEvenIfPaused";
     static final String LOCATION_DESCRIPTOR = "(FLcom/fs/starfarer/util/super/B;)V";
+    static final String HYPERSPACE_AUTOMATON_CLASS =
+            "com/fs/starfarer/api/impl/campaign/terrain/HyperspaceAutomaton";
+    static final String HYPERSPACE_AUTOMATON_SHA256 =
+            "edc72eb131408ee8810eca07ba29479467663ed97ecb32a3e4fe4b5007fe882e";
+    static final String LIVE_NEIGHBOR_METHOD = "getLiveCountAround";
+    static final String LIVE_NEIGHBOR_DESCRIPTOR = "(II)I";
 
     private static final String ORIGINAL_SCRIPT = "preflight$original$runScripts";
     private static final String SCRIPTS_FIELD = "scripts";
@@ -96,7 +102,33 @@ final class CampaignEntityMaintenancePlan {
                 && LOCATION_SHA256.equals(signature.sha256())) {
             return transformLocation(originalBytes);
         }
+        if (HYPERSPACE_AUTOMATON_CLASS.equals(signature.internalName())
+                && HYPERSPACE_AUTOMATON_SHA256.equals(signature.sha256())) {
+            return transformHyperspaceAutomaton(originalBytes);
+        }
         return null;
+    }
+
+    private static byte[] transformHyperspaceAutomaton(byte[] originalBytes) {
+        ClassNode owner = read(originalBytes);
+        MethodNode method = unique(owner, LIVE_NEIGHBOR_METHOD, LIVE_NEIGHBOR_DESCRIPTOR);
+        if (method == null || callsRuntime(method) != 0
+                || matching(method, "java/lang/Math", "max", "(II)I").size() != 2
+                || matching(method, "java/lang/Math", "min", "(II)I").size() != 2) return null;
+
+        method.instructions.clear();
+        method.tryCatchBlocks.clear();
+        if (method.localVariables != null) method.localVariables.clear();
+        method.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        method.instructions.add(new FieldInsnNode(
+                Opcodes.GETFIELD, HYPERSPACE_AUTOMATON_CLASS, "cells", "[[I"));
+        method.instructions.add(new VarInsnNode(Opcodes.ILOAD, 1));
+        method.instructions.add(new VarInsnNode(Opcodes.ILOAD, 2));
+        method.instructions.add(new MethodInsnNode(
+                Opcodes.INVOKESTATIC, RUNTIME, "hyperspaceLiveNeighborCount", "([[III)I", false));
+        method.instructions.add(new InsnNode(Opcodes.IRETURN));
+        CampaignEntityMaintenanceRuntime.hyperspaceAutomatonInstalled();
+        return write(owner);
     }
 
     private static byte[] transformEntity(byte[] originalBytes) {

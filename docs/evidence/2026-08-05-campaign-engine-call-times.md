@@ -488,3 +488,40 @@ Every one of the 87,600 captures avoids its private wrapper. Under the shipped `
 implementation, the 29,261 empty script/token captures also avoid a source array and iterator, for
 about **146,122 avoided heap objects** on this short route. This is a call-volume-derived allocation
 count, not an FPS claim; the operator-driven run is not a controlled A/B.
+
+## Rejected zero-delta market shortcut
+
+`market-zero-delta-v1-20260805-113628` tested whether paused campaign frames were driving the full
+commodity loop with an exact zero `Market.advance(float)` amount. The counter-only attribution
+probe exact-transformed the installed class and the live run exited normally with ACTIVE health:
+46 transformations applied, zero declines, and zero contained failures.
+
+The result rejects the shortcut decisively: only **218/737,211** market advances had an exact zero
+amount (**0.030%**); 736,993 were nonzero. The user's paused interval therefore mostly omitted
+ordinary market advancement rather than invoking it with zero. Conditions, submarkets, memory,
+people, temporary commodity mods, event mods, and industries remain untouched. The opt-in counter
+stays useful as an update diagnostic but is not a production optimization.
+
+## Hyperspace automaton neighbor count
+
+The same recording placed
+`HyperspaceAutomaton.getLiveCountAround(int, int)` at 16/1,325 campaign execution samples (1.21%),
+always beneath `updateCells`. Vanilla scans the clamped 3-by-3 neighborhood correctly, but recomputes
+both `Math.min` bounds in loop conditions and repeatedly reloads `cells` and its first column. The
+calculation has no callbacks or external state: count entries equal to one in the clamped
+neighborhood, excluding the center.
+
+The exact `starfarer.api.jar` adapter computes the four bounds once, retains the current column for
+the inner loop, and preserves the same cell array, iteration order, edge behavior, center exclusion,
+and equality-to-one rule. It pins class SHA-256
+`edc72eb131408ee8810eca07ba29479467663ed97ecb32a3e4fe4b5007fe882e`, the API archive, Java 17,
+method descriptor, two `Math.max` and two `Math.min` calls, source, and loader. Drift or a second
+transform retains vanilla; the shared campaign-maintenance kill switch disables it.
+
+Exhaustive synthetic coverage checks every position in a rectangular grid containing dead, live,
+and transitional cells. The exact installed class transforms and removes all four repeated bound
+calls. The reproducible benchmark in
+`docs/evidence/2026-08-05-hyperspace-neighbor-benchmark.java` runs 100 million varying positions on
+Starsector's own x86-64 Zulu 17 JVM under Rosetta. Across five fresh JVMs, the copied vanilla loop
+took **9.224-11.808 ns/op** and the equivalent Preflight loop took **5.605-6.558 ns/op**, about
+37-52% less time. This is an operation-level benchmark and a measured hotspot, not yet an FPS claim.
