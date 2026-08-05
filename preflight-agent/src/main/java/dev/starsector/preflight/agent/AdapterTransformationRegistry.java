@@ -157,6 +157,9 @@ final class AdapterTransformationRegistry {
                 return specStore;
             }
         }
+        if (ResourcePriorityRuntime.PLAN_ID.equals(target.planId())) {
+            return resourceLoaderPlans(signature, originalBytes);
+        }
         if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
             return VariantJsonCacheRuntime.ready()
                     ? VariantJsonCachePlan.transform(signature, originalBytes)
@@ -565,6 +568,9 @@ final class AdapterTransformationRegistry {
         if (RulesRegexCacheRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
+        if (ResourcePriorityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
         if (RuleTokenCacheRuntime.PLAN_ID.equals(planId)) {
             return RuleTokenCacheRuntime.ready();
         }
@@ -693,5 +699,30 @@ final class AdapterTransformationRegistry {
 
     static boolean anyPlanCompiled() {
         return true;
+    }
+
+    /** Composes the always-on priority index with either optional ResourceLoaderState marker. */
+    private static byte[] resourceLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+        try {
+            byte[] marked = StartupPhaseRuntime.phaseProbeEnabled()
+                    ? StartupPhasePlan.transform(signature, current)
+                    : FrameTimeStartupCompletionPlan.transform(signature, current);
+            if (marked != null) {
+                current = marked;
+                changed = true;
+            }
+            byte[] indexed = ResourcePriorityPlan.transform(ClassSignature.parse(current), current);
+            if (indexed != null) {
+                current = indexed;
+                changed = true;
+            }
+            return changed ? current : null;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            return changed ? current : null;
+        }
     }
 }

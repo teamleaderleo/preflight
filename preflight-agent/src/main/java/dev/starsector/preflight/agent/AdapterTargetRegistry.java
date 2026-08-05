@@ -576,6 +576,22 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Starsector reprioritizes a large resource list with a quadratic ArrayList.removeAll. */
+    static AdapterTarget resourcePriorityTarget() {
+        return new AdapterTarget(
+                "vanilla-resource-loader-0.98a-rc8-priority-index",
+                ResourcePriorityPlan.TARGET_CLASS,
+                ResourcePriorityPlan.ORIGINAL_SHA256,
+                ResourcePriorityRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        ResourcePriorityPlan.INIT_METHOD, ResourcePriorityPlan.INIT_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Vanilla campaign loop used only to segment opt-in frame-time recordings. */
     static AdapterTarget campaignFrameTimeStateTarget() {
         return frameTimeStateTarget(
@@ -1630,6 +1646,7 @@ final class AdapterTargetRegistry {
                 .withTarget(profilerToggleTarget())
                 .withTarget(simOpponentSafetyTarget())
                 .withTarget(simOpponentDialogProbeTarget())
+                .withTarget(resourcePriorityTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioResourceFallbackTarget())
                 .withTarget(aiTweaksEngagementRangeTarget())

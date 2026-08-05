@@ -35,6 +35,7 @@ final class AdapterRuntime {
         RulesDuplicateIndexRuntime.beginSession();
         RuleTokenCacheRuntime.beginSession();
         RulesRegexCacheRuntime.beginSession();
+        ResourcePriorityRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         LoadJsonMemoRuntime.reset();
@@ -139,6 +140,7 @@ final class AdapterRuntime {
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
+                report.diagnostic("Loaded the exact startup resource-priority index target");
                 report.diagnostic("Loaded the exact campaign commodity event-mod memo target");
                 report.diagnostic("Loaded the exact campaign entity-maintenance targets");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");
