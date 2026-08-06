@@ -4,12 +4,64 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class CommandLineAdapterTest {
+    @Test
+    void productPresetsAreTypedAndFastRemainsTheRecommendedAlias() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+        CommandLine recommended = CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "recommended"}, 1);
+        CommandLine conservative = CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "conservative"}, 1);
+        CommandLine off = CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "off"}, 1);
+
+        assertEquals(OptimizationPreset.RECOMMENDED, fast.optimizationPreset());
+        assertEquals(OptimizationPreset.RECOMMENDED, recommended.optimizationPreset());
+        assertEquals(fast, recommended);
+        assertEquals(AdapterPlanScope.FULL, recommended.adapterPlanScope());
+
+        assertEquals(OptimizationPreset.CONSERVATIVE, conservative.optimizationPreset());
+        assertEquals(AdapterPlanScope.PORTABLE_STARTUP, conservative.adapterPlanScope());
+        assertEquals(AdapterMode.ENABLED, conservative.adapterMode());
+        assertEquals(TextureAdapterMode.PREPARED_PIXELS, conservative.textureAdapterMode());
+        assertEquals(true, conservative.npotDirect());
+        assertEquals(false, conservative.unpadded());
+        assertEquals(false, conservative.campaignEntityIndex());
+        assertEquals(false, conservative.graphicsLibCompactReplay());
+        assertEquals(false, conservative.graphicsLibInsigniaManagerCache());
+
+        assertEquals(OptimizationPreset.OFF, off.optimizationPreset());
+        assertEquals(AdapterMode.OFF, off.adapterMode());
+        assertEquals(RecordingMode.OFF, off.recordingMode());
+        assertEquals(false, off.scan());
+        assertEquals(false, off.summarize());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--optimization-preset", "experimental"}, 1));
+    }
+
+    @Test
+    void conservativeScopeCannotBeMixedWithGameplayOrModSpecificSwitches() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {
+                        "run", "--optimization-preset", "conservative", "--campaign-entity-index"
+                }, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {
+                        "run", "--optimization-preset", "conservative", "--graphicslib-compact-replay"
+                }, 1));
+    }
+
     @Test
     void recordingFlagsSelectTheThreeModesAndDefaultToFull() {
         assertEquals(RecordingMode.FULL, CommandLine.parse(new String[] {"run"}, 1).recordingMode());

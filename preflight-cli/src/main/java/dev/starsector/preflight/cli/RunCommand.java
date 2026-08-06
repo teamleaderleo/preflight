@@ -129,7 +129,8 @@ final class RunCommand {
                 options.graphicsLibCompactReplay(),
                 janinoBytecodeCache == null ? null : janinoBytecodeCache.cacheRoot(),
                 janinoBytecodeCache == null ? null : janinoBytecodeCache.contextToken(),
-                options.graphicsLibInsigniaManagerCache());
+                options.graphicsLibInsigniaManagerCache(),
+                options.adapterPlanScope());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
@@ -439,7 +440,9 @@ final class RunCommand {
         System.out.println("  runtime owner: " + ownership.owner()
                 + (ownership.evidence().isEmpty() ? "" : " " + ownership.evidence()));
         System.out.println("  run data: " + runDirectory);
+        System.out.println("  optimization preset: " + options.optimizationPreset().optionValue());
         System.out.println("  adapter:  " + options.adapterMode());
+        System.out.println("  adapter plan scope: " + options.adapterPlanScope().optionValue());
         System.out.println("  recording: " + options.recordingMode()
                 + (options.singleChunkRecording() ? " (single timestamp-coherent chunk)" : ""));
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
@@ -649,7 +652,9 @@ final class RunCommand {
                 : null);
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
+        values.put("optimizationPreset", options.optimizationPreset().optionValue());
         values.put("adapterMode", options.adapterMode());
+        values.put("adapterPlanScope", options.adapterPlanScope().optionValue());
         values.put("adapterReport", adapterReport);
         Path adapterHealth = adapterReport.resolveSibling("adapter-health.json");
         values.put("adapterHealthReport", Files.isRegularFile(adapterHealth) ? adapterHealth : null);

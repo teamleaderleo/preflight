@@ -1967,6 +1967,14 @@ final class AdapterTargetRegistry {
                 .toList());
     }
 
+    AdapterTargetRegistry forScope(AdapterPlanScope scope) {
+        Objects.requireNonNull(scope, "scope");
+        if (scope == AdapterPlanScope.FULL) return this;
+        return new AdapterTargetRegistry(targets.stream()
+                .filter(target -> scope.allows(target.planId()))
+                .toList());
+    }
+
     List<AdapterTarget> forClass(String internalName) {
         return byClass.getOrDefault(internalName, List.of());
     }

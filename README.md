@@ -65,6 +65,8 @@ of assuming the development-machine result applies to them.
 
 The per-change arithmetic, individual multipliers, and source links are in the
 [accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
+The chronological, publication-oriented account is in
+[How Preflight moved an 83-mod launch from 62.6 seconds to 15.88](docs/optimization-history.md).
 
 ## What we did
 

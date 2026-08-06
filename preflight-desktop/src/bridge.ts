@@ -6,6 +6,7 @@ import type {
   LaunchSettings,
   LaunchSettingsUpdate,
   NamedProfile,
+  OptimizationPreset,
   ProfileActivationPlan,
   ProfileList,
   RunStarted,
@@ -76,12 +77,12 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
 }
 
-export async function startGame(game: string): Promise<RunStarted> {
+export async function startGame(game: string, optimizationPreset: OptimizationPreset): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));
     return { pid: 4242 };
   }
-  return invoke<RunStarted>("start_game", { game });
+  return invoke<RunStarted>("start_game", { game, optimizationPreset });
 }
 
 export async function getCache(game: string): Promise<CacheSnapshot> {

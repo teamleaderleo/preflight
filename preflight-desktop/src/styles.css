@@ -1237,6 +1237,35 @@ h2 {
   padding: 24px;
 }
 
+.optimization-card {
+  padding: 24px;
+}
+
+.optimization-card__saved,
+.optimization-card__note {
+  color: var(--ink-soft);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.optimization-card__saved {
+  white-space: nowrap;
+}
+
+.optimization-card__note {
+  margin: 13px 2px 0;
+}
+
+.optimization-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.optimization-choices .choice-card {
+  margin-top: 0;
+}
+
 .choice-card {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -1524,6 +1553,10 @@ footer {
   }
 
   .preset-row {
+    grid-template-columns: 1fr;
+  }
+
+  .optimization-choices {
     grid-template-columns: 1fr;
   }
 

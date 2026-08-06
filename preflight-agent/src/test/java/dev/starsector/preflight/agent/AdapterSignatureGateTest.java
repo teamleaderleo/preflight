@@ -283,6 +283,28 @@ class AdapterSignatureGateTest {
     }
 
     @Test
+    void portableStartupScopeKeepsStartupPlansAndOmitsGameplayAndModPlans() {
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withLoadJsonMemoTarget()
+                .withGraphicsLibCompactReplayTarget()
+                .withGraphicsLibInsigniaManagerCacheTarget()
+                .forScope(AdapterPlanScope.PORTABLE_STARTUP);
+
+        Set<String> plans = registry.targets().stream()
+                .map(AdapterTarget::planId)
+                .collect(java.util.stream.Collectors.toSet());
+        assertTrue(plans.contains(TexturePreparedPixelRuntime.PLAN_ID));
+        assertTrue(plans.contains(TexturePrefetchBypassPlan.PLAN_ID));
+        assertTrue(plans.contains(SourceHintIsolationRuntime.PLAN_ID));
+        assertTrue(plans.contains(LoadJsonMemoRuntime.PLAN_ID));
+        assertFalse(plans.contains(EntityLookupRuntime.PLAN_ID));
+        assertFalse(plans.contains(SimOpponentSafetyRuntime.PLAN_ID));
+        assertFalse(plans.contains(GraphicsLibCompactReplayPlan.PLAN_ID));
+        assertFalse(plans.contains(GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID));
+    }
+
+    @Test
     void diagnosticPlanFilterAlsoDisablesComposedRuntimeGates() {
         CampaignCallTimeRuntime.beginSession(true);
         CampaignEngineTimeRuntime.beginSession(true);

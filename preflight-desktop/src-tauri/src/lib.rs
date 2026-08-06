@@ -421,8 +421,10 @@ fn start_game(
     app: AppHandle,
     tracker: State<'_, ProcessTracker>,
     game: String,
+    optimization_preset: String,
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
+    let optimization_preset = validate_optimization_preset(&optimization_preset)?;
     let paths = EnginePaths::resolve(&app)?;
 
     let mut running = tracker
@@ -441,7 +443,8 @@ fn start_game(
     let mut command = paths.command();
     command
         .arg("run")
-        .arg("--fast")
+        .arg("--optimization-preset")
+        .arg(optimization_preset)
         .arg("--game")
         .arg(directory);
     command.stderr(Stdio::piped());
@@ -464,6 +467,13 @@ fn start_game(
 
     watch_child(app, child);
     Ok(RunStarted { pid })
+}
+
+fn validate_optimization_preset(value: &str) -> Result<&str, String> {
+    match value {
+        "recommended" | "conservative" | "off" => Ok(value),
+        _ => Err("Optimization preset must be recommended, conservative, or off.".to_string()),
+    }
 }
 
 #[tauri::command]
@@ -656,7 +666,10 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{LaunchSettingsInput, diagnostic_output_path, read_tail, validate_launch_settings};
+    use super::{
+        LaunchSettingsInput, diagnostic_output_path, read_tail, validate_launch_settings,
+        validate_optimization_preset,
+    };
     use std::io::Cursor;
 
     #[test]
@@ -700,5 +713,20 @@ mod tests {
             ..valid
         };
         assert!(validate_launch_settings(&invalid).is_err());
+    }
+
+    #[test]
+    fn optimization_presets_are_a_closed_product_contract() {
+        assert_eq!(
+            "recommended",
+            validate_optimization_preset("recommended").unwrap()
+        );
+        assert_eq!(
+            "conservative",
+            validate_optimization_preset("conservative").unwrap()
+        );
+        assert_eq!("off", validate_optimization_preset("off").unwrap());
+        assert!(validate_optimization_preset("custom").is_err());
+        assert!(validate_optimization_preset("recommended --no-adapter").is_err());
     }
 }

@@ -35,6 +35,9 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   await user.click(screen.getByRole("button", { name: "Launch" }));
 
   expect(await screen.findByText("Starsector launch settings")).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: "Recommended optimizations" })).toBeChecked();
+  await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
+  expect(screen.getByRole("radio", { name: "Conservative optimizations" })).toBeChecked();
   expect(screen.getByLabelText("Resolution")).toHaveValue("1440x932");
   expect(screen.getByLabelText("Fullscreen")).not.toBeChecked();
   expect(screen.getByLabelText("Sound")).toBeChecked();

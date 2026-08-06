@@ -35,6 +35,7 @@ import type {
   DiagnosticsExport,
   LaunchSettings,
   LaunchSettingsUpdate,
+  OptimizationPreset,
   PreparationStateEvent,
   ProfileActivationPlan,
   ProfileList,
@@ -43,6 +44,42 @@ import type {
 
 type Page = "home" | "launch" | "prepare" | "profiles" | "settings";
 type TextureStorage = "balanced" | "fastest";
+
+const optimizationPresets: Array<{
+  id: OptimizationPreset;
+  label: string;
+  description: string;
+  badge: string;
+}> = [
+  {
+    id: "recommended",
+    label: "Recommended",
+    description: "Every live-gated startup and gameplay improvement, including true-size textures.",
+    badge: "Default",
+  },
+  {
+    id: "conservative",
+    label: "Conservative",
+    description: "Portable startup caches with padded textures; no gameplay or mod-specific plans.",
+    badge: "Fallback",
+  },
+  {
+    id: "off",
+    label: "Off",
+    description: "No transforms or profiling. Keep only the wrapper and bounded process report.",
+    badge: "Troubleshoot",
+  },
+];
+
+function savedOptimizationPreset(): OptimizationPreset {
+  try {
+    const saved = window.localStorage.getItem("preflight.optimizationPreset");
+    if (saved === "recommended" || saved === "conservative" || saved === "off") return saved;
+  } catch {
+    // A locked-down webview may deny storage; the safe product default still applies.
+  }
+  return "recommended";
+}
 
 const resourcePresets = {
   gentle: { workers: 2, memoryMib: 128, label: "Gentle" },
@@ -92,6 +129,7 @@ export default function App() {
   const [preparing, setPreparing] = useState(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
+  const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
   const [profiles, setProfiles] = useState<ProfileList | null>(null);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profileName, setProfileName] = useState("");
@@ -120,6 +158,14 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("preflight.optimizationPreset", optimizationPreset);
+    } catch {
+      // Selection remains valid for this session when persistent storage is unavailable.
+    }
+  }, [optimizationPreset]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -234,7 +280,7 @@ export default function App() {
     setStatus("running");
     setMessage("Preflight is opening the hangar…");
     try {
-      await startGame(game);
+      await startGame(game, optimizationPreset);
       setMessage("Starsector is running. Preflight will keep the porch light on.");
     } catch (error) {
       setStatus("error");
@@ -544,6 +590,31 @@ export default function App() {
 
             {launcherDraft && launcherSettings ? (
               <>
+                <section className="card optimization-card">
+                  <div className="card__heading">
+                    <div>
+                      <p className="eyebrow">Optimization level</p>
+                      <h2>Choose the boundary, not individual patches</h2>
+                    </div>
+                    <span className="optimization-card__saved">Saved for future launches</span>
+                  </div>
+                  <div className="optimization-choices" role="radiogroup" aria-label="Optimization preset">
+                    {optimizationPresets.map((preset) => (
+                      <label className={`choice-card ${optimizationPreset === preset.id ? "choice-card--selected" : ""}`} key={preset.id}>
+                        <input
+                          type="radio"
+                          name="optimization-preset"
+                          aria-label={`${preset.label} optimizations`}
+                          checked={optimizationPreset === preset.id}
+                          onChange={() => setOptimizationPreset(preset.id)}
+                        />
+                        <span><strong>{preset.label}</strong><small>{preset.description}</small></span>
+                        <b>{preset.badge}</b>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="optimization-card__note">Every exact adapter still declines safely when the installed game or mod no longer matches its reviewed fingerprint.</p>
+                </section>
                 <div className="launch-settings-grid">
                   <section className="card launch-settings-card">
                     <div className="card__heading">

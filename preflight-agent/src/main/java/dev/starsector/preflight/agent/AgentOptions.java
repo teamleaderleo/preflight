@@ -14,6 +14,7 @@ record AgentOptions(
         Path destination,
         String settings,
         AdapterMode adapterMode,
+        AdapterPlanScope adapterPlanScope,
         Path adapterReport,
         Path adapterTargets,
         Path textureCacheDirectory,
@@ -86,6 +87,7 @@ record AgentOptions(
         }
         String settings = values.getOrDefault("settings", "profile");
         AdapterMode adapterMode = AdapterMode.parse(values.get("adapter"));
+        AdapterPlanScope adapterPlanScope = AdapterPlanScope.parse(values.get("planScope"));
         Path adapterReport = decodedPath(values, "adapterReport64");
         if (adapterReport == null) {
             adapterReport = destination.resolveSibling("adapter.json");
@@ -144,6 +146,7 @@ record AgentOptions(
                 destination,
                 settings,
                 adapterMode,
+                adapterPlanScope,
                 adapterReport,
                 adapterTargets,
                 textureCacheDirectory,

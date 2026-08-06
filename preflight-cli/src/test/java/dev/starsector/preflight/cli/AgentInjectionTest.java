@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
@@ -23,7 +24,21 @@ class AgentInjectionTest {
         assertEquals(1, occurrences(value, "-javaagent:"));
         assertTrue(value.contains("dest64="));
         assertTrue(value.contains("adapter=off"));
+        assertTrue(value.contains("planScope=full"));
         assertTrue(value.contains("textureMode=compatibility"));
+    }
+
+    @Test
+    void carriesTheEngineOwnedPlanScopeWithoutExposingPlanIds() {
+        String value = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null,
+                TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF, false, false,
+                false, false, false, null, null, null, null, null, false, null,
+                false, false, null, null, null, null, null, false, false, null, null,
+                false, AdapterPlanScope.PORTABLE_STARTUP);
+
+        assertTrue(value.contains("planScope=portable-startup"), value);
     }
 
     @Test

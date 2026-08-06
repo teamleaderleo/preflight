@@ -1156,7 +1156,8 @@ hardening is not claimed as another win. See
 The narrow Tauri host from the old unmerged #228 branch has now been recovered against the current
 engine. React tests/build, Rust tests, the minimal `jlink` engine bundle, its live snapshot request,
 and an optimized native build all pass. The host resolves only the bundled JAR/runtime,
-bounds child stderr, launches `run --fast`, and exposes narrow installation, cache, preparation, and
+bounds child stderr, launches one of the typed `recommended|conservative|off` optimization presets,
+and exposes narrow installation, cache, preparation, and
 named-profile commands rather than arbitrary shell access. Native bundling and the three-platform
 CI matrix are restored with regenerated vector-derived icons; the packages remain explicitly
 unsigned beta artifacts until Windows signing and Apple signing/notarization credentials exist. The

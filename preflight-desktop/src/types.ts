@@ -28,6 +28,8 @@ export interface RunStarted {
   pid: number;
 }
 
+export type OptimizationPreset = "recommended" | "conservative" | "off";
+
 export interface DiagnosticsExport {
   format: "starsector-preflight-diagnostics-export-v1";
   output: string;

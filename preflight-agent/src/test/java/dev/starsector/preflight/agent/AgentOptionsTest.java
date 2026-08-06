@@ -19,6 +19,7 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/startup.jfr"), options.destination());
         assertEquals("default", options.settings());
         assertEquals(AdapterMode.OFF, options.adapterMode());
+        assertEquals(AdapterPlanScope.FULL, options.adapterPlanScope());
         assertEquals(Path.of("build/adapter.json"), options.adapterReport());
         assertNull(options.adapterTargets());
         assertNull(options.textureCacheDirectory());
@@ -59,6 +60,16 @@ class AgentOptionsTest {
 
         assertEquals(AdapterMode.ENABLED, options.adapterMode());
         assertTrue(options.candidatePrefixes().isEmpty());
+    }
+
+    @Test
+    void parsesEngineOwnedPlanScopesAndRejectsUnknownScopes() {
+        assertEquals(
+                AdapterPlanScope.PORTABLE_STARTUP,
+                AgentOptions.parse("adapter=enabled,planScope=portable-startup").adapterPlanScope());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentOptions.parse("adapter=enabled,planScope=probably-safe"));
     }
 
     @Test

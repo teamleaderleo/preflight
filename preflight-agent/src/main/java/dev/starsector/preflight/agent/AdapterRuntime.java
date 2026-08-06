@@ -267,6 +267,12 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the compiled exact TextureLoader "
                         + options.textureAdapterMode().optionValue() + " target");
             }
+            int beforeScope = registry.targets().size();
+            registry = registry.forScope(options.adapterPlanScope());
+            if (registry.targets().size() != beforeScope) {
+                report.diagnostic("Adapter plan scope " + options.adapterPlanScope().optionValue()
+                        + " omitted " + (beforeScope - registry.targets().size()) + " target(s)");
+            }
             Set<String> disabledPlans = disabledPlans(System.getProperties());
             if (!disabledPlans.isEmpty()) {
                 applyDisabledDiagnosticRuntimeGates(disabledPlans);

@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.DeploymentIconCacheRuntime;
 import dev.starsector.preflight.agent.CommodityEventModMemoRuntime;
 import dev.starsector.preflight.agent.EntityLookupRuntime;
@@ -723,6 +724,59 @@ final class AgentInjection {
             Path janinoBytecodeCache,
             String janinoBytecodeContext,
             boolean graphicsLibInsigniaManagerCache) {
+        return append(
+                existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, preparedAudioManifest, preparedAudioManifestIdentity,
+                mergedReadCache, quietLogs, graphicsLibCompactReplay, janinoBytecodeCache,
+                janinoBytecodeContext, graphicsLibInsigniaManagerCache, AdapterPlanScope.FULL);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path preparedAudioManifest,
+            String preparedAudioManifestIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay,
+            Path janinoBytecodeCache,
+            String janinoBytecodeContext,
+            boolean graphicsLibInsigniaManagerCache,
+            AdapterPlanScope adapterPlanScope) {
+        if (adapterPlanScope == null) {
+            throw new IllegalArgumentException("Adapter plan scope is required");
+        }
         if ((janinoBytecodeCache == null) != (janinoBytecodeContext == null)) {
             throw new IllegalArgumentException(
                     "Janino bytecode cache and compilation context must be supplied together");
@@ -795,6 +849,8 @@ final class AgentInjection {
                 .append(encodedPath(destination))
                 .append(",adapter=")
                 .append(adapterMode.optionValue())
+                .append(",planScope=")
+                .append(adapterPlanScope.optionValue())
                 .append(",textureMode=")
                 .append(textureAdapterMode.optionValue());
         appendPath(arguments, "adapterReport64", adapterReport);

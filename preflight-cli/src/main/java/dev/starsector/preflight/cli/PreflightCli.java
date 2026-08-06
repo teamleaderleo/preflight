@@ -180,13 +180,18 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--direct] [--fast] [--file-only-logs | --quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index | --no-campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--direct] [--optimization-preset recommended|conservative|off | --fast] [--file-only-logs | --quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index | --no-campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
                 "    --direct starts Starsector through its own launchDirect path without showing the"
                         + " launcher. Resolution, fullscreen and sound come from the launcher's saved"
                         + " preferences; the run fails closed if those settings are unavailable or unsafe.",
-                "    --fast enables every startup and gameplay cache that has passed its live gate,"
-                        + " disables profiling and duplicate-console overhead, and leaves each exact adapter fail-closed."
-                        + " Installed Preflight launchers use this preset by default.",
+                "    --optimization-preset recommended enables every startup and gameplay cache"
+                        + " that has passed its live gate, disables profiling and duplicate-console"
+                        + " overhead, and leaves each exact adapter fail-closed. --fast is its"
+                        + " backwards-compatible alias and installed Preflight launchers use it by default.",
+                "    --optimization-preset conservative keeps the portable startup caches and"
+                        + " padded texture allocation, but omits gameplay and mod-specific plans."
+                        + " off retains the wrapper and process report without transforms, scanning,"
+                        + " summaries, or profiling. Later explicit raw options are for diagnostics.",
                 "    --suppress-asset-progress-logs removes only the reviewed vanilla per-file"
                         + " weapon, projectile, hull, and variant INFO messages. Errors, warnings,"
                         + " and phase summaries remain; it is included by --fast and can be"

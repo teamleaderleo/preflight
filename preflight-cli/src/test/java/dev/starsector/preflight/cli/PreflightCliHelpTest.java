@@ -61,7 +61,9 @@ class PreflightCliHelpTest {
     void runHelpSeparatesCrashSafeFileOnlyLogsFromBufferedQuietLogs() throws Exception {
         String output = capture(new String[] {"run", "--help"}).standardOutput();
 
-        assertTrue(output.contains("--fast enables every startup and gameplay cache"), output);
+        assertTrue(output.contains("--optimization-preset recommended"), output);
+        assertTrue(output.contains("--fast is its backwards-compatible alias"), output);
+        assertTrue(output.contains("--optimization-preset conservative"), output);
         assertTrue(output.contains("--file-only-logs"), output);
         assertTrue(output.contains("--quiet-logs"), output);
         assertTrue(output.contains("about 0.40s"), output);

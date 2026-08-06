@@ -18,6 +18,9 @@ npm run desktop:dev
 Tauri. To work only on visual design, use `npm run dev`; it supplies a clearly marked preview
 snapshot and does not launch anything.
 
+Tauri development uses the configured Vite dev server: React and CSS changes hot-reload in the
+webview, while Rust host changes rebuild and restart the native process.
+
 ## Build an installer
 
 ```bash
@@ -44,8 +47,9 @@ into CI and verified on a tagged release.
   launch-setting updates, preview-first named-profile save/activation, and tracked game/preparation
   starts. It cannot execute arbitrary frontend input.
 - The folder picker is the only frontend capability beyond Tauri's core defaults.
-- The host starts `preflight run --fast`, refuses a second tracked instance, and reports the bounded
-  tail of a failed child process.
+- The host starts `preflight run --optimization-preset <recommended|conservative|off>`, validates
+  that closed set before creating a process, refuses a second tracked instance, and reports the
+  bounded tail of a failed child process.
 - The only user-selected write outside Preflight's own directories is a `.zip` chosen through the
   native save dialog. The Java engine fills it from its bounded diagnostics allowlist; the frontend
   cannot choose source files or add arbitrary content.

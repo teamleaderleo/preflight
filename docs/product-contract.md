@@ -7,8 +7,9 @@
 
 The CLI and desktop application call the same Java engine. The desktop host has a fixed set of
 typed commands; it is not an arbitrary shell. Normal acceleration starts Starsector through
-`preflight run --fast`, which wraps the selected existing launcher and adds the in-memory Java
-agent. The game installation, launcher script, mod archives, and saves are not rewritten.
+`preflight run --optimization-preset recommended` (with `--fast` retained as its compatibility
+alias), which wraps the selected existing launcher and adds the in-memory Java agent. The game
+installation, launcher script, mod archives, and saves are not rewritten.
 
 Preflight cannot accelerate a process it did not start. Users can launch through:
 
@@ -77,10 +78,11 @@ advanced feature and is not silently bundled into the ordinary slider.
 
 ## Cache controls UX
 
-The primary control should be a preset, not a wall of bytecode-plan names:
+The primary control is a preset, not a wall of bytecode-plan names. The CLI, desktop host, and agent
+now carry one typed choice end to end:
 
-- **Recommended (default):** every optimization that passed its live correctness gate; currently
-  the behavior of `--fast`.
+- **Recommended (default):** every optimization that passed its live correctness gate; exactly the
+  behavior of `--fast`.
 - **Conservative:** broadly applicable, immutable-input startup caches only; omit mod-specific and
   gameplay-runtime shortcuts.
 - **Off / troubleshooting:** no adapter transformations and no profiling recorder overhead. The
@@ -129,3 +131,8 @@ Operational defaults should include a small maximum object size, private bucket,
 no public object URLs, least-privilege intake credentials, deletion by case ID, and a visible privacy
 statement. Server-side processing must treat ZIPs and JSON as hostile input despite the client-side
 allowlist.
+
+Cloudflare's own Worker Logs cover request, custom, and exception logs inside the intake service;
+they do not replace desktop consent, disclosure, redaction, bundle construction, or the separate
+choice to upload a report. A later automatic-crash option must therefore be its own remembered,
+default-off consent toggle rather than a side effect of enabling server observability.

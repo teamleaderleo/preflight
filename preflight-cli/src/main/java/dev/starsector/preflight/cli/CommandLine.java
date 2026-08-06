@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
@@ -14,6 +15,8 @@ record CommandLine(
         boolean dryRun,
         boolean summarize,
         boolean scan,
+        OptimizationPreset optimizationPreset,
+        AdapterPlanScope adapterPlanScope,
         AdapterMode adapterMode,
         Path adapterTargets,
         Path textureCacheDirectory,
@@ -49,6 +52,8 @@ record CommandLine(
         boolean dryRun = false;
         boolean summarize = true;
         boolean scan = true;
+        OptimizationPreset optimizationPreset = OptimizationPreset.CUSTOM;
+        AdapterPlanScope adapterPlanScope = AdapterPlanScope.FULL;
         boolean exhaustiveFileReads = false;
         RecordingMode recordingMode = RecordingMode.FULL;
         boolean singleChunkRecording = false;
@@ -81,6 +86,39 @@ record CommandLine(
         List<String> forwarded = new ArrayList<>();
         for (int i = offset; i < args.length; i++) {
             String arg = args[i];
+            if ("--fast".equals(arg) || "--optimization-preset".equals(arg)) {
+                optimizationPreset = "--fast".equals(arg)
+                        ? OptimizationPreset.RECOMMENDED
+                        : OptimizationPreset.parse(requireValue(args, ++i, arg));
+                PresetConfiguration preset = PresetConfiguration.forPreset(optimizationPreset);
+                summarize = preset.summarize();
+                scan = preset.scan();
+                adapterMode = preset.adapterMode();
+                adapterPlanScope = preset.adapterPlanScope();
+                textureAuto = preset.textureAuto();
+                textureAdapterMode = preset.textureAdapterMode();
+                textureModeSpecified = preset.textureAuto();
+                exhaustiveFileReads = preset.exhaustiveFileReads();
+                recordingMode = preset.recordingMode();
+                singleChunkRecording = preset.singleChunkRecording();
+                npotDirect = preset.npotDirect();
+                unpadded = preset.unpadded();
+                campaignEntityIndex = preset.campaignEntityIndex();
+                startupPhaseProbe = preset.startupPhaseProbe();
+                ruleTokenCache = preset.ruleTokenCache();
+                resourceProbeCache = preset.resourceProbeCache();
+                preparedAudio = preset.preparedAudio();
+                loadJsonMemo = preset.loadJsonMemo();
+                ruleCommandClassCache = preset.ruleCommandClassCache();
+                graphicsLibCompactReplay = preset.graphicsLibCompactReplay();
+                janinoBytecodeCache = preset.janinoBytecodeCache();
+                graphicsLibInsigniaManagerCache = preset.graphicsLibInsigniaManagerCache();
+                fileOnlyLogs = preset.fileOnlyLogs();
+                quietLogs = preset.quietLogs();
+                suppressAssetProgressLogs = preset.suppressAssetProgressLogs();
+                trustValidatedTextureIndex = preset.trustValidatedTextureIndex();
+                continue;
+            }
             switch (arg) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, arg));
                 case "--launcher" -> launcher = Path.of(requireValue(args, ++i, arg));
@@ -132,32 +170,6 @@ record CommandLine(
                 case "--full-asset-progress-logs" -> suppressAssetProgressLogs = false;
                 case "--trust-validated-texture-index" -> trustValidatedTextureIndex = true;
                 case "--recheck-texture-sources" -> trustValidatedTextureIndex = false;
-                // One flag for everything that has landed and is safe to turn on. Experimental
-                // adapters stay individually addressable for isolated pilots, but do not belong in
-                // the normal launch path until live runs have established their correctness.
-                case "--fast" -> {
-                    adapterMode = AdapterMode.ENABLED;
-                    textureAuto = true;
-                    textureAdapterMode = TextureAdapterMode.PREPARED_PIXELS;
-                    textureModeSpecified = true;
-                    // The true-size path passed a full live load with the allocation/buffer
-                    // invariant composed and fail-closed. It removes the power-of-two padding
-                    // entirely; coherent-direct keeps the same padding while only bypassing the
-                    // decoder, so it is now the explicit conservative alternative.
-                    unpadded = true;
-                    campaignEntityIndex = true;
-                    ruleTokenCache = true;
-                    ruleCommandClassCache = true;
-                    preparedAudio = true;
-                    loadJsonMemo = true;
-                    graphicsLibCompactReplay = true;
-                    janinoBytecodeCache = true;
-                    graphicsLibInsigniaManagerCache = true;
-                    fileOnlyLogs = true;
-                    suppressAssetProgressLogs = true;
-                    trustValidatedTextureIndex = true;
-                    recordingMode = RecordingMode.OFF;
-                }
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -244,6 +256,13 @@ record CommandLine(
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
         }
+        if (adapterPlanScope == AdapterPlanScope.PORTABLE_STARTUP
+                && (campaignEntityIndex
+                        || graphicsLibCompactReplay
+                        || graphicsLibInsigniaManagerCache)) {
+            throw new IllegalArgumentException(
+                    "Gameplay and mod-specific options require the recommended preset or a custom launch");
+        }
         // --texture-auto and --texture-mode are independent: auto resolves which manifest and
         // index to use, the mode decides which TextureLoader target reads them. Both modes are
         // configured from the same TextureCompatibilityRuntime.configure call and the same SPFT
@@ -257,6 +276,8 @@ record CommandLine(
                 dryRun,
                 summarize,
                 scan,
+                optimizationPreset,
+                adapterPlanScope,
                 adapterMode,
                 adapterTargets,
                 textureCacheDirectory,
@@ -285,6 +306,58 @@ record CommandLine(
                 suppressAssetProgressLogs,
                 trustValidatedTextureIndex,
                 List.copyOf(forwarded));
+    }
+
+    private record PresetConfiguration(
+            boolean summarize,
+            boolean scan,
+            AdapterMode adapterMode,
+            AdapterPlanScope adapterPlanScope,
+            boolean textureAuto,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean singleChunkRecording,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            boolean ruleTokenCache,
+            boolean resourceProbeCache,
+            boolean preparedAudio,
+            boolean loadJsonMemo,
+            boolean ruleCommandClassCache,
+            boolean graphicsLibCompactReplay,
+            boolean janinoBytecodeCache,
+            boolean graphicsLibInsigniaManagerCache,
+            boolean fileOnlyLogs,
+            boolean quietLogs,
+            boolean suppressAssetProgressLogs,
+            boolean trustValidatedTextureIndex) {
+        static PresetConfiguration forPreset(OptimizationPreset preset) {
+            return switch (preset) {
+                case CUSTOM -> new PresetConfiguration(
+                        true, true, AdapterMode.OFF, preset.planScope(),
+                        false, TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL,
+                        false, false, false, false, false, false, false, false, false,
+                        false, false, false, false, false, false, false, false);
+                case RECOMMENDED -> new PresetConfiguration(
+                        true, true, AdapterMode.ENABLED, preset.planScope(),
+                        true, TextureAdapterMode.PREPARED_PIXELS, false, RecordingMode.OFF,
+                        false, false, true, true, false, true, false, true, true,
+                        true, true, true, true, true, false, true, true);
+                case CONSERVATIVE -> new PresetConfiguration(
+                        true, true, AdapterMode.ENABLED, preset.planScope(),
+                        true, TextureAdapterMode.PREPARED_PIXELS, false, RecordingMode.OFF,
+                        false, true, false, false, false, true, false, true, true,
+                        true, false, true, false, true, false, true, true);
+                case OFF -> new PresetConfiguration(
+                        false, false, AdapterMode.OFF, preset.planScope(),
+                        false, TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF,
+                        false, false, false, false, false, false, false, false, false,
+                        false, false, false, false, false, false, false, false);
+            };
+        }
     }
 
     private static AdapterMode chooseAdapterMode(
