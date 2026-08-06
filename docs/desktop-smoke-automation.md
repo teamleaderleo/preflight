@@ -86,9 +86,19 @@ code.
 
 ## Current macOS status
 
-Peekaboo 3.9.7 is installed and suitable for a first development driver. The 2026-08-06 capability
-probe reports Screen Recording granted, but Accessibility and event synthesis remain denied. That
-is sufficient for observation and screenshot development, not deterministic click/key execution.
-Granting the remaining permissions is a security-sensitive OS setting, so the runner is not wired
-or exercised until the operator approves that change at the point of use. The scenario and evidence
-contracts require no such permission and are testable on every platform now.
+The Codex-native accessibility bridge can synthesize input, but the 2026-08-06 direct-launch probe
+found a targeting ambiguity that must be resolved before it can be a driver. The live game window is
+owned by Azul's generic `com.azul.zulu.java` process while Launch Services also registers the dormant
+`Starsector.app` bundle under the display name `Starsector`. Resolving the display name selects and
+launches the dormant bundle instead of attaching to the already-running direct JVM. That briefly
+created a second instance during the probe, so display-name targeting is prohibited.
+
+The gameplay pilot now watches continuously for a foreign Starsector JVM. If one appears after the
+pilot starts, the pilot aborts and terminates only the game process IDs it observed as descendants of
+its own wrapper. This contains the duplicate-instance failure but does not make UI targeting safe.
+
+Peekaboo 3.9.7 separately reports Screen Recording granted, with Accessibility and event synthesis
+denied. It remains suitable for observation and screenshot development, not deterministic click/key
+execution. A macOS driver is therefore `skipped`, not `failed`, until it can address the live direct
+JVM by process identity without launching an app. The scenario and evidence contracts require no OS
+permission and remain testable on every platform.

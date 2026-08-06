@@ -16,7 +16,8 @@ The installation, mods, saves, launcher, and VM parameter files remain unchanged
 
 ## Pipeline
 
-The default command runs:
+The default command starts the independent census, resource-index, and classpath-index stages
+together, joins them before their dependants, and then runs:
 
 1. enabled-profile census
 2. loose-resource provider index build or artifact reuse
@@ -51,6 +52,11 @@ java -jar preflight.jar prepare \
 ```
 
 `--deep` rehashes source JARs during classpath validation. The texture memory budget applies to concurrent image decoding, conversion, blob reads, and writes.
+
+Opening-stage overlap is bounded to two helper threads in addition to the calling thread; texture
+decoding does not begin until those jobs have joined. Use `--serial-stages` (or
+`-Dpreflight.prepare.parallel=false`) as a diagnostic kill switch. `--parallel-stages` overrides a
+disabled system property for one command.
 
 Individual stages may be disabled:
 

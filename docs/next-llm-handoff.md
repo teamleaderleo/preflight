@@ -1147,12 +1147,14 @@ and 122.1MB AppImage. The AppImage's portability bundle includes GTK/WebKit and 
 prefer Debian where it applies, and do not remove the duplicate without a custom post-linuxdeploy
 AppDir pipeline because the tool also rewrites runtime ELF paths. See
 `docs/evidence/2026-08-06-desktop-distribution-matrix.md`. The
-installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
-`see`, click, key, wait, and screenshot scenarios. Screen Recording is now granted; Accessibility
-and event synthesis remain denied, so observation is available but deterministic input is not. Use
-it as a development driver after the operator approves those remaining permissions; keep adapter
-telemetry and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
-format should remain driver-neutral so Windows and Linux implementations can follow.
+installed Peekaboo 3.9.7 tool can provide macOS PID/window-targeted observation. Screen Recording is
+granted; its own Accessibility and event synthesis permissions remain denied. Codex's separate
+native accessibility bridge can synthesize input, but cannot safely target the direct-launched JVM:
+the live window is `com.azul.zulu.java`, while resolving the duplicate `Starsector` display name
+selects and launches the dormant app bundle. That produced a second instance once; do not repeat
+display-name resolution. The gameplay pilot now detects a foreign Starsector JVM after launch,
+aborts, and terminates only its remembered wrapper descendants. Keep adapter telemetry and logs
+authoritative, with screenshots/audio supplementary. The shippable scenario stays driver-neutral.
 
 That driver-neutral contract now exists as `starsector-preflight-smoke-v1`, with strict
 unknown-field, enum, duration, duplicate-step, and target validation behind the hidden
@@ -1162,8 +1164,18 @@ captures screenshot/log/adapter/frame evidence, and quits. The normalized scenar
 driver capabilities; no coordinate, PID, window title, OCR phrase, or accessibility index enters
 scenario identity. `docs/desktop-smoke-automation.md` defines the matching
 `starsector-preflight-smoke-evidence-v1` result, authoritative telemetry boundary, single-process
-ownership, and failed-versus-skipped semantics. The Peekaboo driver itself remains unwired until the
-operator approves the required macOS permissions at action time.
+ownership, and failed-versus-skipped semantics. The macOS driver itself remains unwired until it can
+address the live direct JVM by process identity without asking Launch Services to resolve or launch
+an app.
+
+Offline preparation now follows the first safe part of its measured dependency graph. Census and
+classpath work use two bounded helper threads while the caller builds the independent resource
+index; all three join before SpecStore identity and before the texture worker pool begins. In three
+alternating real 83-mod pairs, the two steady reversed comparisons moved 10.103 -> 9.183s (-9.10%)
+and 10.268 -> 9.309s (-9.34%). All six runs succeeded with identical resource, classpath,
+SpecStore, and texture-manifest identities. The bounded schedule is the default; use
+`--serial-stages` or `-Dpreflight.prepare.parallel=false` as the permanent kill switch. See
+`docs/evidence/2026-08-06-preparation-dependency-graph.md`.
 
 Core caches and preparation are platform-independent and synthetic/exact-cache tests already run
 on Windows, macOS, and Linux. Exact adapters fail open on byte/source/loader drift, but obfuscated

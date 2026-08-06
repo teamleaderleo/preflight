@@ -247,7 +247,7 @@ public final class PreflightCli {
                         + " icon cache and per-commodity event-mod memo use the same gameplay-cache"
                         + " switch; --fast enables all three."));
         usage.put("prepare", List.of(
-                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
+                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--parallel-stages|--serial-stages] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
                 "  balanced (default) uses exact lossless LZ4 except where compression saves under"
                         + " 23.1%; fastest stores every upload-ready pixel array raw"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));

@@ -50,6 +50,8 @@ JAR="$PWD/preflight-cli/target/preflight.jar"
 PREFLIGHT_STATE_ROOT="${STARSECTOR_PREFLIGHT_HOME:-$HOME/.starsector-preflight}"
 OUT="$PREFLIGHT_STATE_ROOT/runs/$LABEL-$(date +%Y%m%d-%H%M%S)"
 WRAPPER_PID=""
+DUPLICATE_WATCHER_PID=""
+OWNED_PID_FILE="$OUT/owned-game-pids"
 
 game_pids() {
     local resolved pid cwd
@@ -61,19 +63,81 @@ game_pids() {
     done | sort -u
 }
 
+is_descendant_of() {
+    local pid="$1" ancestor="$2" parent
+    while [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 1 ]]; do
+        [[ "$pid" == "$ancestor" ]] && return 0
+        parent="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')"
+        [[ -n "$parent" && "$parent" != "$pid" ]] || break
+        pid="$parent"
+    done
+    return 1
+}
+
+owned_game_pids() {
+    local pid
+    [[ -n "$WRAPPER_PID" ]] || return 0
+    while read -r pid; do
+        [[ -n "$pid" ]] || continue
+        is_descendant_of "$pid" "$WRAPPER_PID" && echo "$pid"
+    done < <(game_pids)
+}
+
+foreign_game_pids() {
+    local pid
+    while read -r pid; do
+        [[ -n "$pid" ]] || continue
+        if [[ -z "$WRAPPER_PID" ]] || ! is_descendant_of "$pid" "$WRAPPER_PID"; then
+            echo "$pid"
+        fi
+    done < <(game_pids)
+}
+
+remember_owned_game_pids() {
+    local temporary="$OWNED_PID_FILE.tmp"
+    owned_game_pids >"$temporary"
+    mv "$temporary" "$OWNED_PID_FILE"
+}
+
+remembered_owned_game_pids() {
+    local live pid
+    [[ -f "$OWNED_PID_FILE" ]] || return 0
+    live="$(game_pids)"
+    while read -r pid; do
+        [[ -n "$pid" ]] || continue
+        grep -qx "$pid" <<<"$live" && echo "$pid"
+    done <"$OWNED_PID_FILE"
+}
+
+watch_for_second_instance() {
+    local pids
+    while kill -0 "$WRAPPER_PID" 2>/dev/null; do
+        remember_owned_game_pids
+        pids="$(foreign_game_pids)"
+        if [[ -n "$pids" ]]; then
+            echo "A second Starsector instance appeared (foreign pids: $(echo "$pids" | tr '\n' ' '))." >&2
+            echo "Stopping only this pilot's owned process tree." >&2
+            kill -TERM "$WRAPPER_PID" 2>/dev/null || true
+            return
+        fi
+        sleep 1
+    done
+}
+
 cleanup() {
     local status=$? pids
-    pids="$(game_pids)"
+    [[ -n "$DUPLICATE_WATCHER_PID" ]] && kill -TERM "$DUPLICATE_WATCHER_PID" 2>/dev/null || true
+    pids="$({ owned_game_pids; remembered_owned_game_pids; } | sort -u)"
     if [[ -n "$pids" ]]; then
-        echo "Stopping Starsector so the recording and reports flush..."
+        echo "Stopping the pilot-owned Starsector process so the recording and reports flush..."
         echo "$pids" | xargs -r kill -TERM 2>/dev/null || true
         for _ in $(seq 1 15); do
-            [[ -z "$(game_pids)" ]] && break
+            [[ -z "$({ owned_game_pids; remembered_owned_game_pids; } | sort -u)" ]] && break
             sleep 1
         done
-        pids="$(game_pids)"
+        pids="$({ owned_game_pids; remembered_owned_game_pids; } | sort -u)"
         if [[ -n "$pids" ]]; then
-            echo "Starsector did not stop after 15 seconds; forcing shutdown." >&2
+            echo "The pilot-owned Starsector process did not stop after 15 seconds; forcing shutdown." >&2
             echo "$pids" | xargs -r kill -9 2>/dev/null || true
         fi
     fi
@@ -174,16 +238,20 @@ fi
 java -jar "$JAR" "${RUN_ARGS[@]}" \
     >"$OUT/wrapper.log" 2>&1 &
 WRAPPER_PID=$!
+watch_for_second_instance &
+DUPLICATE_WATCHER_PID=$!
 
 set +e
 wait "$WRAPPER_PID"
 PILOT_STATUS=$?
 set -e
-WRAPPER_PID=""
+kill -TERM "$DUPLICATE_WATCHER_PID" 2>/dev/null || true
+DUPLICATE_WATCHER_PID=""
 
 # A normal game exit leaves no process. If a launcher/wrapper failed while its child survived,
 # cleanup still owns that child rather than leaking several gigabytes and a GPU context.
 cleanup
+WRAPPER_PID=""
 trap - EXIT INT TERM
 
 echo

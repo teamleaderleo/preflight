@@ -20,6 +20,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Runs every renderer-independent preparation stage and writes one atomic report. */
 final class PrepareCommand {
@@ -62,17 +65,26 @@ final class PrepareCommand {
         Path specStoreProfilePath = null;
         boolean allEnabledStagesSuccessful = true;
 
-        stageStarted("census");
-        Stage census = runStage("census", () -> {
-            ProfileCensus.Result result = ProfileCensus.scan(target.installRoot());
-            Map<String, Object> output = new LinkedHashMap<>();
-            output.put("profile", result.values());
-            return Stage.success(output);
-        });
-        stageCompleted("census", census);
-        stages.put("census", census.toMap());
-        allEnabledStagesSuccessful &= census.successful();
-        diagnostics.addAll(census.diagnostics());
+        ExecutorService openingStageExecutor = null;
+        CompletableFuture<Stage> censusFuture = null;
+        CompletableFuture<ClasspathStageResult> classpathFuture = null;
+        Stage census = null;
+        ClasspathStageResult classpathResult = null;
+        if (options.parallelStages()) {
+            openingStageExecutor = Executors.newFixedThreadPool(2, runnable -> {
+                Thread thread = new Thread(runnable, "preflight-prepare-opening-stage");
+                thread.setDaemon(true);
+                return thread;
+            });
+            censusFuture = CompletableFuture.supplyAsync(
+                    () -> runReportedStage("census", () -> prepareCensus(target.installRoot())),
+                    openingStageExecutor);
+            classpathFuture = CompletableFuture.supplyAsync(
+                    () -> runReportedClasspathStage(target.installRoot(), cache, options),
+                    openingStageExecutor);
+        } else {
+            census = runReportedStage("census", () -> prepareCensus(target.installRoot()));
+        }
 
         stageStarted("resource-index");
         Stage resourceStage;
@@ -126,48 +138,26 @@ final class PrepareCommand {
             resourceStage = Stage.skipped("Disabled by --no-resource-index");
         }
         stageCompleted("resource-index", resourceStage);
+        if (options.parallelStages()) {
+            try {
+                census = censusFuture.join();
+                classpathResult = classpathFuture.join();
+            } finally {
+                openingStageExecutor.shutdown();
+            }
+        } else {
+            classpathResult = runReportedClasspathStage(target.installRoot(), cache, options);
+        }
+        Stage classpathStage = classpathResult.stage();
+        classpathIndex = classpathResult.index();
+        classpathIndexPath = classpathResult.path();
+
+        stages.put("census", census.toMap());
+        allEnabledStagesSuccessful &= census.successful();
+        diagnostics.addAll(census.diagnostics());
         stages.put("resourceIndex", resourceStage.toMap());
         allEnabledStagesSuccessful &= resourceStage.successful();
         diagnostics.addAll(resourceStage.diagnostics());
-
-        stageStarted("classpath-index");
-        Stage classpathStage;
-        if (options.classpath()) {
-            try {
-                long stageStarted = System.nanoTime();
-                ClasspathIndexBuilder.Result built = ClasspathIndexBuilder.build(target.installRoot(), cache);
-                ClasspathIndexBuilder.Validation validation = ClasspathIndexBuilder.validate(
-                        built.profile(), cache, options.deep());
-                Map<String, Object> details = new LinkedHashMap<>();
-                details.put("file", built.profilePath());
-                details.put("profileHit", built.profileHit());
-                details.put("profileWritten", built.profileWritten());
-                details.put("profileFingerprint", built.profile().profileFingerprint());
-                details.put("archiveCount", built.profile().archives().size());
-                details.put("entryCount", built.profile().entryCount());
-                details.put("providerCount", built.profile().providerCount());
-                details.put("archiveHits", built.archiveHits());
-                details.put("archiveBuilds", built.archiveBuilds());
-                details.put("quarantinedIndexes", built.quarantinedIndexes());
-                details.put("failedArchives", built.failedArchives());
-                details.put("buildDiagnostics", built.diagnostics());
-                details.put("valid", validation.valid());
-                details.put("deepValidation", validation.deep());
-                details.put("checkedArchives", validation.checkedArchives());
-                details.put("checkedEntries", validation.checkedEntries());
-                details.put("validationProblems", validation.problems());
-                classpathStage = validation.valid() && built.failedArchives() == 0
-                        ? Stage.success(details, System.nanoTime() - stageStarted)
-                        : Stage.failed(details, List.of("Classpath index preparation or validation failed"), System.nanoTime() - stageStarted);
-                classpathIndex = built.profile();
-                classpathIndexPath = built.profilePath().toAbsolutePath().normalize();
-            } catch (Exception error) {
-                classpathStage = Stage.failed(error);
-            }
-        } else {
-            classpathStage = Stage.skipped("Disabled by --no-classpath");
-        }
-        stageCompleted("classpath-index", classpathStage);
         stages.put("classpathIndex", classpathStage.toMap());
         allEnabledStagesSuccessful &= classpathStage.successful();
         diagnostics.addAll(classpathStage.diagnostics());
@@ -346,6 +336,73 @@ final class PrepareCommand {
         return allEnabledStagesSuccessful ? 0 : 5;
     }
 
+    private static Stage prepareCensus(Path installRoot) throws IOException {
+        ProfileCensus.Result result = ProfileCensus.scan(installRoot);
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("profile", result.values());
+        return Stage.success(output);
+    }
+
+    private static Stage runReportedStage(String name, StageOperation operation) {
+        stageStarted(name);
+        Stage stage = runStage(name, operation);
+        stageCompleted(name, stage);
+        return stage;
+    }
+
+    private static ClasspathStageResult runReportedClasspathStage(
+            Path installRoot,
+            Path cache,
+            Options options) {
+        stageStarted("classpath-index");
+        ClasspathStageResult result = prepareClasspath(installRoot, cache, options);
+        stageCompleted("classpath-index", result.stage());
+        return result;
+    }
+
+    private static ClasspathStageResult prepareClasspath(Path installRoot, Path cache, Options options) {
+        if (!options.classpath()) {
+            return new ClasspathStageResult(
+                    Stage.skipped("Disabled by --no-classpath"), null, null);
+        }
+        try {
+            long started = System.nanoTime();
+            ClasspathIndexBuilder.Result built = ClasspathIndexBuilder.build(installRoot, cache);
+            ClasspathIndexBuilder.Validation validation = ClasspathIndexBuilder.validate(
+                    built.profile(), cache, options.deep());
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("file", built.profilePath());
+            details.put("profileHit", built.profileHit());
+            details.put("profileWritten", built.profileWritten());
+            details.put("profileFingerprint", built.profile().profileFingerprint());
+            details.put("archiveCount", built.profile().archives().size());
+            details.put("entryCount", built.profile().entryCount());
+            details.put("providerCount", built.profile().providerCount());
+            details.put("archiveHits", built.archiveHits());
+            details.put("archiveBuilds", built.archiveBuilds());
+            details.put("quarantinedIndexes", built.quarantinedIndexes());
+            details.put("failedArchives", built.failedArchives());
+            details.put("buildDiagnostics", built.diagnostics());
+            details.put("valid", validation.valid());
+            details.put("deepValidation", validation.deep());
+            details.put("checkedArchives", validation.checkedArchives());
+            details.put("checkedEntries", validation.checkedEntries());
+            details.put("validationProblems", validation.problems());
+            Stage stage = validation.valid() && built.failedArchives() == 0
+                    ? Stage.success(details, System.nanoTime() - started)
+                    : Stage.failed(
+                            details,
+                            List.of("Classpath index preparation or validation failed"),
+                            System.nanoTime() - started);
+            return new ClasspathStageResult(
+                    stage,
+                    built.profile(),
+                    built.profilePath().toAbsolutePath().normalize());
+        } catch (Exception error) {
+            return new ClasspathStageResult(Stage.failed(error), null, null);
+        }
+    }
+
     private static Stage runStage(String name, StageOperation operation) {
         long started = System.nanoTime();
         try {
@@ -414,6 +471,8 @@ final class PrepareCommand {
         boolean resourceIndex = true;
         boolean classpath = true;
         boolean textures = true;
+        boolean parallelStages = Boolean.parseBoolean(
+                System.getProperty("preflight.prepare.parallel", "true"));
         TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
@@ -430,6 +489,8 @@ final class PrepareCommand {
                 case "--no-resource-index" -> resourceIndex = false;
                 case "--no-classpath" -> classpath = false;
                 case "--no-textures" -> textures = false;
+                case "--parallel-stages" -> parallelStages = true;
+                case "--serial-stages" -> parallelStages = false;
                 case "--texture-storage" -> textureStorage =
                         TextureStoragePolicy.parse(requireValue(args, ++i, "--texture-storage"));
                 default -> throw new IllegalArgumentException("Unknown prepare option: " + args[i]);
@@ -446,7 +507,7 @@ final class PrepareCommand {
         }
         return new Options(
                 game, launcher, cache, report, workers, memoryMib, deep, verifyLookups,
-                lookupQueries, seed, resourceIndex, classpath, textures, textureStorage);
+                lookupQueries, seed, resourceIndex, classpath, textures, parallelStages, textureStorage);
     }
 
     private static String requireValue(String[] args, int index, String option) {
@@ -495,6 +556,7 @@ final class PrepareCommand {
             boolean resourceIndex,
             boolean classpath,
             boolean textures,
+            boolean parallelStages,
             TextureStoragePolicy textureStorage) {
         Map<String, Object> toMap() {
             Map<String, Object> values = new LinkedHashMap<>();
@@ -507,6 +569,7 @@ final class PrepareCommand {
             values.put("resourceIndex", resourceIndex);
             values.put("classpath", classpath);
             values.put("textures", textures);
+            values.put("parallelStages", parallelStages);
             values.put("textureStorage", textureStorage.optionValue());
             return values;
         }
@@ -562,5 +625,11 @@ final class PrepareCommand {
     @FunctionalInterface
     private interface StageOperation {
         Stage run() throws Exception;
+    }
+
+    private record ClasspathStageResult(
+            Stage stage,
+            ClasspathProfileIndex index,
+            Path path) {
     }
 }

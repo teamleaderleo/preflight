@@ -172,6 +172,9 @@ Prepare every reusable cache for the current profile:
 java -jar preflight.jar prepare
 ```
 
+Preparation overlaps its three independent opening scans by default. Use `--serial-stages` as a
+diagnostic fallback; game launch and all in-game work remain unaffected.
+
 Prepared textures have two exact, lossless storage policies. `balanced` is the default and
 compresses them with LZ4 to use substantially less disk, except where compression saves under 23.1%
 and raw storage is faster for nearly no space cost. It retains the same runtime pixels and fail-open

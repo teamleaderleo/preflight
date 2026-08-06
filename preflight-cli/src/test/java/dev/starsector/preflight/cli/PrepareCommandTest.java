@@ -33,6 +33,7 @@ class PrepareCommandTest {
                 "--report", report.toString(),
                 "--workers", "2",
                 "--memory-mb", "32",
+                "--parallel-stages",
                 "--deep",
                 "--verify-lookups",
                 "--lookup-queries", "250",
@@ -52,6 +53,7 @@ class PrepareCommandTest {
         assertTrue(first.contains("\"profileHit\":false"), first);
         assertTrue(first.contains("\"builtBlobs\":2"), first);
         assertTrue(first.contains("\"textureStorage\":\"balanced\""), first);
+        assertTrue(first.contains("\"parallelStages\":true"), first);
         assertTrue(first.contains("\"liveAdapterIntegrated\":true"), first);
         assertTrue(first.contains("\"liveAdapterEnabledByPreparation\":false"), first);
         assertTrue(first.contains("\"vanillaAdapter\":\"compatibility-v2-behaviorally-accepted\""), first);
@@ -137,6 +139,7 @@ class PrepareCommandTest {
                 "--game", install.toString(),
                 "--cache-dir", temporaryDirectory.resolve("minimal-cache").toString(),
                 "--report", report.toString(),
+                "--serial-stages",
                 "--no-resource-index",
                 "--no-classpath",
                 "--no-textures"
@@ -147,6 +150,7 @@ class PrepareCommandTest {
         assertTrue(json.contains("\"classpathIndex\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"specStoreIdentity\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"textures\":{\"status\":\"SKIPPED\""), json);
+        assertTrue(json.contains("\"parallelStages\":false"), json);
         assertEquals(before, Files.getLastModifiedTime(install.resolve("mods/enabled_mods.json")).toMillis());
     }
 
