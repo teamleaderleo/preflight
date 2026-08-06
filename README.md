@@ -77,9 +77,9 @@ The chronological, publication-oriented account is in
 
 ## Why it is faster
 
-I didn't start with a predetermined cache design. I traced startup, compared the game log with the
-visible loading screen, recorded thread activity, added unattended direct launching, and inserted
-exact probes around increasingly narrow pieces of the loader.
+The design didn't begin with a predetermined cache. The work started by tracing startup, comparing
+the game log with the visible loading screen, recording thread activity, adding unattended direct
+launching, and inserting exact probes around increasingly narrow pieces of the loader.
 
 That analysis found three large concentrations of repeat work.
 
@@ -141,11 +141,11 @@ The first valid prepared-pixel campaign saved only [1.5%](docs/evidence/2026-08-
 
 The rule-command package map was expected to remove most of a 641ms phase. It removed about 165ms. Measuring why showed that the successful class load was expensive while the failed probes were cheap. The same investigation exposed **1.613 seconds of repeated cache-profile construction before the game JVM even started**, which led to [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) and a larger saving than the feature that revealed it.
 
-I also reviewed [Fast Rendering as prior art](docs/prior-art-starsector-render.md). That review
-corrected an earlier conclusion about its texture prefetcher, documented where the two projects
-overlap, and highlighted the untouched JSON/spec path that became the SpecStore campaign. The
-pattern throughout the project has been the same: inspect the logs and code, ask a narrower
-question, build the probe that answers it, and let the measurement choose the next change.
+The [Fast Rendering prior-art review](docs/prior-art-starsector-render.md) corrected an earlier
+conclusion about its texture prefetcher, documented where the two projects overlap, and highlighted
+the untouched JSON/spec path that became the SpecStore campaign. The pattern throughout the project
+has been the same: inspect the logs and code, ask a narrower question, build the probe that answers
+it, and let the measurement choose the next change.
 
 ## Design foundations
 

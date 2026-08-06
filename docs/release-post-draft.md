@@ -9,11 +9,11 @@ Preflight public beta: faster repeat launches for heavily modded Starsector
 
 ## Short version
 
-I built Preflight as a free, open-source launcher and preparation tool for Starsector. It moves
-deterministic texture, data, generated-code, and audio work ahead of the game launch, then reuses the
-exact result for the same game and ordered mod profile.
+Preflight is a free, open-source launcher and preparation tool for Starsector. It moves deterministic
+texture, data, generated-code, and audio work ahead of the game launch, then reuses the exact result
+for the same game and ordered mod profile.
 
-On my 83-mod development profile, the current warm record is 15.88 seconds to the main menu. The
+On the 83-mod development profile, the current warm record is 15.88 seconds to the main menu. The
 release claim is **[CONTROLLED BEFORE] → [CONTROLLED AFTER]**, measured over **[COHORT]** on
 **[GAME VERSION / HARDWARE / RUNTIME]**. Your result will depend on your mods, hardware, storage,
 cache warmth, memory pressure, and temperature.
@@ -39,8 +39,8 @@ game-owned preferences.
 - Real-game coverage: **[MACOS / WINDOWS / LINUX MATRIX]**.
 - Reviewed game version: **[VERSION]**. Unknown versions decline individual optimizations; a major
   launcher/layout change may still require a Preflight update.
-- Reviewed mod-specific adapters: **[LIST]**. “Not listed” doesn't mean incompatible, but it does
-  mean I'm not claiming a specific acceleration for that mod.
+- Reviewed mod-specific adapters: **[LIST]**. “Not listed” doesn't mean incompatible; no specific
+  acceleration is claimed for that mod.
 - Disk use: **[BALANCED RANGE]** for the test profile; Fastest is optional and larger.
 - Packages/signing: **[SIGNED STATUS AND PLATFORM WARNINGS]**.
 

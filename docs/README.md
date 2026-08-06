@@ -60,8 +60,10 @@ When documents disagree, use this precedence:
 Public writing should sound like a person, not an institution:
 
 - use natural contractions such as “doesn't,” “isn't,” and “can't”;
-- use “I” when the maintainer is describing personal work or asking for permission;
-- use “Preflight” or a neutral construction for product behavior instead of an ambiguous “we”;
+- lead with the artifact, outcome, and evidence instead of a builder or origin story;
+- use “Preflight” or a neutral construction for product behavior instead of “I” or an ambiguous
+  “we”;
+- reserve first person for direct correspondence where a real person is asking for something;
 - prefer “a” or “an” over “one” unless the exact count matters; and
 - keep benchmark qualifiers, compatibility limits, and write boundaries precise even when the prose
   is informal.
