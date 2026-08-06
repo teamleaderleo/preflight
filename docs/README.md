@@ -13,7 +13,11 @@ archive. They answer different questions. This page is the shortest route to the
 - [Product contract](product-contract.md) — exact modification, compatibility, preset, storage,
   update, and diagnostics boundaries.
 - [Optimization history](optimization-history.md) — the readable, source-linked account from the
-  accepted 62.6-second prepared-texture waypoint to the 15.88-second warm record.
+  original 88-second launch through the 15.88-second warm record.
+- [Experiment ledger](experiment-ledger.md) — every retained optimization family, including rejected,
+  corrected, diagnostic, and deferred branches.
+- [Performance and storage tradeoffs](performance-storage-tradeoffs.md) — what Balanced, Fastest,
+  prepared audio, redundancy, and safe pruning cost and buy.
 - [Downloads and installation](downloads.md) — planned artifacts and current private build process.
 
 ## Users and beta testers

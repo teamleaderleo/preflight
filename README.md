@@ -73,7 +73,10 @@ of assuming the development-machine result applies to them.
 The per-change arithmetic, individual multipliers, and source links are in the
 [accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
 The chronological, publication-oriented account is in
-[How Preflight moved an 83-mod launch from a 62.6-second waypoint to a 15.88-second record](docs/optimization-history.md).
+[From 88 seconds to 15.88: what changed in Starsector's loading path](docs/optimization-history.md)
+gives the source-linked technical history. The [experiment ledger](docs/experiment-ledger.md) includes
+the unsuccessful and deferred branches, and [the storage reference](docs/performance-storage-tradeoffs.md)
+separates the time-space choices from the chronology.
 
 ## Why it is faster
 
@@ -345,6 +348,8 @@ preflight-cli/target/preflight.jar
 - [Documentation map](docs/README.md)
 - [Release readiness](docs/release-readiness.md)
 - [Optimization history](docs/optimization-history.md)
+- [Experiment ledger](docs/experiment-ledger.md)
+- [Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md)
 - [Accumulated startup scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md)
 - [Product, compatibility, cache-control, and support-upload contract](docs/product-contract.md)
 - [Automatic launch and discovery](docs/automatic-launch.md)
