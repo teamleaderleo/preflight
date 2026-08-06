@@ -210,11 +210,16 @@ java -jar preflight.jar profile activate "Heavy campaign" --yes
 
 java -jar preflight.jar cache --json
 java -jar preflight.jar evidence --json
+java -jar preflight.jar evidence export --output preflight-diagnostics.zip
 java -jar preflight.jar evidence prune --keep-runs 20 --keep-benchmarks 10
 ```
 
 Both prune commands are preview-only unless `--yes` is present. Evidence retention never touches
-acceleration caches and refuses sessions that change between planning and deletion.
+acceleration caches and refuses sessions that change between planning and deletion. Diagnostics
+export includes only bounded, allowlisted text metadata from the newest three runs and two
+benchmarks by default. Its in-ZIP disclosure and manifest name everything included or skipped;
+logs, crash dumps, JFR, screenshots, caches, game/mod assets, saves, symlinks, and unknown files are
+never copied. See [Diagnostics export](docs/diagnostics.md).
 
 Development smoke automation uses a platform-neutral semantic scenario rather than recorded screen
 coordinates. The first campaign-load/roam scenario and evidence contract are documented in
@@ -243,11 +248,10 @@ java -jar preflight.jar uninstall --purge
 
 The next milestone is an unsigned public beta, not another unqualified startup claim. Before that:
 
-1. Export one bounded diagnostics bundle that is safe for a user to attach to a bug report.
-2. Exercise real licensed-game installs on Windows and Linux; CI already verifies the portable core,
+1. Exercise real licensed-game installs on Windows and Linux; CI already verifies the portable core,
    native packages, and exact-cache behavior, but cannot contain Starsector itself.
-3. Publish the checksum-qualified beta artifacts and document each platform's unsigned-install flow.
-4. Continue gameplay and campaign optimization only behind exact adapters, telemetry, and vanilla
+2. Publish the checksum-qualified beta artifacts and document each platform's unsigned-install flow.
+3. Continue gameplay and campaign optimization only behind exact adapters, telemetry, and vanilla
    fallback, with frame-time and FPS evidence rather than subjective smoothness alone.
 
 The public trust work is tracked in

@@ -283,6 +283,11 @@ public final class PreflightCli {
         usage.put("evidence", List.of(
                 "preflight evidence [--json]",
                 "  Reports launch-run and benchmark evidence separately from acceleration caches.",
+                "preflight evidence export --output <bundle.zip> [--runs <count>] [--benchmarks <count>] [--overwrite] [--json]",
+                "  Writes a bounded, disclosed ZIP from allowlisted text metadata only. Defaults to",
+                "  the newest three runs and two benchmarks; caches, logs, crash dumps, recordings,",
+                "  screenshots, game/mod assets, saves, symlinks, and unknown files are excluded.",
+                "  Counts are capped at 20 each. Existing output is refused unless --overwrite.",
                 "preflight evidence prune [--keep-runs <count>] [--keep-benchmarks <count>] [--json] [--yes]",
                 "  Keeps the newest requested number in each selected category. An omitted category",
                 "  is untouched. The plan is preview-only unless --yes; sessions that change while",
@@ -413,6 +418,7 @@ public final class PreflightCli {
             case "install" -> "Write the local Preflight launcher integration.";
             case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
             case "cache" -> "Report what Preflight is storing and which profiles it holds.";
+            case "evidence" -> "Report, export, and prune bounded diagnostic evidence.";
             case "profile" -> "Save, inspect, and safely activate named enabled-mod profiles.";
             case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
             case "index" -> "Build, inspect, query, or validate a resource-provider index.";

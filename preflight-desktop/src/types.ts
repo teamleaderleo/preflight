@@ -28,6 +28,18 @@ export interface RunStarted {
   pid: number;
 }
 
+export interface DiagnosticsExport {
+  format: "starsector-preflight-diagnostics-export-v1";
+  output: string;
+  bytes: number;
+  sha256: string;
+  files: number;
+  runs: number;
+  benchmarks: number;
+  included: Array<{ entry: string; bytes: number; sha256: string }>;
+  skipped: Array<{ entry: string; reason: string }>;
+}
+
 export interface RunStateEvent {
   state: "started" | "finished";
   pid: number;

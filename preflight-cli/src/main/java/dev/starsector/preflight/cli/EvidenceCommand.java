@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -11,24 +12,48 @@ import java.util.Map;
 final class EvidenceCommand {
     private static final String REPORT_FORMAT = "starsector-preflight-evidence-v1";
     private static final String PRUNE_FORMAT = "starsector-preflight-evidence-prune-v1";
+    private static final String EXPORT_FORMAT = "starsector-preflight-diagnostics-export-v1";
 
     private EvidenceCommand() {
     }
 
     static int execute(String[] args, int offset) throws Exception {
         boolean prune = false;
+        boolean export = false;
         boolean confirmed = false;
         boolean json = false;
         Integer keepRuns = null;
         Integer keepBenchmarks = null;
+        int exportRuns = DiagnosticBundle.DEFAULT_RUNS;
+        int exportBenchmarks = DiagnosticBundle.DEFAULT_BENCHMARKS;
+        Path output = null;
+        boolean exportOptions = false;
+        boolean overwrite = false;
         for (int index = offset; index < args.length; index++) {
             switch (args[index]) {
                 case "prune" -> prune = true;
+                case "export" -> export = true;
                 case "--yes" -> confirmed = true;
                 case "--json" -> json = true;
                 case "--keep-runs" -> keepRuns = count(args, ++index, "--keep-runs");
                 case "--keep-benchmarks" ->
                         keepBenchmarks = count(args, ++index, "--keep-benchmarks");
+                case "--runs" -> {
+                    exportOptions = true;
+                    exportRuns = count(args, ++index, "--runs");
+                }
+                case "--benchmarks" -> {
+                    exportOptions = true;
+                    exportBenchmarks = count(args, ++index, "--benchmarks");
+                }
+                case "--output" -> {
+                    exportOptions = true;
+                    output = path(args, ++index, "--output");
+                }
+                case "--overwrite" -> {
+                    exportOptions = true;
+                    overwrite = true;
+                }
                 case "--help", "-h" -> {
                     PreflightCli.commandUsage("evidence", System.out);
                     return 0;
@@ -36,6 +61,31 @@ final class EvidenceCommand {
                 default -> throw new IllegalArgumentException(
                         "preflight evidence: unknown option: " + args[index]);
             }
+        }
+        if (prune && export) {
+            throw new IllegalArgumentException("evidence prune and export are separate operations");
+        }
+        if (export) {
+            if (confirmed || keepRuns != null || keepBenchmarks != null) {
+                throw new IllegalArgumentException(
+                        "--yes and retention counts require `preflight evidence prune`");
+            }
+            if (output == null) {
+                throw new IllegalArgumentException("evidence export requires --output <bundle.zip>");
+            }
+            PreflightHome home = PreflightHome.current();
+            DiagnosticBundle.Result result = DiagnosticBundle.export(
+                    home,
+                    EvidenceRetention.inventory(home),
+                    output,
+                    exportRuns,
+                    exportBenchmarks,
+                    overwrite);
+            return exported(result, json, System.out);
+        }
+        if (exportOptions) {
+            throw new IllegalArgumentException(
+                    "--output, --overwrite, --runs, and --benchmarks require `preflight evidence export`");
         }
         if (!prune && (confirmed || keepRuns != null || keepBenchmarks != null)) {
             throw new IllegalArgumentException(
@@ -52,6 +102,33 @@ final class EvidenceCommand {
         }
         EvidenceRetention.Plan plan = EvidenceRetention.plan(inventory, keepRuns, keepBenchmarks);
         return prune(plan, confirmed, json, System.out);
+    }
+
+    static int exported(DiagnosticBundle.Result result, boolean json, PrintStream out) {
+        if (json) {
+            Map<String, Object> report = new LinkedHashMap<>();
+            report.put("format", EXPORT_FORMAT);
+            report.put("output", result.output());
+            report.put("bytes", result.bytes());
+            report.put("sha256", result.sha256());
+            report.put("files", result.files());
+            report.put("runs", result.runs());
+            report.put("benchmarks", result.benchmarks());
+            report.put("included", result.included().stream()
+                    .map(DiagnosticBundle.Included::view).toList());
+            report.put("skipped", result.skipped().stream()
+                    .map(DiagnosticBundle.Skipped::view).toList());
+            out.println(Json.object(report));
+            return 0;
+        }
+        out.printf(Locale.ROOT, "Saved diagnostics to %s (%s, %,d files).%n",
+                result.output(), CacheFootprint.humanBytes(result.bytes()), result.files());
+        out.printf(Locale.ROOT, "  newest %,d launch runs and %,d benchmark sessions%n",
+                result.runs(), result.benchmarks());
+        out.printf(Locale.ROOT, "  %,d metadata files included; %,d present files skipped%n",
+                result.included().size(), result.skipped().size());
+        out.println("The ZIP contains a disclosure and manifest. Inspect it before sharing.");
+        return 0;
     }
 
     static int report(
@@ -135,5 +212,12 @@ final class EvidenceCommand {
         } catch (NumberFormatException invalid) {
             throw new IllegalArgumentException(option + " requires a nonnegative integer");
         }
+    }
+
+    private static Path path(String[] args, int index, String option) {
+        if (index >= args.length || args[index].isBlank()) {
+            throw new IllegalArgumentException(option + " requires a path");
+        }
+        return Path.of(args[index]);
     }
 }

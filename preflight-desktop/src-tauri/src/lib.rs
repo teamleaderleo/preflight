@@ -177,6 +177,67 @@ fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
         .map_err(|error| format!("Preflight returned an unreadable cache snapshot: {error}"))
 }
 
+fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(output);
+    if !requested.is_absolute() {
+        return Err("Choose an absolute location for the diagnostics ZIP.".to_string());
+    }
+    if !requested
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
+    {
+        return Err("The diagnostics filename must end in .zip.".to_string());
+    }
+    let parent = requested
+        .parent()
+        .ok_or_else(|| "The diagnostics location has no parent folder.".to_string())?
+        .canonicalize()
+        .map_err(|error| format!("Could not open the diagnostics folder: {error}"))?;
+    if !parent.is_dir() {
+        return Err("The diagnostics location is not inside a folder.".to_string());
+    }
+    let name = requested
+        .file_name()
+        .ok_or_else(|| "The diagnostics filename is missing.".to_string())?;
+    let destination = parent.join(name);
+    if destination
+        .symlink_metadata()
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Err("Refusing to replace a symbolic link with diagnostics.".to_string());
+    }
+    if destination.exists() && !destination.is_file() {
+        return Err("The selected diagnostics location is not a file.".to_string());
+    }
+    Ok(destination)
+}
+
+#[tauri::command]
+fn export_diagnostics(app: AppHandle, output: String) -> Result<Value, String> {
+    let destination = diagnostic_output_path(&output)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    command
+        .arg("evidence")
+        .arg("export")
+        .arg("--output")
+        .arg(destination)
+        .arg("--overwrite")
+        .arg("--json");
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not export diagnostics",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable diagnostics receipt: {error}"))
+}
+
 #[tauri::command]
 fn get_profiles(app: AppHandle, game: String) -> Result<Value, String> {
     profile_json(&app, &game, &["profile", "list"], false)
@@ -472,6 +533,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_cache,
+            export_diagnostics,
             get_profiles,
             save_profile,
             activate_profile,
@@ -484,7 +546,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::read_tail;
+    use super::{diagnostic_output_path, read_tail};
     use std::io::Cursor;
 
     #[test]
@@ -499,5 +561,15 @@ mod tests {
         let mut stderr = Cursor::new(b"useful failure");
 
         assert_eq!(b"useful failure", read_tail(&mut stderr, 1024).as_slice());
+    }
+
+    #[test]
+    fn diagnostics_output_requires_an_absolute_zip_path() {
+        let temporary = std::env::temp_dir().canonicalize().unwrap();
+        let text = temporary.join("diagnostics.txt");
+        let zip = temporary.join("diagnostics.zip");
+        assert!(diagnostic_output_path("relative.zip").is_err());
+        assert!(diagnostic_output_path(text.to_str().unwrap()).is_err());
+        assert_eq!(zip, diagnostic_output_path(zip.to_str().unwrap()).unwrap());
     }
 }

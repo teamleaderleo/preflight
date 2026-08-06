@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   CacheSnapshot,
   DesktopSnapshot,
+  DiagnosticsExport,
   NamedProfile,
   ProfileActivationPlan,
   ProfileList,
@@ -102,6 +103,24 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
     };
   }
   return invoke<CacheSnapshot>("get_cache", { game });
+}
+
+export async function exportDiagnostics(output: string): Promise<DiagnosticsExport> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
+    return {
+      format: "starsector-preflight-diagnostics-export-v1",
+      output,
+      bytes: 184_320,
+      sha256: "preview-diagnostics-sha256",
+      files: 14,
+      runs: 3,
+      benchmarks: 2,
+      included: [],
+      skipped: [],
+    };
+  }
+  return invoke<DiagnosticsExport>("export_diagnostics", { output });
 }
 
 export async function getProfiles(game: string): Promise<ProfileList> {

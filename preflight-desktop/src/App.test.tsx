@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 test("shows a useful ready-state home screen in browser preview", async () => {
@@ -46,4 +46,20 @@ test("profiles are preview-first and show the exact switch before applying", asy
 
   expect(await screen.findByText(/Switched to “Vanilla plus”/)).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Switch to Vanilla plus?" })).not.toBeInTheDocument();
+});
+
+test("diagnostics disclose their boundary and export a bounded bundle", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+
+  expect(await screen.findByText("Support and diagnostics")).toBeInTheDocument();
+  expect(screen.getByText("Useful metadata only")).toBeInTheDocument();
+  expect(screen.getByText("Your actual game data")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Save diagnostics bundle" }));
+
+  expect(await screen.findByText("Diagnostics are ready")).toBeInTheDocument();
+  expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
 });

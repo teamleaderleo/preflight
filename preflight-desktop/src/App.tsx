@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
   activateProfile,
+  exportDiagnostics,
   getCache,
   getProfiles,
   getSnapshot,
@@ -29,13 +30,14 @@ import type {
   AppStatus,
   CacheSnapshot,
   DesktopSnapshot,
+  DiagnosticsExport,
   PreparationStateEvent,
   ProfileActivationPlan,
   ProfileList,
   RunStateEvent,
 } from "./types";
 
-type Page = "home" | "prepare" | "profiles";
+type Page = "home" | "prepare" | "profiles" | "settings";
 type TextureStorage = "balanced" | "fastest";
 
 const resourcePresets = {
@@ -82,6 +84,8 @@ export default function App() {
   const [profileName, setProfileName] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
   const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
+  const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
+  const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
 
   const refresh = useCallback(async (game?: string) => {
     setStatus("loading");
@@ -269,10 +273,34 @@ export default function App() {
     }
   };
 
+  const saveDiagnostics = async () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const destination = isDesktopHost()
+      ? await saveFile({
+          title: "Save Preflight diagnostics",
+          defaultPath: `starsector-preflight-diagnostics-${stamp}.zip`,
+          filters: [{ name: "ZIP archive", extensions: ["zip"] }],
+        })
+      : `/Users/captain/Desktop/starsector-preflight-diagnostics-${stamp}.zip`;
+    if (!destination) return;
+    setDiagnosticsBusy(true);
+    setMessage("Collecting a small, disclosed support bundle…");
+    try {
+      const result = await exportDiagnostics(destination);
+      setDiagnosticsExport(result);
+      setMessage(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`);
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setDiagnosticsBusy(false);
+    }
+  };
+
   const isReady = Boolean(snapshot?.ready && snapshot.selected);
   const title = useMemo(() => {
     if (page === "prepare") return preparing ? "Warming the flight deck…" : "Prepare your profile";
     if (page === "profiles") return "Your saved flight plans";
+    if (page === "settings") return "Support and diagnostics";
     if (status === "loading") return "Checking the launch pad…";
     if (status === "running") return "You’re cleared for adventure";
     if (isReady) return "Your launch pad is cozy and ready";
@@ -303,7 +331,7 @@ export default function App() {
           </button>
         </nav>
         <div className="sidebar__footer">
-          <button className="nav__item" type="button" disabled title="Coming in the next desktop slice">
+          <button className={`nav__item ${page === "settings" ? "nav__item--active" : ""}`} type="button" aria-current={page === "settings" ? "page" : undefined} onClick={() => setPage("settings")}>
             <SettingsIcon />
             <span>Settings</span>
           </button>
@@ -494,7 +522,7 @@ export default function App() {
               </button>
             </section>
           </div>
-        ) : (
+        ) : page === "profiles" ? (
           <div className="profiles-page">
             <section className="card profiles-intro">
               <div>
@@ -577,6 +605,58 @@ export default function App() {
                 </div>
               </section>
             )}
+          </div>
+        ) : (
+          <div className="settings-page">
+            <section className="card settings-intro">
+              <div>
+                <p className="eyebrow">Attachable support evidence</p>
+                <h2>Make a small diagnostics ZIP</h2>
+                <p>Preflight exports only allowlisted text metadata from the newest three runs and two benchmarks. The bundle explains its own contents and redactions.</p>
+              </div>
+              <ShieldIcon className="settings-shield" />
+            </section>
+
+            {message && (
+              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
+            )}
+
+            <div className="settings-grid">
+              <section className="card diagnostics-card">
+                <div className="card__heading">
+                  <div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div>
+                  <CheckIcon className="settings-check" />
+                </div>
+                <ul>
+                  <li>Run outcome, runtime, adapter health and timing summaries</li>
+                  <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
+                  <li>Benchmark identity, settings and result metadata</li>
+                  <li>A manifest with every included or skipped file</li>
+                </ul>
+              </section>
+              <section className="card diagnostics-card diagnostics-card--excluded">
+                <div className="card__heading">
+                  <div><p className="eyebrow">Never included</p><h2>Your actual game data</h2></div>
+                  <ShieldIcon className="settings-check" />
+                </div>
+                <ul>
+                  <li>Game, mod, save, texture, audio or bytecode contents</li>
+                  <li>Acceleration caches, console logs and crash dumps</li>
+                  <li>JFR recordings, screenshots, audio or unknown files</li>
+                  <li>Symlinks or any source file larger than 512 KiB</li>
+                </ul>
+              </section>
+            </div>
+
+            <section className="card diagnostics-action">
+              <div>
+                <strong>{diagnosticsExport ? "Diagnostics are ready" : "Ready to collect support evidence"}</strong>
+                <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Home-directory paths are redacted. Other visible metadata is disclosed in the ZIP."}</span>
+              </div>
+              <button className="button button--primary" type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy}>
+                <FolderIcon />{diagnosticsBusy ? "Saving…" : "Save diagnostics bundle"}
+              </button>
+            </section>
           </div>
         )}
 

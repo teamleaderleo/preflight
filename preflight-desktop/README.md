@@ -45,6 +45,9 @@ into CI and verified on a tagged release.
 - The folder picker is the only frontend capability beyond Tauri's core defaults.
 - The host starts `preflight run --fast`, refuses a second tracked instance, and reports the bounded
   tail of a failed child process.
+- The only user-selected write outside Preflight's own directories is a `.zip` chosen through the
+  native save dialog. The Java engine fills it from its bounded diagnostics allowlist; the frontend
+  cannot choose source files or add arbitrary content.
 - Preparation is a separately reported background operation, but it shares one ownership lock with
   the game so profile files and caches are never prepared while Starsector is running.
 - Confirmed profile activation shares that lock, refuses missing mods and cross-install profiles,

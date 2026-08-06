@@ -1211,11 +1211,19 @@ and atomic/staged replacement path. Matching content-addressed caches are reused
 switching does not pretend every profile is already prepared. Browser tests cover the active state
 and preview-before-apply contract.
 
-Next implementation order: add a bounded diagnostics export, publish and exercise the unsigned beta
-packages, and collect real licensed-game Windows/Linux evidence. Core CI and native packaging are
+Next implementation order: publish and exercise the unsigned beta packages, then collect real
+licensed-game Windows/Linux evidence. Core CI and native packaging are
 green on all three desktop platforms, but safe fallback outside the reviewed macOS game bytecode is
 not the same claim as equal activation or speed. Signing/notarization and update delivery follow
 once release credentials and the first beta evidence exist.
+
+The bounded diagnostics export is now implemented in both CLI and desktop UI. It selects only an
+explicit text-metadata allowlist from the newest three runs and two benchmarks, caps each file at
+512 KiB and total source content at 5 MiB, redacts the current home path, and records included and
+skipped entries in `manifest.json`. Raw logs, crash dumps, JFR, screenshots, caches, game/mod/save
+contents, symlinks, and unknown names never enter the ZIP. The desktop save destination is an
+explicit native `.zip` picker and the narrow Rust host calls the same Java exporter. See
+`docs/diagnostics.md`.
 
 The macOS desktop smoke driver remains blocked on safe PID/process-identity targeting, not merely on
 permission setup. Do not resolve the direct-launched JVM through the `Starsector` display name: that
