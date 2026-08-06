@@ -217,6 +217,11 @@ Development smoke automation uses a platform-neutral semantic scenario rather th
 coordinates. The first campaign-load/roam scenario and evidence contract are documented in
 [desktop smoke automation](docs/desktop-smoke-automation.md).
 
+The native desktop host and its build instructions live in
+[preflight-desktop](preflight-desktop/README.md). It currently builds and launches through the same
+`run --fast` engine contract; signed/notarized platform installers and the Prepare/Profile/Storage
+screens are still release work, not finished product claims.
+
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 
 ## What is next

@@ -8,6 +8,7 @@ target/
 node_modules/
 preflight-desktop/dist/
 preflight-desktop/src-tauri/target/
+preflight-desktop/src-tauri/gen/
 preflight-cache/
 benchmark-results/
 probe-kits/gpu-capability/gl-capability-probe

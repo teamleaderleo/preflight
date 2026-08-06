@@ -1106,9 +1106,15 @@ vanilla validation, Codex, GraphicsLib, logging, and distinct exact adapter gate
 micro-cache is supported by this profile. The version-check threads dominate process-wide samples,
 but they are asynchronous network/SSL work and not established critical-path wall time.
 
-The checked-in desktop UI is still an inert exploration: only Home exists and the Tauri host source
-is absent. Build release UI on the versioned CLI snapshots rather than treating that shell as
-functional. The installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
+The checked-in desktop UI still exposes only Home, but the narrow Tauri host from the old unmerged
+#228 branch has now been recovered against the current engine. React tests/build, Rust tests, the
+minimal `jlink` engine bundle, its live snapshot request, and an optimized `tauri build --no-bundle`
+all pass. The host resolves only the bundled JAR/runtime, exposes `get_snapshot` and `start_game`,
+refuses a second tracked process, bounds child stderr, and now launches `run --fast` rather than the
+old unaccelerated command. Native bundling remains deliberately disabled until current icons,
+signing/notarization, and cross-platform CI packaging are restored; do not describe installers as
+ready yet. Build the Prepare/Profile/Storage views on the versioned CLI snapshots rather than
+inventing shell access in React. The installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
 `see`, click, key, wait, and screenshot scenarios, but Screen Recording, Accessibility, and event
 synthesis permissions are not yet granted. Use it as a development driver; keep adapter telemetry
 and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
