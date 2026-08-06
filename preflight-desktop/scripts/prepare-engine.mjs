@@ -19,8 +19,7 @@ const repositoryRoot = resolve(desktopDirectory, "..");
 const sourceJar = join(repositoryRoot, "preflight-cli", "target", "preflight.jar");
 const engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine");
 const runtimeDirectory = join(engineDirectory, "runtime");
-
-run("mvn", ["-pl", "preflight-cli", "-am", "-DskipTests", "package"], repositoryRoot);
+runMaven(["-pl", "preflight-cli", "-am", "-DskipTests", "package"]);
 if (!existsSync(sourceJar)) {
   throw new Error(`Maven completed without producing ${sourceJar}`);
 }
@@ -84,6 +83,15 @@ function run(command, args, cwd) {
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`${command} exited with status ${result.status}`);
+  }
+}
+
+function runMaven(args) {
+  if (process.platform === "win32") {
+    const commandInterpreter = process.env.ComSpec ?? "cmd.exe";
+    run(commandInterpreter, ["/d", "/s", "/c", "mvn.cmd", ...args], repositoryRoot);
+  } else {
+    run("mvn", args, repositoryRoot);
   }
 }
 

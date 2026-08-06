@@ -110,7 +110,9 @@ jobs:
       matrix:
         include:
           - name: Linux
-            os: ubuntu-latest
+            # Tauri's AppImage toolchain targets 22.04; it also gives the package an older
+            # glibc compatibility floor than the moving ubuntu-latest runner.
+            os: ubuntu-22.04
             bundles: deb,appimage
           - name: macOS
             os: macos-latest
