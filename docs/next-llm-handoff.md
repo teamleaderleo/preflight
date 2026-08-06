@@ -1195,12 +1195,20 @@ switching does not pretend every profile is already prepared. Browser tests cove
 and preview-before-apply contract.
 
 Next implementation order: finish the Linux AppImage gate, then wire the Peekaboo development
-driver once permissions are granted. Map the in-game preparation dependency graph before attempting
+driver once permissions are granted. Map the game-process startup dependency graph before attempting
 broader cold-path parallelism. The accepted native profile selector is intentionally narrower: no
 game or GL work exists yet, it has an adaptive four-worker cap, an explicit join barrier, per-cache
 vanilla fallback, and a serial kill switch. Any game-process parallel executor still needs an
 explicit main-thread GL queue, memory budget, and equivalent fallback boundaries. Do not copy Fast
 Rendering's exception-driven epilogue replacement.
+
+The offline preparation graph is mapped separately now. The latest real report was 17.994s serial:
+2.912s census, 1.473s resource index, 0.319s classpath index, 1.691s SpecStore identity, and 11.590s
+balanced textures. Only textures require the resource index; SpecStore requires both indexes; census
+is independent. The no-contention mathematical critical path is 13.063s, but this is explicitly not
+a speed claim because the stages traverse overlapping files and textures already own bounded workers.
+Alternate candidate schedules while measuring CPU, disk, and RSS before implementing a default.
+See `docs/evidence/2026-08-06-preparation-dependency-graph.md`.
 
 ## Environment notes that cost time to rediscover
 
