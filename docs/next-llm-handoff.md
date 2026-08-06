@@ -1126,7 +1126,9 @@ the context while a cancelled selector still uses it. Ten alternating fresh-JVM 
 the complete wrapper path from 1.315s to 1.185s median (-130ms, -9.9%) with identical dependency
 hashes and cache hits. This is bounded wrapper evidence, not a whole-startup claim; the user's
 browser-contended game launch remains correctness-only. The serial kill switch is
-`-Dpreflight.launch.parallelProfileSelection=false`. See
+`-Dpreflight.launch.parallelProfileSelection=false`. Concurrent provider/directory misses are now
+computed atomically as well; a separate ten-pair check was flat at 1.135s before and after, so that
+hardening is not claimed as another win. See
 `docs/evidence/2026-08-06-launch-profile-parallel-selection.md`.
 
 The narrow Tauri host from the old unmerged #228 branch has now been recovered against the current

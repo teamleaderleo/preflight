@@ -36,6 +36,11 @@ paths and stopped before process creation. A synthetic seven-corpus test indepen
 shared concurrent `ProfileIdentityContext` with the serial identities, and the authoritative full
 `mvn verify` completed with 1,188 tests and the installed Starsector archive checks green.
 
+The shared provider and real-directory maps also use atomic miss computation now. That prevents two
+overlapping selectors from both resolving the same uncached path before either publishes it. Ten
+alternating before/after dry-run pairs were exactly flat at a 1.135s median, so this is retained as
+concurrency hardening and is not counted as an additional speedup.
+
 This is not a whole-startup timing claim: it removes bounded native wrapper latency before the
 existing game-start timestamp. A clean game launch is still required to place it in the startup
 cohort, and a browser-contended launch must remain correctness-only evidence.
