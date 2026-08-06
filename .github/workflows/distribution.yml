@@ -73,7 +73,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: starsector-preflight-${{ github.ref_name }}
+          name: starsector-preflight-${{ github.run_id }}
           path: |
             dist/preflight.jar
             dist/preflight.jar.sha256
@@ -169,7 +169,7 @@ jobs:
       - name: Upload desktop package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: starsector-preflight-${{ matrix.name }}-${{ github.ref_name }}
+          name: starsector-preflight-${{ matrix.name }}-${{ github.run_id }}
           path: preflight-desktop/desktop-dist/*
           if-no-files-found: error
           retention-days: 30
