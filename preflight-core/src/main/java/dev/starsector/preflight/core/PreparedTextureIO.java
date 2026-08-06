@@ -21,6 +21,7 @@ import java.util.Objects;
 
 /** Versioned raw blob persistence for upload-ready texture data. */
 public final class PreparedTextureIO {
+    public static final String SINGLE_READ_LZ4_PROPERTY = "preflight.texture.singleReadLz4";
     private static final byte[] MAGIC = {'S', 'P', 'F', 'T'};
     private static final int CHECKSUM_BYTES = 32;
     private static final int SHA256_BYTES = 32;
@@ -29,6 +30,8 @@ public final class PreparedTextureIO {
     private static final int PAYLOAD_FIXED_BYTES = SHA256_BYTES + Integer.BYTES * 11;
     private static final int MAX_FILE_BYTES = 512 * 1024 * 1024;
     private static final int MAX_TRUSTED_LZ4_SCRATCH_BYTES = 16 * 1024 * 1024;
+    private static final boolean SINGLE_READ_LZ4 = Boolean.parseBoolean(
+            System.getProperty(SINGLE_READ_LZ4_PROPERTY, "true"));
     private static final Lz4Decompressor LZ4_DECOMPRESSOR = new Lz4Decompressor();
     private static final ThreadLocal<byte[]> TRUSTED_LZ4_SCRATCH =
             ThreadLocal.withInitial(() -> new byte[0]);
@@ -62,6 +65,10 @@ public final class PreparedTextureIO {
         }
     }
 
+    public static boolean singleReadLz4Enabled() {
+        return SINGLE_READ_LZ4;
+    }
+
     /** Encoded pixel bytes inside a complete SPFT file, excluding metadata and checksum. */
     public static long storedPixelBytes(Path source) throws IOException {
         long stored = Files.size(source) - minimumFileBytes() - PAYLOAD_FIXED_BYTES;
@@ -82,6 +89,9 @@ public final class PreparedTextureIO {
         if (size > MAX_FILE_BYTES || offset > Long.MAX_VALUE - size) {
             throw new IOException(
                     "Prepared texture blob range exceeds the safety limit: " + label);
+        }
+        if (SINGLE_READ_LZ4 && label.endsWith("-lz4.spft")) {
+            return readTrustedLz4Range(channel, offset, size, label);
         }
         long[] position = {offset};
         try {
@@ -144,6 +154,79 @@ public final class PreparedTextureIO {
                 throw new IOException("Prepared texture payload contains trailing data");
             }
             byte[] pixels = decodePixels(storageCodec, storedPixels, storedLength, pixelLength);
+            return PreparedTexture.adopting(
+                    java.util.HexFormat.of().formatHex(sourceHash),
+                    transformation,
+                    originalWidth,
+                    originalHeight,
+                    uploadWidth,
+                    uploadHeight,
+                    channels,
+                    color0,
+                    color1,
+                    color2,
+                    pixels);
+        } catch (IllegalArgumentException | ArithmeticException error) {
+            throw new IOException("Prepared texture contains invalid data: " + error.getMessage(), error);
+        }
+    }
+
+    /** Reads a known-LZ4 pack range with one positioned read into reusable heap scratch. */
+    private static PreparedTexture readTrustedLz4Range(
+            FileChannel channel, long offset, long size, String label) throws IOException {
+        int contentLength = Math.toIntExact(size - CHECKSUM_BYTES);
+        byte[] content = trustedLz4Scratch(contentLength);
+        long[] position = {offset};
+        readFully(
+                channel,
+                position,
+                ByteBuffer.wrap(content, 0, contentLength),
+                "Prepared texture ended inside its payload");
+        try {
+            ByteBuffer input = ByteBuffer.wrap(content, 0, contentLength).order(ByteOrder.BIG_ENDIAN);
+            byte[] magic = new byte[MAGIC.length];
+            input.get(magic);
+            if (!Arrays.equals(MAGIC, magic)) {
+                throw new IOException("Prepared texture magic header is invalid");
+            }
+            int version = input.getInt();
+            if (version != PreparedTexture.FORMAT_VERSION) {
+                throw new IOException("Unsupported prepared texture version: " + version);
+            }
+            int payloadLength = input.getInt();
+            byte[] sourceHash = new byte[SHA256_BYTES];
+            input.get(sourceHash);
+            PreparedTexture.Transformation transformation =
+                    PreparedTexture.Transformation.fromId(input.getInt());
+            int originalWidth = input.getInt();
+            int originalHeight = input.getInt();
+            int uploadWidth = input.getInt();
+            int uploadHeight = input.getInt();
+            int channels = input.getInt();
+            int color0 = input.getInt();
+            int color1 = input.getInt();
+            int color2 = input.getInt();
+            StorageCodec storageCodec = StorageCodec.fromId(input.getInt());
+            int pixelLength = input.getInt();
+
+            long expectedLength = minimumFileBytes() + (long) payloadLength;
+            int storedLength = payloadLength - PAYLOAD_FIXED_BYTES;
+            if (payloadLength < PAYLOAD_FIXED_BYTES || expectedLength != size
+                    || storageCodec != StorageCodec.LZ4) {
+                throw new IOException("Prepared texture LZ4 payload metadata is invalid");
+            }
+            if (uploadWidth <= 0 || uploadHeight <= 0 || (channels != 3 && channels != 4)) {
+                throw new IOException("Prepared texture dimensions or channel count are invalid");
+            }
+            long expectedPixels = Math.multiplyExact(
+                    Math.multiplyExact((long) uploadWidth, uploadHeight), channels);
+            if (pixelLength < 0 || expectedPixels != pixelLength || storedLength < 0
+                    || input.position() + storedLength != contentLength
+                    || pixelLength > MAX_FILE_BYTES) {
+                throw new IOException(
+                        "Prepared texture pixel length is " + pixelLength + "; expected " + expectedPixels);
+            }
+            byte[] pixels = decodeLz4(content, input.position(), storedLength, pixelLength);
             return PreparedTexture.adopting(
                     java.util.HexFormat.of().formatHex(sourceHash),
                     transformation,
@@ -344,10 +427,15 @@ public final class PreparedTextureIO {
             }
             return stored;
         }
+        return decodeLz4(stored, 0, storedLength, pixelLength);
+    }
+
+    private static byte[] decodeLz4(
+            byte[] stored, int offset, int storedLength, int pixelLength) throws IOException {
         byte[] pixels = new byte[pixelLength];
         try {
             int restored = LZ4_DECOMPRESSOR.decompress(
-                    stored, 0, storedLength, pixels, 0, pixels.length);
+                    stored, offset, storedLength, pixels, 0, pixels.length);
             if (restored != pixelLength) {
                 throw new IOException(
                         "Prepared texture decompressed to " + restored + " bytes; expected " + pixelLength);

@@ -1106,6 +1106,19 @@ vanilla validation, Codex, GraphicsLib, logging, and distinct exact adapter gate
 micro-cache is supported by this profile. The version-check threads dominate process-wide samples,
 but they are asynchronous network/SSL work and not established critical-path wall time.
 
+The trusted balanced-pack reader's two positioned reads per LZ4 blob were then narrowed without
+changing codec or storage policy. Known `-lz4.spft` ranges read header and compressed bytes once
+into the existing bounded heap scratch and decompress from its payload offset; raw blobs retain the
+direct-to-final-array path. Ten alternating fresh bundled-JVM pairs replaying the exact 14,774
+startup accesses moved 1127.463 -> 1092.857ms median (-34.607ms, -3.1%) with identical 2.074GB and
+checksum. A broader segmented memory-map experiment was 8.9% slower and was deleted. The old
+reader remains available with `-Dpreflight.texture.singleReadLz4=false`; wrong-codec/malformed
+ranges fail into the existing pack circuit breaker and loose-artifact fallback. A real 83-mod
+direct-launch correctness gate then served 13,160 compressed ranges through the new path among
+15,482 pack hits, with zero pack failures/corruptions, an inactive circuit breaker, ACTIVE adapter
+health, and normal exit. Concurrent desktop use makes it deliberately non-timing evidence. See
+`docs/evidence/2026-08-06-prepared-texture-single-read.md`.
+
 The narrow Tauri host from the old unmerged #228 branch has now been recovered against the current
 engine. React tests/build, Rust tests, the minimal `jlink` engine bundle, its live snapshot request,
 and an optimized `tauri build --no-bundle` all pass. The host resolves only the bundled JAR/runtime,

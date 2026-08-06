@@ -26,7 +26,7 @@ class PreparedTexturePackIOTest {
                 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1
         });
         String raw = "blobs/01/raw.spft";
-        String lz4 = "blobs/02/lz4.spft";
+        String lz4 = "blobs/02/example-lz4.spft";
         Files.createDirectories(cache.resolve("blobs/01"));
         Files.createDirectories(cache.resolve("blobs/02"));
         PreparedTextureIO.write(cache.resolve(raw), first, PreparedTextureIO.StorageCodec.RAW);

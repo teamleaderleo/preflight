@@ -80,6 +80,7 @@ class TextureCompatibilityRuntimeTest {
         assertEquals(1L, telemetry.get("packHits"));
         assertEquals(12L, telemetry.get("packBytes"));
         assertEquals(0L, telemetry.get("packFailures"));
+        assertEquals(0L, telemetry.get("packSingleReadLz4Hits"));
 
         TextureCompatibilityRuntime.beginSession();
         assertEquals(

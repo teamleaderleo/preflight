@@ -53,7 +53,7 @@ class PreparedTextureIOTest {
         assertTrue(compressed.length < raw.length / 10);
         assertEquals(texture, PreparedTextureIO.fromBytes(compressed));
 
-        Path output = temporaryDirectory.resolve("compressed.spft");
+        Path output = temporaryDirectory.resolve("compressed-lz4.spft");
         PreparedTextureIO.write(output, texture, PreparedTextureIO.StorageCodec.LZ4);
         assertEquals(compressed.length - 120L, PreparedTextureIO.storedPixelBytes(output));
         assertEquals(texture, PreparedTextureIO.readTrusted(output));
@@ -74,10 +74,16 @@ class PreparedTextureIOTest {
                 PreparedTexture.rgba(4, 5, 6, 255),
                 PreparedTexture.rgba(7, 8, 9, 255),
                 largerPixels);
-        Path largerOutput = temporaryDirectory.resolve("larger-compressed.spft");
+        Path largerOutput = temporaryDirectory.resolve("larger-compressed-lz4.spft");
         PreparedTextureIO.write(largerOutput, larger, PreparedTextureIO.StorageCodec.LZ4);
         assertEquals(larger, PreparedTextureIO.readTrusted(largerOutput));
         assertEquals(texture, PreparedTextureIO.readTrusted(output));
+
+        Path wrongCodec = temporaryDirectory.resolve("raw-with-wrong-suffix-lz4.spft");
+        PreparedTextureIO.write(wrongCodec, texture, PreparedTextureIO.StorageCodec.RAW);
+        IOException rejected = assertThrows(
+                IOException.class, () -> PreparedTextureIO.readTrusted(wrongCodec));
+        assertTrue(rejected.getMessage().contains("LZ4 payload metadata"));
     }
 
     @Test

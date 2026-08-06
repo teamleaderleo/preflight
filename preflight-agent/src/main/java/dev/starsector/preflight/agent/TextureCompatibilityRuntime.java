@@ -287,6 +287,10 @@ public final class TextureCompatibilityRuntime {
                     if (matches(entry, packed)) {
                         current.recordPackAccess(entry.blobRelativePath());
                         TELEMETRY.packHit(packed.pixelBytes());
+                        if (PreparedTextureIO.singleReadLz4Enabled()
+                                && entry.blobRelativePath().endsWith("-lz4.spft")) {
+                            TELEMETRY.packSingleReadLz4Hit();
+                        }
                         return packed;
                     }
                     current.packDisabled.set(true);
@@ -641,6 +645,7 @@ public final class TextureCompatibilityRuntime {
         private long packHits;
         private long packBytes;
         private long packFailures;
+        private long packSingleReadLz4Hits;
 
         synchronized void reset() {
             fallbackReasons.clear();
@@ -660,6 +665,7 @@ public final class TextureCompatibilityRuntime {
             packHits = 0;
             packBytes = 0;
             packFailures = 0;
+            packSingleReadLz4Hits = 0;
         }
 
         synchronized void configured() {
@@ -720,6 +726,10 @@ public final class TextureCompatibilityRuntime {
             packFailures++;
         }
 
+        synchronized void packSingleReadLz4Hit() {
+            packSingleReadLz4Hits++;
+        }
+
         synchronized Map<String, Object> snapshot(boolean ready) {
             Map<String, Object> reasons = new LinkedHashMap<>();
             for (FallbackReason reason : FallbackReason.values()) {
@@ -750,6 +760,7 @@ public final class TextureCompatibilityRuntime {
             values.put("packHits", packHits);
             values.put("packBytes", packBytes);
             values.put("packFailures", packFailures);
+            values.put("packSingleReadLz4Hits", packSingleReadLz4Hits);
             values.put("circuitBreakerActive", disableReasons.contains(DisableReason.CIRCUIT_BREAKER));
             values.put("disableReasons", disabled);
             values.put("fallbackReasons", reasons);
