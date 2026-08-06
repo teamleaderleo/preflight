@@ -1064,10 +1064,12 @@ desktop host: total/category byte and file counts, retained profile identities a
 current exact profile, and installed launcher integrations. The current machine holds about 20.3
 GiB, but this must not become one GUI slider: roughly 9.3 GiB is benchmark/run evidence while the
 rest is acceleration data. `balanced` remains the preparation default; `fastest` is explicit.
-Named profile activation and evidence-retention controls do not exist yet. Exact-fingerprint caches
-already coexist and are reused automatically when the same enabled-mod set returns, so the missing
-work is an ergonomic, backed-up/atomic controller for Starsector's enabled-mod profile rather than
-a new cache identity system.
+`preflight profile save/list/activate` now supplies the named-profile control layer. It stores the
+ordered enabled-mod set and exact fingerprint, reports missing mods and installation mismatches,
+and makes activation preview-only until `--yes`. A confirmed activation backs up the original,
+rechecks it for a concurrent edit, and uses a same-directory staged replacement (an atomic move
+where the filesystem supports one). Exact-fingerprint caches already coexist and are reused
+automatically when that enabled-mod set returns. Evidence-retention controls still do not exist.
 
 The checked-in desktop UI is still an inert exploration: only Home exists and the Tauri host source
 is absent. Build release UI on the versioned CLI snapshots rather than treating that shell as
@@ -1086,8 +1088,8 @@ is Unlicense prior art, not a normal library: its global classpath/GL ownership 
 redirects should not be imported wholesale. Port bounded ideas behind Preflight's exact adapter and
 fallback boundary, and add explicit shadow/ownership reporting plus pinned compatibility targets.
 
-Next implementation order: add named profile inventory/activation and separate cache/evidence
-retention commands; make install optionally prepare the exact current profile; define the
+Next implementation order: add separate cache/evidence retention commands; make install optionally
+prepare the exact current profile; define the
 driver-neutral smoke scenario/evidence schema and wire Peekaboo once permissions are granted; then
 capture a fresh current-build profile before attempting more deferral or dependency-aware cold-path
 parallelism. Any startup parallel executor needs an explicit main-thread GL queue, join barrier,

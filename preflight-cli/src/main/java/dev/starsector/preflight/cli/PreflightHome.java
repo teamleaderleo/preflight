@@ -14,10 +14,11 @@ import java.util.Map;
  * creates the integrations listed here and {@code UninstallCommand} removes exactly this list, so a
  * new integration that forgets to appear here is a leak that the uninstall test will catch.
  *
- * <p><b>The Starsector installation is never written to.</b> Preflight reads the game's files and
- * hashes them; every artifact it produces lands under {@link #root()} or in an output directory the
- * operator named on the command line. That is why there is nothing to restore: uninstalling is
- * deleting Preflight's own files, not undoing edits to somebody else's.
+ * <p><b>Ordinary preparation and launch never write to the Starsector installation.</b> Preflight
+ * reads and hashes the game's files; every cache artifact lands under {@link #root()} or in an
+ * output directory the operator named. The one explicit exception is confirmed named-profile
+ * activation, which stages and replaces {@code mods/enabled_mods.json} after saving the original
+ * under {@link #profileBackups()}. Uninstall does not restore that ordinary launcher preference.
  *
  * <p><b>On directory choice.</b> One dot-directory under the user's home is used on all three
  * platforms rather than the platform-idiomatic split (macOS {@code ~/Library/Caches} plus
@@ -128,5 +129,13 @@ record PreflightHome(Path root, List<Integration> integrations) {
 
     Path benchmarks() {
         return root.resolve("benchmarks");
+    }
+
+    Path profiles() {
+        return root.resolve("profiles");
+    }
+
+    Path profileBackups() {
+        return root.resolve("profile-backups");
     }
 }

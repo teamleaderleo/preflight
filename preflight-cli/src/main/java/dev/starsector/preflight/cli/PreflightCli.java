@@ -74,6 +74,7 @@ public final class PreflightCli {
             case "install" -> InstallCommand.execute(CommandLine.parse(args, 1));
             case "uninstall" -> UninstallCommand.execute(args, 1);
             case "cache" -> CacheCommand.execute(args, 1);
+            case "profile" -> ProfileCommand.execute(args, 1);
             case "scan" -> ScanCommand.execute(ScanOptions.parse(args, 1));
             case "index" -> IndexCommand.execute(args, 1);
             case "texture" -> textureCommand(args);
@@ -273,6 +274,13 @@ public final class PreflightCli {
                 "  no surviving profile references, stale Janino contexts, and per-request",
                 "  bytecode bundles exactly represented by the retained deduplicated pack.",
                 "  Prints the plan and exits unless --yes."));
+        usage.put("profile", List.of(
+                "preflight profile list [--game <path>] [--launcher <path>] [--json]",
+                "preflight profile save <name> [--game <path>] [--launcher <path>] [--json]",
+                "preflight profile activate <name> [--game <path>] [--launcher <path>] [--json] [--yes]",
+                "  Saves and restores ordered enabled-mod sets. Activation prints the exact plan",
+                "  by default; --yes stages and replaces mods/enabled_mods.json after backing it up.",
+                "  Missing mods or a profile saved for another installation are refused."));
         usage.put("scan", List.of(
                 "preflight scan [--game <path>] [--launcher <path>] [--json <profile.json>] [--vram-budget <size>] [--max-texture-size <pixels>]",
                 "  --vram-budget accepts bytes or a K/M/G suffix (e.g. 4G); adds a decoded-VRAM budget verdict",
@@ -392,6 +400,7 @@ public final class PreflightCli {
             case "install" -> "Write the local Preflight launcher integration.";
             case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
             case "cache" -> "Report what Preflight is storing and which profiles it holds.";
+            case "profile" -> "Save, inspect, and safely activate named enabled-mod profiles.";
             case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
             case "index" -> "Build, inspect, query, or validate a resource-provider index.";
             case "texture" -> "Prepare and inspect texture cache artifacts.";
