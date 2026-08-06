@@ -7,7 +7,7 @@
 This is the readable index for the optimization campaign. It is deliberately shorter than the
 engineering handoff and more structured than the evidence directory. Future release notes and the
 long-form technical post should grow from this file without losing the distinction between a
-controlled comparison, a replay benchmark, a correctness-only launch, and a one-off record.
+controlled comparison, a replay benchmark, a correctness-only launch, and an isolated record.
 
 ## Result and measurement contract
 
@@ -28,7 +28,7 @@ The rules used throughout the campaign are:
 
 - game-log-to-main-menu and wrapper wall time are different metrics;
 - a JFR or diagnostic probe changes the launch it measures;
-- a single launch cannot establish sub-second effects under roughly ±1.4s whole-launch noise;
+- a single launch can't establish sub-second effects under roughly ±1.4s whole-launch noise;
 - replays establish narrow CPU/I/O effects, while real launches establish integration and visuals;
 - browser use, memory pressure, temperature, and back-to-back thermal throttling are recorded rather
   than normalized away; and
@@ -148,7 +148,7 @@ Key reports:
 The same exact-adapter boundary now handles measured campaign and combat hotspots and several game
 or mod correctness defects: linear entity lookup, deployment icons, radar type checks, simulation
 opponent staleness, campaign notification calculations, GraphicsLib hot settings, OpenAL stale
-errors, memory-pressure reporting, and combat JVM integrity. These do not all contribute to the
+errors, memory-pressure reporting, and combat JVM integrity. These don't all contribute to the
 15.88-second startup number and must not be marketed as though they do.
 
 Entry points:
@@ -180,9 +180,9 @@ and [the AppCDS gate](evidence/2026-08-06-appcds-obfuscated-class-gate.md).
 ## Compatibility and release claims
 
 Most prepared data and cache logic is platform-independent. Exact runtime adapters intentionally
-are not assumed portable: class/source/loader drift makes a target decline and leaves original
+aren't assumed portable: class/source/loader drift makes a target decline and leaves original
 bytes in place. That is graceful compatibility, not proof of equal acceleration on every platform.
-Windows and Linux need real beta evidence because CI cannot redistribute or execute the licensed
+Windows and Linux need real beta evidence because CI can't redistribute or execute the licensed
 game installation.
 
 The public launch choices are therefore product boundaries rather than individual bytecode flags:
@@ -196,10 +196,10 @@ The exact safety and update behavior is specified in [product-contract.md](produ
 
 ## Material still needed for the long-form post
 
-- one diagram of the original serial loader and the prepared-data boundaries;
+- a diagram of the original serial loader and the prepared-data boundaries;
 - a platform table once Windows and Linux beta reports arrive;
 - a disk/time chart comparing Balanced and Fastest on at least three hardware classes;
 - a clean controlled cohort for the current 15–17-second stack;
 - before/after campaign and combat frame-time distributions, not only averages; and
 - a concise regression narrative covering the visual, simulation, retreat, audio, and race bugs
-  found during live pilots and the invariant each one added.
+  found during live pilots and the invariant each added.

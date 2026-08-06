@@ -1,6 +1,6 @@
 # Downloads and installation
 
-Preflight is designed to ship as a desktop application plus one runnable and agent-capable JAR. The
+Preflight is designed to ship as a desktop application plus a runnable and agent-capable JAR. The
 same Java engine provides the CLI, launch wrapper, profile census, cache preparation, diagnostics,
 and startup profiler.
 
@@ -25,7 +25,7 @@ A public tagged release is expected to attach:
 
 A manually dispatched Distribution workflow currently produces the same files as private workflow
 artifacts without creating a release. Desktop packages contain their own minimal Java runtime and
-do not require a system JDK. Those development packages are unsigned; they are not the intended
+don't require a system JDK. Those development packages are unsigned; they aren't the intended
 public install experience.
 
 ## Requirements
@@ -88,7 +88,7 @@ Compare the result with the hash in `preflight.jar.sha256`.
 
 ## Maintainer release process
 
-Do not create a public tag until every blocking item in
+Don't create a public tag until every blocking item in
 [Release readiness](release-readiness.md) is closed and the chosen product name, bundle identifier,
 signing identity, updater public key, and disclaimer are final.
 
@@ -103,4 +103,4 @@ The Distribution workflow runs the full verification suite, assembles archives, 
 packaged JAR, then builds the desktop host and its platform-native Java runtime independently on
 Linux, macOS, and Windows. It uploads workflow artifacts and adds successful native packages to the
 GitHub release created from the existing tag. A failed core verification leaves the tag without a
-published release; one failed desktop platform does not cancel the other platform builds.
+published release; a failed desktop platform doesn't cancel the other platform builds.

@@ -16,10 +16,10 @@ I have been developing a free, open-source external tool currently called **Star
 It is intended to make repeat launches of heavily modded Starsector faster and to improve a small
 set of measured campaign/combat hotspots.
 
-The tool does not distribute Starsector or mod content and does not permanently patch game or mod
+The tool doesn't distribute Starsector or mod content and doesn't permanently patch game or mod
 JARs, executables, assets, activation data, or saves. It launches the user's existing installation
 with a process-local Java agent. Runtime changes are exact-version-gated, happen only in the child
-JVM's memory, and fall back to the original code when an identity or validation does not match.
+JVM's memory, and fall back to the original code when an identity or validation doesn't match.
 Prepared caches and reports live in the tool's own data directory. The only game-owned settings it
 can change are explicit, backed-up mod-profile and ordinary launcher/gameplay preference actions.
 
@@ -35,7 +35,7 @@ on four points:
    project to follow?
 
 I can send the source repository, exact technical boundary, screenshots, and a private build for
-review. I will not publish binaries or announce a beta until I hear back.
+review. I won't publish binaries or announce a beta until I hear back.
 
 Thanks,
 
@@ -46,4 +46,4 @@ Thanks,
 - Record the date, scope, name decision, required disclaimer/attribution, and any technical or
   distribution conditions in the private release record.
 - Convert every condition into a blocking item in [release-readiness.md](release-readiness.md).
-- Do not summarize silence, ambiguity, or a narrow answer as broader permission.
+- Don't summarize silence, ambiguity, or a narrow answer as broader permission.

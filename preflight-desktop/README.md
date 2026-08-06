@@ -1,7 +1,7 @@
 # Starsector Preflight desktop
 
 This directory contains the Tauri 2 desktop application. React renders the interface; a narrow Rust
-host resolves the bundled Java engine, asks it for versioned JSON snapshots, and starts one tracked
+host resolves the bundled Java engine, asks it for versioned JSON snapshots, and starts a tracked
 accelerated game launch. The browser layer has no shell or filesystem permission.
 
 ## Run it locally
@@ -16,7 +16,7 @@ npm run desktop:dev
 
 `desktop:dev` packages the current shaded Preflight JAR and a minimal Java runtime before starting
 Tauri. To work only on visual design, use `npm run dev`; it supplies a clearly marked preview
-snapshot and does not launch anything.
+snapshot and doesn't launch anything.
 
 Tauri development uses the configured Vite dev server: React and CSS changes hot-reload in the
 webview, while Rust host changes rebuild and restart the native process.
@@ -34,27 +34,27 @@ builds each target on its native GitHub runner rather than cross-compiling:
 - macOS: `.dmg` containing `Starsector Preflight.app`
 - Linux: `.AppImage` and `.deb`
 
-The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users do not need
-Java, Node, Maven, npm, or Rust. Current packages are private, unsigned development artifacts. Do
-not distribute or describe them as warning-free installs until public distribution is authorized,
+The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users don't need
+Java, Node, Maven, npm, or Rust. Current packages are private, unsigned development artifacts. Don't
+distribute or describe them as warning-free installs until public distribution is authorized,
 Windows signing and Apple signing/notarization are wired into CI, and the signed updater is verified
 on a release candidate.
 
 ## Boundaries
 
-- The Java `desktop snapshot` bridge emits one versioned JSON document and is hidden from human CLI
+- The Java `desktop snapshot` bridge emits a versioned JSON document and is hidden from human CLI
   help.
 - The Rust host exposes only installation/cache/profile/launch-settings snapshots, validated
   launch-setting updates, preview-first named-profile save/activation, and tracked game/preparation
-  starts. It cannot execute arbitrary frontend input.
+  starts. It can't execute arbitrary frontend input.
 - The folder picker is the only frontend capability beyond Tauri's core defaults.
 - The host starts `preflight run --optimization-preset <recommended|conservative|off>`, validates
   that closed set before creating a process, refuses a second tracked instance, and reports the
   bounded tail of a failed child process.
 - The only user-selected write outside Preflight's own directories is a `.zip` chosen through the
   native save dialog. The Java engine fills it from its bounded diagnostics allowlist; the frontend
-  cannot choose source files or add arbitrary content.
-- Preparation is a separately reported background operation, but it shares one ownership lock with
+  can't choose source files or add arbitrary content.
+- Preparation is a separately reported background operation, but it shares an ownership lock with
   the game so profile files and caches are never prepared while Starsector is running.
 - Confirmed profile activation shares that lock, refuses missing mods and cross-install profiles,
   rechecks the current file, and writes a backup before replacement. Previewing remains read-only.

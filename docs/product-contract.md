@@ -3,19 +3,19 @@
 **Status:** executable product boundary for the desktop beta
 **Updated:** 2026-08-07
 
-Public distribution is not authorized yet. The working product name, disclaimer, and integration
-approach remain subject to written Fractal Softworks approval. This contract describes the software
-we intend to release; it is not a claim of endorsement.
+Public distribution isn't authorized yet. The working product name, disclaimer, and integration
+approach remain subject to written Fractal Softworks approval. This contract describes the intended
+release; it isn't a claim of endorsement.
 
-## One engine, several entry points
+## A shared engine, several entry points
 
 The CLI and desktop application call the same Java engine. The desktop host has a fixed set of
-typed commands; it is not an arbitrary shell. Normal acceleration starts Starsector through
+typed commands; it isn't an arbitrary shell. Normal acceleration starts Starsector through
 `preflight run --optimization-preset recommended` (with `--fast` retained as its compatibility
 alias), which wraps the selected existing launcher and adds the in-memory Java agent. The game
-installation, launcher script, mod archives, and saves are not rewritten.
+installation, launcher script, mod archives, and saves aren't rewritten.
 
-Preflight cannot accelerate a process it did not start. Users can launch through:
+Preflight can't accelerate a process it didn't start. Users can launch through:
 
 - the desktop application's **Launch Starsector** button;
 - `preflight run --fast` directly;
@@ -48,23 +48,23 @@ There are three distinct kinds of change:
 ## Update and mod drift
 
 The safe default for unknown code is **decline, report, and continue with original bytes**. Targets
-for vanilla and specific mods are pinned to exact identities; a new game/mod build does not receive
+for vanilla and specific mods are pinned to exact identities; a new game/mod build doesn't receive
 an old transformation merely because a class has the same name. Cache bridges separately validate
 their artifact and input identity before serving a hit.
 
-That gives us graceful degradation, not immortality. A future release can still change the launcher
+That provides graceful degradation, not immortality. A future release can still change the launcher
 command, preference format, classloading topology, native runtime, or discovery layout enough that
 the wrapper itself needs an update. The beta must therefore distinguish:
 
 - **adapter declined:** game continues, optimization unavailable, health report explains why;
 - **cache miss/rejection:** original loader runs, cache can be rebuilt or repaired;
-- **wrapper/launcher failure:** game did not start and Preflight must say so plainly; and
+- **wrapper/launcher failure:** the game didn't start and Preflight must say so plainly; and
 - **runtime integrity failure:** disable the affected runtime shortcut for the session and retain
   evidence, rather than claiming the session is fully accelerated.
 
 Compatibility with Fast Rendering, Starsector Rendering, BoxUtil, GraphicsLib, Nexerelin, or any
 other mod is evidence-based. Ownership detection already leaves Janino compilation to Fast
-Rendering when its custom loader owns that seam. This does not justify a blanket “all versions of
+Rendering when its custom loader owns that seam. This doesn't justify a blanket “all versions of
 all mods” claim; each mod-specific plan must remain exact and independently disableable.
 
 ## Launch settings UX
@@ -78,12 +78,12 @@ than duplicating them:
 
 Battle size is constrained by the selected installation's merged `minBattleSize` and
 `maxBattleSize` bounds. Raising that maximum by rewriting base `settings.json` is a different,
-advanced feature and is not silently bundled into the ordinary slider.
+advanced feature and isn't silently bundled into the ordinary slider.
 
 ## Cache controls UX
 
 The primary control is a preset, not a wall of bytecode-plan names. The CLI, desktop host, and agent
-now carry one typed choice end to end:
+now carry a typed choice end to end:
 
 - **Recommended (default):** every optimization that passed its live correctness gate; exactly the
   behavior of `--fast`.
@@ -98,7 +98,7 @@ exact-version mod adapters. The engine must own the dependency graph. The GUI ma
 “prepared textures off”; it must not assemble an internally inconsistent set of raw agent flags.
 
 Settings belong to a named Preflight launch preset and can optionally be associated with a mod
-profile. Cache contents remain shareable by content identity; toggling a reader off does not delete
+profile. Cache contents remain shareable by content identity; toggling a reader off doesn't delete
 its data. Cleanup and storage policy stay separate, preview-first actions.
 
 ## Voluntary support upload
@@ -110,11 +110,11 @@ default.
 
 The service flow is:
 
-1. Client asks a small HTTPS intake service for a one-time case and upload grant, sending only
+1. Client asks a small HTTPS intake service for a new case and short-lived upload grant, sending only
    product version, ZIP byte count, and SHA-256.
 2. Service applies IP/network rate limits and issues a random object key plus a short-lived,
-   single-object PUT grant. Cloudflare R2 presigned URLs are bearer grants scoped to one operation,
-   key, and expiry; content type can be part of the signature
+   single-object PUT grant. Cloudflare R2 presigned URLs are bearer grants scoped to a specific
+   operation, key, and expiry; content type can be part of the signature
    ([R2 documentation](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)).
 3. Client uploads the ZIP, then asks the service to finalize the case.
 4. Service verifies size, ZIP magic, bounded manifest schema, entry allowlist, and SHA-256 before
@@ -124,12 +124,12 @@ The service flow is:
    received time, product version, and retention deadline. The app displays and copies that receipt.
 
 The embedded application has no durable secret. A secret shipped in a desktop binary is extractable,
-so it cannot prove that an upload came from an untampered official client. The receipt proves what
+so it can't prove that an upload came from an untampered official client. The receipt proves what
 the service accepted; the signed application package and manifest establish useful provenance; rate
 limits constrain anonymous abuse. Cloudflare's rate-limiting rules can cap requests by path and IP
 ([WAF documentation](https://developers.cloudflare.com/waf/rate-limiting-rules/)). If uploader
 identity becomes necessary, GitHub's device flow can add an explicit sign-in without asking users
-to paste tokens ([GitHub documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)); it should not be required for ordinary beta feedback.
+to paste tokens ([GitHub documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)); it shouldn't be required for ordinary beta feedback.
 
 Operational defaults should include a small maximum object size, private bucket, short retention,
 no public object URLs, least-privilege intake credentials, deletion by case ID, and a visible privacy
@@ -137,13 +137,13 @@ statement. Server-side processing must treat ZIPs and JSON as hostile input desp
 allowlist.
 
 Cloudflare's own Worker Logs cover request, custom, and exception logs inside the intake service;
-they do not replace desktop consent, disclosure, redaction, bundle construction, or the separate
+they don't replace desktop consent, disclosure, redaction, bundle construction, or the separate
 choice to upload a report. A later automatic-crash option must therefore be its own remembered,
 default-off consent toggle rather than a side effect of enabling server observability.
 
 ## Update, removal, and storage contract
 
-The default desktop path should present one primary action—**Make Starsector fast**—and one honest
+The default desktop path should present a primary action—**Make Starsector fast**—and an honest
 before/after result. Advanced controls remain available without becoming prerequisites.
 
 - Updates may be checked in the background, but installation is explicit. Release packages and
@@ -156,7 +156,7 @@ before/after result. Advanced controls remain available without becoming prerequ
 - A profile or game update selects new content identities. Old data remains removable through the
   same preview-first storage flow rather than accumulating invisibly forever.
 - “Send run report” is a deliberate action with disclosure, digest, progress, cancel/retry behavior,
-  a case receipt, retention information, and a deletion path. It is not ambient telemetry.
+  a case receipt, retention information, and a deletion path. It isn't ambient telemetry.
 
 The blocking implementation and publication checks are tracked in
 [Release readiness](release-readiness.md).

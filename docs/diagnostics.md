@@ -24,13 +24,13 @@ flag only after the native save dialog handles replacement confirmation.
 
 ## Fixed boundary
 
-The exporter does not recursively archive an evidence directory. It considers only fixed JSON and
+The exporter doesn't recursively archive an evidence directory. It considers only fixed JSON and
 JSONL filenames used for run outcome, runtime identity, enabled-mod metadata, adapter health and
 timing, and benchmark identity/settings/results. Resource names and aggregate file/size/hash
-metadata can be present; source assets cannot.
+metadata can be present; source assets can't.
 
 Every source must be regular, non-symlink UTF-8 text. A source is skipped if it is larger than 512
-KiB, changes while being read, cannot be read, or would cross the 5 MiB total source-content limit.
+KiB, changes while being read, can't be read, or would cross the 5 MiB total source-content limit.
 The exporter writes through a sibling temporary file and atomically replaces the selected ZIP when
 the filesystem supports it.
 
@@ -54,8 +54,8 @@ included entry. The command receipt separately reports the finished ZIP's SHA-25
 
 ## Planned send flow
 
-The current development build saves the bundle locally; it does not upload it. The planned **Send
+The current development build saves the bundle locally; it doesn't upload it. The planned **Send
 run report** action will transmit this exact bounded ZIP only after showing the disclosure, byte
 count, and SHA-256 and receiving explicit consent. It will return a case ID and retention deadline.
-It is not a general telemetry channel, and automatic crash upload—if ever added—will be a separate,
+It isn't a general telemetry channel, and automatic crash upload—if ever added—will be a separate,
 default-off choice. See the [product contract](product-contract.md) for the service boundary.

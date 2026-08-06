@@ -28,7 +28,7 @@ Single-chunk recordings instead use a file request/ack protocol while the JVM is
 agent commits `preflight.AgentStopping`, stops and closes the recording synchronously, then writes
 the acknowledgement. The benchmark refuses evidence without that acknowledgement. The agent's
 shutdown hook remains a last-chance non-empty-file fallback, but a JVM already entering shutdown
-cannot promise the final custom event and is not treated as the deterministic boundary path.
+can't promise the final custom event and isn't treated as the deterministic boundary path.
 
 The prepared-texture path is split into exact stages:
 
@@ -43,8 +43,9 @@ and bypasses storage. Its live-gated Janino plan uses a conservative whole-profi
 rechecks the live compiler policy before serving a complete mutable class map.
 
 Mod-owned adapters use the same boundary as game-owned ones. The two GraphicsLib 1.12.1 pilots pin
-the exact class, whole mod archive, and URL classloader. Compact replay replaces one reviewed class;
-the insignia pilot splices one accessor while preserving the original render body. Both passed
+the exact class, whole mod archive, and URL classloader. Compact replay replaces the reviewed class;
+the insignia pilot splices the reviewed accessor while preserving the original render body. Both
+passed
 their separate live startup or combat acceptance gates and are included by `--fast`.
 
 ### `preflight-cli`
@@ -96,13 +97,15 @@ environment/property kill switch remain authoritative.
     adapter-analysis.json
 ```
 
-Content-addressed blobs may be shared by multiple profiles. Fingerprint-named manifests and indexes bind a launch to one exact profile. Corrupt or identity-mismatched artifacts are bounded and quarantined; missing, stale, ambiguous, unsupported, or escaped paths use the original game path.
+Content-addressed blobs may be shared by multiple profiles. Fingerprint-named manifests and indexes
+bind a launch to an exact profile. Corrupt or identity-mismatched artifacts are bounded and
+quarantined; missing, stale, ambiguous, unsupported, or escaped paths use the original game path.
 
 ## Current evidence boundary
 
 The development profile has clean live gates for the Recommended stack, including prepared
 textures, merged/spec data, generated Janino bytecode, prepared audio, exact vanilla gameplay
-indexes, and reviewed mod-specific adapters. That does not establish universal compatibility.
+indexes, and reviewed mod-specific adapters. That doesn't establish universal compatibility.
 Unknown class, source, loader, artifact, or profile identities decline to the original path and are
 reported. A wrapper or discovery change can still require a Preflight update.
 

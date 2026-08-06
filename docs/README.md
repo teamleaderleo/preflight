@@ -54,3 +54,14 @@ When documents disagree, use this precedence:
 3. current architecture and user documentation;
 4. the dated engineering record; and
 5. individual evidence reports, interpreted in their recorded context.
+
+## Writing voice
+
+Public writing should sound like a person, not an institution:
+
+- use natural contractions such as “doesn't,” “isn't,” and “can't”;
+- use “I” when the maintainer is describing personal work or asking for permission;
+- use “Preflight” or a neutral construction for product behavior instead of an ambiguous “we”;
+- prefer “a” or “an” over “one” unless the exact count matters; and
+- keep benchmark qualifiers, compatibility limits, and write boundaries precise even when the prose
+  is informal.

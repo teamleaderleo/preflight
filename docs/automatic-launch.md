@@ -16,7 +16,8 @@ java -jar preflight.jar install
 
 ## Launch relationship
 
-Preflight is an additional wrapper entry point. It does not replace the Starsector launcher and does not patch that launcher on disk.
+Preflight is an additional wrapper entry point. It doesn't replace the Starsector launcher or patch
+that launcher on disk.
 
 For an unattended launch that skips the launcher UI entirely, use the game's own direct path:
 
@@ -32,7 +33,7 @@ than guessing a different configuration or leaving a modal error dialog behind.
 Starsector Preflight
   -> discovers or receives the existing launcher path
   -> starts that launcher as a child process
-  -> adds one process-local JAVA_TOOL_OPTIONS value
+  -> adds a process-local JAVA_TOOL_OPTIONS value
   -> the existing launcher starts Starsector normally
 ```
 
@@ -82,11 +83,12 @@ Run only the scan with:
 java -jar preflight.jar scan --game "/path/to/game" --json profile.json
 ```
 
-Normal launches scan automatically. `run --no-scan` disables it for one launch. Scan failures are reported and the game launch continues.
+Normal launches scan automatically. `run --no-scan` disables it for the next launch. Scan failures
+are reported and the game launch continues.
 
 ## Injection model
 
-Preflight passes one additional value to the child process through `JAVA_TOOL_OPTIONS`:
+Preflight passes an additional value to the child process through `JAVA_TOOL_OPTIONS`:
 
 ```text
 -javaagent:/path/to/preflight.jar=dest64=ENCODED_TRACE_PATH
@@ -107,7 +109,8 @@ java -jar preflight.jar run --profile --single-chunk-recording
 
 This gives JFR a 256 MiB memory area and maximum chunk size and disables Preflight's periodic
 sidecar dumps, because each dump rotates the active chunk. The run receipt records the policy, and
-postprocessing reports whether the resulting recording actually contains one chunk. The trade is
+postprocessing reports whether the resulting recording actually contains a single chunk. The trade
+is
 256 MiB of profiling headroom and no sidecar recovery after a crash or force-quit. Ordinary runs
 keep the bounded-memory, periodically flushed policy; `--no-record` is incompatible with this mode.
 
@@ -182,7 +185,7 @@ either transformed accessor is unavailable, the memo disables itself and keeps v
 `commodityEventModMemo` reports hits, delegations, accessor fallback, snapshot capability,
 captures, unavailable captures, and invalidations; and
 `-Dpreflight.campaign.eventModMemo.disabled=true` disables this memo alone.
-A pilot has not proved activation unless
+A pilot hasn't proved activation unless
 `installed` and `enabled` are both true and either `served` or `missingServed` is nonzero. The flag
 also enables a positive-only deployment member-icon cache for the exact reviewed vanilla UI class;
 that cache invalidates answers after the class's reviewed add, remove, and clear methods, delegates

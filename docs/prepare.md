@@ -1,6 +1,6 @@
-# One-command profile preparation
+# Single-command profile preparation
 
-Prepare every renderer-independent cache and write one validation report:
+Prepare every renderer-independent cache and write a validation report:
 
 ```bash
 java -jar preflight.jar prepare
@@ -28,10 +28,10 @@ together, joins them before their dependants, and then prepares the enabled cach
 6. exact SpecStore profile identity build or reuse
 7. prepared texture pack/blob build or reuse
 8. texture-manifest validation
-9. one atomic report write
+9. an atomic report write
 
 Other Recommended caches are learned or materialized at their own exact runtime boundaries; this
-command does not pretend to prepare them offline. A stage can be skipped or rejected without
+command doesn't pretend to prepare them offline. A stage can be skipped or rejected without
 turning the report into a claim that it was prepared.
 
 Add semantic lookup verification:
@@ -60,9 +60,9 @@ java -jar preflight.jar prepare \
 `--deep` rehashes source JARs during classpath validation. The texture memory budget applies to concurrent image decoding, conversion, blob reads, and writes.
 
 Opening-stage overlap is bounded to two helper threads in addition to the calling thread; texture
-decoding does not begin until those jobs have joined. Use `--serial-stages` (or
+decoding doesn't begin until those jobs have joined. Use `--serial-stages` (or
 `-Dpreflight.prepare.parallel=false`) as a diagnostic kill switch. `--parallel-stages` overrides a
-disabled system property for one command.
+disabled system property for a command.
 
 Individual stages may be disabled:
 
