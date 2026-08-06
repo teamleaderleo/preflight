@@ -1,5 +1,5 @@
 :root {
-  font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", sans-serif;
+  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, "Segoe UI", sans-serif;
   color: #233757;
   background: #f7efe2;
   font-synthesis: none;
@@ -87,9 +87,10 @@ button:focus-visible {
 }
 
 .brand__type strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
   font-size: 19px;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: 0.035em;
 }
 
 .brand__type small {
@@ -201,17 +202,18 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
   font-size: clamp(28px, 3vw, 38px);
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 h2 {
   margin-bottom: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
   font-size: 21px;
-  letter-spacing: -0.025em;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 .icon-button {
@@ -1078,10 +1080,10 @@ h2 {
 .storage-total {
   display: block;
   margin-top: 2px;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
   font-size: 31px;
-  font-weight: 600;
-  letter-spacing: -0.04em;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 .storage-files {

@@ -41,7 +41,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "target/engine/": "engine/"
+      "target/engine/": "engine/",
+      "licenses/Orbitron-OFL.txt": "licenses/Orbitron-OFL.txt"
     }
   }
 }
