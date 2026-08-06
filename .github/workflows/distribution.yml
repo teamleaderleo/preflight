@@ -162,8 +162,19 @@ jobs:
           cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Build native desktop package
+        if: runner.os != 'Linux'
         working-directory: preflight-desktop
         run: npx tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Build Linux Debian package
+        if: runner.os == 'Linux'
+        working-directory: preflight-desktop
+        run: npx tauri build --bundles deb
+
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux'
+        working-directory: preflight-desktop
+        run: npx tauri bundle --verbose --bundles appimage
 
       - name: Collect native package and checksum
         working-directory: preflight-desktop
