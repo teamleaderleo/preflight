@@ -151,16 +151,17 @@ jobs:
         working-directory: preflight-desktop
         run: npm ci
 
-      - name: Test frontend and native host
+      - name: Test frontend and prepare desktop engine
         working-directory: preflight-desktop
         shell: bash
         run: |
           npm test
+          npm run engine:prepare
           cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Build native desktop package
         working-directory: preflight-desktop
-        run: npm run engine:prepare && npx tauri build --bundles ${{ matrix.bundles }}
+        run: npx tauri build --bundles ${{ matrix.bundles }}
 
       - name: Collect native package and checksum
         working-directory: preflight-desktop
