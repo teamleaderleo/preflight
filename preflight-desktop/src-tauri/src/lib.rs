@@ -178,6 +178,76 @@ fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
+fn get_profiles(app: AppHandle, game: String) -> Result<Value, String> {
+    profile_json(&app, &game, &["profile", "list"], false)
+}
+
+#[tauri::command]
+fn save_profile(app: AppHandle, game: String, name: String) -> Result<Value, String> {
+    profile_json(&app, &game, &["profile", "save", name.as_str()], false)
+}
+
+#[tauri::command]
+fn activate_profile(
+    app: AppHandle,
+    tracker: State<'_, ProcessTracker>,
+    game: String,
+    name: String,
+    confirmed: bool,
+) -> Result<Value, String> {
+    if !confirmed {
+        return profile_json(&app, &game, &["profile", "activate", name.as_str()], true);
+    }
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    if running.game.is_some() {
+        return Err("Close Starsector before switching mod profiles.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before switching profiles.".to_string(),
+        );
+    }
+    let result = profile_json(
+        &app,
+        &game,
+        &["profile", "activate", name.as_str(), "--yes"],
+        true,
+    );
+    drop(running);
+    result
+}
+
+fn profile_json(
+    app: &AppHandle,
+    game: &str,
+    arguments: &[&str],
+    accepts_refusal: bool,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(game)?;
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command
+        .args(arguments)
+        .arg("--game")
+        .arg(directory)
+        .arg("--json");
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() && !(accepts_refusal && output.status.code() == Some(2)) {
+        return Err(child_error(
+            "Preflight could not manage named profiles",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable profile data: {error}"))
+}
+
+#[tauri::command]
 fn start_game(
     app: AppHandle,
     tracker: State<'_, ProcessTracker>,
@@ -402,6 +472,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_cache,
+            get_profiles,
+            save_profile,
+            activate_profile,
             start_game,
             start_preparation
         ])

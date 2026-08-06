@@ -138,7 +138,7 @@ Preflight prepares deterministic work outside the timed game launch. At startup 
 
 A matching artifact skips only the work that was already completed. Starsector still constructs its live objects, registers scripts, applies mod ordering, mutates its registries, creates textures, performs OpenGL uploads, and runs the remaining mod logic.
 
-Changed game or mod files select different prepared data. A missing entry, unsupported class, corrupt artifact, or runtime error uses the original loader. Preflight does not edit the game, mods, saves, launcher, or VM parameter files.
+Changed game or mod files select different prepared data. A missing entry, unsupported class, corrupt artifact, or runtime error uses the original loader. Runtime acceleration does not edit the game, mods, saves, launcher, or VM parameter files. The separate named-profile command changes only `enabled_mods.json`, and only after an explicit preview/confirmation with a backup and concurrent-change check.
 
 ## Install and run
 
@@ -221,7 +221,7 @@ The native desktop host and its build instructions live in
 [preflight-desktop](preflight-desktop/README.md). It currently builds and launches through the same
 `run --fast` engine contract; signed/notarized platform installers and the Prepare/Profile/Storage
 release flow are still unfinished. The Prepare screen now works and exposes balanced/fastest storage,
-bounded resource presets, and grouped cache usage; named-profile controls are the next desktop slice.
+bounded resource presets, grouped cache usage, and preview-first named-profile save and switching.
 
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 

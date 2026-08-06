@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { getCache, getSnapshot, isDesktopHost, startGame, startPreparation } from "./bridge";
+import {
+  activateProfile,
+  getCache,
+  getProfiles,
+  getSnapshot,
+  isDesktopHost,
+  saveProfile,
+  startGame,
+  startPreparation,
+} from "./bridge";
 import {
   ArrowIcon,
   CheckIcon,
   ClockIcon,
   FolderIcon,
   HomeIcon,
+  LayersIcon,
   PlayIcon,
   RefreshIcon,
   SettingsIcon,
@@ -15,9 +25,17 @@ import {
   SparklesIcon,
 } from "./icons";
 import Logo from "./Logo";
-import type { AppStatus, CacheSnapshot, DesktopSnapshot, PreparationStateEvent, RunStateEvent } from "./types";
+import type {
+  AppStatus,
+  CacheSnapshot,
+  DesktopSnapshot,
+  PreparationStateEvent,
+  ProfileActivationPlan,
+  ProfileList,
+  RunStateEvent,
+} from "./types";
 
-type Page = "home" | "prepare";
+type Page = "home" | "prepare" | "profiles";
 type TextureStorage = "balanced" | "fastest";
 
 const resourcePresets = {
@@ -59,6 +77,11 @@ export default function App() {
   const [preparing, setPreparing] = useState(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
+  const [profiles, setProfiles] = useState<ProfileList | null>(null);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
 
   const refresh = useCallback(async (game?: string) => {
     setStatus("loading");
@@ -108,6 +131,23 @@ export default function App() {
   useEffect(() => {
     if (page === "prepare") void refreshCache();
   }, [page, refreshCache]);
+
+  const refreshProfiles = useCallback(async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game) return;
+    setProfilesLoading(true);
+    try {
+      setProfiles(await getProfiles(game));
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setProfilesLoading(false);
+    }
+  }, [snapshot?.selected?.installRoot]);
+
+  useEffect(() => {
+    if (page === "profiles") void refreshProfiles();
+  }, [page, refreshProfiles]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -174,9 +214,65 @@ export default function App() {
     }
   };
 
+  const saveCurrentProfile = async () => {
+    const game = snapshot?.selected?.installRoot;
+    const name = profileName.trim();
+    if (!game || !name) return;
+    setProfileBusy(true);
+    try {
+      await saveProfile(game, name);
+      setProfileName("");
+      setMessage(`Saved the exact current mod order as “${name}”.`);
+      await refreshProfiles();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const reviewProfile = async (name: string) => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game) return;
+    setProfileBusy(true);
+    try {
+      setActivationPlan(await activateProfile(game, name, false));
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
+  const applyProfile = async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game || !activationPlan) return;
+    setProfileBusy(true);
+    try {
+      const result = await activateProfile(game, activationPlan.name, true);
+      await Promise.all([refresh(game), refreshProfiles(), refreshCache()]);
+      if (!result.canActivate) {
+        setActivationPlan(result);
+        setMessage(result.missingMods.length
+          ? `The switch was refused because these mods are now missing: ${result.missingMods.join(", ")}.`
+          : "The switch was refused because this profile belongs to a different installation.");
+      } else {
+        setActivationPlan(null);
+        setMessage(result.applied
+          ? `Switched to “${result.name}”. Its exact caches will be reused automatically when available.`
+          : `“${result.name}” was already active; nothing changed.`);
+      }
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setProfileBusy(false);
+    }
+  };
+
   const isReady = Boolean(snapshot?.ready && snapshot.selected);
   const title = useMemo(() => {
     if (page === "prepare") return preparing ? "Warming the flight deck…" : "Prepare your profile";
+    if (page === "profiles") return "Your saved flight plans";
     if (status === "loading") return "Checking the launch pad…";
     if (status === "running") return "You’re cleared for adventure";
     if (isReady) return "Your launch pad is cozy and ready";
@@ -195,6 +291,10 @@ export default function App() {
           <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" aria-current={page === "prepare" ? "page" : undefined} onClick={() => setPage("prepare")} disabled={!isReady}>
             <SparklesIcon />
             <span>Prepare</span>
+          </button>
+          <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" aria-current={page === "profiles" ? "page" : undefined} onClick={() => setPage("profiles")} disabled={!isReady}>
+            <LayersIcon />
+            <span>Profiles</span>
           </button>
           <button className="nav__item" type="button" disabled title="Coming in the next desktop slice">
             <ClockIcon />
@@ -328,11 +428,11 @@ export default function App() {
           <div className="safety__icon"><ShieldIcon /></div>
           <div>
             <strong>Your save is sacred.</strong>
-            <p>Preflight observes launches and builds its own caches. It never edits Starsector, your mods, or your save files.</p>
+            <p>Preflight never rewrites game binaries, mods, or saves. A profile switch changes only the enabled-mod list after an exact review and backup.</p>
           </div>
-          <span className="safety__check"><CheckIcon /> Read-only by design</span>
+          <span className="safety__check"><CheckIcon /> Narrow changes only</span>
         </section>
-        </> : (
+        </> : page === "prepare" ? (
           <div className="prepare-page">
             <section className="card prepare-intro">
               <div>
@@ -393,6 +493,90 @@ export default function App() {
                 <SparklesIcon />{preparing ? "Preparing…" : "Prepare current profile"}
               </button>
             </section>
+          </div>
+        ) : (
+          <div className="profiles-page">
+            <section className="card profiles-intro">
+              <div>
+                <p className="eyebrow">Named mod profiles</p>
+                <h2>Change fleets without losing your place</h2>
+                <p>Profiles remember the exact enabled-mod order for this installation. Switching is always previewed, refuses missing mods, and backs up the current file before applying.</p>
+              </div>
+              <div className={`tiny-status ${profiles?.profiles.some((profile) => profile.active) ? "tiny-status--good" : ""}`}>
+                <span />
+                {profilesLoading ? "Checking" : `${profiles?.profiles.length ?? 0} saved`}
+              </div>
+            </section>
+
+            {message && (
+              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
+            )}
+
+            <div className="profiles-grid">
+              <section className="card profile-list-card">
+                <div className="card__heading">
+                  <div><p className="eyebrow">This installation</p><h2>Saved profiles</h2></div>
+                  <button className="icon-button icon-button--small" type="button" onClick={() => void refreshProfiles()} aria-label="Refresh saved profiles" disabled={profilesLoading}>
+                    <RefreshIcon className={profilesLoading ? "spin" : ""} />
+                  </button>
+                </div>
+                <div className="profile-list">
+                  {!profilesLoading && profiles?.profiles.length === 0 && (
+                    <div className="profile-empty"><strong>No profiles saved yet</strong><span>Give the current mod set a name to make your first one.</span></div>
+                  )}
+                  {(profiles?.profiles ?? []).map((profile) => (
+                    <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
+                      <div className="profile-card__mark"><LayersIcon /></div>
+                      <div className="profile-card__copy">
+                        <div><strong>{profile.name}</strong>{profile.active && <b>Active</b>}</div>
+                        <span>{profile.modCount.toLocaleString()} mods · saved {new Date(profile.savedAt).toLocaleDateString()}</span>
+                        {!profile.sameInstall && <small>Saved for a different installation</small>}
+                        {profile.missingMods.length > 0 && <small>Missing: {profile.missingMods.join(", ")}</small>}
+                      </div>
+                      <button className="button button--quiet button--compact" type="button" onClick={() => void reviewProfile(profile.name)} disabled={profile.active || !profile.canActivate || profileBusy}>
+                        {profile.active ? "Current" : "Review switch"}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+                {(profiles?.diagnostics.length ?? 0) > 0 && (
+                  <div className="profile-diagnostics">{profiles?.diagnostics.map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}</div>
+                )}
+              </section>
+
+              <section className="card profile-save-card">
+                <p className="eyebrow">Remember this setup</p>
+                <h2>Save current profile</h2>
+                <p>This records names and order only. Your mods remain exactly where they are.</p>
+                <label htmlFor="profile-name">Profile name</label>
+                <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Heavy campaign" maxLength={96} />
+                <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>
+                  Save current profile
+                </button>
+                <div className="profile-cache-note"><SparklesIcon /><span>Prepared caches are content-addressed. Matching profiles reuse them automatically; run Prepare after a switch only when its cache is missing.</span></div>
+              </section>
+            </div>
+
+            {activationPlan && (
+              <section className="card activation-review" aria-label="Profile switch review">
+                <div className="activation-review__heading">
+                  <div><p className="eyebrow">Nothing changed yet</p><h2>Switch to {activationPlan.name}?</h2></div>
+                  <button className="text-button" type="button" onClick={() => setActivationPlan(null)} disabled={profileBusy}>Cancel</button>
+                </div>
+                {!activationPlan.sameInstall && <p className="activation-warning">This profile belongs to {shortPath(activationPlan.savedInstallRoot)} and cannot be applied here.</p>}
+                {activationPlan.missingMods.length > 0 && <p className="activation-warning">Install these mods first: {activationPlan.missingMods.join(", ")}</p>}
+                <div className="activation-columns">
+                  <div><strong>Enable ({activationPlan.enable.length})</strong>{activationPlan.enable.length ? <ul>{activationPlan.enable.map((mod) => <li key={mod}>{mod}</li>)}</ul> : <span>Nothing</span>}</div>
+                  <div><strong>Disable ({activationPlan.disable.length})</strong>{activationPlan.disable.length ? <ul>{activationPlan.disable.map((mod) => <li key={mod}>{mod}</li>)}</ul> : <span>Nothing</span>}</div>
+                </div>
+                <div className="activation-review__footer">
+                  <span><ShieldIcon /> Preflight rechecks the file, writes a backup, then replaces it safely.</span>
+                  <button className="button button--primary" type="button" onClick={() => void applyProfile()} disabled={!activationPlan.canActivate || activationPlan.active || profileBusy}>
+                    {profileBusy ? "Switching…" : "Apply switch"}
+                  </button>
+                </div>
+              </section>
+            )}
           </div>
         )}
 

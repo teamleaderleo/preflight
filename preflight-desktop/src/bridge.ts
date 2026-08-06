@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CacheSnapshot, DesktopSnapshot, RunStarted } from "./types";
+import type {
+  CacheSnapshot,
+  DesktopSnapshot,
+  NamedProfile,
+  ProfileActivationPlan,
+  ProfileList,
+  RunStarted,
+} from "./types";
 
 declare global {
   interface Window {
@@ -25,6 +32,35 @@ const previewSnapshot: DesktopSnapshot = {
   cachePresent: false,
   lastRun: null,
 };
+
+const previewProfiles: NamedProfile[] = [
+  {
+    name: "Heavy campaign",
+    installRoot: "/Applications/Starsector",
+    enabledMods: ["nexerelin", "graphicslib", "uaf"],
+    modCount: 83,
+    profileFingerprint: "preview-profile",
+    savedAt: "2026-08-06T11:42:00Z",
+    sameInstall: true,
+    active: true,
+    canActivate: true,
+    missingMods: [],
+    file: "~/.starsector-preflight/profiles/heavy-campaign.json",
+  },
+  {
+    name: "Vanilla plus",
+    installRoot: "/Applications/Starsector",
+    enabledMods: ["graphicslib"],
+    modCount: 1,
+    profileFingerprint: "preview-vanilla-plus",
+    savedAt: "2026-08-04T09:12:00Z",
+    sameInstall: true,
+    active: false,
+    canActivate: true,
+    missingMods: [],
+    file: "~/.starsector-preflight/profiles/vanilla-plus.json",
+  },
+];
 
 export function isDesktopHost(): boolean {
   return Boolean(window.__TAURI_INTERNALS__);
@@ -66,6 +102,55 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
     };
   }
   return invoke<CacheSnapshot>("get_cache", { game });
+}
+
+export async function getProfiles(game: string): Promise<ProfileList> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-profile-list-v1",
+      installRoot: game,
+      enabledMods: previewProfiles[0].enabledMods,
+      profiles: previewProfiles,
+      diagnostics: [],
+    };
+  }
+  return invoke<ProfileList>("get_profiles", { game });
+}
+
+export async function saveProfile(game: string, name: string): Promise<NamedProfile> {
+  if (!isDesktopHost()) {
+    return {
+      ...previewProfiles[0],
+      name,
+      savedAt: new Date().toISOString(),
+    };
+  }
+  return invoke<NamedProfile>("save_profile", { game, name });
+}
+
+export async function activateProfile(
+  game: string,
+  name: string,
+  confirmed: boolean,
+): Promise<ProfileActivationPlan> {
+  if (!isDesktopHost()) {
+    const profile = previewProfiles.find((candidate) => candidate.name === name) ?? previewProfiles[1];
+    return {
+      format: "starsector-preflight-profile-activation-v1",
+      name: profile.name,
+      installRoot: game,
+      savedInstallRoot: profile.installRoot,
+      sameInstall: true,
+      active: profile.active,
+      canActivate: true,
+      applied: confirmed && !profile.active,
+      enable: profile.active ? [] : ["graphicslib"],
+      disable: profile.active ? [] : ["nexerelin", "uaf"],
+      missingMods: [],
+      ...(confirmed ? { atomicReplace: true, backup: "~/.starsector-preflight/profile-backups/enabled_mods.json" } : {}),
+    };
+  }
+  return invoke<ProfileActivationPlan>("activate_profile", { game, name, confirmed });
 }
 
 export async function startPreparation(

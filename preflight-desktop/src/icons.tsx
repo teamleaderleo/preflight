@@ -41,6 +41,16 @@ export function ClockIcon(props: IconProps) {
   );
 }
 
+export function LayersIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="m12 3 8 4.5-8 4.5-8-4.5z" />
+      <path d="m4 12 8 4.5 8-4.5" />
+      <path d="m4 16.5 8 4.5 8-4.5" />
+    </svg>
+  );
+}
+
 export function SettingsIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

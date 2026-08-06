@@ -60,4 +60,42 @@ export interface CacheSnapshot {
   }>;
 }
 
+export interface NamedProfile {
+  name: string;
+  installRoot: string;
+  enabledMods: string[];
+  modCount: number;
+  profileFingerprint: string;
+  savedAt: string;
+  sameInstall: boolean;
+  active: boolean;
+  canActivate: boolean;
+  missingMods: string[];
+  file: string;
+}
+
+export interface ProfileList {
+  format: "starsector-preflight-profile-list-v1";
+  installRoot: string;
+  enabledMods: string[];
+  profiles: NamedProfile[];
+  diagnostics: string[];
+}
+
+export interface ProfileActivationPlan {
+  format: "starsector-preflight-profile-activation-v1";
+  name: string;
+  installRoot: string;
+  savedInstallRoot: string;
+  sameInstall: boolean;
+  active: boolean;
+  canActivate: boolean;
+  applied: boolean;
+  enable: string[];
+  disable: string[];
+  missingMods: string[];
+  atomicReplace?: boolean;
+  backup?: string;
+}
+
 export type AppStatus = "loading" | "ready" | "setup" | "running" | "error";

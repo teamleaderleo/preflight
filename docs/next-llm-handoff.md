@@ -1106,15 +1106,13 @@ vanilla validation, Codex, GraphicsLib, logging, and distinct exact adapter gate
 micro-cache is supported by this profile. The version-check threads dominate process-wide samples,
 but they are asynchronous network/SSL work and not established critical-path wall time.
 
-The checked-in desktop UI still exposes only Home, but the narrow Tauri host from the old unmerged
-#228 branch has now been recovered against the current engine. React tests/build, Rust tests, the
-minimal `jlink` engine bundle, its live snapshot request, and an optimized `tauri build --no-bundle`
-all pass. The host resolves only the bundled JAR/runtime, exposes `get_snapshot` and `start_game`,
-refuses a second tracked process, bounds child stderr, and now launches `run --fast` rather than the
-old unaccelerated command. Native bundling remains deliberately disabled until current icons,
-signing/notarization, and cross-platform CI packaging are restored; do not describe installers as
-ready yet. Build the Prepare/Profile/Storage views on the versioned CLI snapshots rather than
-inventing shell access in React. The installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
+The narrow Tauri host from the old unmerged #228 branch has now been recovered against the current
+engine. React tests/build, Rust tests, the minimal `jlink` engine bundle, its live snapshot request,
+and an optimized `tauri build --no-bundle` all pass. The host resolves only the bundled JAR/runtime,
+bounds child stderr, launches `run --fast`, and exposes narrow installation, cache, preparation, and
+named-profile commands rather than arbitrary shell access. Native bundling remains deliberately
+disabled until current icons, signing/notarization, and cross-platform CI packaging are restored;
+do not describe installers as ready yet. The installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
 `see`, click, key, wait, and screenshot scenarios, but Screen Recording, Accessibility, and event
 synthesis permissions are not yet granted. Use it as a development driver; keep adapter telemetry
 and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
@@ -1157,8 +1155,17 @@ report gained report-only `--game`/`--launcher` selection so a non-default insta
 silently compared against the wrong profile; pruning deliberately rejects those selectors until
 its survivor identity plumbing is equally explicit.
 
-Next implementation order: wire the Peekaboo development driver once permissions are granted; then
-map the preparation dependency graph before attempting more deferral or dependency-aware cold-path
+The desktop Profiles screen now lists the selected installation's named profiles, saves the exact
+current enabled-mod order, and requires a review screen showing precise enable/disable sets before
+activation. Cross-install profiles, missing mods, active profiles, game/preparation overlap, and
+concurrent `enabled_mods.json` changes refuse safely. Confirmed activation reuses the CLI's backup
+and atomic/staged replacement path. Matching content-addressed caches are reused automatically;
+switching does not pretend every profile is already prepared. Browser tests cover the active state
+and preview-before-apply contract.
+
+Next implementation order: restore signed cross-platform native packaging and wire the Peekaboo
+development driver once permissions are granted; then map the preparation dependency graph before
+attempting more deferral or dependency-aware cold-path
 parallelism. Any startup parallel executor needs an explicit main-thread GL queue, join barrier,
 memory budget, adaptive worker count, and vanilla fallback. Do not copy Fast Rendering's
 exception-driven epilogue replacement.

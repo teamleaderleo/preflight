@@ -26,3 +26,24 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(screen.getByRole("button", { name: /Balanced4 workers/ })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Prepare current profile" })).toBeEnabled();
 });
+
+test("profiles are preview-first and show the exact switch before applying", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Profiles" }));
+
+  expect(await screen.findByText("Your saved flight plans")).toBeInTheDocument();
+  expect(screen.getByText("Heavy campaign")).toBeInTheDocument();
+  expect(screen.getByText("Active")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Review switch" }));
+
+  expect(await screen.findByRole("heading", { name: "Switch to Vanilla plus?" })).toBeInTheDocument();
+  expect(screen.getByText("Enable (1)")).toBeInTheDocument();
+  expect(screen.getByText("Disable (2)")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Apply switch" }));
+
+  expect(await screen.findByText(/Switched to “Vanilla plus”/)).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Switch to Vanilla plus?" })).not.toBeInTheDocument();
+});
