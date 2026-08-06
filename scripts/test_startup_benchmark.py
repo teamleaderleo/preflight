@@ -547,14 +547,16 @@ class UnattendedTest(unittest.TestCase):
     """Running without an operator removes the two things a human did. The ways it goes wrong
     quietly are measuring two protocols as one, and reading our own SIGTERM as a failed run."""
 
-    def test_profile_condition_requests_one_timestamp_coherent_chunk(self):
+    def test_profile_condition_finishes_live_recording_before_shutdown(self):
         profile = re.search(
             r"^        profile\)(?P<body>.*?) ;;",
             SCRIPT_TEXT,
             re.DOTALL | re.MULTILINE,
         )
         self.assertIsNotNone(profile, "profile launch condition not found")
-        self.assertIn("--profile --single-chunk-recording", profile.group("body"))
+        self.assertIn("--profile", profile.group("body"))
+        self.assertNotIn("--single-chunk-recording", profile.group("body"))
+        self.assertIn("finish_live_recording", SCRIPT_TEXT)
 
     def test_every_condition_is_driven_including_vanilla(self):
         # The properties travel through the game's own EXTRAARGS hook rather than through the

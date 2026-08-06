@@ -91,10 +91,10 @@ Conditions:
             the same class and have not been composed. Without it the runtime fails closed
             and this condition just behaves like `prepared`. See
             docs/evidence/2026-07-31-half-an-invariant-kills-the-launcher.md.
-  profile   the same, plus --profile --single-chunk-recording -- sampling only, for asking
-            where the time goes with comparable timestamps across the full startup. Not a
-            timing condition: it records, so it is slower than fast. Analyse its recording
-            with `preflight analyze`; do not read its wall clock as a performance result.
+  profile   the same, plus --profile sampling, for asking where the time goes. The harness
+            asks the live agent to finish its recording at the main-menu boundary before it
+            stops the JVM, so the active tail cannot be lost to shutdown-hook ordering. Not a
+            timing condition: it records, so it is slower than fast.
   fast-profile
             the current --fast preset plus sampling. Use this to find the next hotspot in the
             actual user configuration; like `profile`, its wall clock is diagnostic only.
@@ -571,6 +571,30 @@ terminate_descendants() {
     done
 }
 
+# Do not leave recording completion to the relative ordering of our SIGTERM and multiple JVM
+# shutdown hooks. Ask the live agent to stop and close the recording before signalling the JVM.
+# The request/ack protocol is file-only, so it has the same semantics on macOS, Windows, and Linux
+# and needs no Attach API.
+finish_live_recording() {
+    local run_dir="$1"
+    local request="$run_dir/startup.stop-request"
+    local complete="$run_dir/startup.stop-complete"
+    touch "$request"
+    for _ in $(seq 1 200); do
+        if [[ -f "$complete" ]]; then
+            if [[ "$(head -1 "$complete" 2>/dev/null)" == ok ]]; then
+                note "The live agent closed the startup recording before JVM shutdown."
+                return 0
+            fi
+            bad "The live agent could not finish the startup recording: $(head -1 "$complete")"
+            return 1
+        fi
+        sleep 0.05
+    done
+    bad "The live agent did not acknowledge the startup recording stop request."
+    return 1
+}
+
 # A fatal JVM error does not end the process. Starsector's launcher passes
 # -XX:+ShowMessageBoxOnError, so HotSpot prints its report and then waits on stdin for a
 # RETURN that never comes. The result looks exactly like a slow load: process alive, low
@@ -672,11 +696,11 @@ launch_once() {
         profile)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
-                     --profile --single-chunk-recording) ;;
+                     --profile) ;;
         fast-profile)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --fast --texture-cache-dir "$CACHE"
-                     --profile --single-chunk-recording) ;;
+                     --profile) ;;
         full)
             command=(java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER"
                      --trace-dir "$run_dir" --adapter --texture-auto --texture-cache-dir "$CACHE"
@@ -765,13 +789,16 @@ launch_once() {
     # after preload ranged 0.0-9.3s across otherwise identical runs on 2026-07-31.
     menu_ms="$(jq -er '.gameLogStartToGraphicsPreloadMs' "$menu_detection")"
     good "$(awk -v ms="$menu_ms" 'BEGIN { printf "Main menu ready in %.1fs", ms / 1000 }')"
-    local deliberate_stop=false
+    local deliberate_stop=false recording_ready=true
     if [[ "$auto" == true ]]; then
         # The measurement ended at the marker above, so there is nothing left to observe.
         # SIGTERM the game tree first, which runs the JVM shutdown hooks that dump any recording,
         # but keep the Preflight wrapper alive so it can validate that dump and close its receipt.
         note "Main menu reached; stopping the game."
         deliberate_stop=true
+        if [[ "$condition" == profile || "$condition" == fast-profile ]]; then
+            finish_live_recording "$run_dir" || recording_ready=false
+        fi
         terminate_descendants "$pid"
     else
         act "QUIT from the main menu now  (close the launcher if it reappears)"
@@ -800,6 +827,8 @@ launch_once() {
         status=excluded; reason="jvm-crash"
     elif (( exit_code != 0 )); then
         status=excluded; reason="nonzero-exit-$exit_code"
+    elif [[ "$recording_ready" != true ]]; then
+        status=excluded; reason="recording-not-finalized"
     elif [[ "$fingerprint" != "$EXPECTED_FINGERPRINT" ]]; then
         status=excluded; reason="profile-drift"
     elif [[ "$condition" == prepared || "$condition" == prepared-unpadded \

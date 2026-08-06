@@ -1071,6 +1071,28 @@ rechecks it for a concurrent edit, and uses a same-directory staged replacement 
 where the filesystem supports one). Exact-fingerprint caches already coexist and are reused
 automatically when that enabled-mod set returns. Evidence-retention controls still do not exist.
 
+Profile conditions now finish their destination-backed JFR recording inside the live agent before
+the benchmark sends SIGTERM. The harness creates `startup.stop-request`, requires an
+`startup.stop-complete` acknowledgement, and excludes a run when finalization is not acknowledged;
+the file-only protocol is platform-neutral and does not need the Attach API. A real `fast-profile`
+gate acknowledged the request, retained `preflight.AgentStopping`, produced one physical 18-second
+chunk, and exited with 15,469 prepared texture hits, three known fallbacks, and no adapter failure.
+Its execution samples cover only about 7.2 seconds. That is the already-documented Zulu/Rosetta JFR
+sampling-coverage hole: the physical chunk spans the launch, but `ExecutionSample` and
+`ThreadSleep` emissions do not. Use its sample proportions and stacks, not absolute sampled time.
+The diagnostic reached the menu in 16.93s; profiling runs are not timing claims. The prior clean
+production record remains 15.88s.
+
+The fresh profile's largest bounded main-thread residual is balanced-texture LZ4 decode: 35 of 421
+samples (8.3%). This is the explicit storage policy trade already exposed by `fastest`; exact
+learned-order replay priced raw textures about 446ms faster at roughly 3.08GB more disk. Keep
+`balanced` as the default. Floating-point parsing took 24 samples, mainly required weapon/spec JSON
+hydration; the prior quoted-number memo and schema promotion experiments both regressed and must not
+be retried. Hash-map, string-hash, array-growth, and residual ASM samples are scattered across
+vanilla validation, Codex, GraphicsLib, logging, and distinct exact adapter gates. No new safe warm
+micro-cache is supported by this profile. The version-check threads dominate process-wide samples,
+but they are asynchronous network/SSL work and not established critical-path wall time.
+
 The checked-in desktop UI is still an inert exploration: only Home exists and the Tauri host source
 is absent. Build release UI on the versioned CLI snapshots rather than treating that shell as
 functional. The installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
@@ -1089,12 +1111,11 @@ redirects should not be imported wholesale. Port bounded ideas behind Preflight'
 fallback boundary, and add explicit shadow/ownership reporting plus pinned compatibility targets.
 
 Next implementation order: add separate cache/evidence retention commands; make install optionally
-prepare the exact current profile; define the
-driver-neutral smoke scenario/evidence schema and wire Peekaboo once permissions are granted; then
-capture a fresh current-build profile before attempting more deferral or dependency-aware cold-path
-parallelism. Any startup parallel executor needs an explicit main-thread GL queue, join barrier,
-memory budget, adaptive worker count, and vanilla fallback. Do not copy Fast Rendering's
-exception-driven epilogue replacement.
+prepare the exact current profile; define the driver-neutral smoke scenario/evidence schema and wire
+Peekaboo once permissions are granted; then map the preparation dependency graph before attempting
+more deferral or dependency-aware cold-path parallelism. Any startup parallel executor needs an
+explicit main-thread GL queue, join barrier, memory budget, adaptive worker count, and vanilla
+fallback. Do not copy Fast Rendering's exception-driven epilogue replacement.
 
 ## Environment notes that cost time to rediscover
 

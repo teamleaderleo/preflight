@@ -35,16 +35,23 @@ public final class PreflightAgent {
                 "Adapter initialization",
                 () -> AdapterRuntime.start(options, instrumentation));
         Recording recording = startRecording(options);
+        contain("Recording stop controller", () -> RecordingStopController.start(
+                recording, options.destination().toAbsolutePath().normalize()));
         RecordingFlusher flusher = contain(
                 "Recording flusher",
                 () -> RecordingFlusher.start(
                         recording,
                         options.destination().toAbsolutePath().normalize(),
                         options.flushInterval()));
+        boolean manualRecordingClose = recording != null && options.flushInterval().isZero();
         try {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     () -> {
-                        markStopping(recording);
+                        if (manualRecordingClose) {
+                            stopRecording(recording, options.destination());
+                        } else {
+                            markStopping(recording);
+                        }
                         closeFlusher(flusher);
                         closeAdapter(adapterSession);
                         closeQuietLogs(options.quietLogs());
@@ -128,11 +135,11 @@ public final class PreflightAgent {
             Recording recording = new Recording(configuration);
             recording.setName("Starsector Preflight startup");
             recording.setToDisk(true);
-            // The JVM must dump this recording from its own shutdown hook. That hook writes the
-            // destination before it wipes the chunk repository; a competing hook of ours that
-            // stopped the recording could be caught between those two steps and dump a recording
-            // whose chunks had already been deleted, leaving an empty file behind.
-            recording.setDumpOnExit(true);
+            // Ordinary multi-chunk recordings use HotSpot's dump hook plus periodic sidecars. The
+            // flush=0 policy deliberately never rotates its active chunk, so let our shutdown hook
+            // stop it synchronously instead of racing HotSpot's independent dump hook. This also
+            // gives tests an explicit final AgentStopping boundary in the destination file.
+            recording.setDumpOnExit(!options.flushInterval().isZero());
             recording.setDestination(destination);
             configureStartupEvents(recording, options);
             recording.start();
@@ -224,32 +231,38 @@ public final class PreflightAgent {
         }
     }
 
-    private static void stopRecording(Recording recording, Path destination) {
+    static boolean stopRecording(Recording recording, Path destination) {
         if (recording == null) {
-            return;
+            return false;
         }
-        try {
-            if (recording.getState() == RecordingState.RUNNING) {
-                AgentStopping stopping = new AgentStopping();
-                stopping.commit();
-                try {
-                    recording.stop();
-                } catch (IllegalStateException ignored) {
-                    // The JVM may stop the destination-backed recording concurrently during shutdown.
+        synchronized (recording) {
+            try {
+                if (recording.getState() == RecordingState.RUNNING) {
+                    AgentStopping stopping = new AgentStopping();
+                    stopping.commit();
+                    try {
+                        recording.stop();
+                    } catch (IllegalStateException ignored) {
+                        // The JVM may stop the destination-backed recording concurrently during shutdown.
+                    }
                 }
-            }
-            if (recording.getState() != RecordingState.CLOSED) {
-                recording.close();
-            }
-            if (!Files.isRegularFile(destination)) {
-                log("Recording ended without creating " + destination);
-            } else if (Files.size(destination) == 0L) {
-                log("Recording ended with an empty " + destination);
-            } else {
+                if (recording.getState() != RecordingState.CLOSED) {
+                    recording.close();
+                }
+                if (!Files.isRegularFile(destination)) {
+                    log("Recording ended without creating " + destination);
+                    return false;
+                }
+                if (Files.size(destination) == 0L) {
+                    log("Recording ended with an empty " + destination);
+                    return false;
+                }
                 log("Wrote startup recording to " + destination);
+                return true;
+            } catch (Throwable error) {
+                log("Failed to finish recording: " + message(error));
+                return false;
             }
-        } catch (Throwable error) {
-            log("Failed to finish recording: " + message(error));
         }
     }
 

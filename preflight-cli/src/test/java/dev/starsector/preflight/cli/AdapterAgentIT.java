@@ -12,6 +12,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.JarFile;
+import jdk.jfr.consumer.RecordingFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -130,6 +131,28 @@ class AdapterAgentIT {
         assertFalse(Files.exists(audioReport), result.output());
         assertFalse(Files.exists(soundReport), result.output());
         assertFalse(Files.exists(textureReport), result.output());
+    }
+
+    @Test
+    void flushZeroOwnsShutdownAndRetainsTheStoppingEvent() throws Exception {
+        Path recording = temporaryDirectory.resolve("single-chunk.jfr");
+        String agentArguments = "dest64=" + encoded(recording) + ",record=sample,flush=0";
+
+        ProcessResult result = launch(agentArguments);
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        assertTrue(result.output().contains("Wrote startup recording to " + recording), result.output());
+        assertTrue(Files.size(recording) > 0L, result.output());
+        boolean stopping = false;
+        try (RecordingFile events = new RecordingFile(recording)) {
+            while (events.hasMoreEvents()) {
+                if ("preflight.AgentStopping".equals(events.readEvent().getEventType().getName())) {
+                    stopping = true;
+                }
+            }
+        }
+        assertTrue(stopping, "the manually closed chunk must include the shutdown boundary");
     }
 
     private static void assertAsmIsRelocated() throws Exception {
