@@ -1,0 +1,103 @@
+package dev.starsector.preflight.cli;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class EvidenceRetentionTest {
+    @TempDir
+    Path directory;
+
+    @Test
+    void keepsNewestSelectedSessionsAndLeavesTheOtherCategoryUntouched() throws Exception {
+        PreflightHome home = home();
+        Path oldRun = session(home.runs(), "old-run", 1_000, "old");
+        Path newRun = session(home.runs(), "new-run", 3_000, "new");
+        Path benchmark = session(home.benchmarks(), "benchmark", 2_000, "benchmark");
+        EvidenceRetention.Inventory inventory = EvidenceRetention.inventory(home);
+
+        EvidenceRetention.Plan plan = EvidenceRetention.plan(inventory, 1, null);
+
+        assertEquals(List.of(oldRun.toAbsolutePath()),
+                plan.removals().stream().map(EvidenceRetention.Session::path).toList());
+        EvidenceRetention.apply(plan);
+        assertFalse(Files.exists(oldRun));
+        assertTrue(Files.isDirectory(newRun));
+        assertTrue(Files.isDirectory(benchmark));
+    }
+
+    @Test
+    void aSessionThatChangesAfterPlanningRefusesBeforeDeletion() throws Exception {
+        PreflightHome home = home();
+        Path run = session(home.runs(), "run", 1_000, "first");
+        EvidenceRetention.Plan plan = EvidenceRetention.plan(
+                EvidenceRetention.inventory(home), 0, null);
+        Files.writeString(run.resolve("late.json"), "new evidence");
+
+        IOException error = assertThrows(IOException.class, () -> EvidenceRetention.apply(plan));
+
+        assertTrue(error.getMessage().contains("changed while pruning"));
+        assertTrue(Files.isDirectory(run));
+        assertTrue(Files.isRegularFile(run.resolve("late.json")));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void jsonContractsSeparateInventoryFromPreviewAndApplication() throws Exception {
+        PreflightHome home = home();
+        session(home.runs(), "run", 1_000, "evidence");
+        EvidenceRetention.Inventory inventory = EvidenceRetention.inventory(home);
+        ByteArrayOutputStream reportBytes = new ByteArrayOutputStream();
+        assertEquals(0, EvidenceCommand.report(
+                home,
+                inventory,
+                true,
+                new PrintStream(reportBytes, true, StandardCharsets.UTF_8)));
+        Map<String, Object> report = StrictJson.object(reportBytes.toString(StandardCharsets.UTF_8));
+        assertEquals("starsector-preflight-evidence-v1", report.get("format"));
+        assertEquals(1, ((List<?>) report.get("runs")).size());
+
+        EvidenceRetention.Plan plan = EvidenceRetention.plan(inventory, 0, null);
+        ByteArrayOutputStream previewBytes = new ByteArrayOutputStream();
+        assertEquals(0, EvidenceCommand.prune(
+                plan,
+                false,
+                true,
+                new PrintStream(previewBytes, true, StandardCharsets.UTF_8)));
+        Map<String, Object> preview =
+                StrictJson.object(previewBytes.toString(StandardCharsets.UTF_8));
+        assertEquals("starsector-preflight-evidence-prune-v1", preview.get("format"));
+        assertEquals(Boolean.FALSE, preview.get("applied"));
+        assertEquals(1, ((List<Map<String, Object>>) preview.get("sessions")).size());
+        assertTrue(Files.isDirectory(home.runs().resolve("run")));
+    }
+
+    private PreflightHome home() {
+        return PreflightHome.resolve(Platform.MAC, directory, Map.of());
+    }
+
+    private static Path session(Path root, String name, long modifiedMillis, String contents)
+            throws IOException {
+        Path session = root.resolve(name);
+        Files.createDirectories(session);
+        Path evidence = session.resolve("report.json");
+        Files.writeString(evidence, contents);
+        FileTime time = FileTime.fromMillis(modifiedMillis);
+        Files.setLastModifiedTime(evidence, time);
+        Files.setLastModifiedTime(session, time);
+        return session;
+    }
+}

@@ -23,19 +23,30 @@ import java.util.TreeMap;
  */
 final class CacheFootprint {
     /** Directories under the home whose contents are reported separately. */
-    private static final Map<String, String> CATEGORIES = new LinkedHashMap<>(Map.ofEntries(
-            Map.entry("cache/blobs", "prepared texture payloads, shared across profiles by content hash"),
-            Map.entry("cache/resource-indexes", "one per prepared profile"),
-            Map.entry("cache/manifests", "one per prepared profile"),
-            Map.entry("cache/spec-store", "prepared JSON, rules and command-class artifacts"),
-            Map.entry("cache/prepared-audio", "decoded PCM and exact-profile audio manifests"),
-            Map.entry("cache/generated-bytecode", "exact-context Janino class maps and deduplicated packs"),
-            Map.entry("cache/classpath", "mod jar and class inventories"),
-            Map.entry("cache/comparison-state-snapshots", "benchmark comparison inputs"),
-            Map.entry("cache/reports", "generated reports"),
-            Map.entry("runs", "per-launch evidence: adapter reports, phase timings, recordings"),
-            Map.entry("benchmarks", "recorded benchmark scenarios"),
-            Map.entry("bin", "the installed copy of preflight.jar")));
+    private static final Map<String, Category> CATEGORIES = new LinkedHashMap<>(Map.ofEntries(
+            Map.entry("cache/blobs", acceleration(
+                    "prepared texture payloads, shared across profiles by content hash")),
+            Map.entry("cache/packs", acceleration("profile texture packs and learned read order")),
+            Map.entry("cache/resource-indexes", acceleration("one per prepared profile")),
+            Map.entry("cache/manifests", acceleration("one per prepared profile")),
+            Map.entry("cache/spec-store", acceleration(
+                    "prepared JSON, rules and command-class artifacts")),
+            Map.entry("cache/prepared-audio", acceleration(
+                    "decoded PCM and exact-profile audio manifests")),
+            Map.entry("cache/generated-bytecode", acceleration(
+                    "exact-context Janino class maps and deduplicated packs")),
+            Map.entry("cache/adapter-transformations", acceleration(
+                    "exact-context transformed game and mod classes")),
+            Map.entry("cache/classpath", acceleration("mod jar and class inventories")),
+            Map.entry("cache/comparison-state-snapshots", evidence(
+                    "benchmark comparison inputs")),
+            Map.entry("cache/reports", evidence("generated diagnostic reports")),
+            Map.entry("runs", evidence(
+                    "per-launch evidence: adapter reports, phase timings, recordings")),
+            Map.entry("benchmarks", evidence("recorded benchmark scenarios")),
+            Map.entry("profiles", configuration("named enabled-mod profiles")),
+            Map.entry("profile-backups", configuration("enabled-mod backups from profile activation")),
+            Map.entry("bin", application("the installed copy of preflight.jar"))));
 
     private CacheFootprint() {
     }
@@ -44,11 +55,15 @@ final class CacheFootprint {
         List<Entry> entries = new ArrayList<>();
         long total = 0;
         long counted = 0;
-        for (Map.Entry<String, String> category : CATEGORIES.entrySet()) {
+        for (Map.Entry<String, Category> category : CATEGORIES.entrySet()) {
             Path directory = home.root().resolve(category.getKey());
             Usage usage = usage(directory);
             if (usage.files() > 0 || Files.exists(directory)) {
-                entries.add(new Entry(category.getKey(), category.getValue(), usage));
+                entries.add(new Entry(
+                        category.getKey(),
+                        category.getValue().group(),
+                        category.getValue().description(),
+                        usage));
                 counted = Math.addExact(counted, usage.bytes());
             }
         }
@@ -62,6 +77,22 @@ final class CacheFootprint {
                 whole,
                 Math.max(0, total - counted),
                 profiles(home));
+    }
+
+    private static Category acceleration(String description) {
+        return new Category("acceleration", description);
+    }
+
+    private static Category evidence(String description) {
+        return new Category("evidence", description);
+    }
+
+    private static Category configuration(String description) {
+        return new Category("configuration", description);
+    }
+
+    private static Category application(String description) {
+        return new Category("application", description);
     }
 
     /**
@@ -152,7 +183,10 @@ final class CacheFootprint {
     record Usage(long bytes, long files) {
     }
 
-    record Entry(String path, String description, Usage usage) {
+    private record Category(String group, String description) {
+    }
+
+    record Entry(String path, String group, String description, Usage usage) {
     }
 
     record Profile(

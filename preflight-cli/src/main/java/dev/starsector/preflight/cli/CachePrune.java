@@ -3,6 +3,8 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.GeneratedBytecodeBundle;
 import dev.starsector.preflight.core.GeneratedBytecodeBundleIO;
 import dev.starsector.preflight.core.GeneratedBytecodePack;
+import dev.starsector.preflight.core.PreparedAudioManifest;
+import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
@@ -25,10 +27,10 @@ import java.util.Set;
  * <p>Artifacts fall into two kinds and only one of them is safe to delete by name. Resource
  * indexes, texture manifests and spec-store artifacts carry their profile's fingerprint or identity
  * in the filename, so a file belonging to a discarded profile is simply a file whose name is not in
- * the survivor set. Texture blobs are not like that: they are content-addressed and <b>shared</b>,
- * so the same blob is routinely referenced by several profiles and its name says nothing about who
- * needs it. Deleting a blob is only safe after reading every surviving manifest and confirming none
- * of them points at it.
+ * the survivor set. Texture and prepared-audio blobs are not like that: they are content-addressed
+ * and <b>shared</b>, so the same blob is routinely referenced by several profiles and its name says
+ * nothing about who needs it. Deleting one is only safe after reading every surviving manifest and
+ * confirming none of them points at it.
  *
  * <p>That asymmetry drives the safety rule here: <b>a manifest that cannot be read aborts the whole
  * plan.</b> An unreadable survivor means an incomplete reachable set, and an incomplete reachable
@@ -72,6 +74,12 @@ final class CachePrune {
 
         removals.addAll(byFingerprint(cache.resolve("resource-indexes"), ".spfi", survivors));
         removals.addAll(byFingerprint(cache.resolve("manifests"), ".spfm", survivors));
+        removals.addAll(byFingerprint(cache.resolve("packs"), ".spfp", survivors));
+        removals.addAll(byFingerprint(cache.resolve("packs"), ".spfo", survivors));
+        removals.addAll(byFingerprint(
+                cache.resolve("prepared-audio").resolve("manifests"), ".spam", survivors));
+        removals.addAll(byFingerprint(
+                cache.resolve("classpath").resolve("profiles"), ".spfc", survivors));
 
         Set<String> reachable = new HashSet<>();
         for (String survivor : survivors) {
@@ -98,6 +106,34 @@ final class CachePrune {
                 : List.of();
         removals.addAll(blobs);
 
+        Set<String> reachableAudio = new HashSet<>();
+        for (String survivor : survivors) {
+            Path manifest = cache.resolve("prepared-audio").resolve("manifests")
+                    .resolve(survivor + ".spam");
+            if (!Files.isRegularFile(manifest)) {
+                continue;
+            }
+            try {
+                PreparedAudioManifest read = PreparedAudioManifestIO.read(manifest);
+                if (!survivor.equals(read.profileFingerprintSha256())) {
+                    throw new IOException("profile fingerprint does not match its filename");
+                }
+                for (PreparedAudioManifest.Entry entry : read.entries().values()) {
+                    if (entry.policy().cacheEligible()) {
+                        reachableAudio.add(entry.cacheKeySha256());
+                    }
+                }
+            } catch (Exception unreadable) {
+                refusals.add("prepared-audio manifest for surviving profile "
+                        + survivor.substring(0, 16) + " could not be read ("
+                        + message(unreadable) + "), so the set of PCM blobs it still needs is unknown");
+            }
+        }
+        List<Removal> audioBlobs = refusals.isEmpty()
+                ? unreachableAudioBlobs(cache, reachableAudio)
+                : List.of();
+        removals.addAll(audioBlobs);
+
         if (!keepIdentities.isEmpty()) {
             removals.addAll(specStore(cache, keepIdentities));
         }
@@ -106,7 +142,11 @@ final class CachePrune {
         }
 
         removals.sort(Comparator.comparingLong(Removal::bytes).reversed());
-        return new Plan(List.copyOf(removals), List.copyOf(refusals), reachable.size());
+        return new Plan(
+                List.copyOf(removals),
+                List.copyOf(refusals),
+                reachable.size(),
+                reachableAudio.size());
     }
 
     private static List<Removal> byFingerprint(Path directory, String extension, Set<String> keep)
@@ -227,6 +267,34 @@ final class CachePrune {
         return removals;
     }
 
+    private static List<Removal> unreachableAudioBlobs(Path cache, Set<String> reachable)
+            throws IOException {
+        Path root = cache.resolve("prepared-audio");
+        List<Removal> removals = new ArrayList<>();
+        if (!Files.isDirectory(root)) {
+            return removals;
+        }
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                if (!attributes.isRegularFile()) {
+                    return FileVisitResult.CONTINUE;
+                }
+                String name = file.getFileName().toString();
+                if (!name.endsWith(".spau")) {
+                    return FileVisitResult.CONTINUE;
+                }
+                String key = name.substring(0, name.length() - ".spau".length());
+                if (key.matches("[0-9a-f]{64}") && !reachable.contains(key)) {
+                    removals.add(new Removal(
+                            file, attributes.size(), "unreferenced prepared-audio blob"));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return removals;
+    }
+
     private static List<Removal> specStore(Path cache, Set<String> keepIdentities)
             throws IOException {
         Path store = cache.resolve("spec-store");
@@ -259,6 +327,9 @@ final class CachePrune {
     }
 
     static long apply(Plan plan) throws IOException {
+        if (!plan.safe()) {
+            throw new IOException("Refusing to apply an unsafe cache-prune plan");
+        }
         long freed = 0;
         Set<Path> parents = new LinkedHashSet<>();
         for (Removal removal : plan.removals()) {
@@ -294,7 +365,11 @@ final class CachePrune {
     record Removal(Path path, long bytes, String reason) {
     }
 
-    record Plan(List<Removal> removals, List<String> refusals, int reachableBlobs) {
+    record Plan(
+            List<Removal> removals,
+            List<String> refusals,
+            int reachableBlobs,
+            int reachableAudioBlobs) {
         long bytes() {
             return removals.stream().mapToLong(Removal::bytes).sum();
         }

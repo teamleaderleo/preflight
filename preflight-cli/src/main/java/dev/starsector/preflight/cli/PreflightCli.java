@@ -74,6 +74,7 @@ public final class PreflightCli {
             case "install" -> InstallCommand.execute(CommandLine.parse(args, 1));
             case "uninstall" -> UninstallCommand.execute(args, 1);
             case "cache" -> CacheCommand.execute(args, 1);
+            case "evidence" -> EvidenceCommand.execute(args, 1);
             case "profile" -> ProfileCommand.execute(args, 1);
             case "scan" -> ScanCommand.execute(ScanOptions.parse(args, 1));
             case "index" -> IndexCommand.execute(args, 1);
@@ -269,11 +270,19 @@ public final class PreflightCli {
                 "preflight cache [--json]",
                 "  Reports total storage by category, the prepared profiles held, and which",
                 "  one the current install matches. --json emits the stable desktop/tooling contract.",
-                "preflight cache prune [--yes]",
-                "  Removes every profile except the current one, including the texture blobs",
-                "  no surviving profile references, stale Janino contexts, and per-request",
-                "  bytecode bundles exactly represented by the retained deduplicated pack.",
-                "  Prints the plan and exits unless --yes."));
+                "preflight cache prune [--keep-named] [--json] [--yes]",
+                "  Removes every profile except the current one; --keep-named also preserves every",
+                "  readable named profile. This includes profile texture packs,",
+                "  texture and prepared-audio blobs no survivor references, stale Janino contexts,",
+                "  and per-request bytecode bundles represented by the retained deduplicated pack.",
+                "  Prints the plan and exits unless --yes; --json emits the stable plan contract."));
+        usage.put("evidence", List.of(
+                "preflight evidence [--json]",
+                "  Reports launch-run and benchmark evidence separately from acceleration caches.",
+                "preflight evidence prune [--keep-runs <count>] [--keep-benchmarks <count>] [--json] [--yes]",
+                "  Keeps the newest requested number in each selected category. An omitted category",
+                "  is untouched. The plan is preview-only unless --yes; sessions that change while",
+                "  the command is running are refused rather than deleting active evidence."));
         usage.put("profile", List.of(
                 "preflight profile list [--game <path>] [--launcher <path>] [--json]",
                 "preflight profile save <name> [--game <path>] [--launcher <path>] [--json]",

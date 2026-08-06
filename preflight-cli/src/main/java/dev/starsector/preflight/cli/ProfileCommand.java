@@ -13,6 +13,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -302,6 +303,18 @@ final class ProfileCommand {
         return new LoadedProfiles(List.copyOf(profiles), List.copyOf(diagnostics));
     }
 
+    /** Cache fingerprints named profiles explicitly ask retention policies to preserve. */
+    static RetainedFingerprints retainedFingerprints(PreflightHome home) throws IOException {
+        LoadedProfiles loaded = loadProfiles(home);
+        Set<String> fingerprints = new LinkedHashSet<>();
+        for (SavedProfile profile : loaded.profiles()) {
+            fingerprints.add(profile.profileFingerprint());
+        }
+        return new RetainedFingerprints(
+                Collections.unmodifiableSet(new LinkedHashSet<>(fingerprints)),
+                loaded.diagnostics());
+    }
+
     private static SavedProfile readProfile(Path file) throws IOException {
         if (!Files.isRegularFile(file)) {
             throw new IOException("Named profile not found: " + file);
@@ -434,6 +447,9 @@ final class ProfileCommand {
     }
 
     private record LoadedProfiles(List<SavedProfile> profiles, List<String> diagnostics) {
+    }
+
+    record RetainedFingerprints(Set<String> fingerprints, List<String> diagnostics) {
     }
 
     private record SavedProfile(

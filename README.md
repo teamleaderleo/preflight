@@ -174,15 +174,32 @@ On the 83-mod development profile, `balanced` reduced the texture pack from 5.34
 Ten shuffled fresh-game-JVM replays measured the exact startup access order at 1,137ms balanced
 versus 691ms fastest; fastest buys about 446ms for 3.08GB. A real learned-order fastest gate reached
 the menu in 18.71s with zero cache or transform failure. Existing manifests remain active until
-preparation runs again. After changing policies, `java -jar preflight.jar cache prune`
-previews the superseded blobs that can be reclaimed; add `--yes` only after reviewing that plan.
+preparation runs again. After changing policies, `java -jar preflight.jar cache prune --json`
+previews the superseded blobs and profile packs that can be reclaimed; add `--yes` only after
+reviewing that plan. Add `--keep-named` to preserve the caches for every readable named profile.
 
 Preparation also creates one indexed texture pack per profile. The game opens that pack once and
 falls back to the loose blobs on any problem. After a successful launch, the next preparation can
 use its checksummed access-order hint to tune physical layout automatically; missing or corrupt
 hints are ignored. The packed copy currently retains loose blobs for repair and fail-open safety,
-so profile pruning is the supported way to reclaim obsolete versions while the GUI storage-policy
-controls are still being built.
+so profile pruning is the supported way to reclaim obsolete versions.
+
+Save and switch ordered mod sets without losing their exact caches, and manage diagnostic evidence
+independently from acceleration data:
+
+```bash
+java -jar preflight.jar profile save "Heavy campaign"
+java -jar preflight.jar profile list --json
+java -jar preflight.jar profile activate "Heavy campaign"       # preview
+java -jar preflight.jar profile activate "Heavy campaign" --yes
+
+java -jar preflight.jar cache --json
+java -jar preflight.jar evidence --json
+java -jar preflight.jar evidence prune --keep-runs 20 --keep-benchmarks 10
+```
+
+Both prune commands are preview-only unless `--yes` is present. Evidence retention never touches
+acceleration caches and refuses sessions that change between planning and deletion.
 
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 

@@ -35,6 +35,10 @@ final class ProfileCommandTest {
         assertTrue(listJson.contains("starsector-preflight-profile-list-v1"));
         assertTrue(listJson.contains("\"active\":true"));
         assertTrue(listJson.contains("\"missingMods\":[]"));
+        String fingerprint = JsonText.string(savedJson, "profileFingerprint");
+        assertEquals(
+                java.util.Set.of(fingerprint),
+                ProfileCommand.retainedFingerprints(fixture.home()).fingerprints());
     }
 
     @Test
@@ -77,6 +81,21 @@ final class ProfileCommandTest {
         assertTrue(json.contains("\"canActivate\":false"));
         assertTrue(json.contains("\"missingMods\":[\"beta\"]"));
         assertFalse(Files.exists(fixture.home().profileBackups()));
+    }
+
+    @Test
+    void unreadableNamedProfileIsReportedToRetentionInsteadOfSilentlyDropped() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "valid", false, stream(new ByteArrayOutputStream())));
+        Files.writeString(fixture.home().profiles().resolve("broken.json"), "not json");
+
+        ProfileCommand.RetainedFingerprints retained =
+                ProfileCommand.retainedFingerprints(fixture.home());
+
+        assertEquals(1, retained.fingerprints().size());
+        assertEquals(1, retained.diagnostics().size());
+        assertTrue(retained.diagnostics().get(0).contains("broken.json"));
     }
 
     private Fixture fixture(List<String> enabled) throws Exception {

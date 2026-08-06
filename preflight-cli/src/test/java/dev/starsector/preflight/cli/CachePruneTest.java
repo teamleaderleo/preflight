@@ -2,12 +2,17 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.GeneratedBytecodeBundle;
 import dev.starsector.preflight.core.GeneratedBytecodeCache;
 import dev.starsector.preflight.core.GeneratedBytecodePack;
 import dev.starsector.preflight.core.Hashes;
+import dev.starsector.preflight.core.PreparedAudio;
+import dev.starsector.preflight.core.PreparedAudioCache;
+import dev.starsector.preflight.core.PreparedAudioManifest;
+import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
@@ -79,6 +84,7 @@ class CachePruneTest {
                         removal -> "unreferenced blob".equals(removal.reason())),
                 "no blob may be planned for removal when the reachable set is incomplete");
         assertTrue(plan.refusals().get(0).contains(kept.substring(0, 16)), plan.refusals().toString());
+        assertThrows(IOException.class, () -> CachePrune.apply(plan));
     }
 
     @Test
@@ -176,6 +182,50 @@ class CachePruneTest {
         assertFalse(Files.exists(stale));
     }
 
+    @Test
+    void staleTexturePacksAndPreparedAudioArePrunedBySurvivorReachability() throws Exception {
+        PreflightHome preflight = home();
+        String kept = "9".repeat(64);
+        String discarded = "a".repeat(64);
+        PreparedAudio shared = audio("shared-audio");
+        PreparedAudio oldOnly = audio("old-audio");
+        PreparedAudioCache.write(preflight.cache(), shared);
+        PreparedAudioCache.write(preflight.cache(), oldOnly);
+        writeAudioProfile(preflight, kept, Map.of("sounds/shared.ogg", shared));
+        writeAudioProfile(preflight, discarded, Map.of(
+                "sounds/shared.ogg", shared,
+                "sounds/old.ogg", oldOnly));
+
+        Path packs = preflight.cache().resolve("packs");
+        Files.createDirectories(packs);
+        Path keptPack = packs.resolve(kept + ".spfp");
+        Path oldPack = packs.resolve(discarded + ".spfp");
+        Path oldOrder = packs.resolve(discarded + ".spfo");
+        Files.writeString(keptPack, "keep");
+        Files.writeString(oldPack, "discard");
+        Files.writeString(oldOrder, "discard order");
+
+        CachePrune.Plan plan = CachePrune.plan(preflight, Set.of(kept), Set.of());
+
+        assertTrue(plan.safe(), plan.refusals().toString());
+        assertEquals(1, plan.reachableAudioBlobs());
+        assertTrue(plan.removals().stream().anyMatch(removal -> removal.path().equals(oldPack)));
+        assertTrue(plan.removals().stream().anyMatch(removal -> removal.path().equals(oldOrder)));
+        assertFalse(plan.removals().stream().anyMatch(removal -> removal.path().equals(keptPack)));
+        Path sharedBlob = audioPath(preflight, shared);
+        Path oldBlob = audioPath(preflight, oldOnly);
+        assertFalse(plan.removals().stream().anyMatch(removal -> removal.path().equals(sharedBlob)));
+        assertTrue(plan.removals().stream().anyMatch(removal -> removal.path().equals(oldBlob)
+                && "unreferenced prepared-audio blob".equals(removal.reason())));
+
+        CachePrune.apply(plan);
+        assertTrue(Files.isRegularFile(keptPack));
+        assertTrue(Files.isRegularFile(sharedBlob));
+        assertFalse(Files.exists(oldPack));
+        assertFalse(Files.exists(oldOrder));
+        assertFalse(Files.exists(oldBlob));
+    }
+
     private PreflightHome home() {
         return PreflightHome.resolve(Platform.MAC, home, Map.of());
     }
@@ -225,6 +275,43 @@ class CachePruneTest {
         TextureManifestIO.write(
                 preflight.cache().resolve("manifests").resolve(fingerprint + ".spfm"),
                 new TextureManifest(fingerprint, entries));
+    }
+
+    private static PreparedAudio audio(String source) {
+        return new PreparedAudio(
+                Hashes.sha256(source.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                "d".repeat(64),
+                PreparedAudio.Policy.FULLY_DECODED_EFFECT,
+                PreparedAudio.PcmEncoding.PCM_SIGNED,
+                16,
+                PreparedAudio.ByteOrder.LITTLE_ENDIAN,
+                44_100,
+                1,
+                2,
+                new byte[4]);
+    }
+
+    private static Path audioPath(PreflightHome preflight, PreparedAudio audio) {
+        return PreparedAudioCache.blobPath(
+                preflight.cache(),
+                audio.sourceSha256(),
+                audio.decoderPolicyIdentitySha256(),
+                audio.policy());
+    }
+
+    private static void writeAudioProfile(
+            PreflightHome preflight, String fingerprint, Map<String, PreparedAudio> audio)
+            throws IOException {
+        Map<String, PreparedAudioManifest.Entry> entries = new LinkedHashMap<>();
+        for (Map.Entry<String, PreparedAudio> entry : audio.entrySet()) {
+            entries.put(entry.getKey(), PreparedAudioManifest.Entry.prepared(
+                    entry.getKey(), 10, 1, entry.getValue()));
+        }
+        Path manifests = preflight.cache().resolve("prepared-audio/manifests");
+        Files.createDirectories(manifests);
+        PreparedAudioManifestIO.write(
+                manifests.resolve(fingerprint + ".spam"),
+                new PreparedAudioManifest(fingerprint, "b".repeat(64), "d".repeat(64), entries));
     }
 
     private static byte[] classBytes(Class<?> type) throws IOException {

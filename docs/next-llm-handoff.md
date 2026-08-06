@@ -1069,7 +1069,20 @@ ordered enabled-mod set and exact fingerprint, reports missing mods and installa
 and makes activation preview-only until `--yes`. A confirmed activation backs up the original,
 rechecks it for a concurrent edit, and uses a same-directory staged replacement (an atomic move
 where the filesystem supports one). Exact-fingerprint caches already coexist and are reused
-automatically when that enabled-mod set returns. Evidence-retention controls still do not exist.
+automatically when that enabled-mod set returns.
+
+Storage and evidence retention are now separate CLI contracts. Cache categories carry an
+`acceleration`, `evidence`, `configuration`, or `application` group, and the previously
+uncategorized profile texture packs and adapter-transformation cache are explicit. `cache prune`
+now safely follows prepared-audio manifests as well as texture manifests, removes stale profile
+packs/order hints and classpath profiles, supports `--keep-named`, and emits a previewable
+`starsector-preflight-cache-prune-v1` JSON plan. An unreadable survivor or named profile refuses the
+whole operation. `evidence [--json]` reports launch runs and benchmark sessions separately;
+`evidence prune --keep-runs N --keep-benchmarks N` touches only selected categories, previews by
+default, and rechecks every session before any deletion so an active/changing run aborts the whole
+apply. On the real development home the read-only report split 21.79GB into 11.61GB acceleration
+and 10.18GB evidence. The current-profile cache-prune preview is safe and would reclaim 5.82GB /
+31,338 files, chiefly 5.28GB of unreferenced texture representations; nothing was removed.
 
 Profile conditions now finish their destination-backed JFR recording inside the live agent before
 the benchmark sends SIGTERM. The harness creates `startup.stop-request`, requires an

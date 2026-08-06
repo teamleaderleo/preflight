@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,11 +26,13 @@ final class CacheCommand {
         boolean prune = false;
         boolean confirmed = false;
         boolean json = false;
+        boolean keepNamed = false;
         for (int index = from; index < args.length; index++) {
             switch (args[index]) {
                 case "prune" -> prune = true;
                 case "--yes" -> confirmed = true;
                 case "--json" -> json = true;
+                case "--keep-named" -> keepNamed = true;
                 case "--help", "-h" -> {
                     PreflightCli.commandUsage("cache", System.out);
                     return 0;
@@ -42,15 +45,10 @@ final class CacheCommand {
         }
         PreflightHome home = PreflightHome.current();
         if (prune) {
-            if (json) {
-                System.err.println("preflight cache: --json currently reports storage;"
-                        + " it does not apply to prune");
-                return 2;
-            }
-            return prune(home, confirmed, System.out);
+            return prune(home, confirmed, keepNamed, json, System.out);
         }
-        if (confirmed) {
-            System.err.println("preflight cache: --yes requires prune");
+        if (confirmed || keepNamed) {
+            System.err.println("preflight cache: --yes and --keep-named require prune");
             return 2;
         }
         if (json) {
@@ -67,6 +65,15 @@ final class CacheCommand {
      * is a legitimate thing to want and is spelled {@code preflight uninstall --purge}, not this.
      */
     static int prune(PreflightHome home, boolean confirmed, PrintStream out) throws Exception {
+        return prune(home, confirmed, false, false, out);
+    }
+
+    static int prune(
+            PreflightHome home,
+            boolean confirmed,
+            boolean keepNamed,
+            boolean json,
+            PrintStream out) throws Exception {
         String current = currentFingerprint();
         if (current == null) {
             System.err.println("Cannot identify the current install's profile, so there is nothing");
@@ -75,12 +82,40 @@ final class CacheCommand {
             return 3;
         }
 
-        Set<String> keepIdentities = liveSpecStoreIdentities(home, current);
-        Set<String> keepJaninoContexts = liveJaninoContexts(home, current);
+        Set<String> survivors = new LinkedHashSet<>();
+        survivors.add(current);
+        if (keepNamed) {
+            ProfileCommand.RetainedFingerprints named = ProfileCommand.retainedFingerprints(home);
+            if (!named.diagnostics().isEmpty()) {
+                if (json) {
+                    emitPruneJson(
+                            current, survivors, null, false, false, named.diagnostics(), out);
+                } else {
+                    System.err.println("Refusing to prune while a named profile is unreadable:");
+                    for (String diagnostic : named.diagnostics()) {
+                        System.err.println("  " + diagnostic);
+                    }
+                }
+                return 3;
+            }
+            survivors.addAll(named.fingerprints());
+        }
+        // Per-corpus and compiler identities cannot be reconstructed for an inactive named mod set
+        // without activating it. Retain those small/shared stores rather than guess.
+        Set<String> keepIdentities = survivors.size() == 1
+                ? liveSpecStoreIdentities(home, current)
+                : Set.of();
+        Set<String> keepJaninoContexts = survivors.size() == 1
+                ? liveJaninoContexts(home, current)
+                : Set.of();
         CachePrune.Plan plan = CachePrune.plan(
-                home, Set.of(current), keepIdentities, keepJaninoContexts);
+                home, survivors, keepIdentities, keepJaninoContexts);
 
         if (!plan.safe()) {
+            if (json) {
+                emitPruneJson(current, survivors, plan, false, false, plan.refusals(), out);
+                return 3;
+            }
             System.err.println("Refusing to prune:");
             for (String refusal : plan.refusals()) {
                 System.err.println("  " + refusal);
@@ -92,13 +127,31 @@ final class CacheCommand {
         }
 
         if (plan.removals().isEmpty()) {
-            out.printf(Locale.ROOT, "Nothing to prune. Profile %s is the only one held.%n",
-                    current.substring(0, 16));
+            if (json) {
+                emitPruneJson(current, survivors, plan, true, confirmed, List.of(), out);
+                return 0;
+            }
+            out.printf(Locale.ROOT, "Nothing to prune. Keeping current profile %s%s.%n",
+                    current.substring(0, 16),
+                    survivors.size() == 1
+                            ? ""
+                            : " plus " + (survivors.size() - 1) + " named profile(s)");
+            return 0;
+        }
+
+        if (json) {
+            if (confirmed) {
+                CachePrune.apply(plan);
+            }
+            emitPruneJson(current, survivors, plan, true, confirmed, List.of(), out);
             return 0;
         }
 
         long blobRemovals = plan.removals().stream()
                 .filter(removal -> "unreferenced blob".equals(removal.reason()))
+                .count();
+        long audioBlobRemovals = plan.removals().stream()
+                .filter(removal -> "unreferenced prepared-audio blob".equals(removal.reason()))
                 .count();
         long redundantBytecode = plan.removals().stream()
                 .filter(removal -> "redundant generated-bytecode bundle".equals(removal.reason()))
@@ -106,14 +159,21 @@ final class CacheCommand {
         long staleBytecode = plan.removals().stream()
                 .filter(removal -> removal.reason().startsWith("stale generated-bytecode context "))
                 .count();
-        out.printf(Locale.ROOT, "Keeping profile %s (the current install).%n%n",
-                current.substring(0, 16));
+        out.printf(Locale.ROOT, "Keeping profile %s (the current install)%s.%n%n",
+                current.substring(0, 16),
+                survivors.size() == 1 ? "" : " and " + (survivors.size() - 1) + " named profile(s)");
         out.printf(Locale.ROOT, "%s %,d files, freeing %s:%n",
                 confirmed ? "Removing" : "Would remove",
                 plan.removals().size(),
                 CacheFootprint.humanBytes(plan.bytes()));
         out.printf(Locale.ROOT, "  %,d unreferenced texture blobs (%,d stay, still referenced)%n",
                 blobRemovals, plan.reachableBlobs());
+        if (audioBlobRemovals > 0 || plan.reachableAudioBlobs() > 0) {
+            out.printf(Locale.ROOT,
+                    "  %,d unreferenced prepared-audio blobs (%,d stay, still referenced)%n",
+                    audioBlobRemovals,
+                    plan.reachableAudioBlobs());
+        }
         if (redundantBytecode > 0 || staleBytecode > 0) {
             out.printf(Locale.ROOT,
                     "  %,d redundant and %,d stale-context generated-bytecode files%n",
@@ -122,6 +182,7 @@ final class CacheCommand {
         for (CachePrune.Removal removal : plan.removals()) {
             if (!"unreferenced blob".equals(removal.reason())
                     && !"redundant generated-bytecode bundle".equals(removal.reason())
+                    && !"unreferenced prepared-audio blob".equals(removal.reason())
                     && !removal.reason().startsWith("stale generated-bytecode context ")) {
                 out.printf(Locale.ROOT, "  %-28s %9s  %s%n",
                         removal.reason(),
@@ -141,6 +202,35 @@ final class CacheCommand {
         out.printf(Locale.ROOT, "Freed %s.%n", CacheFootprint.humanBytes(freed));
         out.println("The kept profile is untouched, so the next launch is still a warm one.");
         return 0;
+    }
+
+    private static void emitPruneJson(
+            String current,
+            Set<String> survivors,
+            CachePrune.Plan plan,
+            boolean safe,
+            boolean applied,
+            List<String> refusals,
+            PrintStream out) {
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("format", "starsector-preflight-cache-prune-v1");
+        report.put("safe", safe);
+        report.put("applied", applied);
+        report.put("currentProfileFingerprint", current);
+        report.put("survivingProfileFingerprints", survivors);
+        report.put("bytes", plan == null ? 0 : plan.bytes());
+        report.put("files", plan == null ? 0 : plan.removals().size());
+        report.put("reachableTextureBlobs", plan == null ? 0 : plan.reachableBlobs());
+        report.put("reachablePreparedAudioBlobs", plan == null ? 0 : plan.reachableAudioBlobs());
+        report.put("refusals", refusals);
+        report.put("removals", plan == null ? List.of() : plan.removals().stream().map(removal -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("path", removal.path());
+            value.put("bytes", removal.bytes());
+            value.put("reason", removal.reason());
+            return value;
+        }).toList());
+        out.println(Json.object(report));
     }
 
     /** Exact compiler context reachable from the current install, or empty to retain them all. */
@@ -251,9 +341,23 @@ final class CacheCommand {
         List<Map<String, Object>> categories = footprint.entries().stream().map(entry -> {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("path", entry.path());
+            value.put("group", entry.group());
             value.put("description", entry.description());
             value.put("bytes", entry.usage().bytes());
             value.put("files", entry.usage().files());
+            return value;
+        }).toList();
+        Map<String, long[]> groupTotals = new LinkedHashMap<>();
+        for (CacheFootprint.Entry entry : footprint.entries()) {
+            long[] totals = groupTotals.computeIfAbsent(entry.group(), ignored -> new long[2]);
+            totals[0] = Math.addExact(totals[0], entry.usage().bytes());
+            totals[1] = Math.addExact(totals[1], entry.usage().files());
+        }
+        List<Map<String, Object>> groups = groupTotals.entrySet().stream().map(entry -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("id", entry.getKey());
+            value.put("bytes", entry.getValue()[0]);
+            value.put("files", entry.getValue()[1]);
             return value;
         }).toList();
         List<Map<String, Object>> profiles = footprint.profiles().stream().map(profile -> {
@@ -283,6 +387,7 @@ final class CacheCommand {
         report.put("root", footprint.root());
         report.put("present", footprint.present());
         report.put("total", total);
+        report.put("groups", groups);
         report.put("categories", categories);
         report.put("uncategorizedBytes", footprint.uncategorizedBytes());
         report.put("currentProfileFingerprint", currentFingerprint);
