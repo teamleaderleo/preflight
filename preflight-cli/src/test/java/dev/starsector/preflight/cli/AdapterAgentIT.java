@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -134,15 +135,21 @@ class AdapterAgentIT {
     }
 
     @Test
-    void flushZeroOwnsShutdownAndRetainsTheStoppingEvent() throws Exception {
+    void flushZeroLiveStopRetainsTheStoppingEvent() throws Exception {
         Path recording = temporaryDirectory.resolve("single-chunk.jfr");
+        Path request = temporaryDirectory.resolve("single-chunk.stop-request");
+        Path complete = temporaryDirectory.resolve("single-chunk.stop-complete");
         String agentArguments = "dest64=" + encoded(recording) + ",record=sample,flush=0";
 
-        ProcessResult result = launch(agentArguments);
+        ProcessResult result = launch(agentArguments, List.of(
+                "-Dpreflight.test.recordingStopRequest=" + request,
+                "-Dpreflight.test.recordingStopComplete=" + complete));
 
         assertTrue(result.completed(), result.output());
         assertEquals(0, result.exitCode(), result.output());
+        assertTrue(result.output().contains("recording-stop-complete:ok"), result.output());
         assertTrue(result.output().contains("Wrote startup recording to " + recording), result.output());
+        assertEquals("ok\n", Files.readString(complete));
         assertTrue(Files.size(recording) > 0L, result.output());
         boolean stopping = false;
         try (RecordingFile events = new RecordingFile(recording)) {
@@ -164,15 +171,21 @@ class AdapterAgentIT {
     }
 
     private ProcessResult launch(String agentArguments) throws Exception {
+        return launch(agentArguments, List.of());
+    }
+
+    private ProcessResult launch(String agentArguments, List<String> jvmArguments) throws Exception {
         Path java = Path.of(System.getProperty("java.home"), "bin", executable("java"));
         Path agent = Path.of("target", "preflight.jar").toAbsolutePath().normalize();
         Path testClasses = Path.of("target", "test-classes").toAbsolutePath().normalize();
-        Process process = new ProcessBuilder(List.of(
-                java.toString(),
-                "-javaagent:" + agent + "=" + agentArguments,
-                "-cp",
-                testClasses.toString(),
-                "com.fs.starfarer.SyntheticLauncher"))
+        List<String> command = new ArrayList<>();
+        command.add(java.toString());
+        command.add("-javaagent:" + agent + "=" + agentArguments);
+        command.addAll(jvmArguments);
+        command.add("-cp");
+        command.add(testClasses.toString());
+        command.add("com.fs.starfarer.SyntheticLauncher");
+        Process process = new ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start();
         boolean completed = process.waitFor(Duration.ofSeconds(30).toMillis(), TimeUnit.MILLISECONDS);

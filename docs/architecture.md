@@ -21,7 +21,14 @@ Portable identity, format, validation, and report code. Current persisted format
 
 A Java 17 agent injected into the selected child launcher through process-local `JAVA_TOOL_OPTIONS`. It starts JFR in `premain`, records bounded evidence, applies exact source-bound adapter targets, and leaves unknown or changed installations untouched.
 
-The startup recording is dumped by the JVM's own JFR shutdown hook (`dumpOnExit`), never by the agent's shutdown hook. Both hooks run concurrently, and the JVM's hook wipes the JFR chunk repository as its last step, so an agent-side `Recording.stop()` can be caught between stopping the recording and transferring its chunks and dump a zero-byte file over the destination. The agent's own hook is therefore limited to best-effort evidence and adapter-report finalization.
+Ordinary rotating recordings are dumped by the JVM's own JFR shutdown hook (`dumpOnExit`), never
+stopped by the agent's shutdown hook. Both hooks run concurrently, and HotSpot wipes the JFR chunk
+repository as its last step, so a competing agent-side stop can race into an empty destination.
+Single-chunk recordings instead use a file request/ack protocol while the JVM is still live: the
+agent commits `preflight.AgentStopping`, stops and closes the recording synchronously, then writes
+the acknowledgement. The benchmark refuses evidence without that acknowledgement. The agent's
+shutdown hook remains a last-chance non-empty-file fallback, but a JVM already entering shutdown
+cannot promise the final custom event and is not treated as the deterministic boundary path.
 
 The current live texture plans are:
 

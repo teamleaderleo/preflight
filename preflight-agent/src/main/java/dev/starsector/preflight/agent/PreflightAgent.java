@@ -136,9 +136,10 @@ public final class PreflightAgent {
             recording.setName("Starsector Preflight startup");
             recording.setToDisk(true);
             // Ordinary multi-chunk recordings use HotSpot's dump hook plus periodic sidecars. The
-            // flush=0 policy deliberately never rotates its active chunk, so let our shutdown hook
-            // stop it synchronously instead of racing HotSpot's independent dump hook. This also
-            // gives tests an explicit final AgentStopping boundary in the destination file.
+            // The flush=0 policy deliberately never rotates its active chunk. Its deterministic
+            // path is the live request/ack controller; the shutdown hook remains a last-chance
+            // writer when an operator exits without using that protocol. Do not race it against
+            // HotSpot's independent dump hook.
             recording.setDumpOnExit(!options.flushInterval().isZero());
             recording.setDestination(destination);
             configureStartupEvents(recording, options);
@@ -180,6 +181,15 @@ public final class PreflightAgent {
         recording.enable("jdk.JVMInformation");
         recording.enable("jdk.OSInformation");
         recording.enable("jdk.CPUInformation");
+
+        // Register both custom boundaries before the recording starts. AgentStopping may otherwise
+        // be loaded for the first time inside a JVM shutdown hook, when HotSpot is concurrently
+        // tearing JFR down; a fast process can still write a valid destination while losing that
+        // late event registration. Explicit class-based settings ensure the live request/ack path
+        // does not depend on first-use registration; a hook that begins after JVM teardown remains
+        // best effort by definition.
+        recording.enable(AgentStarted.class);
+        recording.enable(AgentStopping.class);
 
         // Where each thread actually is, and whether it was waiting on another thread rather than
         // working. Both modes need these: they are what "where does the time go" is answered from,
