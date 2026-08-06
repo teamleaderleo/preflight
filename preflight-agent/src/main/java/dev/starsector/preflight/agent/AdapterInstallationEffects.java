@@ -75,6 +75,13 @@ final class AdapterInstallationEffects {
                 IndustryDemandSupplyMemoRuntime.settingsInstalled();
             }
         }
+        if (has(referenced, CodexLazyFleetMemberRuntime.class)) {
+            if (CodexLazyFleetMemberPlan.CODEX_CLASS.equals(className)) {
+                CodexLazyFleetMemberRuntime.codexInstalled();
+            } else if (CodexLazyFleetMemberPlan.ENTRY_CLASS.equals(className)) {
+                CodexLazyFleetMemberRuntime.entryAccessorInstalled();
+            }
+        }
         if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(target.planId())) {
             IndEvoSyntheticMarketRuntime.installed();
         }

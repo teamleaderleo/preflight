@@ -24,7 +24,7 @@ public final class StartupPhaseRuntime {
     private static final int MAX_PLUGINS = 128;
     private static final int MAX_SPEC_LOADERS = 64;
     private static final int MAX_SPEC_SUBPHASES = 32;
-    private static final int MAX_HOT_CALL_GROUPS = 96;
+    private static final int MAX_HOT_CALL_GROUPS = 128;
     private static final int MAX_HOT_PATH_GROUPS = 16;
     private static final int MAX_DISTINCT_HOT_PATHS = 65_536;
     private static final int MAX_MERGED_READ_GROUPS = 512;

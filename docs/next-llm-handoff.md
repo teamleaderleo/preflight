@@ -196,6 +196,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-06 30Hz loading-screen redraw pair** | **17.26 / 16.11** |
 | **2026-08-06 title-screen descriptor-memo warm gate** | **16.21** |
 | **2026-08-06 Codex industry memo final cold/warm pair** | **17.10 / 16.38** |
+| 2026-08-06 lazy Codex fleet-member production gates | **16.66 / 16.28 / 15.88** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -1029,6 +1030,17 @@ transforms, zero decline/failure, and a **17.10 / 16.38s** final cold/warm pair.
 Codex seam is `populateShipsAndStations` at roughly 139--231ms, followed by the remaining 0.25--0.30s
 of `linkRelatedEntries`. See
 `docs/evidence/2026-08-06-codex-industry-demand-supply.md`.
+A deeper Codex pass then showed that 151ms of the 178ms ship/station population seam was 416
+`FleetMember` constructions retained only for a later detail view. Population now stores each exact
+variant and the shared entry accessor materializes the same vanilla member on its first consumer
+read, then retains it. The module traversal's non-population path remains untouched. Both halves are
+exactly source-bound and every replacement site checks that the accessor transform installed;
+otherwise it executes the original constructor, preventing partially lazy state after updates or
+shadowing. The clean live gate recorded **416 deferred / 0 startup materialized**, 48 transforms,
+zero decline/failure, and ACTIVE health. Production timing gates reached **16.66s cold / 16.28s
+warm / 15.88s final fresh warm**, with 42/42 transformed-class cache hits in both warm runs; the measured
+151ms seam is smaller than launch variance, so no whole-launch delta is claimed from one run. See
+`docs/evidence/2026-08-06-codex-lazy-fleet-members.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

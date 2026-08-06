@@ -701,6 +701,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Materializes a retained Codex variant on the first consumer access, then stores the member. */
+    static AdapterTarget codexLazyFleetMemberEntryTarget() {
+        return new AdapterTarget(
+                "vanilla-codex-entry-lazy-fleet-members-0.98a-rc8",
+                CodexLazyFleetMemberPlan.ENTRY_CLASS,
+                CodexLazyFleetMemberPlan.ENTRY_SHA256,
+                CodexLazyFleetMemberRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        CodexLazyFleetMemberPlan.ACCESSOR_METHOD,
+                        CodexLazyFleetMemberPlan.ACCESSOR_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     private static AdapterTarget indEvoSyntheticMarketTarget(
             String id, String className, String sha256, List<AdapterTarget.RequiredMethod> methods) {
         return new AdapterTarget(
@@ -1825,6 +1842,7 @@ final class AdapterTargetRegistry {
                 .withTarget(saveDescriptorCompatibilityTarget())
                 .withTarget(industryDemandSupplySettingsTarget())
                 .withTarget(industryDemandSupplyCodexTarget())
+                .withTarget(codexLazyFleetMemberEntryTarget())
                 .withTarget(indEvoRelaySyntheticMarketTarget())
                 .withTarget(indEvoArtillerySyntheticMarketTarget())
                 .withTarget(indEvoWonderSyntheticMarketTarget())

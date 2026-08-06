@@ -307,6 +307,8 @@ final class AdapterReport {
                 .append(Json.value(SaveDescriptorCompatibilityRuntime.telemetry())).append(',');
         key(output, "industryDemandSupplyMemo")
                 .append(Json.value(IndustryDemandSupplyMemoRuntime.telemetry())).append(',');
+        key(output, "codexLazyFleetMembers")
+                .append(Json.value(CodexLazyFleetMemberRuntime.telemetry())).append(',');
         key(output, "indEvoSyntheticMarket")
                 .append(Json.value(IndEvoSyntheticMarketRuntime.telemetry())).append(',');
         key(output, "mergedReadCache").append(Json.value(MergedReadCacheRuntime.telemetry())).append(',');

@@ -39,6 +39,7 @@ final class AdapterRuntime {
         ResourcePriorityRuntime.beginSession();
         SaveDescriptorCompatibilityRuntime.beginSession();
         IndustryDemandSupplyMemoRuntime.beginSession();
+        CodexLazyFleetMemberRuntime.beginSession();
         IndEvoSyntheticMarketRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();

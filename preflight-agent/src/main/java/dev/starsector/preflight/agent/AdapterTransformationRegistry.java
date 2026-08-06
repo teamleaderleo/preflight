@@ -182,12 +182,18 @@ final class AdapterTransformationRegistry {
         }
         if (IndustryDemandSupplyMemoRuntime.PLAN_ID.equals(target.planId())) {
             byte[] memo = IndustryDemandSupplyMemoPlan.transform(signature, originalBytes);
-            if (memo == null || !StartupPhaseRuntime.phaseProbeEnabled()
+            if (memo == null) return null;
+            byte[] lazy = CodexLazyFleetMemberPlan.transform(signature, memo);
+            byte[] optimized = lazy == null ? memo : lazy;
+            if (!StartupPhaseRuntime.phaseProbeEnabled()
                     || !IndustryDemandSupplyMemoPlan.CODEX_CLASS.equals(signature.internalName())) {
-                return memo;
+                return optimized;
             }
-            byte[] timed = StartupCallBreakdownPlan.transform(signature, memo);
-            return timed == null ? memo : timed;
+            byte[] timed = StartupCallBreakdownPlan.transform(signature, optimized);
+            return timed == null ? optimized : timed;
+        }
+        if (CodexLazyFleetMemberRuntime.PLAN_ID.equals(target.planId())) {
+            return CodexLazyFleetMemberPlan.transform(signature, originalBytes);
         }
         if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(target.planId())) {
             return IndEvoSyntheticMarketPlan.transform(signature, originalBytes);
@@ -740,6 +746,9 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (IndustryDemandSupplyMemoRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CodexLazyFleetMemberRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(planId)) {
