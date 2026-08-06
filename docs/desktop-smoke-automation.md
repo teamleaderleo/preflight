@@ -86,8 +86,9 @@ code.
 
 ## Current macOS status
 
-Peekaboo 3.9.7 is installed and suitable for a first development driver, but Screen Recording,
-Accessibility, and event-synthesis permissions are not currently granted. Granting those is a
-security-sensitive OS setting, so the runner is not wired or exercised until the operator approves
-that permission change at the point of use. The scenario and evidence contracts require no such
-permission and are testable on every platform now.
+Peekaboo 3.9.7 is installed and suitable for a first development driver. The 2026-08-06 capability
+probe reports Screen Recording granted, but Accessibility and event synthesis remain denied. That
+is sufficient for observation and screenshot development, not deterministic click/key execution.
+Granting the remaining permissions is a security-sensitive OS setting, so the runner is not wired
+or exercised until the operator approves that change at the point of use. The scenario and evidence
+contracts require no such permission and are testable on every platform now.

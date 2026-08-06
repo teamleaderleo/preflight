@@ -1148,9 +1148,10 @@ prefer Debian where it applies, and do not remove the duplicate without a custom
 AppDir pipeline because the tool also rewrites runtime ELF paths. See
 `docs/evidence/2026-08-06-desktop-distribution-matrix.md`. The
 installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
-`see`, click, key, wait, and screenshot scenarios, but Screen Recording, Accessibility, and event
-synthesis permissions are not yet granted. Use it as a development driver; keep adapter telemetry
-and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
+`see`, click, key, wait, and screenshot scenarios. Screen Recording is now granted; Accessibility
+and event synthesis remain denied, so observation is available but deterministic input is not. Use
+it as a development driver after the operator approves those remaining permissions; keep adapter
+telemetry and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
 format should remain driver-neutral so Windows and Linux implementations can follow.
 
 That driver-neutral contract now exists as `starsector-preflight-smoke-v1`, with strict
