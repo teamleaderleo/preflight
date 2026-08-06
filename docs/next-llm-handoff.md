@@ -1114,6 +1114,17 @@ synthesis permissions are not yet granted. Use it as a development driver; keep 
 and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
 format should remain driver-neutral so Windows and Linux implementations can follow.
 
+That driver-neutral contract now exists as `starsector-preflight-smoke-v1`, with strict
+unknown-field, enum, duration, duplicate-step, and target validation behind the hidden
+`desktop scenario validate` bridge. `scripts/scenarios/campaign-roam.json` launches the fast preset
+with balanced storage, waits on semantic main-menu/campaign states, clicks Continue, briefly roams,
+captures screenshot/log/adapter/frame evidence, and quits. The normalized scenario derives required
+driver capabilities; no coordinate, PID, window title, OCR phrase, or accessibility index enters
+scenario identity. `docs/desktop-smoke-automation.md` defines the matching
+`starsector-preflight-smoke-evidence-v1` result, authoritative telemetry boundary, single-process
+ownership, and failed-versus-skipped semantics. The Peekaboo driver itself remains unwired until the
+operator approves the required macOS permissions at action time.
+
 Core caches and preparation are platform-independent and synthetic/exact-cache tests already run
 on Windows, macOS, and Linux. Exact adapters fail open on byte/source/loader drift, but obfuscated
 game classes can differ by platform, so a macOS-pinned optimization may simply decline elsewhere.
@@ -1123,12 +1134,11 @@ is Unlicense prior art, not a normal library: its global classpath/GL ownership 
 redirects should not be imported wholesale. Port bounded ideas behind Preflight's exact adapter and
 fallback boundary, and add explicit shadow/ownership reporting plus pinned compatibility targets.
 
-Next implementation order: add separate cache/evidence retention commands; make install optionally
-prepare the exact current profile; define the driver-neutral smoke scenario/evidence schema and wire
-Peekaboo once permissions are granted; then map the preparation dependency graph before attempting
-more deferral or dependency-aware cold-path parallelism. Any startup parallel executor needs an
-explicit main-thread GL queue, join barrier, memory budget, adaptive worker count, and vanilla
-fallback. Do not copy Fast Rendering's exception-driven epilogue replacement.
+Next implementation order: make install optionally prepare the exact current profile; wire the
+Peekaboo development driver once permissions are granted; then map the preparation dependency graph
+before attempting more deferral or dependency-aware cold-path parallelism. Any startup parallel
+executor needs an explicit main-thread GL queue, join barrier, memory budget, adaptive worker count,
+and vanilla fallback. Do not copy Fast Rendering's exception-driven epilogue replacement.
 
 ## Environment notes that cost time to rediscover
 

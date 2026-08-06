@@ -201,6 +201,10 @@ java -jar preflight.jar evidence prune --keep-runs 20 --keep-benchmarks 10
 Both prune commands are preview-only unless `--yes` is present. Evidence retention never touches
 acceleration caches and refuses sessions that change between planning and deletion.
 
+Development smoke automation uses a platform-neutral semantic scenario rather than recorded screen
+coordinates. The first campaign-load/roam scenario and evidence contract are documented in
+[desktop smoke automation](docs/desktop-smoke-automation.md).
+
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 
 ## What is next

@@ -27,6 +27,9 @@ final class DesktopBridgeCommand {
     }
 
     static int execute(String[] args, int offset) throws IOException {
+        if (offset < args.length && "scenario".equals(args[offset])) {
+            return scenario(args, offset + 1);
+        }
         Options options = Options.parse(args, offset);
         Map<String, Object> snapshot = snapshot(
                 Platform.current(),
@@ -36,6 +39,20 @@ final class DesktopBridgeCommand {
                 options.game(),
                 options.launcher());
         System.out.println(Json.object(snapshot));
+        return 0;
+    }
+
+    private static int scenario(String[] args, int offset) throws IOException {
+        if (args.length != offset + 2 || !"validate".equals(args[offset])) {
+            throw new IllegalArgumentException(
+                    "Expected desktop bridge request: desktop scenario validate <scenario.json>");
+        }
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(Path.of(args[offset + 1]));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("protocol", PROTOCOL_VERSION);
+        result.put("valid", true);
+        result.put("scenario", scenario.view());
+        System.out.println(Json.object(result));
         return 0;
     }
 
