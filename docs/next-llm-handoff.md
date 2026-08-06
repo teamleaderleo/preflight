@@ -1147,6 +1147,16 @@ rejected without `--prepare` so a GUI cannot accidentally present settings that 
 preparation failure leaves the launcher installed and returns the preparation failure instead of
 claiming setup succeeded. The focused install/prepare contract tests pass.
 
+The desktop Prepare screen is now functional rather than a disabled mock. It reads the stable cache
+snapshot for the explicitly selected installation, shows acceleration and evidence storage
+separately, exposes `balanced` (recommended) and `fastest`, and maps gentle/balanced/eager choices to
+bounded 2/4/8 workers and 128/256/512 MiB. Rust starts preparation as a tracked background child and
+emits completion/error evidence; game and preparation share one ownership lock, so neither can
+start while the other is active. React remains unable to invoke arbitrary shell commands. The cache
+report gained report-only `--game`/`--launcher` selection so a non-default installation is not
+silently compared against the wrong profile; pruning deliberately rejects those selectors until
+its survivor identity plumbing is equally explicit.
+
 Next implementation order: wire the Peekaboo development driver once permissions are granted; then
 map the preparation dependency graph before attempting more deferral or dependency-aware cold-path
 parallelism. Any startup parallel executor needs an explicit main-thread GL queue, join barrier,

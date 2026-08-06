@@ -33,9 +33,11 @@ Rust once platform installers are restored.
 
 - The Java `desktop snapshot` bridge emits one versioned JSON document and is hidden from human CLI
   help.
-- The Rust host exposes only `get_snapshot` and `start_game`.
+- The Rust host exposes only `get_snapshot`, `get_cache`, `start_game`, and `start_preparation`.
 - The folder picker is the only frontend capability beyond Tauri's core defaults.
 - The host starts `preflight run --fast`, refuses a second tracked instance, and reports the bounded
   tail of a failed child process.
+- Preparation is a separately reported background operation, but it shares one ownership lock with
+  the game so profile files and caches are never prepared while Starsector is running.
 - Preflight writes only to its own home/cache/run directories. It does not rewrite the game, mods,
   or saves.

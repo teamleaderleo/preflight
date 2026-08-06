@@ -220,7 +220,8 @@ coordinates. The first campaign-load/roam scenario and evidence contract are doc
 The native desktop host and its build instructions live in
 [preflight-desktop](preflight-desktop/README.md). It currently builds and launches through the same
 `run --fast` engine contract; signed/notarized platform installers and the Prepare/Profile/Storage
-screens are still release work, not finished product claims.
+release flow are still unfinished. The Prepare screen now works and exposes balanced/fastest storage,
+bounded resource presets, and grouped cache usage; named-profile controls are the next desktop slice.
 
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 

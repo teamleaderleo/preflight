@@ -8,7 +8,13 @@ use std::sync::Mutex;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-struct RunTracker(Mutex<Option<u32>>);
+#[derive(Default)]
+struct ProcessState {
+    game: Option<u32>,
+    preparation: Option<u32>,
+}
+
+struct ProcessTracker(Mutex<ProcessState>);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +29,16 @@ struct RunStateEvent {
     pid: u32,
     success: Option<bool>,
     detail: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PreparationStateEvent {
+    state: &'static str,
+    pid: u32,
+    success: Option<bool>,
+    detail: Option<String>,
+    report: Option<String>,
 }
 
 struct EnginePaths {
@@ -139,9 +155,32 @@ fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value, String> {
 }
 
 #[tauri::command]
+fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    command
+        .arg("cache")
+        .arg("--json")
+        .arg("--game")
+        .arg(directory);
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not inspect its cache",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable cache snapshot: {error}"))
+}
+
+#[tauri::command]
 fn start_game(
     app: AppHandle,
-    tracker: State<'_, RunTracker>,
+    tracker: State<'_, ProcessTracker>,
     game: String,
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
@@ -151,8 +190,13 @@ fn start_game(
         .0
         .lock()
         .map_err(|_| "The launch tracker is unavailable.".to_string())?;
-    if running.is_some() {
+    if running.game.is_some() {
         return Err("Starsector is already running through Preflight.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before launching Starsector.".to_string(),
+        );
     }
 
     let mut command = paths.command();
@@ -166,7 +210,7 @@ fn start_game(
         .spawn()
         .map_err(|error| format!("Could not launch Starsector: {error}"))?;
     let pid = child.id();
-    *running = Some(pid);
+    running.game = Some(pid);
     drop(running);
 
     let _ = app.emit(
@@ -180,6 +224,71 @@ fn start_game(
     );
 
     watch_child(app, child);
+    Ok(RunStarted { pid })
+}
+
+#[tauri::command]
+fn start_preparation(
+    app: AppHandle,
+    tracker: State<'_, ProcessTracker>,
+    game: String,
+    texture_storage: String,
+    workers: u8,
+    memory_mib: u32,
+) -> Result<RunStarted, String> {
+    let directory = canonical_game_directory(&game)?;
+    if texture_storage != "balanced" && texture_storage != "fastest" {
+        return Err("Texture storage must be balanced or fastest.".to_string());
+    }
+    if !(1..=64).contains(&workers) {
+        return Err("Preparation workers must be between 1 and 64.".to_string());
+    }
+    if !(16..=65_536).contains(&memory_mib) {
+        return Err("Preparation memory must be between 16 and 65536 MiB.".to_string());
+    }
+    let paths = EnginePaths::resolve(&app)?;
+    let mut running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The preparation tracker is unavailable.".to_string())?;
+    if running.preparation.is_some() {
+        return Err("This profile is already being prepared.".to_string());
+    }
+    if running.game.is_some() {
+        return Err("Close Starsector before preparing its current profile.".to_string());
+    }
+
+    let mut command = paths.command();
+    command
+        .arg("prepare")
+        .arg("--game")
+        .arg(directory)
+        .arg("--texture-storage")
+        .arg(texture_storage)
+        .arg("--workers")
+        .arg(workers.to_string())
+        .arg("--memory-mb")
+        .arg(memory_mib.to_string())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command
+        .spawn()
+        .map_err(|error| format!("Could not start profile preparation: {error}"))?;
+    let pid = child.id();
+    running.preparation = Some(pid);
+    drop(running);
+
+    let _ = app.emit(
+        "prepare-state",
+        PreparationStateEvent {
+            state: "started",
+            pid,
+            success: None,
+            detail: None,
+            report: None,
+        },
+    );
+    watch_preparation(app, child);
     Ok(RunStarted { pid })
 }
 
@@ -198,8 +307,8 @@ fn watch_child(app: AppHandle, mut child: Child) {
         } else {
             Some(child_error("Starsector exited with an error", &stderr))
         };
-        if let Ok(mut running) = app.state::<RunTracker>().0.lock() {
-            *running = None;
+        if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
+            running.game = None;
         }
         let _ = app.emit(
             "run-state",
@@ -208,6 +317,36 @@ fn watch_child(app: AppHandle, mut child: Child) {
                 pid,
                 success: Some(success),
                 detail,
+            },
+        );
+    });
+}
+
+fn watch_preparation(app: AppHandle, child: Child) {
+    let pid = child.id();
+    std::thread::spawn(move || {
+        let output = child.wait_with_output();
+        let success = output.as_ref().is_ok_and(|output| output.status.success());
+        let report = output.as_ref().ok().and_then(|output| {
+            let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            (!value.is_empty()).then_some(value)
+        });
+        let detail = match &output {
+            Ok(output) if output.status.success() => None,
+            Ok(output) => Some(child_error("Profile preparation failed", &output.stderr)),
+            Err(error) => Some(format!("Could not wait for profile preparation: {error}")),
+        };
+        if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
+            running.preparation = None;
+        }
+        let _ = app.emit(
+            "prepare-state",
+            PreparationStateEvent {
+                state: "finished",
+                pid,
+                success: Some(success),
+                detail,
+                report,
             },
         );
     });
@@ -259,8 +398,13 @@ fn configure_child_process(_command: &mut Command) {}
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(RunTracker(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![get_snapshot, start_game])
+        .manage(ProcessTracker(Mutex::new(ProcessState::default())))
+        .invoke_handler(tauri::generate_handler![
+            get_snapshot,
+            get_cache,
+            start_game,
+            start_preparation
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Starsector Preflight");
 }

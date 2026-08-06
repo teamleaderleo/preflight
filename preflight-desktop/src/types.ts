@@ -34,4 +34,30 @@ export interface RunStateEvent {
   success?: boolean;
 }
 
+export interface PreparationStateEvent extends RunStateEvent {
+  detail?: string;
+  report?: string;
+}
+
+export interface CacheGroup {
+  id: "acceleration" | "evidence" | "configuration" | "application" | string;
+  bytes: number;
+  files: number;
+}
+
+export interface CacheSnapshot {
+  format: "starsector-preflight-cache-v1";
+  root: string;
+  present: boolean;
+  total: { bytes: number; files: number };
+  groups: CacheGroup[];
+  currentProfileFingerprint: string | null;
+  profiles: Array<{
+    fingerprint: string;
+    current: boolean;
+    bytes: number;
+    lastModifiedMillis: number;
+  }>;
+}
+
 export type AppStatus = "loading" | "ready" | "setup" | "running" | "error";

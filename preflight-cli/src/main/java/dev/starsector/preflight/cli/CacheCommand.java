@@ -27,12 +27,16 @@ final class CacheCommand {
         boolean confirmed = false;
         boolean json = false;
         boolean keepNamed = false;
+        Path game = null;
+        Path launcher = null;
         for (int index = from; index < args.length; index++) {
             switch (args[index]) {
                 case "prune" -> prune = true;
                 case "--yes" -> confirmed = true;
                 case "--json" -> json = true;
                 case "--keep-named" -> keepNamed = true;
+                case "--game" -> game = Path.of(requireValue(args, ++index, "--game"));
+                case "--launcher" -> launcher = Path.of(requireValue(args, ++index, "--launcher"));
                 case "--help", "-h" -> {
                     PreflightCli.commandUsage("cache", System.out);
                     return 0;
@@ -45,6 +49,10 @@ final class CacheCommand {
         }
         PreflightHome home = PreflightHome.current();
         if (prune) {
+            if (game != null || launcher != null) {
+                System.err.println("preflight cache: --game and --launcher are report-only options");
+                return 2;
+            }
             return prune(home, confirmed, keepNamed, json, System.out);
         }
         if (confirmed || keepNamed) {
@@ -52,9 +60,9 @@ final class CacheCommand {
             return 2;
         }
         if (json) {
-            return reportJson(home, currentFingerprint(), System.out);
+            return reportJson(home, currentFingerprint(game, launcher), System.out);
         }
-        return report(home, currentFingerprint(), System.out);
+        return report(home, currentFingerprint(game, launcher), System.out);
     }
 
     /**
@@ -449,12 +457,16 @@ final class CacheCommand {
      * inconsistent mod set is reported as "unknown" rather than guessed at.
      */
     private static String currentFingerprint() {
+        return currentFingerprint(null, null);
+    }
+
+    private static String currentFingerprint(Path game, Path launcher) {
         try {
             DiscoveryResult discovery = StarsectorDiscovery.discover(
                     Platform.current(),
                     Path.of(System.getProperty("user.home")),
                     Path.of(System.getProperty("user.dir")),
-                    System.getenv(), null, null);
+                    System.getenv(), game, launcher);
             LaunchTarget target = discovery.selected();
             return target == null
                     ? null
@@ -462,5 +474,12 @@ final class CacheCommand {
         } catch (Exception unreadable) {
             return null;
         }
+    }
+
+    private static String requireValue(String[] args, int index, String option) {
+        if (index >= args.length) {
+            throw new IllegalArgumentException("Missing value for " + option);
+        }
+        return args[index];
     }
 }

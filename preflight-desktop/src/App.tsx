@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { getSnapshot, isDesktopHost, startGame } from "./bridge";
+import { getCache, getSnapshot, isDesktopHost, startGame, startPreparation } from "./bridge";
 import {
   ArrowIcon,
   CheckIcon,
@@ -15,7 +15,28 @@ import {
   SparklesIcon,
 } from "./icons";
 import Logo from "./Logo";
-import type { AppStatus, DesktopSnapshot, RunStateEvent } from "./types";
+import type { AppStatus, CacheSnapshot, DesktopSnapshot, PreparationStateEvent, RunStateEvent } from "./types";
+
+type Page = "home" | "prepare";
+type TextureStorage = "balanced" | "fastest";
+
+const resourcePresets = {
+  gentle: { workers: 2, memoryMib: 128, label: "Gentle" },
+  balanced: { workers: 4, memoryMib: 256, label: "Balanced" },
+  eager: { workers: 8, memoryMib: 512, label: "Eager" },
+} as const;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = -1;
+  do {
+    value /= 1024;
+    unit += 1;
+  } while (value >= 1024 && unit < units.length - 1);
+  return `${value.toFixed(value >= 10 ? 1 : 2)} ${units[unit]}`;
+}
 
 function shortPath(path: string): string {
   const normalized = path.replaceAll("\\", "/");
@@ -32,6 +53,12 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
   const [message, setMessage] = useState("");
+  const [page, setPage] = useState<Page>("home");
+  const [cache, setCache] = useState<CacheSnapshot | null>(null);
+  const [cacheLoading, setCacheLoading] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
+  const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
 
   const refresh = useCallback(async (game?: string) => {
     setStatus("loading");
@@ -65,6 +92,40 @@ export default function App() {
     return () => stopListening?.();
   }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
+  const refreshCache = useCallback(async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game) return;
+    setCacheLoading(true);
+    try {
+      setCache(await getCache(game));
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setCacheLoading(false);
+    }
+  }, [snapshot?.selected?.installRoot]);
+
+  useEffect(() => {
+    if (page === "prepare") void refreshCache();
+  }, [page, refreshCache]);
+
+  useEffect(() => {
+    if (!isDesktopHost()) return;
+    let stopListening: (() => void) | undefined;
+    void listen<PreparationStateEvent>("prepare-state", ({ payload }) => {
+      if (payload.state === "finished") {
+        setPreparing(false);
+        setMessage(payload.success
+          ? "Preparation is complete. The current profile is warm and ready."
+          : payload.detail ?? "Preparation stopped before it completed.");
+        void refreshCache();
+      }
+    }).then((unlisten) => {
+      stopListening = unlisten;
+    });
+    return () => stopListening?.();
+  }, [refreshCache]);
+
   const chooseInstall = async () => {
     if (!isDesktopHost()) {
       await refresh("/Applications/Starsector");
@@ -94,27 +155,46 @@ export default function App() {
     }
   };
 
+  const prepare = async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game) return;
+    const resources = resourcePresets[resourcePreset];
+    setPreparing(true);
+    setMessage("Preparing the exact current profile… You can leave this window open.");
+    try {
+      await startPreparation(game, textureStorage, resources.workers, resources.memoryMib);
+      if (!isDesktopHost()) {
+        setPreparing(false);
+        setMessage("Preview preparation complete.");
+        await refreshCache();
+      }
+    } catch (error) {
+      setPreparing(false);
+      setMessage(String(error));
+    }
+  };
+
   const isReady = Boolean(snapshot?.ready && snapshot.selected);
   const title = useMemo(() => {
+    if (page === "prepare") return preparing ? "Warming the flight deck…" : "Prepare your profile";
     if (status === "loading") return "Checking the launch pad…";
     if (status === "running") return "You’re cleared for adventure";
     if (isReady) return "Your launch pad is cozy and ready";
     return "Let’s find your Starsector home";
-  }, [isReady, status]);
+  }, [isReady, page, preparing, status]);
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <Logo />
         <nav className="nav" aria-label="Main navigation">
-          <button className="nav__item nav__item--active" type="button" aria-current="page">
+          <button className={`nav__item ${page === "home" ? "nav__item--active" : ""}`} type="button" aria-current={page === "home" ? "page" : undefined} onClick={() => setPage("home")}>
             <HomeIcon />
             <span>Home</span>
           </button>
-          <button className="nav__item" type="button" disabled title="Coming in the next desktop slice">
+          <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" aria-current={page === "prepare" ? "page" : undefined} onClick={() => setPage("prepare")} disabled={!isReady}>
             <SparklesIcon />
             <span>Prepare</span>
-            <small>Soon</small>
           </button>
           <button className="nav__item" type="button" disabled title="Coming in the next desktop slice">
             <ClockIcon />
@@ -142,6 +222,7 @@ export default function App() {
           </button>
         </header>
 
+        {page === "home" ? <>
         <section className={`hero card ${isReady ? "hero--ready" : "hero--setup"}`}>
           <div className="hero__copy">
             <div className={`status-chip ${isReady ? "status-chip--ready" : ""}`}>
@@ -156,7 +237,7 @@ export default function App() {
             </p>
             <div className="hero__actions">
               {isReady ? (
-                <button className="button button--primary" type="button" onClick={() => void launch()} disabled={status === "running" || status === "loading"}>
+                <button className="button button--primary" type="button" onClick={() => void launch()} disabled={status === "running" || status === "loading" || preparing}>
                   <PlayIcon />
                   {status === "running" ? "Starsector is running" : "Launch Starsector"}
                 </button>
@@ -229,7 +310,7 @@ export default function App() {
           <section className="card next-card">
             <div className="card__heading">
               <div>
-                <p className="eyebrow">Coming up</p>
+                <p className="eyebrow">Ready now</p>
                 <h2>Prepare your voyage</h2>
               </div>
               <SparklesIcon className="heading-sparkle" />
@@ -238,7 +319,7 @@ export default function App() {
             <div className="feature-row">
               <span className="feature-dot feature-dot--peach" />
               <div><strong>One gentle button</strong><span>Useful defaults, details when you want them</span></div>
-              <span className="soon-tag">Next slice</span>
+              <button className="text-button" type="button" onClick={() => setPage("prepare")}>Open <ArrowIcon /></button>
             </div>
           </section>
         </div>
@@ -251,6 +332,69 @@ export default function App() {
           </div>
           <span className="safety__check"><CheckIcon /> Read-only by design</span>
         </section>
+        </> : (
+          <div className="prepare-page">
+            <section className="card prepare-intro">
+              <div>
+                <p className="eyebrow">Exact current mod profile</p>
+                <h2>Build once, reuse safely</h2>
+                <p>Preflight prepares content-addressed caches outside the game. Changed game or mod files select new identities; missing or rejected entries use the original loader.</p>
+              </div>
+              <div className={`tiny-status ${cache?.currentProfileFingerprint ? "tiny-status--good" : ""}`}>
+                <span />
+                {cacheLoading ? "Checking" : cache?.currentProfileFingerprint ? "Profile detected" : "Not prepared"}
+              </div>
+            </section>
+
+            <div className="prepare-grid">
+              <section className="card prepare-options">
+                <div className="card__heading">
+                  <div><p className="eyebrow">Space and speed</p><h2>Texture storage</h2></div>
+                </div>
+                <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
+                  <input type="radio" name="texture-storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} />
+                  <span><strong>Balanced</strong><small>Recommended · exact lossless LZ4 with raw storage where compression barely helps</small></span>
+                  <b>Default</b>
+                </label>
+                <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
+                  <input type="radio" name="texture-storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} />
+                  <span><strong>Fastest</strong><small>Keeps every upload-ready pixel array raw; typically several GB more for a few hundred ms</small></span>
+                </label>
+
+                <div className="resource-heading"><strong>Preparation resources</strong><span>Only affects the one-time build</span></div>
+                <div className="preset-row">
+                  {Object.entries(resourcePresets).map(([id, preset]) => (
+                    <button key={id} type="button" className={resourcePreset === id ? "preset preset--selected" : "preset"} onClick={() => setResourcePreset(id as keyof typeof resourcePresets)}>
+                      <strong>{preset.label}</strong><span>{preset.workers} workers · {preset.memoryMib} MiB</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="card storage-card">
+                <div className="card__heading">
+                  <div><p className="eyebrow">On this computer</p><h2>Preflight storage</h2></div>
+                  <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
+                </div>
+                <strong className="storage-total">{cache ? formatBytes(cache.total.bytes) : "—"}</strong>
+                <span className="storage-files">{cache ? `${cache.total.files.toLocaleString()} files` : "Reading cache…"}</span>
+                <div className="storage-groups">
+                  {(cache?.groups ?? []).map((group) => (
+                    <div key={group.id}><span>{group.id}</span><strong>{formatBytes(group.bytes)}</strong></div>
+                  ))}
+                </div>
+                <p className="storage-note">Acceleration data and diagnostic evidence are tracked separately. Cleanup is always previewed before deletion.</p>
+              </section>
+            </div>
+
+            <section className="card prepare-action">
+              <div><strong>{preparing ? "Preparation is running" : "Ready to warm this profile"}</strong><span>{textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · {resourcePresets[resourcePreset].label.toLowerCase()} resource use</span></div>
+              <button className="button button--primary" type="button" onClick={() => void prepare()} disabled={preparing || !isReady}>
+                <SparklesIcon />{preparing ? "Preparing…" : "Prepare current profile"}
+              </button>
+            </section>
+          </div>
+        )}
 
         <footer>
           <span>Preflight {snapshot?.engineVersion ?? "…"}</span>
