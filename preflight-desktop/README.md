@@ -40,8 +40,9 @@ into CI and verified on a tagged release.
 
 - The Java `desktop snapshot` bridge emits one versioned JSON document and is hidden from human CLI
   help.
-- The Rust host exposes only installation/cache/profile snapshots, preview-first named-profile
-  save/activation, and tracked game/preparation starts. It cannot execute arbitrary frontend input.
+- The Rust host exposes only installation/cache/profile/launch-settings snapshots, validated
+  launch-setting updates, preview-first named-profile save/activation, and tracked game/preparation
+  starts. It cannot execute arbitrary frontend input.
 - The folder picker is the only frontend capability beyond Tauri's core defaults.
 - The host starts `preflight run --fast`, refuses a second tracked instance, and reports the bounded
   tail of a failed child process.
@@ -53,5 +54,8 @@ into CI and verified on a tagged release.
 - Confirmed profile activation shares that lock, refuses missing mods and cross-install profiles,
   rechecks the current file, and writes a backup before replacement. Previewing remains read-only.
 - Outside an explicitly confirmed profile activation, Preflight writes only to its own
-  home/cache/run directories. Activation changes only `enabled_mods.json` through the backed-up,
-  rechecked replacement path; it does not rewrite game binaries, mods, or saves.
+  home/cache/run directories, except when the user explicitly saves launch settings. That operation
+  updates only Starsector's existing resolution, fullscreen, sound, antialiasing, UI-scale and
+  gameplay-settings preferences after a bounded backup. Activation changes only
+  `enabled_mods.json` through the backed-up, rechecked replacement path. Neither operation rewrites
+  game binaries, mod contents, or saves.

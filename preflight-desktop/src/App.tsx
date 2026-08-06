@@ -5,12 +5,14 @@ import {
   activateProfile,
   exportDiagnostics,
   getCache,
+  getLaunchSettings,
   getProfiles,
   getSnapshot,
   isDesktopHost,
   saveProfile,
   startGame,
   startPreparation,
+  updateLaunchSettings,
 } from "./bridge";
 import {
   ArrowIcon,
@@ -31,13 +33,15 @@ import type {
   CacheSnapshot,
   DesktopSnapshot,
   DiagnosticsExport,
+  LaunchSettings,
+  LaunchSettingsUpdate,
   PreparationStateEvent,
   ProfileActivationPlan,
   ProfileList,
   RunStateEvent,
 } from "./types";
 
-type Page = "home" | "prepare" | "profiles" | "settings";
+type Page = "home" | "launch" | "prepare" | "profiles" | "settings";
 type TextureStorage = "balanced" | "fastest";
 
 const resourcePresets = {
@@ -69,6 +73,15 @@ function friendlyPlatform(platform: DesktopSnapshot["platform"]): string {
   return { mac: "macOS", windows: "Windows", linux: "Linux", other: "Desktop" }[platform];
 }
 
+function maximumUiScale(resolution: string): number | null {
+  const match = /^(\d+)x(\d+)$/.exec(resolution);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (width <= 0 || height <= 0) return null;
+  return Math.max(1, Math.floor(Math.min(height / 768, width / 1280) * 20) / 20);
+}
+
 export default function App() {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
@@ -86,6 +99,10 @@ export default function App() {
   const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
+  const [launcherSettings, setLauncherSettings] = useState<LaunchSettings | null>(null);
+  const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
+  const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
+  const [launcherSettingsSaving, setLauncherSettingsSaving] = useState(false);
 
   const refresh = useCallback(async (game?: string) => {
     setStatus("loading");
@@ -152,6 +169,32 @@ export default function App() {
   useEffect(() => {
     if (page === "profiles") void refreshProfiles();
   }, [page, refreshProfiles]);
+
+  const refreshLauncherSettings = useCallback(async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game) return;
+    setLauncherSettingsLoading(true);
+    try {
+      const result = await getLaunchSettings(game);
+      setLauncherSettings(result);
+      setLauncherDraft({
+        resolution: result.preferences.resolution ?? result.settings?.resolution ?? "1280x720",
+        fullscreen: result.preferences.fullscreen,
+        sound: result.preferences.sound,
+        antialiasingSamples: result.preferences.antialiasingSamples ?? 0,
+        uiScale: result.preferences.uiScale ?? 1,
+        battleSize: result.preferences.battleSize ?? result.limits.battleSizeDefault ?? 400,
+      });
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setLauncherSettingsLoading(false);
+    }
+  }, [snapshot?.selected?.installRoot]);
+
+  useEffect(() => {
+    if (page === "launch") void refreshLauncherSettings();
+  }, [page, refreshLauncherSettings]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -296,8 +339,25 @@ export default function App() {
     }
   };
 
+  const saveLauncherSettings = async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game || !launcherDraft) return;
+    setLauncherSettingsSaving(true);
+    setMessage("Saving Starsector’s own launch preferences…");
+    try {
+      const result = await updateLaunchSettings(game, launcherDraft);
+      setLauncherSettings(result);
+      setMessage("Launch settings saved. Vanilla and Preflight launches will use the same values.");
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setLauncherSettingsSaving(false);
+    }
+  };
+
   const isReady = Boolean(snapshot?.ready && snapshot.selected);
   const title = useMemo(() => {
+    if (page === "launch") return "Starsector launch settings";
     if (page === "prepare") return preparing ? "Warming the flight deck…" : "Prepare your profile";
     if (page === "profiles") return "Your saved flight plans";
     if (page === "settings") return "Support and diagnostics";
@@ -315,6 +375,10 @@ export default function App() {
           <button className={`nav__item ${page === "home" ? "nav__item--active" : ""}`} type="button" aria-current={page === "home" ? "page" : undefined} onClick={() => setPage("home")}>
             <HomeIcon />
             <span>Home</span>
+          </button>
+          <button className={`nav__item ${page === "launch" ? "nav__item--active" : ""}`} type="button" aria-current={page === "launch" ? "page" : undefined} onClick={() => setPage("launch")} disabled={!isReady}>
+            <PlayIcon />
+            <span>Launch</span>
           </button>
           <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" aria-current={page === "prepare" ? "page" : undefined} onClick={() => setPage("prepare")} disabled={!isReady}>
             <SparklesIcon />
@@ -460,7 +524,92 @@ export default function App() {
           </div>
           <span className="safety__check"><CheckIcon /> Narrow changes only</span>
         </section>
-        </> : page === "prepare" ? (
+        </> : page === "launch" ? (
+          <div className="launch-page">
+            <section className="card launch-intro">
+              <div>
+                <p className="eyebrow">The game’s own preferences</p>
+                <h2>One setup, whichever launcher you use</h2>
+                <p>These are the same values Starsector’s vanilla launcher and in-game settings save. Preflight does not patch a display or combat hook to apply them.</p>
+              </div>
+              <div className={`tiny-status ${launcherSettings?.directLaunchAvailable ? "tiny-status--good" : ""}`}>
+                <span />
+                {launcherSettingsLoading ? "Reading" : launcherSettings?.directLaunchAvailable ? "Direct launch ready" : "Vanilla launcher needed"}
+              </div>
+            </section>
+
+            {message && (
+              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
+            )}
+
+            {launcherDraft && launcherSettings ? (
+              <>
+                <div className="launch-settings-grid">
+                  <section className="card launch-settings-card">
+                    <div className="card__heading">
+                      <div><p className="eyebrow">Display</p><h2>Window and rendering</h2></div>
+                      <button className="icon-button icon-button--small" type="button" onClick={() => void refreshLauncherSettings()} aria-label="Refresh launch settings" disabled={launcherSettingsLoading}>
+                        <RefreshIcon className={launcherSettingsLoading ? "spin" : ""} />
+                      </button>
+                    </div>
+                    <label className="setting-field" htmlFor="launch-resolution">
+                      <span><strong>Resolution</strong><small>WIDTHxHEIGHT, exactly as the vanilla launcher stores it</small></span>
+                      <input id="launch-resolution" aria-label="Resolution" value={launcherDraft.resolution} onChange={(event) => setLauncherDraft({ ...launcherDraft, resolution: event.target.value })} inputMode="text" spellCheck={false} />
+                    </label>
+                    <label className="setting-toggle">
+                      <span><strong>Fullscreen</strong><small>Use Starsector’s fullscreen mode</small></span>
+                      <input type="checkbox" aria-label="Fullscreen" checked={launcherDraft.fullscreen} onChange={(event) => setLauncherDraft({ ...launcherDraft, fullscreen: event.target.checked })} />
+                    </label>
+                    <label className="setting-toggle">
+                      <span><strong>Sound</strong><small>Initialize the game’s audio system</small></span>
+                      <input type="checkbox" aria-label="Sound" checked={launcherDraft.sound} onChange={(event) => setLauncherDraft({ ...launcherDraft, sound: event.target.checked })} />
+                    </label>
+                    <label className="setting-field" htmlFor="launch-aa">
+                      <span><strong>Antialiasing</strong><small>Starsector recommends Off at 100%, 200%, or 300% UI scale</small></span>
+                      <select id="launch-aa" aria-label="Antialiasing" value={launcherDraft.antialiasingSamples} onChange={(event) => setLauncherDraft({ ...launcherDraft, antialiasingSamples: Number(event.target.value) })}>
+                        {launcherSettings.limits.antialiasingSamples.map((samples) => <option value={samples} key={samples}>{samples === 0 ? "Off" : `${samples} samples`}</option>)}
+                      </select>
+                    </label>
+                    <label className="setting-slider" htmlFor="launch-scale">
+                      <span><strong>UI scaling</strong><b>{Math.round(launcherDraft.uiScale * 100)}%</b></span>
+                      <input id="launch-scale" aria-label="UI scaling" type="range" min={launcherSettings.limits.uiScaleMin} max={maximumUiScale(launcherDraft.resolution) ?? launcherSettings.limits.uiScaleMax} step={launcherSettings.limits.uiScaleStep} value={launcherDraft.uiScale} onChange={(event) => setLauncherDraft({ ...launcherDraft, uiScale: Number(event.target.value) })} />
+                    </label>
+                  </section>
+
+                  <section className="card launch-settings-card">
+                    <div className="card__heading"><div><p className="eyebrow">Combat</p><h2>Battle size</h2></div></div>
+                    <p className="setting-explainer">This changes the same campaign gameplay preference as the in-game slider. Preflight respects the currently installed settings.json bounds.</p>
+                    <label className="setting-slider" htmlFor="launch-battle-size">
+                      <span><strong>Deployment-point budget</strong><b>{launcherDraft.battleSize}</b></span>
+                      <input id="launch-battle-size" aria-label="Deployment-point budget" type="range" min={launcherSettings.limits.battleSizeMin ?? 1} max={launcherSettings.limits.battleSizeMax ?? Math.max(launcherDraft.battleSize, 400)} step="10" value={launcherDraft.battleSize} onChange={(event) => setLauncherDraft({ ...launcherDraft, battleSize: Number(event.target.value) })} />
+                    </label>
+                    <div className="battle-bounds">
+                      <span>Minimum {launcherSettings.limits.battleSizeMin ?? "unknown"}</span>
+                      <span>Game default {launcherSettings.limits.battleSizeDefault ?? "unknown"}</span>
+                      <span>Maximum {launcherSettings.limits.battleSizeMax ?? "unknown"}</span>
+                    </div>
+                    <div className="setting-safety"><ShieldIcon /><span>A preference backup is written before every save. Game binaries, mods and saves remain untouched.</span></div>
+                  </section>
+                </div>
+
+                {(launcherSettings.preferences.diagnostics.length > 0 || launcherSettings.limits.diagnostics.length > 0) && (
+                  <section className="card launch-diagnostics">
+                    {[...launcherSettings.preferences.diagnostics, ...launcherSettings.limits.diagnostics].map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}
+                  </section>
+                )}
+
+                <section className="card launch-save">
+                  <div><strong>Use these settings everywhere</strong><span>{launcherSettings.backup ? `Previous values saved at ${shortPath(launcherSettings.backup)}` : "Vanilla and Preflight launches share this preference store."}</span></div>
+                  <button className="button button--primary" type="button" onClick={() => void saveLauncherSettings()} disabled={launcherSettingsSaving || status === "running" || preparing}>
+                    <CheckIcon />{launcherSettingsSaving ? "Saving…" : "Save launch settings"}
+                  </button>
+                </section>
+              </>
+            ) : (
+              <section className="card launch-loading">Reading Starsector’s saved preferences…</section>
+            )}
+          </div>
+        ) : page === "prepare" ? (
           <div className="prepare-page">
             <section className="card prepare-intro">
               <div>

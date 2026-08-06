@@ -3,6 +3,8 @@ import type {
   CacheSnapshot,
   DesktopSnapshot,
   DiagnosticsExport,
+  LaunchSettings,
+  LaunchSettingsUpdate,
   NamedProfile,
   ProfileActivationPlan,
   ProfileList,
@@ -121,6 +123,60 @@ export async function exportDiagnostics(output: string): Promise<DiagnosticsExpo
     };
   }
   return invoke<DiagnosticsExport>("export_diagnostics", { output });
+}
+
+export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-launch-settings-v1",
+      directLaunchAvailable: true,
+      reason: null,
+      settings: {
+        resolution: "1440x932",
+        fullscreen: false,
+        sound: true,
+        javaOptions: [],
+      },
+      preferences: {
+        resolution: "1440x932",
+        fullscreen: false,
+        sound: true,
+        antialiasingSamples: 0,
+        uiScale: 1,
+        battleSize: 400,
+        diagnostics: [],
+      },
+      limits: {
+        antialiasingSamples: [0, 2, 4, 8, 12, 16],
+        uiScaleMin: 1,
+        uiScaleMax: 3,
+        uiScaleStep: 0.05,
+        battleSizeMin: 200,
+        battleSizeDefault: 400,
+        battleSizeMax: 400,
+        diagnostics: [],
+      },
+      changed: false,
+      backup: null,
+    };
+  }
+  return invoke<LaunchSettings>("get_launch_settings", { game });
+}
+
+export async function updateLaunchSettings(
+  game: string,
+  settings: LaunchSettingsUpdate,
+): Promise<LaunchSettings> {
+  if (!isDesktopHost()) {
+    const current = await getLaunchSettings(game);
+    return {
+      ...current,
+      preferences: { ...current.preferences, ...settings },
+      changed: true,
+      backup: "~/.starsector-preflight/launcher-preference-backups/preview.json",
+    };
+  }
+  return invoke<LaunchSettings>("update_launch_settings", { game, settings });
 }
 
 export async function getProfiles(game: string): Promise<ProfileList> {

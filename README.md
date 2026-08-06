@@ -138,7 +138,7 @@ Preflight prepares deterministic work outside the timed game launch. At startup 
 
 A matching artifact skips only the work that was already completed. Starsector still constructs its live objects, registers scripts, applies mod ordering, mutates its registries, creates textures, performs OpenGL uploads, and runs the remaining mod logic.
 
-Changed game or mod files select different prepared data. A missing entry, unsupported class, corrupt artifact, or runtime error uses the original loader. Runtime acceleration does not edit the game, mods, saves, launcher, or VM parameter files. The separate named-profile command changes only `enabled_mods.json`, and only after an explicit preview/confirmation with a backup and concurrent-change check.
+Changed game or mod files select different prepared data. A missing entry, unsupported class, corrupt artifact, or runtime error uses the original loader. Runtime acceleration does not edit the game, mods, saves, launcher, or VM parameter files. The separate named-profile command changes only `enabled_mods.json`, and only after an explicit preview/confirmation with a backup and concurrent-change check. The explicit launch-settings command updates Starsector's existing launcher/gameplay preference keys after saving their previous values; it does not patch game files.
 
 ## Install and run
 
@@ -164,6 +164,16 @@ Inspect the detected installation and mod profile without launching:
 
 ```bash
 java -jar preflight.jar doctor
+```
+
+Inspect or update the same resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size
+preferences used by Starsector's own UI:
+
+```bash
+java -jar preflight.jar launch-settings --game /path/to/Starsector --json
+java -jar preflight.jar launch-settings set --game /path/to/Starsector \
+  --resolution 1920x1080 --fullscreen false --sound true \
+  --antialiasing 0 --ui-scale 1.0 --battle-size 400 --json
 ```
 
 Prepare every reusable cache for the current profile:
@@ -226,7 +236,7 @@ coordinates. The first campaign-load/roam scenario and evidence contract are doc
 [desktop smoke automation](docs/desktop-smoke-automation.md).
 
 The native desktop host and its build instructions live in
-[preflight-desktop](preflight-desktop/README.md). Prepare, Profiles, Storage, and tracked game launch
+[preflight-desktop](preflight-desktop/README.md). Launch settings, Prepare, Profiles, Storage, and tracked game launch
 all use the same narrow engine contract as the CLI. The native distribution matrix is green for a
 macOS arm64 DMG, Windows x64 NSIS installer, and Linux x64 Debian and AppImage packages. These are
 currently **unsigned beta artifacts**: public release publishing, Apple signing/notarization,
@@ -291,6 +301,7 @@ preflight-cli/target/preflight.jar
 ## Documentation
 
 - [Accumulated startup scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md)
+- [Product, compatibility, cache-control, and support-upload contract](docs/product-contract.md)
 - [Automatic launch and discovery](docs/automatic-launch.md)
 - [Vanilla runtime adapter](docs/vanilla-adapter.md)
 - [Repeated startup benchmark](docs/startup-benchmark.md)

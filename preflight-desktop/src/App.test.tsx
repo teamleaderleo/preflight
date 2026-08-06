@@ -27,6 +27,24 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(screen.getByRole("button", { name: "Prepare current profile" })).toBeEnabled();
 });
 
+test("launch settings mirror vanilla display and battle controls", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Launch" }));
+
+  expect(await screen.findByText("Starsector launch settings")).toBeInTheDocument();
+  expect(screen.getByLabelText("Resolution")).toHaveValue("1440x932");
+  expect(screen.getByLabelText("Fullscreen")).not.toBeChecked();
+  expect(screen.getByLabelText("Sound")).toBeChecked();
+  expect(screen.getByLabelText("Antialiasing")).toHaveValue("0");
+  expect(screen.getByLabelText("UI scaling")).toHaveValue("1");
+  expect(screen.getByLabelText("Deployment-point budget")).toHaveValue("400");
+  await user.click(screen.getByRole("button", { name: "Save launch settings" }));
+  expect(await screen.findByText(/Launch settings saved/)).toBeInTheDocument();
+});
+
 test("profiles are preview-first and show the exact switch before applying", async () => {
   const user = userEvent.setup();
   render(<App />);

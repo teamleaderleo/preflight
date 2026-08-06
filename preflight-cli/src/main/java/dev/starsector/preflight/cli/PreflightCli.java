@@ -252,13 +252,18 @@ public final class PreflightCli {
                         + " 23.1%; fastest stores every upload-ready pixel array raw"));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
         usage.put("launch-settings", List.of(
-                "preflight launch-settings [--json]",
-                "  Reports whether Starsector can be started without showing its launcher, and with"
-                        + " which resolution, fullscreen and sound settings. The game supports this"
-                        + " itself through its launchDirect/startRes/startFS/startSound properties;"
-                        + " the settings are read from the launcher's own preferences so an unattended"
-                        + " launch matches a clicked one. Always exits zero -- unavailable is an"
-                        + " answer, with a reason saying what to do about it."));
+                "preflight launch-settings [--game <path>] [--json]",
+                "preflight launch-settings set [--game <path>] [--resolution WIDTHxHEIGHT]"
+                        + " [--fullscreen true|false] [--sound true|false]"
+                        + " [--antialiasing 0|2|4|8|12|16|24|32] [--ui-scale 1.00..3.00]"
+                        + " [--battle-size <points>] [--json]",
+                "  Reports and updates Starsector's own launcher/gameplay preferences. A set writes"
+                        + " only the named keys, snapshots their previous values under Preflight's"
+                        + " home first, and preserves unrelated gameplay settings. Battle size is"
+                        + " checked against the selected installation's current settings.json bounds.",
+                "  The direct-launch availability fields remain the benchmark contract: Starsector"
+                        + " itself supports launchDirect/startRes/startFS/startSound, and Preflight"
+                        + " refuses that unattended path when the game's saved inputs are incomplete."));
         usage.put("install", List.of(
                 "preflight install [--game <path>] [--launcher <path>] [--prepare] [--texture-storage fastest|balanced] [--workers <count>] [--memory-mb <MiB>]",
                 "  --prepare builds the exact current profile after installing the launcher.",

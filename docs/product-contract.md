@@ -1,0 +1,131 @@
+# Product, compatibility, and support-upload contract
+
+**Status:** executable product boundary for the desktop beta
+**Updated:** 2026-08-07
+
+## One engine, several entry points
+
+The CLI and desktop application call the same Java engine. The desktop host has a fixed set of
+typed commands; it is not an arbitrary shell. Normal acceleration starts Starsector through
+`preflight run --fast`, which wraps the selected existing launcher and adds the in-memory Java
+agent. The game installation, launcher script, mod archives, and saves are not rewritten.
+
+Preflight cannot accelerate a process it did not start. Users can launch through:
+
+- the desktop application's **Launch Starsector** button;
+- `preflight run --fast` directly;
+- an installed Preflight application/command integration; or
+- `preflight run --fast --launcher <their launcher>` when a rendering mod or compatibility package
+  supplies a different script.
+
+A raw vanilla launcher, a third-party `.bat`, or a compatibility app launched on its own remains
+raw. Supporting those paths means teaching Preflight to wrap their command, not installing a
+machine-wide `JAVA_TOOL_OPTIONS` hook or editing their files behind the user's back.
+
+## What is modified
+
+There are three distinct kinds of change:
+
+1. **Runtime transformations.** Exact reviewed classes are transformed in the child JVM's memory.
+   Nothing is written back to a game or mod JAR. This is technically deep integration, but the
+   boundary is narrow: class bytes, source archive, classloader, protection domain, required method
+   descriptors, and cache identity are checked before a plan can install.
+2. **Content-addressed acceleration data.** Prepared textures, audio, merged JSON, generated
+   bytecode, resource indexes, and reports live below Preflight's own home. Inputs that affect an
+   answer are hashed into its identity. A miss, corrupt entry, uncertain source, or runtime
+   validation failure takes the original game path.
+3. **Explicit preferences.** A confirmed named-profile switch backs up and atomically replaces only
+   `mods/enabled_mods.json`. The launch-settings surface writes only Starsector's existing
+   `resolution`, `fullscreen`, `sound`, `numAASamples`, `screenScale`, and `gameplaySettings`
+   preferences after backing up the prior selected values. The registration serial is never read
+   into that backup or exposed to the desktop interface.
+
+## Update and mod drift
+
+The safe default for unknown code is **decline, report, and continue with original bytes**. Targets
+for vanilla and specific mods are pinned to exact identities; a new game/mod build does not receive
+an old transformation merely because a class has the same name. Cache bridges separately validate
+their artifact and input identity before serving a hit.
+
+That gives us graceful degradation, not immortality. A future release can still change the launcher
+command, preference format, classloading topology, native runtime, or discovery layout enough that
+the wrapper itself needs an update. The beta must therefore distinguish:
+
+- **adapter declined:** game continues, optimization unavailable, health report explains why;
+- **cache miss/rejection:** original loader runs, cache can be rebuilt or repaired;
+- **wrapper/launcher failure:** game did not start and Preflight must say so plainly; and
+- **runtime integrity failure:** disable the affected runtime shortcut for the session and retain
+  evidence, rather than claiming the session is fully accelerated.
+
+Compatibility with Fast Rendering, Starsector Rendering, BoxUtil, GraphicsLib, Nexerelin, or any
+other mod is evidence-based. Ownership detection already leaves Janino compilation to Fast
+Rendering when its custom loader owns that seam. This does not justify a blanket “all versions of
+all mods” claim; each mod-specific plan must remain exact and independently disableable.
+
+## Launch settings UX
+
+The desktop **Launch** page and `preflight launch-settings` now expose the game-owned values rather
+than duplicating them:
+
+- resolution, fullscreen, and sound from the vanilla launch panel;
+- antialiasing and UI scaling from the vanilla options panel; and
+- battle size from the same `gameplaySettings` preference as the in-game slider.
+
+Battle size is constrained by the selected installation's merged `minBattleSize` and
+`maxBattleSize` bounds. Raising that maximum by rewriting base `settings.json` is a different,
+advanced feature and is not silently bundled into the ordinary slider.
+
+## Cache controls UX
+
+The primary control should be a preset, not a wall of bytecode-plan names:
+
+- **Recommended (default):** every optimization that passed its live correctness gate; currently
+  the behavior of `--fast`.
+- **Conservative:** broadly applicable, immutable-input startup caches only; omit mod-specific and
+  gameplay-runtime shortcuts.
+- **Off / troubleshooting:** no adapter transformations and no profiling recorder overhead. The
+  wrapper may still provide process ownership and a bounded outcome report.
+
+An **Advanced** disclosure can group independently switchable domains such as textures, prepared
+audio, merged/spec JSON, generated scripts, vanilla gameplay indexes, GraphicsLib, and other
+exact-version mod adapters. The engine must own the dependency graph. The GUI may request
+“prepared textures off”; it must not assemble an internally inconsistent set of raw agent flags.
+
+Settings belong to a named Preflight launch preset and can optionally be associated with a mod
+profile. Cache contents remain shareable by content identity; toggling a reader off does not delete
+its data. Cleanup and storage policy stay separate, preview-first actions.
+
+## Voluntary support upload
+
+“Send diagnostics” should upload the exact bounded ZIP already produced by `evidence export`; it
+must not create a broader telemetry path. The consent screen shows the existing inclusion/exclusion
+list, the byte count, and the ZIP SHA-256 before sending. Automatic background uploads are off by
+default.
+
+The service flow is:
+
+1. Client asks a small HTTPS intake service for a one-time case and upload grant, sending only
+   product version, ZIP byte count, and SHA-256.
+2. Service applies IP/network rate limits and issues a random object key plus a short-lived,
+   single-object PUT grant. Cloudflare R2 presigned URLs are bearer grants scoped to one operation,
+   key, and expiry; content type can be part of the signature
+   ([R2 documentation](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)).
+3. Client uploads the ZIP, then asks the service to finalize the case.
+4. Service verifies size, ZIP magic, bounded manifest schema, entry allowlist, and SHA-256 before
+   marking it accepted. A Worker can compute SHA-256 with Web Crypto
+   ([Workers documentation](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)).
+5. Service returns a case ID plus a server-signed receipt covering object key, digest, size,
+   received time, product version, and retention deadline. The app displays and copies that receipt.
+
+The embedded application has no durable secret. A secret shipped in a desktop binary is extractable,
+so it cannot prove that an upload came from an untampered official client. The receipt proves what
+the service accepted; the signed application package and manifest establish useful provenance; rate
+limits constrain anonymous abuse. Cloudflare's rate-limiting rules can cap requests by path and IP
+([WAF documentation](https://developers.cloudflare.com/waf/rate-limiting-rules/)). If uploader
+identity becomes necessary, GitHub's device flow can add an explicit sign-in without asking users
+to paste tokens ([GitHub documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)); it should not be required for ordinary beta feedback.
+
+Operational defaults should include a small maximum object size, private bucket, short retention,
+no public object URLs, least-privilege intake credentials, deletion by case ID, and a visible privacy
+statement. Server-side processing must treat ZIPs and JSON as hostile input despite the client-side
+allowlist.

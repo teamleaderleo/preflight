@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::env;
 use std::io::Read;
@@ -44,6 +44,17 @@ struct PreparationStateEvent {
 struct EnginePaths {
     java: PathBuf,
     jar: PathBuf,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LaunchSettingsInput {
+    resolution: String,
+    fullscreen: bool,
+    sound: bool,
+    antialiasing_samples: u8,
+    ui_scale: f64,
+    battle_size: u32,
 }
 
 impl EnginePaths {
@@ -236,6 +247,103 @@ fn export_diagnostics(app: AppHandle, output: String) -> Result<Value, String> {
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("Preflight returned an unreadable diagnostics receipt: {error}"))
+}
+
+#[tauri::command]
+fn get_launch_settings(app: AppHandle, game: String) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    launch_settings_json(&app, &directory, None)
+}
+
+#[tauri::command]
+fn update_launch_settings(
+    app: AppHandle,
+    tracker: State<'_, ProcessTracker>,
+    game: String,
+    settings: LaunchSettingsInput,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    validate_launch_settings(&settings)?;
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    if running.game.is_some() {
+        return Err("Close Starsector before changing its launch settings.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before changing launch settings.".to_string(),
+        );
+    }
+    let result = launch_settings_json(&app, &directory, Some(&settings));
+    drop(running);
+    result
+}
+
+fn launch_settings_json(
+    app: &AppHandle,
+    directory: &Path,
+    settings: Option<&LaunchSettingsInput>,
+) -> Result<Value, String> {
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command.arg("launch-settings");
+    if let Some(settings) = settings {
+        command
+            .arg("set")
+            .arg("--resolution")
+            .arg(&settings.resolution)
+            .arg("--fullscreen")
+            .arg(settings.fullscreen.to_string())
+            .arg("--sound")
+            .arg(settings.sound.to_string())
+            .arg("--antialiasing")
+            .arg(settings.antialiasing_samples.to_string())
+            .arg("--ui-scale")
+            .arg(settings.ui_scale.to_string())
+            .arg("--battle-size")
+            .arg(settings.battle_size.to_string());
+    }
+    command.arg("--game").arg(directory).arg("--json");
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not update Starsector's launch settings",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable launch settings: {error}"))
+}
+
+fn validate_launch_settings(settings: &LaunchSettingsInput) -> Result<(), String> {
+    let axes: Vec<&str> = settings.resolution.split('x').collect();
+    if axes.len() != 2
+        || axes.iter().any(|axis| {
+            axis.parse::<u16>()
+                .map(|value| value == 0 || value.to_string() != *axis)
+                .unwrap_or(true)
+        })
+    {
+        return Err("Resolution must be WIDTHxHEIGHT using positive whole numbers.".to_string());
+    }
+    if ![0, 2, 4, 8, 12, 16, 24, 32].contains(&settings.antialiasing_samples) {
+        return Err("Choose one of Starsector's supported antialiasing sample counts.".to_string());
+    }
+    let scaled = settings.ui_scale * 20.0;
+    if !settings.ui_scale.is_finite()
+        || !(1.0..=3.0).contains(&settings.ui_scale)
+        || (scaled - scaled.round()).abs() > 0.000_001
+    {
+        return Err("UI scale must be from 1.00 to 3.00 in 0.05 steps.".to_string());
+    }
+    if settings.battle_size == 0 {
+        return Err("Battle size must be positive.".to_string());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -534,6 +642,8 @@ pub fn run() {
             get_snapshot,
             get_cache,
             export_diagnostics,
+            get_launch_settings,
+            update_launch_settings,
             get_profiles,
             save_profile,
             activate_profile,
@@ -546,7 +656,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{diagnostic_output_path, read_tail};
+    use super::{LaunchSettingsInput, diagnostic_output_path, read_tail, validate_launch_settings};
     use std::io::Cursor;
 
     #[test]
@@ -571,5 +681,24 @@ mod tests {
         assert!(diagnostic_output_path("relative.zip").is_err());
         assert!(diagnostic_output_path(text.to_str().unwrap()).is_err());
         assert_eq!(zip, diagnostic_output_path(zip.to_str().unwrap()).unwrap());
+    }
+
+    #[test]
+    fn launch_settings_validation_matches_the_engine_contract() {
+        let valid = LaunchSettingsInput {
+            resolution: "1920x1080".to_string(),
+            fullscreen: false,
+            sound: true,
+            antialiasing_samples: 12,
+            ui_scale: 1.25,
+            battle_size: 400,
+        };
+        assert!(validate_launch_settings(&valid).is_ok());
+
+        let invalid = LaunchSettingsInput {
+            resolution: "1920 by 1080".to_string(),
+            ..valid
+        };
+        assert!(validate_launch_settings(&invalid).is_err());
     }
 }

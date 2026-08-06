@@ -4,6 +4,28 @@ This is the single living implementation handoff. Archive dated evidence under `
 not create parallel handoffs. Rewritten 2026-08-03 — the prepared-pixel comparison work this file
 used to carry is merged, and is described by `docs/evidence/` and `docs/prepared-textures.md`.
 
+## Product surface checkpoint
+
+The desktop and CLI now share a versioned `launch-settings` contract for Starsector's own
+resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are
+explicit, bounded by the selected installation's settings, preserve unrelated gameplay preference
+fields, and save the six mutable raw values before flushing. The registration serial is excluded
+from the backup and desktop payload. The desktop **Launch** page uses the same contract and refuses
+to write while a tracked game or preparation process is active. A read-only replay against the
+installed game found the expected 0.98a-RC8 bounds, and the full Maven suite, React tests, Rust
+tests, and native release build pass.
+
+`docs/product-contract.md` is the current boundary for entry points, compatibility, cache controls,
+and voluntary diagnostic upload. Important constraints: only a process Preflight starts/wraps is
+accelerated; runtime transforms stay in memory and exact-identity/fail-closed; unknown updates may
+lose optimizations but are never promised universal compatibility; and cache deletion remains
+separate from toggling a reader. The next product implementation should add the typed launch-preset
+engine model (**Recommended** default, **Conservative**, **Off / troubleshooting**, then grouped
+advanced domains) before exposing cache switches in the GUI. The upload backend is designed but not
+deployed: reuse the bounded evidence ZIP, explicit consent and digest preview, a short-lived
+single-object grant, server verification, signed receipt, rate limits, private short retention, and
+no embedded durable secret.
+
 ## Where the launch is
 
 On 2026-08-04, the intermittent vanilla "resource not found" startup fatal was traced to a shared

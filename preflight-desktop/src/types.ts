@@ -40,6 +40,48 @@ export interface DiagnosticsExport {
   skipped: Array<{ entry: string; reason: string }>;
 }
 
+export interface LaunchSettings {
+  format: "starsector-preflight-launch-settings-v1";
+  directLaunchAvailable: boolean;
+  reason: string | null;
+  settings: {
+    resolution: string;
+    fullscreen: boolean;
+    sound: boolean;
+    javaOptions: string[];
+  } | null;
+  preferences: {
+    resolution: string | null;
+    fullscreen: boolean;
+    sound: boolean;
+    antialiasingSamples: number | null;
+    uiScale: number | null;
+    battleSize: number | null;
+    diagnostics: string[];
+  };
+  limits: {
+    antialiasingSamples: number[];
+    uiScaleMin: number;
+    uiScaleMax: number;
+    uiScaleStep: number;
+    battleSizeMin: number | null;
+    battleSizeDefault: number | null;
+    battleSizeMax: number | null;
+    diagnostics: string[];
+  };
+  changed: boolean;
+  backup: string | null;
+}
+
+export interface LaunchSettingsUpdate {
+  resolution: string;
+  fullscreen: boolean;
+  sound: boolean;
+  antialiasingSamples: number;
+  uiScale: number;
+  battleSize: number;
+}
+
 export interface RunStateEvent {
   state: "started" | "finished";
   pid: number;

@@ -18,7 +18,9 @@ import java.util.Map;
  * reads and hashes the game's files; every cache artifact lands under {@link #root()} or in an
  * output directory the operator named. The one explicit exception is confirmed named-profile
  * activation, which stages and replaces {@code mods/enabled_mods.json} after saving the original
- * under {@link #profileBackups()}. Uninstall does not restore that ordinary launcher preference.
+ * under {@link #profileBackups()}. The launch-settings command also updates Starsector's own small
+ * cross-platform preference store after writing the selected old values under
+ * {@link #launcherPreferenceBackups()}. Uninstall does not restore either explicit user choice.
  *
  * <p><b>On directory choice.</b> One dot-directory under the user's home is used on all three
  * platforms rather than the platform-idiomatic split (macOS {@code ~/Library/Caches} plus
@@ -137,5 +139,10 @@ record PreflightHome(Path root, List<Integration> integrations) {
 
     Path profileBackups() {
         return root.resolve("profile-backups");
+    }
+
+    /** Snapshots of the small preference set changed through the launch-settings UI. */
+    Path launcherPreferenceBackups() {
+        return root.resolve("launcher-preference-backups");
     }
 }

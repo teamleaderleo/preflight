@@ -779,6 +779,174 @@ h2 {
   white-space: nowrap;
 }
 
+.launch-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.launch-intro,
+.launch-save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 23px 25px;
+}
+
+.launch-intro h2,
+.launch-settings-card h2 {
+  margin: 3px 0 8px;
+  font-size: 17px;
+}
+
+.launch-intro p:last-child,
+.setting-explainer {
+  max-width: 710px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.launch-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 16px;
+}
+
+.launch-settings-card {
+  padding: 23px;
+}
+
+.setting-field,
+.setting-toggle,
+.setting-slider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.setting-field > span,
+.setting-toggle > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setting-field strong,
+.setting-toggle strong,
+.setting-slider strong {
+  font-size: 11px;
+}
+
+.setting-field small,
+.setting-toggle small {
+  max-width: 340px;
+  color: var(--ink-soft);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.setting-field input,
+.setting-field select {
+  width: 150px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.42);
+  font: inherit;
+  font-size: 10px;
+}
+
+.setting-toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--peach);
+}
+
+.setting-slider {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setting-slider > span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.setting-slider b {
+  color: var(--peach-dark);
+  font-size: 11px;
+}
+
+.setting-slider input {
+  width: 100%;
+  accent-color: var(--peach);
+}
+
+.battle-bounds {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 8px;
+}
+
+.setting-safety {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 18px;
+  padding: 12px;
+  border-radius: 12px;
+  color: #4d8b73;
+  background: rgba(110, 169, 143, 0.1);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.setting-safety svg {
+  flex: 0 0 17px;
+  width: 17px;
+}
+
+.launch-diagnostics {
+  padding: 14px 20px;
+  color: #a15d3f;
+  font-size: 9px;
+}
+
+.launch-diagnostics p {
+  margin: 3px 0;
+}
+
+.launch-save > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.launch-save strong {
+  font-size: 12px;
+}
+
+.launch-save span,
+.launch-loading {
+  color: var(--ink-soft);
+  font-size: 9px;
+}
+
+.launch-loading {
+  padding: 26px;
+}
+
 .profiles-intro {
   display: flex;
   align-items: flex-start;
@@ -1319,6 +1487,10 @@ footer {
   .profiles-grid {
     grid-template-columns: 1fr;
   }
+
+  .launch-settings-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1344,6 +1516,8 @@ footer {
 
   .prepare-intro,
   .profiles-intro,
+  .launch-intro,
+  .launch-save,
   .prepare-action {
     align-items: stretch;
     flex-direction: column;
@@ -1369,6 +1543,10 @@ footer {
   .activation-review__footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .launch-save .button {
+    width: 100%;
   }
 
   .safety__check {
@@ -1434,5 +1612,11 @@ footer {
   .profile-save-card input,
   .activation-columns > div {
     background: rgba(255, 255, 255, 0.04);
+  }
+
+  .setting-field input,
+  .setting-field select {
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.06);
   }
 }
