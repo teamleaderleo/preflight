@@ -7,47 +7,42 @@
 **Updated:** 2026-08-07
 
 On the 83-mod test installation, a normal launch initially took about 88 seconds. The fastest warm
-launch recorded so far takes 15.88 seconds. That comparison is useful as a description of the work,
-but it isn't a controlled claim that every installation will become 5.5 times faster. The two
-endpoints were recorded at different stages of a long investigation, and the later number is a
-record rather than a median.
+launch recorded so far takes 15.88 seconds. That warm run is a single record from a later stage of
+the investigation; the controlled whole-stack result comes from an earlier randomized comparison.
 
 The strongest causal result for the complete stack is a randomized fifteen-launch comparison made
 partway through the work: five vanilla launches, five texture-only launches, and five launches with
 the then-current complete stack. Vanilla measured 80.09 seconds and the complete stack measured
 42.36 seconds, with every round agreeing on the effect within 1.9 seconds. The full design and raw
 results are in [the whole-stack comparison](evidence/2026-08-03-the-whole-stack-measured-at-once.md).
-Everything after that comparison is supported by narrower replays, component timings, integration
-gates, and chronological launch records rather than a single final A/B cohort.
+Narrow replays, component timings, integration gates, and chronological launch records support the
+work completed after that comparison.
 
-This document tells the technical story without pretending that every experiment succeeded or that
-every adjacent launch was comparable. The [experiment ledger](experiment-ledger.md) records the
-accepted, rejected, diagnostic, and deferred branches in a more compact form, while the
-[performance and storage reference](performance-storage-tradeoffs.md) collects the choices that a
-user will eventually see in the app.
+The [experiment ledger](experiment-ledger.md) records accepted, rejected, diagnostic, and deferred
+branches. The [performance and storage reference](performance-storage-tradeoffs.md) collects the
+choices that a user will eventually see in the app.
 
 ## Reading the numbers
 
 The benchmark became part of the engineering work because several early measurements were wrong in
 ways that looked convincing. Direct launch removed human launcher latency, the main-menu state and
 game log replaced guessed visual gaps, and unattended shutdown made repeated cohorts practical. A
-supposed 18-second bimodality later turned out to be a stale benchmark anchor rather than a property
-of the game, while Java Flight Recorder's clock under `UseFastUnorderedTimeStamps` ran about 2.49
-times off the wall clock. Both errors are preserved in [the harness diagnosis](evidence/2026-08-01-the-bimodality-was-the-anchor.md)
+supposed 18-second bimodality came from a stale benchmark anchor. Java Flight Recorder's clock under
+`UseFastUnorderedTimeStamps` ran about 2.49 times off the wall clock. Both errors are preserved in
+[the harness diagnosis](evidence/2026-08-01-the-bimodality-was-the-anchor.md)
 and [the profiler correction](evidence/2026-08-02-what-the-profiler-was-not-telling-us.md).
 
-As a result, a game-log-to-main-menu duration and a wrapper wall time are treated as different
-metrics, and a profiled launch isn't compared directly with an ordinary launch. Replays can
-establish a narrow CPU or I/O effect, but only a real launch can establish integration and visual
-correctness. Whole-launch noise on the test machine is roughly ±1.4 seconds, so isolated
-sub-second changes need controlled replays or larger cohorts. Browser activity, memory pressure,
-ambient temperature, and back-to-back thermal throttling are recorded rather than quietly
-normalized away. The current harness and condition definitions are documented in
-[startup-benchmark.md](startup-benchmark.md).
+The game-log-to-main-menu duration and wrapper wall time are separate metrics. JFR supplies
+attribution under a corrected clock contract. Ordinary launches establish wall time, integration,
+and visual correctness.
+Whole-launch noise on the test machine is roughly ±1.4 seconds, so isolated sub-second changes need
+controlled replays or larger cohorts. Reports record browser activity, memory pressure, ambient
+temperature, and back-to-back thermal throttling. The current harness and condition definitions are
+documented in [startup-benchmark.md](startup-benchmark.md).
 
-The chronology begins at 88.13 seconds, although 62.60 seconds became the first accepted waypoint
-after the initial texture campaign. Later gates should be read as the order in which improvements
-entered the working stack, not as an additive decomposition of the original launch.
+The chronology begins at 88.13 seconds. The first accepted waypoint, after the initial texture
+campaign, was 62.60 seconds. Later gates record the order in which improvements entered the working
+stack.
 
 | Accepted gate | Main-menu time |
 | --- | ---: |
@@ -71,14 +66,13 @@ release-candidate cohort is still required before a public median replaces the c
 ## The first texture cache accelerated the wrong part of the wait
 
 Texture preparation was the first substantial target because image decoding and conversion
-occupied a large part of the loading profile. The initial prepared-pixel implementation did remove
-that work, but the complete launch improved by only about 1.5 percent. That result didn't match the
-amount of computation apparently being avoided, so the investigation moved outward from the image
-decoder to the way loading was scheduled.
+occupied a large part of the loading profile. The initial prepared-pixel implementation removed
+that work and improved the complete launch by only about 1.5 percent. The mismatch led outward from
+the image decoder to the way loading was scheduled.
 
 The loading thread was spending roughly 27 seconds waiting behind a single-threaded image prefetch
-queue. A cache lookup placed after that queue could make an individual decode cheap while leaving
-the main thread blocked on the same serialized work. Moving the prepared lookup ahead of the queue
+queue. A cache lookup placed after that queue made an individual decode cheap and left the main
+thread blocked on the serialized work. Moving the prepared lookup ahead of the queue
 changed the shape of the result, and combining the two independently useful bypasses brought the
 controlled comparison from 88.13 seconds to 62.60 seconds. The queue behavior is shown in
 [the prefetcher report](evidence/2026-08-01-the-loading-thread-waits-on-a-one-thread-prefetcher.md),
@@ -104,11 +98,11 @@ flowchart LR
     I -. "same game-owned texture" .-> F
 ```
 
-That larger win didn't make prepared pixels safe automatically. Several prototypes produced healthy
-hit counters while cropping, tiling, blacking out, or displacing the title screen. A dimension-only
-contract was insufficient; preserving only half of the original layout invariant could crash the
-launcher; and a mutable comparison cache made a visually correct run fail its own acceptance test.
-The sequence of failures begins with [the live pilot failure](evidence/2026-07-22-prepared-pixel-live-pilot-failure.md),
+Several prepared-pixel prototypes produced healthy hit counters alongside cropped, tiled, black, or
+displaced title-screen textures. A dimension-only contract was insufficient, preserving half of the
+original layout invariant could crash the launcher, and a mutable comparison cache made a visually
+correct run fail its own acceptance test. The sequence begins with
+[the live pilot failure](evidence/2026-07-22-prepared-pixel-live-pilot-failure.md),
 continues through [the visual-corruption report](evidence/2026-07-22-prepared-pixel-dimension-replay-visual-corruption.md),
 and ends with [the corrected gameplay smoke pass](evidence/2026-07-23-prepared-pixel-gameplay-smoke-pass.md).
 Those reports are part of the history because the eventual speedup depends on the stronger invariant
@@ -117,10 +111,9 @@ they forced the cache to preserve.
 Once the path was correct, the remaining costs could be removed separately. Source hashing stopped
 consuming about 6.68 seconds of CPU, decode and pixel conversion removed about 9.65 seconds, and
 true-size allocation eliminated 1.22 GiB of padding that the shaders never sampled. The padding
-result is measured in [the true-size upload report](evidence/2026-08-02-the-padding-is-gone.md),
-while [the texture pipeline decomposition](evidence/2026-07-26-texture-load-pipeline-decomposition.md)
-shows why these costs had to be treated as different stages rather than a single “image loading”
-block.
+result is measured in [the true-size upload report](evidence/2026-08-02-the-padding-is-gone.md).
+[The texture pipeline decomposition](evidence/2026-07-26-texture-load-pipeline-decomposition.md)
+separates each stage.
 
 The prepared store was refined again near the end of the campaign. Lazy texture carriers avoided a
 2.116 GB compatibility-raster allocation, reducing 15,470 potential raster materializations to one;
@@ -140,11 +133,10 @@ could explain only about half a second, so optimizing it alone couldn't account 
 pause. The broader attribution is established in
 [the SpecStore plateau report](evidence/2026-08-02-zero-percent-is-spec-store.md).
 
-The important boundary was between stable inputs and mutable game objects. Preflight doesn't retain
-the live hull, weapon, or rule objects from an earlier process. It stores tagged JSON and CSV trees,
-or merged-reader results, underneath the ordinary constructors; Starsector still creates and owns
-the runtime objects each time. Exact profile and provider identities decide whether a prepared tree
-can be used, and a miss returns to the original reader.
+The important boundary was between stable inputs and mutable game objects. Preflight stores tagged
+JSON and CSV trees, or merged-reader results, underneath the ordinary constructors. Starsector
+creates and owns fresh hull, weapon, rule, and registry objects each time. Exact profile and provider
+identities decide whether a prepared tree can be used. A miss returns to the original reader.
 
 ```mermaid
 flowchart TB
@@ -158,15 +150,15 @@ flowchart TB
 
 The component replays show how much work had been hidden behind the single label: variants fell
 from 3.289 seconds to 0.324, weapons from 3.338 to 0.998, projectiles from 2.349 to 1.004, hulls
-from 2.653 to 0.754, and rules from 0.959 to 0.166. Duplicate rule registration was also changed
-from a linear search to a set for 21,059 registrations, while repeated rule-token shapes and fixed
-regex work were memoized without retaining live rule objects. The main progression is recorded in
+from 2.653 to 0.754, and rules from 0.959 to 0.166. Duplicate rule registration changed from a
+linear search to a set for 21,059 registrations. Repeated rule-token shapes and fixed regex work
+were memoized at the input level. The main progression is recorded in
 [the plateau report](evidence/2026-08-02-zero-percent-is-spec-store.md),
 [the tagged-spec fidelity report](evidence/2026-08-04-tagged-spec-json.md), and
 [the core spec, faction, and rules follow-up](evidence/2026-08-05-core-spec-faction-and-rules.md).
 
-The general merged-reader cache sits below the four corpus-specific caches rather than competing
-with them, so it catches their misses and rehydrates tagged trees instead of reparsing text. Its
+The general merged-reader cache sits below the four corpus-specific caches. It catches their misses
+and rehydrates tagged trees directly. Its
 exact seam fell from 1.87 seconds to a much smaller rehydration path, and the first integrated
 launches reached 33.42 and 34.15 seconds. Because the cache identity reuses hashes that the wrapper
 already needs, profile hashing was memoized at the same time; otherwise the new correctness checks
@@ -177,13 +169,12 @@ and installed `json.jar` fidelity gate are covered by
 
 ## Once vanilla loading became cheap, mod callbacks became visible
 
-The tail after core loading was dominated by code that had always been present but had previously
-been hidden beneath larger waits. AshLib repeatedly resolved hull and variant JSON during repository
-population, accounting for a component reduction of roughly 7.1 to 7.4 seconds after its stable
+Larger waits had hidden the mod callback tail. AshLib repeatedly resolved hull and variant JSON
+during repository population, accounting for a component reduction of roughly 7.1 to 7.4 seconds after its stable
 inputs were reused. GraphicsLib regenerated or revalidated normal-map state, revisited hot settings,
 and created objects that were uploaded only to be unloaded. Each optimization was pinned to an exact
-reviewed class, source archive, loader, method descriptor, and input identity, so a changed mod can
-decline the shortcut without disabling the mod itself. The accepted boundaries are described in
+reviewed class, source archive, loader, method descriptor, and input identity. A changed mod declines
+the shortcut and continues through its original path. The accepted boundaries are described in
 [the AshLib cache report](evidence/2026-08-02-ashlib-startup-json-cache.md),
 [the GraphicsLib compact replay](evidence/2026-08-02-graphicslib-compact-autogen-replay.md), and
 [the lazy generated-normal report](evidence/2026-08-05-graphicslib-lazy-generated-normals.md).
@@ -192,37 +183,35 @@ Janino presented a different kind of repetition. Mods were asking it to generate
 class maps, and the early cache stored hundreds of bundles that repeated most of the same bytecode.
 A complete-map cache reduced an 18.014-second direct aggregate to 2.364 seconds and removed about
 5.37 seconds from the first whole-launch pilot. Packing the maps by content then shrank roughly
-145.96 MiB to 1.13 MiB, while the warm read seam fell from about 1.5 seconds to 29–38 milliseconds.
+145.96 MiB to 1.13 MiB. The warm read seam fell from about 1.5 seconds to 29–38 milliseconds.
 The live gate and deduplicated representation are in
 [the Janino pilot](evidence/2026-08-04-janino-bytecode-live-pilot.md) and
 [the deduplicated-pack report](evidence/2026-08-05-janino-deduplicated-pack.md).
 
-Not every plausible mod shortcut survived validation. Replaying GraphicsLib's public mapping
+Two plausible mod shortcuts failed validation. Replaying GraphicsLib's public mapping
 traversal grew a roughly 0.25-second path to about 1.70 seconds and required a 4.19 MiB artifact, so
 the adapter and artifact were deleted. AppCDS couldn't establish a safe win for the shipped
-obfuscated classes and was also removed. These are not “future optimizations” waiting to be switched
-on; they are rejected branches documented in
+obfuscated classes and was also removed. Their rejection is documented in
 [the traversal replay decision](evidence/2026-08-06-graphicslib-traversal-replay-rejected.md) and
 [the AppCDS gate](evidence/2026-08-06-appcds-obfuscated-class-gate.md).
 
-## Audio was expensive CPU work, but not always launch-critical work
+## Audio removed CPU work with a variable wall-time effect
 
 The game constructs about 1.2 GB of decoded PCM before the main menu, which initially made audio
-look like an obvious wall-time target. A closer trace showed that the loading thread didn't always
-wait for all of that decode work, and the first equivalence harness had tested a decoder API that
-the game never called. That correction matters: removing CPU time can reduce heat and later
-contention on a fanless machine without producing the same number of seconds in the current launch.
-The distinction is developed in
+look like an obvious wall-time target. A closer trace showed partial overlap between decoding and
+other startup work. The first equivalence harness had also tested a decoder API unused by the game.
+Removing CPU time still reduces heat and later contention on a fanless machine. Its wall-time effect
+depends on where the loading thread waits. The evidence is in
 [the PCM census](evidence/2026-07-29-the-game-builds-1-2-gb-of-pcm-before-the-main-menu.md),
 [the wait analysis](evidence/2026-07-30-the-loading-thread-never-waits-for-the-audio.md), and
 [the invalid API gate](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md).
 
-The accepted path stores exact decoder-identified PCM, indexes it by source path, and reaches OpenAL
-without redundant heap copies. A representative gate served 2,049 of 2,050 paths directly and used
+The accepted path stores exact decoder-identified PCM, indexes it by source path, and sends it to
+OpenAL directly. A representative gate served 2,049 of 2,050 paths directly and used
 one hash fallback. Earlier stages removed 19.7 core-seconds of Vorbis work and a measured 3.46-second
 main-thread wait; the direct path later removed 133.3 MB of Rosetta hashing. The 24.76-second
-three-run launch cohort was encouraging but wasn't a shuffled causal A/B, so it remains a
-chronological gate rather than a promised audio-only saving. See
+three-run launch cohort is a chronological integration gate. An audio-only wall-time claim requires
+a shuffled comparison. See
 [the path-index report](evidence/2026-08-05-prepared-audio-path-index.md) and
 [the direct-read report](evidence/2026-08-06-prepared-audio-direct-read.md).
 
@@ -235,44 +224,42 @@ correctness fix is documented in
 
 ## The last seconds were many small serial costs
 
-By the time launches were around 24 seconds, no remaining component resembled the original texture
-or SpecStore blocks. Ordinary startup still inventoried 2,612 game classes even though only a small
-set could match a transform; exact targeting reduced that to 38 parsed classes, a 98.5 percent
-reduction. Resource reprioritization fell from 558.257 milliseconds to 4.148 milliseconds, shared
+By the time launches were around 24 seconds, the remaining costs were much smaller. Ordinary startup
+inventoried 2,612 game classes; only 38 could match a transform. Exact targeting removed the rest, a
+98.5 percent reduction. Resource reprioritization fell from 558.257 milliseconds to 4.148 milliseconds, shared
 resource-path normalization became 6.88 times faster, and the common `LoadingUtils` reader fell from
-761.978 to 276.073 milliseconds while avoiding roughly 1.3 GB of scratch allocation. These results
+761.978 to 276.073 milliseconds and avoided roughly 1.3 GB of scratch allocation. These results
 are in [the exact-target report](evidence/2026-08-05-exact-target-transformer.md),
 [the resource-priority report](evidence/2026-08-05-resource-priority-index.md), and
 [the shared-reader report](evidence/2026-08-06-loading-utils-reader.md).
 
-Other changes were smaller but repeatable: fixed path regexes improved by 3.48 to 8.51 times,
-smart-quote normalization by 4.02 times, a packed LZ4 range needed one positioned read instead of
-two, and file-only logging avoided about 249 milliseconds without changing the game log. Wrapper
-profile selection moved independent identities onto a bounded pool for roughly 130 milliseconds,
-while preparation overlap reduced two repeated preparation samples by about nine percent. The pool
+Other changes were small and repeatable. Fixed path regexes improved by 3.48 to 8.51 times, and
+smart-quote normalization improved by 4.02 times. A packed LZ4 range moved to a single positioned
+read. File-only logging avoided about 249 milliseconds and preserved the game log. Wrapper profile
+selection moved independent identities onto a bounded pool for roughly 130 milliseconds.
+Preparation overlap reduced two repeated preparation samples by about nine percent. The pool
 is deliberately bounded and retains a serial kill switch because saving wall time by creating
 unbounded CPU, memory, or I/O pressure would be a poor trade on constrained machines.
 
-The title screen introduced its own temptation. Persisting save-descriptor results across launches
-appeared to remove roughly half a second, but it exposed a GraphicsLib race and a two-minute cleanup
-storm, so cross-launch persistence was rejected. Only a safe, same-JVM second-call memo remains.
-Similarly, parsing an entire 103 MB save to pre-index references took about 685 milliseconds and
-didn't address the actual save-load bottleneck, so neither a binary save cache nor a reference
-pre-scan entered the product. The accepted title behavior is in
+Cross-launch save-descriptor persistence removed roughly half a second and exposed a GraphicsLib
+race followed by a two-minute cleanup storm. It was rejected. A same-JVM second-call memo remains.
+Parsing an entire 103 MB save to pre-index references took about 685 milliseconds and missed the
+actual save-load bottleneck. The binary save cache and reference pre-scan were dropped. The accepted
+title behavior is in
 [the save-descriptor report](evidence/2026-08-06-main-menu-save-descriptor-memo.md); the save diagnosis
 is retained in [the save-loading report](evidence/2026-08-02-save-loading-is-not-parsing.md).
 
 The final chronological reductions came from collapsing adapter transformation passes, preserving
 learned packed-texture order across storage policies, reducing loading-screen redraw cadence, and
 deferring a few synthetic objects until they were actually consumed. These are individually narrow
-changes whose main value is that they remove serial work without weakening the cache boundary. The
+changes that remove serial work and preserve the cache boundary. The
 production gates moved through 18.01/18.04, 17.09/16.68, 16.21, and finally
 16.66/16.28/15.88 seconds.
 
 ## Startup work led to campaign and combat work
 
-Faster startup made live campaign and combat profiling tolerable, but the resulting optimizations
-shouldn't be folded into the 15.88-second claim. A failed `getEntityById` lookup could scan the
+Faster startup made live campaign and combat profiling tolerable. Those optimizations have separate
+performance claims. A failed `getEntityById` lookup could scan the
 entire sector and consume about 1.486 milliseconds, nearly nine percent of a 16.67-millisecond
 60-FPS frame. A mutation-generation index made the synthetic mutation benchmark 36.5 to 40.8 times
 faster, and a clean pilot served 10,478 positive plus 219,447 negative lookups with 229,924 fast
@@ -293,70 +280,63 @@ points in [the deployment scan](evidence/2026-08-04-deployment-member-icon-scan.
 Frame telemetry now reports average and median FPS, 1 percent and 0.1 percent lows, and the share of
 frames meeting 60- and 30-FPS budgets. One early mixed sample measured 53.4 average FPS, 59.17
 median, 15.04 at the 1 percent low, and 6.78 at the 0.1 percent low; only 45.64 percent of frames met
-the 60-FPS budget, even though 96.32 percent met 30 FPS. That sample also revealed title-demo and
-campaign-warm-up contamination, so later reports split those phases rather than claiming a single
-number for “gameplay.” The metric contract is in
+the 60-FPS budget; 96.32 percent met 30 FPS. That sample also included title-demo and
+campaign-warm-up frames. Later reports split those phases. The metric contract is in
 [the FPS report](evidence/2026-08-05-frame-time-fps-reporting.md).
 
-Several apparent performance problems were correctness defects instead. Stale mod simulation
+Several investigations ended in correctness fixes. Stale mod simulation
 opponents reached vanilla as invalid fleet members, a full-retreat race could end in an incompatible
 combat cast, startup became fast enough to expose notification and fuel calculations running before
 their state was ready, and the macOS memory warning interpreted free pages too literally. The
 adapters added for these cases either validate and fall through or decline entirely when their exact
-target drifts. They improve the experience, but they are reported as safeguards rather than as
-startup acceleration.
+target drifts. They are reported as safeguards.
 
 ## What the disk buys
 
-Most of the speed comes from moving stable work out of the launch, which necessarily creates
-artifacts. The Balanced texture policy uses a 2.259 GB hybrid raw/LZ4 pack on this profile, while
-Fastest uses about 5.338 GB of raw upload-ready pixels. In an exact learned-order replay, Fastest
+Most of the speed comes from moving stable work out of the launch, which creates artifacts. The
+Balanced texture policy uses a 2.259 GB hybrid raw/LZ4 pack on this profile. Fastest uses about
+5.338 GB of raw upload-ready pixels. In an exact learned-order replay, Fastest
 reduced the prepared-texture read seam from 1,137 to 691 milliseconds, about 446 milliseconds, at a
-cost of roughly 3.08 GB. Balanced remains the default because the larger store buys a narrow seam
-improvement rather than several seconds of launch time.
+cost of roughly 3.08 GB. Balanced remains the default.
 
-Prepared audio occupies about 1.1 GB because decoded PCM is effectively incompressible. The honest
-alternatives are to prepare fewer sounds or decode them during each launch. Generated bytecode is a
+Prepared audio occupies about 1.1 GB because decoded PCM is effectively incompressible. The space
+choices are to prepare fewer sounds or decode them during each launch. Generated bytecode is a
 rarer case in which the later representation became both faster and smaller: deduplication reduced
 the live Janino pack to roughly 1.13 MiB, and pruning can remove old complete-map bundles once their
 contents are proved present in the pack.
 
 The cache also retains redundancy deliberately. Loose checked texture artifacts can repair or
-replace a packed representation, and old profile versions aren't removed merely because a new
-manifest was published. On the development machine, a read-only inventory found 21.79 GB in the
+replace a packed representation. Old profile versions remain after a new manifest is published. On
+the development machine, a read-only inventory found 21.79 GB in the
 Preflight home: 11.61 GB of acceleration data and 10.18 GB of evidence. A safe prune preview could
-reclaim 5.82 GB, chiefly old texture representations, but nothing is deleted until an explicit
-`--yes` follows a readable reachability plan. The complete numbers and policy implications are in
+reclaim 5.82 GB, chiefly old texture representations. Deletion requires an explicit `--yes` after a
+readable reachability plan. The complete numbers and policy implications are in
 [performance-storage-tradeoffs.md](performance-storage-tradeoffs.md).
 
-## Compatibility is a boundary, not an assumption
+## Compatibility boundaries
 
-The prepared formats and most cache logic are platform-independent, but exact runtime adapters
-aren't assumed to survive a changed game or mod. Each adapter is admitted by reviewed class, source,
-loader, method, and structural identities. If a future patch changes the target, Preflight records a
-decline and leaves the original class bytes in place; a missing, corrupt, or wrong-profile cache
-entry falls through to the ordinary reader. This is graceful compatibility, not proof that every
-platform and mod set receives the same acceleration.
+The prepared formats and most cache logic are platform-independent. Exact runtime adapters are
+admitted by reviewed class, source, loader, method, and structural identities. A future patch that
+changes the target produces a recorded decline and leaves the original class bytes in place. A
+missing, corrupt, or wrong-profile cache entry falls through to the ordinary reader. Acceleration
+across platforms and mod sets remains an empirical question.
 
-Windows and Linux therefore still need real beta evidence, especially for installation discovery,
-desktop packaging, path behavior, and GPU-facing options. CI can test the portable formats and
-synthetic adapter contracts, but it can't redistribute or execute the licensed game installation.
+Windows and Linux need real beta evidence, especially for installation discovery, desktop
+packaging, path behavior, and GPU-facing options. CI tests the portable formats and synthetic
+adapter contracts. Licensed-game execution requires user installations.
 The public presets keep that distinction visible: Recommended enables live-gated startup and
-gameplay plans, Conservative keeps the portable startup plans while excluding gameplay and
-mod-specific targets, and Off leaves only wrapper and process reporting. The exact update, write,
+gameplay plans, Conservative keeps the portable startup plans and excludes gameplay and mod-specific
+targets, and Off leaves only wrapper and process reporting. The exact update, write,
 and failure behavior is specified in [product-contract.md](product-contract.md).
 
 ## What remains before publication
 
-The repository now contains enough evidence for a long-form account, but several additions would
-make a public version stronger. A release candidate needs a clean controlled cohort for the current
-15–17-second stack, Windows and Linux reports need to replace portability inference with observed
-behavior, and campaign and combat work needs before/after frame-time distributions rather than a
-collection of hotspot counters. The visual failures, stale simulation data, retreat crash, audio
-pops, and early-startup races also deserve a concise regression section because they explain why
-the final boundaries are stricter than a simple cache-hit check.
+The repository now contains enough evidence for a long-form account. Release-candidate work includes
+a clean controlled cohort for the current 15–17-second stack, observed Windows and Linux behavior,
+and before/after campaign and combat frame-time distributions. The visual failures, stale simulation
+data, retreat crash, audio pops, and early-startup races also deserve a concise regression section
+because they explain the final validation boundaries.
 
 For a personal-site version, the milestone table and two pipeline diagrams can become a scrolling
-timeline in which the active launch path changes as each bottleneck is removed. The repository
-version deliberately remains ordinary Markdown: it is the cited source of truth from which that
-presentation can be generated, not a second set of claims to maintain.
+timeline in which the active launch path changes as each bottleneck is removed. This Markdown file
+remains the cited source for that presentation.

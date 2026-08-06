@@ -39,8 +39,8 @@ has reached the main menu in
 **15.88 seconds**. The two preceding clean production gates were **16.66 seconds cold** and
 **16.28 seconds warm**.
 
-That 15.88-second result is a fresh warm record, not a multi-run median or a promise for every
-machine. It retained 42/42 transformed-class cache hits, all 15,469 prepared-texture and
+The 15.88-second result is the current warm record. It retained 42/42 transformed-class cache hits,
+all 15,469 prepared-texture and
 pixel-conversion hits, active adapter health, and zero adapter decline or failure. The exact run is
 documented in [Codex fleet members are now created only when consumed](docs/evidence/2026-08-06-codex-lazy-fleet-members.md).
 
@@ -61,8 +61,7 @@ scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast,full --r
 ```
 
 Results depend on the game build, mod set, cache warmth, storage, CPU, translation layer, memory
-pressure, and temperature. The harness exists so beta users can produce their own evidence instead
-of assuming the development-machine result applies to them.
+pressure, and temperature. The harness lets beta users measure their own installations.
 
 | Repeated work removed | Count |
 | --- | ---: |
@@ -72,17 +71,16 @@ of assuming the development-machine result applies to them.
 
 The per-change arithmetic, individual multipliers, and source links are in the
 [accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
-The chronological, publication-oriented account is in
-[From 88 seconds to 15.88: what changed in Starsector's loading path](docs/optimization-history.md)
-gives the source-linked technical history. The [experiment ledger](docs/experiment-ledger.md) includes
-the unsuccessful and deferred branches, and [the storage reference](docs/performance-storage-tradeoffs.md)
-separates the time-space choices from the chronology.
+The chronological, publication-oriented account is
+[From 88 seconds to 15.88: what changed in Starsector's loading path](docs/optimization-history.md).
+The [experiment ledger](docs/experiment-ledger.md) includes the unsuccessful and deferred branches.
+The [storage reference](docs/performance-storage-tradeoffs.md) collects the time-space choices.
 
 ## Why it is faster
 
-The design didn't begin with a predetermined cache. The work started by tracing startup, comparing
-the game log with the visible loading screen, recording thread activity, adding unattended direct
-launching, and inserting exact probes around increasingly narrow pieces of the loader.
+The investigation traced startup, compared the game log with the visible loading screen, recorded
+thread activity, added unattended direct launching, and inserted exact probes around increasingly
+narrow pieces of the loader.
 
 That analysis found three large concentrations of repeat work.
 
@@ -91,8 +89,8 @@ The texture path could leave the loading thread waiting roughly **27 seconds** o
 The visible 0% pause was another large block of real work. Exact progress and method probes showed
 that vanilla `SpecStore` spent roughly **18–19 seconds** rebuilding variants, weapons, projectiles,
 hulls, campaign rules, and related registries. Further probes found that most of the useful time was
-inside repeated JSON/CSV merge-and-parse operations, which created a narrow reusable boundary
-without replacing the game's live objects. The investigation and the complete loader breakdown are
+inside repeated JSON/CSV merge-and-parse operations. Tagged input trees created a narrow reusable
+boundary, and Starsector continues to construct fresh live objects. The complete loader breakdown is
 in [The 20-second 0% plateau is vanilla SpecStore](docs/evidence/2026-08-02-zero-percent-is-spec-store.md).
 
 The final startup tail contained repeated work in mod callbacks. AshLib repeatedly resolved the same hull and variant JSON while constructing ship-render information. GraphicsLib repeated much of its automatic texture-map discovery even when its generated files were already valid. The resulting changes reduced the AshLib callback by **7.07–7.44 seconds** and the measured GraphicsLib sequence by **4.82 seconds**. See the [AshLib](docs/evidence/2026-08-02-ashlib-startup-json-cache.md) and [GraphicsLib](docs/evidence/2026-08-02-graphicslib-compact-autogen-replay.md) reports.
@@ -114,7 +112,7 @@ The final startup tail contained repeated work in mod callbacks. AshLib repeated
 | **Current clean production gates** | **16.66s cold / 16.28s warm / 15.88s warm record** | [2026-08-06 gate](docs/evidence/2026-08-06-codex-lazy-fleet-members.md) |
 
 The texture path also stopped allocating empty power-of-two padding. In a full load, texture uploads
-fell from **3.65 GiB to 2.43 GiB**, removing **1.22 GiB** while serving more textures. See
+fell from **3.65 GiB to 2.43 GiB**, removing **1.22 GiB** and serving more textures. See
 [The texture padding is gone](docs/evidence/2026-08-02-the-padding-is-gone.md).
 
 ## Repeated work removed
@@ -132,9 +130,9 @@ The component runs represent **64,739 direct cache or memo hits**. Counting the 
 | Provider real-path resolutions avoided | **12,103** |
 
 A particularly clear algorithmic change is the campaign-rule duplicate check. Vanilla performed a
-trigger-local linear scan for each of 21,059 registrations. [PR #286](https://github.com/teamleaderleo/starsector-preflight/pull/286) replaces that repeated scan with an exact hash-set membership check—average **O(1)** lookup—while preserving the game's original insertion order and duplicate behavior.
+trigger-local linear scan for each of 21,059 registrations. [PR #286](https://github.com/teamleaderleo/starsector-preflight/pull/286) replaces that repeated scan with an exact hash-set membership check—average **O(1)** lookup—and preserves the game's original insertion order and duplicate behavior.
 
-The other caches are straightforward memoization and precomputation at larger boundaries: exact inputs become a key, the expensive deterministic result is prepared once, and later requests reuse it. A changed game JAR, mod file, or provider order produces a different key rather than reusing the wrong answer.
+The other caches use straightforward memoization and precomputation at larger boundaries: exact inputs become a key, the expensive deterministic result is prepared once, and later requests reuse it. A changed game JAR, mod file, or provider order produces a different key.
 
 ## How the investigation progressed
 
@@ -142,7 +140,7 @@ The most useful advances often began with a result that didn't make sense.
 
 The first valid prepared-pixel campaign saved only [1.5%](docs/evidence/2026-08-01-the-first-valid-startup-number.md), despite profiles that made texture work look much larger. That discrepancy led to a critical-path probe and the discovery that the cache sat behind a [27-second prefetch wait](docs/evidence/2026-08-01-the-loading-thread-waits-on-a-one-thread-prefetcher.md). Fixing the placement of the cache turned the same body of work into the 29% campaign.
 
-The rule-command package map was expected to remove most of a 641ms phase. It removed about 165ms. Measuring why showed that the successful class load was expensive while the failed probes were cheap. The same investigation exposed **1.613 seconds of repeated cache-profile construction before the game JVM even started**, which led to [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) and a larger saving than the feature that revealed it.
+The rule-command package map was expected to remove most of a 641ms phase. It removed about 165ms. The successful class load was expensive; the failed probes were cheap. The same investigation exposed **1.613 seconds of repeated cache-profile construction before the game JVM even started**, which led to [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) and a larger saving than the feature that revealed it.
 
 The [Fast Rendering prior-art review](docs/prior-art-starsector-render.md) corrected an earlier
 conclusion about its texture prefetcher, documented where the two projects overlap, and highlighted
@@ -152,16 +150,15 @@ it, and let the measurement choose the next change.
 
 ## Design foundations
 
-The design uses concepts familiar from application and compiler tooling rather than relying on an
-exotic trick.
+The design uses familiar application and compiler techniques.
 
 [React Query / TanStack Query](https://tanstack.com/query/latest/docs/framework/react/guides/query-keys) provides a useful mental model for stable cache keys, reusable answers, and invalidation when inputs change; its [prefetching model](https://tanstack.com/query/latest/docs/framework/react/guides/prefetching) is also close to Preflight's goal of moving known work ahead of demand. [SWC](https://swc.rs/) demonstrates the value of doing expensive transformation work ahead of use and handing the runtime a ready artifact.
 
 Preflight applies those ideas alongside classic computer-science tools: memoization, hash maps,
 precomputation, content-addressed artifacts, bounded concurrency, and replacing repeated linear work
 with direct lookup. The difficult part is locating a reusable boundary inside an opaque, obfuscated,
-mod-heavy Java application while keeping Starsector's original behavior available whenever the
-prepared path doesn't apply.
+mod-heavy Java application and keeping Starsector's original behavior available for every cache
+miss or declined adapter.
 
 ## How Preflight works
 
@@ -271,8 +268,8 @@ benchmarks by default. Its in-ZIP disclosure and manifest name everything includ
 logs, crash dumps, JFR, screenshots, caches, game/mod assets, saves, symlinks, and unknown files are
 never copied. See [Diagnostics export](docs/diagnostics.md).
 
-Development smoke automation uses a platform-neutral semantic scenario rather than recorded screen
-coordinates. The first campaign-load/roam scenario and evidence contract are documented in
+Development smoke automation uses a platform-neutral semantic scenario. The first campaign-load/roam
+scenario and evidence contract are documented in
 [desktop smoke automation](docs/desktop-smoke-automation.md).
 
 The native desktop host and its build instructions live in
@@ -303,7 +300,7 @@ Preflight is fast enough for a beta; the remaining work is product trust and com
 2. Finish the single-action desktop flow, visible disk use, preview-first cleanup/removal, signed
    updates, and an explicit **Send run report** consent flow.
 3. Exercise clean licensed-game installs on Windows and Linux. CI verifies the portable engine and
-   native packages, but can't redistribute or execute Starsector.
+   native packages. Licensed-game execution requires user installations.
 4. Run a fresh controlled before/after cohort against the release candidate, then publish only the
    result that cohort supports.
 
@@ -362,13 +359,13 @@ preflight-cli/target/preflight.jar
 
 ## Status
 
-Preflight is under active development and isn't publicly distributed yet. Runtime acceleration is
-pinned to reviewed game classes and exact profile inputs, with the original game path retained for
-unsupported or changed inputs. “Fail open” applies to individual acceleration paths; it isn't a
-promise that every future launcher or game update can start without a Preflight update.
+Preflight is under active development. Public distribution awaits the release gates above. Runtime
+acceleration is pinned to reviewed game classes and exact profile inputs, with the original game
+path retained for unsupported or changed inputs. Future launcher and game updates may require a
+Preflight update.
 
 ## License
 
 [MIT](LICENSE). Starsector, Fast Rendering, and mod content remain the property of their respective
-owners and aren't included in this repository or its release packages. This project is independent
-and isn't endorsed by Fractal Softworks unless Fractal Softworks says otherwise.
+owners. The repository and release packages contain none of those assets. This is an independent
+project. Any endorsement requires an explicit statement from Fractal Softworks.

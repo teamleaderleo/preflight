@@ -47,9 +47,8 @@ reached. Some open with measurements or priorities that were current at the time
 chronological laboratory notebook unless they explicitly say they are the current product contract.
 
 The [evidence archive](evidence/) contains immutable run reports and decision records. Historical
-numbers and rejected approaches are intentionally not rewritten when later work supersedes them.
-The large [engineering handoff](next-llm-handoff.md) is an operational ledger for continued work,
-not release copy.
+numbers and rejected approaches remain unchanged after later work supersedes them. The large
+[engineering handoff](next-llm-handoff.md) is an operational ledger for continued work.
 
 When documents disagree, use this precedence:
 
@@ -61,13 +60,14 @@ When documents disagree, use this precedence:
 
 ## Writing voice
 
-Public writing should sound like a person, not an institution:
+Public writing should sound natural and assured:
 
-- use natural contractions such as “doesn't,” “isn't,” and “can't”;
-- lead with the artifact, outcome, and evidence instead of a builder or origin story;
-- use “Preflight” or a neutral construction for product behavior instead of “I” or an ambiguous
-  “we”;
-- reserve first person for direct correspondence where a real person is asking for something;
-- prefer “a” or “an” over “one” unless the exact count matters; and
-- keep benchmark qualifiers, compatibility limits, and write boundaries precise even when the prose
-  is informal.
+- use contractions in ordinary prose;
+- lead with the artifact, outcome, or evidence;
+- state conclusions directly and delete setup the reader can infer;
+- use “Preflight” or a neutral construction for product behavior;
+- reserve first person for direct correspondence;
+- use “a” or “an” unless the exact count matters;
+- avoid contrast scaffolding such as “not X, but Y” and repeated “X, while Y” sentences;
+- mention a limitation where it changes the claim, then move on; and
+- keep benchmark qualifiers, compatibility limits, and write boundaries precise.
