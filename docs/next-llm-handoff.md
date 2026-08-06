@@ -1211,21 +1211,24 @@ and atomic/staged replacement path. Matching content-addressed caches are reused
 switching does not pretend every profile is already prepared. Browser tests cover the active state
 and preview-before-apply contract.
 
-Next implementation order: wire the Peekaboo development driver once permissions are granted, then
-map the game-process startup dependency graph before attempting
-broader cold-path parallelism. The accepted native profile selector is intentionally narrower: no
-game or GL work exists yet, it has an adaptive four-worker cap, an explicit join barrier, per-cache
-vanilla fallback, and a serial kill switch. Any game-process parallel executor still needs an
-explicit main-thread GL queue, memory budget, and equivalent fallback boundaries. Do not copy Fast
-Rendering's exception-driven epilogue replacement.
+Next implementation order: add a bounded diagnostics export, publish and exercise the unsigned beta
+packages, and collect real licensed-game Windows/Linux evidence. Core CI and native packaging are
+green on all three desktop platforms, but safe fallback outside the reviewed macOS game bytecode is
+not the same claim as equal activation or speed. Signing/notarization and update delivery follow
+once release credentials and the first beta evidence exist.
 
-The offline preparation graph is mapped separately now. The latest real report was 17.994s serial:
-2.912s census, 1.473s resource index, 0.319s classpath index, 1.691s SpecStore identity, and 11.590s
-balanced textures. Only textures require the resource index; SpecStore requires both indexes; census
-is independent. The no-contention mathematical critical path is 13.063s, but this is explicitly not
-a speed claim because the stages traverse overlapping files and textures already own bounded workers.
-Alternate candidate schedules while measuring CPU, disk, and RSS before implementing a default.
-See `docs/evidence/2026-08-06-preparation-dependency-graph.md`.
+The macOS desktop smoke driver remains blocked on safe PID/process-identity targeting, not merely on
+permission setup. Do not resolve the direct-launched JVM through the `Starsector` display name: that
+can launch the dormant app bundle and create a second instance. Keep the driver-neutral scenario and
+telemetry contract; wire a platform driver only when it can attach without Launch Services.
+
+The first offline preparation overlap is implemented and accepted. Census and classpath use two
+bounded helpers while the caller builds the resource index, then all three join before SpecStore and
+textures. Two steady reversed real-profile comparisons improved preparation by 9.10% and 9.34% with
+identical output identities. `--serial-stages` and `-Dpreflight.prepare.parallel=false` remain the
+kill switches. Broader game-process concurrency still requires an explicit main-thread GL queue,
+memory budget, and equivalent fallback boundaries. Do not copy Fast Rendering's exception-driven
+epilogue replacement. See `docs/evidence/2026-08-06-preparation-dependency-graph.md`.
 
 ## Environment notes that cost time to rediscover
 

@@ -28,20 +28,24 @@ java -jar preflight.jar run --direct
 
 ## Current scorecard
 
-On the development machine — 83 mods, M5 MacBook Air — a full modded startup takes **80.09 seconds**.
-With Preflight it takes **42.36 seconds**.
+On the development machine — Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, the game's bundled
+x86-64 Java runtime under Rosetta — the current `--fast` path has reached the main menu in
+**15.88 seconds**. The two preceding clean production gates were **16.66 seconds cold** and
+**16.28 seconds warm**.
 
-| | |
-| --- | ---: |
-| Vanilla, no Preflight | **80.09s** |
-| Preflight, everything enabled | **42.36s** |
-| Removed | **37.74s (47.1%)** |
-| Speedup | **1.89×** |
+That 15.88-second result is a fresh warm record, not a multi-run median or a promise for every
+machine. It retained 42/42 transformed-class cache hits, all 15,469 prepared-texture and
+pixel-conversion hits, active adapter health, and zero adapter decline or failure. The exact run is
+documented in [Codex fleet members are now created only when consumed](docs/evidence/2026-08-06-codex-lazy-fleet-members.md).
 
-That is a measured campaign, not an estimate: fifteen unattended launches, five per condition,
-conditions interleaved within every round, all fifteen accepted. Every round agrees to within 1.9
-seconds on a 37-second effect. The full result, including what moved and what did not, is in
+The project also retains its earlier controlled comparison: fifteen unattended launches, five per
+condition, measured vanilla at **80.09 seconds** and the then-current complete Preflight stack at
+**42.36 seconds**. Every round agreed to within 1.9 seconds on the 37-second effect. That historical
+campaign and its full identity are in
 [The whole stack, measured at once](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md).
+Later work reduced the tracked 62.60-second prepared-texture waypoint through accepted 29-, 25-,
+23-, 18-, 17-, and 16-second gates; the current milestone table is in the
+[engineering handoff](docs/next-llm-handoff.md).
 
 Reproduce it yourself:
 
@@ -49,14 +53,9 @@ Reproduce it yourself:
 scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast,full --rounds 5
 ```
 
-Two notes on reading that number. The 80.09s baseline is a quiet machine with warm caches and no
-launcher; the lived experience on this installation was the **90–100+ second** range, and against
-that a 42.36s load is roughly **2.1–2.4×**. And this is one machine on one mod profile — the
-harness exists so anyone can produce their own.
-
-**This is a waypoint, not a finish line.** The largest known remaining items are the resource-index
-read ([#304](https://github.com/teamleaderleo/starsector-preflight/issues/304)), the GraphicsLib and
-AshLib callbacks, and the untouched audio and script-bytecode paths in the [roadmap](docs/roadmap.md).
+Results depend on the game build, mod set, cache warmth, storage, CPU, translation layer, memory
+pressure, and temperature. The harness exists so beta users can produce their own evidence instead
+of assuming the development-machine result applies to them.
 
 | Repeated work removed | Count |
 | --- | ---: |
@@ -92,7 +91,8 @@ The final startup tail contained repeated work in mod callbacks. AshLib repeated
 | Merged ship-hull JSON | **3.52× faster loader; ~1.7s net** | [PR #284](https://github.com/teamleaderleo/starsector-preflight/pull/284) |
 | Rules CSV, duplicate checks, tokens, command packages | **~1.56s combined** | [#286](https://github.com/teamleaderleo/starsector-preflight/pull/286), [#288](https://github.com/teamleaderleo/starsector-preflight/pull/288), [#291](https://github.com/teamleaderleo/starsector-preflight/pull/291), [#298](https://github.com/teamleaderleo/starsector-preflight/pull/298) |
 | Shared cache-profile identity | **1.613s → 0.452s; 3.57× faster** | [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) |
-| **All of it, composed and measured** | **80.09s → 42.36s; 1.89× overall** | [2026-08-03 campaign](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md) |
+| **Historical composed campaign** | **80.09s → 42.36s; 1.89× overall** | [2026-08-03 campaign](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md) |
+| **Current clean production gates** | **16.66s cold / 16.28s warm / 15.88s warm record** | [2026-08-06 gate](docs/evidence/2026-08-06-codex-lazy-fleet-members.md) |
 
 The texture path also stopped allocating empty power-of-two padding. In one full load, texture uploads fell from **3.65 GiB to 2.43 GiB**, removing **1.22 GiB** while serving more textures. See [The texture padding is gone](docs/evidence/2026-08-02-the-padding-is-gone.md).
 
@@ -221,18 +221,39 @@ coordinates. The first campaign-load/roam scenario and evidence contract are doc
 [desktop smoke automation](docs/desktop-smoke-automation.md).
 
 The native desktop host and its build instructions live in
-[preflight-desktop](preflight-desktop/README.md). It currently builds and launches through the same
-`run --fast` engine contract; signed/notarized platform installers and the Prepare/Profile/Storage
-release flow are still unfinished. The Prepare screen now works and exposes balanced/fastest storage,
-bounded resource presets, grouped cache usage, and preview-first named-profile save and switching.
+[preflight-desktop](preflight-desktop/README.md). Prepare, Profiles, Storage, and tracked game launch
+all use the same narrow engine contract as the CLI. The native distribution matrix is green for a
+macOS arm64 DMG, Windows x64 NSIS installer, and Linux x64 Debian and AppImage packages. These are
+currently **unsigned beta artifacts**: public release publishing, Apple signing/notarization,
+Windows signing, and a PID-safe automated game smoke remain release work. See
+[Downloads and installation](docs/downloads.md) and the
+[exact distribution matrix](docs/evidence/2026-08-06-desktop-distribution-matrix.md).
 
 On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
 
+Remove the launcher integration with a preview before confirmation; add `--purge` to include
+Preflight's caches and retained evidence. Neither form removes Starsector, mods, or saves:
+
+```bash
+java -jar preflight.jar uninstall
+java -jar preflight.jar uninstall --purge
+```
+
 ## What is next
 
-The composed campaign has run, and the number above is its result. Work continues: the resource-index read is now the largest launcher-side cost ([#304](https://github.com/teamleaderleo/starsector-preflight/issues/304)), the GraphicsLib and AshLib callbacks still hold seconds between them, and the audio and script-bytecode paths are untouched.
+The next milestone is an unsigned public beta, not another unqualified startup claim. Before that:
 
-The user-facing work is tracked in [issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294): a simple desktop launcher, clear uninstall behavior, and a front page that makes the result easy to verify. The broader plan—including direct resource-provider lookup, persistent script bytecode, cross-platform packaging, and later prepared-audio experiments—is in the [roadmap](docs/roadmap.md).
+1. Export one bounded diagnostics bundle that is safe for a user to attach to a bug report.
+2. Exercise real licensed-game installs on Windows and Linux; CI already verifies the portable core,
+   native packages, and exact-cache behavior, but cannot contain Starsector itself.
+3. Publish the checksum-qualified beta artifacts and document each platform's unsigned-install flow.
+4. Continue gameplay and campaign optimization only behind exact adapters, telemetry, and vanilla
+   fallback, with frame-time and FPS evidence rather than subjective smoothness alone.
+
+The public trust work is tracked in
+[issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294). Signing,
+notarization, updater work, PID-targeted desktop smoke automation, and broader compatibility
+evidence remain explicit beta boundaries rather than hidden prerequisites.
 
 ## Analysis and mod tools
 
