@@ -1140,9 +1140,13 @@ CI matrix are restored with regenerated vector-derived icons; the packages remai
 unsigned beta artifacts until Windows signing and Apple signing/notarization credentials exist. The
 desktop UI now uses the bundled variable Orbitron face throughout, with the exact OFL text included
 in every native package; it has no font-network dependency. macOS DMG and Windows NSIS packaging are
-green. Linux Debian packaging is green; AppImage's `linuxdeploy` scan additionally needs the bundled
-JRE's private `runtime/lib/server` dependency path while resolving `libjvm.so`, and the final CI gate
-is in flight. The
+green. Linux Debian and AppImage packaging are green as well. AppImage's `linuxdeploy` scan needs the
+bundled JRE's private `runtime/lib/server` dependency path while resolving `libjvm.so`; with it, the
+complete distribution matrix passed. Exact packages were 35.9MB DMG, 31.9MB NSIS, 39.9MB Debian,
+and 122.1MB AppImage. The AppImage's portability bundle includes GTK/WebKit and a second `libjvm.so`;
+prefer Debian where it applies, and do not remove the duplicate without a custom post-linuxdeploy
+AppDir pipeline because the tool also rewrites runtime ELF paths. See
+`docs/evidence/2026-08-06-desktop-distribution-matrix.md`. The
 installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
 `see`, click, key, wait, and screenshot scenarios, but Screen Recording, Accessibility, and event
 synthesis permissions are not yet granted. Use it as a development driver; keep adapter telemetry
@@ -1194,8 +1198,8 @@ and atomic/staged replacement path. Matching content-addressed caches are reused
 switching does not pretend every profile is already prepared. Browser tests cover the active state
 and preview-before-apply contract.
 
-Next implementation order: finish the Linux AppImage gate, then wire the Peekaboo development
-driver once permissions are granted. Map the game-process startup dependency graph before attempting
+Next implementation order: wire the Peekaboo development driver once permissions are granted, then
+map the game-process startup dependency graph before attempting
 broader cold-path parallelism. The accepted native profile selector is intentionally narrower: no
 game or GL work exists yet, it has an adaptive four-worker cap, an explicit join barrier, per-cache
 vanilla fallback, and a serial kill switch. Any game-process parallel executor still needs an
