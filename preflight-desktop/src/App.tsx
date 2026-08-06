@@ -367,10 +367,10 @@ export default function App() {
     const destination = isDesktopHost()
       ? await saveFile({
           title: "Save Preflight diagnostics",
-          defaultPath: `starsector-preflight-diagnostics-${stamp}.zip`,
+          defaultPath: `preflight-diagnostics-${stamp}.zip`,
           filters: [{ name: "ZIP archive", extensions: ["zip"] }],
         })
-      : `/Users/captain/Desktop/starsector-preflight-diagnostics-${stamp}.zip`;
+      : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
     if (!destination) return;
     setDiagnosticsBusy(true);
     setMessage("Collecting a small, disclosed support bundle…");
@@ -882,7 +882,7 @@ export default function App() {
 
         <footer>
           <span>Preflight {snapshot?.engineVersion ?? "…"}</span>
-          <span>Made with care for long mod lists</span>
+          <span>Unofficial · Not affiliated with Fractal Softworks</span>
         </footer>
       </main>
     </div>

@@ -8,7 +8,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -33,7 +33,7 @@ mkdirSync(outputDirectory, { recursive: true });
 const usedNames = new Set();
 const checksums = [];
 for (const source of packages) {
-  const name = basename(source);
+  const name = publicPackageName(source);
   if (!usedNames.add(name)) {
     throw new Error(`Two native packages have the same filename: ${name}`);
   }
@@ -58,4 +58,30 @@ function collectPackages(directory) {
     }
   }
   return found;
+}
+
+function publicPackageName(source) {
+  const platform = {
+    darwin: "macOS",
+    linux: "Linux",
+    win32: "Windows",
+  }[process.platform];
+  const architecture = {
+    arm64: "arm64",
+    x64: "x86_64",
+  }[process.arch];
+  if (!platform || !architecture) {
+    throw new Error(`Unsupported release target: ${process.platform}/${process.arch}`);
+  }
+
+  const extension = {
+    ".appimage": ".AppImage",
+    ".deb": ".deb",
+    ".dmg": ".dmg",
+    ".exe": ".exe",
+  }[extname(source).toLowerCase()];
+  if (!extension) {
+    throw new Error(`Unsupported package extension: ${source}`);
+  }
+  return `Preflight-${platform}-${architecture}${extension}`;
 }

@@ -37,14 +37,19 @@ record PreflightHome(Path root, List<Integration> integrations) {
     /** Identifies one integration so the installer and the uninstaller name the same path. */
     enum Id {
         MAC_APP,
+        LEGACY_MAC_APP,
         LINUX_COMMAND,
         LINUX_DESKTOP_ENTRY,
+        LEGACY_LINUX_COMMAND,
+        LEGACY_LINUX_DESKTOP_ENTRY,
         WINDOWS_DIRECTORY,
-        WINDOWS_COMMAND
+        WINDOWS_COMMAND,
+        LEGACY_WINDOWS_DIRECTORY,
+        LEGACY_WINDOWS_COMMAND
     }
 
     /** A file or directory Preflight wrote outside {@link #root()} so the OS could find it. */
-    record Integration(Id id, String label, Path path, boolean directory) {
+    record Integration(Id id, String label, Path path, boolean directory, boolean legacy) {
         boolean present() {
             return directory ? Files.isDirectory(path) : Files.isRegularFile(path);
         }
@@ -54,36 +59,76 @@ record PreflightHome(Path root, List<Integration> integrations) {
         Path root = home.resolve(DIRECTORY_NAME).toAbsolutePath().normalize();
         List<Integration> integrations = new ArrayList<>();
         switch (platform) {
-            case MAC -> integrations.add(new Integration(
-                    Id.MAC_APP,
-                    "macOS launcher app",
-                    home.resolve("Applications").resolve("Starsector Preflight.app"),
-                    true));
+            case MAC -> {
+                integrations.add(new Integration(
+                        Id.MAC_APP,
+                        "macOS launcher app",
+                        home.resolve("Applications").resolve("Preflight.app"),
+                        true,
+                        false));
+                integrations.add(new Integration(
+                        Id.LEGACY_MAC_APP,
+                        "legacy macOS launcher app",
+                        home.resolve("Applications").resolve("Starsector Preflight.app"),
+                        true,
+                        true));
+            }
             case LINUX -> {
                 integrations.add(new Integration(
                         Id.LINUX_COMMAND,
                         "command",
-                        home.resolve(".local").resolve("bin").resolve("starsector-preflight"),
+                        home.resolve(".local").resolve("bin").resolve("preflight"),
+                        false,
                         false));
                 integrations.add(new Integration(
                         Id.LINUX_DESKTOP_ENTRY,
                         "desktop entry",
                         home.resolve(".local").resolve("share").resolve("applications")
-                                .resolve("starsector-preflight.desktop"),
+                                .resolve("preflight.desktop"),
+                        false,
                         false));
+                integrations.add(new Integration(
+                        Id.LEGACY_LINUX_COMMAND,
+                        "legacy command",
+                        home.resolve(".local").resolve("bin").resolve("starsector-preflight"),
+                        false,
+                        true));
+                integrations.add(new Integration(
+                        Id.LEGACY_LINUX_DESKTOP_ENTRY,
+                        "legacy desktop entry",
+                        home.resolve(".local").resolve("share").resolve("applications")
+                                .resolve("starsector-preflight.desktop"),
+                        false,
+                        true));
             }
             case WINDOWS -> {
                 String localAppData = environment.get("LOCALAPPDATA");
                 Path directory = localAppData == null || localAppData.isBlank()
-                        ? home.resolve("AppData").resolve("Local").resolve("Starsector Preflight")
-                        : Path.of(localAppData).resolve("Starsector Preflight");
+                        ? home.resolve("AppData").resolve("Local").resolve("Preflight")
+                        : Path.of(localAppData).resolve("Preflight");
                 integrations.add(new Integration(
                         Id.WINDOWS_COMMAND,
                         "Windows launcher",
-                        directory.resolve("Starsector Preflight.cmd"),
+                        directory.resolve("Preflight.cmd"),
+                        false,
                         false));
                 integrations.add(new Integration(
-                        Id.WINDOWS_DIRECTORY, "Windows launcher directory", directory, true));
+                        Id.WINDOWS_DIRECTORY, "Windows launcher directory", directory, true, false));
+                Path legacyDirectory = localAppData == null || localAppData.isBlank()
+                        ? home.resolve("AppData").resolve("Local").resolve("Starsector Preflight")
+                        : Path.of(localAppData).resolve("Starsector Preflight");
+                integrations.add(new Integration(
+                        Id.LEGACY_WINDOWS_COMMAND,
+                        "legacy Windows launcher",
+                        legacyDirectory.resolve("Starsector Preflight.cmd"),
+                        false,
+                        true));
+                integrations.add(new Integration(
+                        Id.LEGACY_WINDOWS_DIRECTORY,
+                        "legacy Windows launcher directory",
+                        legacyDirectory,
+                        true,
+                        true));
             }
             case OTHER -> {
                 // installMac/installLinux/installWindows are the only writers, and none of them run
@@ -107,6 +152,13 @@ record PreflightHome(Path root, List<Integration> integrations) {
             }
         }
         throw new IllegalStateException("No " + id + " integration on this platform");
+    }
+
+    /** Current integrations plus any legacy launcher that is actually present. */
+    List<Integration> reportedIntegrations() {
+        return integrations.stream()
+                .filter(integration -> !integration.legacy() || integration.present())
+                .toList();
     }
 
     static PreflightHome current() {

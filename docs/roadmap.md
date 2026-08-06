@@ -277,7 +277,7 @@ declared music files were opened, but vanilla music is one container — `sounds
 
 The first published version of this said 1,278 effects and 940.3 MB. The probe was resolving the
 recording's relative paths against its own working directory instead of the game's, so every resource
-the game opened by relative path looked unopened ([#232](https://github.com/teamleaderleo/starsector-preflight/issues/232)).
+the game opened by relative path looked unopened ([#232](https://github.com/teamleaderleo/preflight/issues/232)).
 
 Reads are still not decodes; the equivalence work remains what proves what the decoder does with
 them. [Evidence](evidence/2026-07-29-the-game-builds-1-2-gb-of-pcm-before-the-main-menu.md).

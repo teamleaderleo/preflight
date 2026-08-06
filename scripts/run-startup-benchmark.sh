@@ -216,7 +216,7 @@ if [[ -n "$SESSION" ]]; then
     SEED="$RECORDED_SEED"
 fi
 
-[[ -f pom.xml ]] || { bad "Run this from the starsector-preflight repository root."; exit 1; }
+[[ -f pom.xml ]] || { bad "Run this from the Preflight repository root."; exit 1; }
 [[ -d "$GAME" ]] || { bad "Starsector installation not found: $GAME"; exit 1; }
 for helper in "$DETECTOR" "$REPORTER"; do
     [[ -f "$helper" ]] || { bad "Helper not found: $helper"; exit 1; }

@@ -9,7 +9,7 @@
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <name>Starsector Preflight</name>
+  <name>Preflight</name>
   <description>Startup profiling and preprocessing tools for modded Starsector.</description>
 
   <modules>

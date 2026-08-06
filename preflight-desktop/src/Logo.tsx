@@ -1,6 +1,6 @@
 export default function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`brand ${compact ? "brand--compact" : ""}`} aria-label="Starsector Preflight">
+    <div className={`brand ${compact ? "brand--compact" : ""}`} aria-label="Preflight for Starsector">
       <svg className="brand__mark" viewBox="0 0 56 56" aria-hidden="true">
         <defs>
           <linearGradient id="planet" x1="12" y1="8" x2="42" y2="46" gradientUnits="userSpaceOnUse">

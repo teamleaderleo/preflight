@@ -493,7 +493,7 @@ final class RunCommand {
     }
 
     private static void printDiscovery(DiscoveryResult discovery) {
-        System.out.println("Starsector Preflight doctor");
+        System.out.println("Preflight doctor");
         if (discovery.selected() != null) {
             System.out.println("Selected: " + discovery.selected().launcher());
         }

@@ -106,7 +106,7 @@ if [ -d "$CORE_CLASSES" ]; then
 fi
 
 {
-    printf '%s\n' "Starsector Preflight — GPU texture capability probe"
+    printf '%s\n' "Preflight — GPU texture capability probe"
     printf '%s\n' "captured:     $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\n' "installation: $INSTALL"
     printf '%s\n' "probe JVM:    $BUNDLED_JAVA"

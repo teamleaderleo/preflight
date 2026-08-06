@@ -42,7 +42,7 @@ Choose Linux and the VPS architecture. GitHub displays an exact runner download 
 
 ```bash
 sudo bash ./scripts/bootstrap-vps-runner.sh register \
-  --repository-url https://github.com/teamleaderleo/starsector-preflight \
+  --repository-url https://github.com/teamleaderleo/preflight \
   --runner-download-url 'OFFICIAL_ACTIONS_RUNNER_TAR_GZ_URL' \
   --runner-sha256 'SHA256_FROM_GITHUB'
 ```
@@ -86,7 +86,7 @@ To run the exact gate directly over SSH as the runner user:
 
 ```bash
 sudo -iu preflight-runner
-cd /path/to/a/starsector-preflight-checkout
+cd /path/to/a/preflight-checkout
 bash ./scripts/verify-in-container.sh full
 ```
 
@@ -100,8 +100,8 @@ After changing the Containerfile or deliberately refreshing its base image:
 sudo -iu preflight-runner
 podman build --pull=always \
   --tag localhost/starsector-preflight-build:1 \
-  --file /path/to/starsector-preflight/build/ci/Containerfile \
-  /path/to/starsector-preflight/build/ci
+  --file /path/to/preflight/build/ci/Containerfile \
+  /path/to/preflight/build/ci
 podman image inspect --format '{{.Id}}' localhost/starsector-preflight-build:1
 ```
 

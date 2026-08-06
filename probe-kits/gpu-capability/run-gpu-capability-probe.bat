@@ -72,7 +72,7 @@ if exist "%CORE_CLASSES%\" (
 )
 
 (
-    echo Starsector Preflight - GPU texture capability probe
+    echo Preflight - GPU texture capability probe
     echo installation: %INSTALL%
     echo probe JVM:    %BUNDLED_JAVA%
     echo.

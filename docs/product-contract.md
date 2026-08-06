@@ -3,9 +3,9 @@
 **Status:** executable product boundary for the desktop beta
 **Updated:** 2026-08-07
 
-Public distribution isn't authorized yet. The working product name, disclaimer, and integration
-approach remain subject to written Fractal Softworks approval. This contract describes the intended
-release; it isn't a claim of endorsement.
+Public distribution isn't authorized yet. The product is named **Preflight**; descriptive use of
+the Starsector name, the disclaimer, and the integration approach remain subject to written Fractal
+Softworks guidance. This contract describes the intended release; it isn't a claim of endorsement.
 
 ## A shared engine, several entry points
 

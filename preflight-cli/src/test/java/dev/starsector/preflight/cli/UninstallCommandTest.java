@@ -45,6 +45,32 @@ class UninstallCommandTest {
     }
 
     @Test
+    void theDefaultScopeAlsoRemovesTheLegacyBrandedLauncher() throws Exception {
+        PreflightHome preflight = macHome();
+        Path legacyApp = preflight.pathOf(PreflightHome.Id.LEGACY_MAC_APP);
+        Files.createDirectories(legacyApp.resolve("Contents/MacOS"));
+        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\n");
+
+        assertEquals(0, UninstallCommand.run(preflight, false, true, quiet()));
+        assertFalse(Files.exists(legacyApp), "the old branded launcher should be gone");
+    }
+
+    @Test
+    void installingTheRenamedLauncherRetiresOnlyTheLegacyBrand() throws Exception {
+        PreflightHome preflight = macHome();
+        installIntegration(preflight);
+        Path currentApp = preflight.pathOf(PreflightHome.Id.MAC_APP);
+        Path legacyApp = preflight.pathOf(PreflightHome.Id.LEGACY_MAC_APP);
+        Files.createDirectories(legacyApp.resolve("Contents/MacOS"));
+        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\n");
+
+        InstallCommand.retireLegacyLaunchers(preflight);
+
+        assertTrue(Files.isDirectory(currentApp), "the newly installed launcher should remain");
+        assertFalse(Files.exists(legacyApp), "the renamed launcher should be retired");
+    }
+
+    @Test
     void purgeRemovesEverythingPreflightWrote() throws Exception {
         PreflightHome preflight = macHome();
         installIntegration(preflight);
@@ -78,17 +104,24 @@ class UninstallCommandTest {
     @Test
     void everyIdTheInstallerWritesToIsOneTheUninstallerWillRemove() {
         // InstallCommand asks PreflightHome for these by id rather than rebuilding the paths, so
-        // this pins that each platform actually defines the ids its installer reaches for. A new
-        // integration added to the installer without a matching id fails to compile; one added to
-        // PreflightHome without being installed shows up here.
+        // this pins that each platform defines the ids its installer reaches for and the legacy
+        // branding paths that uninstall still cleans up.
         assertEquals(
-                java.util.Set.of(PreflightHome.Id.MAC_APP),
+                java.util.Set.of(PreflightHome.Id.MAC_APP, PreflightHome.Id.LEGACY_MAC_APP),
                 ids(Platform.MAC));
         assertEquals(
-                java.util.Set.of(PreflightHome.Id.LINUX_COMMAND, PreflightHome.Id.LINUX_DESKTOP_ENTRY),
+                java.util.Set.of(
+                        PreflightHome.Id.LINUX_COMMAND,
+                        PreflightHome.Id.LINUX_DESKTOP_ENTRY,
+                        PreflightHome.Id.LEGACY_LINUX_COMMAND,
+                        PreflightHome.Id.LEGACY_LINUX_DESKTOP_ENTRY),
                 ids(Platform.LINUX));
         assertEquals(
-                java.util.Set.of(PreflightHome.Id.WINDOWS_COMMAND, PreflightHome.Id.WINDOWS_DIRECTORY),
+                java.util.Set.of(
+                        PreflightHome.Id.WINDOWS_COMMAND,
+                        PreflightHome.Id.WINDOWS_DIRECTORY,
+                        PreflightHome.Id.LEGACY_WINDOWS_COMMAND,
+                        PreflightHome.Id.LEGACY_WINDOWS_DIRECTORY),
                 ids(Platform.WINDOWS));
         assertTrue(PreflightHome.resolve(Platform.OTHER, home, Map.of()).integrations().isEmpty(),
                 "OTHER installs no integration, so it must claim none");
@@ -97,11 +130,11 @@ class UninstallCommandTest {
     @Test
     void theWindowsLauncherFollowsLocalAppDataWhenTheEnvironmentSetsIt() {
         assertEquals(
-                home.resolve("AppData/Local/Starsector Preflight/Starsector Preflight.cmd"),
+                home.resolve("AppData/Local/Preflight/Preflight.cmd"),
                 PreflightHome.resolve(Platform.WINDOWS, home, Map.of())
                         .pathOf(PreflightHome.Id.WINDOWS_COMMAND));
         assertEquals(
-                Path.of("/local-app-data/Starsector Preflight/Starsector Preflight.cmd"),
+                Path.of("/local-app-data/Preflight/Preflight.cmd"),
                 PreflightHome.resolve(Platform.WINDOWS, home, Map.of("LOCALAPPDATA", "/local-app-data"))
                         .pathOf(PreflightHome.Id.WINDOWS_COMMAND));
     }
@@ -119,8 +152,9 @@ class UninstallCommandTest {
         try (PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8)) {
             assertEquals(0, CacheCommand.report(preflight, null, out));
         }
-        assertTrue(captured.toString(StandardCharsets.UTF_8).contains("storing nothing"),
-                captured.toString(StandardCharsets.UTF_8));
+        String output = captured.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains("storing nothing"), output);
+        assertFalse(output.contains("legacy"), "absent migration paths should stay out of reports");
     }
 
     @Test
@@ -151,7 +185,7 @@ class UninstallCommandTest {
     private static void installIntegration(PreflightHome preflight) throws Exception {
         Path app = preflight.integrations().get(0).path();
         Files.createDirectories(app.resolve("Contents/MacOS"));
-        Files.writeString(app.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\n");
+        Files.writeString(app.resolve("Contents/MacOS/preflight"), "#!/bin/sh\n");
         Files.writeString(app.resolve("Contents/Info.plist"), "<plist/>");
     }
 

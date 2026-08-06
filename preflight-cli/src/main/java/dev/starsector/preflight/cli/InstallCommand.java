@@ -51,6 +51,9 @@ final class InstallCommand {
                 yield 4;
             }
         };
+        if (installed == 0) {
+            retireLegacyLaunchers(preflight);
+        }
         if (installed != 0 || !options.prepare()) {
             return installed;
         }
@@ -60,11 +63,26 @@ final class InstallCommand {
         return PrepareCommand.execute(options.preparationArguments(target.installRoot()), 0);
     }
 
+    static void retireLegacyLaunchers(PreflightHome preflight) {
+        for (PreflightHome.Integration integration : preflight.integrations()) {
+            if (!integration.legacy() || !integration.present()) {
+                continue;
+            }
+            try {
+                UninstallCommand.removeIntegration(integration);
+                System.out.println("Removed renamed launcher: " + integration.path());
+            } catch (IOException failure) {
+                System.err.println("The new Preflight launcher is installed, but the old launcher at "
+                        + integration.path() + " could not be removed: " + failure.getMessage());
+            }
+        }
+    }
+
     private static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
         Path app = preflight.pathOf(PreflightHome.Id.MAC_APP);
         Path macos = app.resolve("Contents").resolve("MacOS");
         Files.createDirectories(macos);
-        Path executable = macos.resolve("starsector-preflight");
+        Path executable = macos.resolve("preflight");
         String script = "#!/bin/sh\nexec "
                 + shellQuote(javaExecutable())
                 + " -jar "
@@ -79,12 +97,12 @@ final class InstallCommand {
                 <?xml version="1.0" encoding="UTF-8"?>
                 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
                 <plist version="1.0"><dict>
-                  <key>CFBundleName</key><string>Starsector Preflight</string>
-                  <key>CFBundleDisplayName</key><string>Starsector Preflight</string>
+                  <key>CFBundleName</key><string>Preflight</string>
+                  <key>CFBundleDisplayName</key><string>Preflight</string>
                   <key>CFBundleIdentifier</key><string>dev.starsector.preflight.launcher</string>
                   <key>CFBundleVersion</key><string>1</string>
                   <key>CFBundlePackageType</key><string>APPL</string>
-                  <key>CFBundleExecutable</key><string>starsector-preflight</string>
+                  <key>CFBundleExecutable</key><string>preflight</string>
                   <key>LSUIElement</key><true/>
                 </dict></plist>
                 """;
@@ -110,7 +128,7 @@ final class InstallCommand {
         Files.createDirectories(desktop.getParent());
         String desktopFile = "[Desktop Entry]\n"
                 + "Type=Application\n"
-                + "Name=Starsector Preflight\n"
+                + "Name=Preflight\n"
                 + "Exec=" + launcher + "\n"
                 + "Terminal=false\n"
                 + "Categories=Game;Utility;\n";

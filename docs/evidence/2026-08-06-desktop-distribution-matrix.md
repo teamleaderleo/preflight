@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-06
 
-**Green workflow:** <https://github.com/teamleaderleo/starsector-preflight/actions/runs/31073751507>
+**Green workflow:** <https://github.com/teamleaderleo/preflight/actions/runs/31073751507>
 
 **Packaging head:** `fedf236` (`Resolve bundled JVM during AppImage packaging`)
 

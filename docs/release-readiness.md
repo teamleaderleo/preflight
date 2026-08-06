@@ -12,7 +12,9 @@ first public beta.
 - [ ] Receive written Fractal Softworks authorization for distributing the tool and for the
   runtime-instrumentation/compatibility-analysis approach. Start from the
   [permission request draft](fractal-permission-request.md).
-- [ ] Confirm the public product name, repository/app title, trademark attribution, and disclaimer.
+- [x] Use **Preflight** as the public product, repository, and application name.
+- [ ] Confirm descriptive use of the Starsector name, trademark attribution, and disclaimer with
+  Fractal Softworks.
 - [ ] Replace the development bundle identifier with a namespace controlled by the project before
   users install persistent packages.
 - [ ] Decide whether the first beta waits for platform signing. Documented unsigned warnings aren't

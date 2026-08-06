@@ -1,4 +1,4 @@
-# Starsector Preflight desktop
+# Preflight desktop
 
 This directory contains the Tauri 2 desktop application. React renders the interface; a narrow Rust
 host resolves the bundled Java engine, asks it for versioned JSON snapshots, and starts a tracked
@@ -31,7 +31,7 @@ Tauri writes native artifacts below `src-tauri/target/release/bundle/`. The dist
 builds each target on its native GitHub runner rather than cross-compiling:
 
 - Windows: NSIS `.exe`
-- macOS: `.dmg` containing `Starsector Preflight.app`
+- macOS: `.dmg` containing `Preflight.app`
 - Linux: `.AppImage` and `.deb`
 
 The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users don't need

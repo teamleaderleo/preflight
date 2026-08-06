@@ -145,6 +145,10 @@ final class UninstallCommand {
         });
     }
 
+    static void removeIntegration(PreflightHome.Integration integration) throws IOException {
+        deleteRecursively(integration.path());
+    }
+
     private record Target(String label, Path path, CacheFootprint.Usage usage) {
     }
 }

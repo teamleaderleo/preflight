@@ -12,7 +12,7 @@ import jdk.jfr.Name;
 import jdk.jfr.Recording;
 import jdk.jfr.RecordingState;
 
-/** Launch-time JFR and optional fail-closed adapter agent for Starsector Preflight. */
+/** Launch-time JFR and optional fail-closed adapter agent for Preflight. */
 public final class PreflightAgent {
     private PreflightAgent() {
     }
@@ -133,7 +133,7 @@ public final class PreflightAgent {
 
             Configuration configuration = Configuration.getConfiguration(options.settings());
             Recording recording = new Recording(configuration);
-            recording.setName("Starsector Preflight startup");
+            recording.setName("Preflight startup");
             recording.setToDisk(true);
             // Ordinary multi-chunk recordings use HotSpot's dump hook plus periodic sidecars. The
             // The flush=0 policy deliberately never rotates its active chunk. Its deterministic
@@ -292,7 +292,7 @@ public final class PreflightAgent {
 
     @Name("preflight.AgentStarted")
     @Label("Preflight Agent Started")
-    @Category("Starsector Preflight")
+    @Category("Preflight")
     static final class AgentStarted extends Event {
         @Label("Destination")
         String destination;
@@ -312,7 +312,7 @@ public final class PreflightAgent {
 
     @Name("preflight.AgentStopping")
     @Label("Preflight Agent Stopping")
-    @Category("Starsector Preflight")
+    @Category("Preflight")
     static final class AgentStopping extends Event {
     }
 }

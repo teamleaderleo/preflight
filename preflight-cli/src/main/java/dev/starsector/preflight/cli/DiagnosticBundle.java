@@ -57,8 +57,8 @@ final class DiagnosticBundle {
             "results.jsonl",
             "session-config.json");
     private static final byte[] DISCLOSURE = ("""
-            Starsector Preflight diagnostics bundle
-            =======================================
+            Preflight diagnostics bundle
+            ============================
 
             This ZIP contains only bounded, textual Preflight metadata selected by an explicit
             filename allowlist from the newest launch-run and benchmark evidence sessions.

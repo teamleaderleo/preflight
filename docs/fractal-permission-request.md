@@ -12,7 +12,8 @@ Permission request for an open-source Starsector performance launcher/tool
 
 Hi Alex,
 
-I have been developing a free, open-source external tool currently called **Starsector Preflight**.
+I have been developing a free, open-source external tool called **Preflight**. It is described as an
+unofficial performance launcher for Starsector.
 It is intended to make repeat launches of heavily modded Starsector faster and to improve a small
 set of measured campaign/combat hotspots.
 
@@ -30,7 +31,8 @@ on four points:
 1. Are you comfortable with free public distribution of this external launcher/preparation tool?
 2. Are you comfortable with the runtime instrumentation and compatibility-analysis approach
    described above?
-3. May the project and repository use the name **Starsector Preflight**?
+3. Are you comfortable with the project using **Starsector** descriptively in phrases such as
+   "a performance launcher for Starsector" while its name remains **Preflight**?
 4. Is there a disclaimer, attribution, technical boundary, or other condition you would like the
    project to follow?
 
@@ -43,7 +45,7 @@ Thanks,
 
 ## After receiving a reply
 
-- Record the date, scope, name decision, required disclaimer/attribution, and any technical or
-  distribution conditions in the private release record.
+- Record the date, scope, descriptive-name guidance, required disclaimer/attribution, and any
+  technical or distribution conditions in the private release record.
 - Convert every condition into a blocking item in [release-readiness.md](release-readiness.md).
 - Don't summarize silence, ambiguity, or a narrow answer as broader permission.

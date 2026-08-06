@@ -1,11 +1,15 @@
-# Starsector Preflight
+# Preflight
 
-**Make heavily modded Starsector start faster and run more smoothly—without permanently patching
-the game, its mods, or your saves.**
+**A performance launcher for Starsector. Make heavily modded installations start faster and run
+more smoothly without permanently patching the game, its mods, or your saves.**
 
-> **Development preview.** Public binaries aren't available yet. Distribution, the product name,
-> and the final disclaimer are pending written authorization from Fractal Softworks. The remaining
-> release gates include signed updates, first-class removal and storage controls, consent-based
+> Preflight is an independent, unofficial project and isn't affiliated with or endorsed by Fractal
+> Softworks.
+
+> **Development preview.** Public binaries aren't available yet. Distribution, descriptive use of
+> the Starsector name, and final disclaimer wording are pending written guidance from Fractal
+> Softworks. The remaining release gates include signed updates, first-class removal and storage
+> controls, consent-based
 > diagnostics submission, and real Windows/Linux game testing. See
 > [Release readiness](docs/release-readiness.md).
 
@@ -102,12 +106,12 @@ The final startup tail contained repeated work in mod callbacks. AshLib repeated
 | Prepared textures and prefetch bypass | **25.53s saved; 1.41× overall** | [Accepted campaign](docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md) |
 | AshLib ship JSON memoization | **3.61–4.17× faster callback** | [Report](docs/evidence/2026-08-02-ashlib-startup-json-cache.md) |
 | GraphicsLib compact replay | **1.56× faster callback** | [Report](docs/evidence/2026-08-02-graphicslib-compact-autogen-replay.md) |
-| Merged variant JSON | **10.15× faster merge/parse; ~2.7s net** | [PR #275](https://github.com/teamleaderleo/starsector-preflight/pull/275) |
-| Merged weapon JSON | **3.34× faster loader; ~2.0s net** | [PR #278](https://github.com/teamleaderleo/starsector-preflight/pull/278) |
-| Merged projectile JSON | **2.34× faster loader; ~1.1s net** | [PR #281](https://github.com/teamleaderleo/starsector-preflight/pull/281) |
-| Merged ship-hull JSON | **3.52× faster loader; ~1.7s net** | [PR #284](https://github.com/teamleaderleo/starsector-preflight/pull/284) |
-| Rules CSV, duplicate checks, tokens, command packages | **~1.56s combined** | [#286](https://github.com/teamleaderleo/starsector-preflight/pull/286), [#288](https://github.com/teamleaderleo/starsector-preflight/pull/288), [#291](https://github.com/teamleaderleo/starsector-preflight/pull/291), [#298](https://github.com/teamleaderleo/starsector-preflight/pull/298) |
-| Shared cache-profile identity | **1.613s → 0.452s; 3.57× faster** | [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) |
+| Merged variant JSON | **10.15× faster merge/parse; ~2.7s net** | [PR #275](https://github.com/teamleaderleo/preflight/pull/275) |
+| Merged weapon JSON | **3.34× faster loader; ~2.0s net** | [PR #278](https://github.com/teamleaderleo/preflight/pull/278) |
+| Merged projectile JSON | **2.34× faster loader; ~1.1s net** | [PR #281](https://github.com/teamleaderleo/preflight/pull/281) |
+| Merged ship-hull JSON | **3.52× faster loader; ~1.7s net** | [PR #284](https://github.com/teamleaderleo/preflight/pull/284) |
+| Rules CSV, duplicate checks, tokens, command packages | **~1.56s combined** | [#286](https://github.com/teamleaderleo/preflight/pull/286), [#288](https://github.com/teamleaderleo/preflight/pull/288), [#291](https://github.com/teamleaderleo/preflight/pull/291), [#298](https://github.com/teamleaderleo/preflight/pull/298) |
+| Shared cache-profile identity | **1.613s → 0.452s; 3.57× faster** | [PR #300](https://github.com/teamleaderleo/preflight/pull/300) |
 | **Historical composed campaign** | **80.09s → 42.36s; 1.89× overall** | [2026-08-03 campaign](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md) |
 | **Current clean production gates** | **16.66s cold / 16.28s warm / 15.88s warm record** | [2026-08-06 gate](docs/evidence/2026-08-06-codex-lazy-fleet-members.md) |
 
@@ -130,7 +134,7 @@ The component runs represent **64,739 direct cache or memo hits**. Counting the 
 | Provider real-path resolutions avoided | **12,103** |
 
 A particularly clear algorithmic change is the campaign-rule duplicate check. Vanilla performed a
-trigger-local linear scan for each of 21,059 registrations. [PR #286](https://github.com/teamleaderleo/starsector-preflight/pull/286) replaces that repeated scan with an exact hash-set membership check—average **O(1)** lookup—and preserves the game's original insertion order and duplicate behavior.
+trigger-local linear scan for each of 21,059 registrations. [PR #286](https://github.com/teamleaderleo/preflight/pull/286) replaces that repeated scan with an exact hash-set membership check—average **O(1)** lookup—and preserves the game's original insertion order and duplicate behavior.
 
 The other caches use straightforward memoization and precomputation at larger boundaries: exact inputs become a key, the expensive deterministic result is prepared once, and later requests reuse it. A changed game JAR, mod file, or provider order produces a different key.
 
@@ -140,7 +144,7 @@ The most useful advances often began with a result that didn't make sense.
 
 The first valid prepared-pixel campaign saved only [1.5%](docs/evidence/2026-08-01-the-first-valid-startup-number.md), despite profiles that made texture work look much larger. That discrepancy led to a critical-path probe and the discovery that the cache sat behind a [27-second prefetch wait](docs/evidence/2026-08-01-the-loading-thread-waits-on-a-one-thread-prefetcher.md). Fixing the placement of the cache turned the same body of work into the 29% campaign.
 
-The rule-command package map was expected to remove most of a 641ms phase. It removed about 165ms. The successful class load was expensive; the failed probes were cheap. The same investigation exposed **1.613 seconds of repeated cache-profile construction before the game JVM even started**, which led to [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) and a larger saving than the feature that revealed it.
+The rule-command package map was expected to remove most of a 641ms phase. It removed about 165ms. The successful class load was expensive; the failed probes were cheap. The same investigation exposed **1.613 seconds of repeated cache-profile construction before the game JVM even started**, which led to [PR #300](https://github.com/teamleaderleo/preflight/pull/300) and a larger saving than the feature that revealed it.
 
 The [Fast Rendering prior-art review](docs/prior-art-starsector-render.md) corrected an earlier
 conclusion about its texture prefetcher, documented where the two projects overlap, and highlighted
@@ -281,7 +285,8 @@ signing/notarization, Windows signing, and a PID-safe automated game smoke remai
 [Downloads and installation](docs/downloads.md) and the
 [exact distribution matrix](docs/evidence/2026-08-06-desktop-distribution-matrix.md).
 
-On macOS, `install` creates `~/Applications/Starsector Preflight.app`. Linux receives a command and desktop entry. Windows receives a local command launcher.
+On macOS, `install` creates `~/Applications/Preflight.app`. Linux receives a command and desktop
+entry. Windows receives a local command launcher.
 
 Remove the launcher integration with a preview before confirmation; add `--purge` to include
 Preflight's caches and retained evidence. Neither form removes Starsector, mods, or saves:
@@ -295,8 +300,8 @@ java -jar preflight.jar uninstall --purge
 
 Preflight is fast enough for a beta; the remaining work is product trust and compatibility:
 
-1. Obtain written authorization for distribution, integration approach, product name, and
-   disclaimer from Fractal Softworks.
+1. Obtain written authorization for distribution and the integration approach, plus guidance on
+   descriptive use of the Starsector name and the disclaimer.
 2. Finish the single-action desktop flow, visible disk use, preview-first cleanup/removal, signed
    updates, and an explicit **Send run report** consent flow.
 3. Exercise clean licensed-game installs on Windows and Linux. CI verifies the portable engine and
@@ -306,7 +311,7 @@ Preflight is fast enough for a beta; the remaining work is product trust and com
 
 The complete blocker list and publication checklist are in
 [Release readiness](docs/release-readiness.md). The public trust work is also tracked in
-[issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294).
+[issue #294](https://github.com/teamleaderleo/preflight/issues/294).
 
 ## Analysis and mod tools
 
@@ -367,5 +372,5 @@ Preflight update.
 ## License
 
 [MIT](LICENSE). Starsector, Fast Rendering, and mod content remain the property of their respective
-owners. The repository and release packages contain none of those assets. This is an independent
-project. Any endorsement requires an explicit statement from Fractal Softworks.
+owners. The repository and release packages contain none of those assets. Preflight is an
+independent, unofficial project and isn't affiliated with or endorsed by Fractal Softworks.

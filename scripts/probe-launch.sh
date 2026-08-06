@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ -f pom.xml ]] || { echo "Run this from the starsector-preflight repository root." >&2; exit 1; }
+[[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
 
 JAR=preflight-cli/target/preflight.jar

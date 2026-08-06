@@ -38,15 +38,15 @@ multipliers in it were each measured directly. What it cannot do is add up to an
 | Prepared textures and prefetch bypass | **25.530s** | [29% campaign](2026-08-01-twenty-nine-percent-when-they-compose.md) |
 | AshLib repeated ship JSON | **7.066–7.435s** | [AshLib report](2026-08-02-ashlib-startup-json-cache.md) |
 | GraphicsLib compact auto-generation replay | **4.821s** | [GraphicsLib report](2026-08-02-graphicslib-compact-autogen-replay.md) |
-| Merged variant JSON | **~2.700s net** | [PR #275](https://github.com/teamleaderleo/starsector-preflight/pull/275) |
-| Merged weapon JSON | **~2.000s net** | [PR #278](https://github.com/teamleaderleo/starsector-preflight/pull/278) |
-| Merged projectile JSON | **~1.100s net** | [PR #281](https://github.com/teamleaderleo/starsector-preflight/pull/281) |
-| Merged ship-hull JSON | **~1.700s net** | [PR #284](https://github.com/teamleaderleo/starsector-preflight/pull/284) |
-| Merged campaign-rules CSV | **~0.680s net** | [PR #288](https://github.com/teamleaderleo/starsector-preflight/pull/288) |
-| Campaign-rule duplicate index | **0.561s observed** | [PR #286](https://github.com/teamleaderleo/starsector-preflight/pull/286) |
-| Rule-token memo | **~0.150s** | [PR #291](https://github.com/teamleaderleo/starsector-preflight/pull/291) |
-| Prepared rule-command package map | **~0.165s** | [PR #298](https://github.com/teamleaderleo/starsector-preflight/pull/298) |
-| Shared cache-profile identity pass | **1.161s** | [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) |
+| Merged variant JSON | **~2.700s net** | [PR #275](https://github.com/teamleaderleo/preflight/pull/275) |
+| Merged weapon JSON | **~2.000s net** | [PR #278](https://github.com/teamleaderleo/preflight/pull/278) |
+| Merged projectile JSON | **~1.100s net** | [PR #281](https://github.com/teamleaderleo/preflight/pull/281) |
+| Merged ship-hull JSON | **~1.700s net** | [PR #284](https://github.com/teamleaderleo/preflight/pull/284) |
+| Merged campaign-rules CSV | **~0.680s net** | [PR #288](https://github.com/teamleaderleo/preflight/pull/288) |
+| Campaign-rule duplicate index | **0.561s observed** | [PR #286](https://github.com/teamleaderleo/preflight/pull/286) |
+| Rule-token memo | **~0.150s** | [PR #291](https://github.com/teamleaderleo/preflight/pull/291) |
+| Prepared rule-command package map | **~0.165s** | [PR #298](https://github.com/teamleaderleo/preflight/pull/298) |
+| Shared cache-profile identity pass | **1.161s** | [PR #300](https://github.com/teamleaderleo/preflight/pull/300) |
 | **Total** | **47.634–48.003s** | [scorecard script](../../scripts/startup_scorecard.py) |
 
 Subtracting that stack from the 2026-08-01 baseline predicted **40.127–40.496 seconds**. The measured campaign came in at **42.36 seconds** against a **80.09-second** same-session baseline: **37.74s removed, 47.1%, 1.89×**.
@@ -99,13 +99,13 @@ The 64,739 cache-or-memo total includes prepared texture hits, merged JSON/CSV h
 
 Most of the successful changes use familiar tools applied at the right boundary.
 
-The campaign-rules loader performed a linear scan through the existing rules under a trigger for each of 21,059 registrations. [PR #286](https://github.com/teamleaderleo/starsector-preflight/pull/286) replaced those repeated scans with an exact `(trigger, ruleId)` hash set, turning each duplicate check into average **O(1)** membership while preserving the original ordered insertion.
+The campaign-rules loader performed a linear scan through the existing rules under a trigger for each of 21,059 registrations. [PR #286](https://github.com/teamleaderleo/preflight/pull/286) replaced those repeated scans with an exact `(trigger, ruleId)` hash set, turning each duplicate check into average **O(1)** membership while preserving the original ordered insertion.
 
 The variant, weapon, projectile, hull, and rules caches turn repeated merge-and-parse work into keyed lookups. The key includes the exact game JAR and the ordered providers whose contents can affect the answer, so a matching profile gets the prepared value and a changed profile learns another one.
 
 The tokenizer is ordinary process-local memoization: 62,340 calls, 31,614 distinct inputs, and 30,726 repeats. The cache stores the immutable token description and returns fresh mutable token objects to each caller.
 
-The shared profile-identity pass applies the same principle one level higher. Six caches previously reread the same index, rehashed the same game JAR, and resolved providers separately. [PR #300](https://github.com/teamleaderleo/starsector-preflight/pull/300) reduced six index reads to one and 12,797 provider path resolutions to 694 memoized parent-directory resolutions, while retaining content hashing.
+The shared profile-identity pass applies the same principle one level higher. Six caches previously reread the same index, rehashed the same game JAR, and resolved providers separately. [PR #300](https://github.com/teamleaderleo/preflight/pull/300) reduced six index reads to one and 12,797 provider path resolutions to 694 memoized parent-directory resolutions, while retaining content hashing.
 
 ## How the work was found
 
@@ -133,6 +133,6 @@ The hard part was not inventing a novel cache. It was identifying the correct pu
 
 The fully composed campaign has now run: [The whole stack, measured at once](2026-08-03-the-whole-stack-measured-at-once.md). It also added the `full` benchmark condition, without which no campaign could turn on everything that had landed — `fast` runs compatibility textures and leaves both rule caches off, and the 4.72s between the two is how much was going unmeasured.
 
-There is more to squeeze. The largest known remaining items are the 124ms resource-index read ([#304](https://github.com/teamleaderleo/starsector-preflight/issues/304)), the GraphicsLib and AshLib callbacks that still hold seconds between them, and the untouched audio and script-bytecode paths in the [roadmap](../roadmap.md).
+There is more to squeeze. The largest known remaining items are the 124ms resource-index read ([#304](https://github.com/teamleaderleo/preflight/issues/304)), the GraphicsLib and AshLib callbacks that still hold seconds between them, and the untouched audio and script-bytecode paths in the [roadmap](../roadmap.md).
 
-The user-facing work is tracked in [issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294): a simple desktop launcher, clear uninstall behavior, and a front page that leads with the proven result. The longer program—including direct resource-provider lookup, persistent script bytecode, cross-platform packaging, and later prepared-audio experiments—is in the [roadmap](../roadmap.md).
+The user-facing work is tracked in [issue #294](https://github.com/teamleaderleo/preflight/issues/294): a simple desktop launcher, clear uninstall behavior, and a front page that leads with the proven result. The longer program—including direct resource-provider lookup, persistent script bytecode, cross-platform packaging, and later prepared-audio experiments—is in the [roadmap](../roadmap.md).

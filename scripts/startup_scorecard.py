@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print the accumulated Starsector Preflight startup scorecard.
+"""Print the accumulated Preflight startup scorecard.
 
 The inputs below are measured deltas from the linked repository evidence.
 They deliberately keep ranges where the same optimization was repeated.

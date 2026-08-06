@@ -43,7 +43,7 @@ if [[ "$ADAPTER" != true ]]; then
     PROFILE=false
 fi
 
-[[ -f pom.xml ]] || { echo "Run this from the starsector-preflight repository root." >&2; exit 1; }
+[[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
 
 JAR="$PWD/preflight-cli/target/preflight.jar"

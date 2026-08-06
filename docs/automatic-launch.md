@@ -30,7 +30,7 @@ launcher preferences. It refuses to launch when those values are unavailable or 
 than guessing a different configuration or leaving a modal error dialog behind.
 
 ```text
-Starsector Preflight
+Preflight
   -> discovers or receives the existing launcher path
   -> starts that launcher as a child process
   -> adds a process-local JAVA_TOOL_OPTIONS value
@@ -228,7 +228,7 @@ The default location is `~/.starsector-preflight/runs/`.
 `install` creates:
 
 ```text
-~/Applications/Starsector Preflight.app
+~/Applications/Preflight.app
 ```
 
 The wrapper uses the Java runtime that executed the installer and invokes the copied Preflight JAR
@@ -239,8 +239,8 @@ with `--fast`. The original Starsector app remains unchanged.
 `install` creates:
 
 ```text
-~/.local/bin/starsector-preflight
-~/.local/share/applications/starsector-preflight.desktop
+~/.local/bin/preflight
+~/.local/share/applications/preflight.desktop
 ```
 
 ### Windows

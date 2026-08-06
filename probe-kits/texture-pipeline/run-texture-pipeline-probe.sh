@@ -94,7 +94,7 @@ fi
 
 CP="$CORE:$JARS/lwjgl.jar:$BUILD"
 {
-    printf '%s\n' "Starsector Preflight — texture load pipeline probe"
+    printf '%s\n' "Preflight — texture load pipeline probe"
     printf '%s\n' "captured:     $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\n' "installation: $INSTALL"
     printf '%s\n' "sampled from: $MODS"

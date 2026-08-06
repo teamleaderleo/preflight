@@ -1,6 +1,6 @@
 # Vanilla runtime adapter
 
-Starsector Preflight uses a wrapper-launch model. It does not replace or edit the Starsector launcher.
+Preflight uses a wrapper-launch model. It does not replace or edit the Starsector launcher.
 
 ```text
 Preflight launcher

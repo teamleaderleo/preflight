@@ -291,7 +291,7 @@ GitHub Releases can remain the artifact store. It should stop being the user jou
 Create a small download page with OS and architecture detection:
 
 ```text
-Starsector Preflight
+Preflight
 Make heavily modded Starsector launches easier to understand and prepare.
 
 [Download for Windows]

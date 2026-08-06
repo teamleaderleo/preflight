@@ -1,10 +1,10 @@
 [package]
 name = "starsector-preflight-desktop"
 version = "0.1.0"
-description = "A friendly desktop launch companion for Starsector Preflight"
-authors = ["Starsector Preflight contributors"]
+description = "A desktop performance launcher for Starsector"
+authors = ["Preflight contributors"]
 license = "MIT"
-repository = "https://github.com/teamleaderleo/starsector-preflight"
+repository = "https://github.com/teamleaderleo/preflight"
 edition = "2024"
 rust-version = "1.85"
 

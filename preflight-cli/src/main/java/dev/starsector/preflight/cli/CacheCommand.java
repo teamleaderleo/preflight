@@ -378,7 +378,7 @@ final class CacheCommand {
             value.put("lastModifiedMillis", profile.lastModifiedMillis());
             return value;
         }).toList();
-        List<Map<String, Object>> integrations = home.integrations().stream().map(integration -> {
+        List<Map<String, Object>> integrations = home.reportedIntegrations().stream().map(integration -> {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("id", integration.id().name());
             value.put("label", integration.label());
@@ -437,11 +437,11 @@ final class CacheCommand {
     private static void reportIntegrations(PreflightHome home, PrintStream out) {
         out.println();
         out.println("Launcher integration:");
-        if (home.integrations().isEmpty()) {
+        if (home.reportedIntegrations().isEmpty()) {
             out.println("  none on this operating system; Preflight runs as `java -jar preflight.jar`.");
             return;
         }
-        for (PreflightHome.Integration integration : home.integrations()) {
+        for (PreflightHome.Integration integration : home.reportedIntegrations()) {
             out.printf(Locale.ROOT, "  %-28s %-9s %s%n",
                     integration.label(),
                     integration.present() ? "installed" : "absent",

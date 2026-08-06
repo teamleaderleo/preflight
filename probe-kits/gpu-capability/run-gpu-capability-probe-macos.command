@@ -30,7 +30,7 @@ if ! clang -o "$BINARY" "$SOURCE" -framework OpenGL -Wno-deprecated-declarations
 fi
 
 {
-    printf '%s\n' "Starsector Preflight — GPU texture capability probe"
+    printf '%s\n' "Preflight — GPU texture capability probe"
     printf '%s\n' "captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\n' "macOS:    $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
     printf '%s\n' "CPU:      $(sysctl -n machdep.cpu.brand_string)"

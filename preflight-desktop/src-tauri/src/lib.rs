@@ -74,7 +74,7 @@ impl EnginePaths {
         #[cfg(not(debug_assertions))]
         let jar = bundled_jar();
         let jar = jar.ok_or_else(|| {
-            "The bundled Preflight engine is missing. Reinstall Starsector Preflight.".to_string()
+            "The bundled Preflight engine is missing. Reinstall Preflight.".to_string()
         })?;
 
         #[cfg(debug_assertions)]
@@ -85,7 +85,7 @@ impl EnginePaths {
             .unwrap_or_else(system_java);
         #[cfg(not(debug_assertions))]
         let java = bundled_java(app).ok_or_else(|| {
-            "The bundled Preflight runtime is missing. Reinstall Starsector Preflight.".to_string()
+            "The bundled Preflight runtime is missing. Reinstall Preflight.".to_string()
         })?;
 
         Ok(Self { java, jar })
@@ -661,7 +661,7 @@ pub fn run() {
             start_preparation
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Starsector Preflight");
+        .expect("error while running Preflight");
 }
 
 #[cfg(test)]

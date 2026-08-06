@@ -33,8 +33,8 @@ jobs:
             sha256sum preflight.jar > preflight.jar.sha256
           )
           cat > dist/README.txt <<'TEXT'
-          Starsector Preflight
-          ====================
+          Preflight
+          =========
 
           Requires Java 17 or newer.
 
@@ -54,14 +54,14 @@ jobs:
               (Get-FileHash .\preflight.jar -Algorithm SHA256).Hash.ToLower()
 
           Project documentation:
-              https://github.com/teamleaderleo/starsector-preflight
+              https://github.com/teamleaderleo/preflight
           TEXT
-          tar -C dist -czf dist/starsector-preflight.tar.gz preflight.jar preflight.jar.sha256 README.txt
+          tar -C dist -czf dist/preflight.tar.gz preflight.jar preflight.jar.sha256 README.txt
           (
             cd dist
-            zip -q starsector-preflight.zip preflight.jar preflight.jar.sha256 README.txt
+            zip -q preflight.zip preflight.jar preflight.jar.sha256 README.txt
           )
-          sha256sum dist/starsector-preflight.tar.gz dist/starsector-preflight.zip > dist/archives.sha256
+          sha256sum dist/preflight.tar.gz dist/preflight.zip > dist/archives.sha256
 
       - name: Smoke-test packaged JAR
         shell: bash
@@ -73,12 +73,12 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: starsector-preflight-${{ github.run_id }}
+          name: preflight-${{ github.run_id }}
           path: |
             dist/preflight.jar
             dist/preflight.jar.sha256
-            dist/starsector-preflight.tar.gz
-            dist/starsector-preflight.zip
+            dist/preflight.tar.gz
+            dist/preflight.zip
             dist/archives.sha256
             dist/README.txt
           if-no-files-found: error
@@ -94,13 +94,13 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             dist/preflight.jar \
             dist/preflight.jar.sha256 \
-            dist/starsector-preflight.tar.gz \
-            dist/starsector-preflight.zip \
+            dist/preflight.tar.gz \
+            dist/preflight.zip \
             dist/archives.sha256 \
             dist/README.txt \
             --verify-tag \
             --generate-notes \
-            --title "Starsector Preflight $GITHUB_REF_NAME"
+            --title "Preflight $GITHUB_REF_NAME"
 
   desktop:
     name: Desktop / ${{ matrix.name }}
@@ -188,7 +188,7 @@ jobs:
       - name: Upload desktop package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: starsector-preflight-${{ matrix.name }}-${{ github.run_id }}
+          name: preflight-${{ matrix.name }}-${{ github.run_id }}
           path: preflight-desktop/desktop-dist/*
           if-no-files-found: error
           retention-days: 30

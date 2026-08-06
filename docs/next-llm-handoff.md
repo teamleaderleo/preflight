@@ -1,7 +1,8 @@
 # Next LLM Implementation Handoff
 
-> **Current release direction (2026-08-07):** do not publish binaries yet. Public distribution,
-> naming, and disclaimer are pending written Fractal Softworks authorization. Product trust now
+> **Current release direction (2026-08-07):** do not publish binaries yet. The public name is
+> **Preflight**. Distribution, descriptive use of Starsector, and the disclaimer are pending written
+> Fractal Softworks guidance. Product trust now
 > outranks another narrow startup experiment: finish lifecycle/update/report UX, real Windows/Linux
 > game evidence, and a fresh controlled release-candidate cohort. Use
 > [release-readiness.md](release-readiness.md) as the public-release blocker list and

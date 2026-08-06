@@ -1,4 +1,4 @@
-# Starsector Preflight — LLM handoff
+# Preflight — LLM handoff
 
 The single living handoff document is [docs/next-llm-handoff.md](docs/next-llm-handoff.md). Read that, the open issues, and the latest reports under [docs/evidence/](docs/evidence/) before changing code.
 

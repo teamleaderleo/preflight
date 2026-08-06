@@ -135,7 +135,7 @@ your normal projects folder, double-click:
 
 That helper safely clones or fast-forward updates:
 
-  ~/Projects/starsector-preflight
+  ~/Projects/preflight
 
 It refuses to overwrite a non-Git directory or a checkout with uncommitted
 changes.
