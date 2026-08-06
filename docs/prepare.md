@@ -15,6 +15,27 @@ Preflight discovers Starsector, reads the enabled profile, prepares reusable art
 Preparation writes only Preflight-owned, content-addressed data and its validation report. The
 installation, mods, saves, launcher, game preferences, and VM parameter files remain unchanged.
 
+Before any write, the command scans the winning texture set and calculates a storage plan from
+encoded content hashes, decoded dimensions and alpha channels, deduplication, reusable checked
+blobs, the profile pack, and filesystem free space. Preparation is refused unless its conservative
+upper bound fits while leaving a reserve of at least 1 GiB. The same gate runs whether preparation
+starts from the desktop app, the CLI, or installation.
+
+Inspect the plan without writing anything:
+
+```bash
+java -jar preflight.jar prepare --plan
+java -jar preflight.jar prepare --plan --json --texture-storage balanced
+```
+
+The plan separates `predictedAdditionalBytes`, `upperBoundAdditionalBytes`,
+`safetyReserveBytes`, and `usableBytes`. The prediction estimates Balanced compression; the upper
+bound allows every missing texture to occupy its raw upload-ready size, pack duplication, temporary
+codec selection, and non-texture metadata. Existing loose blobs are counted as reusable only after
+their full checked read succeeds. On the reviewed 83-mod cold profile, the prediction was 4.91 GB
+against an observed approximately 4.53 GB final preparation footprint; the conservative bound was
+11.74 GB. The read-only plan left its nonexistent target directory nonexistent.
+
 ## Pipeline
 
 The default command starts the independent census, resource-index, and classpath-index stages

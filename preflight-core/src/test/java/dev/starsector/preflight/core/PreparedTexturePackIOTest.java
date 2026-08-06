@@ -80,6 +80,27 @@ class PreparedTexturePackIOTest {
                 () -> PreparedTexturePackIO.open(pack, profile, List.of(relative)));
     }
 
+    @Test
+    void prospectiveSizeMatchesTheWrittenPackExactly() throws Exception {
+        Path cache = temporaryDirectory.resolve("estimated-cache");
+        Files.createDirectories(cache.resolve("blobs"));
+        String profile = "ad".repeat(32);
+        String first = "blobs/first.spft";
+        String second = "blobs/second.spft";
+        PreparedTextureIO.write(cache.resolve(first),
+                texture("04".repeat(32), new byte[12]), PreparedTextureIO.StorageCodec.RAW);
+        PreparedTextureIO.write(cache.resolve(second),
+                texture("05".repeat(32), new byte[12]), PreparedTextureIO.StorageCodec.LZ4);
+        var sizes = new java.util.LinkedHashMap<String, Long>();
+        sizes.put(first, Files.size(cache.resolve(first)));
+        sizes.put(second, Files.size(cache.resolve(second)));
+
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(pack, profile, cache, sizes.keySet());
+
+        assertEquals(Files.size(pack), PreparedTexturePackIO.estimatedFileBytes(profile, sizes));
+    }
+
     private static PreparedTexture texture(String hash, byte[] pixels) {
         return new PreparedTexture(
                 hash,

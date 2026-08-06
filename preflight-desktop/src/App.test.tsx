@@ -52,13 +52,40 @@ test("the default cold-profile action prepares with balanced settings and then l
 
   render(<App />);
 
-  await user.click(await screen.findByRole("button", { name: "Prepare and launch" }));
+  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  await waitFor(() => expect(action).toBeEnabled());
+  await user.click(action);
   expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256);
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended"));
 
   cache.mockRestore();
   preparation.mockRestore();
   game.mockRestore();
+});
+
+test("a cold profile cannot prepare when the conservative disk bound does not fit", async () => {
+  const cold = cacheSnapshot({ profiles: [] });
+  const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
+  const reason = "Preparation needs up to 11.0 GB plus a 1.0 GB reserve; only 2.0 GB is available.";
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cold);
+  const plan = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue({
+    ...basePlan,
+    safeToPrepare: false,
+    refusalReason: reason,
+    usableBytes: 2 * 1024 ** 3,
+  });
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+
+  render(<App />);
+
+  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  await screen.findByText(reason);
+  expect(action).toBeDisabled();
+  expect(preparation).not.toHaveBeenCalled();
+
+  cache.mockRestore();
+  plan.mockRestore();
+  preparation.mockRestore();
 });
 
 test("shows a useful ready-state home screen in browser preview", async () => {
@@ -82,7 +109,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Balanced4 workers/ })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Prepare current profile" })).toBeEnabled();
+  expect(await screen.findByRole("button", { name: "Prepare current profile" })).toBeEnabled();
 });
 
 test("launch settings mirror vanilla display and battle controls", async () => {

@@ -31,9 +31,9 @@ first public beta.
 
 ## Blocking product work
 
-- [ ] Complete the first-run flow. It now detects the installation, selects Recommended and
-  Balanced by default, prepares a cold exact profile, and launches from one action. A pre-build
-  disk estimate still needs to replace the current several-GB bound.
+- [x] Complete the first-run flow. It detects the installation, selects Recommended and Balanced,
+  calculates the exact profile's predicted and conservative disk requirements, refuses unsafe free
+  space, prepares a cold profile, and launches from one action.
 - [ ] Show preparation progress, cancellation/recovery, current profile identity, cache use, and the
   expected effect of changing storage policy.
 - [ ] Provide preview-first cleanup and two removal choices: launcher/app only, or all

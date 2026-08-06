@@ -50,6 +50,36 @@ final class PrepareCommand {
 
         Path cache = (options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory())
                 .toAbsolutePath().normalize();
+        ResourceIndexBuilder.BuildResult plannedResourceBuild = null;
+        PreparationStoragePlanner.Plan storagePlan = null;
+        if (options.textures() && options.resourceIndex()) {
+            System.err.println("prepare: storage-plan started");
+            plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
+            storagePlan = PreparationStoragePlanner.plan(
+                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
+            System.err.printf(
+                    Locale.ROOT,
+                    "prepare: storage-plan completed safe=%s predicted=%d upper=%d usable=%d durationMs=%.3f%n",
+                    storagePlan.safeToPrepare(),
+                    storagePlan.predictedAdditionalBytes(),
+                    storagePlan.upperBoundAdditionalBytes(),
+                    storagePlan.usableBytes(),
+                    storagePlan.durationNanos() / 1_000_000.0);
+            if (options.plan()) {
+                if (options.json()) {
+                    System.out.println(Json.object(storagePlan.toMap()));
+                } else {
+                    printStoragePlan(storagePlan);
+                }
+                return 0;
+            }
+            if (!storagePlan.safeToPrepare()) {
+                System.err.println("Preflight refused preparation: " + storagePlan.refusalReason());
+                return 6;
+            }
+        } else if (options.plan()) {
+            throw new IllegalArgumentException("--plan requires resource-index and texture preparation");
+        }
         Files.createDirectories(cache);
         Path report = (options.report() == null
                 ? cache.resolve("reports/preparation-latest.json")
@@ -91,7 +121,9 @@ final class PrepareCommand {
         if (options.resourceIndex()) {
             try {
                 long stageStarted = System.nanoTime();
-                ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(target.installRoot());
+                ResourceIndexBuilder.BuildResult built = plannedResourceBuild == null
+                        ? ResourceIndexBuilder.build(target.installRoot())
+                        : plannedResourceBuild;
                 ResourceIndex selected = built.index();
                 Path output = cache.resolve("resource-indexes")
                         .resolve(selected.profileFingerprint() + ".spfi");
@@ -326,6 +358,7 @@ final class PrepareCommand {
         output.put("classpathIndex", classpathIndexPath);
         output.put("specStoreProfile", specStoreProfilePath);
         output.put("options", options.toMap());
+        output.put("storagePlan", storagePlan == null ? null : storagePlan.toMap());
         output.put("stages", stages);
         output.put("readiness", readiness);
         output.put("diagnostics", List.copyOf(diagnostics));
@@ -334,6 +367,24 @@ final class PrepareCommand {
         writeAtomic(report, Json.object(output) + System.lineSeparator());
         System.out.println(report);
         return allEnabledStagesSuccessful ? 0 : 5;
+    }
+
+    private static void printStoragePlan(PreparationStoragePlanner.Plan plan) {
+        System.out.println("Preparation storage plan");
+        System.out.println("  Predicted additional: "
+                + PreparationStoragePlanner.humanBytes(plan.predictedAdditionalBytes()));
+        System.out.println("  Conservative upper bound: "
+                + PreparationStoragePlanner.humanBytes(plan.upperBoundAdditionalBytes()));
+        System.out.println("  Safety reserve: "
+                + PreparationStoragePlanner.humanBytes(plan.safetyReserveBytes()));
+        System.out.println("  Available: "
+                + PreparationStoragePlanner.humanBytes(plan.usableBytes()));
+        System.out.println("  Reusable loose blobs: "
+                + PreparationStoragePlanner.humanBytes(plan.reusableLooseBytes()));
+        System.out.println("  Safe to prepare: " + (plan.safeToPrepare() ? "yes" : "no"));
+        if (plan.refusalReason() != null) {
+            System.out.println("  " + plan.refusalReason());
+        }
     }
 
     private static Stage prepareCensus(Path installRoot) throws IOException {
@@ -473,6 +524,8 @@ final class PrepareCommand {
         boolean textures = true;
         boolean parallelStages = Boolean.parseBoolean(
                 System.getProperty("preflight.prepare.parallel", "true"));
+        boolean plan = false;
+        boolean json = false;
         TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
@@ -493,6 +546,8 @@ final class PrepareCommand {
                 case "--serial-stages" -> parallelStages = false;
                 case "--texture-storage" -> textureStorage =
                         TextureStoragePolicy.parse(requireValue(args, ++i, "--texture-storage"));
+                case "--plan" -> plan = true;
+                case "--json" -> json = true;
                 default -> throw new IllegalArgumentException("Unknown prepare option: " + args[i]);
             }
         }
@@ -507,7 +562,8 @@ final class PrepareCommand {
         }
         return new Options(
                 game, launcher, cache, report, workers, memoryMib, deep, verifyLookups,
-                lookupQueries, seed, resourceIndex, classpath, textures, parallelStages, textureStorage);
+                lookupQueries, seed, resourceIndex, classpath, textures, parallelStages, textureStorage,
+                plan, json);
     }
 
     private static String requireValue(String[] args, int index, String option) {
@@ -557,7 +613,9 @@ final class PrepareCommand {
             boolean classpath,
             boolean textures,
             boolean parallelStages,
-            TextureStoragePolicy textureStorage) {
+            TextureStoragePolicy textureStorage,
+            boolean plan,
+            boolean json) {
         Map<String, Object> toMap() {
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("workers", workers);
@@ -571,6 +629,7 @@ final class PrepareCommand {
             values.put("textures", textures);
             values.put("parallelStages", parallelStages);
             values.put("textureStorage", textureStorage.optionValue());
+            values.put("plan", plan);
             return values;
         }
     }

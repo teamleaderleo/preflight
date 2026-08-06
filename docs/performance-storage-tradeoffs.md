@@ -170,6 +170,14 @@ Balanced storage by default, and explain that preparation can be interrupted saf
 remain a simple optional switch. Audio can be shown as a separate storage contributor because its
 tradeoff differs from textures.
 
+That estimate now comes from the resolved winning texture set rather than the installation's encoded
+size. It hashes content for deduplication, reads dimensions and alpha channels without decoding the
+whole cold corpus, recognizes fully checked reusable blobs and an exact profile pack, and reports a
+prediction beside a raw-size upper bound. The reviewed cold profile predicted 4.91 GB against an
+observed approximately 4.53 GB footprint. Its upper bound was 11.74 GB, with another 1.17 GB kept
+free as a reserve. The CLI enforces the same calculation before writes, so the desktop display isn't
+the safety boundary.
+
 After preparation, the app should show active acceleration, other valid profiles, evidence, and the
 current safe-prune estimate. Switching a profile or storage policy publishes a new manifest only
 after the new representation is ready, so the existing launch remains usable if preparation fails.

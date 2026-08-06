@@ -78,6 +78,15 @@ public final class PreparedTextureIO {
         return stored;
     }
 
+    /** Exact SPFT file size for an uncompressed upload-ready pixel array. */
+    public static long rawFileBytes(long pixelBytes) {
+        long fileBytes = Math.addExact(minimumFileBytes() + PAYLOAD_FIXED_BYTES, pixelBytes);
+        if (pixelBytes < 0 || fileBytes > MAX_FILE_BYTES) {
+            throw new IllegalArgumentException("Prepared texture pixel length is invalid: " + pixelBytes);
+        }
+        return fileBytes;
+    }
+
     /** Reads one complete SPFT blob stored at an indexed range in a shared pack channel. */
     public static PreparedTexture readTrusted(
             FileChannel channel, long offset, long size, String sourceLabel) throws IOException {

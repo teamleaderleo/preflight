@@ -48,6 +48,38 @@ public final class PreparedTexturePackIO {
                 .toAbsolutePath().normalize();
     }
 
+    /** Exact final pack size for a prospective ordered set of blob paths and file lengths. */
+    public static long estimatedFileBytes(
+            String profileFingerprint, Map<String, Long> blobFileBytes) {
+        validateProfile(profileFingerprint);
+        if (blobFileBytes == null || blobFileBytes.isEmpty() || blobFileBytes.size() > MAX_ENTRIES) {
+            throw new IllegalArgumentException("Prepared texture pack entries are invalid");
+        }
+        long indexBytes = Integer.BYTES
+                + profileFingerprint.getBytes(StandardCharsets.UTF_8).length
+                + Integer.BYTES;
+        long payloadBytes = 0;
+        Set<String> normalized = new LinkedHashSet<>();
+        for (Map.Entry<String, Long> entry : blobFileBytes.entrySet()) {
+            String path = ResourceIndex.normalizeRelativePath(entry.getKey());
+            if (!normalized.add(path)) {
+                throw new IllegalArgumentException("Duplicate prepared texture pack path: " + path);
+            }
+            long length = entry.getValue() == null ? -1 : entry.getValue();
+            if (length <= 0 || length > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Prepared texture blob length is invalid: " + path);
+            }
+            indexBytes = Math.addExact(indexBytes,
+                    Integer.BYTES + path.getBytes(StandardCharsets.UTF_8).length
+                            + Long.BYTES + Integer.BYTES);
+            payloadBytes = Math.addExact(payloadBytes, length);
+        }
+        if (indexBytes > MAX_INDEX_BYTES) {
+            throw new IllegalArgumentException("Prepared texture pack index exceeds its safety limit");
+        }
+        return Math.addExact(FIXED_HEADER_BYTES, Math.addExact(indexBytes, payloadBytes));
+    }
+
     public static PreparedTexturePack open(
             Path source, String expectedProfile, Collection<String> expectedBlobPaths)
             throws IOException {

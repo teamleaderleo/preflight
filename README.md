@@ -234,7 +234,13 @@ behavior; `fastest` keeps every upload-ready pixel array raw for minimum decode 
 ```bash
 java -jar preflight.jar prepare --texture-storage fastest
 java -jar preflight.jar prepare --texture-storage balanced
+java -jar preflight.jar prepare --plan --json
 ```
+
+Every preparation first calculates decoded texture size, deduplication, reusable checked blobs,
+pack duplication, a conservative upper bound, and current filesystem space. It refuses before
+writing unless that bound fits with at least 1 GiB left in reserve. `--plan` exposes the same result
+without creating a cache directory.
 
 On the 83-mod development profile, `balanced` reduced the texture pack from 5.34 GB to 2.26 GB.
 Ten shuffled fresh-game-JVM replays measured the exact startup access order at 1,137ms balanced

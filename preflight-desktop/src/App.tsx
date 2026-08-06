@@ -6,6 +6,7 @@ import {
   exportDiagnostics,
   getCache,
   getLaunchSettings,
+  getPreparationPlan,
   getProfiles,
   getSnapshot,
   isDesktopHost,
@@ -36,6 +37,7 @@ import type {
   LaunchSettings,
   LaunchSettingsUpdate,
   OptimizationPreset,
+  PreparationStoragePlan,
   PreparationStateEvent,
   ProfileActivationPlan,
   ProfileList,
@@ -137,6 +139,8 @@ export default function App() {
   const [cacheLoading, setCacheLoading] = useState(false);
   const [cacheInstallRoot, setCacheInstallRoot] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const [preparationPlan, setPreparationPlan] = useState<PreparationStoragePlan | null>(null);
+  const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
   const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
@@ -211,6 +215,37 @@ export default function App() {
     const game = snapshot?.selected?.installRoot;
     if (game && cacheInstallRoot !== game && !cacheLoading) void refreshCache();
   }, [cacheInstallRoot, cacheLoading, refreshCache, snapshot?.selected?.installRoot]);
+
+  useEffect(() => {
+    const game = snapshot?.selected?.installRoot;
+    const cacheReady = game && cacheInstallRoot === game && !cacheLoading;
+    const shouldPlan = cacheReady
+      && optimizationPreset !== "off"
+      && (page === "prepare" || !isCurrentProfilePrepared(cache));
+    if (!game || !shouldPlan) {
+      setPreparationPlan(null);
+      setPreparationPlanLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPreparationPlanLoading(true);
+    void getPreparationPlan(game, textureStorage, resourcePresets.balanced.workers)
+      .then((plan) => {
+        if (!cancelled) setPreparationPlan(plan);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setPreparationPlan(null);
+          setMessage(String(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPreparationPlanLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cache, cacheInstallRoot, cacheLoading, optimizationPreset, page, snapshot?.selected?.installRoot, textureStorage]);
 
   const refreshProfiles = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
@@ -288,12 +323,22 @@ export default function App() {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
     const resources = resourcePresets[resourcePreset];
-    launchAfterPreparation.current = launchWhenReady;
-    setPreparing(true);
-    setMessage(launchWhenReady
-      ? "Preparing the exact current profile. Starsector will open when it’s ready."
-      : "Preparing the exact current profile… You can leave this window open.");
     try {
+      let plan = preparationPlan;
+      if (!plan || plan.textureStorage !== textureStorage) {
+        setPreparationPlanLoading(true);
+        plan = await getPreparationPlan(game, textureStorage, resources.workers);
+        setPreparationPlan(plan);
+      }
+      if (!plan.safeToPrepare) {
+        setMessage(plan.refusalReason ?? "Preparation was refused because its storage requirement could not be bounded safely.");
+        return;
+      }
+      launchAfterPreparation.current = launchWhenReady;
+      setPreparing(true);
+      setMessage(launchWhenReady
+        ? "Preparing the exact current profile. Starsector will open when it’s ready."
+        : "Preparing the exact current profile… You can leave this window open.");
       await startPreparation(game, textureStorage, resources.workers, resources.memoryMib);
       if (!isDesktopHost()) {
         setPreparing(false);
@@ -308,6 +353,8 @@ export default function App() {
       launchAfterPreparation.current = false;
       setPreparing(false);
       setMessage(String(error));
+    } finally {
+      setPreparationPlanLoading(false);
     }
   };
 
@@ -512,9 +559,9 @@ export default function App() {
             </p>
             <div className="hero__actions">
               {isReady ? (
-                <button className="button button--primary" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading}>
+                <button className="button button--primary" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
+                  {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
                 </button>
               ) : (
                 <button className="button button--primary" type="button" onClick={() => void chooseInstall()} disabled={status === "loading"}>
@@ -532,7 +579,11 @@ export default function App() {
               <div className="hero__launch-note">
                 <strong>{selectedOptimization.label} optimizations</strong>
                 <span>{needsPreparation
-                  ? `${textureStorage === "balanced" ? "Balanced storage is selected" : "Fastest storage is selected"}. Large mod profiles can use several GB; the resulting total appears under Prepare.`
+                  ? preparationPlanLoading
+                    ? "Reading the winning textures and calculating a safe disk requirement…"
+                    : preparationPlan?.safeToPrepare
+                      ? `${textureStorage === "balanced" ? "Balanced" : "Fastest"} predicts ${formatBytes(preparationPlan.predictedAdditionalBytes)} additional; ${formatBytes(preparationPlan.usableBytes)} is available.`
+                      : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
                   : profilePrepared
                     ? `Current profile prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}`
                     : "Preparation is disabled for this troubleshooting launch."}</span>
@@ -778,14 +829,21 @@ export default function App() {
                     <div key={group.id}><span>{group.id}</span><strong>{formatBytes(group.bytes)}</strong></div>
                   ))}
                 </div>
+                <div className="storage-groups storage-plan" aria-label="Preparation storage plan">
+                  <div><span>Predicted additional</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong></div>
+                  <div><span>Conservative bound</span><strong>{preparationPlan ? formatBytes(preparationPlan.upperBoundAdditionalBytes) : "—"}</strong></div>
+                  <div><span>Safety reserve</span><strong>{preparationPlan ? formatBytes(preparationPlan.safetyReserveBytes) : "—"}</strong></div>
+                  <div><span>Available now</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong></div>
+                </div>
+                {preparationPlan && !preparationPlan.safeToPrepare && <p className="activation-warning">{preparationPlan.refusalReason}</p>}
                 <p className="storage-note">Acceleration data and diagnostic evidence are tracked separately. Cleanup is always previewed before deletion.</p>
               </section>
             </div>
 
             <section className="card prepare-action">
-              <div><strong>{preparing ? "Preparation is running" : "Ready to warm this profile"}</strong><span>{textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · {resourcePresets[resourcePreset].label.toLowerCase()} resource use</span></div>
-              <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={preparing || !isReady}>
-                <SparklesIcon />{preparing ? "Preparing…" : "Prepare current profile"}
+              <div><strong>{preparing ? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : preparationPlan?.safeToPrepare ? "There’s room to prepare this profile" : "Preparation needs attention"}</strong><span>{textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · {resourcePresets[resourcePreset].label.toLowerCase()} resource use</span></div>
+              <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={preparing || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}>
+                <SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}
               </button>
             </section>
           </div>

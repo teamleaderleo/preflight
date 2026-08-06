@@ -9,6 +9,7 @@ import type {
   OptimizationPreset,
   ProfileActivationPlan,
   ProfileList,
+  PreparationStoragePlan,
   RunStarted,
 } from "./types";
 
@@ -246,5 +247,54 @@ export async function startPreparation(
     textureStorage,
     workers,
     memoryMib,
+  });
+}
+
+export async function getPreparationPlan(
+  game: string,
+  textureStorage: "balanced" | "fastest",
+  workers: number,
+): Promise<PreparationStoragePlan> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    return {
+      format: "preflight-preparation-storage-plan-v1",
+      profileFingerprint: "preview-profile",
+      textureStorage,
+      cacheDirectory: "~/.starsector-preflight/cache",
+      packPath: "~/.starsector-preflight/cache/packs/preview.spfp",
+      candidateEntries: 32_920,
+      hashedEntries: 32_920,
+      uniqueContent: 30_639,
+      supportedContent: 30_639,
+      unsupportedContent: 0,
+      failedContent: 0,
+      uniqueSourceBytes: 1_344_722_319,
+      uniquePixelBytes: 5_331_135_254,
+      reusableLooseBytes: 0,
+      predictedLooseBytes: textureStorage === "balanced" ? 2_255_699_674 : 5_331_200_000,
+      upperLooseBytes: textureStorage === "balanced" ? 5_600_000_000 : 5_331_200_000,
+      predictedPackBytes: textureStorage === "balanced" ? 2_258_964_304 : 5_335_000_000,
+      upperPackBytes: 5_600_000_000,
+      predictedMetadataBytes: 33_554_432,
+      upperMetadataBytes: 134_217_728,
+      predictedAdditionalBytes: textureStorage === "balanced" ? 4_548_218_410 : 10_699_754_432,
+      upperBoundAdditionalBytes: textureStorage === "balanced" ? 11_334_217_728 : 11_065_217_728,
+      safetyReserveBytes: 1_133_421_772,
+      requiredFreeBytes: 12_467_639_500,
+      usableBytes: 82_000_000_000,
+      remainingAfterUpperBoundBytes: 70_665_782_272,
+      packHit: false,
+      complete: true,
+      safeToPrepare: true,
+      refusalReason: null,
+      diagnostics: [],
+      durationMs: 740,
+    };
+  }
+  return invoke<PreparationStoragePlan>("get_preparation_plan", {
+    game,
+    textureStorage,
+    workers,
   });
 }

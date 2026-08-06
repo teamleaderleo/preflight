@@ -28,6 +28,41 @@ export interface RunStarted {
   pid: number;
 }
 
+export interface PreparationStoragePlan {
+  format: "preflight-preparation-storage-plan-v1";
+  profileFingerprint: string;
+  textureStorage: "balanced" | "fastest";
+  cacheDirectory: string;
+  packPath: string;
+  candidateEntries: number;
+  hashedEntries: number;
+  uniqueContent: number;
+  supportedContent: number;
+  unsupportedContent: number;
+  failedContent: number;
+  uniqueSourceBytes: number;
+  uniquePixelBytes: number;
+  reusableLooseBytes: number;
+  predictedLooseBytes: number;
+  upperLooseBytes: number;
+  predictedPackBytes: number;
+  upperPackBytes: number;
+  predictedMetadataBytes: number;
+  upperMetadataBytes: number;
+  predictedAdditionalBytes: number;
+  upperBoundAdditionalBytes: number;
+  safetyReserveBytes: number;
+  requiredFreeBytes: number;
+  usableBytes: number;
+  remainingAfterUpperBoundBytes: number;
+  packHit: boolean;
+  complete: boolean;
+  safeToPrepare: boolean;
+  refusalReason: string | null;
+  diagnostics: string[];
+  durationMs: number;
+}
+
 export type OptimizationPreset = "recommended" | "conservative" | "off";
 
 export interface DiagnosticsExport {

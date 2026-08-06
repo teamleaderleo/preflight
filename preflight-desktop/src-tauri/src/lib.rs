@@ -541,6 +541,44 @@ fn start_preparation(
     Ok(RunStarted { pid })
 }
 
+#[tauri::command]
+fn get_preparation_plan(
+    app: AppHandle,
+    game: String,
+    texture_storage: String,
+    workers: u8,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    if texture_storage != "balanced" && texture_storage != "fastest" {
+        return Err("Texture storage must be balanced or fastest.".to_string());
+    }
+    if !(1..=64).contains(&workers) {
+        return Err("Preparation workers must be between 1 and 64.".to_string());
+    }
+    let paths = EnginePaths::resolve(&app)?;
+    let output = paths
+        .command()
+        .arg("prepare")
+        .arg("--plan")
+        .arg("--json")
+        .arg("--game")
+        .arg(directory)
+        .arg("--texture-storage")
+        .arg(texture_storage)
+        .arg("--workers")
+        .arg(workers.to_string())
+        .output()
+        .map_err(|error| format!("Could not calculate preparation storage: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not calculate preparation storage",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable storage plan: {error}"))
+}
+
 fn watch_child(app: AppHandle, mut child: Child) {
     let pid = child.id();
     std::thread::spawn(move || {
@@ -658,6 +696,7 @@ pub fn run() {
             save_profile,
             activate_profile,
             start_game,
+            get_preparation_plan,
             start_preparation
         ])
         .run(tauri::generate_context!())

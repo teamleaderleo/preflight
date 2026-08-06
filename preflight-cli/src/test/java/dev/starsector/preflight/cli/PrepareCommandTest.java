@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
@@ -53,6 +54,8 @@ class PrepareCommandTest {
         assertTrue(first.contains("\"profileHit\":false"), first);
         assertTrue(first.contains("\"builtBlobs\":2"), first);
         assertTrue(first.contains("\"textureStorage\":\"balanced\""), first);
+        assertTrue(first.contains("\"storagePlan\":{\"format\":\"preflight-preparation-storage-plan-v1\""), first);
+        assertTrue(first.contains("\"safeToPrepare\":true"), first);
         assertTrue(first.contains("\"parallelStages\":true"), first);
         assertTrue(first.contains("\"liveAdapterIntegrated\":true"), first);
         assertTrue(first.contains("\"liveAdapterEnabledByPreparation\":false"), first);
@@ -88,6 +91,41 @@ class PrepareCommandTest {
         assertTrue(Files.list(cache.resolve("classpath/profiles")).anyMatch(path -> path.toString().endsWith(".spfc")));
         assertTrue(Files.list(cache.resolve("spec-store/profiles")).anyMatch(path -> path.toString().endsWith(".json")));
         assertTrue(Files.list(cache.resolve("manifests")).anyMatch(path -> path.toString().endsWith(".spfm")));
+    }
+
+    @Test
+    void storagePlanIsJsonAndStrictlyReadOnly() throws Exception {
+        Path install = fixture();
+        Path cache = temporaryDirectory.resolve("plan-only-cache");
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        PrintStream originalErr = System.err;
+        try (PrintStream capturedOut = new PrintStream(stdout, true, StandardCharsets.UTF_8);
+                PrintStream capturedErr = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+            System.setOut(capturedOut);
+            System.setErr(capturedErr);
+            assertEquals(0, PreflightCli.run(new String[] {
+                    "prepare",
+                    "--plan",
+                    "--json",
+                    "--game", install.toString(),
+                    "--cache-dir", cache.toString(),
+                    "--workers", "2",
+                    "--texture-storage", "balanced"
+            }));
+        } finally {
+            System.setOut(originalOut);
+            System.setErr(originalErr);
+        }
+
+        String json = stdout.toString(StandardCharsets.UTF_8);
+        assertTrue(json.startsWith("{\"format\":\"preflight-preparation-storage-plan-v1\""), json);
+        assertTrue(json.contains("\"predictedAdditionalBytes\":"), json);
+        assertTrue(json.contains("\"upperBoundAdditionalBytes\":"), json);
+        assertTrue(json.contains("\"safeToPrepare\":true"), json);
+        assertFalse(Files.exists(cache));
+        assertTrue(stderr.toString(StandardCharsets.UTF_8).contains("prepare: storage-plan completed"));
     }
 
     @Test

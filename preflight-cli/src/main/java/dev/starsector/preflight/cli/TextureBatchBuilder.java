@@ -282,7 +282,7 @@ final class TextureBatchBuilder {
         return path;
     }
 
-    private static List<Candidate> collectCandidates(ResourceIndex index) {
+    static List<Candidate> collectCandidates(ResourceIndex index) {
         List<Candidate> candidates = new ArrayList<>();
         for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {
             if (!IMAGE_EXTENSIONS.contains(extension(entry.getKey()))) {
@@ -299,7 +299,7 @@ final class TextureBatchBuilder {
         return List.copyOf(candidates);
     }
 
-    private static List<HashedCandidate> hashCandidates(
+    static List<HashedCandidate> hashCandidates(
             List<Candidate> candidates,
             List<String> diagnostics,
             ExecutorService executor,
@@ -527,7 +527,7 @@ final class TextureBatchBuilder {
         };
     }
 
-    private static PreparedTextureIO.StorageCodec selectedStorageCodec(
+    static PreparedTextureIO.StorageCodec selectedStorageCodec(
             Path cacheRoot,
             BlobKey key,
             PreparedTextureIO.StorageCodec requested,
@@ -577,7 +577,7 @@ final class TextureBatchBuilder {
         return new SelectedBlob(rawRelative, Files.size(raw), false, quarantined);
     }
 
-    private static double compressionRatio(long rawBytes, long compressedBytes) {
+    static double compressionRatio(long rawBytes, long compressedBytes) {
         return compressedBytes <= 0 ? Double.POSITIVE_INFINITY : rawBytes / (double) compressedBytes;
     }
 
@@ -591,7 +591,7 @@ final class TextureBatchBuilder {
                 texture.pixelBytes());
     }
 
-    private static Dimensions probe(Path source) throws IOException {
+    static Dimensions probe(Path source) throws IOException {
         try (ImageInputStream input = ImageIO.createImageInputStream(source.toFile())) {
             if (input == null) {
                 throw new IOException("ImageIO could not open the source");
@@ -613,7 +613,16 @@ final class TextureBatchBuilder {
                 if (width <= 0 || height <= 0) {
                     throw new IOException("Image dimensions are invalid");
                 }
-                return new Dimensions(width, height);
+                var type = reader.getRawImageType(0);
+                if (type == null) {
+                    var types = reader.getImageTypes(0);
+                    type = types.hasNext() ? types.next() : null;
+                }
+                if (type == null) {
+                    throw new IOException("Image reader did not expose a color model");
+                }
+                int channels = type.getColorModel().hasAlpha() ? 4 : 3;
+                return new Dimensions(width, height, channels);
             } finally {
                 reader.dispose();
             }
@@ -682,7 +691,7 @@ final class TextureBatchBuilder {
         return value * multiplier;
     }
 
-    private static String blobRelativePath(BlobKey key, PreparedTextureIO.StorageCodec storageCodec) {
+    static String blobRelativePath(BlobKey key, PreparedTextureIO.StorageCodec storageCodec) {
         String suffix = key.transformation().name().toLowerCase(Locale.ROOT).replace('_', '-');
         String codecSuffix = storageCodec == PreparedTextureIO.StorageCodec.RAW
                 ? ""
@@ -797,10 +806,10 @@ final class TextureBatchBuilder {
         String hash(Path source) throws IOException;
     }
 
-    private record Candidate(String logicalPath, Path source, String rootId, long sourceBytes) {
+    record Candidate(String logicalPath, Path source, String rootId, long sourceBytes) {
     }
 
-    private record HashedCandidate(
+    record HashedCandidate(
             String logicalPath,
             Path source,
             String rootId,
@@ -818,10 +827,10 @@ final class TextureBatchBuilder {
         }
     }
 
-    private record BlobKey(String sourceSha256, PreparedTexture.Transformation transformation) {
+    record BlobKey(String sourceSha256, PreparedTexture.Transformation transformation) {
     }
 
-    private record Dimensions(int width, int height) {
+    record Dimensions(int width, int height, int channels) {
     }
 
     private record TextureMetadata(
@@ -866,7 +875,7 @@ final class TextureBatchBuilder {
         }
     }
 
-    private static final class UnsupportedImageException extends IOException {
+    static final class UnsupportedImageException extends IOException {
         UnsupportedImageException(String message) {
             super(message);
         }
