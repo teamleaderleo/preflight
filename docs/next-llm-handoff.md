@@ -1119,6 +1119,16 @@ direct-launch correctness gate then served 13,160 compressed ranges through the 
 health, and normal exit. Concurrent desktop use makes it deliberately non-timing evidence. See
 `docs/evidence/2026-08-06-prepared-texture-single-read.md`.
 
+The native wrapper's nine independent cache-profile selections now run on an adaptive pool capped
+at four workers, using the existing shared/memoised identity context. Every selector retains its
+own vanilla fallback, all futures join before the game process can start, and shutdown cannot close
+the context while a cancelled selector still uses it. Ten alternating fresh-JVM dry-run pairs moved
+the complete wrapper path from 1.315s to 1.185s median (-130ms, -9.9%) with identical dependency
+hashes and cache hits. This is bounded wrapper evidence, not a whole-startup claim; the user's
+browser-contended game launch remains correctness-only. The serial kill switch is
+`-Dpreflight.launch.parallelProfileSelection=false`. See
+`docs/evidence/2026-08-06-launch-profile-parallel-selection.md`.
+
 The narrow Tauri host from the old unmerged #228 branch has now been recovered against the current
 engine. React tests/build, Rust tests, the minimal `jlink` engine bundle, its live snapshot request,
 and an optimized native build all pass. The host resolves only the bundled JAR/runtime,
@@ -1126,6 +1136,11 @@ bounds child stderr, launches `run --fast`, and exposes narrow installation, cac
 named-profile commands rather than arbitrary shell access. Native bundling and the three-platform
 CI matrix are restored with regenerated vector-derived icons; the packages remain explicitly
 unsigned beta artifacts until Windows signing and Apple signing/notarization credentials exist. The
+desktop UI now uses the bundled variable Orbitron face throughout, with the exact OFL text included
+in every native package; it has no font-network dependency. macOS DMG and Windows NSIS packaging are
+green. Linux Debian packaging is green; AppImage's `linuxdeploy` scan additionally needs the bundled
+JRE's private `runtime/lib/server` dependency path while resolving `libjvm.so`, and the final CI gate
+is in flight. The
 installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
 `see`, click, key, wait, and screenshot scenarios, but Screen Recording, Accessibility, and event
 synthesis permissions are not yet granted. Use it as a development driver; keep adapter telemetry
@@ -1177,12 +1192,13 @@ and atomic/staged replacement path. Matching content-addressed caches are reused
 switching does not pretend every profile is already prepared. Browser tests cover the active state
 and preview-before-apply contract.
 
-Next implementation order: restore signed cross-platform native packaging and wire the Peekaboo
-development driver once permissions are granted; then map the preparation dependency graph before
-attempting more deferral or dependency-aware cold-path
-parallelism. Any startup parallel executor needs an explicit main-thread GL queue, join barrier,
-memory budget, adaptive worker count, and vanilla fallback. Do not copy Fast Rendering's
-exception-driven epilogue replacement.
+Next implementation order: finish the Linux AppImage gate, then wire the Peekaboo development
+driver once permissions are granted. Map the in-game preparation dependency graph before attempting
+broader cold-path parallelism. The accepted native profile selector is intentionally narrower: no
+game or GL work exists yet, it has an adaptive four-worker cap, an explicit join barrier, per-cache
+vanilla fallback, and a serial kill switch. Any game-process parallel executor still needs an
+explicit main-thread GL queue, memory budget, and equivalent fallback boundaries. Do not copy Fast
+Rendering's exception-driven epilogue replacement.
 
 ## Environment notes that cost time to rediscover
 

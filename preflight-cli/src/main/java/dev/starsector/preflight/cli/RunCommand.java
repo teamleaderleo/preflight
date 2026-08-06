@@ -18,9 +18,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 final class RunCommand {
+    private static final String PARALLEL_PROFILE_SELECTION_PROPERTY =
+            "preflight.launch.parallelProfileSelection";
     private static final DateTimeFormatter RUN_ID = DateTimeFormatter.ofPattern("uuuuMMdd-HHmmss-SSS")
             .withZone(ZoneOffset.UTC);
 
@@ -747,35 +755,166 @@ final class RunCommand {
                     ? textures.cacheDirectory()
                     : PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize();
             try (ProfileIdentityContext context =
-                         ProfileIdentityContext.of(target.installRoot(), resources)) {
-            System.out.printf(Locale.ROOT,
-                    "Preflight read the launch profile in %.1fms (%d providers).%n",
-                    (System.nanoTime() - opened) / 1_000_000.0,
-                    context.resources().providerCount());
-            return new SpecStoreCacheContexts(
-                    textureProfiles ? variantJsonCacheContext(context, textures) : null,
-                    textureProfiles ? weaponJsonCacheContext(context, textures) : null,
-                    textureProfiles ? projectileJsonCacheContext(context, textures) : null,
-                    textureProfiles ? hullJsonCacheContext(context, textures) : null,
-                    textureProfiles ? rulesCsvCacheContext(context, textures) : null,
-                    textureProfiles && options.ruleCommandClassCache()
-                            ? ruleCommandCacheContext(context, textures)
-                            : null,
-                    textureProfiles ? mergedReadCacheContext(context, textures) : null,
-                    janinoCacheOwned
-                            ? janinoBytecodeCacheContext(context, target, cacheRoot)
-                            : null,
-                    options.preparedAudio()
-                            ? preparedAudioCacheContext(
-                                    context,
-                                    PrepareCommand.defaultCacheDirectory()
-                                            .toAbsolutePath().normalize())
-                            : null);
+                    ProfileIdentityContext.of(target.installRoot(), resources)) {
+                System.out.printf(Locale.ROOT,
+                        "Preflight read the launch profile in %.1fms (%d providers).%n",
+                        (System.nanoTime() - opened) / 1_000_000.0,
+                        context.resources().providerCount());
+                return selectLaunchProfileContexts(
+                        options, target, textures, context, cacheRoot, textureProfiles, janinoCacheOwned);
             }
         } catch (Exception error) {
             System.err.println("Preflight launch profile identity failed: " + message(error)
                     + "; vanilla loading remains active.");
             return SpecStoreCacheContexts.none();
+        }
+    }
+
+    private static SpecStoreCacheContexts selectLaunchProfileContexts(
+            CommandLine options,
+            LaunchTarget target,
+            TextureLaunchContext textures,
+            ProfileIdentityContext context,
+            Path cacheRoot,
+            boolean textureProfiles,
+            boolean janinoCacheOwned) {
+        if (!parallelProfileSelectionEnabled() || profileSelectionWorkers() == 1) {
+            return selectLaunchProfileContextsSerial(
+                    options, target, textures, context, cacheRoot, textureProfiles, janinoCacheOwned);
+        }
+
+        int workers = profileSelectionWorkers();
+        AtomicInteger threadNumber = new AtomicInteger();
+        ExecutorService executor = Executors.newFixedThreadPool(workers, operation -> {
+            Thread thread = new Thread(
+                    operation,
+                    "preflight-launch-profile-" + threadNumber.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        });
+        long started = System.nanoTime();
+        try {
+            Future<VariantJsonCacheContext> variant = profileTask(
+                    executor, textureProfiles, () -> variantJsonCacheContext(context, textures));
+            Future<WeaponJsonCacheContext> weapon = profileTask(
+                    executor, textureProfiles, () -> weaponJsonCacheContext(context, textures));
+            Future<ProjectileJsonCacheContext> projectile = profileTask(
+                    executor, textureProfiles, () -> projectileJsonCacheContext(context, textures));
+            Future<HullJsonCacheContext> hull = profileTask(
+                    executor, textureProfiles, () -> hullJsonCacheContext(context, textures));
+            Future<RulesCsvCacheContext> rules = profileTask(
+                    executor, textureProfiles, () -> rulesCsvCacheContext(context, textures));
+            Future<RuleCommandCacheContext> commands = profileTask(
+                    executor,
+                    textureProfiles && options.ruleCommandClassCache(),
+                    () -> ruleCommandCacheContext(context, textures));
+            Future<MergedReadCacheContext> merged = profileTask(
+                    executor, textureProfiles, () -> mergedReadCacheContext(context, textures));
+            Future<JaninoBytecodeCacheContext> janino = profileTask(
+                    executor,
+                    janinoCacheOwned,
+                    () -> janinoBytecodeCacheContext(context, target, cacheRoot));
+            Future<PreparedAudioCacheContext> audio = profileTask(
+                    executor,
+                    options.preparedAudio(),
+                    () -> preparedAudioCacheContext(
+                            context,
+                            PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize()));
+
+            SpecStoreCacheContexts selected = new SpecStoreCacheContexts(
+                    profileResult("variant JSON", variant),
+                    profileResult("weapon JSON", weapon),
+                    profileResult("projectile JSON", projectile),
+                    profileResult("hull JSON", hull),
+                    profileResult("rules CSV", rules),
+                    profileResult("rule command class", commands),
+                    profileResult("merged read", merged),
+                    profileResult("Janino bytecode", janino),
+                    profileResult("prepared audio", audio));
+            System.out.printf(Locale.ROOT,
+                    "Preflight selected launch cache profiles concurrently in %.1fms "
+                            + "(%d bounded workers; join completed before game start).%n",
+                    (System.nanoTime() - started) / 1_000_000.0,
+                    workers);
+            return selected;
+        } finally {
+            stopProfileSelection(executor);
+        }
+    }
+
+    private static SpecStoreCacheContexts selectLaunchProfileContextsSerial(
+            CommandLine options,
+            LaunchTarget target,
+            TextureLaunchContext textures,
+            ProfileIdentityContext context,
+            Path cacheRoot,
+            boolean textureProfiles,
+            boolean janinoCacheOwned) {
+        return new SpecStoreCacheContexts(
+                textureProfiles ? variantJsonCacheContext(context, textures) : null,
+                textureProfiles ? weaponJsonCacheContext(context, textures) : null,
+                textureProfiles ? projectileJsonCacheContext(context, textures) : null,
+                textureProfiles ? hullJsonCacheContext(context, textures) : null,
+                textureProfiles ? rulesCsvCacheContext(context, textures) : null,
+                textureProfiles && options.ruleCommandClassCache()
+                        ? ruleCommandCacheContext(context, textures)
+                        : null,
+                textureProfiles ? mergedReadCacheContext(context, textures) : null,
+                janinoCacheOwned ? janinoBytecodeCacheContext(context, target, cacheRoot) : null,
+                options.preparedAudio()
+                        ? preparedAudioCacheContext(
+                                context,
+                                PrepareCommand.defaultCacheDirectory().toAbsolutePath().normalize())
+                        : null);
+    }
+
+    private static boolean parallelProfileSelectionEnabled() {
+        return Boolean.parseBoolean(System.getProperty(PARALLEL_PROFILE_SELECTION_PROPERTY, "true"));
+    }
+
+    private static int profileSelectionWorkers() {
+        return Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()));
+    }
+
+    private static <T> Future<T> profileTask(
+            ExecutorService executor, boolean enabled, Supplier<T> operation) {
+        return enabled
+                ? executor.submit(operation::get)
+                : CompletableFuture.completedFuture(null);
+    }
+
+    private static <T> T profileResult(String label, Future<T> result) {
+        try {
+            return result.get();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            System.err.println("Preflight " + label
+                    + " cache selection was interrupted; vanilla loading remains active.");
+            return null;
+        } catch (ExecutionException failed) {
+            Throwable cause = failed.getCause();
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            System.err.println("Preflight " + label + " cache selection failed: " + message(cause)
+                    + "; vanilla loading remains active.");
+            return null;
+        }
+    }
+
+    /** Do not close the shared identity context while a cancelled selector can still use it. */
+    private static void stopProfileSelection(ExecutorService executor) {
+        executor.shutdownNow();
+        boolean interrupted = false;
+        while (!executor.isTerminated()) {
+            try {
+                executor.awaitTermination(1, TimeUnit.DAYS);
+            } catch (InterruptedException ignored) {
+                interrupted = true;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 
