@@ -1,13 +1,16 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.Json;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /** Reports what Preflight is storing and which prepared profile the current install matches. */
@@ -21,10 +24,12 @@ final class CacheCommand {
     static int execute(String[] args, int from) throws Exception {
         boolean prune = false;
         boolean confirmed = false;
+        boolean json = false;
         for (int index = from; index < args.length; index++) {
             switch (args[index]) {
                 case "prune" -> prune = true;
                 case "--yes" -> confirmed = true;
+                case "--json" -> json = true;
                 case "--help", "-h" -> {
                     PreflightCli.commandUsage("cache", System.out);
                     return 0;
@@ -37,7 +42,19 @@ final class CacheCommand {
         }
         PreflightHome home = PreflightHome.current();
         if (prune) {
+            if (json) {
+                System.err.println("preflight cache: --json currently reports storage;"
+                        + " it does not apply to prune");
+                return 2;
+            }
             return prune(home, confirmed, System.out);
+        }
+        if (confirmed) {
+            System.err.println("preflight cache: --yes requires prune");
+            return 2;
+        }
+        if (json) {
+            return reportJson(home, currentFingerprint(), System.out);
         }
         return report(home, currentFingerprint(), System.out);
     }
@@ -224,6 +241,54 @@ final class CacheCommand {
         out.println("produces is under the root above, plus the launcher integration listed");
         out.println("here, so `preflight uninstall` removes all of it and nothing needs");
         out.println("restoring. Deleting the cache costs one slower launch, not correctness.");
+        return 0;
+    }
+
+    /** Stable machine-readable storage/profile snapshot for the desktop host and other tools. */
+    static int reportJson(PreflightHome home, String currentFingerprint, PrintStream out)
+            throws Exception {
+        CacheFootprint.Report footprint = CacheFootprint.measure(home);
+        List<Map<String, Object>> categories = footprint.entries().stream().map(entry -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("path", entry.path());
+            value.put("description", entry.description());
+            value.put("bytes", entry.usage().bytes());
+            value.put("files", entry.usage().files());
+            return value;
+        }).toList();
+        List<Map<String, Object>> profiles = footprint.profiles().stream().map(profile -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("fingerprint", profile.fingerprint());
+            value.put("current", profile.fingerprint().equals(currentFingerprint));
+            value.put("bytes", profile.bytes());
+            value.put("indexBytes", profile.indexBytes());
+            value.put("manifestBytes", profile.manifestBytes());
+            value.put("lastModifiedMillis", profile.lastModifiedMillis());
+            return value;
+        }).toList();
+        List<Map<String, Object>> integrations = home.integrations().stream().map(integration -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("id", integration.id().name());
+            value.put("label", integration.label());
+            value.put("path", integration.path());
+            value.put("present", integration.present());
+            return value;
+        }).toList();
+
+        Map<String, Object> total = new LinkedHashMap<>();
+        total.put("bytes", footprint.whole().bytes());
+        total.put("files", footprint.whole().files());
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("format", "starsector-preflight-cache-v1");
+        report.put("root", footprint.root());
+        report.put("present", footprint.present());
+        report.put("total", total);
+        report.put("categories", categories);
+        report.put("uncategorizedBytes", footprint.uncategorizedBytes());
+        report.put("currentProfileFingerprint", currentFingerprint);
+        report.put("profiles", profiles);
+        report.put("integrations", integrations);
+        out.println(Json.object(report));
         return 0;
     }
 

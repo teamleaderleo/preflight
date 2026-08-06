@@ -112,6 +112,41 @@ class ResilienceTest(unittest.TestCase):
         self.assertIn('if completed "$condition" "$round"; then', SCRIPT_TEXT)
         self.assertIn('.status == "accepted"', SCRIPT_TEXT)
 
+    def test_resume_restores_the_measurement_contract(self):
+        for field in (
+            "RECORDED_CONDITIONS",
+            "RECORDED_UNATTENDED",
+            "RECORDED_COOLDOWN",
+            "RECORDED_GAME",
+            "RECORDED_CACHE",
+            "RECORDED_SEED",
+            "RECORDED_PROTOCOL",
+        ):
+            self.assertIn(field, SCRIPT_TEXT)
+        self.assertIn('CONDITIONS="$RECORDED_CONDITIONS"', SCRIPT_TEXT)
+        self.assertIn('UNATTENDED="$RECORDED_UNATTENDED"', SCRIPT_TEXT)
+        self.assertIn('SEED="$RECORDED_SEED"', SCRIPT_TEXT)
+
+    def test_resume_never_overwrites_immutable_launch_settings(self):
+        settings = re.search(
+            r'LAUNCH_SETTINGS="\$ROOT/launch-settings.json"(?P<body>.*?)\n\nPROTOCOL=clicked',
+            SCRIPT_TEXT, re.DOTALL,
+        )
+        self.assertIsNotNone(settings, "launch-settings contract not found")
+        body = settings.group("body")
+        self.assertIn('if [[ -n "$SESSION" ]]', body)
+        self.assertIn('[[ -f "$LAUNCH_SETTINGS" ]]', body)
+        self.assertIn('else\n    java -jar "$JAR" launch-settings > "$LAUNCH_SETTINGS"', body)
+
+    def test_legacy_resume_fails_instead_of_guessing(self):
+        self.assertIn("This session predates the resumable session contract", SCRIPT_TEXT)
+        self.assertIn("Refusing to guess its protocol, conditions, display settings", SCRIPT_TEXT)
+
+    def test_resume_rejects_code_and_environment_drift(self):
+        self.assertIn('.repositoryHead == $head and .preflightJarSha256 == $jar', SCRIPT_TEXT)
+        self.assertIn('and .hardware == $hardware and .os == $os and .java == $java', SCRIPT_TEXT)
+        self.assertIn("Refusing to combine unlike launches", SCRIPT_TEXT)
+
 
 class ReportTest(unittest.TestCase):
     def test_medians_and_delta_are_measured_against_vanilla(self):

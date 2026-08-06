@@ -6,6 +6,12 @@
 # run -- one launch that drifts or crashes is excluded and the campaign continues.
 set -euo pipefail
 
+GAME_WAS_SET=false
+[[ -n "${GAME+x}" ]] && GAME_WAS_SET=true
+CACHE_WAS_SET=false
+[[ -n "${CACHE+x}" ]] && CACHE_WAS_SET=true
+SEED_WAS_SET=false
+[[ -n "${SEED+x}" ]] && SEED_WAS_SET=true
 GAME="${GAME:-/Applications/Starsector.app}"
 CACHE="${CACHE:-$HOME/.starsector-preflight/cache}"
 ROUNDS=5
@@ -16,6 +22,11 @@ COOLDOWN_SECONDS=0
 SESSION=""
 SKIP_WARMUP=false
 SEED="${SEED:-$RANDOM}"
+CONDITIONS_WERE_SET=false
+UNATTENDED_WAS_SET=false
+COOLDOWN_WAS_SET=false
+GAME_OPTION_WAS_SET=false
+ROOT=""
 
 JAR="$PWD/preflight-cli/target/preflight.jar"
 DETECTOR="$PWD/scripts/starsector_log_ready_detector.py"
@@ -50,7 +61,9 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       which is ten times the effect it was trying to measure. 240 is a
                       reasonable starting point.
   --reprepare         Rebuild the caches even when they already match this profile.
-  --resume DIR        Continue an interrupted session, keeping its completed runs.
+  --resume DIR        Continue an interrupted session, keeping its completed runs and restoring
+                      its conditions, protocol, display/sound settings, cooldown, cache, and seed.
+                      Conflicting explicit arguments or code/environment drift are rejected.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
   --game PATH         Starsector installation (default /Applications/Starsector.app).
   -h, --help          Show this message.
@@ -110,9 +123,9 @@ note()   { printf '%s%s%s\n' "$DIM" "$*" "$RESET"; }
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --rounds) ROUNDS="$2"; shift 2 ;;
-        --conditions) CONDITIONS="$2"; shift 2 ;;
-        --unattended) UNATTENDED=true; shift ;;
-        --cooldown-seconds) COOLDOWN_SECONDS="$2"; shift 2 ;;
+        --conditions) CONDITIONS="$2"; CONDITIONS_WERE_SET=true; shift 2 ;;
+        --unattended) UNATTENDED=true; UNATTENDED_WAS_SET=true; shift ;;
+        --cooldown-seconds) COOLDOWN_SECONDS="$2"; COOLDOWN_WAS_SET=true; shift 2 ;;
         --reprepare) REPREPARE=true; shift ;;
         # Removed rather than aliased. --auto-play searched the launcher for a Swing button to
         # press, and current Starsector draws its launcher in OpenGL, so there was never a button
@@ -124,7 +137,7 @@ while [[ $# -gt 0 ]]; do
             exit 2 ;;
         --resume) SESSION="$2"; shift 2 ;;
         --skip-warmup) SKIP_WARMUP=true; shift ;;
-        --game) GAME="$2"; shift 2 ;;
+        --game) GAME="$2"; GAME_OPTION_WAS_SET=true; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -134,10 +147,75 @@ if [[ ! "$ROUNDS" =~ ^[0-9]+$ ]] || (( ROUNDS < 1 )); then
     echo "--rounds must be a positive integer." >&2
     exit 2
 fi
+if [[ ! "$COOLDOWN_SECONDS" =~ ^[0-9]+$ ]]; then
+    echo "--cooldown-seconds must be a non-negative integer." >&2
+    exit 2
+fi
+if [[ ! "$SEED" =~ ^[0-9]+$ ]]; then
+    echo "SEED must be a non-negative integer." >&2
+    exit 2
+fi
 
 for command in git java mvn jq python3 shasum; do
     command -v "$command" >/dev/null 2>&1 || { bad "Missing required command: $command"; exit 1; }
 done
+
+# A benchmark session is a measurement contract, not merely a directory of partial results.
+# Resuming must restore every input that can change what is launched or how samples are ordered.
+# Explicit conflicting arguments are rejected rather than silently mixing unlike runs.
+if [[ -n "$SESSION" ]]; then
+    ROOT="$SESSION"
+    [[ -d "$ROOT" ]] || { bad "Session directory not found: $ROOT"; exit 1; }
+    SESSION_CONFIG="$ROOT/session-config.json"
+    if [[ ! -f "$SESSION_CONFIG" ]]; then
+        bad "This session predates the resumable session contract: $SESSION_CONFIG"
+        bad "Refusing to guess its protocol, conditions, display settings, or shuffle seed."
+        note "Start a new session; the existing results remain available for reporting."
+        exit 2
+    fi
+
+    RECORDED_CONDITIONS="$(jq -er '.conditions' "$SESSION_CONFIG")"
+    RECORDED_UNATTENDED="$(jq -er '.unattended' "$SESSION_CONFIG")"
+    RECORDED_COOLDOWN="$(jq -er '.cooldownSeconds' "$SESSION_CONFIG")"
+    RECORDED_GAME="$(jq -er '.game' "$SESSION_CONFIG")"
+    RECORDED_CACHE="$(jq -er '.cache' "$SESSION_CONFIG")"
+    RECORDED_SEED="$(jq -er '.seed' "$SESSION_CONFIG")"
+    RECORDED_PROTOCOL="$(jq -er '.protocol' "$SESSION_CONFIG")"
+
+    if [[ "$CONDITIONS_WERE_SET" == true && "$CONDITIONS" != "$RECORDED_CONDITIONS" ]]; then
+        bad "--conditions conflicts with this session: $CONDITIONS != $RECORDED_CONDITIONS"
+        exit 2
+    fi
+    if [[ "$UNATTENDED_WAS_SET" == true && "$RECORDED_UNATTENDED" != true ]]; then
+        bad "--unattended conflicts with this clicked-protocol session."
+        exit 2
+    fi
+    if [[ "$COOLDOWN_WAS_SET" == true && "$COOLDOWN_SECONDS" != "$RECORDED_COOLDOWN" ]]; then
+        bad "--cooldown-seconds conflicts with this session: $COOLDOWN_SECONDS != $RECORDED_COOLDOWN"
+        exit 2
+    fi
+    if [[ ( "$GAME_OPTION_WAS_SET" == true || "$GAME_WAS_SET" == true )
+            && "$GAME" != "$RECORDED_GAME" ]]; then
+        bad "The requested game conflicts with this session: $GAME != $RECORDED_GAME"
+        exit 2
+    fi
+    if [[ "$CACHE_WAS_SET" == true && "$CACHE" != "$RECORDED_CACHE" ]]; then
+        bad "CACHE conflicts with this session: $CACHE != $RECORDED_CACHE"
+        exit 2
+    fi
+    if [[ "$SEED_WAS_SET" == true && "$SEED" != "$RECORDED_SEED" ]]; then
+        bad "SEED conflicts with this session: $SEED != $RECORDED_SEED"
+        exit 2
+    fi
+
+    CONDITIONS="$RECORDED_CONDITIONS"
+    UNATTENDED="$RECORDED_UNATTENDED"
+    COOLDOWN_SECONDS="$RECORDED_COOLDOWN"
+    GAME="$RECORDED_GAME"
+    CACHE="$RECORDED_CACHE"
+    SEED="$RECORDED_SEED"
+fi
+
 [[ -f pom.xml ]] || { bad "Run this from the starsector-preflight repository root."; exit 1; }
 [[ -d "$GAME" ]] || { bad "Starsector installation not found: $GAME"; exit 1; }
 for helper in "$DETECTOR" "$REPORTER"; do
@@ -155,9 +233,7 @@ done
 LOG_DIR="$GAME/logs"
 [[ -d "$LOG_DIR" ]] || { bad "Starsector log directory not found: $LOG_DIR"; exit 1; }
 
-if [[ -n "$SESSION" ]]; then
-    ROOT="$SESSION"
-    [[ -d "$ROOT" ]] || { bad "Session directory not found: $ROOT"; exit 1; }
+if [[ -n "$ROOT" ]]; then
     banner "Resuming session $ROOT"
 else
     ROOT="$HOME/.starsector-preflight/benchmarks/$(date +%Y%m%d-%H%M%S)"
@@ -183,10 +259,18 @@ note "launcher:        $LAUNCHER"
 # all. They do not measure the same thing -- the launcher's OpenGL context, font loading and
 # window creation exist in one and not the other -- so mixing them in a single comparison would
 # be reading two quantities as one.
+LAUNCH_SETTINGS="$ROOT/launch-settings.json"
+if [[ -n "$SESSION" ]]; then
+    [[ -f "$LAUNCH_SETTINGS" ]] || {
+        bad "The session has no immutable launch-settings snapshot: $LAUNCH_SETTINGS"
+        exit 2
+    }
+else
+    java -jar "$JAR" launch-settings > "$LAUNCH_SETTINGS"
+fi
+
 PROTOCOL=clicked
 if [[ "$UNATTENDED" == true ]]; then
-    LAUNCH_SETTINGS="$ROOT/launch-settings.json"
-    java -jar "$JAR" launch-settings > "$LAUNCH_SETTINGS"
     if [[ "$(jq -r '.directLaunchAvailable' "$LAUNCH_SETTINGS")" != true ]]; then
         # Failing here rather than falling back: someone who asked for an unattended campaign
         # should learn it cannot be one now, not forty minutes in at the first unanswered prompt.
@@ -203,9 +287,46 @@ if [[ "$UNATTENDED" == true ]]; then
     good "Unattended: the game will start itself at $(jq -r '.settings.resolution' "$LAUNCH_SETTINGS")," \
          "fullscreen=$(jq -r '.settings.fullscreen' "$LAUNCH_SETTINGS")," \
          "sound=$(jq -r '.settings.sound' "$LAUNCH_SETTINGS")."
-    note "Those are the launcher's own saved settings, so this is the launch you would have clicked."
+    if [[ -n "$SESSION" ]]; then
+        note "Those are this session's immutable saved settings, not today's launcher defaults."
+    else
+        note "Those are the launcher's own saved settings, so this is the launch you would have clicked."
+    fi
+elif [[ -n "$SESSION" ]]; then
+    # A clicked launch cannot be forced to use old options. Refuse if its external launcher
+    # settings changed, because continuing would silently mix resolutions or display modes.
+    CURRENT_LAUNCH_SETTINGS="$(mktemp)"
+    java -jar "$JAR" launch-settings > "$CURRENT_LAUNCH_SETTINGS"
+    if [[ "$(jq -S -c '.settings' "$CURRENT_LAUNCH_SETTINGS")" \
+            != "$(jq -S -c '.settings' "$LAUNCH_SETTINGS")" ]]; then
+        rm -f "$CURRENT_LAUNCH_SETTINGS"
+        bad "The launcher's display/sound settings changed since this clicked session began."
+        bad "Refusing to mix them into one benchmark. Start a new session or restore the settings."
+        exit 2
+    fi
+    rm -f "$CURRENT_LAUNCH_SETTINGS"
 fi
 note "protocol:        $PROTOCOL"
+
+if [[ -n "$SESSION" ]]; then
+    if [[ "$PROTOCOL" != "$RECORDED_PROTOCOL" ]]; then
+        bad "Protocol drift: this invocation resolved $PROTOCOL, session requires $RECORDED_PROTOCOL."
+        exit 2
+    fi
+else
+    jq -n \
+        --arg game "$GAME" \
+        --arg cache "$CACHE" \
+        --arg conditions "$CONDITIONS" \
+        --arg protocol "$PROTOCOL" \
+        --argjson unattended "$UNATTENDED" \
+        --argjson cooldownSeconds "$COOLDOWN_SECONDS" \
+        --argjson seed "$SEED" \
+        --arg scenarioId "$SCENARIO_ID" \
+        '{version: 1, game: $game, cache: $cache, conditions: $conditions,
+          protocol: $protocol, unattended: $unattended, cooldownSeconds: $cooldownSeconds,
+          seed: $seed, scenarioId: $scenarioId}' > "$ROOT/session-config.json"
+fi
 
 scan_fingerprint() {
     local output="$1"
@@ -219,6 +340,14 @@ if [[ ! -f "$BASELINE_PROFILE" ]]; then
     echo "$EXPECTED_FINGERPRINT" > "$ROOT/expected-fingerprint.txt"
 else
     EXPECTED_FINGERPRINT="$(cat "$ROOT/expected-fingerprint.txt")"
+    if [[ -n "$SESSION" ]]; then
+        RESUME_FINGERPRINT="$(scan_fingerprint "$ROOT/profile-resume-check.json")"
+        if [[ "$RESUME_FINGERPRINT" != "$EXPECTED_FINGERPRINT" ]]; then
+            bad "The enabled mod profile changed since this session began."
+            bad "Refusing to combine profile $RESUME_FINGERPRINT with $EXPECTED_FINGERPRINT."
+            exit 2
+        fi
+    fi
 fi
 note "profile:         $EXPECTED_FINGERPRINT"
 
@@ -261,6 +390,34 @@ else
     prepare_caches "No cache on disk matches this profile."
 fi
 
+HARDWARE="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || uname -m)"
+OS_VERSION="$(sw_vers -productVersion 2>/dev/null || uname -sr)"
+JAVA_VERSION="$(java -version 2>&1 | head -1)"
+if [[ -n "$SESSION" ]]; then
+    [[ -f "$ROOT/identity.json" ]] || {
+        bad "The session has no identity record: $ROOT/identity.json"
+        exit 2
+    }
+    if ! jq -e \
+            --arg head "$REPOSITORY_HEAD" \
+            --arg jar "$JAR_SHA" \
+            --arg game "$GAME" \
+            --arg launcher "$LAUNCHER" \
+            --arg profile "$EXPECTED_FINGERPRINT" \
+            --arg scenario "$SCENARIO_ID" \
+            --arg hardware "$HARDWARE" \
+            --arg os "$OS_VERSION" \
+            --arg java "$JAVA_VERSION" \
+            '.repositoryHead == $head and .preflightJarSha256 == $jar
+             and .game == $game and .launcher == $launcher
+             and .profileFingerprint == $profile and .scenarioId == $scenario
+             and .hardware == $hardware and .os == $os and .java == $java' \
+            "$ROOT/identity.json" >/dev/null; then
+        bad "Code, game, profile, machine, OS, or Java identity drifted since this session began."
+        bad "Refusing to combine unlike launches. Start a new benchmark session."
+        exit 2
+    fi
+else
 cat > "$ROOT/identity.json" <<IDENTITY
 {
   "repositoryHead": "$REPOSITORY_HEAD",
@@ -270,12 +427,13 @@ cat > "$ROOT/identity.json" <<IDENTITY
   "profileFingerprint": "$EXPECTED_FINGERPRINT",
   "scenarioId": "$SCENARIO_ID",
   "seed": $SEED,
-  "hardware": $(jq -Rs 'rtrimstr("\n")' <<< "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || uname -m)"),
-  "os": $(jq -Rs 'rtrimstr("\n")' <<< "$(sw_vers -productVersion 2>/dev/null || uname -sr)"),
-  "java": $(jq -Rs 'rtrimstr("\n")' <<< "$(java -version 2>&1 | head -1)"),
+  "hardware": $(jq -Rs 'rtrimstr("\n")' <<< "$HARDWARE"),
+  "os": $(jq -Rs 'rtrimstr("\n")' <<< "$OS_VERSION"),
+  "java": $(jq -Rs 'rtrimstr("\n")' <<< "$JAVA_VERSION"),
   "preparationMillis": ${PREPARE_MS:-0}
 }
 IDENTITY
+fi
 
 RECORDING=true
 

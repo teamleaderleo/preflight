@@ -1049,6 +1049,51 @@ Evidence:
 `docs/evidence/2026-08-05-magiclib-optional-paintjob-json.md`, and
 `docs/evidence/2026-08-05-nexerelin-faction-config-startup.md`.
 
+## Release-control foundation
+
+Benchmark resume is now an immutable measurement contract instead of a directory reuse shortcut.
+New sessions record protocol, conditions, unattended/clicked mode, display and sound settings,
+cooldown, game/cache paths, shuffle seed, scenario, profile fingerprint, repository/JAR identity,
+hardware, OS, and Java. Resume restores those values and rejects explicit conflicts or drift;
+pre-contract sessions refuse safely instead of guessing. This fixes the failure mode that changed an
+unattended fast-only campaign into a clicked four-condition run and also changed launcher rendering
+settings. The shell contract tests and full `mvn verify` pass.
+
+`preflight cache --json` now exposes a stable `starsector-preflight-cache-v1` snapshot for a future
+desktop host: total/category byte and file counts, retained profile identities and recency, the
+current exact profile, and installed launcher integrations. The current machine holds about 20.3
+GiB, but this must not become one GUI slider: roughly 9.3 GiB is benchmark/run evidence while the
+rest is acceleration data. `balanced` remains the preparation default; `fastest` is explicit.
+Named profile activation and evidence-retention controls do not exist yet. Exact-fingerprint caches
+already coexist and are reused automatically when the same enabled-mod set returns, so the missing
+work is an ergonomic, backed-up/atomic controller for Starsector's enabled-mod profile rather than
+a new cache identity system.
+
+The checked-in desktop UI is still an inert exploration: only Home exists and the Tauri host source
+is absent. Build release UI on the versioned CLI snapshots rather than treating that shell as
+functional. The installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
+`see`, click, key, wait, and screenshot scenarios, but Screen Recording, Accessibility, and event
+synthesis permissions are not yet granted. Use it as a development driver; keep adapter telemetry
+and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
+format should remain driver-neutral so Windows and Linux implementations can follow.
+
+Core caches and preparation are platform-independent and synthetic/exact-cache tests already run
+on Windows, macOS, and Linux. Exact adapters fail open on byte/source/loader drift, but obfuscated
+game classes can differ by platform, so a macOS-pinned optimization may simply decline elsewhere.
+That is safe compatibility, not equal speed. Real Windows/Linux activation needs platform evidence
+bundles or beta telemetry because CI cannot contain the licensed game installation. Fast Rendering
+is Unlicense prior art, not a normal library: its global classpath/GL ownership and broad class
+redirects should not be imported wholesale. Port bounded ideas behind Preflight's exact adapter and
+fallback boundary, and add explicit shadow/ownership reporting plus pinned compatibility targets.
+
+Next implementation order: add named profile inventory/activation and separate cache/evidence
+retention commands; make install optionally prepare the exact current profile; define the
+driver-neutral smoke scenario/evidence schema and wire Peekaboo once permissions are granted; then
+capture a fresh current-build profile before attempting more deferral or dependency-aware cold-path
+parallelism. Any startup parallel executor needs an explicit main-thread GL queue, join barrier,
+memory budget, adaptive worker count, and vanilla fallback. Do not copy Fast Rendering's
+exception-driven epilogue replacement.
+
 ## Environment notes that cost time to rediscover
 
 - Launch the game with `--direct`; without it the run stalls on the launcher's Play button and

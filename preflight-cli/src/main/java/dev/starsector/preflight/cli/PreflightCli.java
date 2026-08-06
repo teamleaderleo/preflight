@@ -265,9 +265,9 @@ public final class PreflightCli {
                 "  and every run and benchmark record under it. The Starsector installation",
                 "  is never modified by Preflight, so nothing there needs restoring."));
         usage.put("cache", List.of(
-                "preflight cache",
+                "preflight cache [--json]",
                 "  Reports total storage by category, the prepared profiles held, and which",
-                "  one the current install matches.",
+                "  one the current install matches. --json emits the stable desktop/tooling contract.",
                 "preflight cache prune [--yes]",
                 "  Removes every profile except the current one, including the texture blobs",
                 "  no surviving profile references, stale Janino contexts, and per-request",
