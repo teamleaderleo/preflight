@@ -71,7 +71,7 @@ public final class PreflightCli {
             case "prepare" -> PrepareCommand.execute(args, 1);
             case "doctor" -> RunCommand.doctor(CommandLine.parse(args, 1));
             case "launch-settings" -> LaunchSettingsCommand.execute(args, 1);
-            case "install" -> InstallCommand.execute(CommandLine.parse(args, 1));
+            case "install" -> InstallCommand.execute(args, 1);
             case "uninstall" -> UninstallCommand.execute(args, 1);
             case "cache" -> CacheCommand.execute(args, 1);
             case "evidence" -> EvidenceCommand.execute(args, 1);
@@ -259,7 +259,11 @@ public final class PreflightCli {
                         + " the settings are read from the launcher's own preferences so an unattended"
                         + " launch matches a clicked one. Always exits zero -- unavailable is an"
                         + " answer, with a reason saying what to do about it."));
-        usage.put("install", List.of("preflight install [--game <path>] [--launcher <path>]"));
+        usage.put("install", List.of(
+                "preflight install [--game <path>] [--launcher <path>] [--prepare] [--texture-storage fastest|balanced] [--workers <count>] [--memory-mb <MiB>]",
+                "  --prepare builds the exact current profile after installing the launcher.",
+                "  balanced is the default. Worker and memory controls apply only to preparation;",
+                "  without --prepare they are rejected rather than silently ignored."));
         usage.put("uninstall", List.of(
                 "preflight uninstall [--purge] [--yes]",
                 "  Prints what it would remove and exits; --yes performs the removal.",

@@ -13,7 +13,8 @@ final class InstallCommand {
     private InstallCommand() {
     }
 
-    static int execute(CommandLine options) throws Exception {
+    static int execute(String[] args, int offset) throws Exception {
+        Options options = Options.parse(args, offset);
         Platform platform = Platform.current();
         Path home = Path.of(System.getProperty("user.home"));
         DiscoveryResult discovery = StarsectorDiscovery.discover(
@@ -25,7 +26,7 @@ final class InstallCommand {
                 options.launcher());
         LaunchTarget target = discovery.selected();
         if (target == null) {
-            return RunCommand.doctor(options);
+            return RunCommand.doctor(CommandLine.parse(options.discoveryArguments(), 0));
         }
 
         PreflightHome preflight = PreflightHome.resolve(platform, home, System.getenv());
@@ -40,7 +41,7 @@ final class InstallCommand {
                     StandardCopyOption.COPY_ATTRIBUTES);
         }
 
-        return switch (platform) {
+        int installed = switch (platform) {
             case MAC -> installMac(preflight, installedJar, target.installRoot());
             case LINUX -> installLinux(preflight, installedJar, target.installRoot());
             case WINDOWS -> installWindows(preflight, installedJar, target.installRoot());
@@ -50,6 +51,13 @@ final class InstallCommand {
                 yield 4;
             }
         };
+        if (installed != 0 || !options.prepare()) {
+            return installed;
+        }
+
+        System.out.println("Preparing the exact current profile ("
+                + options.textureStorage().optionValue() + " texture storage)...");
+        return PrepareCommand.execute(options.preparationArguments(target.installRoot()), 0);
     }
 
     private static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
@@ -148,6 +156,106 @@ final class InstallCommand {
             Files.setPosixFilePermissions(file, updated);
         } catch (UnsupportedOperationException ignored) {
             file.toFile().setExecutable(true, false);
+        }
+    }
+
+    record Options(
+            Path game,
+            Path launcher,
+            boolean prepare,
+            TextureStoragePolicy textureStorage,
+            Integer workers,
+            Long memoryMib) {
+        static Options parse(String[] args, int offset) {
+            Path game = null;
+            Path launcher = null;
+            boolean prepare = false;
+            TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
+            boolean textureStorageSpecified = false;
+            Integer workers = null;
+            Long memoryMib = null;
+            for (int i = offset; i < args.length; i++) {
+                switch (args[i]) {
+                    case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
+                    case "--launcher" -> launcher = Path.of(requireValue(args, ++i, "--launcher"));
+                    case "--prepare" -> prepare = true;
+                    case "--texture-storage" -> {
+                        textureStorage = TextureStoragePolicy.parse(
+                                requireValue(args, ++i, "--texture-storage"));
+                        textureStorageSpecified = true;
+                    }
+                    case "--workers" -> workers = parseInt(
+                            requireValue(args, ++i, "--workers"), "worker count");
+                    case "--memory-mb" -> memoryMib = parseLong(
+                            requireValue(args, ++i, "--memory-mb"), "memory budget");
+                    default -> throw new IllegalArgumentException("Unknown install option: " + args[i]);
+                }
+            }
+            if (!prepare && (textureStorageSpecified || workers != null || memoryMib != null)) {
+                throw new IllegalArgumentException(
+                        "--texture-storage, --workers, and --memory-mb require --prepare");
+            }
+            if (workers != null && (workers < 1 || workers > 64)) {
+                throw new IllegalArgumentException("Texture workers must be between 1 and 64");
+            }
+            if (memoryMib != null && (memoryMib < 16 || memoryMib > 65_536)) {
+                throw new IllegalArgumentException(
+                        "Texture memory budget must be between 16 and 65536 MiB");
+            }
+            return new Options(game, launcher, prepare, textureStorage, workers, memoryMib);
+        }
+
+        String[] preparationArguments(Path installRoot) {
+            java.util.List<String> values = new java.util.ArrayList<>();
+            values.add("--game");
+            values.add(installRoot.toString());
+            values.add("--texture-storage");
+            values.add(textureStorage.optionValue());
+            if (workers != null) {
+                values.add("--workers");
+                values.add(Integer.toString(workers));
+            }
+            if (memoryMib != null) {
+                values.add("--memory-mb");
+                values.add(Long.toString(memoryMib));
+            }
+            return values.toArray(String[]::new);
+        }
+
+        String[] discoveryArguments() {
+            java.util.List<String> values = new java.util.ArrayList<>();
+            if (game != null) {
+                values.add("--game");
+                values.add(game.toString());
+            }
+            if (launcher != null) {
+                values.add("--launcher");
+                values.add(launcher.toString());
+            }
+            return values.toArray(String[]::new);
+        }
+
+        private static String requireValue(String[] args, int index, String option) {
+            if (index >= args.length) {
+                throw new IllegalArgumentException("Missing value for " + option);
+            }
+            return args[index];
+        }
+
+        private static int parseInt(String raw, String kind) {
+            try {
+                return Integer.parseInt(raw);
+            } catch (NumberFormatException error) {
+                throw new IllegalArgumentException("Invalid " + kind + ": " + raw, error);
+            }
+        }
+
+        private static long parseLong(String raw, String kind) {
+            try {
+                return Long.parseLong(raw);
+            } catch (NumberFormatException error) {
+                throw new IllegalArgumentException("Invalid " + kind + ": " + raw, error);
+            }
         }
     }
 }

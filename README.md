@@ -8,6 +8,18 @@ Preflight prepares work that Starsector and its mods would otherwise repeat on e
 java -jar preflight.jar install
 ```
 
+Install the launcher and prepare the exact current game/mod profile in one operation. This is the
+recommended first-time setup; `balanced` remains the default space/time policy:
+
+```bash
+java -jar preflight.jar install --prepare
+```
+
+Preparation is content-addressed and safe to repeat. A game or mod update selects new identities;
+unchanged artifacts are hits, interrupted work is resumed from completed blobs, and any missing or
+invalid prepared result falls back to the original game path at launch. Constrained machines can
+bound the preparation work explicitly, for example `--workers 2 --memory-mb 128`.
+
 The install command creates a normal local launcher. For unattended launches, Preflight can also use Starsector's saved display and sound settings directly:
 
 ```bash

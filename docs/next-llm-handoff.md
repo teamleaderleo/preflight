@@ -1134,11 +1134,18 @@ is Unlicense prior art, not a normal library: its global classpath/GL ownership 
 redirects should not be imported wholesale. Port bounded ideas behind Preflight's exact adapter and
 fallback boundary, and add explicit shadow/ownership reporting plus pinned compatibility targets.
 
-Next implementation order: make install optionally prepare the exact current profile; wire the
-Peekaboo development driver once permissions are granted; then map the preparation dependency graph
-before attempting more deferral or dependency-aware cold-path parallelism. Any startup parallel
-executor needs an explicit main-thread GL queue, join barrier, memory budget, adaptive worker count,
-and vanilla fallback. Do not copy Fast Rendering's exception-driven epilogue replacement.
+`install --prepare` now installs the platform launcher and then runs the same exact, idempotent
+preparation pipeline for the current game/mod profile. It keeps `balanced` as the default and
+forwards explicit `--texture-storage`, `--workers`, and `--memory-mb` controls; those controls are
+rejected without `--prepare` so a GUI cannot accidentally present settings that did nothing. A
+preparation failure leaves the launcher installed and returns the preparation failure instead of
+claiming setup succeeded. The focused install/prepare contract tests pass.
+
+Next implementation order: wire the Peekaboo development driver once permissions are granted; then
+map the preparation dependency graph before attempting more deferral or dependency-aware cold-path
+parallelism. Any startup parallel executor needs an explicit main-thread GL queue, join barrier,
+memory budget, adaptive worker count, and vanilla fallback. Do not copy Fast Rendering's
+exception-driven epilogue replacement.
 
 ## Environment notes that cost time to rediscover
 
