@@ -11,12 +11,22 @@ Tagged releases attach:
 - `starsector-preflight.zip` — JAR, checksum, and a quick-start text file
 - `starsector-preflight.tar.gz` — the same files for Unix-like systems
 - `archives.sha256` — checksums for both archives
+- Windows: an NSIS `.exe` desktop installer
+- macOS: a `.dmg` containing the desktop application
+- Linux: `.AppImage` and `.deb` desktop packages
+- a platform-qualified `SHA256SUMS-<platform>-<architecture>.txt` manifest beside each native package
 
-A manually dispatched Distribution workflow produces the same files as a 30-day workflow artifact without creating a release.
+A manually dispatched Distribution workflow produces the same files as 30-day workflow artifacts
+without creating a release. Desktop packages contain their own minimal Java runtime and do not
+require a system JDK. They are currently unsigned beta artifacts, so Windows and macOS may show
+publisher or Gatekeeper warnings until release signing credentials are configured.
 
 ## Requirements
 
-Java 17 or newer is required to run Preflight itself. Starsector and Fast Rendering may continue using their own bundled runtime. Preflight launches the game through its existing launcher and passes the profiler agent through the child environment.
+Java 17 or newer is required only for the standalone JAR. The native desktop package includes its
+own minimal Java runtime. Starsector and Fast Rendering continue using their own bundled runtime.
+Preflight launches the game through its existing launcher and passes the agent through the child
+environment.
 
 Check Java:
 
@@ -78,4 +88,8 @@ git tag -a v0.1.0 -m "Starsector Preflight v0.1.0"
 git push origin v0.1.0
 ```
 
-The Distribution workflow runs the full verification suite, assembles archives, smoke-tests the packaged JAR, uploads workflow artifacts, then creates a GitHub release from the existing tag. A failed verification leaves the tag without a published release.
+The Distribution workflow runs the full verification suite, assembles archives, smoke-tests the
+packaged JAR, then builds the desktop host and its platform-native Java runtime independently on
+Linux, macOS, and Windows. It uploads workflow artifacts and adds successful native packages to the
+GitHub release created from the existing tag. A failed core verification leaves the tag without a
+published release; one failed desktop platform does not cancel the other platform builds.

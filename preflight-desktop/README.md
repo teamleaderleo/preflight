@@ -24,10 +24,17 @@ snapshot and does not launch anything.
 npm run desktop:build
 ```
 
-The checked-in host currently builds with native bundling disabled while the old unmerged packaging
-assets and signing workflow are brought forward deliberately. The engine bundle itself already
-contains `preflight.jar` and a `jlink` runtime, so end users will not need Java, Node, Maven, npm, or
-Rust once platform installers are restored.
+Tauri writes native artifacts below `src-tauri/target/release/bundle/`. The distribution workflow
+builds each target on its native GitHub runner rather than cross-compiling:
+
+- Windows: NSIS `.exe`
+- macOS: `.dmg` containing `Starsector Preflight.app`
+- Linux: `.AppImage` and `.deb`
+
+The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users do not need
+Java, Node, Maven, npm, or Rust. Current packages are unsigned beta artifacts. Do not describe them
+as warning-free installs until Windows signing and Apple signing/notarization credentials are wired
+into CI and verified on a tagged release.
 
 ## Boundaries
 

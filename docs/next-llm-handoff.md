@@ -1121,11 +1121,12 @@ health, and normal exit. Concurrent desktop use makes it deliberately non-timing
 
 The narrow Tauri host from the old unmerged #228 branch has now been recovered against the current
 engine. React tests/build, Rust tests, the minimal `jlink` engine bundle, its live snapshot request,
-and an optimized `tauri build --no-bundle` all pass. The host resolves only the bundled JAR/runtime,
+and an optimized native build all pass. The host resolves only the bundled JAR/runtime,
 bounds child stderr, launches `run --fast`, and exposes narrow installation, cache, preparation, and
-named-profile commands rather than arbitrary shell access. Native bundling remains deliberately
-disabled until current icons, signing/notarization, and cross-platform CI packaging are restored;
-do not describe installers as ready yet. The installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
+named-profile commands rather than arbitrary shell access. Native bundling and the three-platform
+CI matrix are restored with regenerated vector-derived icons; the packages remain explicitly
+unsigned beta artifacts until Windows signing and Apple signing/notarization credentials exist. The
+installed Peekaboo 3.9.7 tool can provide deterministic macOS PID/window-targeted
 `see`, click, key, wait, and screenshot scenarios, but Screen Recording, Accessibility, and event
 synthesis permissions are not yet granted. Use it as a development driver; keep adapter telemetry
 and logs authoritative, with screenshots/audio as supplementary evidence. A shippable scenario
