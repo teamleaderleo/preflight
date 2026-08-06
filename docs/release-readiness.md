@@ -1,6 +1,6 @@
 # Release readiness
 
-**Status:** private development preview; not approved for public distribution
+**Status:** private development preview; Fractal Softworks guidance requested, awaiting response
 **Updated:** 2026-08-07
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
@@ -10,8 +10,8 @@ first public beta.
 ## Blocking before public distribution
 
 - [ ] Receive written Fractal Softworks authorization for distributing the tool and for the
-  runtime-instrumentation/compatibility-analysis approach. Start from the
-  [permission request draft](fractal-permission-request.md).
+  runtime-instrumentation/compatibility-analysis approach. The
+  [permission request](fractal-permission-request.md) was sent on 2026-08-07.
 - [x] Use **Preflight** as the public product, repository, and application name.
 - [ ] Confirm descriptive use of the Starsector name, trademark attribution, and disclaimer with
   Fractal Softworks.
@@ -31,8 +31,9 @@ first public beta.
 
 ## Blocking product work
 
-- [ ] Give the first-run flow a primary action: detect installation, explain required disk space,
-  choose Recommended and Balanced by default, prepare, and launch.
+- [ ] Complete the first-run flow. It now detects the installation, selects Recommended and
+  Balanced by default, prepares a cold exact profile, and launches from one action. A pre-build
+  disk estimate still needs to replace the current several-GB bound.
 - [ ] Show preparation progress, cancellation/recovery, current profile identity, cache use, and the
   expected effect of changing storage policy.
 - [ ] Provide preview-first cleanup and two removal choices: launcher/app only, or all

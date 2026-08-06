@@ -112,6 +112,8 @@ export interface CacheSnapshot {
     fingerprint: string;
     current: boolean;
     bytes: number;
+    indexBytes: number;
+    manifestBytes: number;
     lastModifiedMillis: number;
   }>;
 }

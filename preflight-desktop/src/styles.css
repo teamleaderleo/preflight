@@ -309,6 +309,22 @@ h2 {
   gap: 10px;
 }
 
+.hero__launch-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 610px;
+  margin-top: 16px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.hero__launch-note strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
 .button {
   display: inline-flex;
   align-items: center;

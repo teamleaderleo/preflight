@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -119,6 +119,15 @@ function maximumUiScale(resolution: string): number | null {
   return Math.max(1, Math.floor(Math.min(height / 768, width / 1280) * 20) / 20);
 }
 
+export function isCurrentProfilePrepared(cache: CacheSnapshot | null): boolean {
+  if (!cache?.currentProfileFingerprint) return false;
+  return cache.profiles.some((profile) =>
+    profile.current
+    && profile.fingerprint === cache.currentProfileFingerprint
+    && profile.indexBytes > 0
+    && profile.manifestBytes > 0);
+}
+
 export default function App() {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
@@ -126,7 +135,9 @@ export default function App() {
   const [page, setPage] = useState<Page>("home");
   const [cache, setCache] = useState<CacheSnapshot | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
+  const [cacheInstallRoot, setCacheInstallRoot] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
   const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
@@ -191,13 +202,15 @@ export default function App() {
     } catch (error) {
       setMessage(String(error));
     } finally {
+      setCacheInstallRoot(game);
       setCacheLoading(false);
     }
   }, [snapshot?.selected?.installRoot]);
 
   useEffect(() => {
-    if (page === "prepare") void refreshCache();
-  }, [page, refreshCache]);
+    const game = snapshot?.selected?.installRoot;
+    if (game && cacheInstallRoot !== game && !cacheLoading) void refreshCache();
+  }, [cacheInstallRoot, cacheLoading, refreshCache, snapshot?.selected?.installRoot]);
 
   const refreshProfiles = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
@@ -242,23 +255,6 @@ export default function App() {
     if (page === "launch") void refreshLauncherSettings();
   }, [page, refreshLauncherSettings]);
 
-  useEffect(() => {
-    if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<PreparationStateEvent>("prepare-state", ({ payload }) => {
-      if (payload.state === "finished") {
-        setPreparing(false);
-        setMessage(payload.success
-          ? "Preparation is complete. The current profile is warm and ready."
-          : payload.detail ?? "Preparation stopped before it completed.");
-        void refreshCache();
-      }
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
-  }, [refreshCache]);
-
   const chooseInstall = async () => {
     if (!isDesktopHost()) {
       await refresh("/Applications/Starsector");
@@ -274,7 +270,7 @@ export default function App() {
     }
   };
 
-  const launch = async () => {
+  const launch = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
     setStatus("running");
@@ -286,26 +282,60 @@ export default function App() {
       setStatus("error");
       setMessage(String(error));
     }
-  };
+  }, [optimizationPreset, snapshot?.selected?.installRoot]);
 
-  const prepare = async () => {
+  const prepare = async (launchWhenReady = false) => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
     const resources = resourcePresets[resourcePreset];
+    launchAfterPreparation.current = launchWhenReady;
     setPreparing(true);
-    setMessage("Preparing the exact current profile… You can leave this window open.");
+    setMessage(launchWhenReady
+      ? "Preparing the exact current profile. Starsector will open when it’s ready."
+      : "Preparing the exact current profile… You can leave this window open.");
     try {
       await startPreparation(game, textureStorage, resources.workers, resources.memoryMib);
       if (!isDesktopHost()) {
         setPreparing(false);
         setMessage("Preview preparation complete.");
         await refreshCache();
+        if (launchWhenReady) {
+          launchAfterPreparation.current = false;
+          await launch();
+        }
       }
     } catch (error) {
+      launchAfterPreparation.current = false;
       setPreparing(false);
       setMessage(String(error));
     }
   };
+
+  useEffect(() => {
+    if (!isDesktopHost()) return;
+    let stopListening: (() => void) | undefined;
+    void listen<PreparationStateEvent>("prepare-state", ({ payload }) => {
+      if (payload.state !== "finished") return;
+      const shouldLaunch = launchAfterPreparation.current;
+      launchAfterPreparation.current = false;
+      setPreparing(false);
+      if (!payload.success) {
+        setMessage(payload.detail ?? "Preparation stopped before it completed.");
+        void refreshCache();
+        return;
+      }
+      setMessage(shouldLaunch
+        ? "Preparation is complete. Opening Starsector…"
+        : "Preparation is complete. The current profile is warm and ready.");
+      void (async () => {
+        await refreshCache();
+        if (shouldLaunch) await launch();
+      })();
+    }).then((unlisten) => {
+      stopListening = unlisten;
+    });
+    return () => stopListening?.();
+  }, [launch, refreshCache]);
 
   const saveCurrentProfile = async () => {
     const game = snapshot?.selected?.installRoot;
@@ -402,11 +432,16 @@ export default function App() {
   };
 
   const isReady = Boolean(snapshot?.ready && snapshot.selected);
+  const profilePrepared = isCurrentProfilePrepared(cache);
+  const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
+  const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
+    ?? optimizationPresets[0];
   const title = useMemo(() => {
     if (page === "launch") return "Starsector launch settings";
     if (page === "prepare") return preparing ? "Warming the flight deck…" : "Prepare your profile";
     if (page === "profiles") return "Your saved flight plans";
     if (page === "settings") return "Support and diagnostics";
+    if (preparing) return "Preparing your first launch…";
     if (status === "loading") return "Checking the launch pad…";
     if (status === "running") return "You’re cleared for adventure";
     if (isReady) return "Your launch pad is cozy and ready";
@@ -465,19 +500,21 @@ export default function App() {
           <div className="hero__copy">
             <div className={`status-chip ${isReady ? "status-chip--ready" : ""}`}>
               {isReady ? <CheckIcon /> : <SparklesIcon />}
-              {status === "running" ? "Game running" : isReady ? "All systems comfy" : "A tiny bit of setup"}
+              {status === "running" ? "Game running" : preparing ? "Preparing profile" : isReady ? "All systems comfy" : "A tiny bit of setup"}
             </div>
-            <h2>{isReady ? "Ready when you are." : "Show Preflight where the game lives."}</h2>
+            <h2>{isReady ? needsPreparation ? "Prepare once, then launch faster." : "Ready when you are." : "Show Preflight where the game lives."}</h2>
             <p>
               {isReady
-                ? "Preflight found your installation and can launch it with run notes enabled. Your game files, mods, and saves stay exactly where they are."
+                ? needsPreparation
+                  ? "Preflight found your installation. The first launch can prepare the exact current mod profile, then open the game automatically."
+                  : "Preflight found your installation and can launch it with run notes enabled. Your game files, mods, and saves stay exactly where they are."
                 : "Pick the folder that contains Starsector. Preflight will check it gently and remember the way back."}
             </p>
             <div className="hero__actions">
               {isReady ? (
-                <button className="button button--primary" type="button" onClick={() => void launch()} disabled={status === "running" || status === "loading" || preparing}>
-                  <PlayIcon />
-                  {status === "running" ? "Starsector is running" : "Launch Starsector"}
+                <button className="button button--primary" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading}>
+                  {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
+                  {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
                 </button>
               ) : (
                 <button className="button button--primary" type="button" onClick={() => void chooseInstall()} disabled={status === "loading"}>
@@ -491,6 +528,16 @@ export default function App() {
                 </button>
               )}
             </div>
+            {isReady && (
+              <div className="hero__launch-note">
+                <strong>{selectedOptimization.label} optimizations</strong>
+                <span>{needsPreparation
+                  ? `${textureStorage === "balanced" ? "Balanced storage is selected" : "Fastest storage is selected"}. Large mod profiles can use several GB; the resulting total appears under Prepare.`
+                  : profilePrepared
+                    ? `Current profile prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}`
+                    : "Preparation is disabled for this troubleshooting launch."}</span>
+              </div>
+            )}
           </div>
           <div className="hero__art" aria-hidden="true">
             <div className="orbit orbit--outer" />
@@ -737,7 +784,7 @@ export default function App() {
 
             <section className="card prepare-action">
               <div><strong>{preparing ? "Preparation is running" : "Ready to warm this profile"}</strong><span>{textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · {resourcePresets[resourcePreset].label.toLowerCase()} resource use</span></div>
-              <button className="button button--primary" type="button" onClick={() => void prepare()} disabled={preparing || !isReady}>
+              <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={preparing || !isReady}>
                 <SparklesIcon />{preparing ? "Preparing…" : "Prepare current profile"}
               </button>
             </section>

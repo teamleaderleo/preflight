@@ -1,15 +1,73 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import App from "./App";
+import App, { isCurrentProfilePrepared } from "./App";
+import * as bridge from "./bridge";
+import type { CacheSnapshot } from "./types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
+function cacheSnapshot(overrides: Partial<CacheSnapshot> = {}): CacheSnapshot {
+  return {
+    format: "starsector-preflight-cache-v1",
+    root: "~/.starsector-preflight",
+    present: true,
+    total: { bytes: 1024, files: 3 },
+    groups: [],
+    currentProfileFingerprint: "current-profile",
+    profiles: [{
+      fingerprint: "current-profile",
+      current: true,
+      bytes: 1024,
+      indexBytes: 128,
+      manifestBytes: 256,
+      lastModifiedMillis: Date.now(),
+    }],
+    ...overrides,
+  };
+}
+
+test("requires both the exact current index and texture manifest before calling a profile prepared", () => {
+  expect(isCurrentProfilePrepared(cacheSnapshot())).toBe(true);
+  expect(isCurrentProfilePrepared(cacheSnapshot({
+    profiles: [{
+      ...cacheSnapshot().profiles[0],
+      manifestBytes: 0,
+    }],
+  }))).toBe(false);
+  expect(isCurrentProfilePrepared(cacheSnapshot({ currentProfileFingerprint: "changed-profile" }))).toBe(false);
+  expect(isCurrentProfilePrepared(null)).toBe(false);
+});
+
+test("the default cold-profile action prepares with balanced settings and then launches", async () => {
+  const user = userEvent.setup();
+  const cold = cacheSnapshot({ profiles: [] });
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cold);
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Prepare and launch" }));
+  expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256);
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended"));
+
+  cache.mockRestore();
+  preparation.mockRestore();
+  game.mockRestore();
+});
 
 test("shows a useful ready-state home screen in browser preview", async () => {
   render(<App />);
 
   expect(await screen.findByText("Your launch pad is cozy and ready")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
+  expect(await screen.findByRole("button", { name: "Launch Starsector" })).toBeEnabled();
+  expect(screen.getByText("Recommended optimizations")).toBeInTheDocument();
+  expect(screen.getByText(/Current profile prepared/)).toBeInTheDocument();
   expect(screen.getByText("Your save is sacred.")).toBeInTheDocument();
 });
 

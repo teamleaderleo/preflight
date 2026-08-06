@@ -101,6 +101,8 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
         fingerprint: "preview-profile",
         current: true,
         bytes: 2_427_125_760,
+        indexBytes: 18_874_368,
+        manifestBytes: 7_340_032,
         lastModifiedMillis: Date.now(),
       }],
     };
