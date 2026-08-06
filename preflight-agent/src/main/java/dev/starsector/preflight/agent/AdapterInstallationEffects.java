@@ -68,6 +68,16 @@ final class AdapterInstallationEffects {
         if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
             SaveDescriptorCompatibilityRuntime.installed();
         }
+        if (IndustryDemandSupplyMemoRuntime.PLAN_ID.equals(target.planId())) {
+            if (IndustryDemandSupplyMemoPlan.CODEX_CLASS.equals(className)) {
+                IndustryDemandSupplyMemoRuntime.codexInstalled();
+            } else if (IndustryDemandSupplyMemoPlan.SETTINGS_CLASS.equals(className)) {
+                IndustryDemandSupplyMemoRuntime.settingsInstalled();
+            }
+        }
+        if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(target.planId())) {
+            IndEvoSyntheticMarketRuntime.installed();
+        }
         if (SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())
                 && SimOpponentSafetyPlan.TARGET_CLASS.equals(className)) {
             SimOpponentSafetyRuntime.installed();

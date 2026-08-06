@@ -305,6 +305,10 @@ final class AdapterReport {
         key(output, "resourcePriority").append(Json.value(ResourcePriorityRuntime.telemetry())).append(',');
         key(output, "saveDescriptorCompatibility")
                 .append(Json.value(SaveDescriptorCompatibilityRuntime.telemetry())).append(',');
+        key(output, "industryDemandSupplyMemo")
+                .append(Json.value(IndustryDemandSupplyMemoRuntime.telemetry())).append(',');
+        key(output, "indEvoSyntheticMarket")
+                .append(Json.value(IndEvoSyntheticMarketRuntime.telemetry())).append(',');
         key(output, "mergedReadCache").append(Json.value(MergedReadCacheRuntime.telemetry())).append(',');
         key(output, "loadingUtilsReader")
                 .append(Json.value(LoadingUtilsReaderRuntime.telemetry())).append(',');

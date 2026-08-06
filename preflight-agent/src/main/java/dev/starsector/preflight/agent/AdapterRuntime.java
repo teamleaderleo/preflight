@@ -38,6 +38,8 @@ final class AdapterRuntime {
         RulesRegexCacheRuntime.beginSession();
         ResourcePriorityRuntime.beginSession();
         SaveDescriptorCompatibilityRuntime.beginSession();
+        IndustryDemandSupplyMemoRuntime.beginSession();
+        IndEvoSyntheticMarketRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
         LoadingUtilsReaderRuntime.beginSession();
@@ -145,6 +147,8 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact refit simulator opponent-safety target");
                 report.diagnostic("Loaded the exact startup resource-priority index target");
                 report.diagnostic("Loaded the exact save-descriptor compatibility memo target");
+                report.diagnostic("Loaded the exact Codex industry demand/supply memo targets");
+                report.diagnostic("Loaded the exact IndEvo synthetic-market safety targets");
                 report.diagnostic("Loaded the exact campaign commodity event-mod memo target");
                 report.diagnostic("Loaded the exact campaign entity-maintenance targets");
                 report.diagnostic("Loaded the exact resource source-hint isolation target");

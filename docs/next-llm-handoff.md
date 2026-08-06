@@ -195,6 +195,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 | **2026-08-06 60Hz loading-screen redraw pair** | **17.09 / 16.68** |
 | **2026-08-06 30Hz loading-screen redraw pair** | **17.26 / 16.11** |
 | **2026-08-06 title-screen descriptor-memo warm gate** | **16.21** |
+| **2026-08-06 Codex industry memo final cold/warm pair** | **17.10 / 16.38** |
 
 Earlier comparisons use two runs because single-launch variance on this profile is about **±1.4s**;
 the new 29-second result uses five. Anything worth less than that noise cannot be measured by a
@@ -1014,6 +1015,20 @@ rejected: by removing even the first parse's roughly half-second ordering delay,
 exposed a GraphicsLib background-texture race and a two-minute cleanup storm, including after a
 cooldown. Never persist this result across launches. See
 `docs/evidence/2026-08-06-main-menu-save-descriptor-memo.md`.
+A new exact Codex breakdown then found 403ms across 338 adjacent industry demand/supply calls.
+Vanilla constructed a fake planet, market, faction, and applied industry independently for both
+halves. The exact Codex-scoped one-shot memo now reuses the demand call's already-applied industry
+for supply while preserving all collection logic and every call outside the link pass. The first
+adjacent gate reduced the child to 190ms and `linkRelatedEntries` from 687ms to 459ms; final live
+gates stayed perfect at 169/169 hits with an inactive empty scope. A bytecode `finally` clears the
+scope even if a mod callback escapes exceptionally. This also exposed IndEvo 4.1b mutating null
+locations/star systems on Codex's synthetic market. Three independently hash-pinned guards reduced
+28 duplicate caught traces to zero while retaining every real-world branch and the rest of
+Artillery cleanup. Final telemetry recorded all 18 expected null-world bypasses, 46 applied exact
+transforms, zero decline/failure, and a **17.10 / 16.38s** final cold/warm pair. The next bounded
+Codex seam is `populateShipsAndStations` at roughly 139--231ms, followed by the remaining 0.25--0.30s
+of `linkRelatedEntries`. See
+`docs/evidence/2026-08-06-codex-industry-demand-supply.md`.
 Evidence:
 `docs/evidence/2026-08-05-persisted-rule-token-shapes.md`,
 `docs/evidence/2026-08-05-graphicslib-normal-validation-journal.md`, and

@@ -357,6 +357,23 @@ final class AdapterTargetRegistry {
                 "app");
     }
 
+    /** Exact vanilla Codex constructor, timed only by the opt-in startup phase probe. */
+    static AdapterTarget startupCodexBreakdownTarget() {
+        return new AdapterTarget(
+                "vanilla-codex-v2-startup-breakdown",
+                "com/fs/starfarer/api/impl/codex/CodexDataV2",
+                "0a2fbd188fa2937ec279d4ee41dea9ffa75f833ec7622a357857d70696f42896",
+                StartupPhaseRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod("init", "()V"),
+                        new AdapterTarget.RequiredMethod("linkRelatedEntries", "()V")),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
     /** Exact Nexerelin settings loader, timed only by the opt-in startup phase probe. */
     static AdapterTarget startupNexConfigBreakdownTarget() {
         return new AdapterTarget(
@@ -647,6 +664,85 @@ final class AdapterTargetRegistry {
                 "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
                 "jdk/internal/loader/ClassLoaders$AppClassLoader",
                 "app");
+    }
+
+    /** Synthetic industry constructor behind SettingsAPI's demand/supply getters. */
+    static AdapterTarget industryDemandSupplySettingsTarget() {
+        return new AdapterTarget(
+                "vanilla-settings-industry-demand-supply-0.98a-rc8",
+                IndustryDemandSupplyMemoPlan.SETTINGS_CLASS,
+                IndustryDemandSupplyMemoPlan.SETTINGS_SHA256,
+                IndustryDemandSupplyMemoRuntime.PLAN_ID,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                "getIndustryDemand", IndustryDemandSupplyMemoPlan.QUERY_DESCRIPTOR),
+                        new AdapterTarget.RequiredMethod(
+                                "getIndustrySupply", IndustryDemandSupplyMemoPlan.QUERY_DESCRIPTOR)),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer_obf.jar",
+                "a0f8fa3cf4f551eec188ff6dc4d3702ad38b760ff8a568e6c49675fe4665f149",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    /** Exact Codex scope containing adjacent demand/supply queries for every industry. */
+    static AdapterTarget industryDemandSupplyCodexTarget() {
+        return new AdapterTarget(
+                "vanilla-codex-industry-demand-supply-0.98a-rc8",
+                IndustryDemandSupplyMemoPlan.CODEX_CLASS,
+                IndustryDemandSupplyMemoPlan.CODEX_SHA256,
+                IndustryDemandSupplyMemoRuntime.PLAN_ID,
+                List.of(new AdapterTarget.RequiredMethod(
+                        IndustryDemandSupplyMemoPlan.LINK_METHOD, "()V")),
+                "STARSECTOR_CORE",
+                "contents/resources/java/starfarer.api.jar",
+                "6ac6c78c6116946d487376426340d019938f986ceae1391ae1fa599e890e3185",
+                "jdk/internal/loader/ClassLoaders$AppClassLoader",
+                "app");
+    }
+
+    private static AdapterTarget indEvoSyntheticMarketTarget(
+            String id, String className, String sha256, List<AdapterTarget.RequiredMethod> methods) {
+        return new AdapterTarget(
+                id,
+                className,
+                sha256,
+                IndEvoSyntheticMarketRuntime.PLAN_ID,
+                methods,
+                "MOD",
+                "indevo.jar",
+                "1c319cd352619cd004b078db5bcf6e86095039fa3599d17ac4a9d609a6dcdfa0",
+                "java/net/URLClassLoader",
+                "");
+    }
+
+    static AdapterTarget indEvoRelaySyntheticMarketTarget() {
+        return indEvoSyntheticMarketTarget(
+                "indevo-4.1b-relay-synthetic-market-safety",
+                IndEvoSyntheticMarketPlan.RELAY_CLASS,
+                IndEvoSyntheticMarketPlan.RELAY_SHA256,
+                List.of(
+                        new AdapterTarget.RequiredMethod(
+                                "createCommRelayStation", "(Ljava/lang/String;)V"),
+                        new AdapterTarget.RequiredMethod("removeCommRelayStation", "()V")));
+    }
+
+    static AdapterTarget indEvoArtillerySyntheticMarketTarget() {
+        return indEvoSyntheticMarketTarget(
+                "indevo-4.1b-artillery-synthetic-market-safety",
+                IndEvoSyntheticMarketPlan.ARTILLERY_CLASS,
+                IndEvoSyntheticMarketPlan.ARTILLERY_SHA256,
+                List.of(
+                        new AdapterTarget.RequiredMethod("apply", "()V"),
+                        new AdapterTarget.RequiredMethod("unapply", "()V")));
+    }
+
+    static AdapterTarget indEvoWonderSyntheticMarketTarget() {
+        return indEvoSyntheticMarketTarget(
+                "indevo-4.1b-world-wonder-synthetic-market-safety",
+                IndEvoSyntheticMarketPlan.WONDER_CLASS,
+                IndEvoSyntheticMarketPlan.WONDER_SHA256,
+                List.of(new AdapterTarget.RequiredMethod("apply", "()V")));
     }
 
     /** Vanilla campaign loop used only to segment opt-in frame-time recordings. */
@@ -1441,6 +1537,7 @@ final class AdapterTargetRegistry {
             registry = registry.withTarget(startupAshRenderInfoBreakdownTarget());
         }
         return registry
+                .withTarget(startupCodexBreakdownTarget())
                 .withTarget(startupCampaignEngineBreakdownTarget())
                 .withTarget(startupGraphicsBreakdownTarget())
                 .withTarget(startupMagicLibBreakdownTarget())
@@ -1726,6 +1823,11 @@ final class AdapterTargetRegistry {
                 .withTarget(simOpponentDialogProbeTarget())
                 .withTarget(resourcePriorityTarget())
                 .withTarget(saveDescriptorCompatibilityTarget())
+                .withTarget(industryDemandSupplySettingsTarget())
+                .withTarget(industryDemandSupplyCodexTarget())
+                .withTarget(indEvoRelaySyntheticMarketTarget())
+                .withTarget(indEvoArtillerySyntheticMarketTarget())
+                .withTarget(indEvoWonderSyntheticMarketTarget())
                 .withTarget(sourceHintIsolationTarget())
                 .withTarget(audioResourceFallbackTarget())
                 .withTarget(aiTweaksEngagementRangeTarget())

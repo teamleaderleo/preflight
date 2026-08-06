@@ -180,6 +180,18 @@ final class AdapterTransformationRegistry {
         if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
             return SaveDescriptorCompatibilityPlan.transform(signature, originalBytes);
         }
+        if (IndustryDemandSupplyMemoRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] memo = IndustryDemandSupplyMemoPlan.transform(signature, originalBytes);
+            if (memo == null || !StartupPhaseRuntime.phaseProbeEnabled()
+                    || !IndustryDemandSupplyMemoPlan.CODEX_CLASS.equals(signature.internalName())) {
+                return memo;
+            }
+            byte[] timed = StartupCallBreakdownPlan.transform(signature, memo);
+            return timed == null ? memo : timed;
+        }
+        if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(target.planId())) {
+            return IndEvoSyntheticMarketPlan.transform(signature, originalBytes);
+        }
         if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())
                 || SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(target.planId())) {
             return specStoreOptimizations(signature, originalBytes);
@@ -725,6 +737,12 @@ final class AdapterTransformationRegistry {
             return true;
         }
         if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (IndustryDemandSupplyMemoRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(planId)) {
             return true;
         }
         if (RuleTokenCacheRuntime.PLAN_ID.equals(planId)) {
