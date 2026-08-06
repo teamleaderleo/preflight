@@ -12,21 +12,27 @@ Preflight discovers Starsector, reads the enabled profile, prepares reusable art
 ~/.starsector-preflight/cache/reports/preparation-latest.json
 ```
 
-The installation, mods, saves, launcher, and VM parameter files remain unchanged.
+Preparation writes only Preflight-owned, content-addressed data and its validation report. The
+installation, mods, saves, launcher, game preferences, and VM parameter files remain unchanged.
 
 ## Pipeline
 
 The default command starts the independent census, resource-index, and classpath-index stages
-together, joins them before their dependants, and then runs:
+together, joins them before their dependants, and then prepares the enabled cache families:
 
 1. enabled-profile census
 2. loose-resource provider index build or artifact reuse
 3. resource-index validation
 4. persistent JAR/classpath profile build or reuse
 5. classpath metadata validation
-6. prepared texture build or blob reuse
-7. texture-manifest validation
-8. one atomic report write
+6. exact SpecStore profile identity build or reuse
+7. prepared texture pack/blob build or reuse
+8. texture-manifest validation
+9. one atomic report write
+
+Other Recommended caches are learned or materialized at their own exact runtime boundaries; this
+command does not pretend to prepare them offline. A stage can be skipped or rejected without
+turning the report into a claim that it was prepared.
 
 Add semantic lookup verification:
 
@@ -89,13 +95,10 @@ Every stage records:
 - validation counts and problems
 - diagnostics
 
-The report also has a separate readiness section:
-
-- cache artifacts may be prepared and validated;
-- the compatibility-v2 vanilla adapter remains under review and is not reported as integrated;
-- preparation never enables either texture adapter mode;
-- compatibility and prepared-pixel modes still require a reviewed real-install pilot;
-- Fast Rendering remains optional;
-- launch acceleration is not claimed until a compatible live adapter consumes the artifacts.
+The report also has a separate readiness section. Preparation never installs an in-memory
+transformation by itself; a launch preset must select a reader, exact code/profile identities must
+match, and runtime validation must pass. A prepared artifact can therefore be ready while its
+adapter declines on a different game or mod build. Fast Rendering remains an optional, separately
+identified launcher/ownership target.
 
 This distinction keeps offline preparation useful without overstating runtime integration or activation readiness.

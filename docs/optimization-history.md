@@ -1,4 +1,4 @@
-# How Preflight moved an 83-mod launch from 62.6 seconds to 15.88
+# How Preflight moved an 83-mod launch from a 62.6-second waypoint to a 15.88-second record
 
 **Status:** publication spine; every performance claim links to retained evidence
 **Profile:** Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, bundled x86-64 Zulu 17 under Rosetta
@@ -11,8 +11,9 @@ controlled comparison, a replay benchmark, a correctness-only launch, and a one-
 
 ## Result and measurement contract
 
-The pre-project baseline was **62.6 seconds** from the first game log timestamp to the main menu.
-The current warm record is **15.88 seconds**, preceded by clean **16.66-second cold** and
+The chronology below starts at **62.6 seconds**, the accepted prepared-texture waypoint after an
+88.13-to-62.60-second controlled campaign—not the original vanilla baseline. The current warm
+record is **15.88 seconds**, preceded by clean **16.66-second cold** and
 **16.28-second warm** production gates. The record retained 42/42 transformed-class cache hits,
 15,469 prepared-texture and pixel-conversion hits, active adapter health, and no adapter decline or
 failure. It is a record, not a promised median; its exact evidence is in
@@ -39,7 +40,7 @@ The reproducible harness and condition definitions are in [startup-benchmark.md]
 
 | Date and accepted gate | Main-menu time |
 | --- | ---: |
-| Baseline before Preflight | 62.60s |
+| Accepted prepared-texture waypoint | 62.60s |
 | Preparation-before-launch work | 34.66 / 35.54s |
 | Merged-read cache | 33.42 / 34.15s |
 | Profile-stable startup JSON, five-run median | 29.61s |

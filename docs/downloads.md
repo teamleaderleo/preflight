@@ -1,10 +1,17 @@
 # Downloads and installation
 
-Preflight is distributed as one runnable and agent-capable JAR. The same file provides the CLI, launch wrapper, profile census, resource index tools, and startup profiler.
+Preflight is designed to ship as a desktop application plus one runnable and agent-capable JAR. The
+same Java engine provides the CLI, launch wrapper, profile census, cache preparation, diagnostics,
+and startup profiler.
 
-## Release downloads
+> **No public download yet.** The packaging pipeline below is verified, but public distribution is
+> blocked on written Fractal Softworks authorization, release naming/disclaimer decisions, signing
+> and updater setup, release-candidate compatibility testing, and the product-lifecycle work in
+> [Release readiness](release-readiness.md).
 
-Tagged releases attach:
+## Planned release downloads
+
+A public tagged release is expected to attach:
 
 - `preflight.jar` — the smallest download
 - `preflight.jar.sha256` — checksum for the JAR
@@ -16,10 +23,10 @@ Tagged releases attach:
 - Linux: `.AppImage` and `.deb` desktop packages
 - a platform-qualified `SHA256SUMS-<platform>-<architecture>.txt` manifest beside each native package
 
-A manually dispatched Distribution workflow produces the same files as 30-day workflow artifacts
-without creating a release. Desktop packages contain their own minimal Java runtime and do not
-require a system JDK. They are currently unsigned beta artifacts, so Windows and macOS may show
-publisher or Gatekeeper warnings until release signing credentials are configured.
+A manually dispatched Distribution workflow currently produces the same files as private workflow
+artifacts without creating a release. Desktop packages contain their own minimal Java runtime and
+do not require a system JDK. Those development packages are unsigned; they are not the intended
+public install experience.
 
 ## Requirements
 
@@ -38,7 +45,7 @@ java -version
 
 ```bash
 java -jar preflight.jar doctor
-java -jar preflight.jar run
+java -jar preflight.jar run --optimization-preset recommended
 ```
 
 `doctor` prints discovered launchers and the selected candidate without starting the game.
@@ -79,7 +86,11 @@ Windows PowerShell:
 
 Compare the result with the hash in `preflight.jar.sha256`.
 
-## Release process
+## Maintainer release process
+
+Do not create a public tag until every blocking item in
+[Release readiness](release-readiness.md) is closed and the chosen product name, bundle identifier,
+signing identity, updater public key, and disclaimer are final.
 
 A maintainer creates and pushes an annotated version tag:
 

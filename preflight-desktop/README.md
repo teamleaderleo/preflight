@@ -35,9 +35,10 @@ builds each target on its native GitHub runner rather than cross-compiling:
 - Linux: `.AppImage` and `.deb`
 
 The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users do not need
-Java, Node, Maven, npm, or Rust. Current packages are unsigned beta artifacts. Do not describe them
-as warning-free installs until Windows signing and Apple signing/notarization credentials are wired
-into CI and verified on a tagged release.
+Java, Node, Maven, npm, or Rust. Current packages are private, unsigned development artifacts. Do
+not distribute or describe them as warning-free installs until public distribution is authorized,
+Windows signing and Apple signing/notarization are wired into CI, and the signed updater is verified
+on a release candidate.
 
 ## Boundaries
 

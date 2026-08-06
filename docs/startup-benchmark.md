@@ -1,9 +1,9 @@
 # Repeated startup benchmark
 
-This is the harness for [M10](https://github.com/teamleaderleo/starsector-preflight/issues/80):
-the only thing in this repository that can turn Preflight's work into a load-time number.
-Until it produces one, the project has no measured acceleration, and
-[benchmarking.md](benchmarking.md) records why every earlier attempt failed.
+This is the harness that turns Preflight's work into a comparable load-time result. It produced the
+accepted controlled campaigns in the evidence archive; use it again for the release candidate
+rather than promoting a one-off record into a general claim. [benchmarking.md](benchmarking.md)
+records why earlier measurement approaches failed.
 
 ```bash
 scripts/run-startup-benchmark.sh --unattended
@@ -47,7 +47,7 @@ quantities read as one.
 | `agent` | `preflight run --no-adapter` | what the JFR recorder itself costs |
 | `enabled` | `preflight run --adapter --texture-auto` | the prepared texture path, recorded |
 | `compatibility` | the same plus `--no-record` | the historical compatibility-texture subset without profiling |
-| `fast` | `preflight run --fast` | **the current normal user launch: every live-gated optimization** |
+| `fast` | `preflight run --optimization-preset recommended` | **the current normal user launch: every live-gated optimization** |
 | `full` | the frozen 2026-08-03 explicit prepared-pixel and rule-cache stack | reproduction of the accepted historical campaign |
 | `profile` | the same plus `--profile` | **not a timing condition** — see below |
 
@@ -64,8 +64,9 @@ The recorder condition is easy to leave out and expensive to lose. Preflight
 attaches a recording agent in **both** of its modes, so a bare `enabled` minus `vanilla`
 difference mixes "the cache helped" with "the recorder cost us". Only `agent` separates them.
 
-`fast` now passes the CLI's literal `--fast` preset, so its meaning advances only when an
-optimization passes its live gate and joins the installed-launcher path. Before 2026-08-05 the
+`fast` is the historical benchmark condition name. It now passes the typed **Recommended** preset;
+`--fast` remains an exact compatibility alias. Its meaning advances only when an optimization
+passes its live gate and joins the installed-launcher path. Before 2026-08-05 the
 benchmark condition with this name actually ran compatibility textures plus `--no-record`; as the
 CLI preset grew, the benchmark silently stopped representing a normal user launch. That historical
 subset is retained as `compatibility`, and the reporter uses it for like-for-like recorder and
@@ -73,7 +74,8 @@ prepared-pixel component comparisons.
 
 `full` is also retained, but frozen: it is the explicit flag set used by the accepted 2026-08-03
 whole-stack campaign. It reproduces that evidence; it is no longer a synonym for "everything that
-has landed". Use `fast` for the current product and `full` only for historical comparison.
+has landed". Use `fast` for the current Recommended product preset and `full` only for historical
+comparison.
 
 `enabled` uses `--texture-auto`, which resolves the manifest and index for the current
 profile and runs the accepted compatibility texture path. That is deliberate: it is the

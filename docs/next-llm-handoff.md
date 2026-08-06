@@ -1,5 +1,14 @@
 # Next LLM Implementation Handoff
 
+> **Current release direction (2026-08-07):** do not publish binaries yet. Public distribution,
+> naming, and disclaimer are pending written Fractal Softworks authorization. Product trust now
+> outranks another narrow startup experiment: finish lifecycle/update/report UX, real Windows/Linux
+> game evidence, and a fresh controlled release-candidate cohort. Use
+> [release-readiness.md](release-readiness.md) as the public-release blocker list and
+> [product-contract.md](product-contract.md) as the current behavioral boundary. The chronological
+> ledger below is retained as engineering evidence and may describe priorities that were later
+> completed or superseded.
+
 This is the single living implementation handoff. Archive dated evidence under `docs/evidence/`; do
 not create parallel handoffs. Rewritten 2026-08-03 — the prepared-pixel comparison work this file
 used to carry is merged, and is described by `docs/evidence/` and `docs/prepared-textures.md`.
@@ -1159,8 +1168,9 @@ and an optimized native build all pass. The host resolves only the bundled JAR/r
 bounds child stderr, launches one of the typed `recommended|conservative|off` optimization presets,
 and exposes narrow installation, cache, preparation, and
 named-profile commands rather than arbitrary shell access. Native bundling and the three-platform
-CI matrix are restored with regenerated vector-derived icons; the packages remain explicitly
-unsigned beta artifacts until Windows signing and Apple signing/notarization credentials exist. The
+CI matrix are restored with regenerated vector-derived icons; the packages remain private,
+unsigned development artifacts pending distribution authorization, updater signing, Windows
+signing, and Apple signing/notarization. The
 desktop UI now uses the bundled variable Orbitron face throughout, with the exact OFL text included
 in every native package; it has no font-network dependency. macOS DMG and Windows NSIS packaging are
 green. Linux Debian and AppImage packaging are green as well. AppImage's `linuxdeploy` scan needs the
@@ -1234,11 +1244,12 @@ and atomic/staged replacement path. Matching content-addressed caches are reused
 switching does not pretend every profile is already prepared. Browser tests cover the active state
 and preview-before-apply contract.
 
-Next implementation order: publish and exercise the unsigned beta packages, then collect real
-licensed-game Windows/Linux evidence. Core CI and native packaging are
-green on all three desktop platforms, but safe fallback outside the reviewed macOS game bytecode is
-not the same claim as equal activation or speed. Signing/notarization and update delivery follow
-once release credentials and the first beta evidence exist.
+Next release implementation order: obtain written distribution/name guidance; complete update,
+storage/removal, one-action setup, and consent-based run-report UX; then exercise private candidate
+packages on real licensed Windows/Linux installations. Core CI and native packaging are green on
+all three desktop platforms, but safe fallback outside the reviewed macOS game bytecode is not the
+same claim as equal activation or speed. Run the controlled release-candidate cohort only after the
+candidate's behavior and packaging are frozen.
 
 The bounded diagnostics export is now implemented in both CLI and desktop UI. It selects only an
 explicit text-metadata allowlist from the newest three runs and two benchmarks, caps each file at

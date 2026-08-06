@@ -8,7 +8,7 @@ Preflight is designed to run without editing Starsector or Fast Rendering files.
 java -jar preflight.jar doctor
 java -jar preflight.jar scan
 java -jar preflight.jar prepare
-java -jar preflight.jar run
+java -jar preflight.jar run --optimization-preset recommended
 java -jar preflight.jar install
 ```
 
@@ -21,7 +21,7 @@ Preflight is an additional wrapper entry point. It does not replace the Starsect
 For an unattended launch that skips the launcher UI entirely, use the game's own direct path:
 
 ```bash
-java -jar preflight.jar run --direct
+java -jar preflight.jar run --direct --optimization-preset recommended
 ```
 
 `--direct` reads resolution, fullscreen, sound, and registration state from Starsector's saved
@@ -56,7 +56,8 @@ Within a game directory, Preflight recognizes common Starsector and Fast Renderi
 Use an explicit launcher whenever an unusual port or custom wrapper receives the wrong score:
 
 ```bash
-java -jar preflight.jar run --launcher "/absolute/path/to/custom-launcher"
+java -jar preflight.jar run --optimization-preset recommended \
+  --launcher "/absolute/path/to/custom-launcher"
 ```
 
 ## Enabled mod profile
@@ -110,9 +111,22 @@ postprocessing reports whether the resulting recording actually contains one chu
 256 MiB of profiling headroom and no sidecar recovery after a crash or force-quit. Ordinary runs
 keep the bounded-memory, periodically flushed policy; `--no-record` is incompatible with this mode.
 
-### Optional vanilla adapter probe
+### Optimization presets and optional adapter probe
 
-The adapter is OFF by default. A normal run installs no adapter transformer and writes no `adapter.json`.
+A raw developer `run` remains custom/off unless a preset or individual adapter option is selected.
+The installed launcher and desktop product select **Recommended** by default. The equivalent CLI is:
+
+```bash
+java -jar preflight.jar run --optimization-preset recommended
+```
+
+`--fast` is retained as a compatibility alias for Recommended. **Conservative** enables only the
+broad, immutable-input startup caches and omits mod-specific and gameplay-runtime shortcuts.
+**Off** retains wrapper/process reporting while disabling transforms, profiling, scan, and summary
+work. Every preset is still subject to exact adapter identity and runtime validation.
+
+Probe mode is a separate developer tool. Without a selected preset or adapter, a raw `run` installs
+no adapter transformer and writes no `adapter.json`.
 
 ```bash
 java -jar preflight.jar run --adapter-probe
@@ -124,7 +138,7 @@ The normal optimized launch enables every reviewed startup and gameplay cache th
 live gate:
 
 ```bash
-java -jar preflight.jar run --direct --fast
+java -jar preflight.jar run --direct --optimization-preset recommended
 ```
 
 This includes the campaign entity and deployment-icon caches, GraphicsLib's compact startup replay,

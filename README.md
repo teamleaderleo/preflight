@@ -1,15 +1,19 @@
 # Starsector Preflight
 
-**A faster launcher for heavily modded Starsector.**
+**Make heavily modded Starsector start faster and run more smoothly—without permanently patching
+the game, its mods, or your saves.**
+
+> **Development preview.** Public binaries are not available yet. Distribution, the product name,
+> and the final disclaimer are pending written authorization from Fractal Softworks. The remaining
+> release gates include signed updates, first-class removal and storage controls, consent-based
+> diagnostics submission, and real Windows/Linux game testing. See
+> [Release readiness](docs/release-readiness.md).
 
 Preflight prepares work that Starsector and its mods would otherwise repeat on every launch, then starts the same game and mod profile using those prepared results.
 
-```bash
-java -jar preflight.jar install
-```
-
-Install the launcher and prepare the exact current game/mod profile in one operation. This is the
-recommended first-time setup; `balanced` remains the default space/time policy:
+The intended release experience is simple: install Preflight, choose **Recommended**, prepare the
+current mod profile once, then launch Starsector normally through Preflight. The same engine powers
+the desktop app and CLI. During development, the equivalent CLI setup is:
 
 ```bash
 java -jar preflight.jar install --prepare
@@ -20,16 +24,18 @@ unchanged artifacts are hits, interrupted work is resumed from completed blobs, 
 invalid prepared result falls back to the original game path at launch. Constrained machines can
 bound the preparation work explicitly, for example `--workers 2 --memory-mb 128`.
 
-The install command creates a normal local launcher. For unattended launches, Preflight can also use Starsector's saved display and sound settings directly:
+The install command creates a normal local launcher. For unattended launches and benchmark
+automation, Preflight can also use Starsector's saved display and sound settings directly:
 
 ```bash
-java -jar preflight.jar run --direct
+java -jar preflight.jar run --direct --optimization-preset recommended
 ```
 
-## Current scorecard
+## What has been demonstrated
 
 On the development machine — Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, the game's bundled
-x86-64 Java runtime under Rosetta — the current `--fast` path has reached the main menu in
+x86-64 Java runtime under Rosetta — the current **Recommended** path (`--fast` compatibility alias)
+has reached the main menu in
 **15.88 seconds**. The two preceding clean production gates were **16.66 seconds cold** and
 **16.28 seconds warm**.
 
@@ -47,7 +53,8 @@ Later work reduced the tracked 62.60-second prepared-texture waypoint through ac
 23-, 18-, 17-, and 16-second gates; the current milestone table is in the
 [engineering handoff](docs/next-llm-handoff.md).
 
-Reproduce it yourself:
+The next public performance claim will be a new controlled before/after cohort on the release
+candidate. Until then, reproduce the existing measurements with:
 
 ```bash
 scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast,full --rounds 5
@@ -66,9 +73,9 @@ of assuming the development-machine result applies to them.
 The per-change arithmetic, individual multipliers, and source links are in the
 [accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
 The chronological, publication-oriented account is in
-[How Preflight moved an 83-mod launch from 62.6 seconds to 15.88](docs/optimization-history.md).
+[How Preflight moved an 83-mod launch from a 62.6-second waypoint to a 15.88-second record](docs/optimization-history.md).
 
-## What we did
+## Why it is faster
 
 We did not start with a predetermined cache design. We traced startup, compared the game log with the visible loading screen, recorded thread activity, added unattended direct launching, and inserted exact probes around increasingly narrow pieces of the loader.
 
@@ -126,7 +133,7 @@ The rule-command package map was expected to remove most of a 641ms phase. It re
 
 We also reviewed [Fast Rendering as prior art](docs/prior-art-starsector-render.md). That review corrected an earlier conclusion about its texture prefetcher, documented where the two projects overlap, and highlighted the untouched JSON/spec path that became the SpecStore campaign. The pattern throughout the project has been the same: inspect the logs and code, ask a narrower question, build the probe that answers it, and let the measurement choose the next change.
 
-## Design ideas
+## Design foundations
 
 The design uses concepts familiar from application and compiler tooling rather than relying on one exotic trick.
 
@@ -140,7 +147,16 @@ Preflight prepares deterministic work outside the timed game launch. At startup 
 
 A matching artifact skips only the work that was already completed. Starsector still constructs its live objects, registers scripts, applies mod ordering, mutates its registries, creates textures, performs OpenGL uploads, and runs the remaining mod logic.
 
-Changed game or mod files select different prepared data. A missing entry, unsupported class, corrupt artifact, or runtime error uses the original loader. Runtime acceleration does not edit the game, mods, saves, launcher, or VM parameter files. The separate named-profile command changes only `enabled_mods.json`, and only after an explicit preview/confirmation with a backup and concurrent-change check. The explicit launch-settings command updates Starsector's existing launcher/gameplay preference keys after saving their previous values; it does not patch game files.
+Changed game or mod files select different prepared data. A missing entry, unsupported class, corrupt
+artifact, or runtime validation failure uses the original loader. Runtime acceleration transforms
+exact reviewed classes only in the child JVM's memory; those changes disappear when the game exits.
+
+Preflight writes its own caches and bounded reports. Two explicit features can update game-owned
+preferences: a confirmed named-profile switch changes only `enabled_mods.json`, and the launch
+settings screen changes only Starsector's existing display, sound, UI-scale, antialiasing, and
+battle-size values. Both paths preview or constrain the change and save a backup. Preflight never
+rewrites game or mod JARs, executables, assets, activation data, or saves. The complete boundary is
+in the [product contract](docs/product-contract.md).
 
 ## Install and run
 
@@ -153,13 +169,13 @@ java -jar preflight.jar install
 Run through the ordinary launcher path:
 
 ```bash
-java -jar preflight.jar run
+java -jar preflight.jar run --optimization-preset recommended
 ```
 
 Run unattended through Starsector's saved launcher settings:
 
 ```bash
-java -jar preflight.jar run --direct
+java -jar preflight.jar run --direct --optimization-preset recommended
 ```
 
 Inspect the detected installation and mod profile without launching:
@@ -239,10 +255,10 @@ coordinates. The first campaign-load/roam scenario and evidence contract are doc
 
 The native desktop host and its build instructions live in
 [preflight-desktop](preflight-desktop/README.md). Launch settings, Prepare, Profiles, Storage, and tracked game launch
-all use the same narrow engine contract as the CLI. The native distribution matrix is green for a
+all use the same narrow engine contract as the CLI. The native packaging matrix is green for a
 macOS arm64 DMG, Windows x64 NSIS installer, and Linux x64 Debian and AppImage packages. These are
-currently **unsigned beta artifacts**: public release publishing, Apple signing/notarization,
-Windows signing, and a PID-safe automated game smoke remain release work. See
+currently private, unsigned development artifacts: public distribution authorization, Apple
+signing/notarization, Windows signing, and a PID-safe automated game smoke remain release work. See
 [Downloads and installation](docs/downloads.md) and the
 [exact distribution matrix](docs/evidence/2026-08-06-desktop-distribution-matrix.md).
 
@@ -256,20 +272,22 @@ java -jar preflight.jar uninstall
 java -jar preflight.jar uninstall --purge
 ```
 
-## What is next
+## Before public release
 
-The next milestone is an unsigned public beta, not another unqualified startup claim. Before that:
+Preflight is fast enough for a beta; the remaining work is product trust and compatibility:
 
-1. Exercise real licensed-game installs on Windows and Linux; CI already verifies the portable core,
-   native packages, and exact-cache behavior, but cannot contain Starsector itself.
-2. Publish the checksum-qualified beta artifacts and document each platform's unsigned-install flow.
-3. Continue gameplay and campaign optimization only behind exact adapters, telemetry, and vanilla
-   fallback, with frame-time and FPS evidence rather than subjective smoothness alone.
+1. Obtain written authorization for distribution, integration approach, product name, and
+   disclaimer from Fractal Softworks.
+2. Finish the one-action desktop flow, visible disk use, preview-first cleanup/removal, signed
+   updates, and an explicit **Send run report** consent flow.
+3. Exercise clean licensed-game installs on Windows and Linux. CI verifies the portable engine and
+   native packages, but cannot redistribute or execute Starsector.
+4. Run a fresh controlled before/after cohort against the release candidate, then publish only the
+   result that cohort supports.
 
-The public trust work is tracked in
-[issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294). Signing,
-notarization, updater work, PID-targeted desktop smoke automation, and broader compatibility
-evidence remain explicit beta boundaries rather than hidden prerequisites.
+The complete blocker list and publication checklist are in
+[Release readiness](docs/release-readiness.md). The public trust work is also tracked in
+[issue #294](https://github.com/teamleaderleo/starsector-preflight/issues/294).
 
 ## Analysis and mod tools
 
@@ -302,6 +320,9 @@ preflight-cli/target/preflight.jar
 
 ## Documentation
 
+- [Documentation map](docs/README.md)
+- [Release readiness](docs/release-readiness.md)
+- [Optimization history](docs/optimization-history.md)
 - [Accumulated startup scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md)
 - [Product, compatibility, cache-control, and support-upload contract](docs/product-contract.md)
 - [Automatic launch and discovery](docs/automatic-launch.md)
@@ -314,8 +335,13 @@ preflight-cli/target/preflight.jar
 
 ## Status
 
-Preflight is under active development. Runtime acceleration is pinned to reviewed game classes and exact profile inputs, with the original game path retained for unsupported or changed inputs.
+Preflight is under active development and is not yet publicly distributed. Runtime acceleration is
+pinned to reviewed game classes and exact profile inputs, with the original game path retained for
+unsupported or changed inputs. “Fail open” applies to individual acceleration paths; it is not a
+promise that every future launcher or game update can start without a Preflight update.
 
 ## License
 
-[MIT](LICENSE). Starsector, Fast Rendering, and mod content remain the property of their respective owners and are never included in this repository or its releases.
+[MIT](LICENSE). Starsector, Fast Rendering, and mod content remain the property of their respective
+owners and are not included in this repository or its release packages. This project is independent
+and is not endorsed by Fractal Softworks unless Fractal Softworks says otherwise.

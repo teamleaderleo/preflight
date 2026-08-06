@@ -3,6 +3,10 @@
 **Status:** executable product boundary for the desktop beta
 **Updated:** 2026-08-07
 
+Public distribution is not authorized yet. The working product name, disclaimer, and integration
+approach remain subject to written Fractal Softworks approval. This contract describes the software
+we intend to release; it is not a claim of endorsement.
+
 ## One engine, several entry points
 
 The CLI and desktop application call the same Java engine. The desktop host has a fixed set of
@@ -136,3 +140,23 @@ Cloudflare's own Worker Logs cover request, custom, and exception logs inside th
 they do not replace desktop consent, disclosure, redaction, bundle construction, or the separate
 choice to upload a report. A later automatic-crash option must therefore be its own remembered,
 default-off consent toggle rather than a side effect of enabling server observability.
+
+## Update, removal, and storage contract
+
+The default desktop path should present one primary action—**Make Starsector fast**—and one honest
+before/after result. Advanced controls remain available without becoming prerequisites.
+
+- Updates may be checked in the background, but installation is explicit. Release packages and
+  updater metadata must be signed, and a failed verification must leave the installed version
+  runnable.
+- The app shows current cache/evidence use and the effect of Balanced versus Fastest before changing
+  policy. Cleanup is preview-first and never runs while the game or preparation owns the profile.
+- Removing launcher integration and removing all Preflight-owned data are separate choices. Both
+  enumerate what will be removed; neither removes Starsector, mods, saves, or game-owned settings.
+- A profile or game update selects new content identities. Old data remains removable through the
+  same preview-first storage flow rather than accumulating invisibly forever.
+- “Send run report” is a deliberate action with disclosure, digest, progress, cancel/retry behavior,
+  a case receipt, retention information, and a deletion path. It is not ambient telemetry.
+
+The blocking implementation and publication checks are tracked in
+[Release readiness](release-readiness.md).

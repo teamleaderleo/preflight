@@ -30,10 +30,13 @@ the acknowledgement. The benchmark refuses evidence without that acknowledgement
 shutdown hook remains a last-chance non-empty-file fallback, but a JVM already entering shutdown
 cannot promise the final custom event and is not treated as the deterministic boundary path.
 
-The current live texture plans are:
+The prepared-texture path is split into exact stages:
 
-- `texture-compatibility-v2`: reconstructs a decoded image from a verified prepared blob while preserving Starsector's asynchronous preloader and the rest of the original texture path. It passed bounded behavioral acceptance on Starsector 0.98a-RC8 on 2026-07-19. Repeated timing remains pending.
-- `texture-prepared-pixels-v2`: retains Starsector's upload and lifetime path while aiming to bypass decode and pixel conversion. It remains fail-closed until the installed color-transfer dataflow is represented exactly.
+- `texture-compatibility-v2` preserves Starsector's asynchronous preloader and decoded-image
+  contract for conservative compatibility.
+- `texture-prepared-pixels-v2` serves validated upload-ready pixels while retaining Starsector's
+  upload and lifetime path. Its accepted integration gates, packed storage, index snapshot, and
+  visual regressions are recorded in the [optimization history](optimization-history.md).
 
 The generated-bytecode wrapper remains fail-open: incomplete evidence calls the original generator
 and bypasses storage. Its live-gated Janino plan uses a conservative whole-profile identity, then
@@ -67,7 +70,11 @@ preflight.jar run
   -> write final run, adapter, profile, and JFR-derived reports
 ```
 
-Adapter mode is OFF by default. Cache preparation alone never enables a transformation. A live texture run requires explicit adapter activation plus validated matching artifacts. The environment/property kill switch remains authoritative.
+A raw CLI `run` is unoptimized unless a preset or individual adapter option is selected. The
+installed launcher and desktop product select **Recommended**; **Conservative** restricts plans to
+portable startup work; **Off** retains only process ownership and bounded outcome reporting. Cache
+preparation alone never enables a transformation. Exact identity, artifact validation, and every
+environment/property kill switch remain authoritative.
 
 ## Current cache and run layout
 
@@ -93,7 +100,13 @@ Content-addressed blobs may be shared by multiple profiles. Fingerprint-named ma
 
 ## Current evidence boundary
 
-Compatibility-v2 has a real behavioral acceptance result and no performance claim. The Janino cache
-has installed-JAR compilation/replay evidence and remains explicit beta pending one clean real launch
-and repeated OFF-versus-ENABLED timing. Performance claims still require one stable profile and
-comparable JVM/run identities.
+The development profile has clean live gates for the Recommended stack, including prepared
+textures, merged/spec data, generated Janino bytecode, prepared audio, exact vanilla gameplay
+indexes, and reviewed mod-specific adapters. That does not establish universal compatibility.
+Unknown class, source, loader, artifact, or profile identities decline to the original path and are
+reported. A wrapper or discovery change can still require a Preflight update.
+
+Performance claims require comparable game, mod-profile, JVM, launcher, cache, machine-load, and
+measurement identities. The 15.88-second launch is a retained warm record; the strongest controlled
+whole-stack result remains the earlier 80.09-to-42.36-second comparison. A release candidate needs
+its own controlled cohort.

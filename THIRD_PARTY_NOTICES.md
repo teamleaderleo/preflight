@@ -1,5 +1,13 @@
 # Third-party notices
 
+## Orbitron
+
+The desktop interface bundles the Orbitron variable font through
+`@fontsource-variable/orbitron`. Orbitron is copyright 2018 The Orbitron Project Authors and is
+licensed under the SIL Open Font License 1.1. The complete license is packaged at
+`licenses/Orbitron-OFL.txt` and retained in the source tree as
+[Orbitron-OFL.txt](preflight-desktop/src-tauri/licenses/Orbitron-OFL.txt).
+
 ## GraphicsLib compact auto-generation replay
 
 `preflight-agent` contains an adapted Java 17 classfile derived from GraphicsLib 1.12.1

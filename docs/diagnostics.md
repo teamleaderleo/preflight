@@ -51,3 +51,11 @@ sharing if that metadata is sensitive.
 `manifest.json` uses the `starsector-preflight-diagnostics-v1` format and records enforced limits,
 selected-session ranks/timestamps, redactions, exclusions, and the byte count and SHA-256 of every
 included entry. The command receipt separately reports the finished ZIP's SHA-256.
+
+## Planned send flow
+
+The current development build saves the bundle locally; it does not upload it. The planned **Send
+run report** action will transmit this exact bounded ZIP only after showing the disclosure, byte
+count, and SHA-256 and receiving explicit consent. It will return a case ID and retention deadline.
+It is not a general telemetry channel, and automatic crash upload—if ever added—will be a separate,
+default-off choice. See the [product contract](product-contract.md) for the service boundary.

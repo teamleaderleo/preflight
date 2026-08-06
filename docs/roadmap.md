@@ -2,6 +2,33 @@
 
 Preflight follows a measurement-first sequence. Each optimization keeps the original loader available as a fallback.
 
+> **Historical engineering ledger.** Most of this document records the sequence that produced the
+> current implementation. It is retained because rejected experiments and corrected measurements
+> are part of the evidence, but it is no longer the best description of what blocks release. Start
+> with [Release readiness](release-readiness.md), [Optimization history](optimization-history.md),
+> and the [product contract](product-contract.md).
+
+## Current release program (2026-08-07)
+
+The current development profile has reached a 15.88-second warm record and clean 16.66-second cold
+and 16.28-second warm gates. The strongest controlled whole-stack comparison remains 80.09 seconds
+versus 42.36 seconds on an earlier stack. The next performance publication needs a fresh controlled
+release-candidate cohort; a record is not a median.
+
+Release work now has priority over another narrow startup experiment:
+
+1. written Fractal Softworks authorization for distribution, integration approach, name, and
+   disclaimer;
+2. one-action desktop setup, updates, storage visibility, preview-first removal, and explicit run
+   report submission;
+3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
+4. a controlled before/after release-candidate campaign plus frame-time/FPS evidence for gameplay
+   claims; and
+5. signed, checksum-qualified packages with a tested rollback and support path.
+
+Further startup or gameplay work remains welcome only when it keeps exact identity gates, bounded
+diagnostics, an independently disableable plan, and the original behavior on uncertainty.
+
 ## Measured result (2026-08-01, third campaign)
 
 `benchmarkAccepted: true`, 15 of 15 runs, no exclusions, launch-order drift **-0.04s (0.0% of
