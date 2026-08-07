@@ -239,7 +239,7 @@ export default function App() {
           ? `Preflight ${result.version} is available. Review it before installing.`
           : result.configured
             ? "Preflight is up to date."
-            : result.reason ?? "Signed updates aren’t configured in this build.");
+            : result.reason ?? "Verified updates aren’t configured in this build.");
       }
     } catch (error) {
       const detail = String(error);
@@ -573,7 +573,7 @@ export default function App() {
     let stopListening: (() => void) | undefined;
     void listen<UpdateProgressEvent>("update-progress", ({ payload }) => {
       setUpdateProgress(payload);
-      if (payload.state === "installed") setMessage("The signed update is installed. Restarting Preflight…");
+      if (payload.state === "installed") setMessage("The verified update is installed. Restarting Preflight…");
     }).then((unlisten) => {
       stopListening = unlisten;
     });
@@ -1416,11 +1416,11 @@ export default function App() {
 
             <section className="card update-card">
               <div className="card__heading">
-                <div><p className="eyebrow">Signed updates</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version} is available` : "Keep Preflight current"}</h2></div>
+                <div><p className="eyebrow">Verified updates</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version} is available` : "Keep Preflight current"}</h2></div>
                 <ShieldIcon className="settings-check" />
               </div>
               <p>{updateStatus?.available
-                ? updateStatus.notes || "A newer signed release is ready. Installation starts only after confirmation."
+                ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
                 : updateStatus?.configured
                   ? `Version ${updateStatus.currentVersion} is current.`
                   : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>

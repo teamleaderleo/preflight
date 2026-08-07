@@ -51,7 +51,7 @@ describe("private report intake", () => {
     expect(receipt).toMatchObject({
       protocolVersion: PROTOCOL_VERSION,
       caseId: grant.caseId,
-      objectKey: expect.stringMatching(/^accepted\/\d{4}-\d\d-\d\d\/[0-9a-f-]{36}\.zip$/),
+      objectKey: `accepted/${grant.caseId}.zip`,
       bytes: archive.byteLength,
       sha256: await sha256Hex(archive),
       productVersion: "0.1.0-test",
@@ -104,6 +104,47 @@ describe("private report intake", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       error: expect.stringContaining("exceeds its decompressed size limit"),
+    });
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("rejects malformed JSON evidence before storing it", async () => {
+    const archive = await bundle({ "runs/1/run.json": strToU8('{"state":') });
+    const grant = await createGrant(archive);
+
+    const response = await upload(grant, archive);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("runs/1/run.json is not valid JSON"),
+    });
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("rejects non-object JSON evidence before storing it", async () => {
+    const archive = await bundle({ "runs/1/run.json": strToU8('"untrusted text"') });
+    const grant = await createGrant(archive);
+
+    const response = await upload(grant, archive);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("runs/1/run.json must be a JSON object"),
+    });
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("rejects malformed JSON Lines evidence before storing it", async () => {
+    const archive = await bundle({
+      "benchmarks/1/results.jsonl": strToU8('{"status":"accepted"}\nnot-json\n'),
+    });
+    const grant = await createGrant(archive);
+
+    const response = await upload(grant, archive);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("benchmarks/1/results.jsonl line 2 is not valid JSON"),
     });
     expect((await env.REPORTS.list()).objects).toHaveLength(0);
   });

@@ -1,5 +1,10 @@
 # Desktop app and distribution research
 
+> **Historical design research.** The first-beta trust policy changed on 2026-08-08: macOS and
+> Windows packages will ship without paid platform identities, with explicit OS-warning and
+> checksum instructions. The separate Tauri updater signature remains mandatory. Current release
+> gates live in [Release readiness](release-readiness.md).
+
 **Status:** recommendation for a bounded proof-of-concept, not an architecture decision  
 **Researched:** 2026-07-28
 

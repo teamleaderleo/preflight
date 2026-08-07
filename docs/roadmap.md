@@ -8,7 +8,7 @@ Preflight follows a measurement-first sequence. Each optimization keeps the orig
 > with [Release readiness](release-readiness.md), [Optimization history](optimization-history.md),
 > and the [product contract](product-contract.md).
 
-## Current release program (2026-08-07)
+## Current release program (2026-08-08)
 
 Startup began around an 88.13-second controlled median, with early accepted launches reaching
 roughly 101 seconds. The current development profile has reached a 15.88-second warm record and
@@ -19,12 +19,12 @@ Release work now has priority over another narrow startup experiment:
 
 1. written Fractal Softworks authorization for distribution, integration approach, name, and
    disclaimer;
-2. one-action desktop setup, updates, storage visibility, preview-first removal, and explicit run
-   report submission;
+2. provision the free Tauri update key, finish the unsigned-package install guidance, and enable the
+   consent-based report intake after its production canary;
 3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
 4. a controlled before/after release-candidate campaign plus frame-time/FPS evidence for gameplay
    claims; and
-5. signed, checksum-qualified packages with a tested rollback and support path.
+5. update-signed, checksum-qualified packages with a tested rollback and support path.
 
 Further startup or gameplay work remains welcome only when it keeps exact identity gates, bounded
 diagnostics, an independently disableable plan, and the original behavior on uncertainty.
@@ -40,16 +40,18 @@ under the lease before applying. A read-only pass over the reviewed install foun
 profile. The two removal scopes now have the same preview/apply contract in the CLI and desktop:
 launch integrations plus the installed command engine can leave prepared data intact, while an
 all-data removal also clears caches, profiles, evidence, and backups without targeting the game.
-An interrupted all-data removal blocks other mutations until it is explicitly resumed. The signed
-update client and fail-closed three-platform feed pipeline are now implemented; key provisioning,
-release-candidate update/rollback verification, and unattended desktop smoke automation follow.
+An interrupted all-data removal blocks other mutations until it is explicitly resumed. The
+signature-verified update client and fail-closed three-platform feed pipeline are now implemented;
+free updater-key provisioning, release-candidate update/rollback verification, and unattended
+desktop smoke automation follow. Paid Apple and Windows publisher identities are explicitly outside
+the first-beta gate; packages will publish checksums and honest OS-warning instructions instead.
 The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
 strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
 Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop
 now reviews the exact entry list, size, digest, and exclusions; the native host revalidates and
 streams the file with progress/cancellation; and the accepted receipt can be copied or used for
-early deletion. Production provisioning, abuse-rate limits, operator details, and a signed-package
-canary still block enabling its compile-time origin.
+early deletion. Production provisioning, abuse-rate limits, operator details, and a packaged
+release-candidate canary still block enabling its compile-time origin.
 The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes
 its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
 driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime

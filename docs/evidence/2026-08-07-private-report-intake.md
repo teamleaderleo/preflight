@@ -56,4 +56,4 @@ Rust unit tests pin the fail-closed origin and endpoint rules, changed-file refu
 shutdown cancellation. Frontend tests cover explicit consent through receipt and deletion, plus the
 unconfigured-build path where local export remains available. Production is still disabled: the
 client origin is compile-time only and absent from ordinary builds. Provisioning, rate limiting,
-public operator details, and a live signed-package canary remain release gates.
+public operator details, and a live packaged release-candidate canary remain release gates.

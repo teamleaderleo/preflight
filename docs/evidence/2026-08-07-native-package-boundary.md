@@ -41,6 +41,7 @@ The package checks reject game, mod, save, activation, log, crash, screenshot, a
 game paths. A separate full-history audit covered 3,931 historical blobs and all 1,227 tracked files
 at this head, allowing only six reviewed binary icons and the licensed synthetic fixture set.
 
-These are unsigned development checks. The first public beta still waits for the updater key,
-Apple signing and notarization, Windows signing, a final signed-candidate run, written Fractal
-Softworks guidance, and licensed Windows/Linux game evidence.
+These are unsigned development checks. The first public beta still waits for the updater key, a
+final tagged-candidate run, written Fractal Softworks guidance, and licensed Windows/Linux game
+evidence. Paid Apple signing/notarization and Windows signing were later removed from the
+first-beta gate.

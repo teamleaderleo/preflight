@@ -12,7 +12,7 @@ Off retains process ownership and bounded outcome reporting without installing r
 transformations. Record whether the problem still occurs. Keep caches in place; content-addressed
 data doesn't need to be deleted to disable its readers.
 
-If the application release itself is broken, reinstall the preceding signed package after checking
+If the application release itself is broken, reinstall the preceding release package after checking
 its published SHA-256. Debian installations should use their package manager. Replacing Preflight
 doesn't require editing Starsector, its mods, or saves. A failed updater download or signature check
 leaves the installed version in place.

@@ -297,7 +297,7 @@ test("a blocked macOS automation probe links to the manual permission pane", asy
   settings.mockRestore();
 });
 
-test("signed updates are explicit and explain when a build has no update channel", async () => {
+test("verified updates are explicit and explain when a build has no update channel", async () => {
   const user = userEvent.setup();
   render(<App />);
 
@@ -305,7 +305,7 @@ test("signed updates are explicit and explain when a build has no update channel
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(await screen.findByRole("button", { name: "Check for updates" }));
 
-  expect(await screen.findAllByText("Browser preview has no signed update channel.")).toHaveLength(2);
+  expect(await screen.findAllByText("Browser preview has no verified update channel.")).toHaveLength(2);
   expect(screen.queryByRole("button", { name: "Install and restart" })).not.toBeInTheDocument();
 });
 

@@ -468,7 +468,7 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
       version: null,
       date: null,
       notes: null,
-      reason: "Browser preview has no signed update channel.",
+      reason: "Browser preview has no verified update channel.",
     };
   }
   return invoke<UpdateStatus>("check_for_update");

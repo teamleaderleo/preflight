@@ -1,7 +1,12 @@
 # Known limitations
 
-Preflight remains a private development preview. No public package has completed the signing,
-clean-install, update, rollback, and real-game platform matrix required for the first beta.
+Preflight remains a private development preview. No public package has completed the clean-install,
+update, rollback, OS-warning, and real-game platform matrix required for the first beta.
+
+The first beta's macOS and Windows packages will lack paid platform identities. macOS will require
+the user's explicit **Open Anyway** approval, and Windows may show SmartScreen's unrecognized-app
+warning or refuse execution under stricter managed policy. Each release will publish SHA-256
+manifests and use a separate project-key signature for in-app updates.
 
 The current performance evidence comes from Starsector 0.98a-RC8 with a large mod profile on an
 Apple-silicon Mac running the game's x86-64 JVM through Rosetta. Native packages build on macOS,

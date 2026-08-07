@@ -124,9 +124,10 @@ The service flow is:
    received time, product version, and retention deadline. The app displays and copies that receipt.
 
 The embedded application has no durable secret. A secret shipped in a desktop binary is extractable,
-so it can't prove that an upload came from an untampered official client. The receipt proves what
-the service accepted; the signed application package and manifest establish useful provenance; rate
-limits constrain anonymous abuse. Cloudflare's rate-limiting rules can cap requests by path and IP
+so it can't prove that an upload came from an untampered official client. The intake therefore
+treats every request as anonymous hostile input. The receipt proves what the service accepted;
+strict server-side format checks, private storage, short retention, and rate limits constrain abuse.
+Cloudflare's rate-limiting rules can cap requests by path and IP
 ([WAF documentation](https://developers.cloudflare.com/waf/rate-limiting-rules/)). If uploader
 identity becomes necessary, GitHub's device flow can add an explicit sign-in without asking users
 to paste tokens ([GitHub documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)); it shouldn't be required for ordinary beta feedback.
@@ -146,9 +147,10 @@ default-off consent toggle rather than a side effect of enabling server observab
 The default desktop path should present a primary action—**Make Starsector fast**—and an honest
 before/after result. Advanced controls remain available without becoming prerequisites.
 
-- Updates may be checked in the background, but installation is explicit. Release packages and
-  updater metadata must be signed, and a failed verification must leave the installed version
-  runnable.
+- Updates may be checked in the background, but installation is explicit. Every Tauri updater
+  artifact must have its project-key signature in the feed, and a failed verification must leave
+  the installed version runnable. This free update signature is separate from paid Apple Developer
+  ID or Windows Authenticode identities; the first beta doesn't require those platform identities.
 - The app shows current cache/evidence use and the effect of Balanced versus Fastest before changing
   policy. Cleanup is preview-first and never runs while the game or preparation owns the profile.
   Its desktop plan keeps the current profile and every readable named profile, summarizes every
@@ -158,7 +160,7 @@ before/after result. Advanced controls remain available without becoming prerequ
   enumerate what will be removed; neither removes Starsector, mods, saves, or game-owned settings.
   The first scope removes OS launch shortcuts and the installed command engine while retaining
   prepared data and evidence. The second also removes caches, profiles, evidence, and backups under
-  Preflight's home. A packaged desktop app remains subject to the platform's signed package
+  Preflight's home. A packaged desktop app remains subject to the platform's normal package
   uninstaller; a running app doesn't attempt to delete its own bundle.
 - A profile or game update selects new content identities. Old data remains removable through the
   same preview-first storage flow rather than accumulating invisibly forever.

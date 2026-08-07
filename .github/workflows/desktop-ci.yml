@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           npm test
-          npm run test:release
+          npm run test:release:prepared
           npm run build
 
       - name: Verify native host

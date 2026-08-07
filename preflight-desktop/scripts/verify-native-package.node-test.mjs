@@ -5,7 +5,14 @@ import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import test from "node:test";
 import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
-import { assertTreesEqual } from "./verify-native-package.mjs";
+import { assertTreesEqual, classifyMacSignature } from "./verify-native-package.mjs";
+
+test("macOS package verification distinguishes Developer ID from ad-hoc signing", () => {
+  assert.equal(classifyMacSignature(0, "Authority=Developer ID Application: Example (ABCDE12345)\n"), "developer-id");
+  assert.equal(classifyMacSignature(0, "Signature=adhoc\n"), "ad-hoc");
+  assert.equal(classifyMacSignature(1, "code object is not signed at all\n"), "unsigned-or-invalid");
+  assert.equal(classifyMacSignature(0, "Authority=Apple Development: Example\n"), "unidentified");
+});
 
 test("native package tree comparison accepts identical content", async () => {
   const directory = await mkdtemp(join(tmpdir(), "preflight-package-tree-"));

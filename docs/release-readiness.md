@@ -17,16 +17,18 @@ first public beta.
   Fractal Softworks.
 - [x] Use the project-controlled `io.github.teamleaderleo.preflight` bundle identifier before users
   install persistent packages.
-- [x] Make the first beta wait for platform signing. Development packages can remain unsigned for
-  CI, but tagged macOS and Windows artifacts fail before upload unless their platform signatures
-  verify.
+- [x] Record the first-beta package trust policy. macOS and Windows packages will ship without paid
+  platform identities, with the expected Gatekeeper/SmartScreen warnings stated before download.
+  Tagged artifacts still require exact package-boundary verification and published SHA-256 files.
 - [ ] Provision and back up the Tauri updater signing key; ship only metadata and packages verified
   by its public key. Keep the private key out of the repository and client.
-- [ ] Configure and verify Apple signing/notarization and Windows signing if they are release gates.
+- [x] Keep Apple signing/notarization and Windows Authenticode outside the first-beta gate. They can
+  be added later without changing the cache or runtime-adapter model. The exact trust boundary is
+  recorded in [the package and report decision](evidence/2026-08-08-package-trust-and-report-boundary.md).
 - [ ] Test clean install, update, rollback, launcher ownership, ordinary removal, and full Preflight
   data removal on each published platform. Development CI now copies the macOS app and performs
-  real Debian and NSIS install/verify/remove cycles; signed-candidate update, rollback, and
-  user-data lifecycle checks remain.
+  real `.deb` and NSIS install/verify/remove cycles on Ubuntu and Windows; tagged-candidate update,
+  rollback, OS-warning instructions, and user-data lifecycle checks remain.
 - [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
   synthetic fixtures don't prove game integration.
 - [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the
@@ -51,8 +53,8 @@ first public beta.
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
   The private receiving service, local Java-export interoperability check, and desktop
   consent/upload/cancel/receipt/delete path are complete. Production provisioning, abuse-rate
-  limits, public operator details, and a signed-package canary remain, so distributed builds still
-  omit the intake origin.
+  limits, public operator details, and a packaged release-candidate canary remain, so distributed
+  builds still omit the intake origin.
 - [ ] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
@@ -102,7 +104,7 @@ first public beta.
   blobs. CI now extracts the DMG, NSIS, Debian, and AppImage payloads and re-verifies the embedded
   engine and reviewed resources, then exercises ordinary native installation and removal where the
   package has an installer. The exact evidence is recorded in
-  [the native-package boundary](evidence/2026-08-07-native-package-boundary.md). A final signed-candidate
+  [the native-package boundary](evidence/2026-08-07-native-package-boundary.md). A final tagged-candidate
   run remains.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.

@@ -35,19 +35,19 @@ export function verifyMacPackage(directory = bundleDirectory) {
     }
     const appDirectory = join(mountDirectory, "Preflight.app");
     const signatureRequired = readBooleanEnvironment("PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE", false);
-    const signedRelease = readBooleanEnvironment("PREFLIGHT_SIGNED_RELEASE", false);
+    const updateRelease = readBooleanEnvironment("PREFLIGHT_UPDATE_RELEASE", false);
     const platformSignature = verifyMacApp(appDirectory, signatureRequired);
 
     const updaterArchives = filesWithSuffix(directory, ".app.tar.gz");
     const updaterSignatures = filesWithSuffix(directory, ".app.tar.gz.sig");
-    const expectedUpdaterCount = signedRelease ? 1 : 0;
+    const expectedUpdaterCount = updateRelease ? 1 : 0;
     if (updaterArchives.length !== expectedUpdaterCount || updaterSignatures.length !== expectedUpdaterCount) {
       throw new Error(
         `macOS updater artifact set differs: expected ${expectedUpdaterCount} archive/signature pair; ` +
         `found ${updaterArchives.length} archive(s) and ${updaterSignatures.length} signature(s)`,
       );
     }
-    if (signedRelease) {
+    if (updateRelease) {
       const archiveEntries = run("tar", ["-tzf", updaterArchives[0]], true).trim().split("\n").filter(Boolean);
       if (archiveEntries.length === 0) throw new Error("macOS updater archive is empty");
       for (const entry of archiveEntries) {
@@ -78,7 +78,7 @@ export function verifyMacPackage(directory = bundleDirectory) {
     }
     return {
       dmg: basename(dmgFiles[0]),
-      updaterArchive: signedRelease,
+      updaterArchive: updateRelease,
       platformSignature,
       installedCopy: true,
       engine: installedEngine,
@@ -151,7 +151,7 @@ export function verifyWindowsPackage(directory = bundleDirectory) {
     }
     return {
       package: basename(installers[0]),
-      platformSignature: signatureStatus === "Valid" ? "verified" : "development-only",
+      platformSignature: signatureStatus === "Valid" ? "authenticode" : "unsigned-or-untrusted",
       ...payload,
     };
   } finally {
@@ -209,6 +209,13 @@ export function assertTreesEqual(expected, actual) {
   }
 }
 
+export function classifyMacSignature(verifyStatus, details) {
+  if (verifyStatus !== 0) return "unsigned-or-invalid";
+  if (/^Authority=Developer ID Application:/m.test(details)) return "developer-id";
+  if (/^Signature=adhoc$/m.test(details)) return "ad-hoc";
+  return "unidentified";
+}
+
 function verifyMacApp(appDirectory, signatureRequired) {
   assertExactEntries(appDirectory, ["Contents"]);
   const contents = join(appDirectory, "Contents");
@@ -248,10 +255,19 @@ function verifyMacApp(appDirectory, signatureRequired) {
     stdio: "pipe",
   });
   if (signature.error) throw signature.error;
-  if (signatureRequired && signature.status !== 0) {
-    throw new Error(`Tagged macOS package isn't platform-signed: ${(signature.stderr ?? "").trim()}`);
+  const details = spawnSync("codesign", ["-dv", "--verbose=4", appDirectory], {
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+  if (details.error) throw details.error;
+  const platformSignature = classifyMacSignature(
+    signature.status,
+    `${details.stdout ?? ""}\n${details.stderr ?? ""}`,
+  );
+  if (signatureRequired && platformSignature !== "developer-id") {
+    throw new Error(`Tagged macOS package isn't Developer ID-signed: ${platformSignature}`);
   }
-  return signature.status === 0 ? "verified" : "development-only";
+  return platformSignature;
 }
 
 function verifyPackagedEngine(engineDirectory, options = {}) {

@@ -18,7 +18,7 @@ function fixture() {
   return directory;
 }
 
-test("builds the static Tauri feed from all three signed desktop packages", () => {
+test("builds the static Tauri feed from all three update-signed artifacts", () => {
   const manifest = buildUpdaterManifest(fixture(), "v0.2.0");
   assert.equal(manifest.version, "0.2.0");
   assert.deepEqual(Object.keys(manifest.platforms), [
@@ -32,7 +32,7 @@ test("builds the static Tauri feed from all three signed desktop packages", () =
   );
 });
 
-test("refuses a feed when any platform signature is missing", () => {
+test("refuses a feed when any updater signature is missing", () => {
   const directory = fixture();
   writeFileSync(join(directory, "Preflight-Windows-x86_64.exe.sig"), "");
   assert.throws(() => buildUpdaterManifest(directory, "v0.2.0"), /Invalid updater signature/);

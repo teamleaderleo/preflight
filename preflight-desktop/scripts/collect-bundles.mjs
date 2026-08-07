@@ -25,14 +25,14 @@ const packageSuffixes = [
   ".exe",
 ];
 
-export function expectedPackageExtensions(platform, signed) {
-  const unsigned = {
+export function expectedPackageExtensions(platform, updateRelease) {
+  const ordinary = {
     darwin: [".dmg"],
     linux: [".appimage", ".deb"],
     win32: [".exe"],
   }[platform];
-  if (!unsigned) throw new Error(`Unsupported release platform: ${platform}`);
-  if (!signed) return unsigned;
+  if (!ordinary) throw new Error(`Unsupported release platform: ${platform}`);
+  if (!updateRelease) return ordinary;
   return {
     darwin: [".app.tar.gz", ".app.tar.gz.sig", ".dmg"],
     linux: [".appimage", ".appimage.sig", ".deb"],
@@ -100,11 +100,11 @@ function main() {
   if (!statSync(bundleDirectory, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Error(`Tauri bundle directory does not exist: ${bundleDirectory}`);
   }
-  const signedValue = process.env.PREFLIGHT_SIGNED_RELEASE ?? "false";
-  if (!new Set(["true", "false"]).has(signedValue)) {
-    throw new Error("PREFLIGHT_SIGNED_RELEASE must be true or false");
+  const updateValue = process.env.PREFLIGHT_UPDATE_RELEASE ?? "false";
+  if (!new Set(["true", "false"]).has(updateValue)) {
+    throw new Error("PREFLIGHT_UPDATE_RELEASE must be true or false");
   }
-  const expectedExtensions = expectedPackageExtensions(process.platform, signedValue === "true");
+  const expectedExtensions = expectedPackageExtensions(process.platform, updateValue === "true");
   const packages = collectPackages(bundleDirectory, expectedExtensions);
 
   // This is a generated distribution directory fixed below preflight-desktop. Never accept an

@@ -43,7 +43,8 @@ not be implemented as a blind file deletion.
 ## Release boundary
 
 These were unsigned development packages, not public beta artifacts. Apple signing/notarization and
-Windows signing need real credentials. CI cannot include the licensed Starsector installation, so
+Windows signing need paid identities and were later removed from the first-beta gate. CI cannot
+include the licensed Starsector installation, so
 Windows/Linux prove portable engine construction, tests, and packaging—not live game compatibility.
 Runtime adapters continue to exact-gate and fall back to vanilla on unknown platform/game/mod
 bytecode; real beta evidence remains the Windows/Linux activation gate.

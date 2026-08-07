@@ -75,5 +75,5 @@ if (isMain) {
   }
   const output = resolve(requestedOutput ?? resolve(inputDirectory, "latest.json"));
   writeUpdaterManifest(resolve(inputDirectory), tag, output);
-  console.log(`Wrote signed update manifest to ${output}`);
+  console.log(`Wrote signature-verified update manifest to ${output}`);
 }

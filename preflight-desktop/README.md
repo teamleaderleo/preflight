@@ -35,10 +35,10 @@ builds each target on its native GitHub runner rather than cross-compiling:
 - Linux: `.AppImage` and `.deb`
 
 The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users don't need
-Java, Node, Maven, npm, or Rust. Current packages are private, unsigned development artifacts. Don't
-distribute or describe them as warning-free installs until public distribution is authorized,
-Windows signing and Apple signing/notarization are configured, and the signed updater is
-verified on a release candidate.
+Java, Node, Maven, npm, or Rust. Current packages are private development artifacts. The first beta
+will use OS-unsigned macOS and Windows packages, published SHA-256 manifests, and explicit
+Gatekeeper/SmartScreen instructions. Its separate Tauri update artifacts remain signed with the
+free project-owned updater key and require a release-candidate verification pass.
 
 Tagged builds generate a release-only Tauri configuration containing the public updater key and the
 v2 artifact switch. They require `TAURI_SIGNING_PRIVATE_KEY`,
@@ -49,7 +49,7 @@ contain no verification key and report their update channel as disabled.
 
 Run-report sending is also a compile-time release capability. Ordinary builds omit it and retain
 local diagnostics export only. After the private intake has been provisioned and verified, build
-the signed package with the exact production HTTPS origin:
+the release package with the exact production HTTPS origin:
 
 ```bash
 PREFLIGHT_REPORT_INTAKE_ORIGIN=https://reports.example.com npm run desktop:build

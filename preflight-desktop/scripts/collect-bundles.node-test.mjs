@@ -10,7 +10,7 @@ import {
   publicPackageName,
 } from "./collect-bundles.mjs";
 
-test("requires the exact native package set for each release kind", () => {
+test("requires update signatures only for an update-enabled release", () => {
   assert.deepEqual(expectedPackageExtensions("darwin", false), [".dmg"]);
   assert.deepEqual(expectedPackageExtensions("linux", false), [".appimage", ".deb"]);
   assert.deepEqual(expectedPackageExtensions("win32", false), [".exe"]);

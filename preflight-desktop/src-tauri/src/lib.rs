@@ -763,14 +763,14 @@ async fn check_for_update(
         .updater_builder()
         .pubkey(public_key)
         .endpoints(vec![endpoint])
-        .map_err(|error| format!("Could not configure signed updates: {error}"))?
+        .map_err(|error| format!("Could not configure verified updates: {error}"))?
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|error| format!("Could not initialize signed updates: {error}"))?;
+        .map_err(|error| format!("Could not initialize verified updates: {error}"))?;
     let update = updater
         .check()
         .await
-        .map_err(|error| format!("Could not check for a signed update: {error}"))?;
+        .map_err(|error| format!("Could not check for a verified update: {error}"))?;
     let status = match update.as_ref() {
         Some(update) => UpdateStatus {
             format: "preflight-update-v1",
@@ -883,7 +883,7 @@ async fn install_update(
             .lock()
             .map_err(|_| "The update tracker is unavailable.".to_string())? = Some(update);
         return Err(format!(
-            "The signed update could not be installed; this version is unchanged: {error}"
+            "The verified update could not be installed; this version is unchanged: {error}"
         ));
     }
 

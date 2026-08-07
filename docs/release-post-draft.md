@@ -1,7 +1,7 @@
 # Public beta announcement draft
 
 **Don't publish yet.** Replace every bracketed field after authorization, release-candidate testing,
-signing decisions, and the final controlled benchmark.
+updater-key provisioning, and the final controlled benchmark.
 
 ## Headline
 
@@ -42,7 +42,8 @@ game-owned preferences.
 - Reviewed mod-specific adapters: **[LIST]**. “Not listed” doesn't mean incompatible; no specific
   acceleration is claimed for that mod.
 - Disk use: **[BALANCED RANGE]** for the test profile; Fastest is optional and larger.
-- Packages/signing: **[SIGNED STATUS AND PLATFORM WARNINGS]**.
+- Package trust: OS-unsigned macOS/Windows packages, SHA-256 manifests, signature-verified in-app
+  updates, and **[TESTED PLATFORM WARNING INSTRUCTIONS]**.
 
 ## Install, verify, and remove
 

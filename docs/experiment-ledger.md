@@ -150,6 +150,13 @@ why the work changed direction. This page accounts for each abandoned branch.
 | Cache cleanup | Delete old artifacts based only on age or filename | **Rejected by design** | Prune derives reachability from readable current manifests and proves Janino duplicates byte-for-byte. Unknown state retains data; the dry run is separate from `--yes`. | [Cache-space budget](evidence/2026-08-05-cache-space-budget.md) |
 | Desktop | Assume a successful macOS build proves Windows/Linux operation | **Rejected as claim** | Cross-platform packages build. Installation discovery, game launch, and hardware behavior still require beta evidence on Windows and Linux. | [Distribution matrix](evidence/2026-08-06-desktop-distribution-matrix.md) |
 
+## August 8: first-beta trust boundary
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Distribution | Make paid Apple and Windows publisher identities block the first beta | **Rejected as release gate** | Packages will publish checksums and explicit OS-warning instructions. The separate free Tauri updater signature remains mandatory. | [Package trust](evidence/2026-08-08-package-trust-and-report-boundary.md) |
+| Diagnostics | Trust a report because it came through the desktop client | **Rejected by design** | The client carries no durable credential. The Worker treats every request as anonymous hostile input and accepts only bounded, parsed JSON/JSONL evidence into private storage. | [Report boundary](evidence/2026-08-08-package-trust-and-report-boundary.md) |
+
 ## Limits on current claims
 
 Rosetta makes CPU and allocation reductions especially visible on the reference machine. Windows

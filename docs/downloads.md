@@ -6,8 +6,8 @@ and startup profiler.
 
 > **No public download yet.** The packaging pipeline below is verified, but public distribution is
 > blocked on written Fractal Softworks authorization and disclaimer guidance, updater-key
-> provisioning, platform-signing setup, release-candidate compatibility testing, and the
-> remaining product-lifecycle work in
+> provisioning, unsigned-package installation guidance, release-candidate compatibility testing,
+> and the remaining product-lifecycle work in
 > [Release readiness](release-readiness.md).
 
 ## Planned release downloads
@@ -37,8 +37,8 @@ download page use GitHub's permanent `releases/latest/download/<asset>` redirect
 embedding a version in every link.
 
 The public README will place Windows, macOS, and Linux download buttons immediately below the
-project description once signed release packages exist. Until then it doesn't present private,
-unsigned workflow artifacts as public downloads.
+project description once release packages exist. Until then it doesn't present private workflow
+artifacts as public downloads.
 
 GitHub records a download count for each attached release asset. The README may expose their total
 through a small badge; it should be labelled **release downloads**, since it counts asset requests
@@ -47,8 +47,9 @@ rather than unique people or installations.
 A manually dispatched Distribution workflow currently produces the same files as private workflow
 artifacts without creating a release. Desktop packages contain their own minimal Java runtime and
 don't require a system JDK. They also contain the project license, third-party notices, privacy
-statement, and known limitations under the bundled resources. Those development packages are
-unsigned; they aren't the intended public install experience.
+statement, and known limitations under the bundled resources. The first beta will also lack paid
+Apple and Windows publisher identities. Its public install experience must state the resulting OS
+warnings before download and pair every artifact with a SHA-256 manifest.
 
 The release dependency files are described in
 [Release dependency inventory](dependency-inventory.md). They are generated from the exact release
@@ -57,10 +58,28 @@ commit and published beside the platform packages; the standalone archives carry
 Tagged builds are stricter. The workflow first requires the updater private key, its password, and
 the matching public key. It signs every supported updater artifact, assembles `latest.json` only
 after Linux, macOS, and Windows are present, and makes the staged GitHub release public only after
-every asset uploads. The desktop app checks that fixed HTTPS feed quietly and waits for an explicit
+every asset uploads. This Tauri signature is free and separate from Apple Developer ID or Windows
+Authenticode. The desktop app checks that fixed HTTPS feed quietly and waits for an explicit
 **Install and restart** action. Tauri verifies the downloaded signature before installation. A
-failed download or verification leaves the current version installed. Debian packages don't use
+failed download or verification leaves the current version installed. `.deb` packages don't use
 the AppImage update payload; they continue through the package manager used to install them.
+
+## Platform warnings in the first beta
+
+The macOS DMG has no paid Developer ID identity or Apple notarization. After the first blocked open,
+users who have verified the GitHub source and published checksum can approve it under **System
+Settings → Privacy & Security → Open Anyway**. Apple documents that override and its security
+tradeoff in [Open a Mac app from an unknown developer](https://support.apple.com/guide/mac-help/mh40616/mac).
+
+The Windows NSIS installer has no Authenticode publisher identity. Microsoft says an unsigned new
+file can show **Windows protected your PC**, and managed systems can forbid bypassing the warning.
+The exact behavior and reputation model are documented in
+[SmartScreen reputation for Windows app developers](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation).
+
+Linux CI builds both `.deb` and AppImage artifacts on Ubuntu 22.04. `.deb` is the Debian-family
+package format used by Ubuntu and Debian; it doesn't mean Debian is the only supported target.
+AppImage is the portable fallback for other compatible x86-64 distributions. Real installation and
+licensed-game testing still determine the initial supported distribution list.
 
 ## Requirements
 
@@ -124,7 +143,7 @@ Compare the result with the hash in `preflight.jar.sha256`.
 
 Don't create a public tag until every blocking item in
 [Release readiness](release-readiness.md) is closed and the bundle identifier,
-signing identity, updater public key, and disclaimer are final.
+updater public key, unsigned-package instructions, and disclaimer are final.
 
 A maintainer creates and pushes an annotated version tag:
 
@@ -137,9 +156,9 @@ The Distribution workflow checks that the tag, frontend package, Tauri applicati
 package versions agree, runs the full verification suite, assembles archives, smoke-tests the
 packaged JAR, then builds the desktop host and its platform-native Java runtime independently on
 Linux, macOS, and Windows. Platform jobs upload private workflow artifacts. The final job builds the
-signed static feed, uploads every asset to a draft, then publishes it. Any failed verification,
-missing signature, failed upload, or failed desktop platform leaves the tag without a public
-release.
+signature-verified static update feed, uploads every asset to a draft, then publishes it. Any failed
+verification, missing updater signature, failed upload, or failed desktop platform leaves the tag
+without a public release.
 
 ### Provision the updater key
 

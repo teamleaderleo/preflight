@@ -13,7 +13,7 @@ jobs:
   distribution:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate tagged-release signing credentials
+      - name: Validate tagged-release updater credentials
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -160,10 +160,10 @@ jobs:
         run: |
           npm run engine:prepare:verified
           npm test
-          npm run test:release
+          npm run test:release:prepared
           cargo test --locked --manifest-path src-tauri/Cargo.toml
 
-      - name: Write signed updater configuration
+      - name: Write verified updater configuration
         if: startsWith(github.ref, 'refs/tags/v')
         working-directory: preflight-desktop
         env:
@@ -179,7 +179,7 @@ jobs:
         working-directory: preflight-desktop
         run: npx tauri build --bundles ${{ matrix.bundles }}
 
-      - name: Build signed native desktop package
+      - name: Build update-enabled native desktop package
         if: runner.os != 'Linux' && startsWith(github.ref, 'refs/tags/v')
         working-directory: preflight-desktop
         env:
@@ -205,7 +205,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
         run: npx tauri bundle --verbose --bundles appimage
 
-      - name: Build signed Linux AppImage
+      - name: Build update-enabled Linux AppImage
         if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/v')
         working-directory: preflight-desktop
         env:
@@ -218,8 +218,10 @@ jobs:
       - name: Verify extracted native package contents
         working-directory: preflight-desktop
         env:
-          PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE: ${{ startsWith(github.ref, 'refs/tags/v') }}
-          PREFLIGHT_SIGNED_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          # The first public beta is distributed without paid Apple/Windows publisher
+          # identities. Tauri's separate, free update signature remains mandatory.
+          PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE: 'false'
+          PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: npm run desktop:verify-package
 
       - name: Exercise native installation and removal
@@ -230,7 +232,7 @@ jobs:
       - name: Collect native package and checksum
         working-directory: preflight-desktop
         env:
-          PREFLIGHT_SIGNED_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: npm run desktop:collect
 
       - name: Upload desktop package
@@ -242,7 +244,7 @@ jobs:
           retention-days: 30
 
   publish:
-    name: Publish complete signed release
+    name: Publish complete verified release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [distribution, desktop]
     runs-on: ubuntu-latest
@@ -257,7 +259,7 @@ jobs:
           path: release-input
           merge-multiple: true
 
-      - name: Build signed update feed
+      - name: Build verified update feed
         shell: bash
         run: |
           set -euo pipefail

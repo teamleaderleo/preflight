@@ -29,8 +29,8 @@ installed command engine can be removed while retaining prepared data, or every 
 cache/profile/evidence/backup can be cleared. Both are preview-first and game/mod/save/preferences
 stay outside the target set. All-data removal holds the shared lease and leaves an interruption
 marker that blocks other mutations until removal is explicitly resumed. Packaged-app deletion
-remains with the operating system's signed installer rather than asking a running app to erase its
-own bundle. Signed updates are now fail-closed end to end: the desktop verifies Tauri signatures,
+remains with the operating system's package uninstaller rather than asking a running app to erase its
+own bundle. Verified updates are now fail-closed end to end: the desktop verifies Tauri signatures,
 development builds don't check the production feed, and a release remains a draft until every
 supported artifact, signature, and update-manifest entry is present. The next release slices are
 key provisioning, an update/rollback rehearsal, and unattended desktop smoke automation.
@@ -100,8 +100,8 @@ hostile-ZIP and manifest verification, immutable private R2 writes, signed recei
 and a lifecycle deployment checklist. Worker-runtime tests and a real Java-export replay pass. The
 desktop now provides the explicit digest/size disclosure, consent, progress, cancellation, receipt,
 and early-deletion flow; ordinary builds fail closed because they omit the intake origin. Production
-provisioning, abuse-rate limits, public operator details, and a signed-package canary remain release
-work. No durable secret belongs in the client.
+provisioning, abuse-rate limits, public operator details, and a packaged release-candidate canary
+remain release work. No durable secret belongs in the client.
 
 ## Where the launch is
 
@@ -1237,8 +1237,9 @@ bounds child stderr, launches one of the typed `recommended|conservative|off` op
 and exposes narrow installation, cache, preparation, and
 named-profile commands rather than arbitrary shell access. Native bundling and the three-platform
 CI matrix are restored with regenerated vector-derived icons; the packages remain private,
-unsigned development artifacts pending distribution authorization, updater signing, Windows
-signing, and Apple signing/notarization. The
+unsigned development artifacts pending distribution authorization and updater-key provisioning.
+The first beta's Apple/Windows packages will remain without paid platform identities; checksum and
+OS-warning guidance replace that former release gate. The
 desktop UI now uses the bundled variable Orbitron face throughout, with the exact OFL text included
 in every native package; it has no font-network dependency. macOS DMG and Windows NSIS packaging are
 green. Linux Debian and AppImage packaging are green as well. AppImage's `linuxdeploy` scan needs the

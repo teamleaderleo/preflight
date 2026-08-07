@@ -60,7 +60,7 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
 
   const now = Math.floor(Date.now() / 1000);
   const caseId = crypto.randomUUID();
-  const objectKey = `accepted/${new Date(now * 1000).toISOString().slice(0, 10)}/${caseId}.zip`;
+  const objectKey = `accepted/${caseId}.zip`;
   const base = {
     v: PROTOCOL_VERSION,
     caseId,
