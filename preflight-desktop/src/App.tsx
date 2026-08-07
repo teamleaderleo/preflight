@@ -1285,6 +1285,9 @@ export default function App() {
                   {(cache?.groups ?? []).map((group) => (
                     <div key={group.id}><span>{group.id}</span><strong>{formatBytes(group.bytes)}</strong></div>
                   ))}
+                  {(cache?.uncategorizedBytes ?? 0) > 0 && (
+                    <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong></div>
+                  )}
                 </div>
                 <div className="storage-groups storage-plan" aria-label="Preparation storage plan">
                   <div><span>Predicted additional</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong></div>
@@ -1293,7 +1296,7 @@ export default function App() {
                   <div><span>Available now</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong></div>
                 </div>
                 {preparationPlan && !preparationPlan.safeToPrepare && <p className="activation-warning">{preparationPlan.refusalReason}</p>}
-                <p className="storage-note">Acceleration data and diagnostic evidence are tracked separately. Cleanup is always previewed before deletion.</p>
+                <p className="storage-note">Cleanup is always previewed before deletion.{(cache?.uncategorizedBytes ?? 0) > 0 ? " Other includes retained cache formats and files outside the active categories." : ""}</p>
                 <button className="button button--quiet button--compact" type="button" onClick={() => void reviewCleanup()} disabled={cleanupBusy || preparing || status === "running"}>
                   {cleanupBusy ? "Checking…" : "Review cleanup"}
                 </button>

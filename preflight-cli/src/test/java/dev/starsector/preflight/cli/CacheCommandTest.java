@@ -39,6 +39,7 @@ class CacheCommandTest {
                 "retained-index");
         Files.writeString(home.cache().resolve("packs").resolve(current + ".spfp"), "pack");
         Files.writeString(home.runs().resolve("adapter.json"), "evidence");
+        Files.writeString(home.root().resolve("future-cache-format"), "future");
 
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         assertEquals(0, CacheCommand.reportJson(
@@ -63,6 +64,7 @@ class CacheCommandTest {
         List<Map<String, Object>> groups = (List<Map<String, Object>>) report.get("groups");
         assertTrue(groups.stream().anyMatch(group -> "acceleration".equals(group.get("id"))));
         assertTrue(groups.stream().anyMatch(group -> "evidence".equals(group.get("id"))));
+        assertEquals(6L, ((Number) report.get("uncategorizedBytes")).longValue());
 
         List<Map<String, Object>> profiles =
                 (List<Map<String, Object>>) report.get("profiles");

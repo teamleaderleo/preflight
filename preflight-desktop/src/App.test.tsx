@@ -18,6 +18,7 @@ function cacheSnapshot(overrides: Partial<CacheSnapshot> = {}): CacheSnapshot {
     present: true,
     total: { bytes: 1024, files: 3 },
     groups: [],
+    uncategorizedBytes: 0,
     currentProfileFingerprint: "current-profile",
     profiles: [{
       fingerprint: "current-profile",
@@ -109,6 +110,23 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Balanced4 workers/ })).toBeEnabled();
   expect(await screen.findByRole("button", { name: "Prepare current profile" })).toBeEnabled();
+});
+
+test("storage totals disclose data outside the active cache categories", async () => {
+  const user = userEvent.setup();
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cacheSnapshot({
+    total: { bytes: 1536, files: 4 },
+    uncategorizedBytes: 512,
+  }));
+
+  render(<App />);
+  await screen.findByText("Ready to launch");
+  await user.click(screen.getByRole("button", { name: "Prepare" }));
+
+  expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
+  expect(screen.getByText("512 B")).toBeInTheDocument();
+  expect(screen.getByText(/Other includes retained cache formats/)).toBeInTheDocument();
+  cache.mockRestore();
 });
 
 test("cache cleanup is previewed before unused artifacts are removed", async () => {

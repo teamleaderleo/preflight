@@ -63,7 +63,9 @@ rolling back doesn't first destroy the preparation needed by that release.
 Cache pruning operates on the active format namespaces. Older namespaces are retained for rollback
 until the user explicitly clears broader cached data; an application update doesn't silently treat
 an unfamiliar old representation as disposable space. The update review warns that a format change
-can temporarily retain both copies before installation starts.
+can temporarily retain both copies before installation starts. The storage view includes bytes
+outside the active categories as **Other Preflight data**, so retained formats remain part of the
+visible total even when the current release can't classify their contents more narrowly.
 
 Named mod profiles are user data rather than application state. A future profile schema needs an
 explicit reader or migration and must preserve the previous file until the replacement is accepted.

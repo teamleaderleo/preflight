@@ -210,6 +210,7 @@ export interface CacheSnapshot {
   present: boolean;
   total: { bytes: number; files: number };
   groups: CacheGroup[];
+  uncategorizedBytes: number;
   currentProfileFingerprint: string | null;
   profiles: Array<{
     fingerprint: string;

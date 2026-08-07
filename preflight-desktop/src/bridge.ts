@@ -142,6 +142,7 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
         { id: "acceleration", bytes: 3_758_096_384, files: 30_422 },
         { id: "evidence", bytes: 1_073_741_824, files: 782 },
       ],
+      uncategorizedBytes: 0,
       currentProfileFingerprint: "preview-profile",
       profiles: [{
         fingerprint: "preview-profile",
