@@ -14,6 +14,9 @@ import type {
   PreparationStoragePlan,
   RemovalPlan,
   RemovalScope,
+  ReportDeletion,
+  ReportIntakeStatus,
+  ReportReceipt,
   RunStarted,
   UpdateStatus,
 } from "./types";
@@ -160,15 +163,65 @@ export async function exportDiagnostics(output: string): Promise<DiagnosticsExpo
       format: "starsector-preflight-diagnostics-export-v1",
       output,
       bytes: 184_320,
-      sha256: "preview-diagnostics-sha256",
+      sha256: "4bd6db450a131978b8f8b79d5f08d6e75670ba7e75288bb50f9a742a6d996d8d",
       files: 14,
       runs: 3,
       benchmarks: 2,
-      included: [],
+      included: [
+        { entry: "runs/1/run.json", bytes: 1_024, sha256: "1".repeat(64) },
+        { entry: "runs/1/adapter-health.json", bytes: 512, sha256: "2".repeat(64) },
+        { entry: "benchmarks/1/results.jsonl", bytes: 2_048, sha256: "3".repeat(64) },
+      ],
       skipped: [],
     };
   }
   return invoke<DiagnosticsExport>("export_diagnostics", { output });
+}
+
+export async function getReportIntakeStatus(): Promise<ReportIntakeStatus> {
+  if (!isDesktopHost()) {
+    return { configured: true, origin: "https://reports.preview.invalid", reason: null };
+  }
+  return invoke<ReportIntakeStatus>("get_report_intake_status");
+}
+
+export async function sendRunReport(report: DiagnosticsExport): Promise<ReportReceipt> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    const caseId = "ed6ca0c8-0417-45e5-864f-557680b00590";
+    return {
+      protocolVersion: 1,
+      caseId,
+      objectKey: `accepted/2026-08-07/${caseId}.zip`,
+      bytes: report.bytes,
+      sha256: report.sha256,
+      productVersion: "preview",
+      receivedAt: "2026-08-07T06:30:00.000Z",
+      retentionDeadline: "2026-08-22T06:30:00.000Z",
+      deletion: {
+        method: "DELETE",
+        url: `https://reports.preview.invalid/v1/cases/${caseId}`,
+        token: "preview.deletion",
+      },
+      signature: "preview-signature",
+    };
+  }
+  return invoke<ReportReceipt>("send_run_report", {
+    report: { output: report.output, bytes: report.bytes, sha256: report.sha256 },
+  });
+}
+
+export async function cancelRunReport(): Promise<boolean> {
+  if (!isDesktopHost()) return true;
+  return invoke<boolean>("cancel_run_report");
+}
+
+export async function deleteRunReport(deletion: ReportDeletion): Promise<boolean> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+    return true;
+  }
+  return invoke<boolean>("delete_run_report", { deletion });
 }
 
 export async function getLaunchSettings(game: string): Promise<LaunchSettings> {

@@ -1,7 +1,7 @@
 # A run report now has a private, bounded intake
 
 **Date:** 2026-08-07
-**Scope:** local Worker runtime and local R2 simulation; no production deployment
+**Scope:** local Worker runtime, local R2 simulation, and desktop client; no production deployment
 
 The support bundle already had a narrow local boundary: fixed JSON and JSONL names, UTF-8 text,
 512 KiB per source, 5 MiB across source content, home-directory redaction, and a manifest containing
@@ -43,6 +43,17 @@ key exists only in the Worker secret binding, and the deployment checklist requi
 lifecycle processing can trail its expiration threshold, so the receipt's retention deadline includes
 the documented one-day processing window.
 
-The desktop consent, progress, cancellation, retry, and receipt UI are the next part of the same
-boundary. Until those are connected and the service is provisioned, the development build continues
-to save reports locally and sends nothing.
+The desktop now completes the client half of the boundary. Its review shows the exact path, byte
+count, full digest, included entries, skipped-source count, exclusions, network-metadata notice,
+and retention before consent. The Rust host reopens only an absolute regular non-symlink `.zip`,
+rechecks size, modification state, and SHA-256, refuses redirects and cross-origin endpoints, and
+streams at most 6 MiB with progress and cancellation. Once the archive is accepted, it completes
+finalization so a user isn't left with an inaccessible object. It validates the returned case,
+object key, digest, size, product version, times, signature shape, and deletion grant before
+displaying the receipt. The receipt can be copied or used to delete the object early.
+
+Rust unit tests pin the fail-closed origin and endpoint rules, changed-file refusal, and coordinated
+shutdown cancellation. Frontend tests cover explicit consent through receipt and deletion, plus the
+unconfigured-build path where local export remains available. Production is still disabled: the
+client origin is compile-time only and absent from ordinary builds. Provisioning, rate limiting,
+public operator details, and a live signed-package canary remain release gates.

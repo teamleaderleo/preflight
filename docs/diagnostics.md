@@ -52,14 +52,18 @@ sharing if that metadata is sensitive.
 selected-session ranks/timestamps, redactions, exclusions, and the byte count and SHA-256 of every
 included entry. The command receipt separately reports the finished ZIP's SHA-256.
 
-## Planned send flow
+## Voluntary send flow
 
-The current development build saves the bundle locally; it doesn't upload it. The planned **Send
-run report** action will transmit this exact bounded ZIP only after showing the disclosure, byte
-count, and SHA-256 and receiving explicit consent. It will return a case ID and retention deadline.
-It isn't a general telemetry channel, and automatic crash upload—if ever added—will be a separate,
-default-off choice. See the [product contract](product-contract.md) for the service boundary.
+The desktop action can now review and send the exact saved ZIP. Before consent it shows the path,
+byte count, full SHA-256, retention, every included entry, skipped-source count, and the fixed
+exclusions above. The native host then reopens the regular non-symlink file, rechecks its size,
+modification state, and SHA-256, and streams at most 6 MiB to a compile-time HTTPS origin. The UI
+shows progress and cancellation state. An accepted report returns a signed case receipt with the
+same digest and size, retention deadline, and case-specific early-deletion authorization.
 
-The private intake protocol and hostile-ZIP checks now have a Worker-runtime implementation under
-[`report-intake`](../report-intake/README.md). It isn't deployed or connected to a desktop release
-yet. The privacy disclosure that must ship with that connection is in [Privacy](privacy.md).
+Ordinary development and source builds don't contain an intake origin, so the action remains
+disabled and local export continues to work. The private Worker and hostile-ZIP checks live under
+[`report-intake`](../report-intake/README.md); production provisioning, rate limiting, public
+operator details, and a live canary still block enabling the origin in a distributed package.
+This isn't a general telemetry channel. Automatic crash upload—if ever added—will be a separate,
+default-off choice. See the [product contract](product-contract.md) and [Privacy](privacy.md).

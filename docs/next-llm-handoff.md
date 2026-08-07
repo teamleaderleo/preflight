@@ -1326,6 +1326,16 @@ contents, symlinks, and unknown names never enter the ZIP. The desktop save dest
 explicit native `.zip` picker and the narrow Rust host calls the same Java exporter. See
 `docs/diagnostics.md`.
 
+The voluntary run-report desktop path is also implemented, but deliberately unconfigured in
+ordinary builds. Its review shows the exact ZIP identity and entry list before consent. The Rust
+host accepts only the disclosed absolute regular `.zip`, rechecks size, modification state, and
+SHA-256, pins every returned URL to the compile-time production HTTPS origin, refuses redirects,
+streams bounded progress, coordinates cancellation and app exit, validates the signed receipt, and
+supports its case-specific deletion grant. The UI keeps local export usable without a service,
+prevents a new send from silently replacing an unsaved receipt, and offers copy, explicit dismissal,
+and early deletion. Do not add `PREFLIGHT_REPORT_INTAKE_ORIGIN` to release builds until the private
+R2 bucket, lifecycle, abuse-rate limit, operator disclosure, and live canary are complete.
+
 The macOS desktop smoke driver remains blocked on safe PID/process-identity targeting, not merely on
 permission setup. Do not resolve the direct-launched JVM through the `Starsector` display name: that
 can launch the dormant app bundle and create a second instance. Keep the driver-neutral scenario and

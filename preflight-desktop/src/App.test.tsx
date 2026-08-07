@@ -184,6 +184,37 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
 
   expect(await screen.findByText("Diagnostics are ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
+  await user.click(await screen.findByRole("button", { name: "Review send" }));
+
+  expect(await screen.findByRole("heading", { name: "Send this exact ZIP?" })).toBeInTheDocument();
+  expect(screen.getByText("4bd6db450a131978b8f8b79d5f08d6e75670ba7e75288bb50f9a742a6d996d8d")).toBeInTheDocument();
+  expect(screen.getByText("Included entries (3)")).toBeInTheDocument();
+  expect(screen.getByText("runs/1/run.json")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Send this exact ZIP" }));
+
+  expect(await screen.findByRole("heading", { name: /Run report ed6ca0c8/ })).toBeInTheDocument();
+  expect(screen.getByText(/was accepted/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Delete uploaded report" }));
+  expect(await screen.findByText(/was deleted/)).toBeInTheDocument();
+});
+
+test("an unconfigured build keeps local export available and refuses report sending", async () => {
+  const user = userEvent.setup();
+  const intake = vi.spyOn(bridge, "getReportIntakeStatus").mockResolvedValue({
+    configured: false,
+    origin: null,
+    reason: "Run-report sending isn't configured in this build.",
+  });
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Save diagnostics bundle" }));
+
+  expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Review send" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Save another ZIP" })).toBeEnabled();
+  intake.mockRestore();
 });
 
 test("the automated game test checks readiness without launching", async () => {

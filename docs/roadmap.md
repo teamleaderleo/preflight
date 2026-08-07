@@ -45,8 +45,11 @@ update client and fail-closed three-platform feed pipeline are now implemented; 
 release-candidate update/rollback verification, and unattended desktop smoke automation follow.
 The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
 strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
-Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. Production
-provisioning and the desktop consent/progress/cancellation flow still block report submission.
+Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop
+now reviews the exact entry list, size, digest, and exclusions; the native host revalidates and
+streams the file with progress/cancellation; and the accepted receipt can be copied or used for
+early deletion. Production provisioning, abuse-rate limits, operator details, and a signed-package
+canary still block enabling its compile-time origin.
 The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes
 its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
 driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime

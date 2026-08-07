@@ -46,8 +46,10 @@ first public beta.
   and no update surprise-installs.
 - [ ] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
-  The private receiving service and local Java-export interoperability check are complete; desktop
-  wiring, production provisioning, rate limiting, and the public operator details remain.
+  The private receiving service, local Java-export interoperability check, and desktop
+  consent/upload/cancel/receipt/delete path are complete. Production provisioning, abuse-rate
+  limits, public operator details, and a signed-package canary remain, so distributed builds still
+  omit the intake origin.
 - [ ] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an

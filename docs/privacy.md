@@ -3,10 +3,11 @@
 Preflight runs locally. Preparation, launching, profiles, settings, storage cleanup, diagnostics,
 and benchmarking don't send data to the project maintainer.
 
-The current development build can save a diagnostics ZIP chosen by the user. It doesn't upload it.
-The planned **Send run report** action will remain off until the user opens it, reviews the fixed
-inclusion and exclusion boundary, sees the finished ZIP's byte count and SHA-256, and confirms the
-send.
+The desktop build can save a diagnostics ZIP chosen by the user. A build compiled with the private
+intake origin also exposes **Send run report**. Nothing is sent until the user opens its review,
+sees the fixed inclusion and exclusion boundary, exact entries, finished ZIP byte count and
+SHA-256, and confirms the send. Ordinary development and source builds omit the origin, so sending
+is disabled while local export remains available.
 
 ## What a run report contains
 
@@ -34,10 +35,11 @@ deletion after 14 days; R2 lifecycle processing can take up to another day, whic
 receipt's retention deadline. The receipt also carries a case-specific deletion authorization so the
 user can request earlier deletion. The report isn't used for advertising or sold.
 
-The intake service is implemented and tested in the repository, but it isn't deployed or enabled in
-desktop builds yet. Its operational contract is in [report-intake/README.md](../report-intake/README.md).
-This document will be updated with the service operator, production origin, contact address, and
-effective date before public submission is enabled.
+The intake service and desktop consent/upload/delete path are implemented and tested in the
+repository, but the service isn't deployed or enabled in distributed builds yet. Its operational
+contract is in [report-intake/README.md](../report-intake/README.md). This document will be updated
+with the service operator, production origin, contact address, and effective date before public
+submission is enabled.
 
 Automatic background diagnostics are off. A future automatic-crash option would require a separate,
 remembered, default-off consent choice; enabling ordinary Worker observability can't turn it on.

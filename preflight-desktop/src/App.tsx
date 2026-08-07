@@ -7,7 +7,9 @@ import {
   applyRemoval,
   cancelDesktopSmoke,
   cancelPreparation,
+  cancelRunReport,
   checkForUpdate,
+  deleteRunReport,
   exportDiagnostics,
   getCache,
   getCacheCleanup,
@@ -16,11 +18,13 @@ import {
   getPreparationPlan,
   getRemovalPlan,
   getProfiles,
+  getReportIntakeStatus,
   getSnapshot,
   isDesktopHost,
   installUpdate,
   openDesktopAccessibilitySettings,
   saveProfile,
+  sendRunReport,
   startGame,
   startDesktopSmoke,
   startPreparation,
@@ -58,6 +62,9 @@ import type {
   ProfileList,
   RemovalPlan,
   RemovalScope,
+  ReportIntakeStatus,
+  ReportReceipt,
+  ReportUploadStateEvent,
   RunStateEvent,
   UpdateProgressEvent,
   UpdateStatus,
@@ -176,6 +183,15 @@ export default function App() {
   const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
+  const [reportIntake, setReportIntake] = useState<ReportIntakeStatus | null>(null);
+  const [reportReview, setReportReview] = useState(false);
+  const [reportUploading, setReportUploading] = useState(false);
+  const [reportFinalizing, setReportFinalizing] = useState(false);
+  const [reportCancelling, setReportCancelling] = useState(false);
+  const [reportUploadedBytes, setReportUploadedBytes] = useState(0);
+  const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(null);
+  const [reportError, setReportError] = useState("");
+  const [reportDeleting, setReportDeleting] = useState(false);
   const [desktopSmokeProbe, setDesktopSmokeProbe] = useState<DesktopSmokeProbe | null>(null);
   const [desktopSmokeProbeBusy, setDesktopSmokeProbeBusy] = useState(false);
   const [desktopSmokeReview, setDesktopSmokeReview] = useState(false);
@@ -262,6 +278,63 @@ export default function App() {
     });
     return () => stopListening?.();
   }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+
+  useEffect(() => {
+    if (page !== "settings" || reportIntake !== null) return;
+    let cancelled = false;
+    void getReportIntakeStatus()
+      .then((status) => {
+        if (!cancelled) setReportIntake(status);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setReportIntake({ configured: false, origin: null, reason: String(error) });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, reportIntake]);
+
+  useEffect(() => {
+    if (!isDesktopHost()) return;
+    let stopListening: (() => void) | undefined;
+    void listen<ReportUploadStateEvent>("report-upload-state", ({ payload }) => {
+      setReportUploadedBytes(payload.uploadedBytes);
+      if (payload.state === "starting" || payload.state === "uploading") {
+        setReportFinalizing(false);
+      }
+      if (payload.state === "finalizing") {
+        setReportFinalizing(true);
+        setReportCancelling(false);
+        setMessage("The archive was accepted. Finishing its signed receipt…");
+        return;
+      }
+      if (payload.state === "cancelling") {
+        setReportCancelling(true);
+        setMessage(payload.detail ?? "Stopping the report upload…");
+        return;
+      }
+      if (payload.state === "cancelled" || payload.state === "failed") {
+        setReportUploading(false);
+        setReportFinalizing(false);
+        setReportCancelling(false);
+        if (payload.state === "failed") setReportError(payload.detail ?? "The report could not be sent.");
+        setMessage(payload.detail ?? "The local diagnostics ZIP is unchanged.");
+        return;
+      }
+      if (payload.state === "finished" && payload.receipt) {
+        setReportUploading(false);
+        setReportFinalizing(false);
+        setReportCancelling(false);
+        setReportReview(false);
+        setReportReceipt(payload.receipt);
+      }
+    }).then((unlisten) => {
+      stopListening = unlisten;
+    });
+    return () => stopListening?.();
+  }, []);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -688,11 +761,81 @@ export default function App() {
     try {
       const result = await exportDiagnostics(destination);
       setDiagnosticsExport(result);
+      setReportReview(false);
+      setReportError("");
+      setReportUploadedBytes(0);
       setMessage(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`);
     } catch (error) {
       setMessage(String(error));
     } finally {
       setDiagnosticsBusy(false);
+    }
+  };
+
+  const submitRunReport = async () => {
+    if (!diagnosticsExport || !reportIntake?.configured || reportUploading) return;
+    setReportUploading(true);
+    setReportFinalizing(false);
+    setReportCancelling(false);
+    setReportUploadedBytes(0);
+    setReportError("");
+    setMessage("Creating a short-lived case for this exact diagnostics ZIP…");
+    try {
+      const receipt = await sendRunReport(diagnosticsExport);
+      setReportReceipt(receipt);
+      setReportReview(false);
+      setReportUploadedBytes(diagnosticsExport.bytes);
+      setMessage(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`);
+    } catch (error) {
+      const detail = String(error);
+      if (!detail.toLowerCase().includes("cancel")) setReportError(detail);
+      setMessage(detail);
+    } finally {
+      setReportUploading(false);
+      setReportFinalizing(false);
+      setReportCancelling(false);
+    }
+  };
+
+  const stopRunReport = async () => {
+    if (!reportUploading || reportCancelling) return;
+    setReportCancelling(true);
+    setMessage("Stopping the report upload…");
+    try {
+      const requested = await cancelRunReport();
+      if (!requested) {
+        setReportUploading(false);
+        setReportCancelling(false);
+        setMessage("The report upload had already stopped.");
+      }
+    } catch (error) {
+      setReportCancelling(false);
+      setMessage(String(error));
+    }
+  };
+
+  const copyRunReportReceipt = async () => {
+    if (!reportReceipt) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(reportReceipt, null, 2));
+      setMessage("Run-report receipt copied. It includes the deletion authorization.");
+    } catch (error) {
+      setMessage(`Could not copy the receipt: ${error}`);
+    }
+  };
+
+  const removeRunReport = async () => {
+    if (!reportReceipt || reportDeleting) return;
+    setReportDeleting(true);
+    try {
+      await deleteRunReport(reportReceipt.deletion);
+      const caseId = reportReceipt.caseId;
+      setReportReceipt(null);
+      setMessage(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`);
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setReportDeleting(false);
     }
   };
 
@@ -1373,12 +1516,82 @@ export default function App() {
             <section className="card diagnostics-action">
               <div>
                 <strong>{diagnosticsExport ? "Diagnostics are ready" : "Ready to collect support evidence"}</strong>
-                <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Home-directory paths are redacted. Other visible metadata is disclosed in the ZIP."}</span>
+                <span>{diagnosticsExport
+                  ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
+                  : "Home-directory paths are redacted. Other visible metadata is disclosed in the ZIP."}</span>
               </div>
-              <button className="button button--primary" type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy}>
-                <FolderIcon />{diagnosticsBusy ? "Saving…" : "Save diagnostics bundle"}
-              </button>
+              <div className="report-actions">
+                <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
+                  <FolderIcon />{diagnosticsBusy ? "Saving…" : diagnosticsExport ? "Save another ZIP" : "Save diagnostics bundle"}
+                </button>
+                {diagnosticsExport && (
+                  <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>
+                    {reportReceipt ? "Receipt below" : "Review send"}
+                  </button>
+                )}
+              </div>
             </section>
+
+            {diagnosticsExport && reportIntake && !reportIntake.configured && (
+              <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "Run-report sending isn't configured in this build."} The ZIP remains available to inspect and share manually.</p>
+            )}
+
+            {reportReview && diagnosticsExport && (
+              <section className="card report-review" aria-label="Run report consent">
+                <div className="activation-review__heading">
+                  <div><p className="eyebrow">Nothing sent yet</p><h2>Send this exact ZIP?</h2></div>
+                  <button className="text-button" type="button" onClick={() => setReportReview(false)} disabled={reportUploading}>Cancel</button>
+                </div>
+                <p>Preflight will send the ZIP shown below to {reportIntake?.origin}. The service also receives ordinary network metadata such as your IP address for delivery and rate limiting. There are no automatic or background uploads.</p>
+                <div className="report-facts">
+                  <div><span>File</span><strong>{shortPath(diagnosticsExport.output)}</strong></div>
+                  <div><span>Size</span><strong>{formatBytes(diagnosticsExport.bytes)} ({diagnosticsExport.bytes.toLocaleString()} bytes)</strong></div>
+                  <div className="report-facts__digest"><span>SHA-256</span><code>{diagnosticsExport.sha256}</code></div>
+                  <div><span>Retention</span><strong>Automatic deletion starts after 14 days; receipt deadline is 15 days</strong></div>
+                </div>
+                <div className="report-contents">
+                  <strong>Included entries ({diagnosticsExport.included.length})</strong>
+                  {diagnosticsExport.included.length > 0
+                    ? <ul>{diagnosticsExport.included.map((entry) => <li key={entry.entry}><span>{entry.entry}</span><small>{formatBytes(entry.bytes)}</small></li>)}</ul>
+                    : <p>No run or benchmark evidence is present; the ZIP contains only its disclosure and manifest.</p>}
+                </div>
+                <p>Game and mod files, saves, logs and crash dumps, caches, JFR, screenshots, audio, unknown files, binary content, and symlinks stay excluded. Home-directory paths are replaced with <code>&lt;home&gt;</code>.</p>
+                {diagnosticsExport.skipped.length > 0 && <p>{diagnosticsExport.skipped.length} present source file{diagnosticsExport.skipped.length === 1 ? " was" : "s were"} skipped under the disclosed limits.</p>}
+                {reportError && <p className="activation-warning">{reportError}</p>}
+                {reportUploading && (
+                  <div className="report-progress" role="progressbar" aria-label="Run report upload" aria-valuemin={0} aria-valuemax={diagnosticsExport.bytes} aria-valuenow={reportUploadedBytes}>
+                    <span style={{ width: `${Math.min(100, diagnosticsExport.bytes > 0 ? reportUploadedBytes / diagnosticsExport.bytes * 100 : 0)}%` }} />
+                    <strong>{reportFinalizing ? "Archive accepted · finishing receipt…" : reportCancelling ? "Stopping…" : `${formatBytes(reportUploadedBytes)} of ${formatBytes(diagnosticsExport.bytes)}`}</strong>
+                  </div>
+                )}
+                <div className="activation-review__footer">
+                  <span><ShieldIcon /> The native host rechecks the file, size, and SHA-256 immediately before upload.</span>
+                  {reportUploading
+                    ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
+                    : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured}>Send this exact ZIP</button>}
+                </div>
+              </section>
+            )}
+
+            {reportReceipt && (
+              <section className="card report-receipt" aria-label="Run report receipt">
+                <div className="card__heading">
+                  <div><p className="eyebrow">Accepted</p><h2>Run report {reportReceipt.caseId}</h2></div>
+                  <CheckIcon className="settings-check" />
+                </div>
+                <p>The intake accepted {formatBytes(reportReceipt.bytes)} with the same SHA-256. Keep this receipt if you want support to find the report or delete it before its deadline.</p>
+                <div className="report-facts">
+                  <div><span>Received</span><strong>{new Date(reportReceipt.receivedAt).toLocaleString()}</strong></div>
+                  <div><span>Retention deadline</span><strong>{new Date(reportReceipt.retentionDeadline).toLocaleString()}</strong></div>
+                  <div className="report-facts__digest"><span>SHA-256</span><code>{reportReceipt.sha256}</code></div>
+                </div>
+                <div className="update-actions">
+                  <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt()}>Copy receipt</button>
+                  <button className="button button--quiet button--compact" type="button" onClick={() => { setReportReceipt(null); setMessage("Receipt dismissed. Its deletion authorization is no longer shown here."); }}>I saved this receipt</button>
+                  <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded report"}</button>
+                </div>
+              </section>
+            )}
 
             <section className="card removal-card">
               <div className="card__heading">

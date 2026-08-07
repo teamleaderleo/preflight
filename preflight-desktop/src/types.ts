@@ -99,6 +99,41 @@ export interface DiagnosticsExport {
   skipped: Array<{ entry: string; reason: string }>;
 }
 
+export interface ReportIntakeStatus {
+  configured: boolean;
+  origin: string | null;
+  reason: string | null;
+}
+
+export interface ReportDeletion {
+  method: "DELETE";
+  url: string;
+  token: string;
+}
+
+export interface ReportReceipt {
+  protocolVersion: number;
+  caseId: string;
+  objectKey: string;
+  bytes: number;
+  sha256: string;
+  productVersion: string;
+  receivedAt: string;
+  retentionDeadline: string;
+  deletion: ReportDeletion;
+  signature: string;
+}
+
+export interface ReportUploadStateEvent {
+  state: "starting" | "uploading" | "finalizing" | "cancelling" | "cancelled" | "finished" | "failed";
+  uploadId: number;
+  uploadedBytes: number;
+  totalBytes: number;
+  caseId: string | null;
+  receipt: ReportReceipt | null;
+  detail: string | null;
+}
+
 export interface LaunchSettings {
   format: "starsector-preflight-launch-settings-v1";
   directLaunchAvailable: boolean;
