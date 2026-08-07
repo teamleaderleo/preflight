@@ -60,8 +60,8 @@ Developer ID signature; the independent Tauri update signature is the one exerci
 
 ## Automated gates
 
-- 38 release-script tests passed, including single-platform feed staging, exact serving, malformed
-  paths, rejected signatures, and the production-workflow endpoint guard.
+- Release-script tests passed, including single-platform feed staging, exact serving, malformed
+  paths, rejected signatures, pre-creation validation, and the production-workflow endpoint guard.
 - 19 frontend tests and 17 Rust tests passed.
 - Rust clippy passed with warnings denied.
 - `mvn verify` passed across the full reactor, with only the existing environment-dependent skips.
