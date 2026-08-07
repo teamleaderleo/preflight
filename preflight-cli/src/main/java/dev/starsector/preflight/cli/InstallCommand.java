@@ -129,7 +129,7 @@ final class InstallCommand {
         String desktopFile = "[Desktop Entry]\n"
                 + "Type=Application\n"
                 + "Name=Preflight\n"
-                + "Exec=" + launcher + "\n"
+                + "Exec=" + desktopExecArgument(launcher.toString()) + "\n"
                 + "Terminal=false\n"
                 + "Categories=Game;Utility;\n";
         Files.writeString(desktop, desktopFile, StandardCharsets.UTF_8);
@@ -143,11 +143,11 @@ final class InstallCommand {
         Path command = preflight.pathOf(PreflightHome.Id.WINDOWS_COMMAND);
         Files.createDirectories(preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY));
         String content = "@echo off\r\n\""
-                + javaExecutable()
+                + windowsBatchLiteral(javaExecutable())
                 + "\" -jar \""
-                + jar
+                + windowsBatchLiteral(jar.toString())
                 + "\" run --fast --game \""
-                + game
+                + windowsBatchLiteral(game.toString())
                 + "\" %*\r\n";
         Files.writeString(command, content, StandardCharsets.UTF_8);
         System.out.println("Installed Windows launcher: " + command);
@@ -162,6 +162,39 @@ final class InstallCommand {
 
     private static String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
+    }
+
+    /** Quotes one executable path under the freedesktop Desktop Entry Exec grammar. */
+    static String desktopExecArgument(String value) {
+        if (value.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException("Desktop launcher path contains NUL");
+        }
+        StringBuilder quoted = new StringBuilder(value.length() + 2).append('"');
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                // Exec quoting and the desktop-file string layer both consume backslashes.
+                case '\\' -> quoted.append("\\\\\\\\");
+                case '"' -> quoted.append("\\\\\\\"");
+                case '`' -> quoted.append("\\\\`");
+                case '$' -> quoted.append("\\\\$");
+                // A literal percent must not become a desktop-entry field code such as %f.
+                case '%' -> quoted.append("%%");
+                case '\n' -> quoted.append("\\n");
+                case '\r' -> quoted.append("\\r");
+                case '\t' -> quoted.append("\\t");
+                default -> quoted.append(character);
+            }
+        }
+        return quoted.append('"').toString();
+    }
+
+    /** Prevents a literal percent in an installed path from becoming cmd.exe expansion. */
+    static String windowsBatchLiteral(String value) {
+        if (value.indexOf('\0') >= 0 || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+            throw new IllegalArgumentException("Windows launcher path contains a control character");
+        }
+        return value.replace("%", "%%");
     }
 
     private static void makeExecutable(Path file) throws IOException {

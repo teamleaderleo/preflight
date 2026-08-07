@@ -26,6 +26,10 @@ Release work now has priority over another narrow startup experiment:
    claims; and
 5. update-signed, checksum-qualified packages with a tested rollback and support path.
 
+The [cross-platform evidence plan](cross-platform-evidence-plan.md) defines the free hosted matrix,
+the narrower role of emulated Windows/Linux runs, and the native beta evidence needed for real-game
+performance and driver claims.
+
 Further startup or gameplay work remains welcome only when it keeps exact identity gates, bounded
 diagnostics, an independently disableable plan, and the original behavior on uncertainty.
 

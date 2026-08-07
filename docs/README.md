@@ -21,6 +21,8 @@ archive. They answer different questions. This page is the shortest route to the
 - [Downloads and installation](downloads.md) — planned artifacts and current private build process.
 - [Known limitations](known-limitations.md) — the current platform, evidence, storage, and fallback
   limits.
+- [Cross-platform evidence plan](cross-platform-evidence-plan.md) — what hosted, emulated, and native
+  checks can establish before a platform is accepted.
 
 ## Users and beta testers
 

@@ -41,7 +41,10 @@ first public beta.
   equivalence and bundled-runtime smoke verification. See the
   [signed macOS lifecycle evidence](evidence/2026-08-08-signed-update-rollback-rehearsal.md).
 - [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
-  synthetic fixtures don't prove game integration.
+  synthetic fixtures don't prove game integration. The
+  [cross-platform evidence plan](cross-platform-evidence-plan.md) separates free hosted package
+  checks, emulated compatibility checks, and native beta evidence so each result carries only the
+  claim it supports.
 - [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the
   median/distribution it supports; label the 15.88-second development run as a warm record.
 

@@ -52,4 +52,35 @@ class InstallCommandTest {
                 "install", "--prepare", "--memory-mb", "15"
         }, 1));
     }
+
+    @Test
+    void linuxDesktopLauncherQuotesSpacesAndReservedFieldCharacters() {
+        assertEquals(
+                "\"/home/Space User/.local/bin/preflight\"",
+                InstallCommand.desktopExecArgument("/home/Space User/.local/bin/preflight"));
+        assertEquals(
+                "\"/home/\\\\$cash/%%f/\\\\`tick/\\\\\\\"quote/\\\\\\\\slash\"",
+                InstallCommand.desktopExecArgument("/home/$cash/%f/`tick/\"quote/\\slash"));
+    }
+
+    @Test
+    void linuxDesktopLauncherRejectsNul() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> InstallCommand.desktopExecArgument("/home/user/\0preflight"));
+    }
+
+    @Test
+    void windowsLauncherPreservesLiteralPercentInPaths() {
+        assertEquals(
+                "C:\\Users\\100%% Real\\Preflight\\preflight.jar",
+                InstallCommand.windowsBatchLiteral("C:\\Users\\100% Real\\Preflight\\preflight.jar"));
+    }
+
+    @Test
+    void windowsLauncherRejectsLineBreakingControlCharacters() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> InstallCommand.windowsBatchLiteral("C:\\Preflight\r\nmalicious-command"));
+    }
 }
