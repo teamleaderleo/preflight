@@ -177,8 +177,9 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByRole("button", { name: "Settings" }));
 
   expect(await screen.findByRole("heading", { name: "Settings", level: 1 })).toBeInTheDocument();
+  await user.click(screen.getByText("What diagnostics include"));
   expect(screen.getByText("Useful metadata only")).toBeInTheDocument();
-  expect(screen.getByText("Your actual game data")).toBeInTheDocument();
+  expect(screen.getByText("Game and personal data")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Save diagnostics bundle" }));
 
   expect(await screen.findByText("Diagnostics are ready")).toBeInTheDocument();
@@ -280,6 +281,7 @@ test("the automated game test checks readiness without launching", async () => {
 
   await screen.findByText("Ready to launch");
   await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
 
   expect(await screen.findByText(/Ready through browser-preview/)).toBeInTheDocument();
@@ -297,6 +299,7 @@ test("the automated game test requires a review before it starts", async () => {
 
   await screen.findByText("Ready to launch");
   await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
   await user.click(await screen.findByRole("button", { name: "Review test" }));
 
@@ -317,6 +320,7 @@ test("a running automated game test exposes cooperative cancellation", async () 
 
   await screen.findByText("Ready to launch");
   await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
   await user.click(await screen.findByRole("button", { name: "Review test" }));
   await user.click(screen.getByRole("button", { name: "Start automated test" }));
@@ -343,6 +347,7 @@ test("a blocked macOS automation probe links to the manual permission pane", asy
 
   await screen.findByText("Ready to launch");
   await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
   await user.click(await screen.findByRole("button", { name: "Open Accessibility settings" }));
 
@@ -394,6 +399,7 @@ test("removal keeps launcher files and all data as separate previewed scopes", a
 
   await screen.findByText("Ready to launch");
   await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(screen.getByText("Remove Preflight"));
 
   const launcher = await screen.findByRole("button", { name: "Review launcher removal" });
   const allData = screen.getByRole("button", { name: "Review all data removal" });

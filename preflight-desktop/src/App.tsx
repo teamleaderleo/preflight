@@ -1411,15 +1411,6 @@ export default function App() {
           </div>
         ) : (
           <div className="settings-page">
-            <section className="card settings-intro">
-              <div>
-                <p className="eyebrow">Diagnostics</p>
-                <h2>Export or send a run</h2>
-                <p>Review the exact contents before saving or sending anything.</p>
-              </div>
-              <ShieldIcon className="settings-shield" />
-            </section>
-
             {message && (
               <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
             )}
@@ -1443,42 +1434,6 @@ export default function App() {
               <small>Downloads are verified with the release key embedded in this build. A failed download or signature check leaves the installed version unchanged.</small>
             </section>
 
-            <section className="card automation-card">
-              <div className="card__heading">
-                <div><p className="eyebrow">Repeatable checks</p><h2>Automated game test</h2></div>
-                {desktopSmokeProbe?.probe.ready ? <CheckIcon className="settings-check" /> : <ShieldIcon className="settings-check" />}
-              </div>
-              <p>{desktopSmokeProbe === null
-                ? "Check whether Preflight can control one exact game process, collect bounded evidence, and close it after the test. Nothing launches during this check."
-                : desktopSmokeProbe.probe.ready
-                  ? `Ready through ${desktopSmokeProbe.probe.driver?.id ?? "the platform driver"}. The test remains opt-in and hasn’t started a game.`
-                  : desktopSmokeProbe.probe.diagnostics[0] ?? "Automated testing isn’t available on this system yet."}</p>
-              {desktopSmokeProbe?.probe.ready && (
-                <small>{desktopSmokeProbe.probe.driver?.capabilities.join(" · ")}</small>
-              )}
-              <div className="update-actions">
-                <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || preparing || status === "running"}>
-                  {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}
-                </button>
-                {desktopSmokeProbe?.probe.ready && !desktopSmokeRunning && (
-                  <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeRunning || preparing || status === "running"}>
-                    Review test
-                  </button>
-                )}
-                {desktopSmokeRunning && (
-                  <button className="button button--quiet button--compact" type="button" onClick={() => void stopDesktopAutomation()}>
-                    Stop test safely
-                  </button>
-                )}
-                {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && snapshot?.platform === "mac" && (
-                  <button className="button button--quiet button--compact" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => setMessage(String(error)))}>
-                    Open Accessibility settings
-                  </button>
-                )}
-              </div>
-              {desktopSmokeRunDirectory && <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small>}
-            </section>
-
             {desktopSmokeReview && (
               <section className="card automation-review" aria-label="Automated game test review">
                 <div className="activation-review__heading">
@@ -1495,33 +1450,6 @@ export default function App() {
                 </div>
               </section>
             )}
-
-            <div className="settings-grid">
-              <section className="card diagnostics-card">
-                <div className="card__heading">
-                  <div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div>
-                  <CheckIcon className="settings-check" />
-                </div>
-                <ul>
-                  <li>Run outcome, runtime, adapter health and timing summaries</li>
-                  <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
-                  <li>Benchmark identity, settings and result metadata</li>
-                  <li>A manifest with every included or skipped file</li>
-                </ul>
-              </section>
-              <section className="card diagnostics-card diagnostics-card--excluded">
-                <div className="card__heading">
-                  <div><p className="eyebrow">Never included</p><h2>Your actual game data</h2></div>
-                  <ShieldIcon className="settings-check" />
-                </div>
-                <ul>
-                  <li>Game, mod, save, texture, audio or bytecode contents</li>
-                  <li>Acceleration caches, console logs and crash dumps</li>
-                  <li>JFR recordings, screenshots, audio or unknown files</li>
-                  <li>Symlinks or any source file larger than 512 KiB</li>
-                </ul>
-              </section>
-            </div>
 
             <section className="card diagnostics-action">
               <div>
@@ -1541,6 +1469,38 @@ export default function App() {
                 )}
               </div>
             </section>
+
+            <details className="card settings-disclosure">
+              <summary>
+                <span><strong>What diagnostics include</strong><small>Review the export boundary</small></span>
+              </summary>
+              <div className="settings-grid settings-disclosure__body">
+                <section className="diagnostics-card">
+                  <div className="card__heading">
+                    <div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div>
+                    <CheckIcon className="settings-check" />
+                  </div>
+                  <ul>
+                    <li>Run outcome, runtime, adapter health and timing summaries</li>
+                    <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
+                    <li>Benchmark identity, settings and result metadata</li>
+                    <li>A manifest with every included or skipped file</li>
+                  </ul>
+                </section>
+                <section className="diagnostics-card diagnostics-card--excluded">
+                  <div className="card__heading">
+                    <div><p className="eyebrow">Excluded</p><h2>Game and personal data</h2></div>
+                    <ShieldIcon className="settings-check" />
+                  </div>
+                  <ul>
+                    <li>Game, mod, save, texture, audio or bytecode contents</li>
+                    <li>Acceleration caches, console logs and crash dumps</li>
+                    <li>JFR recordings, screenshots, audio or unknown files</li>
+                    <li>Symlinks or any source file larger than 512 KiB</li>
+                  </ul>
+                </section>
+              </div>
+            </details>
 
             {diagnosticsExport && reportIntake && !reportIntake.configured && (
               <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "Run-report sending isn't configured in this build."} The ZIP remains available to inspect and share manually.</p>
@@ -1603,17 +1563,41 @@ export default function App() {
               </section>
             )}
 
-            <section className="card removal-card">
-              <div className="card__heading">
-                <div><p className="eyebrow">Removal</p><h2>Choose exactly what leaves</h2></div>
-                <ShieldIcon className="settings-check" />
+            <details className="card settings-disclosure automation-card">
+              <summary>
+                <span><strong>Automated game test</strong><small>{desktopSmokeProbe?.probe.ready ? "Ready" : "Optional compatibility check"}</small></span>
+              </summary>
+              <div className="settings-disclosure__body">
+                <p>{desktopSmokeProbe === null
+                  ? "Check whether Preflight can control one exact game process, collect bounded evidence, and close it after the test. Nothing launches during this check."
+                  : desktopSmokeProbe.probe.ready
+                    ? `Ready through ${desktopSmokeProbe.probe.driver?.id ?? "the platform driver"}. The test remains opt-in and hasn’t started a game.`
+                    : desktopSmokeProbe.probe.diagnostics[0] ?? "Automated testing isn’t available on this system yet."}</p>
+                {desktopSmokeProbe?.probe.ready && <small>{desktopSmokeProbe.probe.driver?.capabilities.join(" · ")}</small>}
+                <div className="update-actions">
+                  <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || preparing || status === "running"}>
+                    {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}
+                  </button>
+                  {desktopSmokeProbe?.probe.ready && !desktopSmokeRunning && <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeRunning || preparing || status === "running"}>Review test</button>}
+                  {desktopSmokeRunning && <button className="button button--quiet button--compact" type="button" onClick={() => void stopDesktopAutomation()}>Stop test safely</button>}
+                  {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && snapshot?.platform === "mac" && <button className="button button--quiet button--compact" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => setMessage(String(error)))}>Open Accessibility settings</button>}
+                </div>
+                {desktopSmokeRunDirectory && <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small>}
               </div>
-              <p>Both choices are previewed first. Starsector, mods, saves, and game-owned settings stay outside every plan.</p>
-              <div className="removal-choices">
-                <div><strong>Launch integration</strong><span>Remove Preflight’s installed command engine and OS launch shortcuts. Keep prepared data and diagnostics.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("launcher")} disabled={removalBusy || preparing || status === "running"}>Review launcher removal</button></div>
-                <div><strong>All Preflight data</strong><span>Remove launch integrations, caches, profiles, evidence, and backups. The packaged desktop app remains for the operating system to uninstall.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("all-data")} disabled={removalBusy || preparing || status === "running"}>Review all data removal</button></div>
+            </details>
+
+            <details className="card settings-disclosure removal-card">
+              <summary>
+                <span><strong>Remove Preflight</strong><small>Launcher only or all local data</small></span>
+              </summary>
+              <div className="settings-disclosure__body">
+                <p>Every removal is previewed first. Starsector, mods, saves, and game settings stay untouched.</p>
+                <div className="removal-choices">
+                  <div><strong>Launch integration</strong><span>Remove Preflight’s installed command engine and OS launch shortcuts. Keep prepared data and diagnostics.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("launcher")} disabled={removalBusy || preparing || status === "running"}>Review launcher removal</button></div>
+                  <div><strong>All Preflight data</strong><span>Remove launch integrations, caches, profiles, evidence, and backups. The packaged desktop app remains for the operating system to uninstall.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("all-data")} disabled={removalBusy || preparing || status === "running"}>Review all data removal</button></div>
+                </div>
               </div>
-            </section>
+            </details>
 
             {removalPlan && (
               <section className="card removal-review" aria-label="Removal review">
