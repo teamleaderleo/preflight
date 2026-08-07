@@ -96,7 +96,8 @@ first public beta.
   namespaces. Desktop engines now use that verified JAR, match every project resource to its source,
   inventory the bundled Java runtime, and require an exact native artifact set. A full-history audit
   rejects game/save/archive/crash paths, unexpected binary files, screenshots, and unreviewed large
-  blobs. The signed native packages still need one final extracted-content review on each platform.
+  blobs. CI now extracts the DMG, NSIS, Debian, and AppImage payloads and re-verifies the embedded
+  engine and reviewed resources. A final signed-candidate run remains.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
 - [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.

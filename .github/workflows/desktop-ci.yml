@@ -86,3 +86,29 @@ jobs:
           cargo fmt --check --manifest-path src-tauri/Cargo.toml
           cargo test --locked --manifest-path src-tauri/Cargo.toml
           cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Build macOS development package
+        if: runner.os == 'macOS'
+        working-directory: preflight-desktop
+        run: npx tauri build --bundles dmg
+
+      - name: Build Windows development package
+        if: runner.os == 'Windows'
+        working-directory: preflight-desktop
+        run: npx tauri build --bundles nsis
+
+      - name: Build Linux Debian development package
+        if: runner.os == 'Linux'
+        working-directory: preflight-desktop
+        run: npx tauri build --bundles deb
+
+      - name: Build Linux AppImage development package
+        if: runner.os == 'Linux'
+        working-directory: preflight-desktop
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
+        run: npx tauri bundle --verbose --bundles appimage
+
+      - name: Verify extracted development package contents
+        working-directory: preflight-desktop
+        run: npm run desktop:verify-package

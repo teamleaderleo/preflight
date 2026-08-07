@@ -215,6 +215,13 @@ jobs:
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
         run: npx tauri bundle --verbose --bundles appimage --config src-tauri/target/release-updater-config.json
 
+      - name: Verify extracted native package contents
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          PREFLIGHT_SIGNED_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run desktop:verify-package
+
       - name: Collect native package and checksum
         working-directory: preflight-desktop
         env:

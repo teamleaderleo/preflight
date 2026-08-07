@@ -34,6 +34,14 @@ the bundle. Immediately before native packaging, the workflow verifies the engin
 collection then requires the exact unsigned or signed artifact set for the current platform and
 rejects duplicates and unexpected updater artifacts.
 
+The desktop CI matrix also builds real development packages on macOS, Windows, and Linux. The
+package verifier mounts the DMG, extracts the NSIS installer with 7-Zip, expands the Debian archive,
+and asks the AppImage to extract its SquashFS payload. Every extracted package must contain exactly
+one engine matching the reviewed sources and runtime digest, exactly one Orbitron license matching
+the source file, and no known game, mod, save, activation, log, or screenshot path. The DMG has a
+tighter exact app/volume manifest. Tagged macOS and Windows packages additionally fail unless their
+platform signature verifies; updater signatures are checked as a separate exact artifact pair.
+
 `scripts/verify_source_boundary.py` separately audits the current tracked tree and every blob and
 path reachable from complete Git history. Known game, save, activation, log, crash-dump, archive,
 and screenshot paths are rejected. Binary source files are limited to the reviewed application-icon
