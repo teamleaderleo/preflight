@@ -101,6 +101,7 @@ final class PrepareCommand {
                     + "; removed " + ownership.recoveredTemporaryFiles() + " incomplete temporary files.");
         }
         try (OperationLease ignored = ownership.lease()) {
+            PreparationFaultInjection.afterLeaseAcquired();
             return prepareOwned(options, target, cache, plannedResourceBuild, storagePlan);
         }
     }
@@ -553,6 +554,7 @@ final class PrepareCommand {
                     content,
                     StandardOpenOption.CREATE_NEW,
                     StandardOpenOption.WRITE);
+            PreparationFaultInjection.beforeAtomicMove(target);
             try {
                 Files.move(
                         temporary,

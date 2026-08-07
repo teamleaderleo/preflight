@@ -52,6 +52,15 @@ Note the qualifier though: Tier C needs the *installation*, not necessarily a *l
 offline installed-class contract checker from PR #119 reads real class bytes and verifies the
 transformation without starting anything. That pattern should extend to the block path.
 
+Preparation failure recovery also stays in Tier A. A packaged-JAR integration test stops a child JVM
+after it owns the cross-process lease, kills it forcibly, and then runs the same package again. The
+second process reports the interrupted owner, removes only its PID-tagged partial publication, and
+finishes with the synthetic installation byte-identical. A second packaged run injects `ENOSPC`
+after an atomic temporary report is written and before publication; it exits nonzero while preserving
+the previous report byte-for-byte, deleting the temporary, releasing the lease, and leaving the
+installation unchanged. The injection properties require the explicit
+`preflight.test.failureInjection` gate and aren't used by ordinary commands.
+
 ## Infrastructure topology, and why Modal specifically
 
 Three machines are available and they are not interchangeable.
