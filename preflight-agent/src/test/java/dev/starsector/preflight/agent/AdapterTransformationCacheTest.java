@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,9 +25,11 @@ final class AdapterTransformationCacheTest {
     Path temporaryDirectory;
 
     @BeforeEach
+    @AfterEach
     void reset() {
         FrameTimeRuntime.beginSession(false);
         AdapterTransformationCache.beginSession();
+        AdapterPlanControl.configure(Set.of());
         SourceHintIsolationRuntime.reset();
     }
 
@@ -98,6 +102,30 @@ final class AdapterTransformationCacheTest {
         String right = AdapterTransformationCache.contextKey(
                 identity('a'), options, AdapterTargetRegistry.empty(), second);
         assertTrue(!left.equals(right));
+    }
+
+    @Test
+    void contextIncludesEnvironmentDerivedPlanFilters() {
+        AgentOptions options = AgentOptions.parse("adapter=enabled");
+        String unfiltered = AdapterTransformationCache.contextKey(
+                identity('a'), options, AdapterTargetRegistry.empty(), new Properties());
+        AdapterPlanControl.configure(Set.of(PreparedAudioRuntime.PLAN_ID));
+        String filtered = AdapterTransformationCache.contextKey(
+                identity('a'), options, AdapterTargetRegistry.empty(), new Properties());
+
+        assertTrue(!unfiltered.equals(filtered));
+    }
+
+    @Test
+    void contextIncludesTheEffectivePlanScope() {
+        AgentOptions options = AgentOptions.parse("adapter=enabled");
+        String full = AdapterTransformationCache.contextKey(
+                identity('a'), options, AdapterTargetRegistry.empty(), new Properties());
+        AdapterPlanControl.configure(AdapterPlanScope.PORTABLE_STARTUP, Set.of());
+        String portable = AdapterTransformationCache.contextKey(
+                identity('a'), options, AdapterTargetRegistry.empty(), new Properties());
+
+        assertTrue(!full.equals(portable));
     }
 
     private static AdapterTarget target(ClassSignature signature) {

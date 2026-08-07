@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Method;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ class TextureLoaderPlanCompositionTest {
     void clearGate() {
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
         TexturePaddingRuntime.beginSession();
+        AdapterPlanControl.configure(Set.of());
     }
 
     @Test
@@ -87,6 +89,20 @@ class TextureLoaderPlanCompositionTest {
         assertFalse(hasMethod(read(result), ORIGINAL_FOLD));
         assertFalse(TexturePaddingRuntime.foldBypassReady(),
                 "no fold woven means the allocation stays padded, so the gate must stay shut");
+    }
+
+    @Test
+    void foldPlanFilterKeepsThePreparedPixelRewriteAlone() throws Exception {
+        byte[] loader = withFold(TexturePreparedPixelPlanTest.textureLoader(3, true, true));
+        byte[] rewritten = TexturePreparedPixelPlan.transform(ClassSignature.parse(loader), loader);
+        AdapterPlanControl.configure(Set.of(TexturePaddingRuntime.PLAN_ID));
+
+        byte[] result = AdapterTransformationRegistry.withFoldBypass(rewritten);
+
+        assertNotNull(result);
+        assertTrue(hasMethod(read(result), ORIGINAL_CONVERT));
+        assertFalse(hasMethod(read(result), ORIGINAL_FOLD));
+        assertFalse(TexturePaddingRuntime.foldBypassReady());
     }
 
     /**

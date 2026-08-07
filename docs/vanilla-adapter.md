@@ -273,6 +273,21 @@ PREFLIGHT_DISABLE_ADAPTER=1
 
 JFR profiling remains independent and may continue.
 
+One or more exact plans can also be disabled without losing the rest of the adapter. Use a
+comma-separated plan-ID list in either setting:
+
+```text
+PREFLIGHT_DISABLE_ADAPTER_PLANS=prepared-audio-v1,graphicslib-hot-settings-cache-v1
+-Dpreflight.adapter.disabledPlans=prepared-audio-v1,graphicslib-hot-settings-cache-v1
+```
+
+The filter applies to direct targets and to plans composed onto a class owned by another target.
+The same composition gate enforces the selected adapter plan scope. The adapter transformation
+cache includes the effective scope, disabled-plan set, and complete `preflight.*` property set in
+its identity, so differently gated bytecode can't share a cached result. The environment form is
+inherited by an ordinary Preflight launch and is the practical emergency switch for a packaged
+build.
+
 ## Target records
 
 Every target includes class identity:

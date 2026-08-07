@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -29,9 +31,11 @@ class AudioStreamSourceErrorPlanTest {
             AudioStreamSourceErrorRuntime.class.getName().replace('.', '/');
 
     @BeforeEach
+    @AfterEach
     void reset() {
         AudioStreamSourceErrorRuntime.beginSession();
         AudioMusicTransitionRuntime.beginSession();
+        AdapterPlanControl.configure(Set.of());
     }
 
     @Test
@@ -91,6 +95,27 @@ class AudioStreamSourceErrorPlanTest {
         byte[] once = AudioStreamSourceErrorPlan.transform(exact, fixture(true));
         assertNotNull(once);
         assertNull(AudioStreamSourceErrorPlan.transform(exact, once));
+    }
+
+    @Test
+    void transitionProbeCanBeFilteredWithoutLosingTheErrorOrderFix() {
+        AdapterPlanControl.configure(Set.of(AudioMusicTransitionRuntime.PLAN_ID));
+
+        byte[] transformed = AudioStreamSourceErrorPlan.transform(signature(), fixture(true));
+
+        assertNotNull(transformed);
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(transformed).accept(owner, ClassReader.EXPAND_FRAMES);
+        assertEquals(2, calls(constructor(transformed), AL10, "alGetError"));
+        assertEquals(0, owner.methods.stream()
+                .mapToInt(method -> calls(method,
+                        AudioMusicTransitionRuntime.class.getName().replace('.', '/'), "created")
+                        + calls(method,
+                                AudioMusicTransitionRuntime.class.getName().replace('.', '/'), "fade")
+                        + calls(method,
+                                AudioMusicTransitionRuntime.class.getName().replace('.', '/'), "cleanup"))
+                .sum());
+        assertEquals(false, AudioMusicTransitionRuntime.telemetry().get("installed"));
     }
 
     @Test

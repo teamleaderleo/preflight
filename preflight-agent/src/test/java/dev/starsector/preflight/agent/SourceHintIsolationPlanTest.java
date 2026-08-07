@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -28,6 +29,7 @@ class SourceHintIsolationPlanTest {
         SourceHintIsolationRuntime.reset();
         ResourceProbeRuntime.enable(false);
         ResourceProbeRuntime.reset();
+        AdapterPlanControl.configure(Set.of());
     }
 
     @Test
@@ -110,6 +112,42 @@ class SourceHintIsolationPlanTest {
                 calls(owner, "dev/starsector/preflight/agent/ResourceProbeRuntime", "exists"));
         assertNotNull(method(owner, ResourceProbePlan.VANILLA_OPEN_METHOD,
                 ResourceProbePlan.OPEN_DESCRIPTOR));
+    }
+
+    @Test
+    void eitherSharedResolverPlanCanBeDisabledIndependently() throws Exception {
+        ResourceProbeRuntime.enable(true);
+        byte[] original = fixture(ResourceProbePlan.EXPECTED_CALL_SITES, false);
+        AdapterPlanControl.configure(Set.of(SourceHintIsolationRuntime.PLAN_ID));
+
+        byte[] rewritten = AdapterTransformationRegistry.transform(
+                AdapterTargetRegistry.resourceProbeCacheTarget(),
+                exactSignature(original),
+                original);
+
+        assertNotNull(rewritten);
+        ClassNode owner = read(rewritten);
+        assertEquals(0, calls(owner, RUNTIME, "set"));
+        assertEquals(ResourceProbePlan.EXPECTED_CALL_SITES,
+                calls(owner, "dev/starsector/preflight/agent/ResourceProbeRuntime", "exists"));
+    }
+
+    @Test
+    void portableScopeDoesNotComposeTheDiagnosticResourceProbe() throws Exception {
+        ResourceProbeRuntime.enable(true);
+        byte[] original = fixture(ResourceProbePlan.EXPECTED_CALL_SITES, false);
+        AdapterPlanControl.configure(AdapterPlanScope.PORTABLE_STARTUP, Set.of());
+
+        byte[] rewritten = AdapterTransformationRegistry.transform(
+                AdapterTargetRegistry.sourceHintIsolationTarget(),
+                exactSignature(original),
+                original);
+
+        assertNotNull(rewritten);
+        ClassNode owner = read(rewritten);
+        assertEquals(1, calls(owner, RUNTIME, "set"));
+        assertEquals(0,
+                calls(owner, "dev/starsector/preflight/agent/ResourceProbeRuntime", "exists"));
     }
 
     private static void await(CountDownLatch latch) {

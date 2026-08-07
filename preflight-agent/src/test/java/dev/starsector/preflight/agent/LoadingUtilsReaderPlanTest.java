@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
@@ -28,6 +29,20 @@ class LoadingUtilsReaderPlanTest {
                 "a rewritten reader no longer has the reviewed fixture body");
         assertNull(LoadingUtilsReaderPlan.transform(
                 ClassSignature.parse(fixture(false)), fixture(false)));
+    }
+
+    @Test
+    void independentPlanFilterStopsTheImplicitSharedReaderRewrite() throws Exception {
+        byte[] original = fixture(true);
+        AdapterPlanControl.configure(Set.of(LoadingUtilsReaderPlan.PLAN_ID));
+        try {
+            assertNull(AdapterTransformationRegistry.transform(
+                    AdapterTargetRegistry.loadJsonMemoTarget(),
+                    ClassSignature.parse(original),
+                    original));
+        } finally {
+            AdapterPlanControl.configure(Set.of());
+        }
     }
 
     private static byte[] fixture(boolean staticMethod) {

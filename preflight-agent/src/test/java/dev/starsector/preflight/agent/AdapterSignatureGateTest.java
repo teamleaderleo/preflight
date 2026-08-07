@@ -270,8 +270,14 @@ class AdapterSignatureGateTest {
         Properties properties = new Properties();
         properties.setProperty(AdapterRuntime.DISABLED_PLANS_PROPERTY,
                 " prepared-audio-v1, campaign-entity-index-v3,prepared-audio-v1 ");
-        Set<String> disabled = AdapterRuntime.disabledPlans(properties);
-        assertEquals(Set.of("prepared-audio-v1", "campaign-entity-index-v3"), disabled);
+        Set<String> disabled = AdapterRuntime.disabledPlans(
+                Map.of(AdapterRuntime.DISABLED_PLANS_ENVIRONMENT,
+                        "vanilla-loading-utils-utf8-reader-v1, prepared-audio-v1"),
+                properties);
+        assertEquals(Set.of(
+                "prepared-audio-v1",
+                "campaign-entity-index-v3",
+                "vanilla-loading-utils-utf8-reader-v1"), disabled);
 
         AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)

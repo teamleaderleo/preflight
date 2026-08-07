@@ -705,6 +705,8 @@ final class RunCommand {
         values.put("textureCurrentIndexBuildMs", textureContext == null ? null : textureContext.indexBuildMillis());
         values.put("adapterKillSwitchProperty", "preflight.adapter.disabled");
         values.put("adapterKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER");
+        values.put("adapterPlanKillSwitchProperty", "preflight.adapter.disabledPlans");
+        values.put("adapterPlanKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER_PLANS");
         Files.writeString(path, Json.object(values) + System.lineSeparator());
     }
 

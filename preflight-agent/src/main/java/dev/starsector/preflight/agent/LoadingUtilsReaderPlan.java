@@ -12,6 +12,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 /** Replaces the reviewed shared 1MiB-buffer/StringBuffer/regex text reader. */
 final class LoadingUtilsReaderPlan {
+    static final String PLAN_ID = "vanilla-loading-utils-utf8-reader-v1";
     static final String TARGET_CLASS = "com/fs/starfarer/loading/LoadingUtils";
     static final String METHOD = "super";
     static final String DESCRIPTOR = "(Ljava/io/InputStream;)Ljava/lang/String;";

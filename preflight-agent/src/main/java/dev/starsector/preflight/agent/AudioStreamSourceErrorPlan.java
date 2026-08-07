@@ -47,18 +47,19 @@ final class AudioStreamSourceErrorPlan {
 
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        boolean transitionsEnabled = AdapterPlanControl.allows(AudioMusicTransitionRuntime.PLAN_ID);
         MethodNode constructor = unique(owner, CONSTRUCTOR, CONSTRUCTOR_DESCRIPTOR);
-        MethodNode fadeIn = unique(owner, "class", "(I)V");
-        MethodNode fadeOut = unique(owner, "Ô00000", "(I)V");
-        MethodNode fadePause = unique(owner, "new", "(I)V");
-        MethodNode fadeStop = unique(owner, "Ó00000", "(I)V");
-        MethodNode cleanup = unique(owner, "ö00000", "()V");
-        if (constructor == null || fadeIn == null || fadeOut == null || fadePause == null
-                || fadeStop == null || cleanup == null
-                || field(owner, ID_FIELD, "Ljava/lang/String;") == null
+        MethodNode fadeIn = transitionsEnabled ? unique(owner, "class", "(I)V") : null;
+        MethodNode fadeOut = transitionsEnabled ? unique(owner, "Ô00000", "(I)V") : null;
+        MethodNode fadePause = transitionsEnabled ? unique(owner, "new", "(I)V") : null;
+        MethodNode fadeStop = transitionsEnabled ? unique(owner, "Ó00000", "(I)V") : null;
+        MethodNode cleanup = transitionsEnabled ? unique(owner, "ö00000", "()V") : null;
+        if (constructor == null || (transitionsEnabled
+                && (fadeIn == null || fadeOut == null || fadePause == null || fadeStop == null
+                || cleanup == null || field(owner, ID_FIELD, "Ljava/lang/String;") == null
                 || field(owner, SOURCE_FIELD, "I") == null
                 || field(owner, FADE_SCALE_FIELD, "F") == null
-                || field(owner, FADE_OUT_FIELD, "I") == null) return null;
+                || field(owner, FADE_OUT_FIELD, "I") == null))) return null;
 
         List<MethodInsnNode> errorCalls = calls(constructor, AL10, "alGetError", "()I");
         List<MethodInsnNode> generationCalls = calls(
@@ -90,43 +91,45 @@ final class AudioStreamSourceErrorPlan {
         actualError.add(new VarInsnNode(Opcodes.ISTORE, store.var));
         constructor.instructions.insert(generate, actualError);
 
-        List<AbstractInsnNode> returns = instructions(constructor, Opcodes.RETURN);
-        if (returns.size() != 1) return null;
-        InsnList created = new InsnList();
-        created.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        created.add(new FieldInsnNode(
-                Opcodes.GETFIELD, TARGET_CLASS, ID_FIELD, "Ljava/lang/String;"));
-        created.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        created.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, SOURCE_FIELD, "I"));
-        created.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC, TRANSITIONS, "created", "(Ljava/lang/String;I)V", false));
-        constructor.instructions.insertBefore(returns.get(0), created);
-        probeFade(fadeIn, "fade-in");
-        probeFade(fadeOut, "fade-out");
-        probeFade(fadePause, "fade-pause");
-        probeFade(fadeStop, "fade-stop");
-        InsnList cleaned = new InsnList();
-        cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        cleaned.add(new FieldInsnNode(
-                Opcodes.GETFIELD, TARGET_CLASS, ID_FIELD, "Ljava/lang/String;"));
-        cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        cleaned.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, FADE_SCALE_FIELD, "F"));
-        cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        cleaned.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, FADE_OUT_FIELD, "I"));
-        cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        cleaned.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, SOURCE_FIELD, "I"));
-        cleaned.add(new MethodInsnNode(
-                Opcodes.INVOKESTATIC,
-                TRANSITIONS,
-                "cleanup",
-                "(Ljava/lang/String;FII)V",
-                false));
-        cleanup.instructions.insert(cleaned);
+        if (transitionsEnabled) {
+            List<AbstractInsnNode> returns = instructions(constructor, Opcodes.RETURN);
+            if (returns.size() != 1) return null;
+            InsnList created = new InsnList();
+            created.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            created.add(new FieldInsnNode(
+                    Opcodes.GETFIELD, TARGET_CLASS, ID_FIELD, "Ljava/lang/String;"));
+            created.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            created.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, SOURCE_FIELD, "I"));
+            created.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC, TRANSITIONS, "created", "(Ljava/lang/String;I)V", false));
+            constructor.instructions.insertBefore(returns.get(0), created);
+            probeFade(fadeIn, "fade-in");
+            probeFade(fadeOut, "fade-out");
+            probeFade(fadePause, "fade-pause");
+            probeFade(fadeStop, "fade-stop");
+            InsnList cleaned = new InsnList();
+            cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            cleaned.add(new FieldInsnNode(
+                    Opcodes.GETFIELD, TARGET_CLASS, ID_FIELD, "Ljava/lang/String;"));
+            cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            cleaned.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, FADE_SCALE_FIELD, "F"));
+            cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            cleaned.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, FADE_OUT_FIELD, "I"));
+            cleaned.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            cleaned.add(new FieldInsnNode(Opcodes.GETFIELD, TARGET_CLASS, SOURCE_FIELD, "I"));
+            cleaned.add(new MethodInsnNode(
+                    Opcodes.INVOKESTATIC,
+                    TRANSITIONS,
+                    "cleanup",
+                    "(Ljava/lang/String;FII)V",
+                    false));
+            cleanup.instructions.insert(cleaned);
+        }
 
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         AudioStreamSourceErrorRuntime.installed();
-        AudioMusicTransitionRuntime.installed();
+        if (transitionsEnabled) AudioMusicTransitionRuntime.installed();
         return writer.toByteArray();
     }
 

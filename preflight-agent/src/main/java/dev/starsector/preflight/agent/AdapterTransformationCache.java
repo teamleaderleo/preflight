@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import org.objectweb.asm.ClassReader;
 
 /** Persistent exact-output cache for the adapter's reviewed class transformations. */
@@ -180,6 +181,11 @@ final class AdapterTransformationCache {
         canonical.append("graphicsCompact=").append(options.graphicsLibCompactReplay()).append('\n');
         canonical.append("graphicsInsignia=").append(options.graphicsLibInsigniaManagerCache()).append('\n');
         canonical.append("preparedAudioPathLookup=").append(PreparedAudioRuntime.pathLookupReady()).append('\n');
+        canonical.append("effectivePlanScope=")
+                .append(AdapterPlanControl.scope().optionValue()).append('\n');
+        for (String planId : new TreeSet<>(AdapterPlanControl.disabledPlans())) {
+            canonical.append("disabledPlan=").append(planId).append('\n');
+        }
         for (AdapterTarget target : registry.targets()) {
             canonical.append("target=").append(target.id()).append('|')
                     .append(target.internalClassName()).append('|')

@@ -32,7 +32,9 @@ final class AdapterInstallationEffects {
         }
         if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())) {
             AudioStreamSourceErrorRuntime.installed();
-            AudioMusicTransitionRuntime.installed();
+            if (has(referenced, AudioMusicTransitionRuntime.class)) {
+                AudioMusicTransitionRuntime.installed();
+            }
         }
         if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
             CombatRuntimeIntegrityRuntime.installed();

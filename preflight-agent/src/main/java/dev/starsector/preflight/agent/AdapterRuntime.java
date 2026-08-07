@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Installs the optional probe transformer while keeping every unknown build unmodified. */
 final class AdapterRuntime {
     static final String DISABLED_PLANS_PROPERTY = "preflight.adapter.disabledPlans";
+    static final String DISABLED_PLANS_ENVIRONMENT = "PREFLIGHT_DISABLE_ADAPTER_PLANS";
 
     private AdapterRuntime() {
     }
@@ -23,6 +24,8 @@ final class AdapterRuntime {
     static Session start(AgentOptions options, Instrumentation instrumentation) {
         Objects.requireNonNull(options, "options");
         Objects.requireNonNull(instrumentation, "instrumentation");
+        Set<String> disabledPlans = disabledPlans(System.getenv(), System.getProperties());
+        AdapterPlanControl.configure(options.adapterPlanScope(), disabledPlans);
         SourceArchiveHashes.beginSession();
         AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
@@ -300,13 +303,13 @@ final class AdapterRuntime {
                 report.diagnostic("Adapter plan scope " + options.adapterPlanScope().optionValue()
                         + " omitted " + (beforeScope - registry.targets().size()) + " target(s)");
             }
-            Set<String> disabledPlans = disabledPlans(System.getProperties());
             if (!disabledPlans.isEmpty()) {
                 applyDisabledDiagnosticRuntimeGates(disabledPlans);
                 int before = registry.targets().size();
                 registry = registry.withoutPlans(disabledPlans);
-                report.diagnostic("Diagnostic plan filter omitted "
-                        + (before - registry.targets().size()) + " target(s): "
+                report.diagnostic("Plan filter disabled "
+                        + (before - registry.targets().size())
+                        + " direct target(s) and every matching composed rewrite: "
                         + String.join(",", disabledPlans));
             }
             if (options.adapterMode() == AdapterMode.ENABLED) {
@@ -350,11 +353,18 @@ final class AdapterRuntime {
     }
 
     static Set<String> disabledPlans(Properties properties) {
-        String raw = properties.getProperty(DISABLED_PLANS_PROPERTY, "");
+        return disabledPlans(Map.of(), properties);
+    }
+
+    static Set<String> disabledPlans(Map<String, String> environment, Properties properties) {
         Set<String> plans = new LinkedHashSet<>();
-        for (String token : raw.split(",")) {
-            String plan = token.trim();
-            if (!plan.isEmpty()) plans.add(plan);
+        for (String raw : List.of(
+                environment.getOrDefault(DISABLED_PLANS_ENVIRONMENT, ""),
+                properties.getProperty(DISABLED_PLANS_PROPERTY, ""))) {
+            for (String token : raw.split(",")) {
+                String plan = token.trim();
+                if (!plan.isEmpty()) plans.add(plan);
+            }
         }
         return Set.copyOf(plans);
     }

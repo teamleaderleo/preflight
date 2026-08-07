@@ -60,7 +60,10 @@ first public beta.
 ## Compatibility and correctness gate
 
 - [ ] Every Recommended runtime plan has an exact class/source/loader gate, bounded health report,
-  independent kill switch, and vanilla fallback on uncertainty.
+  independent kill switch, and vanilla fallback on uncertainty. The global and per-plan environment
+  switches now cover both direct targets and shared-class composed rewrites, with cache identities
+  separated by the filter. The remaining plan-by-plan gate and health-report inventory still needs
+  to be closed before marking this complete.
 - [ ] Unknown game or mod versions visibly distinguish adapter decline, cache miss/rejection,
   wrapper failure, and runtime integrity failure.
 - [x] Preparation, profile switching, cleanup, and launch share ownership so stale concurrent state
