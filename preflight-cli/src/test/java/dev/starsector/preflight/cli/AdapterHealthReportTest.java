@@ -78,6 +78,58 @@ class AdapterHealthReportTest {
         assertFalse(result.reviewRecommended());
     }
 
+    @Test
+    void distinguishesCacheMissesRejectionsWrappersAndRuntimeIntegrity() throws Exception {
+        Map<String, Object> adapter = base();
+        adapter.put("exactMatches", 2);
+        adapter.put("transformationsApplied", 2);
+        adapter.put("adapterTransformationCache", Map.of(
+                "misses", 3,
+                "readFailures", 1));
+        adapter.put("textureCompatibility", Map.of(
+                "misses", 4,
+                "corruptions", 2));
+        adapter.put("audioResourceFallback", Map.of("fallbackFailures", 5));
+        adapter.put("combatRuntimeIntegrity", Map.of(
+                "observed", true,
+                "assignable", false,
+                "failure", "class identity mismatch"));
+
+        AdapterHealthReport.Result result = analyze(adapter);
+
+        assertEquals(AdapterHealthReport.Status.PARTIAL, result.status());
+        assertEquals(7, result.cacheMisses());
+        assertEquals(3, result.cacheRejectionSignals());
+        assertEquals(5, result.wrapperFailureSignals());
+        assertEquals(1, result.runtimeIntegrityFailures());
+        assertEquals(List.of(
+                "CACHE_MISS",
+                "CACHE_REJECTION",
+                "WRAPPER_FAILURE",
+                "RUNTIME_INTEGRITY_FAILURE"), result.evidenceKinds());
+        assertTrue(result.suggestedActions().stream()
+                .anyMatch(value -> value.contains("re-run preparation")));
+        assertTrue(result.suggestedActions().stream()
+                .anyMatch(value -> value.contains("full adapter bypass")));
+    }
+
+    @Test
+    void ordinaryCacheMissesRemainInformational() throws Exception {
+        Map<String, Object> adapter = base();
+        adapter.put("exactMatches", 2);
+        adapter.put("transformationsApplied", 2);
+        adapter.put("mergedReadCache", Map.of("misses", 9));
+
+        AdapterHealthReport.Result result = analyze(adapter);
+
+        assertEquals(AdapterHealthReport.Status.ACTIVE, result.status());
+        assertEquals(9, result.cacheMisses());
+        assertEquals(List.of("CACHE_MISS"), result.evidenceKinds());
+        assertFalse(result.originalCodeRetained());
+        assertFalse(result.reviewRecommended());
+        assertTrue(result.suggestedActions().isEmpty());
+    }
+
     private AdapterHealthReport.Result analyze(Map<String, Object> adapter) throws Exception {
         Path source = temporaryDirectory.resolve("adapter.json");
         Path output = temporaryDirectory.resolve("adapter-health.json");

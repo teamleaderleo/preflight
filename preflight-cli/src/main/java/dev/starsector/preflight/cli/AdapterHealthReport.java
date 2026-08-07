@@ -19,6 +19,22 @@ import java.util.Set;
 /** Converts exact-match telemetry into a compact post-run compatibility verdict. */
 final class AdapterHealthReport {
     private static final int DETAIL_LIMIT = 16;
+    private static final List<String> CACHE_SECTIONS = List.of(
+            "adapterTransformationCache",
+            "textureCompatibility",
+            "variantJsonCache",
+            "weaponJsonCache",
+            "projectileJsonCache",
+            "hullJsonCache",
+            "rulesCsvCache",
+            "ruleCommandClassCache",
+            "ruleTokenCache",
+            "mergedReadCache",
+            "resourceProbeCache",
+            "loadJsonMemo",
+            "preparedAudio",
+            "janinoBytecodeCache",
+            "graphicsLibInsigniaManagerCache");
 
     private AdapterHealthReport() {
     }
@@ -44,6 +60,20 @@ final class AdapterHealthReport {
         long applied = number(adapter, "transformationsApplied");
         long shadowed = number(adapter, "shadowedTargets");
         long containedFailures = number(adapter, "containedFailures");
+        long cacheMisses = sectionMetrics(adapter, CACHE_SECTIONS,
+                "misses", "preparedMisses", "packMisses", "pathMisses");
+        long cacheRejectionSignals = sectionMetrics(adapter, CACHE_SECTIONS,
+                "corruptions", "internalErrors", "failures", "readFailures", "writeFailures",
+                "loadFailures", "keyCollisions", "comparisonMismatches", "packErrors");
+        long wrapperFailureSignals = sectionMetrics(adapter, List.of(
+                        "audioResourceFallback",
+                        "magicLibPaintjob",
+                        "magicLibPaintjobNotification",
+                        "magicLibPaintjobLoad",
+                        "simOpponentSafety",
+                        "macMemoryWarning"),
+                "fallbackFailures", "failures", "failOpen", "probeFailures");
+        long runtimeIntegrityFailures = runtimeIntegrityFailures(adapter);
 
         List<String> mismatchDetails = mismatchDetails(adapter.get("evaluations"));
         List<String> shadowedBy = strings(adapter.get("shadowedBy"));
@@ -52,6 +82,9 @@ final class AdapterHealthReport {
                 || declined > 0
                 || shadowed > 0
                 || containedFailures > 0
+                || cacheRejectionSignals > 0
+                || wrapperFailureSignals > 0
+                || runtimeIntegrityFailures > 0
                 || !mismatchDetails.isEmpty();
 
         Status status;
@@ -75,7 +108,13 @@ final class AdapterHealthReport {
                 || sourceBindingRejected > 0 || unavailablePlans > 0 || declined > 0 || shadowed > 0;
         boolean reviewRecommended = status == Status.ERROR
                 || status == Status.SAFE_FALLBACK || status == Status.PARTIAL;
-        List<String> actions = actions(status, shadowed, containedFailures);
+        List<String> evidenceKinds = evidenceKinds(
+                mismatchDetails, sourceBindingRejected, unavailablePlans, declined, shadowed,
+                containedFailures, cacheMisses, cacheRejectionSignals, wrapperFailureSignals,
+                runtimeIntegrityFailures);
+        List<String> actions = actions(
+                status, shadowed, containedFailures, cacheRejectionSignals,
+                wrapperFailureSignals, runtimeIntegrityFailures);
         String summary = summary(status, applied, registryTargets);
 
         return new Result(
@@ -83,12 +122,14 @@ final class AdapterHealthReport {
                 status, summary, true, applied > 0, originalCodeRetained, reviewRecommended,
                 mode, transformerInstalled, killSwitchActive, registryTargets, exactMatches,
                 sourceBindingRejected, unavailablePlans, declined, applied, shadowed,
-                containedFailures, mismatchDetails, shadowedBy, actions);
+                containedFailures, cacheMisses, cacheRejectionSignals, wrapperFailureSignals,
+                runtimeIntegrityFailures, evidenceKinds, mismatchDetails, shadowedBy, actions);
     }
 
     private static String summary(Status status, long applied, long targets) {
         return switch (status) {
-            case ACTIVE -> "Preflight applied " + applied + " reviewed transformation(s); no fallback was reported.";
+            case ACTIVE -> "Preflight applied " + applied
+                    + " reviewed transformation(s) within the registered exact-target boundaries.";
             case PARTIAL -> "Preflight applied " + applied
                     + " reviewed transformation(s) and retained original code for at least one other target.";
             case SAFE_FALLBACK -> "No reviewed transformation applied across " + targets
@@ -100,7 +141,13 @@ final class AdapterHealthReport {
         };
     }
 
-    private static List<String> actions(Status status, long shadowed, long failures) {
+    private static List<String> actions(
+            Status status,
+            long shadowed,
+            long failures,
+            long cacheRejections,
+            long wrapperFailures,
+            long runtimeIntegrityFailures) {
         List<String> values = new ArrayList<>();
         if (status == Status.SAFE_FALLBACK || status == Status.PARTIAL) {
             values.add("Keep playing if the game is otherwise healthy; unmatched targets retain their original bytecode.");
@@ -112,7 +159,71 @@ final class AdapterHealthReport {
         if (failures > 0 || status == Status.ERROR) {
             values.add("Inspect adapter.json diagnostics; use PREFLIGHT_DISABLE_ADAPTER=1 for a full adapter bypass.");
         }
+        if (cacheRejections > 0) {
+            values.add("At least one cache artifact was rejected safely; re-run preparation before investigating deeper.");
+        }
+        if (wrapperFailures > 0) {
+            values.add("A runtime wrapper retained its original path after a failure; inspect its named adapter.json section.");
+        }
+        if (runtimeIntegrityFailures > 0) {
+            values.add("Runtime class integrity failed; use PREFLIGHT_DISABLE_ADAPTER=1 for a full "
+                    + "adapter bypass before the next launch.");
+        }
         return List.copyOf(values);
+    }
+
+    private static List<String> evidenceKinds(
+            List<String> mismatches,
+            long sourceBindingRejected,
+            long unavailablePlans,
+            long declined,
+            long shadowed,
+            long containedFailures,
+            long cacheMisses,
+            long cacheRejections,
+            long wrapperFailures,
+            long runtimeIntegrityFailures) {
+        List<String> values = new ArrayList<>();
+        if (!mismatches.isEmpty()) values.add("VERSION_OR_TARGET_MISMATCH");
+        if (sourceBindingRejected > 0) values.add("SOURCE_BINDING_REJECTED");
+        if (unavailablePlans > 0) values.add("PLAN_UNAVAILABLE");
+        if (declined > 0) values.add("TRANSFORMATION_DECLINED");
+        if (shadowed > 0) values.add("SHADOWED_TARGET");
+        if (containedFailures > 0) values.add("CONTAINED_ADAPTER_FAILURE");
+        if (cacheMisses > 0) values.add("CACHE_MISS");
+        if (cacheRejections > 0) values.add("CACHE_REJECTION");
+        if (wrapperFailures > 0) values.add("WRAPPER_FAILURE");
+        if (runtimeIntegrityFailures > 0) values.add("RUNTIME_INTEGRITY_FAILURE");
+        return List.copyOf(values);
+    }
+
+    private static long sectionMetrics(
+            Map<String, Object> adapter, List<String> sections, String... fields) {
+        long total = 0;
+        for (String section : sections) {
+            Map<String, Object> values = object(adapter.get(section));
+            for (String field : fields) {
+                total = saturatedAdd(total, number(values, field));
+            }
+        }
+        return total;
+    }
+
+    private static long runtimeIntegrityFailures(Map<String, Object> adapter) {
+        Map<String, Object> integrity = object(adapter.get("combatRuntimeIntegrity"));
+        boolean failed = !string(integrity, "failure").isBlank()
+                || (bool(integrity, "observed") && !bool(integrity, "assignable"));
+        return failed ? 1 : 0;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> object(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    private static long saturatedAdd(long left, long right) {
+        if (right <= 0) return left;
+        return left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right;
     }
 
     @SuppressWarnings("unchecked")
@@ -230,10 +341,16 @@ final class AdapterHealthReport {
             long transformationsApplied,
             long shadowedTargets,
             long containedFailures,
+            long cacheMisses,
+            long cacheRejectionSignals,
+            long wrapperFailureSignals,
+            long runtimeIntegrityFailures,
+            List<String> evidenceKinds,
             List<String> mismatchDetails,
             List<String> shadowedBy,
             List<String> suggestedActions) {
         Result {
+            evidenceKinds = List.copyOf(evidenceKinds);
             mismatchDetails = List.copyOf(mismatchDetails);
             shadowedBy = List.copyOf(shadowedBy);
             suggestedActions = List.copyOf(suggestedActions);
@@ -261,6 +378,11 @@ final class AdapterHealthReport {
             values.put("transformationsApplied", transformationsApplied);
             values.put("shadowedTargets", shadowedTargets);
             values.put("containedFailures", containedFailures);
+            values.put("cacheMisses", cacheMisses);
+            values.put("cacheRejectionSignals", cacheRejectionSignals);
+            values.put("wrapperFailureSignals", wrapperFailureSignals);
+            values.put("runtimeIntegrityFailures", runtimeIntegrityFailures);
+            values.put("evidenceKinds", evidenceKinds);
             values.put("mismatchDetails", mismatchDetails);
             values.put("shadowedBy", shadowedBy);
             values.put("suggestedActions", suggestedActions);

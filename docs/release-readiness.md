@@ -65,8 +65,11 @@ first public beta.
   separated by the effective scope and filter. Shutdown reports now state both and include the
   prepared-pixel and padding safety counters. The remaining plan-by-plan gate and health-report
   inventory still needs to be closed before marking this complete.
-- [ ] Unknown game or mod versions visibly distinguish adapter decline, cache miss/rejection,
-  wrapper failure, and runtime integrity failure.
+- [x] Unknown game or mod versions visibly distinguish target/version mismatch, source-binding
+  rejection, unavailable or declined plans, shadowing, ordinary cache misses, cache rejection,
+  runtime-wrapper fallback, contained adapter failure, and runtime-integrity failure. The compact
+  health report keeps normal learning misses informational while rejection and failure signals make
+  the verdict partial and provide a specific next action.
 - [x] Preparation, profile switching, cleanup, and launch share ownership so stale concurrent state
   can't be published or deleted.
 - [ ] Cache corruption, interruption, stale profile data, and low-disk behavior are exercised without

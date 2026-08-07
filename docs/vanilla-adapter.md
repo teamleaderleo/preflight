@@ -247,8 +247,12 @@ After every probe or enabled run, the wrapper also converts this raw telemetry i
 another agent owning a target becomes a visible `PARTIAL`/`SAFE_FALLBACK` result instead of a
 silent loss of acceleration. The report records whether any acceleration remained active, whether
 original bytecode was retained, the bounded exact-match problems, and the two files needed for
-compatibility review. Generating this verdict is post-processing: failure to write it cannot turn a
-successful game run into a failed one.
+compatibility review. Its `evidenceKinds` separates version/target mismatch, source rejection,
+unavailable or declined plans, shadowing, ordinary cache misses, cache rejection, wrapper fallback,
+contained adapter failure, and runtime-integrity failure. Misses remain informational; rejection
+and failure signals make an otherwise active result `PARTIAL` and add a specific next action.
+Generating this verdict is post-processing: failure to write it cannot turn a successful game run
+into a failed one.
 
 ## Manual acceptance sequence
 
