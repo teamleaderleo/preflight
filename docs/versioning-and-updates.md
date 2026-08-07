@@ -21,7 +21,8 @@ when its reviewed fingerprint or transformation logic changes.
 The desktop app checks one fixed HTTPS feed after setup and whenever the user asks. A release is
 offered only when Tauri considers its SemVer newer than the installed application. Installation
 requires **Install and restart**; Preflight doesn't update during a game, preparation, or another
-update.
+update. An available release appears on Home and beside Settings, while its notes, verification
+boundary, and install action stay together on the Settings page.
 
 Before downloading, the app rechecks the feed and requires the exact version, target, URL,
 signature, notes, and date the user approved. A withdrawn or replaced offer returns to the update
@@ -61,7 +62,8 @@ rolling back doesn't first destroy the preparation needed by that release.
 
 Cache pruning operates on the active format namespaces. Older namespaces are retained for rollback
 until the user explicitly clears broader cached data; an application update doesn't silently treat
-an unfamiliar old representation as disposable space.
+an unfamiliar old representation as disposable space. The update review warns that a format change
+can temporarily retain both copies before installation starts.
 
 Named mod profiles are user data rather than application state. A future profile schema needs an
 explicit reader or migration and must preserve the previous file until the replacement is accepted.

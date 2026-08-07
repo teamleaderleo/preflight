@@ -131,6 +131,18 @@ button:focus-visible {
   width: 19px;
 }
 
+.nav__badge {
+  margin-left: auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #76553f;
+  background: var(--peach-pale);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .nav__item--active {
   color: var(--ink);
   background: var(--peach-pale);
@@ -762,6 +774,28 @@ h2 {
   flex-direction: column;
   gap: 14px;
   padding: 24px;
+}
+
+.update-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 18px;
+  padding: 13px 16px;
+  border: 1px solid rgba(222, 151, 108, 0.32);
+  border-radius: 12px;
+  color: var(--ink);
+  background: rgba(255, 239, 226, 0.76);
+  font-size: 13px;
+}
+
+.update-notice .text-button {
+  flex: 0 0 auto;
+}
+
+.update-notice .text-button svg {
+  width: 14px;
 }
 
 .automation-card {

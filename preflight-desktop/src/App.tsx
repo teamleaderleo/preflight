@@ -1006,6 +1006,7 @@ export default function App() {
           <button className={`nav__item ${page === "settings" ? "nav__item--active" : ""}`} type="button" aria-current={page === "settings" ? "page" : undefined} onClick={() => setPage("settings")}>
             <SettingsIcon />
             <span>Settings</span>
+            {updateStatus?.available && <span className="nav__badge">Update</span>}
           </button>
           <div className="alpha-pill"><span /> Desktop alpha</div>
         </div>
@@ -1076,6 +1077,13 @@ export default function App() {
             <span className="star star--three">·</span>
           </div>
         </section>
+
+        {updateStatus?.available && (
+          <section className="update-notice" aria-label="Preflight update available">
+            <strong>Preflight {updateStatus.version} is available</strong>
+            <button type="button" className="text-button" onClick={() => setPage("settings")}>Review update <ArrowIcon /></button>
+          </section>
+        )}
 
         {message && (
           <div className={`notice ${status === "error" ? "notice--error" : ""}`} role="status">
@@ -1432,6 +1440,7 @@ export default function App() {
                 <button className="button button--quiet button--compact" type="button" onClick={() => void checkUpdates(true)} disabled={updateChecking || updateInstalling}>{updateChecking ? "Checking…" : updateStatus ? "Check again" : "Check for updates"}</button>
                 {updateStatus?.available && <button className="button button--primary" type="button" onClick={() => void installSignedUpdate()} disabled={updateInstalling || preparing || status === "running"}>{updateInstalling ? "Installing…" : "Install and restart"}</button>}
               </div>
+              {updateStatus?.available && <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small>}
               <small>Downloads are verified with the release key embedded in this build. A failed download or signature check leaves the installed version unchanged.</small>
             </section>
 

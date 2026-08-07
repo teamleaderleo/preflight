@@ -390,7 +390,17 @@ test("a verified available update still waits for install confirmation", async (
 
   expect(await screen.findByRole("heading", { name: "Preflight 0.2.0 is available" })).toBeInTheDocument();
   expect(screen.getByText("A signed test release.")).toBeInTheDocument();
+  expect(screen.getByText(/previous copy is kept for rollback/)).toBeInTheDocument();
+  expect(screen.getByText("Update")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Install and restart" })).toBeEnabled();
+  expect(install).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  expect(screen.getByRole("region", { name: "Preflight update available" })).toHaveTextContent("Preflight 0.2.0 is available");
+  await user.click(screen.getByRole("button", { name: "Review update" }));
+  expect(await screen.findByRole("heading", { name: "Settings", level: 1 })).toBeInTheDocument();
+  expect(install).not.toHaveBeenCalled();
+
   await user.click(screen.getByRole("button", { name: "Install and restart" }));
   expect(install).toHaveBeenCalledWith("0.2.0");
   install.mockRestore();
