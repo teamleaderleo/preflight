@@ -734,10 +734,11 @@ fn validated_updater_endpoint(endpoint: &str) -> Result<Url, String> {
         || !url.username().is_empty()
         || url.password().is_some()
         || url.host_str().is_none()
+        || url.query().is_some()
         || url.fragment().is_some()
     {
         return Err(
-            "The compiled update endpoint must be an absolute HTTPS URL without credentials or a fragment."
+            "The compiled update endpoint must be an absolute HTTPS URL without credentials, a query, or a fragment."
                 .to_string(),
         );
     }
@@ -823,11 +824,38 @@ async fn check_for_update(
     Ok(status)
 }
 
+async fn current_verified_update(app: &AppHandle) -> Result<Option<Update>, String> {
+    let public_key = compiled_updater_public_key()
+        .ok_or_else(|| "This build has no updater verification key.".to_string())?;
+    let endpoint = validated_updater_endpoint(compiled_updater_endpoint())?;
+    app.updater_builder()
+        .pubkey(public_key)
+        .endpoints(vec![endpoint])
+        .map_err(|error| format!("Could not configure verified updates: {error}"))?
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|error| format!("Could not initialize verified updates: {error}"))?
+        .check()
+        .await
+        .map_err(|error| format!("Could not recheck the verified update: {error}"))
+}
+
+fn same_update_offer(left: &Update, right: &Update) -> bool {
+    left.current_version == right.current_version
+        && left.version == right.version
+        && left.target == right.target
+        && left.download_url == right.download_url
+        && left.signature == right.signature
+        && left.body == right.body
+        && left.date == right.date
+}
+
 #[tauri::command]
 async fn install_update(
     app: AppHandle,
     processes: State<'_, ProcessTracker>,
     updates: State<'_, UpdateTracker>,
+    requested_version: String,
 ) -> Result<(), String> {
     {
         let mut running = processes
@@ -848,18 +876,50 @@ async fn install_update(
         running.update_installing = true;
     }
 
-    let update = updates
+    let displayed_update = updates
         .0
         .lock()
         .map_err(|_| "The update tracker is unavailable.".to_string())?
         .take();
-    let Some(update) = update else {
+    let Some(displayed_update) = displayed_update else {
         processes
             .0
             .lock()
             .map_err(|_| "The process tracker is unavailable.".to_string())?
             .update_installing = false;
         return Err("Check for an update before trying to install one.".to_string());
+    };
+    if displayed_update.version != requested_version {
+        processes
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable.".to_string())?
+            .update_installing = false;
+        return Err("The selected update changed. Check again before installing.".to_string());
+    }
+
+    let refreshed = current_verified_update(&app).await;
+    let update = match refreshed {
+        Ok(Some(update)) if same_update_offer(&displayed_update, &update) => update,
+        Ok(_) => {
+            processes
+                .0
+                .lock()
+                .map_err(|_| "The process tracker is unavailable.".to_string())?
+                .update_installing = false;
+            return Err(
+                "That update is no longer the exact release currently offered. Check again before installing."
+                    .to_string(),
+            );
+        }
+        Err(error) => {
+            processes
+                .0
+                .lock()
+                .map_err(|_| "The process tracker is unavailable.".to_string())?
+                .update_installing = false;
+            return Err(error);
+        }
     };
 
     let progress_app = app.clone();
@@ -2748,6 +2808,9 @@ mod tests {
         assert!(validated_updater_endpoint("http://updates.example.com/latest.json").is_err());
         assert!(
             validated_updater_endpoint("https://token@updates.example.com/latest.json").is_err()
+        );
+        assert!(
+            validated_updater_endpoint("https://updates.example.com/latest.json?client=1").is_err()
         );
         assert!(
             validated_updater_endpoint("https://updates.example.com/latest.json#fragment").is_err()

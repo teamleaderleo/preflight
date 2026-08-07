@@ -371,6 +371,7 @@ test("verified updates are explicit and explain when a build has no update chann
 
 test("a verified available update still waits for install confirmation", async () => {
   const user = userEvent.setup();
+  const install = vi.spyOn(bridge, "installUpdate").mockResolvedValue();
   const check = vi.spyOn(bridge, "checkForUpdate").mockResolvedValue({
     format: "preflight-update-v1",
     configured: true,
@@ -390,6 +391,9 @@ test("a verified available update still waits for install confirmation", async (
   expect(await screen.findByRole("heading", { name: "Preflight 0.2.0 is available" })).toBeInTheDocument();
   expect(screen.getByText("A signed test release.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Install and restart" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Install and restart" }));
+  expect(install).toHaveBeenCalledWith("0.2.0");
+  install.mockRestore();
   check.mockRestore();
 });
 

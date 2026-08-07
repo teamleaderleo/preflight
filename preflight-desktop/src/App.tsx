@@ -957,15 +957,16 @@ export default function App() {
   };
 
   const installSignedUpdate = async () => {
-    if (!updateStatus?.available || updateInstalling || preparing || status === "running") return;
+    if (!updateStatus?.available || !updateStatus.version || updateInstalling || preparing || status === "running") return;
     setUpdateInstalling(true);
     setUpdateProgress(null);
     setUpdateError("");
     setMessage(`Downloading and verifying Preflight ${updateStatus.version}…`);
     try {
-      await installUpdate();
+      await installUpdate(updateStatus.version);
     } catch (error) {
       const detail = String(error);
+      setUpdateStatus(null);
       setUpdateError(detail);
       setMessage(detail);
       setUpdateInstalling(false);

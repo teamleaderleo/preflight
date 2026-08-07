@@ -47,6 +47,11 @@ There are three distinct kinds of change:
 
 ## Update and mod drift
 
+Application releases, compatibility fingerprints, and content profiles are separate version axes.
+One current Preflight release can support many exact game/mod identities and any number of cached
+profiles. The [versioning and update contract](versioning-and-updates.md) records when an application
+update is required and how incompatible cache formats must coexist for rollback.
+
 The safe default for unknown code is **decline, report, and continue with original bytes**. Targets
 for vanilla and specific mods are pinned to exact identities; a new game/mod build doesn't receive
 an old transformation merely because a class has the same name. Cache bridges separately validate

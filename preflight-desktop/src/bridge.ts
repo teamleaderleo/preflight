@@ -474,7 +474,7 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
   return invoke<UpdateStatus>("check_for_update");
 }
 
-export async function installUpdate(): Promise<void> {
+export async function installUpdate(version: string): Promise<void> {
   if (!isDesktopHost()) return;
-  return invoke<void>("install_update");
+  return invoke<void>("install_update", { requestedVersion: version });
 }
