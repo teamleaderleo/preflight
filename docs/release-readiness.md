@@ -80,7 +80,7 @@ first public beta.
   present in packages, diagnostics fixtures, screenshots, or source history.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
-- [ ] Prepare a rollback/kill-switch notice path for a bad adapter or release.
+- [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.
 - [ ] Make forum and Reddit announcements from the same reviewed claims and link to the evidence
   instead of copying an ever-growing benchmark table into each post.
 

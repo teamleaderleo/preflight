@@ -20,6 +20,12 @@ const sourceJar = join(repositoryRoot, "preflight-cli", "target", "preflight.jar
 const engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine");
 const runtimeDirectory = join(engineDirectory, "runtime");
 const smokeScenario = join(repositoryRoot, "scripts", "scenarios", "campaign-roam.json");
+const legalSources = [
+  [join(repositoryRoot, "LICENSE"), "LICENSE"],
+  [join(repositoryRoot, "THIRD_PARTY_NOTICES.md"), "THIRD_PARTY_NOTICES.md"],
+  [join(repositoryRoot, "docs", "privacy.md"), "PRIVACY.md"],
+  [join(repositoryRoot, "docs", "known-limitations.md"), "KNOWN_LIMITATIONS.md"],
+];
 const argumentsSet = new Set(process.argv.slice(2));
 const useVerifiedJar = argumentsSet.delete("--use-verified-jar");
 if (argumentsSet.size > 0) {
@@ -51,6 +57,13 @@ mkdirSync(engineDirectory, { recursive: true });
 cpSync(sourceJar, join(engineDirectory, "preflight.jar"));
 mkdirSync(join(engineDirectory, "scenarios"), { recursive: true });
 cpSync(smokeScenario, join(engineDirectory, "scenarios", "campaign-roam.json"));
+mkdirSync(join(engineDirectory, "legal"), { recursive: true });
+for (const [source, name] of legalSources) {
+  if (!statSync(source, { throwIfNoEntry: false })?.isFile()) {
+    throw new Error(`Required legal or release document is missing: ${source}`);
+  }
+  cpSync(source, join(engineDirectory, "legal", name));
+}
 
 run(
   jlink,
@@ -84,6 +97,9 @@ const manifest = {
   compression,
   jarBytes: statSync(sourceJar).size,
   smokeScenarioBytes: statSync(smokeScenario).size,
+  legalFiles: Object.fromEntries(
+    legalSources.map(([source, name]) => [name, statSync(source).size]),
+  ),
   sourceVersion: readProjectVersion(),
 };
 writeFileSync(join(engineDirectory, "bundle.json"), `${JSON.stringify(manifest, null, 2)}\n`);

@@ -19,6 +19,8 @@ archive. They answer different questions. This page is the shortest route to the
 - [Performance and storage tradeoffs](performance-storage-tradeoffs.md) — what Balanced, Fastest,
   prepared audio, redundancy, and safe pruning cost and buy.
 - [Downloads and installation](downloads.md) — planned artifacts and current private build process.
+- [Known limitations](known-limitations.md) — the current platform, evidence, storage, and fallback
+  limits.
 
 ## Users and beta testers
 
@@ -26,6 +28,7 @@ archive. They answer different questions. This page is the shortest route to the
 - [Preparation and storage](prepare.md)
 - [Diagnostics export](diagnostics.md)
 - [Support and private report handling](support.md)
+- [Rollback and bad-release response](rollback.md)
 - [Startup benchmark](startup-benchmark.md)
 - [Asset lint](asset-lint.md)
 - [Desktop smoke automation](desktop-smoke-automation.md)

@@ -19,6 +19,8 @@ A public tagged release is expected to attach:
 - `preflight.zip` — JAR, checksum, and a quick-start text file
 - `preflight.tar.gz` — the same files for Unix-like systems
 - `archives.sha256` — checksums for both archives
+- `LICENSE`, `THIRD_PARTY_NOTICES.md`, `PRIVACY.md`, and `KNOWN_LIMITATIONS.md` in both standalone
+  archives and native application resources
 - Windows: an NSIS `.exe` desktop installer
 - macOS: a `.dmg` containing the desktop application
 - Linux: `.AppImage` and `.deb` desktop packages
@@ -41,8 +43,9 @@ rather than unique people or installations.
 
 A manually dispatched Distribution workflow currently produces the same files as private workflow
 artifacts without creating a release. Desktop packages contain their own minimal Java runtime and
-don't require a system JDK. Those development packages are unsigned; they aren't the intended
-public install experience.
+don't require a system JDK. They also contain the project license, third-party notices, privacy
+statement, and known limitations under the bundled resources. Those development packages are
+unsigned; they aren't the intended public install experience.
 
 Tagged builds are stricter. The workflow first requires the updater private key, its password, and
 the matching public key. It signs every supported updater artifact, assembles `latest.json` only
