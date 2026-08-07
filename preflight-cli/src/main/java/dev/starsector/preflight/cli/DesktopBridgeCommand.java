@@ -149,7 +149,7 @@ final class DesktopBridgeCommand {
             response.put("protocol", PROTOCOL_VERSION);
             response.put("launch", launched);
             System.out.println(Json.object(response));
-            return 0;
+            return statusExitCode(launched.get("status"));
         }
         if (args.length != offset + 4 || !"run".equals(args[offset])) {
             throw new IllegalArgumentException(
@@ -167,7 +167,11 @@ final class DesktopBridgeCommand {
         response.put("protocol", PROTOCOL_VERSION);
         response.put("evidence", evidence);
         System.out.println(Json.object(response));
-        return 0;
+        return statusExitCode(evidence.get("status"));
+    }
+
+    static int statusExitCode(Object status) {
+        return "passed".equals(status) ? 0 : "skipped".equals(status) ? 3 : 1;
     }
 
     private static DesktopSmokeDriver driver() {

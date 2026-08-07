@@ -182,6 +182,12 @@ tracked runtime, starts the packaged `run --fast --direct --desktop-smoke` path 
 waits for its process record, runs the scenario, and waits for bounded postprocessing. Its
 `finally` path rereads the identity and can terminate only the same PID/start-instant lifetime.
 The launch result and bounded launcher output remain in the run directory even when startup fails.
+`passed`, `skipped`, and `failed` map to exit codes `0`, `3`, and `1`, respectively.
+
+The desktop app bundles the checked `campaign-roam` scenario. Its Settings page probes readiness
+without launching, then shows the full action sequence and requires a separate confirmation before
+starting. The Tauri host treats the smoke launcher as the active game process, reads the sealed
+receipt, and reports the evidence directory when the run ends.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. The generated scripts, PID-only

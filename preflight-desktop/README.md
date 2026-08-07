@@ -52,8 +52,9 @@ contain no verification key and report their update channel as disabled.
 - The Java `desktop snapshot` bridge emits a versioned JSON document and is hidden from human CLI
   help.
 - The Rust host exposes only installation/cache/profile/launch-settings snapshots, validated
-  launch-setting updates, preview-first named-profile save/activation, and tracked game/preparation
-  starts. It can't execute arbitrary frontend input.
+  launch-setting updates, preview-first named-profile save/activation, tracked game/preparation
+  starts, and one packaged desktop-smoke scenario. It can't execute arbitrary frontend input or
+  accept an arbitrary scenario path from the frontend.
 - The folder picker is the only frontend capability beyond Tauri's core defaults.
 - The host starts `preflight run --optimization-preset <recommended|conservative|off>`, validates
   that closed set before creating a process, refuses a second tracked instance, and reports the
@@ -63,6 +64,9 @@ contain no verification key and report their update channel as disabled.
   can't choose source files or add arbitrary content.
 - Preparation is a separately reported background operation, but it shares an ownership lock with
   the game so profile files and caches are never prepared while Starsector is running.
+- Desktop smoke automation has a no-launch readiness probe and a separate confirmation. The host
+  starts only the packaged campaign scenario, shares the game ownership lock, reads the sealed
+  result receipt, and retains its bounded evidence directory.
 - Confirmed profile activation shares that lock, refuses missing mods and cross-install profiles,
   rechecks the current file, and writes a backup before replacement. Previewing remains read-only.
 - Outside an explicitly confirmed profile activation, Preflight writes only to its own

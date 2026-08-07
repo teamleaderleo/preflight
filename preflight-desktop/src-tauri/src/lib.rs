@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
@@ -54,6 +54,16 @@ struct PreparationStateEvent {
     success: Option<bool>,
     detail: Option<String>,
     report: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopSmokeStateEvent {
+    state: &'static str,
+    pid: u32,
+    success: Option<bool>,
+    detail: Option<String>,
+    run_directory: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -232,6 +242,94 @@ fn get_desktop_smoke_probe(app: AppHandle) -> Result<Value, String> {
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("Preflight returned an unreadable desktop-test probe: {error}"))
+}
+
+fn desktop_smoke_scenario(app: &AppHandle) -> Result<PathBuf, String> {
+    let scenario = app
+        .path()
+        .resolve(
+            "engine/scenarios/campaign-roam.json",
+            BaseDirectory::Resource,
+        )
+        .map_err(|error| format!("Could not resolve the automated-test scenario: {error}"))?;
+    if !scenario.is_file() {
+        return Err(
+            "The packaged automated-test scenario is missing. Reinstall Preflight.".to_string(),
+        );
+    }
+    Ok(scenario)
+}
+
+fn desktop_smoke_run_directory(app: &AppHandle) -> Result<PathBuf, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|error| format!("Could not locate the home directory: {error}"))?;
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "The system clock is before 1970.".to_string())?
+        .as_millis();
+    Ok(home
+        .join(".starsector-preflight")
+        .join("runs")
+        .join(format!("desktop-smoke-{timestamp}-{}", std::process::id())))
+}
+
+#[tauri::command]
+fn start_desktop_smoke(
+    app: AppHandle,
+    tracker: State<'_, ProcessTracker>,
+    game: String,
+) -> Result<RunStarted, String> {
+    let directory = canonical_game_directory(&game)?;
+    let scenario = desktop_smoke_scenario(&app)?;
+    let run_directory = desktop_smoke_run_directory(&app)?;
+    let paths = EnginePaths::resolve(&app)?;
+
+    let mut running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The launch tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
+    if running.game.is_some() {
+        return Err("Starsector is already running through Preflight.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before running the automated test.".to_string(),
+        );
+    }
+
+    let mut command = paths.command();
+    command
+        .arg("desktop")
+        .arg("smoke")
+        .arg("launch")
+        .arg(scenario)
+        .arg(&run_directory)
+        .arg("--game")
+        .arg(directory)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command
+        .spawn()
+        .map_err(|error| format!("Could not start the automated game test: {error}"))?;
+    let pid = child.id();
+    running.game = Some(pid);
+    drop(running);
+
+    let _ = app.emit(
+        "desktop-smoke-state",
+        DesktopSmokeStateEvent {
+            state: "started",
+            pid,
+            success: None,
+            detail: None,
+            run_directory: run_directory.to_string_lossy().into_owned(),
+        },
+    );
+    watch_desktop_smoke(app, child, run_directory);
+    Ok(RunStarted { pid })
 }
 
 #[tauri::command]
@@ -1020,6 +1118,81 @@ fn watch_child(app: AppHandle, mut child: Child) {
     });
 }
 
+fn watch_desktop_smoke(app: AppHandle, mut child: Child, run_directory: PathBuf) {
+    let pid = child.id();
+    std::thread::spawn(move || {
+        let stdout = child
+            .stdout
+            .take()
+            .map(|mut stdout| std::thread::spawn(move || read_tail(&mut stdout, 256 * 1024)));
+        let stderr = child
+            .stderr
+            .take()
+            .map(|mut stderr| std::thread::spawn(move || read_tail(&mut stderr, 16 * 1024)));
+        let status = child.wait();
+        let stdout = stdout
+            .and_then(|reader| reader.join().ok())
+            .unwrap_or_default();
+        let stderr = stderr
+            .and_then(|reader| reader.join().ok())
+            .unwrap_or_default();
+        let (success, detail) = desktop_smoke_outcome(&status, &stdout, &stderr);
+        if let Ok(mut running) = app.state::<ProcessTracker>().0.lock()
+            && running.game == Some(pid)
+        {
+            running.game = None;
+        }
+        let _ = app.emit(
+            "desktop-smoke-state",
+            DesktopSmokeStateEvent {
+                state: "finished",
+                pid,
+                success: Some(success),
+                detail,
+                run_directory: run_directory.to_string_lossy().into_owned(),
+            },
+        );
+    });
+}
+
+fn desktop_smoke_outcome(
+    process_status: &std::io::Result<std::process::ExitStatus>,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> (bool, Option<String>) {
+    let receipt: Value = match serde_json::from_slice(stdout) {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            let detail = match process_status {
+                Ok(_) => child_error(
+                    &format!("Preflight returned an unreadable automated-test result: {error}"),
+                    stderr,
+                ),
+                Err(wait) => format!("Could not wait for the automated game test: {wait}"),
+            };
+            return (false, Some(detail));
+        }
+    };
+    let status = receipt
+        .pointer("/launch/status")
+        .and_then(Value::as_str)
+        .unwrap_or("failed");
+    let process_success = process_status
+        .as_ref()
+        .is_ok_and(|process_status| process_status.success());
+    if process_success && status == "passed" {
+        return (true, None);
+    }
+    let diagnostic = receipt
+        .pointer("/launch/diagnostics/0")
+        .or_else(|| receipt.pointer("/launch/evidence/diagnostics/0"))
+        .and_then(Value::as_str);
+    let detail = diagnostic
+        .map(str::to_string)
+        .unwrap_or_else(|| child_error(&format!("Automated game test {status}"), stderr));
+    (false, Some(detail))
+}
+
 fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()>) {
     let pid = child.id();
     std::thread::spawn(move || {
@@ -1182,6 +1355,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_desktop_smoke_probe,
+            start_desktop_smoke,
             get_cache,
             get_cache_cleanup,
             apply_cache_cleanup,
@@ -1207,11 +1381,12 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        LaunchSettingsInput, ProcessState, UPDATE_ENDPOINT, diagnostic_output_path,
-        parse_preparation_progress, read_tail, refuse_update_install, validate_launch_settings,
-        validate_optimization_preset, validate_removal_scope,
+        LaunchSettingsInput, ProcessState, UPDATE_ENDPOINT, desktop_smoke_outcome,
+        diagnostic_output_path, parse_preparation_progress, read_tail, refuse_update_install,
+        validate_launch_settings, validate_optimization_preset, validate_removal_scope,
     };
     use std::io::Cursor;
+    use std::process::Command;
 
     #[test]
     fn keeps_only_the_bounded_end_of_child_stderr() {
@@ -1225,6 +1400,35 @@ mod tests {
         let mut stderr = Cursor::new(b"useful failure");
 
         assert_eq!(b"useful failure", read_tail(&mut stderr, 1024).as_slice());
+    }
+
+    #[test]
+    fn desktop_smoke_receipt_controls_success_instead_of_the_process_alone() {
+        let status = successful_status();
+        let passed = br#"{"protocol":1,"launch":{"status":"passed","diagnostics":[]}}"#;
+        let failed =
+            br#"{"protocol":1,"launch":{"status":"failed","diagnostics":["bounded failure"]}}"#;
+
+        assert_eq!(
+            (true, None),
+            desktop_smoke_outcome(&Ok(status), passed, b"")
+        );
+        let status = successful_status();
+        assert_eq!(
+            (false, Some("bounded failure".to_string())),
+            desktop_smoke_outcome(&Ok(status), failed, b""),
+        );
+    }
+
+    fn successful_status() -> std::process::ExitStatus {
+        if cfg!(windows) {
+            Command::new("cmd")
+                .args(["/d", "/c", "exit", "0"])
+                .status()
+                .unwrap()
+        } else {
+            Command::new("sh").args(["-c", "exit 0"]).status().unwrap()
+        }
     }
 
     #[test]

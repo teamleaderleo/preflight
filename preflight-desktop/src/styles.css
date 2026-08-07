@@ -797,6 +797,21 @@ h2 {
   line-height: 1.6;
 }
 
+.automation-review {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border-color: rgba(49, 101, 91, 0.38);
+}
+
+.automation-review > p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
 .update-card > p,
 .update-card > small {
   margin: 0;

@@ -204,6 +204,25 @@ test("the automated game test checks readiness without launching", async () => {
   game.mockRestore();
 });
 
+test("the automated game test requires a review before it starts", async () => {
+  const user = userEvent.setup();
+  const smoke = vi.spyOn(bridge, "startDesktopSmoke").mockResolvedValue({ pid: 4244 });
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
+  await user.click(await screen.findByRole("button", { name: "Review test" }));
+
+  expect(screen.getByText("Nothing started yet")).toBeInTheDocument();
+  expect(smoke).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Start automated test" }));
+
+  await waitFor(() => expect(smoke).toHaveBeenCalledWith("/Applications/Starsector"));
+  expect(await screen.findByText("Automated game test passed in browser preview.")).toBeInTheDocument();
+  smoke.mockRestore();
+});
+
 test("signed updates are explicit and explain when a build has no update channel", async () => {
   const user = userEvent.setup();
   render(<App />);

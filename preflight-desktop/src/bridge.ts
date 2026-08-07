@@ -102,6 +102,14 @@ export async function getDesktopSmokeProbe(): Promise<DesktopSmokeProbe> {
   return invoke<DesktopSmokeProbe>("get_desktop_smoke_probe");
 }
 
+export async function startDesktopSmoke(game: string): Promise<RunStarted> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+    return { pid: 4244 };
+  }
+  return invoke<RunStarted>("start_desktop_smoke", { game });
+}
+
 export async function startGame(game: string, optimizationPreset: OptimizationPreset): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));

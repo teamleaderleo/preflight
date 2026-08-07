@@ -19,6 +19,7 @@ const repositoryRoot = resolve(desktopDirectory, "..");
 const sourceJar = join(repositoryRoot, "preflight-cli", "target", "preflight.jar");
 const engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine");
 const runtimeDirectory = join(engineDirectory, "runtime");
+const smokeScenario = join(repositoryRoot, "scripts", "scenarios", "campaign-roam.json");
 runMaven(["-pl", "preflight-cli", "-am", "-DskipTests", "package"]);
 if (!existsSync(sourceJar)) {
   throw new Error(`Maven completed without producing ${sourceJar}`);
@@ -40,6 +41,8 @@ const compression = selectCompression(jlink);
 rmSync(engineDirectory, { recursive: true, force: true });
 mkdirSync(engineDirectory, { recursive: true });
 cpSync(sourceJar, join(engineDirectory, "preflight.jar"));
+mkdirSync(join(engineDirectory, "scenarios"), { recursive: true });
+cpSync(smokeScenario, join(engineDirectory, "scenarios", "campaign-roam.json"));
 
 run(
   jlink,
@@ -72,6 +75,7 @@ const manifest = {
   modules,
   compression,
   jarBytes: statSync(sourceJar).size,
+  smokeScenarioBytes: statSync(smokeScenario).size,
   sourceVersion: readProjectVersion(),
 };
 writeFileSync(join(engineDirectory, "bundle.json"), `${JSON.stringify(manifest, null, 2)}\n`);

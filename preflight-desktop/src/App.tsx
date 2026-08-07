@@ -20,6 +20,7 @@ import {
   installUpdate,
   saveProfile,
   startGame,
+  startDesktopSmoke,
   startPreparation,
   updateLaunchSettings,
 } from "./bridge";
@@ -44,6 +45,7 @@ import type {
   DesktopSnapshot,
   DiagnosticsExport,
   DesktopSmokeProbe,
+  DesktopSmokeStateEvent,
   LaunchSettings,
   LaunchSettingsUpdate,
   OptimizationPreset,
@@ -174,6 +176,9 @@ export default function App() {
   const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
   const [desktopSmokeProbe, setDesktopSmokeProbe] = useState<DesktopSmokeProbe | null>(null);
   const [desktopSmokeProbeBusy, setDesktopSmokeProbeBusy] = useState(false);
+  const [desktopSmokeReview, setDesktopSmokeReview] = useState(false);
+  const [desktopSmokeRunning, setDesktopSmokeRunning] = useState(false);
+  const [desktopSmokeRunDirectory, setDesktopSmokeRunDirectory] = useState<string | null>(null);
   const [launcherSettings, setLauncherSettings] = useState<LaunchSettings | null>(null);
   const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
   const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
@@ -247,9 +252,27 @@ export default function App() {
     void listen<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "finished") {
         setStatus(snapshot?.ready ? "ready" : "setup");
-        setMessage(payload.success ? "Welcome back. Your run was tucked away safely." : "The game closed with an error. Your run notes are still safe.");
-        void refresh(snapshot?.selected?.installRoot);
+        const outcome = payload.success ? "Welcome back. Your run was tucked away safely." : "The game closed with an error. Your run notes are still safe.";
+        void refresh(snapshot?.selected?.installRoot).then(() => setMessage(outcome));
       }
+    }).then((unlisten) => {
+      stopListening = unlisten;
+    });
+    return () => stopListening?.();
+  }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+
+  useEffect(() => {
+    if (!isDesktopHost()) return;
+    let stopListening: (() => void) | undefined;
+    void listen<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
+      setDesktopSmokeRunDirectory(payload.runDirectory);
+      if (payload.state !== "finished") return;
+      setDesktopSmokeRunning(false);
+      setStatus(snapshot?.ready ? "ready" : "setup");
+      const outcome = payload.success
+        ? `Automated game test passed. Evidence is in ${shortPath(payload.runDirectory)}.`
+        : payload.detail ?? `Automated game test stopped. Evidence is in ${shortPath(payload.runDirectory)}.`;
+      void refresh(snapshot?.selected?.installRoot).then(() => setMessage(outcome));
     }).then((unlisten) => {
       stopListening = unlisten;
     });
@@ -601,6 +624,29 @@ export default function App() {
       setMessage(String(error));
     } finally {
       setDesktopSmokeProbeBusy(false);
+    }
+  };
+
+  const runDesktopAutomation = async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game || !desktopSmokeProbe?.probe.ready || desktopSmokeRunning) return;
+    setDesktopSmokeReview(false);
+    setDesktopSmokeRunning(true);
+    setDesktopSmokeRunDirectory(null);
+    setStatus("running");
+    setMessage("Running the checked launch, campaign movement, evidence, and shutdown sequence…");
+    try {
+      await startDesktopSmoke(game);
+      if (!isDesktopHost()) {
+        setDesktopSmokeRunning(false);
+        setStatus("ready");
+        setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
+        setMessage("Automated game test passed in browser preview.");
+      }
+    } catch (error) {
+      setDesktopSmokeRunning(false);
+      setStatus(snapshot.ready ? "ready" : "setup");
+      setMessage(String(error));
     }
   };
 
@@ -1238,8 +1284,31 @@ export default function App() {
                 <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || preparing || status === "running"}>
                   {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}
                 </button>
+                {desktopSmokeProbe?.probe.ready && (
+                  <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeRunning || preparing || status === "running"}>
+                    Review test
+                  </button>
+                )}
               </div>
+              {desktopSmokeRunDirectory && <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small>}
             </section>
+
+            {desktopSmokeReview && (
+              <section className="card automation-review" aria-label="Automated game test review">
+                <div className="activation-review__heading">
+                  <div><p className="eyebrow">Nothing started yet</p><h2>Run the checked campaign test?</h2></div>
+                  <button className="text-button" type="button" onClick={() => setDesktopSmokeReview(false)} disabled={desktopSmokeRunning}>Cancel</button>
+                </div>
+                <p>Preflight will open the current installation with recommended optimizations, continue the latest save, move forward for three seconds, collect a window screenshot and bounded timing evidence, then close only that exact game process.</p>
+                <p>Leave the game window unobstructed while it runs. The interaction sequence has a four-minute deadline; startup and cleanup have separate bounds.</p>
+                <div className="activation-review__footer">
+                  <span><ShieldIcon /> The driver doesn’t edit game, mod, or save files; it only sends the actions listed here.</span>
+                  <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeRunning}>
+                    {desktopSmokeRunning ? "Test running…" : "Start automated test"}
+                  </button>
+                </div>
+              </section>
+            )}
 
             <div className="settings-grid">
               <section className="card diagnostics-card">

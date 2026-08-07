@@ -42,6 +42,14 @@ export interface DesktopSmokeProbe {
   };
 }
 
+export interface DesktopSmokeStateEvent {
+  state: "started" | "finished";
+  pid: number;
+  success?: boolean;
+  detail?: string;
+  runDirectory: string;
+}
+
 export interface PreparationStoragePlan {
   format: "preflight-preparation-storage-plan-v1";
   profileFingerprint: string;
