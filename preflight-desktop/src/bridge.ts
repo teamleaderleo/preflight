@@ -4,6 +4,7 @@ import type {
   CacheCleanupPlan,
   DesktopSnapshot,
   DiagnosticsExport,
+  DesktopSmokeProbe,
   LaunchSettings,
   LaunchSettingsUpdate,
   NamedProfile,
@@ -80,6 +81,25 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
     return previewSnapshot;
   }
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
+}
+
+export async function getDesktopSmokeProbe(): Promise<DesktopSmokeProbe> {
+  if (!isDesktopHost()) {
+    return {
+      protocol: 1,
+      probe: {
+        ready: true,
+        driver: {
+          id: "browser-preview",
+          version: 1,
+          platform: "preview",
+          capabilities: ["launch", "observe", "screenshot", "input", "shutdown"],
+        },
+        diagnostics: [],
+      },
+    };
+  }
+  return invoke<DesktopSmokeProbe>("get_desktop_smoke_probe");
 }
 
 export async function startGame(game: string, optimizationPreset: OptimizationPreset): Promise<RunStarted> {

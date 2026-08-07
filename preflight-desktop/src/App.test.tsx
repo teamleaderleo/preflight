@@ -186,6 +186,24 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
 });
 
+test("the automated game test checks readiness without launching", async () => {
+  const user = userEvent.setup();
+  const probe = vi.spyOn(bridge, "getDesktopSmokeProbe");
+  const game = vi.spyOn(bridge, "startGame");
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
+
+  expect(await screen.findByText(/Ready through browser-preview/)).toBeInTheDocument();
+  expect(screen.getByText("launch · observe · screenshot · input · shutdown")).toBeInTheDocument();
+  expect(probe).toHaveBeenCalledOnce();
+  expect(game).not.toHaveBeenCalled();
+  probe.mockRestore();
+  game.mockRestore();
+});
+
 test("signed updates are explicit and explain when a build has no update channel", async () => {
   const user = userEvent.setup();
   render(<App />);

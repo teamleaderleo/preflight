@@ -28,6 +28,20 @@ export interface RunStarted {
   pid: number;
 }
 
+export interface DesktopSmokeProbe {
+  protocol: number;
+  probe: {
+    ready: boolean;
+    driver: {
+      id: string;
+      version: number;
+      platform: string;
+      capabilities: string[];
+    } | null;
+    diagnostics: string[];
+  };
+}
+
 export interface PreparationStoragePlan {
   format: "preflight-preparation-storage-plan-v1";
   profileFingerprint: string;

@@ -217,6 +217,24 @@ fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value, String> {
 }
 
 #[tauri::command]
+fn get_desktop_smoke_probe(app: AppHandle) -> Result<Value, String> {
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    command.arg("desktop").arg("smoke").arg("probe");
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not inspect desktop-test readiness",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable desktop-test probe: {error}"))
+}
+
+#[tauri::command]
 fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;
@@ -1163,6 +1181,7 @@ pub fn run() {
         .manage(UpdateTracker(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
+            get_desktop_smoke_probe,
             get_cache,
             get_cache_cleanup,
             apply_cache_cleanup,

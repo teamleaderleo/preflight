@@ -10,6 +10,7 @@ import {
   exportDiagnostics,
   getCache,
   getCacheCleanup,
+  getDesktopSmokeProbe,
   getLaunchSettings,
   getPreparationPlan,
   getRemovalPlan,
@@ -42,6 +43,7 @@ import type {
   CacheCleanupPlan,
   DesktopSnapshot,
   DiagnosticsExport,
+  DesktopSmokeProbe,
   LaunchSettings,
   LaunchSettingsUpdate,
   OptimizationPreset,
@@ -170,6 +172,8 @@ export default function App() {
   const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
+  const [desktopSmokeProbe, setDesktopSmokeProbe] = useState<DesktopSmokeProbe | null>(null);
+  const [desktopSmokeProbeBusy, setDesktopSmokeProbeBusy] = useState(false);
   const [launcherSettings, setLauncherSettings] = useState<LaunchSettings | null>(null);
   const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
   const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
@@ -585,6 +589,18 @@ export default function App() {
       setMessage(String(error));
     } finally {
       setProfileBusy(false);
+    }
+  };
+
+  const checkDesktopAutomation = async () => {
+    setDesktopSmokeProbeBusy(true);
+    try {
+      setDesktopSmokeProbe(await getDesktopSmokeProbe());
+    } catch (error) {
+      setDesktopSmokeProbe(null);
+      setMessage(String(error));
+    } finally {
+      setDesktopSmokeProbeBusy(false);
     }
   };
 
@@ -1203,6 +1219,26 @@ export default function App() {
                 {updateStatus?.available && <button className="button button--primary" type="button" onClick={() => void installSignedUpdate()} disabled={updateInstalling || preparing || status === "running"}>{updateInstalling ? "Installing…" : "Install and restart"}</button>}
               </div>
               <small>Downloads are verified with the release key embedded in this build. A failed download or signature check leaves the installed version unchanged.</small>
+            </section>
+
+            <section className="card automation-card">
+              <div className="card__heading">
+                <div><p className="eyebrow">Repeatable checks</p><h2>Automated game test</h2></div>
+                {desktopSmokeProbe?.probe.ready ? <CheckIcon className="settings-check" /> : <ShieldIcon className="settings-check" />}
+              </div>
+              <p>{desktopSmokeProbe === null
+                ? "Check whether Preflight can control one exact game process, collect bounded evidence, and close it after the test. Nothing launches during this check."
+                : desktopSmokeProbe.probe.ready
+                  ? `Ready through ${desktopSmokeProbe.probe.driver?.id ?? "the platform driver"}. The test remains opt-in and hasn’t started a game.`
+                  : desktopSmokeProbe.probe.diagnostics[0] ?? "Automated testing isn’t available on this system yet."}</p>
+              {desktopSmokeProbe?.probe.ready && (
+                <small>{desktopSmokeProbe.probe.driver?.capabilities.join(" · ")}</small>
+              )}
+              <div className="update-actions">
+                <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || preparing || status === "running"}>
+                  {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}
+                </button>
+              </div>
             </section>
 
             <div className="settings-grid">

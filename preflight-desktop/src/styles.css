@@ -782,6 +782,21 @@ h2 {
   padding: 24px;
 }
 
+.automation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+}
+
+.automation-card > p,
+.automation-card > small {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
 .update-card > p,
 .update-card > small {
   margin: 0;
