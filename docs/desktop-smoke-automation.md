@@ -209,7 +209,7 @@ produce an explicit unavailable result. Both adapters compile and have offline b
 neither is labelled live-validated until a beta run happens on that platform.
 
 A packaged no-launch probe is available as `desktop smoke probe`. On this development machine it
-reported Accessibility unavailable on 2026-08-07, so the live gate remains closed even though all
-generated scripts compile with Apple's real script compiler. Permission must be granted to the
-executable responsible for the bridge; trusting a different terminal, editor, or Java binary isn't
-treated as sufficient.
+reported Accessibility unavailable again on 2026-08-08, so the live gate remains closed even
+though all generated scripts compile with Apple's real script compiler. A failed probe now reports
+the exact automation executable that macOS needs to trust. Granting permission to a different
+terminal, editor, application bundle, or Java binary isn't treated as sufficient.

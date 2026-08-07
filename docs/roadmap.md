@@ -93,8 +93,9 @@ Semantic waits now come from a second atomic runtime record bound to the same PI
 instant. Exact resource-init, campaign-loop, and combat-loop seams publish only state transitions;
 ordinary frames pay one volatile comparison. The runner validates that identity and owns the wait,
 so OS adapters don't infer gameplay state from a screenshot or window title.
-The remaining work is a separately interruptible platform adapter, starting with isolated macOS
-PID-addressed window attachment.
+PID-addressed macOS, Windows, and Linux X11 adapters are checked in with offline boundary tests.
+The macOS no-launch probe still lacks Accessibility permission for the exact bundled Java runtime;
+one isolated live action test remains there, followed by native Windows and Linux beta validation.
 
 ## Measured result (2026-08-01, third campaign)
 

@@ -357,7 +357,7 @@ test("a blocked macOS automation probe links to the manual permission pane", asy
     probe: {
       ready: false,
       driver: null,
-      diagnostics: ["macOS Accessibility permission isn't enabled for this Preflight process"],
+      diagnostics: ["macOS Accessibility permission isn't enabled for the automation executable: /Applications/Preflight.app/Contents/Resources/engine/runtime/bin/java"],
     },
   });
   const settings = vi.spyOn(bridge, "openDesktopAccessibilitySettings").mockResolvedValue();

@@ -61,7 +61,8 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
                 "tell application \"System Events\" to return UI elements enabled"));
         if (!"true".equals(accessibility.output().trim().toLowerCase(Locale.ROOT))) {
             throw new UnavailableException(
-                    "macOS Accessibility permission isn't enabled for this Preflight process");
+                    "macOS Accessibility permission isn't enabled for the automation executable: "
+                            + automationExecutable());
         }
         Set<String> capabilities = Files.isExecutable(screenCapture)
                 ? Set.of("process-control", "window-control", "screen-capture", "evidence-read")
@@ -70,6 +71,12 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
                 ? List.of("Accessibility is enabled; Screen Recording is verified on first bounded capture")
                 : List.of("screencapture is unavailable at " + screenCapture);
         return new Descriptor("macos-system-events-pid", "1", "mac", capabilities, diagnostics);
+    }
+
+    private static String automationExecutable() {
+        return ProcessHandle.current().info().command()
+                .map(command -> Path.of(command).toAbsolutePath().normalize().toString())
+                .orElse("the bundled Preflight Java runtime");
     }
 
     @Override
