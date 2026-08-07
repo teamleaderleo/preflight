@@ -29,14 +29,17 @@ first public beta.
   recorded in [the package and report decision](evidence/2026-08-08-package-trust-and-report-boundary.md).
 - [ ] Test clean install, update, rollback, launcher ownership, ordinary removal, and full Preflight
   data removal on each published platform. Development CI now copies the macOS app and performs
-  real `.deb` and NSIS install/verify/remove cycles on Ubuntu and Windows; tagged-candidate update,
-  rollback, OS-warning instructions, and user-data lifecycle checks remain. A manual private
+  real `.deb` and NSIS install/verify/remove cycles on Ubuntu and Windows. The isolated macOS
+  package completed signed forward update, rejected-signature recovery with a byte-identical app,
+  checked-package rollback, and app-only removal with separate data retained. Windows and Linux
+  update/rollback, hosted-candidate completion, OS-warning instructions, and full-data removal
+  checks remain. A manual private
   candidate path now exercises the real signing credentials and complete three-platform artifact
   assembly without granting its job release-publication permission. Candidate files are
   authenticated and encrypted before every upload because public-repository workflow artifacts are
   readable by signed-in GitHub users. A local update-signed macOS build has passed DMG/updater-tree
-  equivalence and bundled-runtime smoke verification; the hosted matrix and installed update cycle
-  remain.
+  equivalence and bundled-runtime smoke verification. See the
+  [signed macOS lifecycle evidence](evidence/2026-08-08-signed-update-rollback-rehearsal.md).
 - [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
   synthetic fixtures don't prove game integration.
 - [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the

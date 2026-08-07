@@ -33,7 +33,10 @@ remains with the operating system's package uninstaller rather than asking a run
 own bundle. Verified updates are now fail-closed end to end: the desktop verifies Tauri signatures,
 development builds don't check the production feed, and a release remains a draft until every
 supported artifact, signature, and update-manifest entry is present. The next release slices are
-key provisioning, an update/rollback rehearsal, and unattended desktop smoke automation.
+the hosted candidate, cross-platform update/rollback, and unattended desktop smoke automation. The
+updater key is provisioned, and an isolated macOS package has completed signed forward update,
+rejected-signature recovery, checked-package rollback, and app-only removal with separate data
+retained.
 
 The first smoke prerequisite is implemented. Every injected game JVM atomically publishes a
 versioned `runtime-process.json` beside its run evidence with the PID, parent PID, available OS
@@ -1240,6 +1243,11 @@ CI matrix are restored with regenerated vector-derived icons; the packages remai
 unsigned development artifacts pending distribution authorization and release-candidate lifecycle
 verification. The free Tauri updater key is provisioned outside the repository, with its password
 in macOS Keychain and the required GitHub Actions secrets/repository variable installed.
+The 2026-08-08 macOS updater rehearsal compiled a temporary HTTPS endpoint into isolated 0.1.0 and
+0.1.1 packages, installed 0.1.1 through the UI, proved a complete 0.1.2 download with an altered
+signature leaves the 0.1.1 tree unchanged, then restored the checked 0.1.0 DMG. The temporary tunnel
+was stopped and the production workflow remains pinned to GitHub. See
+`docs/evidence/2026-08-08-signed-update-rollback-rehearsal.md`.
 The first beta's Apple/Windows packages will remain without paid platform identities; checksum and
 OS-warning guidance replace that former release gate. The
 desktop UI now uses the bundled variable Orbitron face throughout, with the exact OFL text included

@@ -50,6 +50,35 @@ test("can assemble a private candidate with inert non-release asset URLs", () =>
   );
 });
 
+test("can assemble an isolated single-platform rehearsal feed", () => {
+  const directory = mkdtempSync(join(tmpdir(), "preflight-updater-rehearsal-"));
+  writeFileSync(join(directory, "Preflight-macOS-arm64.app.tar.gz"), "package");
+  writeFileSync(join(directory, "Preflight-macOS-arm64.app.tar.gz.sig"), "signed-package\n");
+  const manifest = buildUpdaterManifest(
+    directory,
+    "v0.1.1",
+    "https://rehearsal.example.invalid/run-123",
+    ["darwin"],
+  );
+  assert.deepEqual(Object.keys(manifest.platforms), ["darwin-aarch64"]);
+  assert.equal(manifest.version, "0.1.1");
+});
+
+test("refuses an invalid rehearsal system selection", () => {
+  assert.throws(
+    () => buildUpdaterManifest(fixture(), "v0.2.0", undefined, []),
+    /At least one updater system/,
+  );
+  assert.throws(
+    () => buildUpdaterManifest(fixture(), "v0.2.0", undefined, ["darwin", "darwin"]),
+    /must be unique members/,
+  );
+  assert.throws(
+    () => buildUpdaterManifest(fixture(), "v0.2.0", undefined, ["solaris"]),
+    /must be unique members/,
+  );
+});
+
 test("refuses an unsafe updater asset base", () => {
   assert.throws(
     () => buildUpdaterManifest(fixture(), "v0.2.0", "http://private-candidate.invalid/run-123"),

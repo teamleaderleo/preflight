@@ -13,16 +13,30 @@ export function updaterReleaseConfig(publicKey) {
   };
 }
 
+export function updaterRehearsalConfig(publicKey, version) {
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version ?? "")) {
+    throw new Error(`Rehearsal version must be SemVer: ${version}`);
+  }
+  return {
+    ...updaterReleaseConfig(publicKey),
+    version,
+  };
+}
+
 const isMain = process.argv[1]
   && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 if (isMain) {
   const output = process.argv[2];
-  if (!output) throw new Error("Usage: node write-updater-config.mjs <output>");
+  const version = process.argv[3];
+  if (!output) throw new Error("Usage: node write-updater-config.mjs <output> [version]");
   const destination = resolve(output);
   mkdirSync(dirname(destination), { recursive: true });
+  const config = version
+    ? updaterRehearsalConfig(process.env.PREFLIGHT_UPDATER_PUBLIC_KEY, version)
+    : updaterReleaseConfig(process.env.PREFLIGHT_UPDATER_PUBLIC_KEY);
   writeFileSync(
     destination,
-    `${JSON.stringify(updaterReleaseConfig(process.env.PREFLIGHT_UPDATER_PUBLIC_KEY), null, 2)}\n`,
+    `${JSON.stringify(config, null, 2)}\n`,
     { mode: 0o600 },
   );
   console.log(`Wrote release updater configuration to ${destination}`);

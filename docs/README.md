@@ -33,6 +33,7 @@ archive. They answer different questions. This page is the shortest route to the
 - [Startup benchmark](startup-benchmark.md)
 - [Asset lint](asset-lint.md)
 - [Desktop smoke automation](desktop-smoke-automation.md)
+- [Signed macOS update and rollback rehearsal](evidence/2026-08-08-signed-update-rollback-rehearsal.md)
 
 ## Maintainers and contributors
 

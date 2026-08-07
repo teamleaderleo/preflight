@@ -195,9 +195,10 @@ read-only, and it can't create or edit a GitHub release.
 
 The candidate also contains `candidate-latest.json` and its checksum. Its package URLs intentionally
 use the reserved `.invalid` domain, so the file proves complete feed assembly without becoming an
-installable public update channel. Update/rollback testing must serve a reviewed copy from the
-isolated rehearsal endpoint; changing the candidate feed to a public URL is not part of this
-workflow.
+installable public update channel. The isolated macOS rehearsal has completed signed forward
+update, rejected-signature recovery, and checked-package rollback through a temporary HTTPS
+endpoint. Windows, Linux, and the final hosted candidate still need the same installed lifecycle.
+Changing the candidate feed to a public release URL isn't part of this workflow.
 
 Candidate encryption uses a separate random secret, never the updater-signing key. The secret is
 stored as `PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD` in GitHub Actions and under the macOS Keychain

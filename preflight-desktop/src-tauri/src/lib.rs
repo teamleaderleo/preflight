@@ -18,7 +18,7 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::watch;
 use url::Url;
 
-const UPDATE_ENDPOINT: &str =
+const DEFAULT_UPDATE_ENDPOINT: &str =
     "https://github.com/teamleaderleo/preflight/releases/latest/download/latest.json";
 #[cfg(target_os = "macos")]
 const MACOS_ACCESSIBILITY_SETTINGS: &str =
@@ -720,6 +720,30 @@ fn compiled_updater_public_key() -> Option<&'static str> {
         .filter(|key| !key.is_empty())
 }
 
+fn compiled_updater_endpoint() -> &'static str {
+    option_env!("PREFLIGHT_UPDATER_ENDPOINT")
+        .map(str::trim)
+        .filter(|endpoint| !endpoint.is_empty())
+        .unwrap_or(DEFAULT_UPDATE_ENDPOINT)
+}
+
+fn validated_updater_endpoint(endpoint: &str) -> Result<Url, String> {
+    let url = Url::parse(endpoint)
+        .map_err(|error| format!("The compiled update endpoint is invalid: {error}"))?;
+    if url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.host_str().is_none()
+        || url.fragment().is_some()
+    {
+        return Err(
+            "The compiled update endpoint must be an absolute HTTPS URL without credentials or a fragment."
+                .to_string(),
+        );
+    }
+    Ok(url)
+}
+
 fn updater_platform_reason() -> Option<&'static str> {
     #[cfg(target_os = "linux")]
     if env::var_os("APPIMAGE").is_none() {
@@ -757,8 +781,7 @@ async fn check_for_update(
             "This development build has no updater verification key.",
         ));
     };
-    let endpoint = Url::parse(UPDATE_ENDPOINT)
-        .map_err(|error| format!("The compiled update endpoint is invalid: {error}"))?;
+    let endpoint = validated_updater_endpoint(compiled_updater_endpoint())?;
     let updater = app
         .updater_builder()
         .pubkey(public_key)
@@ -2428,14 +2451,15 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess, LaunchSettingsInput,
-        PreparationProcess, ProcessState, ReportDeletion, ReportReceipt, ReportUploadInput,
-        ReportUploadProcess, UPDATE_ENDPOINT, begin_exit_cleanup,
+        DEFAULT_UPDATE_ENDPOINT, DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess,
+        LaunchSettingsInput, PreparationProcess, ProcessState, ReportDeletion, ReportReceipt,
+        ReportUploadInput, ReportUploadProcess, begin_exit_cleanup, compiled_updater_endpoint,
         desktop_smoke_cancellation_outcome, desktop_smoke_cancellation_requested,
         desktop_smoke_outcome, diagnostic_output_path, parse_preparation_progress, read_tail,
         refuse_update_install, take_deferred_exit, validate_launch_settings,
         validate_optimization_preset, validate_removal_scope, validate_report_origin,
         validate_report_receipt, validated_case_url, validated_report_archive,
+        validated_updater_endpoint,
     };
     use std::fs;
     use std::io::Cursor;
@@ -2708,14 +2732,27 @@ mod tests {
     }
 
     #[test]
-    fn updater_endpoint_is_a_fixed_https_release_feed() {
-        let endpoint = url::Url::parse(UPDATE_ENDPOINT).unwrap();
+    fn default_updater_endpoint_is_the_fixed_https_release_feed() {
+        assert_eq!(DEFAULT_UPDATE_ENDPOINT, compiled_updater_endpoint());
+        let endpoint = validated_updater_endpoint(DEFAULT_UPDATE_ENDPOINT).unwrap();
         assert_eq!("https", endpoint.scheme());
         assert_eq!(Some("github.com"), endpoint.host_str());
         assert_eq!(
             "/teamleaderleo/preflight/releases/latest/download/latest.json",
             endpoint.path()
         );
+    }
+
+    #[test]
+    fn updater_endpoint_rejects_insecure_or_credentialed_urls() {
+        assert!(validated_updater_endpoint("http://updates.example.com/latest.json").is_err());
+        assert!(
+            validated_updater_endpoint("https://token@updates.example.com/latest.json").is_err()
+        );
+        assert!(
+            validated_updater_endpoint("https://updates.example.com/latest.json#fragment").is_err()
+        );
+        assert!(validated_updater_endpoint("https://updates.example.com/latest.json").is_ok());
     }
 
     #[cfg(target_os = "macos")]

@@ -1,7 +1,8 @@
 # Known limitations
 
-Preflight remains a private development preview. No public package has completed the clean-install,
-update, rollback, OS-warning, and real-game platform matrix required for the first beta.
+Preflight remains a private development preview. The isolated macOS package has completed signed
+update, signature-failure recovery, rollback, and app-only removal. The public-candidate,
+OS-warning, Windows, Linux, and real-game platform matrix required for the first beta is incomplete.
 
 The first beta's macOS and Windows packages will lack paid platform identities. macOS will require
 the user's explicit **Open Anyway** approval, and Windows may show SmartScreen's unrecognized-app

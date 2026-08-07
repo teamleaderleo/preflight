@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,58 @@ import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
+
+export function exerciseMacInstall(directory = bundleDirectory) {
+  if (process.platform !== "darwin") throw new Error("macOS installation exercise requires macOS");
+  const packagePath = onlyFile(directory, ".dmg");
+  const mountDirectory = mkdtempSync(join(tmpdir(), "preflight-native-dmg-"));
+  const installDirectory = mkdtempSync(join(tmpdir(), "preflight-native-install-"));
+  const dataDirectory = mkdtempSync(join(tmpdir(), "preflight-native-data-"));
+  const dataSentinel = join(dataDirectory, "user-data-sentinel");
+  let mounted = false;
+  try {
+    writeFileSync(dataSentinel, "retained outside the application bundle\n", { mode: 0o600 });
+    run("hdiutil", [
+      "attach",
+      "-readonly",
+      "-nobrowse",
+      "-noautoopen",
+      "-mountpoint",
+      mountDirectory,
+      packagePath,
+    ]);
+    mounted = true;
+    const packagedApp = join(mountDirectory, "Preflight.app");
+    if (!lstatSync(packagedApp, { throwIfNoEntry: false })?.isDirectory()) {
+      throw new Error("Mounted DMG doesn't contain Preflight.app");
+    }
+    const installedApp = join(installDirectory, "Preflight.app");
+    run("ditto", [packagedApp, installedApp]);
+    const report = verifyInstalledEngine(installedApp);
+    const installedFiles = regularFiles(installedApp);
+    if (installedFiles.length === 0) throw new Error("Installed macOS app owns no files");
+    rmSync(installedApp, { recursive: true });
+    const remainingFiles = installedFiles.filter((path) => existsSync(path));
+    if (remainingFiles.length) {
+      throw new Error(`macOS removal left ${remainingFiles.length} app file(s): ${remainingFiles.slice(0, 5).join(", ")}`);
+    }
+    if (readFileSync(dataSentinel, "utf8") !== "retained outside the application bundle\n") {
+      throw new Error("Removing the macOS app changed separately owned user data");
+    }
+    return {
+      package: basename(packagePath),
+      installedCopy: true,
+      removed: true,
+      separateDataRetained: true,
+      engine: report.engine,
+    };
+  } finally {
+    if (mounted) run("hdiutil", ["detach", mountDirectory]);
+    rmSync(mountDirectory, { recursive: true, force: true });
+    rmSync(installDirectory, { recursive: true, force: true });
+    rmSync(dataDirectory, { recursive: true, force: true });
+  }
+}
 
 export function exerciseDebianInstall(directory = bundleDirectory) {
   if (process.platform !== "linux") throw new Error("Debian installation exercise requires Linux");
@@ -116,7 +168,11 @@ function synchronousPause(milliseconds) {
 }
 
 function main() {
-  const report = { linux: exerciseDebianInstall, win32: exerciseNsisInstall }[process.platform]?.();
+  const report = {
+    darwin: exerciseMacInstall,
+    linux: exerciseDebianInstall,
+    win32: exerciseNsisInstall,
+  }[process.platform]?.();
   if (!report) throw new Error(`Native installation exercise isn't implemented for ${process.platform}`);
   console.log(JSON.stringify(report));
 }

@@ -46,7 +46,13 @@ v2 artifact switch. They require `TAURI_SIGNING_PRIVATE_KEY`,
 credentials stop the release before packaging. The client uses the fixed GitHub `latest.json` feed,
 checks in the background, and waits for explicit install confirmation. Ordinary development builds
 contain no verification key and report their update channel as disabled. The project key and GitHub
-credentials were provisioned on 2026-08-08; release-candidate update and rollback remain untested.
+credentials were provisioned on 2026-08-08. An isolated macOS package completed signed forward
+update, rejected-signature recovery, checked-package rollback, and install/remove verification.
+Windows, Linux, and the hosted candidate still need the same installed lifecycle checks.
+
+After changing the Java reactor, run `mvn verify` from the repository root and then `npm run verify`
+here. The desktop command refreshes its bounded engine snapshot before release-script, frontend,
+Rust, and clippy checks, so a rebuilt reactor JAR can't leave a stale packaged dependency behind.
 
 Run-report sending is also a compile-time release capability. Ordinary builds omit it and retain
 local diagnostics export only. After the private intake has been provisioned and verified, build

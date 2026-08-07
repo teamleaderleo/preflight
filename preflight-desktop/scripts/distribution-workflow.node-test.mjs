@@ -5,7 +5,13 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const workflow = readFileSync(resolve(repository, ".github/workflows/distribution.yml"), "utf8");
+const workflow = normalizedWorkflowText(
+  readFileSync(resolve(repository, ".github/workflows/distribution.yml"), "utf8"),
+);
+
+export function normalizedWorkflowText(value) {
+  return value.replaceAll("\r\n", "\n");
+}
 
 function job(name, nextName) {
   const start = workflow.indexOf(`\n  ${name}:\n`);
@@ -14,6 +20,10 @@ function job(name, nextName) {
   assert.notEqual(end, -1, `missing ${nextName} job after ${name}`);
   return workflow.slice(start, end);
 }
+
+test("workflow structure checks use stable line endings on Windows", () => {
+  assert.equal(normalizedWorkflowText("jobs:\r\n  candidate:\r\n"), "jobs:\n  candidate:\n");
+});
 
 test("private signed candidates have no publication authority or release command", () => {
   const header = workflow.slice(0, workflow.indexOf("\njobs:\n"));
@@ -51,4 +61,5 @@ test("signed candidates require updater credentials and compile the reviewed int
   assert.match(desktop, /--bundles \$\{\{ matrix\.update_bundles \}\}/);
   assert.match(desktop, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
   assert.match(desktop, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
+  assert.doesNotMatch(workflow, /PREFLIGHT_UPDATER_ENDPOINT/);
 });

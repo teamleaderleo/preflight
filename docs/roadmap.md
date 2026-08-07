@@ -19,8 +19,8 @@ Release work now has priority over another narrow startup experiment:
 
 1. written Fractal Softworks authorization for distribution, integration approach, name, and
    disclaimer;
-2. exercise the private signed candidate, packaged report intake, update/rollback path, and
-   unsigned-package install guidance;
+2. finish the private signed candidate, packaged report intake, cross-platform update/rollback
+   path, and unsigned-package install guidance;
 3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
 4. a controlled before/after release-candidate campaign plus frame-time/FPS evidence for gameplay
    claims; and
@@ -42,11 +42,14 @@ launch integrations plus the installed command engine can leave prepared data in
 all-data removal also clears caches, profiles, evidence, and backups without targeting the game.
 An interrupted all-data removal blocks other mutations until it is explicitly resumed. The
 signature-verified update client and fail-closed three-platform feed pipeline are now implemented;
-the free updater key is provisioned and recoverable, while release-candidate update/rollback
-verification and unattended desktop smoke automation follow. A manual private-candidate path now
-uses the real key across the three-platform matrix, assembles an inert signed feed, encrypts and
-authenticates every file before workflow-artifact upload, and retains the complete result without
-publication authority. Paid Apple and Windows publisher identities are explicitly outside the
+the free updater key is provisioned and recoverable. The isolated macOS lifecycle now covers a
+signed 0.1.0 to 0.1.1 update, a fully downloaded rejected-signature case that preserves 0.1.1, a
+checked-package rollback to 0.1.0, and app-only removal with separate data retained. Windows,
+Linux, the hosted candidate, and unattended desktop smoke automation follow. A manual
+private-candidate path now uses the real key across the three-platform matrix, assembles an inert
+signed feed, encrypts and authenticates every file before workflow-artifact upload, and retains
+the complete result without publication authority. Paid Apple and Windows publisher identities are
+explicitly outside the
 first-beta gate; packages will publish checksums and honest OS-warning instructions instead.
 The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
 strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
@@ -66,6 +69,8 @@ day-sharded SQLite counter imposes an exact 500 MiB grant ceiling per UTC day. A
 create/upload/finalize/delete canary passed and left the bucket empty. The remaining gate is the
 rest of that packaged lifecycle plus the complete hosted candidate; development and distributed
 builds still omit the compile-time intake origin.
+The [signed macOS updater rehearsal](evidence/2026-08-08-signed-update-rollback-rehearsal.md)
+records the feed isolation, package checksums, failure behavior, and rollback boundary.
 The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes
 its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
 driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime
