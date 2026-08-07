@@ -28,6 +28,11 @@ jobs:
 
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify source and history boundary
+        run: python3 scripts/verify_source_boundary.py
 
       - name: Validate tagged-release version
         if: startsWith(github.ref, 'refs/tags/v')
@@ -136,13 +141,26 @@ jobs:
         working-directory: preflight-desktop
         run: npm ci
 
+      - name: Download verified engine JAR
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preflight-release-core-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-verified-core
+
+      - name: Stage verified engine JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          cp "$RUNNER_TEMP/preflight-verified-core/preflight.jar" preflight-cli/target/preflight.jar
+
       - name: Test frontend and prepare desktop engine
         working-directory: preflight-desktop
         shell: bash
         run: |
+          npm run engine:prepare:verified
           npm test
           npm run test:release
-          npm run engine:prepare
           cargo test --locked --manifest-path src-tauri/Cargo.toml
 
       - name: Write signed updater configuration
@@ -151,6 +169,10 @@ jobs:
         env:
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
         run: node scripts/write-updater-config.mjs src-tauri/target/release-updater-config.json
+
+      - name: Reverify bounded desktop engine
+        working-directory: preflight-desktop
+        run: npm run engine:verify
 
       - name: Build native desktop package
         if: runner.os != 'Linux' && !startsWith(github.ref, 'refs/tags/v')
@@ -195,6 +217,8 @@ jobs:
 
       - name: Collect native package and checksum
         working-directory: preflight-desktop
+        env:
+          PREFLIGHT_SIGNED_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: npm run desktop:collect
 
       - name: Upload desktop package

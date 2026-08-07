@@ -93,8 +93,10 @@ first public beta.
   present in packages, diagnostics fixtures, screenshots, or source history. Core release archives
   now fail closed against an exact file manifest, compare every archived byte with its staged file,
   reject unsafe archive entries, and restrict the runnable JAR to reviewed project and dependency
-  namespaces. Native packages, diagnostics fixtures, screenshots, and source history still need
-  their own final review.
+  namespaces. Desktop engines now use that verified JAR, match every project resource to its source,
+  inventory the bundled Java runtime, and require an exact native artifact set. A full-history audit
+  rejects game/save/archive/crash paths, unexpected binary files, screenshots, and unreviewed large
+  blobs. The signed native packages still need one final extracted-content review on each platform.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
 - [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.

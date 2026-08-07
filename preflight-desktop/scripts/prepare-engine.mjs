@@ -13,6 +13,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { runtimeInventory, verifyEngineBoundary } from "./engine-boundary.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(desktopDirectory, "..");
@@ -91,8 +92,6 @@ const bundledJava = join(
 run(bundledJava, ["-jar", join(engineDirectory, "preflight.jar"), "help"], repositoryRoot);
 
 const manifest = {
-  generatedAt: new Date().toISOString(),
-  javaHome,
   modules,
   compression,
   jarBytes: statSync(sourceJar).size,
@@ -100,11 +99,14 @@ const manifest = {
   legalFiles: Object.fromEntries(
     legalSources.map(([source, name]) => [name, statSync(source).size]),
   ),
+  runtime: runtimeInventory(runtimeDirectory),
   sourceVersion: readProjectVersion(),
 };
 writeFileSync(join(engineDirectory, "bundle.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
-console.log(`Desktop engine ready at ${engineDirectory}`);
+const boundary = verifyEngineBoundary(engineDirectory);
+
+console.log(`Desktop engine ready at ${engineDirectory} (${boundary.runtimeFiles} runtime files)`);
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });

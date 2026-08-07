@@ -26,6 +26,20 @@ and tar member byte-for-byte with the staged file, rejects links and unsafe path
 reviewed project and third-party namespaces inside `preflight.jar`. An accidental copy from a game
 installation, save folder, diagnostics directory, or workspace therefore stops the release job.
 
+Desktop builds consume the already-verified runnable JAR from the core release job instead of
+building a second copy. The generated engine has an exact top-level manifest; its legal documents
+and smoke scenario must match their reviewed sources byte-for-byte, and its stripped Java runtime
+is recorded by path-framed SHA-256 digest. The build machine's path and build time aren't stored in
+the bundle. Immediately before native packaging, the workflow verifies the engine again. Package
+collection then requires the exact unsigned or signed artifact set for the current platform and
+rejects duplicates and unexpected updater artifacts.
+
+`scripts/verify_source_boundary.py` separately audits the current tracked tree and every blob and
+path reachable from complete Git history. Known game, save, activation, log, crash-dump, archive,
+and screenshot paths are rejected. Binary source files are limited to the reviewed application-icon
+directory, and any blob over 512 KiB requires an explicit review and boundary change. The audit runs
+for every pull request and again before a release.
+
 The private report-intake service isn't installed on a user's computer, so its Worker dependencies
 aren't mixed into the client SBOMs. Its exact production dependency graph remains locked in
 `report-intake/package-lock.json` and is audited by the separate Worker verification workflow.

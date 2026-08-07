@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "engine:prepare": "node scripts/prepare-engine.mjs",
     "engine:prepare:verified": "node scripts/prepare-engine.mjs --use-verified-jar",
+    "engine:verify": "node scripts/verify-engine.mjs",
     "desktop:collect": "node scripts/collect-bundles.mjs",
     "desktop:dev": "npm run engine:prepare && tauri dev",
     "desktop:build": "npm run engine:prepare && tauri build",
