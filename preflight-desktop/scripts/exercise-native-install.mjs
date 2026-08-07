@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,9 +24,17 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
       throw new Error(`Installed Debian package must own one engine manifest; found ${manifests.length}`);
     }
     const engineRoot = dirname(manifests[0]);
+    const installedFiles = packageFiles.filter((path) => {
+      const details = lstatSync(path, { throwIfNoEntry: false });
+      return details && !details.isDirectory();
+    });
+    if (installedFiles.length === 0) throw new Error("Installed Debian package owns no files");
     const report = verifyInstalledEngine(dirname(engineRoot));
     run("sudo", ["dpkg", "--remove", packageName]);
-    if (existsSync(engineRoot)) throw new Error("Debian removal left its engine installed");
+    const remainingFiles = installedFiles.filter((path) => existsSync(path));
+    if (remainingFiles.length) {
+      throw new Error(`Debian removal left ${remainingFiles.length} owned file(s): ${remainingFiles.slice(0, 5).join(", ")}`);
+    }
     const status = spawnSync("dpkg-query", ["--show", "--showformat=${db:Status-Abbrev}", packageName], {
       encoding: "utf8",
       stdio: "pipe",
@@ -49,14 +57,21 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
   try {
     run(packagePath, ["/S", `/D=${installDirectory}`]);
     const report = verifyInstalledEngine(installDirectory);
+    const installedFiles = regularFiles(installDirectory);
+    if (installedFiles.length === 0) throw new Error("Installed NSIS package owns no files");
     const uninstallers = filesWithSuffix(installDirectory, "uninstall.exe");
     if (uninstallers.length !== 1) {
       throw new Error(`Installed NSIS package must contain one uninstaller; found ${uninstallers.length}`);
     }
     run(uninstallers[0], ["/S"]);
-    const engineRoot = join(installDirectory, "engine");
-    for (let attempt = 0; attempt < 20 && existsSync(engineRoot); attempt += 1) synchronousPause(100);
-    if (existsSync(engineRoot)) throw new Error("NSIS removal left its engine installed");
+    let remainingFiles = installedFiles.filter((path) => existsSync(path));
+    for (let attempt = 0; attempt < 20 && remainingFiles.length; attempt += 1) {
+      synchronousPause(100);
+      remainingFiles = installedFiles.filter((path) => existsSync(path));
+    }
+    if (remainingFiles.length) {
+      throw new Error(`NSIS removal left ${remainingFiles.length} owned file(s): ${remainingFiles.slice(0, 5).join(", ")}`);
+    }
     return { package: basename(packagePath), removed: true, engine: report.engine };
   } finally {
     if (existsSync(installDirectory)) rmSync(installDirectory, { recursive: true, force: true });
@@ -70,11 +85,15 @@ function onlyFile(directory, suffix) {
 }
 
 function filesWithSuffix(directory, suffix) {
+  return regularFiles(directory).filter((path) => path.toLowerCase().endsWith(suffix));
+}
+
+function regularFiles(directory) {
   const result = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) result.push(...filesWithSuffix(path, suffix));
-    else if (entry.isFile() && entry.name.toLowerCase().endsWith(suffix)) result.push(path);
+    if (entry.isDirectory() && !entry.isSymbolicLink()) result.push(...regularFiles(path));
+    else result.push(path);
   }
   return result.sort();
 }
