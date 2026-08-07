@@ -25,6 +25,7 @@ archive. They answer different questions. This page is the shortest route to the
 - [Automatic launch and discovery](automatic-launch.md)
 - [Preparation and storage](prepare.md)
 - [Diagnostics export](diagnostics.md)
+- [Support and private report handling](support.md)
 - [Startup benchmark](startup-benchmark.md)
 - [Asset lint](asset-lint.md)
 - [Desktop smoke automation](desktop-smoke-automation.md)

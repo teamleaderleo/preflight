@@ -78,7 +78,7 @@ first public beta.
   statement, installation/removal instructions, known limitations, and release notes.
 - [ ] Verify that no Starsector, mod, save, activation, or other third-party proprietary content is
   present in packages, diagnostics fixtures, screenshots, or source history.
-- [ ] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
+- [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
 - [ ] Prepare a rollback/kill-switch notice path for a bad adapter or release.
 - [ ] Make forum and Reddit announcements from the same reviewed claims and link to the evidence
