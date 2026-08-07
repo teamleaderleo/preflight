@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::env;
-use std::io::{BufRead, BufReader, Read};
+use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,12 +17,20 @@ const UPDATE_ENDPOINT: &str =
     "https://github.com/teamleaderleo/preflight/releases/latest/download/latest.json";
 const MACOS_ACCESSIBILITY_SETTINGS: &str =
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
+const DESKTOP_SMOKE_CANCELLATION_FILE: &str = "cancel.requested";
 
 #[derive(Default)]
 struct ProcessState {
     game: Option<u32>,
+    desktop_smoke: Option<DesktopSmokeProcess>,
     preparation: Option<PreparationProcess>,
     update_installing: bool,
+    exit_after_cleanup: bool,
+}
+
+struct DesktopSmokeProcess {
+    pid: u32,
+    run_directory: PathBuf,
 }
 
 struct PreparationProcess {
@@ -309,6 +318,11 @@ fn start_desktop_smoke(
     let directory = canonical_game_directory(&game)?;
     let scenario = desktop_smoke_scenario(&app)?;
     let run_directory = desktop_smoke_run_directory(&app)?;
+    fs::create_dir_all(&run_directory)
+        .map_err(|error| format!("Could not create the automated-test run folder: {error}"))?;
+    let run_directory = run_directory
+        .canonicalize()
+        .map_err(|error| format!("Could not open the automated-test run folder: {error}"))?;
     let paths = EnginePaths::resolve(&app)?;
 
     let mut running = tracker
@@ -341,6 +355,10 @@ fn start_desktop_smoke(
         .map_err(|error| format!("Could not start the automated game test: {error}"))?;
     let pid = child.id();
     running.game = Some(pid);
+    running.desktop_smoke = Some(DesktopSmokeProcess {
+        pid,
+        run_directory: run_directory.clone(),
+    });
     drop(running);
 
     let _ = app.emit(
@@ -355,6 +373,71 @@ fn start_desktop_smoke(
     );
     watch_desktop_smoke(app, child, run_directory);
     Ok(RunStarted { pid })
+}
+
+fn request_desktop_smoke_cancellation(process: &DesktopSmokeProcess) -> Result<bool, String> {
+    let marker = process.run_directory.join(DESKTOP_SMOKE_CANCELLATION_FILE);
+    match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&marker)
+    {
+        Ok(mut file) => {
+            file.write_all(b"cancel\n").map_err(|error| {
+                format!("Could not write the automated-test stop request: {error}")
+            })?;
+            Ok(true)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let metadata = marker.symlink_metadata().map_err(|problem| {
+                format!("Could not inspect the automated-test stop request: {problem}")
+            })?;
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                Err("The automated-test stop request isn't a regular file.".to_string())
+            } else {
+                Ok(false)
+            }
+        }
+        Err(error) => Err(format!(
+            "Could not request a safe stop for the automated game test: {error}"
+        )),
+    }
+}
+
+fn desktop_smoke_cancellation_requested(run_directory: &Path) -> bool {
+    let marker = run_directory.join(DESKTOP_SMOKE_CANCELLATION_FILE);
+    marker
+        .symlink_metadata()
+        .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
+}
+
+#[tauri::command]
+fn cancel_desktop_smoke(
+    app: AppHandle,
+    tracker: State<'_, ProcessTracker>,
+) -> Result<bool, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The launch tracker is unavailable.".to_string())?;
+    let Some(process) = running.desktop_smoke.as_ref() else {
+        return Ok(false);
+    };
+    request_desktop_smoke_cancellation(process)?;
+    let pid = process.pid;
+    let run_directory = process.run_directory.to_string_lossy().into_owned();
+    drop(running);
+    let _ = app.emit(
+        "desktop-smoke-state",
+        DesktopSmokeStateEvent {
+            state: "cancelling",
+            pid,
+            success: None,
+            detail: Some("Stopping the exact game process and sealing its evidence…".to_string()),
+            run_directory,
+        },
+    );
+    Ok(true)
 }
 
 #[tauri::command]
@@ -1161,23 +1244,99 @@ fn watch_desktop_smoke(app: AppHandle, mut child: Child, run_directory: PathBuf)
         let stderr = stderr
             .and_then(|reader| reader.join().ok())
             .unwrap_or_default();
-        let (success, detail) = desktop_smoke_outcome(&status, &stdout, &stderr);
-        if let Ok(mut running) = app.state::<ProcessTracker>().0.lock()
-            && running.game == Some(pid)
-        {
-            running.game = None;
-        }
+        let cancellation_requested = desktop_smoke_cancellation_requested(&run_directory);
+        let (success, detail) = if cancellation_requested {
+            desktop_smoke_cancellation_outcome(&status, &stdout, &stderr)
+        } else {
+            desktop_smoke_outcome(&status, &stdout, &stderr)
+        };
+        let should_exit = if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
+            if running.game == Some(pid) {
+                running.game = None;
+            }
+            if running
+                .desktop_smoke
+                .as_ref()
+                .is_some_and(|process| process.pid == pid)
+            {
+                running.desktop_smoke = None;
+            }
+            if cancellation_requested && !success {
+                running.exit_after_cleanup = false;
+                false
+            } else {
+                take_deferred_exit(&mut running)
+            }
+        } else {
+            false
+        };
         let _ = app.emit(
             "desktop-smoke-state",
             DesktopSmokeStateEvent {
-                state: "finished",
+                state: if cancellation_requested && success {
+                    "cancelled"
+                } else {
+                    "finished"
+                },
                 pid,
                 success: Some(success),
                 detail,
                 run_directory: run_directory.to_string_lossy().into_owned(),
             },
         );
+        if should_exit {
+            app.exit(0);
+        }
     });
+}
+
+fn desktop_smoke_cancellation_outcome(
+    process_status: &std::io::Result<std::process::ExitStatus>,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> (bool, Option<String>) {
+    let receipt: Value = match serde_json::from_slice(stdout) {
+        Ok(receipt) => receipt,
+        Err(_) => return desktop_smoke_outcome(process_status, stdout, stderr),
+    };
+    if receipt.pointer("/launch/status").and_then(Value::as_str) == Some("cancelled") {
+        return (
+            true,
+            Some("Automated game test stopped safely after exact-process cleanup.".to_string()),
+        );
+    }
+    desktop_smoke_outcome(process_status, stdout, stderr)
+}
+
+fn take_deferred_exit(running: &mut ProcessState) -> bool {
+    if running.exit_after_cleanup
+        && running.desktop_smoke.is_none()
+        && running.preparation.is_none()
+    {
+        running.exit_after_cleanup = false;
+        true
+    } else {
+        false
+    }
+}
+
+fn begin_exit_cleanup(running: &mut ProcessState) -> Result<bool, String> {
+    let mut pending = false;
+    if let Some(process) = running.desktop_smoke.as_ref() {
+        request_desktop_smoke_cancellation(process)?;
+        pending = true;
+    }
+    if let Some(preparation) = running.preparation.as_ref() {
+        if preparation.cancel.send(()).is_ok() {
+            pending = true;
+        } else {
+            running.preparation = None;
+        }
+    }
+    if pending {
+        running.exit_after_cleanup = true;
+    }
+    Ok(pending)
 }
 
 fn desktop_smoke_outcome(
@@ -1267,7 +1426,7 @@ fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()
                 Err(error) => Some(format!("Could not wait for profile preparation: {error}")),
             }
         };
-        if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
+        let should_exit = if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
             if running
                 .preparation
                 .as_ref()
@@ -1275,7 +1434,10 @@ fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()
             {
                 running.preparation = None;
             }
-        }
+            take_deferred_exit(&mut running)
+        } else {
+            false
+        };
         let _ = app.emit(
             "prepare-state",
             PreparationStateEvent {
@@ -1286,6 +1448,9 @@ fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()
                 report,
             },
         );
+        if should_exit {
+            app.exit(0);
+        }
     });
 }
 
@@ -1372,7 +1537,7 @@ fn configure_child_process(_command: &mut Command) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ProcessTracker(Mutex::new(ProcessState::default())))
@@ -1382,6 +1547,7 @@ pub fn run() {
             get_desktop_smoke_probe,
             open_desktop_accessibility_settings,
             start_desktop_smoke,
+            cancel_desktop_smoke,
             get_cache,
             get_cache_cleanup,
             apply_cache_cleanup,
@@ -1400,20 +1566,47 @@ pub fn run() {
             start_preparation,
             cancel_preparation
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running Preflight");
+    app.run(|app, event| {
+        let tauri::RunEvent::ExitRequested { code, api, .. } = event else {
+            return;
+        };
+        if code == Some(tauri::RESTART_EXIT_CODE) {
+            return;
+        }
+        let cleanup = app
+            .state::<ProcessTracker>()
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable during shutdown.".to_string())
+            .and_then(|mut running| begin_exit_cleanup(&mut running));
+        match cleanup {
+            Ok(true) => api.prevent_exit(),
+            Ok(false) => {}
+            Err(error) => {
+                api.prevent_exit();
+                eprintln!("Preflight delayed shutdown: {error}");
+            }
+        }
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        LaunchSettingsInput, MACOS_ACCESSIBILITY_SETTINGS, ProcessState, UPDATE_ENDPOINT,
-        desktop_smoke_outcome, diagnostic_output_path, parse_preparation_progress, read_tail,
-        refuse_update_install, validate_launch_settings, validate_optimization_preset,
-        validate_removal_scope,
+        DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess, LaunchSettingsInput,
+        MACOS_ACCESSIBILITY_SETTINGS, PreparationProcess, ProcessState, UPDATE_ENDPOINT,
+        begin_exit_cleanup, desktop_smoke_cancellation_outcome,
+        desktop_smoke_cancellation_requested, desktop_smoke_outcome, diagnostic_output_path,
+        parse_preparation_progress, read_tail, refuse_update_install, take_deferred_exit,
+        validate_launch_settings, validate_optimization_preset, validate_removal_scope,
     };
+    use std::fs;
     use std::io::Cursor;
     use std::process::Command;
+    use std::sync::mpsc;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn keeps_only_the_bounded_end_of_child_stderr() {
@@ -1445,6 +1638,64 @@ mod tests {
             (false, Some("bounded failure".to_string())),
             desktop_smoke_outcome(&Ok(status), failed, b""),
         );
+    }
+
+    #[test]
+    fn cancellation_requires_a_sealed_cancelled_receipt() {
+        let status = successful_status();
+        let cancelled = br#"{"protocol":1,"launch":{"status":"cancelled","diagnostics":[]}}"#;
+        assert_eq!(
+            (
+                true,
+                Some("Automated game test stopped safely after exact-process cleanup.".to_string())
+            ),
+            desktop_smoke_cancellation_outcome(&Ok(status), cancelled, b"")
+        );
+
+        let status = successful_status();
+        let failed =
+            br#"{"protocol":1,"launch":{"status":"failed","diagnostics":["cleanup failed"]}}"#;
+        assert_eq!(
+            (false, Some("cleanup failed".to_string())),
+            desktop_smoke_cancellation_outcome(&Ok(status), failed, b"")
+        );
+    }
+
+    #[test]
+    fn app_exit_requests_owned_cleanup_before_it_can_finish() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let run_directory = std::env::temp_dir().join(format!(
+            "preflight-desktop-exit-test-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir(&run_directory).unwrap();
+        let (cancel, cancelled) = mpsc::channel();
+        let mut running = ProcessState {
+            game: Some(41),
+            desktop_smoke: Some(DesktopSmokeProcess {
+                pid: 41,
+                run_directory: run_directory.clone(),
+            }),
+            preparation: Some(PreparationProcess { pid: 42, cancel }),
+            update_installing: false,
+            exit_after_cleanup: false,
+        };
+
+        assert!(begin_exit_cleanup(&mut running).unwrap());
+        assert!(desktop_smoke_cancellation_requested(&run_directory));
+        assert!(cancelled.try_recv().is_ok());
+        assert!(running.exit_after_cleanup);
+        assert!(!take_deferred_exit(&mut running));
+        running.desktop_smoke = None;
+        running.preparation = None;
+        assert!(take_deferred_exit(&mut running));
+        assert!(!running.exit_after_cleanup);
+
+        fs::remove_file(run_directory.join(DESKTOP_SMOKE_CANCELLATION_FILE)).unwrap();
+        fs::remove_dir(run_directory).unwrap();
     }
 
     fn successful_status() -> std::process::ExitStatus {

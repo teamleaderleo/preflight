@@ -20,9 +20,17 @@ const sourceJar = join(repositoryRoot, "preflight-cli", "target", "preflight.jar
 const engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine");
 const runtimeDirectory = join(engineDirectory, "runtime");
 const smokeScenario = join(repositoryRoot, "scripts", "scenarios", "campaign-roam.json");
-runMaven(["-pl", "preflight-cli", "-am", "-DskipTests", "package"]);
+const argumentsSet = new Set(process.argv.slice(2));
+const useVerifiedJar = argumentsSet.delete("--use-verified-jar");
+if (argumentsSet.size > 0) {
+  throw new Error(`Unknown prepare-engine option: ${[...argumentsSet][0]}`);
+}
+if (!useVerifiedJar) {
+  runMaven(["-pl", "preflight-cli", "-am", "-DskipTests", "package"]);
+}
 if (!existsSync(sourceJar)) {
-  throw new Error(`Maven completed without producing ${sourceJar}`);
+  const context = useVerifiedJar ? "The verified engine JAR is missing" : "Maven produced no engine JAR";
+  throw new Error(`${context}: ${sourceJar}`);
 }
 
 const javaHome = findJavaHome();

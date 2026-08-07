@@ -16,11 +16,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /** Owns one packaged Preflight launch and its PID-addressed desktop smoke driver. */
 final class DesktopSmokeLaunch {
     static final String FORMAT = "starsector-preflight-smoke-launch-v1";
+    static final String CANCELLATION_FILE = "cancel.requested";
     private static final Duration RUNTIME_IDENTITY_TIMEOUT = Duration.ofSeconds(60);
     private static final Duration POSTPROCESS_TIMEOUT = Duration.ofSeconds(60);
 
@@ -39,6 +41,7 @@ final class DesktopSmokeLaunch {
         Path runtimeProcess = run.resolve("runtime-process.json");
         Path launcherOutput = run.resolve("smoke-launcher.txt");
         Path launchResult = run.resolve("smoke-launch-result.json");
+        Path cancellationFile = run.resolve(CANCELLATION_FILE);
         List<String> diagnostics = new ArrayList<>();
 
         // Permission/capability checks happen before a game exists, so an unavailable desktop
@@ -53,10 +56,19 @@ final class DesktopSmokeLaunch {
                 .redirectErrorStream(true)
                 .redirectOutput(launcherOutput.toFile())
                 .start();
+        AtomicBoolean cancellationObserved = new AtomicBoolean(false);
+        AtomicBoolean launchFinished = new AtomicBoolean(false);
+        Thread cancellationMonitor = cancellationMonitor(
+                process, runtimeProcess, cancellationFile, cancellationObserved, launchFinished);
         Map<String, Object> evidence = null;
         String status = "failed";
         try {
             awaitRuntimeIdentity(process, runtimeProcess, launcherOutput);
+            if (cancellationRequested(cancellationFile)) {
+                cancellationObserved.set(true);
+                throw new java.util.concurrent.CancellationException(
+                        "Safe cancellation was requested before desktop control began");
+            }
             evidence = DesktopSmokeRunner.run(
                     scenario, runtimeProcess, run, driver, clock);
             status = evidence.get("status").toString();
@@ -65,7 +77,17 @@ final class DesktopSmokeLaunch {
         } finally {
             stopExactRuntime(runtimeProcess, diagnostics);
             awaitLauncher(process, diagnostics);
-            if (process.isAlive()) {
+            launchFinished.set(true);
+            joinCancellationMonitor(cancellationMonitor, diagnostics);
+            boolean cancelled = cancellationObserved.get() || cancellationRequested(cancellationFile);
+            boolean cleanupComplete = !process.isAlive() && exactRuntimeCleanupComplete(runtimeProcess);
+            if (cancelled && cleanupComplete) {
+                status = "cancelled";
+                diagnostics.add("Safe cancellation was requested; exact-process cleanup completed");
+            } else if (cancelled) {
+                status = "failed";
+                diagnostics.add("Safe cancellation was requested, but exact-process cleanup failed");
+            } else if (process.isAlive()) {
                 status = "failed";
                 diagnostics.add("Preflight launch process is still alive after bounded cleanup");
             } else if (process.exitValue() != 0) {
@@ -81,6 +103,64 @@ final class DesktopSmokeLaunch {
         return result(
                 status, run, runtimeProcess, launcherOutput, command,
                 process.isAlive() ? null : process.exitValue(), evidence, diagnostics);
+    }
+
+    private static Thread cancellationMonitor(
+            Process launcher,
+            Path runtimeProcess,
+            Path cancellationFile,
+            AtomicBoolean cancellationObserved,
+            AtomicBoolean launchFinished) {
+        Thread monitor = new Thread(() -> {
+            while (!launchFinished.get()) {
+                if (cancellationRequested(cancellationFile)) {
+                    cancellationObserved.set(true);
+                    stopExactRuntime(runtimeProcess, new ArrayList<>());
+                    if (!launcher.isAlive()) return;
+                }
+                try {
+                    Thread.sleep(50L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }, "preflight-smoke-cancellation");
+        monitor.setDaemon(true);
+        monitor.start();
+        return monitor;
+    }
+
+    private static void joinCancellationMonitor(Thread monitor, List<String> diagnostics) {
+        try {
+            monitor.join(1_000L);
+            if (monitor.isAlive()) {
+                monitor.interrupt();
+                monitor.join(1_000L);
+            }
+            if (monitor.isAlive()) {
+                diagnostics.add("Cancellation monitor didn't stop after launch cleanup");
+            }
+        } catch (InterruptedException interrupted) {
+            monitor.interrupt();
+            Thread.currentThread().interrupt();
+            diagnostics.add("Interrupted while stopping the cancellation monitor");
+        }
+    }
+
+    static boolean cancellationRequested(Path cancellationFile) {
+        return Files.isRegularFile(cancellationFile, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isSymbolicLink(cancellationFile);
+    }
+
+    private static boolean exactRuntimeCleanupComplete(Path runtimeProcess) {
+        if (!Files.isRegularFile(runtimeProcess, LinkOption.NOFOLLOW_LINKS)) return true;
+        try {
+            return !Boolean.TRUE.equals(RuntimeProcessIdentity.read(runtimeProcess)
+                    .inspect().get("attachable"));
+        } catch (IOException | IllegalArgumentException unavailable) {
+            return false;
+        }
     }
 
     static List<String> command(
@@ -202,6 +282,7 @@ final class DesktopSmokeLaunch {
     }
 
     private static void stopExactRuntime(Path runtimeProcess, List<String> diagnostics) {
+        if (!Files.isRegularFile(runtimeProcess, LinkOption.NOFOLLOW_LINKS)) return;
         try {
             RuntimeProcessIdentity identity = RuntimeProcessIdentity.read(runtimeProcess);
             Map<String, Object> inspected = identity.inspect();

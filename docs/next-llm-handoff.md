@@ -71,6 +71,13 @@ and Linux deliberately skips Wayland.
 The desktop app packages the checked scenario and exposes a no-launch readiness check followed by a
 separate review and confirmation. It tracks the smoke launcher as the active game, reads the sealed
 receipt rather than trusting process exit alone, and leaves the evidence path visible afterward.
+Safe cancellation is end to end: the app writes a run-owned marker, the Java launch owner stops only
+the recorded PID/start-instant lifetime, and app shutdown waits for that cleanup. Ordinary launched
+games remain independent when the launcher closes; an owned preparation child is cancelled before
+app exit.
+After `mvn verify`, package the desktop runtime with `npm run engine:prepare:verified`. That path
+reuses the reactor's checked JAR and avoids a second Maven process racing the first one's target
+directories. `npm run engine:prepare` remains the standalone path when no verified JAR exists.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are

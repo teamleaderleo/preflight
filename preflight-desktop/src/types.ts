@@ -43,7 +43,7 @@ export interface DesktopSmokeProbe {
 }
 
 export interface DesktopSmokeStateEvent {
-  state: "started" | "finished";
+  state: "started" | "cancelling" | "cancelled" | "finished";
   pid: number;
   success?: boolean;
   detail?: string;

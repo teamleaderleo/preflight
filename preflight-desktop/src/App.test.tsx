@@ -223,6 +223,25 @@ test("the automated game test requires a review before it starts", async () => {
   smoke.mockRestore();
 });
 
+test("a running automated game test exposes cooperative cancellation", async () => {
+  const user = userEvent.setup();
+  const smoke = vi.spyOn(bridge, "startDesktopSmoke").mockReturnValue(new Promise(() => {}));
+  const cancel = vi.spyOn(bridge, "cancelDesktopSmoke").mockResolvedValue(true);
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
+  await user.click(await screen.findByRole("button", { name: "Review test" }));
+  await user.click(screen.getByRole("button", { name: "Start automated test" }));
+  await user.click(await screen.findByRole("button", { name: "Stop test safely" }));
+
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(screen.getByText("Stopping the exact game process and sealing its evidence…")).toBeInTheDocument();
+  smoke.mockRestore();
+  cancel.mockRestore();
+});
+
 test("a blocked macOS automation probe links to the manual permission pane", async () => {
   const user = userEvent.setup();
   const probe = vi.spyOn(bridge, "getDesktopSmokeProbe").mockResolvedValue({

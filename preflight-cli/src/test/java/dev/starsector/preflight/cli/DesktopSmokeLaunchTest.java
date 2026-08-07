@@ -1,12 +1,15 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class DesktopSmokeLaunchTest {
     @Test
@@ -43,6 +46,17 @@ final class DesktopSmokeLaunchTest {
         assertThrows(IllegalArgumentException.class, () -> DesktopSmokeLaunch.command(
                 Path.of("java"), Path.of("preflight.jar"), scenario("fast", "large"),
                 Path.of("run"), null, null));
+    }
+
+    @Test
+    void cancellationRequiresARealRunOwnedMarker(@TempDir Path temporary)
+            throws Exception {
+        Path marker = temporary.resolve(DesktopSmokeLaunch.CANCELLATION_FILE);
+        assertFalse(DesktopSmokeLaunch.cancellationRequested(marker));
+
+        Files.writeString(marker, "cancel\n");
+
+        assertTrue(DesktopSmokeLaunch.cancellationRequested(marker));
     }
 
     private static DesktopSmokeScenario scenario(String preset, String profile) {

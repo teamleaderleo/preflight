@@ -5,6 +5,7 @@ import {
   activateProfile,
   applyCacheCleanup,
   applyRemoval,
+  cancelDesktopSmoke,
   cancelPreparation,
   checkForUpdate,
   exportDiagnostics,
@@ -267,10 +268,16 @@ export default function App() {
     let stopListening: (() => void) | undefined;
     void listen<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
       setDesktopSmokeRunDirectory(payload.runDirectory);
-      if (payload.state !== "finished") return;
+      if (payload.state === "cancelling") {
+        setMessage(payload.detail ?? "Stopping the exact game process and sealing its evidence…");
+        return;
+      }
+      if (payload.state !== "finished" && payload.state !== "cancelled") return;
       setDesktopSmokeRunning(false);
       setStatus(snapshot?.ready ? "ready" : "setup");
-      const outcome = payload.success
+      const outcome = payload.state === "cancelled"
+        ? payload.detail ?? `Automated game test stopped safely. Evidence is in ${shortPath(payload.runDirectory)}.`
+        : payload.success
         ? `Automated game test passed. Evidence is in ${shortPath(payload.runDirectory)}.`
         : payload.detail ?? `Automated game test stopped. Evidence is in ${shortPath(payload.runDirectory)}.`;
       void refresh(snapshot?.selected?.installRoot).then(() => setMessage(outcome));
@@ -647,6 +654,21 @@ export default function App() {
     } catch (error) {
       setDesktopSmokeRunning(false);
       setStatus(snapshot.ready ? "ready" : "setup");
+      setMessage(String(error));
+    }
+  };
+
+  const stopDesktopAutomation = async () => {
+    if (!desktopSmokeRunning) return;
+    setMessage("Stopping the exact game process and sealing its evidence…");
+    try {
+      const requested = await cancelDesktopSmoke();
+      if (!requested) {
+        setDesktopSmokeRunning(false);
+        setStatus(snapshot?.ready ? "ready" : "setup");
+        setMessage("The automated game test had already stopped.");
+      }
+    } catch (error) {
       setMessage(String(error));
     }
   };
@@ -1285,9 +1307,14 @@ export default function App() {
                 <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || preparing || status === "running"}>
                   {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}
                 </button>
-                {desktopSmokeProbe?.probe.ready && (
+                {desktopSmokeProbe?.probe.ready && !desktopSmokeRunning && (
                   <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeRunning || preparing || status === "running"}>
                     Review test
+                  </button>
+                )}
+                {desktopSmokeRunning && (
+                  <button className="button button--quiet button--compact" type="button" onClick={() => void stopDesktopAutomation()}>
+                    Stop test safely
                   </button>
                 )}
                 {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && snapshot?.platform === "mac" && (

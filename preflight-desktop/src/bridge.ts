@@ -110,6 +110,11 @@ export async function startDesktopSmoke(game: string): Promise<RunStarted> {
   return invoke<RunStarted>("start_desktop_smoke", { game });
 }
 
+export async function cancelDesktopSmoke(): Promise<boolean> {
+  if (!isDesktopHost()) return true;
+  return invoke<boolean>("cancel_desktop_smoke");
+}
+
 export async function openDesktopAccessibilitySettings(): Promise<void> {
   if (!isDesktopHost()) return;
   return invoke<void>("open_desktop_accessibility_settings");
