@@ -182,3 +182,17 @@ repository with owner-only permissions, its password is stored separately in mac
 GitHub Actions contains the private key and password as secrets. The public key is a repository
 variable. GitHub doesn't permit reading secret values back, so the local encrypted recovery copy
 must be retained even after a successful release.
+
+### Build a private signed candidate
+
+Run the **Distribution** workflow manually with `signed_candidate` enabled. It uses the same updater
+key and exact native packaging paths as a tag, compiles the reviewed report-intake origin into the
+candidate, and requires the update artifact/signature pairs on every platform. The final candidate
+job has read-only repository permission and uploads one private workflow artifact retained for 14
+days. It can't create or edit a GitHub release.
+
+The candidate also contains `candidate-latest.json` and its checksum. Its package URLs intentionally
+use the reserved `.invalid` domain, so the file proves complete feed assembly without becoming an
+installable public update channel. Update/rollback testing must serve a reviewed copy from the
+isolated rehearsal endpoint; changing the candidate feed to a public URL is not part of this
+workflow.

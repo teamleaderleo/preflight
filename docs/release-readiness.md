@@ -30,7 +30,9 @@ first public beta.
 - [ ] Test clean install, update, rollback, launcher ownership, ordinary removal, and full Preflight
   data removal on each published platform. Development CI now copies the macOS app and performs
   real `.deb` and NSIS install/verify/remove cycles on Ubuntu and Windows; tagged-candidate update,
-  rollback, OS-warning instructions, and user-data lifecycle checks remain.
+  rollback, OS-warning instructions, and user-data lifecycle checks remain. A manual private
+  candidate path now exercises the real signing credentials and complete three-platform artifact
+  assembly without granting its job release-publication permission.
 - [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
   synthetic fixtures don't prove game integration.
 - [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the
@@ -60,7 +62,8 @@ first public beta.
   create/upload/finalize/delete canary. The canary left the bucket empty.
 - [ ] Put the intake origin in a packaged release candidate and exercise disclosure, consent,
   cancel/retry, receipt, and deletion through the packaged UI. Distributed builds continue to omit
-  the origin until that final canary passes.
+  the origin until that final canary passes. The private signed-candidate path now compiles the
+  reviewed origin; its first complete workflow run and packaged UI canary remain.
 - [x] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete. No automatic crash-upload path is present.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an

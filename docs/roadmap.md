@@ -19,8 +19,8 @@ Release work now has priority over another narrow startup experiment:
 
 1. written Fractal Softworks authorization for distribution, integration approach, name, and
    disclaimer;
-2. provision the free Tauri update key, finish the unsigned-package install guidance, and enable the
-   consent-based report intake after its production canary;
+2. exercise the private signed candidate, packaged report intake, update/rollback path, and
+   unsigned-package install guidance;
 3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
 4. a controlled before/after release-candidate campaign plus frame-time/FPS evidence for gameplay
    claims; and
@@ -43,9 +43,11 @@ all-data removal also clears caches, profiles, evidence, and backups without tar
 An interrupted all-data removal blocks other mutations until it is explicitly resumed. The
 signature-verified update client and fail-closed three-platform feed pipeline are now implemented;
 the free updater key is provisioned and recoverable, while release-candidate update/rollback
-verification and unattended desktop smoke automation follow. Paid Apple and Windows publisher
-identities are explicitly outside the first-beta gate; packages will publish checksums and honest
-OS-warning instructions instead.
+verification and unattended desktop smoke automation follow. A manual private-candidate path now
+uses the real key across the three-platform matrix, assembles an inert signed feed, and retains the
+complete result without publication authority. Paid Apple and Windows publisher identities are
+explicitly outside the first-beta gate; packages will publish checksums and honest OS-warning
+instructions instead.
 The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
 strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
 Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop

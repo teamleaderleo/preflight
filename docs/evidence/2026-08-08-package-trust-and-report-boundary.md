@@ -21,6 +21,12 @@ repository, its password is held separately in macOS Keychain, its private value
 Actions secrets, and its public key is the only repository-level variable. Neither private value is
 present in Git or the desktop client.
 
+The distribution workflow now has a separate manual signed-candidate mode. It builds the ordinary
+native installers plus all updater artifacts and signatures, includes the reviewed report-intake
+origin, assembles a complete candidate with inert `.invalid` feed URLs, and retains it only as a
+private workflow artifact. Repository write permission and both `gh release` commands remain in the
+tag-only publish job.
+
 The macOS package verifier now distinguishes a paid Developer ID signature from Tauri's ad-hoc
 bundle signature. An ad-hoc signature can prove package structure is internally coherent; it can't
 claim an Apple-identified publisher. Windows verification likewise reports Authenticode status

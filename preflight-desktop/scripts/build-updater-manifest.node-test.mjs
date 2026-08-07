@@ -38,6 +38,29 @@ test("refuses a feed when any updater signature is missing", () => {
   assert.throws(() => buildUpdaterManifest(directory, "v0.2.0"), /Invalid updater signature/);
 });
 
+test("can assemble a private candidate with inert non-release asset URLs", () => {
+  const manifest = buildUpdaterManifest(
+    fixture(),
+    "v0.2.0",
+    "https://private-candidate.invalid/run-123",
+  );
+  assert.equal(
+    manifest.platforms["linux-x86_64"].url,
+    "https://private-candidate.invalid/run-123/Preflight-Linux-x86_64.AppImage",
+  );
+});
+
+test("refuses an unsafe updater asset base", () => {
+  assert.throws(
+    () => buildUpdaterManifest(fixture(), "v0.2.0", "http://private-candidate.invalid/run-123"),
+    /absolute HTTPS URL/,
+  );
+  assert.throws(
+    () => buildUpdaterManifest(fixture(), "v0.2.0", "https://user@example.com/run-123"),
+    /without credentials/,
+  );
+});
+
 test("writes a deterministic manifest checksum", () => {
   const directory = fixture();
   const output = join(directory, "latest.json");

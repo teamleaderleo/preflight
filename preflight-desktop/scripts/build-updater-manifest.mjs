@@ -4,14 +4,16 @@ import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repository = "teamleaderleo/preflight";
+const releaseAssetBase = `https://github.com/${repository}/releases/download`;
 const releasePackages = [
   { pattern: /^Preflight-Linux-(x86_64|arm64)\.AppImage$/, platform: "linux" },
   { pattern: /^Preflight-macOS-(x86_64|arm64)\.app\.tar\.gz$/, platform: "darwin" },
   { pattern: /^Preflight-Windows-(x86_64|arm64)\.exe$/, platform: "windows" },
 ];
 
-export function buildUpdaterManifest(inputDirectory, tag) {
+export function buildUpdaterManifest(inputDirectory, tag, requestedAssetBase = `${releaseAssetBase}/${tag}`) {
   const version = releaseVersion(tag);
+  const assetBase = exactHttpsBase(requestedAssetBase);
   const entries = readdirSync(inputDirectory, { withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
@@ -36,7 +38,7 @@ export function buildUpdaterManifest(inputDirectory, tag) {
     }
     platforms[target] = {
       signature,
-      url: `https://github.com/${repository}/releases/download/${tag}/${filename}`,
+      url: `${assetBase}/${filename}`,
     };
     representedSystems.add(definition.platform);
   }
@@ -52,11 +54,24 @@ export function buildUpdaterManifest(inputDirectory, tag) {
   };
 }
 
-export function writeUpdaterManifest(inputDirectory, tag, outputPath) {
-  const json = `${JSON.stringify(buildUpdaterManifest(inputDirectory, tag), null, 2)}\n`;
+export function writeUpdaterManifest(inputDirectory, tag, outputPath, assetBase) {
+  const json = `${JSON.stringify(buildUpdaterManifest(inputDirectory, tag, assetBase), null, 2)}\n`;
   writeFileSync(outputPath, json);
   const digest = createHash("sha256").update(json).digest("hex");
   writeFileSync(`${outputPath}.sha256`, `${digest}  ${basename(outputPath)}\n`);
+}
+
+function exactHttpsBase(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`Updater asset base must be an absolute HTTPS URL: ${value}`);
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+    throw new Error(`Updater asset base must be an absolute HTTPS URL without credentials, query, or fragment: ${value}`);
+  }
+  return url.toString().replace(/\/$/, "");
 }
 
 function releaseVersion(tag) {
@@ -69,11 +84,11 @@ function releaseVersion(tag) {
 const isMain = process.argv[1]
   && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 if (isMain) {
-  const [, , inputDirectory, tag, requestedOutput] = process.argv;
+  const [, , inputDirectory, tag, requestedOutput, assetBase] = process.argv;
   if (!inputDirectory || !tag) {
-    throw new Error("Usage: node build-updater-manifest.mjs <artifact-directory> <tag> [output]");
+    throw new Error("Usage: node build-updater-manifest.mjs <artifact-directory> <tag> [output] [asset-base-url]");
   }
   const output = resolve(requestedOutput ?? resolve(inputDirectory, "latest.json"));
-  writeUpdaterManifest(resolve(inputDirectory), tag, output);
+  writeUpdaterManifest(resolve(inputDirectory), tag, output, assetBase);
   console.log(`Wrote signature-verified update manifest to ${output}`);
 }
