@@ -64,7 +64,8 @@ first public beta.
   Never include game, mod, save, or preference deletion.
 - [x] Add a background update check and explicit signed install/restart flow. Development builds
   report that their channel is disabled, Linux package installs stay with their package manager,
-  and no update surprise-installs.
+  and no update surprise-installs. The native host admits one installation at a time, refuses
+  concurrent checks and mutations, and releases that state on every failed or changed offer.
 - [x] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
   The private receiving service, local Java-export interoperability check, and desktop

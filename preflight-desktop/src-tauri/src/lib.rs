@@ -60,6 +60,18 @@ struct ProcessTracker(Mutex<ProcessState>);
 
 struct UpdateTracker(Mutex<Option<Update>>);
 
+struct UpdateInstallGuard<'a> {
+    processes: &'a Mutex<ProcessState>,
+}
+
+impl Drop for UpdateInstallGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut running) = self.processes.lock() {
+            running.update_installing = false;
+        }
+    }
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RunStarted {
@@ -772,8 +784,16 @@ fn updater_disabled(app: &AppHandle, reason: impl Into<String>) -> UpdateStatus 
 #[tauri::command]
 async fn check_for_update(
     app: AppHandle,
+    processes: State<'_, ProcessTracker>,
     updates: State<'_, UpdateTracker>,
 ) -> Result<UpdateStatus, String> {
+    {
+        let running = processes
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable.".to_string())?;
+        refuse_update_install(&running)?;
+    }
     if let Some(reason) = updater_platform_reason() {
         return Ok(updater_disabled(&app, reason));
     }
@@ -858,24 +878,7 @@ async fn install_update(
     updates: State<'_, UpdateTracker>,
     requested_version: String,
 ) -> Result<(), String> {
-    {
-        let mut running = processes
-            .0
-            .lock()
-            .map_err(|_| "The process tracker is unavailable.".to_string())?;
-        if running.game.is_some() {
-            return Err("Close Starsector before installing a Preflight update.".to_string());
-        }
-        if running.preparation.is_some() {
-            return Err(
-                "Wait for profile preparation to finish before installing an update.".to_string(),
-            );
-        }
-        if running.update_installing {
-            return Err("A Preflight update is already being installed.".to_string());
-        }
-        running.update_installing = true;
-    }
+    let _install = begin_update_install(&processes.0)?;
 
     let displayed_update = updates
         .0
@@ -883,19 +886,9 @@ async fn install_update(
         .map_err(|_| "The update tracker is unavailable.".to_string())?
         .take();
     let Some(displayed_update) = displayed_update else {
-        processes
-            .0
-            .lock()
-            .map_err(|_| "The process tracker is unavailable.".to_string())?
-            .update_installing = false;
         return Err("Check for an update before trying to install one.".to_string());
     };
     if displayed_update.version != requested_version {
-        processes
-            .0
-            .lock()
-            .map_err(|_| "The process tracker is unavailable.".to_string())?
-            .update_installing = false;
         return Err("The selected update changed. Check again before installing.".to_string());
     }
 
@@ -903,24 +896,12 @@ async fn install_update(
     let update = match refreshed {
         Ok(Some(update)) if same_update_offer(&displayed_update, &update) => update,
         Ok(_) => {
-            processes
-                .0
-                .lock()
-                .map_err(|_| "The process tracker is unavailable.".to_string())?
-                .update_installing = false;
             return Err(
                 "That update is no longer the exact release currently offered. Check again before installing."
                     .to_string(),
             );
         }
-        Err(error) => {
-            processes
-                .0
-                .lock()
-                .map_err(|_| "The process tracker is unavailable.".to_string())?
-                .update_installing = false;
-            return Err(error);
-        }
+        Err(error) => return Err(error),
     };
 
     let progress_app = app.clone();
@@ -957,11 +938,6 @@ async fn install_update(
         .await;
 
     if let Err(error) = result {
-        processes
-            .0
-            .lock()
-            .map_err(|_| "The process tracker is unavailable.".to_string())?
-            .update_installing = false;
         *updates
             .0
             .lock()
@@ -980,6 +956,26 @@ async fn install_update(
         },
     );
     app.restart();
+}
+
+fn begin_update_install(processes: &Mutex<ProcessState>) -> Result<UpdateInstallGuard<'_>, String> {
+    let mut running = processes
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    if running.game.is_some() {
+        return Err("Close Starsector before installing a Preflight update.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before installing an update.".to_string(),
+        );
+    }
+    if running.update_installing {
+        return Err("A Preflight update is already being installed.".to_string());
+    }
+    running.update_installing = true;
+    drop(running);
+    Ok(UpdateInstallGuard { processes })
 }
 
 fn refuse_update_install(running: &ProcessState) -> Result<(), String> {
@@ -2519,7 +2515,7 @@ mod tests {
         DEFAULT_UPDATE_ENDPOINT, DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess,
         LaunchSettingsInput, PreparationProcess, ProcessState, ReportDeletion, ReportReceipt,
         ReportUploadError, ReportUploadInput, ReportUploadProcess, begin_exit_cleanup,
-        compiled_updater_endpoint, desktop_smoke_cancellation_outcome,
+        begin_update_install, compiled_updater_endpoint, desktop_smoke_cancellation_outcome,
         desktop_smoke_cancellation_requested, desktop_smoke_outcome, diagnostic_output_path,
         parse_preparation_progress, perform_report_deletion, perform_report_upload, read_tail,
         refuse_update_install, report_client, take_deferred_exit, validate_launch_settings,
@@ -3200,5 +3196,17 @@ mod tests {
         assert!(refuse_update_install(&running).is_ok());
         running.update_installing = true;
         assert!(refuse_update_install(&running).is_err());
+    }
+
+    #[test]
+    fn update_install_guard_releases_every_error_path() {
+        let processes = Mutex::new(ProcessState::default());
+        {
+            let _install = begin_update_install(&processes).unwrap();
+            assert!(processes.lock().unwrap().update_installing);
+            assert!(begin_update_install(&processes).is_err());
+        }
+        assert!(!processes.lock().unwrap().update_installing);
+        assert!(begin_update_install(&processes).is_ok());
     }
 }
