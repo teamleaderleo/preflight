@@ -110,6 +110,11 @@ export async function startDesktopSmoke(game: string): Promise<RunStarted> {
   return invoke<RunStarted>("start_desktop_smoke", { game });
 }
 
+export async function openDesktopAccessibilitySettings(): Promise<void> {
+  if (!isDesktopHost()) return;
+  return invoke<void>("open_desktop_accessibility_settings");
+}
+
 export async function startGame(game: string, optimizationPreset: OptimizationPreset): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));

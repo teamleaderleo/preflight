@@ -187,7 +187,8 @@ The launch result and bounded launcher output remain in the run directory even w
 The desktop app bundles the checked `campaign-roam` scenario. Its Settings page probes readiness
 without launching, then shows the full action sequence and requires a separate confirmation before
 starting. The Tauri host treats the smoke launcher as the active game process, reads the sealed
-receipt, and reports the evidence directory when the run ends.
+receipt, and reports the evidence directory when the run ends. A failed macOS permission probe
+offers a fixed link to the Accessibility privacy pane; Preflight never changes that permission.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. The generated scripts, PID-only

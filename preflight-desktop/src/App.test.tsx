@@ -223,6 +223,30 @@ test("the automated game test requires a review before it starts", async () => {
   smoke.mockRestore();
 });
 
+test("a blocked macOS automation probe links to the manual permission pane", async () => {
+  const user = userEvent.setup();
+  const probe = vi.spyOn(bridge, "getDesktopSmokeProbe").mockResolvedValue({
+    protocol: 1,
+    probe: {
+      ready: false,
+      driver: null,
+      diagnostics: ["macOS Accessibility permission isn't enabled for this Preflight process"],
+    },
+  });
+  const settings = vi.spyOn(bridge, "openDesktopAccessibilitySettings").mockResolvedValue();
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
+  await user.click(await screen.findByRole("button", { name: "Open Accessibility settings" }));
+
+  expect(settings).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "Review test" })).not.toBeInTheDocument();
+  probe.mockRestore();
+  settings.mockRestore();
+});
+
 test("signed updates are explicit and explain when a build has no update channel", async () => {
   const user = userEvent.setup();
   render(<App />);

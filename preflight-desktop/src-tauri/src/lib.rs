@@ -14,6 +14,8 @@ use url::Url;
 
 const UPDATE_ENDPOINT: &str =
     "https://github.com/teamleaderleo/preflight/releases/latest/download/latest.json";
+const MACOS_ACCESSIBILITY_SETTINGS: &str =
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
 
 #[derive(Default)]
 struct ProcessState {
@@ -242,6 +244,29 @@ fn get_desktop_smoke_probe(app: AppHandle) -> Result<Value, String> {
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("Preflight returned an unreadable desktop-test probe: {error}"))
+}
+
+#[tauri::command]
+fn open_desktop_accessibility_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = Command::new("/usr/bin/open")
+            .arg(MACOS_ACCESSIBILITY_SETTINGS)
+            .status()
+            .map_err(|error| format!("Could not open macOS Accessibility settings: {error}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "macOS could not open Accessibility settings (exit {}).",
+                status.code().unwrap_or(-1)
+            ))
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Accessibility settings are available only on macOS.".to_string())
+    }
 }
 
 fn desktop_smoke_scenario(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1355,6 +1380,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_desktop_smoke_probe,
+            open_desktop_accessibility_settings,
             start_desktop_smoke,
             get_cache,
             get_cache_cleanup,
@@ -1381,9 +1407,10 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        LaunchSettingsInput, ProcessState, UPDATE_ENDPOINT, desktop_smoke_outcome,
-        diagnostic_output_path, parse_preparation_progress, read_tail, refuse_update_install,
-        validate_launch_settings, validate_optimization_preset, validate_removal_scope,
+        LaunchSettingsInput, MACOS_ACCESSIBILITY_SETTINGS, ProcessState, UPDATE_ENDPOINT,
+        desktop_smoke_outcome, diagnostic_output_path, parse_preparation_progress, read_tail,
+        refuse_update_install, validate_launch_settings, validate_optimization_preset,
+        validate_removal_scope,
     };
     use std::io::Cursor;
     use std::process::Command;
@@ -1504,6 +1531,14 @@ mod tests {
         assert_eq!(
             "/teamleaderleo/preflight/releases/latest/download/latest.json",
             endpoint.path()
+        );
+    }
+
+    #[test]
+    fn macos_accessibility_link_targets_the_system_privacy_pane() {
+        assert_eq!(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+            MACOS_ACCESSIBILITY_SETTINGS,
         );
     }
 

@@ -18,6 +18,7 @@ import {
   getSnapshot,
   isDesktopHost,
   installUpdate,
+  openDesktopAccessibilitySettings,
   saveProfile,
   startGame,
   startDesktopSmoke,
@@ -1287,6 +1288,11 @@ export default function App() {
                 {desktopSmokeProbe?.probe.ready && (
                   <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeRunning || preparing || status === "running"}>
                     Review test
+                  </button>
+                )}
+                {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && snapshot?.platform === "mac" && (
+                  <button className="button button--quiet button--compact" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => setMessage(String(error)))}>
+                    Open Accessibility settings
                   </button>
                 )}
               </div>
