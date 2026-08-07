@@ -27,6 +27,11 @@ webview, while Rust host changes rebuild and restart the native process.
 npm run desktop:build
 ```
 
+For a local release-boundary replay, use `npm run desktop:test-package`. It rebuilds the engine and
+native package together, verifies the extracted payload, then exercises native installation,
+no-launch desktop probing, both removal scopes, and preservation sentinels. Running only the final
+exercise against an older package is expected to fail when its engine differs from current source.
+
 Tauri writes native artifacts below `src-tauri/target/release/bundle/`. The distribution workflow
 starts from a clean runner, while `npm run desktop:build` clears that exact derived bundle directory
 before a local build so old updater signatures can't be mistaken for current output. The workflow

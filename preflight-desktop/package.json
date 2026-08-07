@@ -25,6 +25,7 @@
     "desktop:exercise-install": "node scripts/exercise-native-install.mjs",
     "desktop:verify-package": "node scripts/verify-native-package.mjs",
     "desktop:verify-installed": "node scripts/verify-installed-engine.mjs",
+    "desktop:test-package": "npm run desktop:build && npm run desktop:verify-package && npm run desktop:exercise-install",
     "release:version": "node scripts/set-release-version.mjs",
     "desktop:dev": "npm run engine:prepare && tauri dev",
     "desktop:build": "npm run engine:prepare && npm run desktop:clean && tauri build",
