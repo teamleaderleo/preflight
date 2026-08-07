@@ -242,6 +242,7 @@ struct CreateReportCaseResponse {
     deletion: ReportGrantEndpoint,
 }
 
+#[derive(Debug)]
 enum ReportUploadError {
     Cancelled,
     Failed(String),
@@ -1097,14 +1098,15 @@ async fn send_run_report(
         ReportUploadStateEvent::new("starting", id, 0, report.bytes),
     );
 
+    let upload_app = app.clone();
     let outcome = perform_report_upload(
-        app.clone(),
         client,
         origin,
         archive,
         report.clone(),
         id,
         cancel_receiver,
+        move |event| emit_report_state(&upload_app, event),
     )
     .await;
     let should_exit = if let Ok(mut running) = tracker.0.lock() {
@@ -1173,12 +1175,20 @@ fn cancel_run_report(app: AppHandle, tracker: State<'_, ProcessTracker>) -> Resu
 #[tauri::command]
 async fn delete_run_report(deletion: ReportDeletion) -> Result<bool, String> {
     let origin = configured_report_origin()?;
+    perform_report_deletion(report_client()?, origin, deletion).await
+}
+
+async fn perform_report_deletion(
+    client: Client,
+    origin: Url,
+    deletion: ReportDeletion,
+) -> Result<bool, String> {
     if deletion.method != "DELETE" {
         return Err("The report receipt has an invalid deletion method.".to_string());
     }
     let url = validated_deletion_url(&origin, &deletion.url)?;
     validate_report_token(&deletion.token)?;
-    let response = report_client()?
+    let response = client
         .delete(url)
         .bearer_auth(deletion.token)
         .send()
@@ -1191,13 +1201,13 @@ async fn delete_run_report(deletion: ReportDeletion) -> Result<bool, String> {
 }
 
 async fn perform_report_upload(
-    app: AppHandle,
     client: Client,
     origin: Url,
     archive: PathBuf,
     report: ReportUploadInput,
     id: u64,
     mut cancel: watch::Receiver<bool>,
+    emit: impl Fn(ReportUploadStateEvent) + Clone + Send + Sync + 'static,
 ) -> Result<ReportReceipt, ReportUploadError> {
     if *cancel.borrow() {
         return Err(ReportUploadError::Cancelled);
@@ -1229,13 +1239,12 @@ async fn perform_report_upload(
             .map_err(ReportUploadError::Failed)?;
     validate_case_grant(&origin, &grant, &report).map_err(ReportUploadError::Failed)?;
 
-    emit_report_state(
-        &app,
+    emit(
         ReportUploadStateEvent::new("uploading", id, 0, report.bytes)
             .with_case(grant.case_id.clone()),
     );
     let mut stream_cancel = cancel.clone();
-    let stream_app = app.clone();
+    let stream_emit = emit.clone();
     let case_id = grant.case_id.clone();
     let total = report.bytes;
     let stream = async_stream::stream! {
@@ -1274,11 +1283,8 @@ async fn perform_report_upload(
                 break;
             }
             uploaded = uploaded.saturating_add(read as u64);
-            emit_report_state(
-                &stream_app,
-                ReportUploadStateEvent::new("uploading", id, uploaded, total)
-                    .with_case(case_id.clone()),
-            );
+            stream_emit(ReportUploadStateEvent::new("uploading", id, uploaded, total)
+                .with_case(case_id.clone()));
             yield Ok(buffer[..read].to_vec());
         }
     };
@@ -1347,8 +1353,7 @@ async fn perform_report_upload(
         .await);
     }
 
-    emit_report_state(
-        &app,
+    emit(
         ReportUploadStateEvent::new("finalizing", id, report.bytes, report.bytes)
             .with_case(grant.case_id.clone()),
     );
@@ -2513,20 +2518,25 @@ mod tests {
     use super::{
         DEFAULT_UPDATE_ENDPOINT, DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess,
         LaunchSettingsInput, PreparationProcess, ProcessState, ReportDeletion, ReportReceipt,
-        ReportUploadInput, ReportUploadProcess, begin_exit_cleanup, compiled_updater_endpoint,
-        desktop_smoke_cancellation_outcome, desktop_smoke_cancellation_requested,
-        desktop_smoke_outcome, diagnostic_output_path, parse_preparation_progress, read_tail,
-        refuse_update_install, take_deferred_exit, validate_launch_settings,
+        ReportUploadError, ReportUploadInput, ReportUploadProcess, begin_exit_cleanup,
+        compiled_updater_endpoint, desktop_smoke_cancellation_outcome,
+        desktop_smoke_cancellation_requested, desktop_smoke_outcome, diagnostic_output_path,
+        parse_preparation_progress, perform_report_deletion, perform_report_upload, read_tail,
+        refuse_update_install, report_client, take_deferred_exit, validate_launch_settings,
         validate_optimization_preset, validate_removal_scope, validate_report_origin,
         validate_report_receipt, validated_case_url, validated_report_archive,
         validated_updater_endpoint,
     };
+    use sha2::{Digest, Sha256};
     use std::fs;
-    use std::io::Cursor;
+    use std::io::{Cursor, Read, Write};
+    use std::net::{TcpListener, TcpStream};
     use std::process::Command;
-    use std::sync::mpsc;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::{Arc, Mutex, mpsc};
+    use std::thread;
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
     use tokio::sync::watch;
+    use url::Url;
 
     #[cfg(target_os = "macos")]
     use super::MACOS_ACCESSIBILITY_SETTINGS;
@@ -2713,6 +2723,363 @@ mod tests {
         fs::write(&archive, b"changed").unwrap();
         assert!(validated_report_archive(&report).is_err());
         fs::remove_file(archive).unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cancelled_report_upload_deletes_its_incomplete_server_case() {
+        let (origin, requests, server) = local_report_server();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let archive = std::env::temp_dir().join(format!(
+            "preflight-report-cancel-test-{}-{unique}.zip",
+            std::process::id()
+        ));
+        let payload = vec![0x5a; 256 * 1024];
+        fs::write(&archive, &payload).unwrap();
+        let report = ReportUploadInput {
+            output: archive.to_string_lossy().into_owned(),
+            bytes: payload.len() as u64,
+            sha256: Sha256::digest(&payload)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        };
+        let (cancel, cancel_receiver) = watch::channel(false);
+        let cancel_on_upload = cancel.clone();
+
+        let outcome = perform_report_upload(
+            report_client().unwrap(),
+            origin,
+            archive.clone(),
+            report,
+            71,
+            cancel_receiver,
+            move |event| {
+                if event.state == "uploading" && event.uploaded_bytes == 0 {
+                    let _ = cancel_on_upload.send(true);
+                }
+            },
+        )
+        .await;
+
+        assert!(matches!(outcome, Err(ReportUploadError::Cancelled)));
+        server.join().unwrap();
+        let requests = requests.lock().unwrap();
+        assert!(
+            requests
+                .iter()
+                .any(|request| { request.method == "POST" && request.path == "/v1/cases" })
+        );
+        assert!(requests.iter().any(|request| {
+            request.method == "DELETE"
+                && request.path == "/v1/cases/3961d5f3-cd4c-4b62-b915-e9cc5a68d5db"
+                && request.authorization.as_deref() == Some("Bearer delete.signature")
+        }));
+        assert_eq!(payload, fs::read(&archive).unwrap());
+        drop(requests);
+        fs::remove_file(archive).unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn successful_report_upload_streams_and_finalizes_the_disclosed_archive() {
+        let (origin, requests, server) = local_report_server();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let archive = std::env::temp_dir().join(format!(
+            "preflight-report-success-test-{}-{unique}.zip",
+            std::process::id()
+        ));
+        let payload = b"bounded local diagnostics archive".to_vec();
+        fs::write(&archive, &payload).unwrap();
+        let digest: String = Sha256::digest(&payload)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let report = ReportUploadInput {
+            output: archive.to_string_lossy().into_owned(),
+            bytes: payload.len() as u64,
+            sha256: digest.clone(),
+        };
+        let (_cancel, cancel_receiver) = watch::channel(false);
+        let states = Arc::new(Mutex::new(Vec::new()));
+        let emitted_states = states.clone();
+
+        let receipt = perform_report_upload(
+            report_client().unwrap(),
+            origin,
+            archive.clone(),
+            report,
+            72,
+            cancel_receiver,
+            move |event| emitted_states.lock().unwrap().push(event.state),
+        )
+        .await
+        .unwrap();
+
+        server.join().unwrap();
+        assert_eq!(payload.len() as u64, receipt.bytes);
+        assert_eq!(digest, receipt.sha256);
+        assert_eq!(
+            vec!["uploading", "uploading", "finalizing"],
+            *states.lock().unwrap()
+        );
+        let requests = requests.lock().unwrap();
+        assert!(requests.iter().any(|request| {
+            request.method == "PUT"
+                && request.path == "/v1/cases/3961d5f3-cd4c-4b62-b915-e9cc5a68d5db/archive"
+                && request.authorization.as_deref() == Some("Bearer upload.signature")
+                && request.body == payload
+        }));
+        assert!(requests.iter().any(|request| {
+            request.method == "POST"
+                && request.path == "/v1/cases/3961d5f3-cd4c-4b62-b915-e9cc5a68d5db/finalize"
+                && request.authorization.as_deref() == Some("Bearer finalize.signature")
+        }));
+        drop(requests);
+        fs::remove_file(archive).unwrap();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn report_receipt_deletion_uses_its_bearer_grant() {
+        let (origin, requests, server) = local_report_server();
+        let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
+        let deletion = ReportDeletion {
+            method: "DELETE".to_string(),
+            url: origin
+                .join(&format!("v1/cases/{case_id}"))
+                .unwrap()
+                .to_string(),
+            token: "receipt.signature".to_string(),
+        };
+
+        assert!(
+            perform_report_deletion(report_client().unwrap(), origin, deletion)
+                .await
+                .unwrap()
+        );
+        server.join().unwrap();
+        let requests = requests.lock().unwrap();
+        assert_eq!(1, requests.len());
+        assert_eq!("DELETE", requests[0].method);
+        assert_eq!(format!("/v1/cases/{case_id}"), requests[0].path);
+        assert_eq!(
+            Some("Bearer receipt.signature"),
+            requests[0].authorization.as_deref()
+        );
+    }
+
+    #[derive(Debug)]
+    struct RecordedRequest {
+        method: String,
+        path: String,
+        authorization: Option<String>,
+        body: Vec<u8>,
+    }
+
+    fn local_report_server() -> (
+        Url,
+        Arc<Mutex<Vec<RecordedRequest>>>,
+        thread::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let origin = Url::parse(&format!("http://{address}/")).unwrap();
+        let server_origin = origin.clone();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let server_requests = requests.clone();
+        let server = thread::spawn(move || {
+            let mut report_identity = None;
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        let Some(request) = read_local_request(&mut stream) else {
+                            continue;
+                        };
+                        if request.method == "POST" && request.path == "/v1/cases" {
+                            let value: serde_json::Value =
+                                serde_json::from_slice(&request.body).unwrap();
+                            report_identity = Some((
+                                value
+                                    .pointer("/bytes")
+                                    .and_then(serde_json::Value::as_u64)
+                                    .unwrap(),
+                                value
+                                    .pointer("/sha256")
+                                    .and_then(serde_json::Value::as_str)
+                                    .unwrap()
+                                    .to_string(),
+                            ));
+                        }
+                        let stop = request.method == "DELETE"
+                            || (request.method == "POST" && request.path.ends_with("/finalize"));
+                        let response = local_report_response(
+                            &server_origin,
+                            &request,
+                            report_identity.as_ref(),
+                        );
+                        server_requests.lock().unwrap().push(request);
+                        stream.write_all(response.as_bytes()).unwrap();
+                        stream.flush().unwrap();
+                        if stop {
+                            return;
+                        }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("local report server failed: {error}"),
+                }
+            }
+            panic!("local report server timed out before deletion");
+        });
+        (origin, requests, server)
+    }
+
+    fn read_local_request(stream: &mut TcpStream) -> Option<RecordedRequest> {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        let mut bytes = Vec::new();
+        let mut buffer = [0_u8; 8192];
+        let header_end = loop {
+            let read = stream.read(&mut buffer).ok()?;
+            if read == 0 {
+                return None;
+            }
+            bytes.extend_from_slice(&buffer[..read]);
+            if let Some(end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+                break end + 4;
+            }
+            if bytes.len() > 64 * 1024 {
+                return None;
+            }
+        };
+        let headers = String::from_utf8(bytes[..header_end].to_vec()).ok()?;
+        let mut lines = headers.split("\r\n");
+        let mut request_line = lines.next()?.split_whitespace();
+        let method = request_line.next()?.to_string();
+        let path = request_line.next()?.to_string();
+        let mut content_length = 0_usize;
+        let mut authorization = None;
+        for line in lines {
+            let Some((name, value)) = line.split_once(':') else {
+                continue;
+            };
+            if name.eq_ignore_ascii_case("content-length") {
+                content_length = value.trim().parse().unwrap_or(0);
+            } else if name.eq_ignore_ascii_case("authorization") {
+                authorization = Some(value.trim().to_string());
+            }
+        }
+        let mut body = bytes[header_end..].to_vec();
+        while body.len() < content_length {
+            match stream.read(&mut buffer) {
+                Ok(0) | Err(_) => break,
+                Ok(read) => body.extend_from_slice(&buffer[..read]),
+            }
+        }
+        body.truncate(content_length.min(body.len()));
+        Some(RecordedRequest {
+            method,
+            path,
+            authorization,
+            body,
+        })
+    }
+
+    fn local_report_response(
+        origin: &Url,
+        request: &RecordedRequest,
+        report_identity: Option<&(u64, String)>,
+    ) -> String {
+        let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
+        if request.method == "POST" && request.path == "/v1/cases" {
+            let body = serde_json::json!({
+                "protocolVersion": 1,
+                "caseId": case_id,
+                "upload": {
+                    "method": "PUT",
+                    "url": origin.join(&format!("v1/cases/{case_id}/archive")).unwrap(),
+                    "contentType": "application/zip",
+                    "expiresAt": "2026-08-09T00:00:00.000Z",
+                    "token": "upload.signature"
+                },
+                "finalize": {
+                    "method": "POST",
+                    "url": origin.join(&format!("v1/cases/{case_id}/finalize")).unwrap(),
+                    "token": "finalize.signature"
+                },
+                "deletion": {
+                    "method": "DELETE",
+                    "url": origin.join(&format!("v1/cases/{case_id}")).unwrap(),
+                    "token": "delete.signature"
+                }
+            })
+            .to_string();
+            return http_response("201 Created", &body);
+        }
+        if request.method == "PUT" && request.path == format!("/v1/cases/{case_id}/archive") {
+            let Some((bytes, sha256)) = report_identity else {
+                return http_response("409 Conflict", r#"{"error":"missing identity"}"#);
+            };
+            if request.body.len() as u64 != *bytes
+                || Sha256::digest(&request.body)
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+                    != *sha256
+            {
+                return http_response("499 Client Closed Request", "{}");
+            }
+            let body = serde_json::json!({
+                "status": "uploaded",
+                "caseId": case_id,
+                "bytes": bytes,
+                "sha256": sha256
+            })
+            .to_string();
+            return http_response("200 OK", &body);
+        }
+        if request.method == "POST" && request.path == format!("/v1/cases/{case_id}/finalize") {
+            let Some((bytes, sha256)) = report_identity else {
+                return http_response("409 Conflict", r#"{"error":"missing identity"}"#);
+            };
+            let body = serde_json::json!({
+                "protocolVersion": 1,
+                "caseId": case_id,
+                "objectKey": format!("accepted/{case_id}.zip"),
+                "bytes": bytes,
+                "sha256": sha256,
+                "productVersion": env!("CARGO_PKG_VERSION"),
+                "receivedAt": "2026-08-08T00:00:00.000Z",
+                "retentionDeadline": "2026-08-22T00:00:00.000Z",
+                "deletion": {
+                    "method": "DELETE",
+                    "url": origin.join(&format!("v1/cases/{case_id}")).unwrap(),
+                    "token": "receipt.signature"
+                },
+                "signature": "signed-receipt"
+            })
+            .to_string();
+            return http_response("200 OK", &body);
+        }
+        if request.method == "DELETE" && request.path == format!("/v1/cases/{case_id}") {
+            return http_response("204 No Content", "");
+        }
+        http_response("404 Not Found", r#"{"error":"unexpected request"}"#)
+    }
+
+    fn http_response(status: &str, body: &str) -> String {
+        format!(
+            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
     }
 
     fn successful_status() -> std::process::ExitStatus {

@@ -94,6 +94,14 @@ receipt in app-local storage. It removes the local authorization after deletion,
 or expiry. The native host still validates the configured origin, deletion URL, method, and token
 before sending any request, so modified local storage can't redirect the bearer credential.
 
+The native transport now also runs against a bounded local HTTP intake during ordinary Rust tests.
+One scenario creates a case, streams the exact disclosed bytes, finalizes it, and validates the
+returned receipt. A second cancels as upload begins and requires the authorized cleanup DELETE before
+accepting cancellation. A third replays the deletion grant from a receipt and verifies its method,
+path, and bearer token. The cancellation scenario re-reads the local ZIP afterward and requires it
+to remain byte-identical. HTTPS origin validation remains a separate fail-closed test; the loopback
+server exists only to exercise request sequencing and payloads without touching production.
+
 That package also exposed a first-run discovery boundary before any game launch. A macOS app can
 inherit `/` as its working directory, and the engine had treated it as an implicit recursive search
 root. A protected `/Library/Trial` descendant escaped the lazy walk as an unchecked I/O failure.

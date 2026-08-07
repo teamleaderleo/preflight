@@ -76,8 +76,10 @@ first public beta.
   disclosure, consent, fail-closed receipt recovery, retry, and a receipt whose exact object was
   verified through authenticated R2 access and then deleted through authenticated operator access.
   The desktop now retains an unexpired deletion receipt across restarts and removes it on deletion,
-  dismissal, or expiry. Packaged cancellation and deletion plus the first complete hosted candidate
-  matrix remain.
+  dismissal, or expiry. A local intake server now exercises the native host's complete HTTP
+  boundary: create, byte-exact streaming, finalize and receipt validation; cancellation followed by
+  authorized cleanup deletion; and explicit receipt deletion. Packaged-UI cancellation and deletion
+  plus the first complete hosted candidate matrix remain.
 - [x] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete. No automatic crash-upload path is present.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
