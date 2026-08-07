@@ -1,0 +1,65 @@
+name: Release metadata
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/distribution.yml'
+      - '.github/workflows/release-metadata.yml'
+      - 'pom.xml'
+      - 'preflight-*/pom.xml'
+      - 'preflight-desktop/package.json'
+      - 'preflight-desktop/package-lock.json'
+      - 'preflight-desktop/src-tauri/Cargo.toml'
+      - 'preflight-desktop/src-tauri/Cargo.lock'
+      - 'scripts/generate-release-sboms.sh'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/distribution.yml'
+      - '.github/workflows/release-metadata.yml'
+      - 'pom.xml'
+      - 'preflight-*/pom.xml'
+      - 'preflight-desktop/package.json'
+      - 'preflight-desktop/package-lock.json'
+      - 'preflight-desktop/src-tauri/Cargo.toml'
+      - 'preflight-desktop/src-tauri/Cargo.lock'
+      - 'scripts/generate-release-sboms.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: ./.github/actions/setup-build-jdk
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - name: Install the pinned Rust SBOM generator
+        run: cargo install cargo-cyclonedx --version 0.5.9 --locked
+
+      - name: Generate release SBOMs
+        run: scripts/generate-release-sboms.sh "$RUNNER_TEMP/preflight-sboms"
+
+      - name: Upload verified SBOMs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preflight-release-sboms-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-sboms/*
+          if-no-files-found: error
+          retention-days: 30

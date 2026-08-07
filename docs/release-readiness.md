@@ -75,7 +75,9 @@ first public beta.
 ## Release artifacts and support
 
 - [ ] Publish checksums, an SBOM/dependency inventory, MIT license, third-party notices, privacy
-  statement, installation/removal instructions, known limitations, and release notes.
+  statement, installation/removal instructions, known limitations, and release notes. The private
+  release pipeline now assembles the legal/privacy files, path-correct checksums, and five validated
+  target-specific SBOMs; publication and final release notes remain gated.
 - [ ] Verify that no Starsector, mod, save, activation, or other third-party proprietary content is
   present in packages, diagnostics fixtures, screenshots, or source history.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,

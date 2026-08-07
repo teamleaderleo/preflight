@@ -9,7 +9,7 @@ more smoothly without permanently patching the game, its mods, or your saves.**
 > **Development preview.** Public binaries aren't available yet. Distribution, descriptive use of
 > the Starsector name, and final disclaimer wording are pending written guidance from Fractal
 > Softworks. The remaining release gates include updater-key and platform-signing setup,
-> consent-based diagnostics submission, release-candidate lifecycle testing, and real Windows/Linux
+> production diagnostics intake, release-candidate lifecycle testing, and real Windows/Linux
 > game testing. See
 > [Release readiness](docs/release-readiness.md).
 
@@ -311,7 +311,8 @@ Preflight is fast enough for a beta; the remaining work is product trust and com
 
 1. Obtain written authorization for distribution and the integration approach, plus guidance on
    descriptive use of the Starsector name and the disclaimer.
-2. Provision and test signing, then finish the explicit **Send run report** consent flow.
+2. Provision and test signing, then provision the private report intake with abuse controls and run
+   a signed-package canary.
 3. Exercise clean licensed-game installs on Windows and Linux. CI verifies the portable engine and
    native packages. Licensed-game execution requires user installations.
 4. Run a fresh controlled before/after cohort against the release candidate, then publish only the
@@ -323,7 +324,9 @@ The complete blocker list and publication checklist are in
 
 The consent-based support path is specified in [Diagnostics export](docs/diagnostics.md) and
 [Privacy](docs/privacy.md). Its private R2 intake and versioned protocol live in
-[`report-intake`](report-intake/README.md); deployment and desktop consent wiring remain release work.
+[`report-intake`](report-intake/README.md). The desktop consent, upload, cancellation, receipt, and
+deletion path is complete. Production provisioning, abuse controls, public operator details, and a
+signed-package canary remain release work, so ordinary builds still omit the intake origin.
 
 ## Analysis and mod tools
 

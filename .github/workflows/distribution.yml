@@ -36,8 +36,23 @@ jobs:
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk
 
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
       - name: Verify and package
         run: mvn --batch-mode --no-transfer-progress verify
+
+      - name: Generate release dependency inventories
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install cargo-cyclonedx --version 0.5.9 --locked
+          scripts/generate-release-sboms.sh dist
 
       - name: Assemble distribution
         shell: bash
@@ -49,6 +64,7 @@ jobs:
           cp THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.md
           cp docs/privacy.md dist/PRIVACY.md
           cp docs/known-limitations.md dist/KNOWN_LIMITATIONS.md
+          cp docs/dependency-inventory.md dist/DEPENDENCY_INVENTORY.md
           (
             cd dist
             sha256sum preflight.jar > preflight.jar.sha256
@@ -78,18 +94,33 @@ jobs:
               https://github.com/teamleaderleo/preflight
 
           This archive also contains the MIT license, third-party notices,
-          privacy statement, and known limitations.
+          privacy statement, known limitations, and release dependency inventories.
           TEXT
           tar -C dist -czf dist/preflight.tar.gz \
             preflight.jar preflight.jar.sha256 README.txt \
-            LICENSE THIRD_PARTY_NOTICES.md PRIVACY.md KNOWN_LIMITATIONS.md
+            LICENSE THIRD_PARTY_NOTICES.md PRIVACY.md KNOWN_LIMITATIONS.md \
+            DEPENDENCY_INVENTORY.md \
+            SBOM-SHA256SUMS.txt \
+            preflight-java.cdx.json preflight-desktop-web.cdx.json \
+            preflight-desktop-native-aarch64-apple-darwin.cdx.json \
+            preflight-desktop-native-x86_64-pc-windows-msvc.cdx.json \
+            preflight-desktop-native-x86_64-unknown-linux-gnu.cdx.json
           (
             cd dist
             zip -q preflight.zip \
               preflight.jar preflight.jar.sha256 README.txt \
-              LICENSE THIRD_PARTY_NOTICES.md PRIVACY.md KNOWN_LIMITATIONS.md
+              LICENSE THIRD_PARTY_NOTICES.md PRIVACY.md KNOWN_LIMITATIONS.md \
+              DEPENDENCY_INVENTORY.md \
+              SBOM-SHA256SUMS.txt \
+              preflight-java.cdx.json preflight-desktop-web.cdx.json \
+              preflight-desktop-native-aarch64-apple-darwin.cdx.json \
+              preflight-desktop-native-x86_64-pc-windows-msvc.cdx.json \
+              preflight-desktop-native-x86_64-unknown-linux-gnu.cdx.json
           )
-          sha256sum dist/preflight.tar.gz dist/preflight.zip > dist/archives.sha256
+          (
+            cd dist
+            sha256sum preflight.tar.gz preflight.zip > archives.sha256
+          )
 
       - name: Smoke-test packaged JAR
         shell: bash
@@ -113,6 +144,9 @@ jobs:
             dist/THIRD_PARTY_NOTICES.md
             dist/PRIVACY.md
             dist/KNOWN_LIMITATIONS.md
+            dist/DEPENDENCY_INVENTORY.md
+            dist/SBOM-SHA256SUMS.txt
+            dist/*.cdx.json
           if-no-files-found: error
           retention-days: 30
 

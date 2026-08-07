@@ -21,6 +21,9 @@ A public tagged release is expected to attach:
 - `archives.sha256` — checksums for both archives
 - `LICENSE`, `THIRD_PARTY_NOTICES.md`, `PRIVACY.md`, and `KNOWN_LIMITATIONS.md` in both standalone
   archives and native application resources
+- `DEPENDENCY_INVENTORY.md` and five CycloneDX JSON SBOMs covering the release Java graph, the
+  production desktop web graph, and each supported native Rust target
+- `SBOM-SHA256SUMS.txt` with checksums for those five inventories
 - Windows: an NSIS `.exe` desktop installer
 - macOS: a `.dmg` containing the desktop application
 - Linux: `.AppImage` and `.deb` desktop packages
@@ -46,6 +49,10 @@ artifacts without creating a release. Desktop packages contain their own minimal
 don't require a system JDK. They also contain the project license, third-party notices, privacy
 statement, and known limitations under the bundled resources. Those development packages are
 unsigned; they aren't the intended public install experience.
+
+The release dependency files are described in
+[Release dependency inventory](dependency-inventory.md). They are generated from the exact release
+commit and published beside the platform packages; the standalone archives carry their own copies.
 
 Tagged builds are stricter. The workflow first requires the updater private key, its password, and
 the matching public key. It signs every supported updater artifact, assembles `latest.json` only

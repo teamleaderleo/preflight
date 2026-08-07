@@ -2,6 +2,12 @@
   "name": "starsector-preflight-desktop",
   "private": true,
   "version": "0.1.0",
+  "description": "A desktop performance launcher for Starsector",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teamleaderleo/preflight.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

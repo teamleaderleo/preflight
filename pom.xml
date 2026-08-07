@@ -11,6 +11,26 @@
 
   <name>Preflight</name>
   <description>Startup profiling and preprocessing tools for modded Starsector.</description>
+  <url>https://github.com/teamleaderleo/preflight</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/license/mit</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <scm>
+    <connection>scm:git:https://github.com/teamleaderleo/preflight.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/teamleaderleo/preflight.git</developerConnection>
+    <url>https://github.com/teamleaderleo/preflight</url>
+  </scm>
+
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/teamleaderleo/preflight/issues</url>
+  </issueManagement>
 
   <modules>
     <module>preflight-core</module>

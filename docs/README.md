@@ -29,6 +29,7 @@ archive. They answer different questions. This page is the shortest route to the
 - [Diagnostics export](diagnostics.md)
 - [Support and private report handling](support.md)
 - [Rollback and bad-release response](rollback.md)
+- [Release dependency inventory](dependency-inventory.md)
 - [Startup benchmark](startup-benchmark.md)
 - [Asset lint](asset-lint.md)
 - [Desktop smoke automation](desktop-smoke-automation.md)

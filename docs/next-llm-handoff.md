@@ -97,10 +97,11 @@ separate from toggling a reader. The typed launch-preset engine model (**Recomme
 grouped advanced domains still belong behind a later disclosure. The private report-intake Worker
 now implements the receiving boundary around the bounded evidence ZIP: short-lived case grants,
 hostile-ZIP and manifest verification, immutable private R2 writes, signed receipts, deletion grants,
-and a lifecycle deployment checklist. Worker-runtime tests and a real Java-export replay pass. It
-isn't deployed or connected to the desktop yet; explicit consent and digest preview, progress,
-cancellation/retry, production rate limits, and operator details remain release work. No durable
-secret belongs in the client.
+and a lifecycle deployment checklist. Worker-runtime tests and a real Java-export replay pass. The
+desktop now provides the explicit digest/size disclosure, consent, progress, cancellation, receipt,
+and early-deletion flow; ordinary builds fail closed because they omit the intake origin. Production
+provisioning, abuse-rate limits, public operator details, and a signed-package canary remain release
+work. No durable secret belongs in the client.
 
 ## Where the launch is
 
