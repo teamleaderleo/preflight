@@ -99,6 +99,44 @@ const optimizationPresets: Array<{
   },
 ];
 
+const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
+
+function savedRunReportReceipt(): ReportReceipt | null {
+  try {
+    const raw = window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY);
+    if (!raw) return null;
+    const receipt = JSON.parse(raw) as Partial<ReportReceipt>;
+    const deadline = typeof receipt.retentionDeadline === "string"
+      ? Date.parse(receipt.retentionDeadline)
+      : Number.NaN;
+    const valid = receipt.protocolVersion === 1
+      && typeof receipt.caseId === "string"
+      && receipt.caseId.length > 0
+      && receipt.objectKey === `accepted/${receipt.caseId}.zip`
+      && typeof receipt.bytes === "number"
+      && Number.isSafeInteger(receipt.bytes)
+      && receipt.bytes > 0
+      && typeof receipt.sha256 === "string"
+      && /^[0-9a-f]{64}$/.test(receipt.sha256)
+      && typeof receipt.productVersion === "string"
+      && typeof receipt.receivedAt === "string"
+      && Number.isFinite(Date.parse(receipt.receivedAt))
+      && Number.isFinite(deadline)
+      && deadline > Date.now()
+      && receipt.deletion?.method === "DELETE"
+      && typeof receipt.deletion.url === "string"
+      && typeof receipt.deletion.token === "string"
+      && receipt.deletion.token.length > 0
+      && typeof receipt.signature === "string"
+      && receipt.signature.length > 0;
+    if (valid) return receipt as ReportReceipt;
+    window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+  } catch {
+    // A malformed or inaccessible local receipt never becomes a deletion request.
+  }
+  return null;
+}
+
 function savedOptimizationPreset(): OptimizationPreset {
   try {
     const saved = window.localStorage.getItem("preflight.optimizationPreset");
@@ -189,7 +227,7 @@ export default function App() {
   const [reportFinalizing, setReportFinalizing] = useState(false);
   const [reportCancelling, setReportCancelling] = useState(false);
   const [reportUploadedBytes, setReportUploadedBytes] = useState(0);
-  const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(null);
+  const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(savedRunReportReceipt);
   const [reportError, setReportError] = useState("");
   const [reportDeleting, setReportDeleting] = useState(false);
   const [desktopSmokeProbe, setDesktopSmokeProbe] = useState<DesktopSmokeProbe | null>(null);
@@ -226,6 +264,18 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    try {
+      if (reportReceipt) {
+        window.localStorage.setItem(REPORT_RECEIPT_STORAGE_KEY, JSON.stringify(reportReceipt));
+      } else {
+        window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+      }
+    } catch {
+      // Receipt copying remains available if a locked-down webview denies local storage.
+    }
+  }, [reportReceipt]);
 
   const checkUpdates = useCallback(async (announce = false) => {
     if (updateChecking || updateInstalling) return;
@@ -1579,7 +1629,7 @@ export default function App() {
                   <div><p className="eyebrow">Accepted</p><h2>Run report {reportReceipt.caseId}</h2></div>
                   <CheckIcon className="settings-check" />
                 </div>
-                <p>The intake accepted {formatBytes(reportReceipt.bytes)} with the same SHA-256. Keep this receipt if you want support to find the report or delete it before its deadline.</p>
+                <p>The intake accepted {formatBytes(reportReceipt.bytes)} with the same SHA-256. Preflight keeps this deletion receipt on this computer until you delete the report, dismiss the receipt, or its deadline passes.</p>
                 <div className="report-facts">
                   <div><span>Received</span><strong>{new Date(reportReceipt.receivedAt).toLocaleString()}</strong></div>
                   <div><span>Retention deadline</span><strong>{new Date(reportReceipt.retentionDeadline).toLocaleString()}</strong></div>
@@ -1587,7 +1637,7 @@ export default function App() {
                 </div>
                 <div className="update-actions">
                   <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt()}>Copy receipt</button>
-                  <button className="button button--quiet button--compact" type="button" onClick={() => { setReportReceipt(null); setMessage("Receipt dismissed. Its deletion authorization is no longer shown here."); }}>I saved this receipt</button>
+                  <button className="button button--quiet button--compact" type="button" onClick={() => { setReportReceipt(null); setMessage("Receipt dismissed. Its local deletion authorization was removed."); }}>I saved this receipt</button>
                   <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded report"}</button>
                 </div>
               </section>

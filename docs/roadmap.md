@@ -57,7 +57,9 @@ early deletion. Production deployment and its direct canary are complete; a pack
 release-candidate canary still blocks enabling the compile-time origin. A local update-signed
 macOS package has now completed disclosure, consent, fail-closed recovery, retry, and receipt. The
 receipt's exact private object matched the disclosed size and SHA-256 through authenticated R2
-access; early deletion, packaged cancellation, and the hosted matrix remain.
+access and was then deleted through authenticated operator access. The desktop now retains an
+unexpired deletion receipt across restarts and removes the local authorization after deletion,
+dismissal, or expiry. Packaged cancellation and deletion plus the hosted matrix remain.
 Production provisioning is now complete: the private bucket has 14-day expiration, the signing key
 lives in Cloudflare's secret store, per-client edge brakes run before mutation work, and a
 day-sharded SQLite counter imposes an exact 500 MiB grant ceiling per UTC day. A live synthetic

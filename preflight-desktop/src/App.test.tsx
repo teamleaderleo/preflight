@@ -194,8 +194,64 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
 
   expect(await screen.findByRole("heading", { name: /Run report ed6ca0c8/ })).toBeInTheDocument();
   expect(screen.getByText(/was accepted/)).toBeInTheDocument();
+  await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).not.toBeNull());
   await user.click(screen.getByRole("button", { name: "Delete uploaded report" }));
   expect(await screen.findByText(/was deleted/)).toBeInTheDocument();
+  await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).toBeNull());
+});
+
+test("restores an unexpired report deletion receipt after restart", async () => {
+  const user = userEvent.setup();
+  const caseId = "ed6ca0c8-0417-45e5-864f-557680b00590";
+  window.localStorage.setItem("preflight.reportReceipt", JSON.stringify({
+    protocolVersion: 1,
+    caseId,
+    objectKey: `accepted/${caseId}.zip`,
+    bytes: 197_368,
+    sha256: "558766c179e293418d406b525613af435129673f519d9c26a093fa71f5d12260",
+    productVersion: "0.1.0",
+    receivedAt: new Date(Date.now() - 60_000).toISOString(),
+    retentionDeadline: new Date(Date.now() + 86_400_000).toISOString(),
+    deletion: {
+      method: "DELETE",
+      url: `https://reports.preview.invalid/v1/cases/${caseId}`,
+      token: "preview.deletion",
+    },
+    signature: "preview-signature",
+  }));
+
+  render(<App />);
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+
+  expect(await screen.findByRole("heading", { name: `Run report ${caseId}` })).toBeInTheDocument();
+  expect(screen.getByText(/keeps this deletion receipt on this computer/)).toBeInTheDocument();
+});
+
+test("discards an expired local report deletion receipt", async () => {
+  const caseId = "ed6ca0c8-0417-45e5-864f-557680b00590";
+  window.localStorage.setItem("preflight.reportReceipt", JSON.stringify({
+    protocolVersion: 1,
+    caseId,
+    objectKey: `accepted/${caseId}.zip`,
+    bytes: 197_368,
+    sha256: "558766c179e293418d406b525613af435129673f519d9c26a093fa71f5d12260",
+    productVersion: "0.1.0",
+    receivedAt: new Date(Date.now() - 120_000).toISOString(),
+    retentionDeadline: new Date(Date.now() - 60_000).toISOString(),
+    deletion: {
+      method: "DELETE",
+      url: `https://reports.preview.invalid/v1/cases/${caseId}`,
+      token: "preview.deletion",
+    },
+    signature: "preview-signature",
+  }));
+
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  expect(window.localStorage.getItem("preflight.reportReceipt")).toBeNull();
+  expect(screen.queryByRole("heading", { name: `Run report ${caseId}` })).not.toBeInTheDocument();
 });
 
 test("an unconfigured build keeps local export available and refuses report sending", async () => {

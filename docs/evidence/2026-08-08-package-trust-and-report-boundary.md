@@ -83,7 +83,16 @@ After aligning the validator and preview fixture with the operator-resolvable ke
 package accepted case `ba8dc755-b956-4568-92f1-fdbc9f162a9b`. The disclosed ZIP was 197,368 bytes
 with SHA-256 `558766c179e293418d406b525613af435129673f519d9c26a093fa71f5d12260`; an authenticated R2
 download matched both values exactly. The case remains private under its 2026-08-23 automatic
-expiration while deliberate early deletion awaits operator confirmation.
+expiration until deliberate deletion was authorized. The authenticated operator DELETE returned
+HTTP 200 and a cache-busted authenticated GET returned HTTP 404, confirming that the exact object
+was gone. Wrangler's ordinary object GET replayed the previous body during this check, so it wasn't
+used as deletion evidence.
+
+Rebuilding the app while its receipt screen was open also showed that the deletion authorization
+had lived only in React memory. The desktop now retains an exact, structurally checked, unexpired
+receipt in app-local storage. It removes the local authorization after deletion, explicit dismissal,
+or expiry. The native host still validates the configured origin, deletion URL, method, and token
+before sending any request, so modified local storage can't redirect the bearer credential.
 
 That package also exposed a first-run discovery boundary before any game launch. A macOS app can
 inherit `/` as its working directory, and the engine had treated it as an implicit recursive search
