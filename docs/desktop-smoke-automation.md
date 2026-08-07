@@ -120,6 +120,15 @@ the collector caps individual and total bytes, rejects duplicates and changing f
 SHA-256 itself, and atomically publishes the final document. The output filename is fixed so a
 driver can't redirect the write onto unrelated run evidence.
 
+The driver-neutral runner now owns the state machine that produces this request. It probes
+capabilities before attachment, reloads and validates `runtime-process.json` before every step,
+executes the scenario in exact order, and obtains a fresh observation after every window or input
+action. The first failure ends the run; permission/capability loss becomes `skipped`; a successful
+`quit` must leave the recorded JVM non-attachable. Driver calls run on a monotonic global deadline,
+with tighter probe, attachment, observation, and semantic-wait bounds. An interrupted adapter is
+required to stop input, and a subprocess-backed adapter must terminate its child. Mock-driver tests
+cover pass, skip, and mid-scenario failure without opening the game.
+
 ## Current macOS status
 
 The Codex-native accessibility bridge can synthesize input. The 2026-08-06 direct-launch probe

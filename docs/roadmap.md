@@ -50,7 +50,13 @@ whose operating system doesn't expose a start instant stays non-attachable.
 The driver-neutral evidence sealer is also implemented. It accepts only an ordered scenario result,
 turns missing capabilities into a skip rather than a pass, bounds diagnostics and artifact bytes,
 confines artifacts to the real run directory, hashes stable files itself, and publishes the accepted
-evidence atomically. Platform drivers and their permission probes remain the next smoke slice.
+evidence atomically. The driver-neutral runner composes those contracts: it gates capabilities,
+validates the live PID before each ordered step, requires a fresh observation after input, enforces
+monotonic call deadlines, stops on the first failure, and seals pass/skip/failure output through the
+engine. Its mock pass, missing-capability skip, and mid-run failure paths are covered without
+launching a game.
+The remaining work is a separately interruptible platform adapter, starting with isolated macOS
+PID-addressed window attachment.
 
 ## Measured result (2026-08-01, third campaign)
 

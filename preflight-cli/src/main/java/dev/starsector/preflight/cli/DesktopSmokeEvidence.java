@@ -40,7 +40,7 @@ final class DesktopSmokeEvidence {
             "id", "status", "startedAt", "completedAt", "detail", "artifacts");
     private static final Set<String> ARTIFACT_FIELDS = Set.of("kind", "path");
     private static final Set<String> STATUSES = Set.of("passed", "failed", "skipped");
-    private static final Set<String> PLATFORMS = Set.of("mac", "windows", "linux");
+    private static final Set<String> PLATFORMS = Set.of("mac", "windows", "linux", "other");
     private static final Set<String> ARTIFACT_KINDS = Set.of(
             "screenshot", "audio-window", "log-tail", "adapter-health", "frame-report");
 

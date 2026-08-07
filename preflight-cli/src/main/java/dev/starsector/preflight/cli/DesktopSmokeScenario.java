@@ -115,6 +115,14 @@ final class DesktopSmokeScenario {
         return steps.stream().map(Step::id).toList();
     }
 
+    int timeoutSeconds() {
+        return timeoutSeconds;
+    }
+
+    List<Map<String, Object>> stepViews() {
+        return steps.stream().map(Step::view).toList();
+    }
+
     private static Launch launch(Map<String, Object> value) {
         exactFields(value, LAUNCH_FIELDS, "launch");
         String preset = requireString(value, "preset");

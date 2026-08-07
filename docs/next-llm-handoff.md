@@ -46,8 +46,12 @@ The evidence boundary no longer trusts a platform driver to declare its own pass
 `desktop evidence collect` bridge checks the driver's bounded result against the scenario, enforces
 ordered steps and capability-aware outcomes, confines stable artifacts to the run directory,
 calculates their sizes and SHA-256 digests, and atomically writes `smoke-evidence.json`. The next
-implementation is the platform-driver protocol and a mock-driven runner, followed by an isolated
-macOS PID-attachment probe. Don't launch the game merely to exercise the driver-neutral pieces.
+layer is also implemented: a mock-tested driver interface and runner validate capabilities, reload
+the PID identity before each exact scenario step, demand a fresh observation after input, enforce
+monotonic deadlines, stop on the first failure, require quit to end attachment, and seal the result.
+The next implementation is an interruptible macOS adapter and isolated PID-addressed window probe,
+then equivalent Windows and Linux adapters. Don't launch the game merely to exercise the
+driver-neutral pieces.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are
