@@ -6,7 +6,9 @@ target/
 *.iml
 .vscode/
 node_modules/
+.wrangler/
 preflight-desktop/dist/
+report-intake/dist/
 preflight-desktop/desktop-dist/
 preflight-desktop/src-tauri/target/
 preflight-desktop/src-tauri/gen/

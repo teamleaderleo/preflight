@@ -321,6 +321,10 @@ The complete blocker list and publication checklist are in
 [Release readiness](docs/release-readiness.md). The public trust work is also tracked in
 [issue #294](https://github.com/teamleaderleo/preflight/issues/294).
 
+The consent-based support path is specified in [Diagnostics export](docs/diagnostics.md) and
+[Privacy](docs/privacy.md). Its private R2 intake and versioned protocol live in
+[`report-intake`](report-intake/README.md); deployment and desktop consent wiring remain release work.
+
 ## Analysis and mod tools
 
 The same codebase contains the tools used to find the startup work: JFR recording, exact

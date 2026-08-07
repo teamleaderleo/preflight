@@ -59,3 +59,7 @@ run report** action will transmit this exact bounded ZIP only after showing the 
 count, and SHA-256 and receiving explicit consent. It will return a case ID and retention deadline.
 It isn't a general telemetry channel, and automatic crash upload—if ever added—will be a separate,
 default-off choice. See the [product contract](product-contract.md) for the service boundary.
+
+The private intake protocol and hostile-ZIP checks now have a Worker-runtime implementation under
+[`report-intake`](../report-intake/README.md). It isn't deployed or connected to a desktop release
+yet. The privacy disclosure that must ship with that connection is in [Privacy](privacy.md).

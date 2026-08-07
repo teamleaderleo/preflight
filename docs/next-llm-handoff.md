@@ -94,10 +94,13 @@ accelerated; runtime transforms stay in memory and exact-identity/fail-closed; u
 lose optimizations but are never promised universal compatibility; and cache deletion remains
 separate from toggling a reader. The typed launch-preset engine model (**Recommended** default,
 **Conservative**, **Off / troubleshooting**) is wired through the CLI, desktop host, and agent;
-grouped advanced domains still belong behind a later disclosure. The upload backend is designed but
-isn't deployed: reuse the bounded evidence ZIP, explicit consent and digest preview, a short-lived
-single-object grant, server verification, signed receipt, rate limits, private short retention, and
-no embedded durable secret.
+grouped advanced domains still belong behind a later disclosure. The private report-intake Worker
+now implements the receiving boundary around the bounded evidence ZIP: short-lived case grants,
+hostile-ZIP and manifest verification, immutable private R2 writes, signed receipts, deletion grants,
+and a lifecycle deployment checklist. Worker-runtime tests and a real Java-export replay pass. It
+isn't deployed or connected to the desktop yet; explicit consent and digest preview, progress,
+cancellation/retry, production rate limits, and operator details remain release work. No durable
+secret belongs in the client.
 
 ## Where the launch is
 

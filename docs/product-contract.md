@@ -113,12 +113,12 @@ The service flow is:
 1. Client asks a small HTTPS intake service for a new case and short-lived upload grant, sending only
    product version, ZIP byte count, and SHA-256.
 2. Service applies IP/network rate limits and issues a random object key plus a short-lived,
-   single-object PUT grant. Cloudflare R2 presigned URLs are bearer grants scoped to a specific
-   operation, key, and expiry; content type can be part of the signature
-   ([R2 documentation](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)).
+   case-specific PUT grant. The grant is signed by the service, never placed in a URL, and authorizes
+   one immutable write through the Worker's private R2 binding.
 3. Client uploads the ZIP, then asks the service to finalize the case.
-4. Service verifies size, ZIP magic, bounded manifest schema, entry allowlist, and SHA-256 before
-   marking it accepted. A Worker can compute SHA-256 with Web Crypto
+4. Service verifies size, ZIP structure and decompression limits, bounded manifest schema, entry
+   allowlist, per-entry hashes, and the outer SHA-256 before marking it accepted. A Worker can
+   compute SHA-256 with Web Crypto
    ([Workers documentation](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/)).
 5. Service returns a case ID plus a server-signed receipt covering object key, digest, size,
    received time, product version, and retention deadline. The app displays and copies that receipt.

@@ -43,6 +43,10 @@ all-data removal also clears caches, profiles, evidence, and backups without tar
 An interrupted all-data removal blocks other mutations until it is explicitly resumed. The signed
 update client and fail-closed three-platform feed pipeline are now implemented; key provisioning,
 release-candidate update/rollback verification, and unattended desktop smoke automation follow.
+The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
+strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
+Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. Production
+provisioning and the desktop consent/progress/cancellation flow still block report submission.
 The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes
 its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
 driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime

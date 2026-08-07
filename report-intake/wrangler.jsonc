@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "preflight-report-intake",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-07",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  },
+  "r2_buckets": [
+    {
+      "binding": "REPORTS",
+      "bucket_name": "preflight-reports"
+    }
+  ],
+  "vars": {
+    "GRANT_TTL_SECONDS": "600",
+    "MAX_UPLOAD_BYTES": "6291456",
+    "PUBLIC_ORIGIN": "https://reports.preflight.invalid",
+    "RETENTION_DAYS": "14"
+  }
+}
