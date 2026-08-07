@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -42,6 +43,35 @@ final class MacDesktopSmokeDriverTest {
             assertFalse(script.toLowerCase().contains("starsector"), script);
             assertFalse(script.contains("open -a"), script);
             assertFalse(script.contains("tell application \"Starsector\""), script);
+        }
+    }
+
+    @Test
+    void generatedScriptsCompileWithoutResolvingOrLaunchingAnApplicationByName() throws Exception {
+        assumeTrue(Platform.current() == Platform.MAC);
+        long pid = 4_242L;
+        List<String> scripts = List.of(
+                MacDesktopSmokeDriver.windowBoundsScript(pid),
+                MacDesktopSmokeDriver.activateScript(pid),
+                MacDesktopSmokeDriver.observationScript(pid),
+                MacDesktopSmokeDriver.clickScript(
+                        pid, new MacDesktopSmokeDriver.TargetPoint(
+                                "main-menu.continue", 0.775, 0.300)),
+                MacDesktopSmokeDriver.keyCodeScript(pid, 13),
+                MacDesktopSmokeDriver.keyTransitionScript(pid, "w", true),
+                MacDesktopSmokeDriver.keyReleaseScript(pid, "w"),
+                MacDesktopSmokeDriver.quitScript(pid));
+        for (int index = 0; index < scripts.size(); index++) {
+            Path compiled = temporaryDirectory.resolve("driver-" + index + ".scpt");
+            Process process = new ProcessBuilder(
+                    "/usr/bin/osacompile", "-e", scripts.get(index), "-o", compiled.toString())
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(
+                    process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            assertTrue(process.waitFor(10, TimeUnit.SECONDS), output);
+            assertEquals(0, process.exitValue(), output + "\n" + scripts.get(index));
+            assertTrue(Files.isRegularFile(compiled));
         }
     }
 

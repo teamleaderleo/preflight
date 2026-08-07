@@ -168,10 +168,30 @@ java -jar preflight.jar desktop smoke run \
   /absolute/run
 ```
 
+The bridge can also own both processes from one command:
+
+```bash
+java -jar preflight.jar desktop smoke launch \
+  scripts/scenarios/campaign-roam.json \
+  /absolute/new-empty-run-directory \
+  --game /absolute/Starsector
+```
+
+It probes permissions before launching, refuses a nonempty evidence directory or another attachable
+tracked runtime, starts the packaged `run --fast --direct --desktop-smoke` path without a shell,
+waits for its process record, runs the scenario, and waits for bounded postprocessing. Its
+`finally` path rereads the identity and can terminate only the same PID/start-instant lifetime.
+The launch result and bounded launcher output remain in the run directory even when startup fails.
+
 The command probes current Accessibility permission before attachment. Screen Recording is proved
 by the first bounded capture; a denial becomes `skipped`. The generated scripts, PID-only boundary,
 coordinate math, key release, bounded screenshot, live evidence, and failure cleanup have isolated
 tests that don't open the game. One live isolated action test is still required before calling the
-macOS driver production-ready. Launching the game and starting this bridge are also still separate
-processes; the next orchestration slice joins them so the desktop UI can own one unattended run.
-Windows and Linux currently return an explicit unsupported-driver skip.
+macOS driver production-ready. Windows and Linux currently return an explicit unsupported-driver
+skip.
+
+A packaged no-launch probe is available as `desktop smoke probe`. On this development machine it
+reported Accessibility unavailable on 2026-08-07, so the live gate remains closed even though all
+generated scripts compile with Apple's real script compiler. Permission must be granted to the
+executable responsible for the bridge; trusting a different terminal, editor, or Java binary isn't
+treated as sufficient.

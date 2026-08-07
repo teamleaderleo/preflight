@@ -59,9 +59,14 @@ recorded JVM PID/start-instant lifetime, never an application name, and has boun
 commands, a reviewed relative Continue target, guaranteed key-up, window-only screenshots, and
 exact-process shutdown on every attached terminal outcome. Opt-in smoke launches publish live frame
 and adapter-health evidence once per second; ordinary launches do no extra work. Offline tests are
-green. The remaining macOS gate is one isolated live action run, followed by a single orchestrator
-that launches `run --desktop-smoke` and starts the bridge without an operator race. Windows and
-Linux adapters follow.
+green. `desktop smoke launch` now owns the whole run: it probes before launch, requires fresh
+evidence storage, rejects another tracked runtime, waits for the new process identity, and owns
+exact-process cleanup plus launcher postprocessing. The remaining macOS gate is one isolated live
+action run.
+
+The packaged `desktop smoke probe` currently reports that this bridge process lacks Accessibility
+trust, so don't attempt the game run until that exact permission is fixed. Windows and Linux
+adapters follow.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are

@@ -95,18 +95,72 @@ final class DesktopBridgeCommand {
     }
 
     private static int smoke(String[] args, int offset) throws IOException {
+        if (args.length == offset + 1 && "probe".equals(args[offset])) {
+            DesktopSmokeDriver driver = driver();
+            Map<String, Object> probe = new LinkedHashMap<>();
+            try {
+                DesktopSmokeDriver.Descriptor descriptor = driver.descriptor();
+                probe.put("ready", true);
+                probe.put("driver", descriptor(descriptor));
+                probe.put("diagnostics", descriptor.diagnostics());
+            } catch (DesktopSmokeDriver.UnavailableException unavailable) {
+                probe.put("ready", false);
+                probe.put("driver", null);
+                probe.put("diagnostics", List.of(unavailable.getMessage()));
+            } catch (Exception failure) {
+                probe.put("ready", false);
+                probe.put("driver", null);
+                probe.put("diagnostics", List.of(
+                        "Desktop smoke probe failed: " + failure.getClass().getSimpleName()
+                                + ": " + failure.getMessage()));
+            }
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("protocol", PROTOCOL_VERSION);
+            response.put("probe", probe);
+            System.out.println(Json.object(response));
+            return 0;
+        }
+        if (offset < args.length && "launch".equals(args[offset])) {
+            if (args.length < offset + 3) {
+                throw new IllegalArgumentException(
+                        "Expected desktop bridge request: desktop smoke launch "
+                                + "<scenario.json> <run-directory> "
+                                + "[--game <path>] [--launcher <path>]");
+            }
+            DesktopSmokeScenario scenario = DesktopSmokeScenario.read(Path.of(args[offset + 1]));
+            Path runDirectory = Path.of(args[offset + 2]);
+            SmokeLaunchOptions options = SmokeLaunchOptions.parse(args, offset + 3);
+            DesktopSmokeDriver driver = driver();
+            Map<String, Object> launched;
+            try {
+                launched = DesktopSmokeLaunch.launch(
+                        scenario,
+                        runDirectory,
+                        options.game(),
+                        options.launcher(),
+                        driver,
+                        java.time.Clock.systemUTC());
+            } catch (Exception failure) {
+                throw failure instanceof IOException io
+                        ? io
+                        : new IOException("Desktop smoke launch failed", failure);
+            }
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("protocol", PROTOCOL_VERSION);
+            response.put("launch", launched);
+            System.out.println(Json.object(response));
+            return 0;
+        }
         if (args.length != offset + 4 || !"run".equals(args[offset])) {
             throw new IllegalArgumentException(
-                    "Expected desktop bridge request: desktop smoke run "
-                            + "<scenario.json> <runtime-process.json> <run-directory>");
+                    "Expected desktop smoke request: run <scenario.json> "
+                            + "<runtime-process.json> <run-directory>, or launch "
+                            + "<scenario.json> <run-directory>");
         }
         DesktopSmokeScenario scenario = DesktopSmokeScenario.read(Path.of(args[offset + 1]));
         Path runtimeProcess = Path.of(args[offset + 2]);
         Path runDirectory = Path.of(args[offset + 3]);
-        DesktopSmokeDriver driver = switch (Platform.current()) {
-            case MAC -> new MacDesktopSmokeDriver();
-            default -> new UnavailableDesktopSmokeDriver();
-        };
+        DesktopSmokeDriver driver = driver();
         Map<String, Object> evidence = DesktopSmokeRunner.run(
                 scenario, runtimeProcess, runDirectory, driver, java.time.Clock.systemUTC());
         Map<String, Object> response = new LinkedHashMap<>();
@@ -114,6 +168,41 @@ final class DesktopBridgeCommand {
         response.put("evidence", evidence);
         System.out.println(Json.object(response));
         return 0;
+    }
+
+    private static DesktopSmokeDriver driver() {
+        return switch (Platform.current()) {
+            case MAC -> new MacDesktopSmokeDriver();
+            default -> new UnavailableDesktopSmokeDriver();
+        };
+    }
+
+    private static Map<String, Object> descriptor(DesktopSmokeDriver.Descriptor descriptor) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("id", descriptor.id());
+        value.put("version", descriptor.version());
+        value.put("platform", descriptor.platform());
+        value.put("capabilities", descriptor.capabilities());
+        return value;
+    }
+
+    private record SmokeLaunchOptions(Path game, Path launcher) {
+        private static SmokeLaunchOptions parse(String[] args, int offset) {
+            Path game = null;
+            Path launcher = null;
+            for (int index = offset; index < args.length; index++) {
+                String option = args[index];
+                if ("--game".equals(option) && index + 1 < args.length) {
+                    game = Path.of(args[++index]);
+                } else if ("--launcher".equals(option) && index + 1 < args.length) {
+                    launcher = Path.of(args[++index]);
+                } else {
+                    throw new IllegalArgumentException(
+                            "Unknown desktop smoke launch option: " + option);
+                }
+            }
+            return new SmokeLaunchOptions(game, launcher);
+        }
     }
 
     private static final class UnavailableDesktopSmokeDriver implements DesktopSmokeDriver {

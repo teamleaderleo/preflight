@@ -81,10 +81,6 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             throw new IllegalArgumentException("A PID and process start instant are required");
         }
         requireSameLifetime(target);
-        WindowBounds bounds = windowBounds(target.pid());
-        if (bounds.width() < 100 || bounds.height() < 100) {
-            throw new UnavailableException("The recorded process has no usable game window");
-        }
         this.target = target;
     }
 
