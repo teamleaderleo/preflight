@@ -54,13 +54,16 @@ Worker-runtime tests. A real ZIP from the Java exporter completed its local life
 now reviews the exact entry list, size, digest, and exclusions; the native host revalidates and
 streams the file with progress/cancellation; and the accepted receipt can be copied or used for
 early deletion. Production deployment and its direct canary are complete; a packaged
-release-candidate canary still blocks enabling the compile-time origin.
+release-candidate canary still blocks enabling the compile-time origin. A local update-signed
+macOS package has now completed disclosure, consent, fail-closed recovery, retry, and receipt. The
+receipt's exact private object matched the disclosed size and SHA-256 through authenticated R2
+access; early deletion, packaged cancellation, and the hosted matrix remain.
 Production provisioning is now complete: the private bucket has 14-day expiration, the signing key
 lives in Cloudflare's secret store, per-client edge brakes run before mutation work, and a
 day-sharded SQLite counter imposes an exact 500 MiB grant ceiling per UTC day. A live synthetic
 create/upload/finalize/delete canary passed and left the bucket empty. The remaining gate is the
-same flow through a packaged release candidate; development and distributed builds still omit the
-compile-time intake origin.
+rest of that packaged lifecycle plus the complete hosted candidate; development and distributed
+builds still omit the compile-time intake origin.
 The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes
 its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
 driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime

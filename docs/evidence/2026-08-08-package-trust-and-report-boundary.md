@@ -59,7 +59,7 @@ publish its contents.
   daily byte reservations, and the production canary client against the local Worker/R2 runtime;
 - desktop frontend tests passed;
 - 28 desktop release/prepared-contract tests passed after refreshing the prepared engine;
-- 15 Rust host tests passed; and
+- 16 Rust host tests passed; and
 - the local `test:release` command now prepares the engine before checking its packaged legal and
   scenario boundary, preventing stale generated dependencies from producing a false failure.
 
@@ -74,3 +74,20 @@ authenticated deletion against deployed version `5a9c4e0d-d740-4271-af65-f5b98da
 synthetic archive was 902 bytes, finalization stopped seeing it after deletion, and the bucket
 subsequently reported zero objects and zero stored bytes. No public package or paid service was
 created, the desktop release build still omits the intake origin, and no game launch was needed.
+
+A local update-signed macOS package then exercised the real desktop disclosure and consent flow
+against production. Its first upload found a stale client-side receipt assumption: the service and
+operator contract use `accepted/{caseId}.zip`, while the desktop still expected a dated key. The
+desktop rejected the inconsistent receipt and deleted the incomplete server case automatically.
+After aligning the validator and preview fixture with the operator-resolvable key, the rebuilt
+package accepted case `ba8dc755-b956-4568-92f1-fdbc9f162a9b`. The disclosed ZIP was 197,368 bytes
+with SHA-256 `558766c179e293418d406b525613af435129673f519d9c26a093fa71f5d12260`; an authenticated R2
+download matched both values exactly. The case remains private under its 2026-08-23 automatic
+expiration while deliberate early deletion awaits operator confirmation.
+
+That package also exposed a first-run discovery boundary before any game launch. A macOS app can
+inherit `/` as its working directory, and the engine had treated it as an implicit recursive search
+root. A protected `/Library/Trial` descendant escaped the lazy walk as an unchecked I/O failure.
+Implicit filesystem roots are now skipped, unreadable descendants are contained, and a regression
+test covers the packaged working-directory condition. Running the rebuilt engine from `/` selected
+`/Applications/Starsector.app` directly and reported the skipped implicit root as a diagnostic.

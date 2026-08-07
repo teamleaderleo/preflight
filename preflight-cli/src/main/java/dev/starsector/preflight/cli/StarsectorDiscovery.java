@@ -1,8 +1,11 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -48,7 +51,7 @@ final class StarsectorDiscovery {
         if (explicitGame == null) {
             addRoot(roots, pathFromEnvironment(environment, "STARSECTOR_HOME"));
             addRoot(roots, pathFromEnvironment(environment, "STARSECTOR_DIR"));
-            addRoot(roots, currentDirectory);
+            addImplicitWorkingDirectory(roots, currentDirectory, diagnostics);
             addStandardRoots(roots, platform, home, environment);
         }
 
@@ -86,13 +89,7 @@ final class StarsectorDiscovery {
             if (isAppBundle(root)) {
                 inspectAppBundle(platform, root, targets);
             }
-            try (Stream<Path> paths = Files.walk(root, 3)) {
-                paths.filter(Files::isRegularFile)
-                        .filter(StarsectorDiscovery::looksLikeLauncher)
-                        .forEach(path -> addTarget(
-                                targets,
-                                targetForLauncher(platform, root, path, 0, "discovered under " + root)));
-            }
+            inspectTree(platform, root, targets, diagnostics);
             try (Stream<Path> children = Files.list(root)) {
                 children.filter(Files::isDirectory)
                         .filter(StarsectorDiscovery::isAppBundle)
@@ -101,6 +98,36 @@ final class StarsectorDiscovery {
         } catch (IOException error) {
             diagnostics.add("Could not inspect " + root + ": " + error.getMessage());
         }
+    }
+
+    private static void inspectTree(
+            Platform platform,
+            Path root,
+            Map<Path, LaunchTarget> targets,
+            List<String> diagnostics) throws IOException {
+        Files.walkFileTree(root, Set.of(), 3, new SimpleFileVisitor<>() {
+            private boolean reportedUnreadable;
+
+            @Override
+            public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) {
+                if (attributes.isRegularFile() && looksLikeLauncher(path)) {
+                    addTarget(
+                            targets,
+                            targetForLauncher(platform, root, path, 0, "discovered under " + root));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path path, IOException error) {
+                if (!reportedUnreadable) {
+                    diagnostics.add("Skipped an unreadable discovery path under " + root + ": "
+                            + path + ": " + error.getMessage());
+                    reportedUnreadable = true;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     private static void inspectAppBundle(Platform platform, Path app, Map<Path, LaunchTarget> targets) {
@@ -267,5 +294,18 @@ final class StarsectorDiscovery {
         if (path != null) {
             roots.add(path);
         }
+    }
+
+    private static void addImplicitWorkingDirectory(
+            Set<Path> roots, Path currentDirectory, List<String> diagnostics) {
+        if (currentDirectory == null) {
+            return;
+        }
+        Path normalized = currentDirectory.toAbsolutePath().normalize();
+        if (normalized.getParent() == null) {
+            diagnostics.add("Skipped filesystem root as an implicit discovery directory: " + normalized);
+            return;
+        }
+        roots.add(normalized);
     }
 }

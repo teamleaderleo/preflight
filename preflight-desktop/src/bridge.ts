@@ -192,7 +192,7 @@ export async function sendRunReport(report: DiagnosticsExport): Promise<ReportRe
     return {
       protocolVersion: 1,
       caseId,
-      objectKey: `accepted/2026-08-07/${caseId}.zip`,
+      objectKey: `accepted/${caseId}.zip`,
       bytes: report.bytes,
       sha256: report.sha256,
       productVersion: "preview",

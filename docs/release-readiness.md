@@ -66,8 +66,10 @@ first public beta.
   create/upload/finalize/delete canary. The canary left the bucket empty.
 - [ ] Put the intake origin in a packaged release candidate and exercise disclosure, consent,
   cancel/retry, receipt, and deletion through the packaged UI. Distributed builds continue to omit
-  the origin until that final canary passes. The private signed-candidate path now compiles the
-  reviewed origin; its first complete workflow run and packaged UI canary remain.
+  the origin until that final canary passes. A local update-signed macOS package has completed
+  disclosure, consent, fail-closed receipt recovery, retry, and a receipt whose exact object was
+  verified through authenticated R2 access. Early deletion, packaged cancellation, and the first
+  complete hosted candidate matrix remain.
 - [x] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete. No automatic crash-upload path is present.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an

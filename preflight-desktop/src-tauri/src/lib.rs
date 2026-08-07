@@ -1533,7 +1533,7 @@ fn validate_report_receipt(
         }
     }) || receipt.protocol_version != REPORT_PROTOCOL_VERSION
         || receipt.case_id != case_id
-        || receipt.object_key != format!("accepted/{received_date}/{case_id}.zip")
+        || receipt.object_key != format!("accepted/{case_id}.zip")
         || receipt.bytes != report.bytes
         || receipt.sha256 != report.sha256
         || receipt.product_version != env!("CARGO_PKG_VERSION")
@@ -2429,12 +2429,13 @@ pub fn run() {
 mod tests {
     use super::{
         DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess, LaunchSettingsInput,
-        PreparationProcess, ProcessState, ReportUploadInput, ReportUploadProcess, UPDATE_ENDPOINT,
-        begin_exit_cleanup, desktop_smoke_cancellation_outcome,
-        desktop_smoke_cancellation_requested, desktop_smoke_outcome, diagnostic_output_path,
-        parse_preparation_progress, read_tail, refuse_update_install, take_deferred_exit,
-        validate_launch_settings, validate_optimization_preset, validate_removal_scope,
-        validate_report_origin, validated_case_url, validated_report_archive,
+        PreparationProcess, ProcessState, ReportDeletion, ReportReceipt, ReportUploadInput,
+        ReportUploadProcess, UPDATE_ENDPOINT, begin_exit_cleanup,
+        desktop_smoke_cancellation_outcome, desktop_smoke_cancellation_requested,
+        desktop_smoke_outcome, diagnostic_output_path, parse_preparation_progress, read_tail,
+        refuse_update_install, take_deferred_exit, validate_launch_settings,
+        validate_optimization_preset, validate_removal_scope, validate_report_origin,
+        validate_report_receipt, validated_case_url, validated_report_archive,
     };
     use std::fs;
     use std::io::Cursor;
@@ -2570,6 +2571,38 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn report_receipt_matches_the_flat_operator_resolvable_object_key() {
+        let origin = validate_report_origin(Some("https://reports.example.com")).unwrap();
+        let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
+        let report = ReportUploadInput {
+            output: "/unused/report.zip".to_string(),
+            bytes: 197_375,
+            sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".to_string(),
+        };
+        let receipt = ReportReceipt {
+            protocol_version: 1,
+            case_id: case_id.to_string(),
+            object_key: format!("accepted/{case_id}.zip"),
+            bytes: report.bytes,
+            sha256: report.sha256.clone(),
+            product_version: env!("CARGO_PKG_VERSION").to_string(),
+            received_at: "2026-08-07T18:00:00.000Z".to_string(),
+            retention_deadline: "2026-08-22T18:00:00.000Z".to_string(),
+            deletion: ReportDeletion {
+                method: "DELETE".to_string(),
+                url: format!("https://reports.example.com/v1/cases/{case_id}"),
+                token: "header.signature".to_string(),
+            },
+            signature: "signed-receipt".to_string(),
+        };
+
+        assert!(validate_report_receipt(&origin, &receipt, case_id, &report).is_ok());
+        let mut stale = receipt;
+        stale.object_key = format!("accepted/2026-08-07/{case_id}.zip");
+        assert!(validate_report_receipt(&origin, &stale, case_id, &report).is_err());
     }
 
     #[test]

@@ -96,4 +96,21 @@ class StarsectorDiscoveryTest {
         assertEquals("\"" + launcher.toAbsolutePath().normalize() + "\"", result.selected().command().get(5));
         assertEquals(launcher.toAbsolutePath().normalize(), result.selected().launcher());
     }
+
+    @Test
+    void doesNotRecursivelyInspectFilesystemRootFromPackagedWorkingDirectory() throws Exception {
+        Path filesystemRoot = temporaryDirectory.toAbsolutePath().getRoot();
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.OTHER,
+                temporaryDirectory,
+                filesystemRoot,
+                Map.of(),
+                null,
+                null);
+
+        assertTrue(result.candidates().isEmpty());
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(message -> message.contains("Skipped filesystem root as an implicit discovery directory")));
+    }
 }
