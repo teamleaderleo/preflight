@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Hashes;
+import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.io.InputStream;
@@ -60,7 +61,7 @@ public final class PrepareAudioCommand {
         Path install = InstallRoot.resolve(game);
         cache = cache.toAbsolutePath().normalize();
         if (output == null) {
-            output = cache.resolve("prepared-audio").resolve("bake.json");
+            output = PreparedAudioCache.root(cache).resolve("bake.json");
         }
 
         ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(install);
@@ -91,7 +92,7 @@ public final class PrepareAudioCommand {
         List<Path> gameJars = jars(install);
         String decoderIdentity = decoderPolicyIdentity(gameJars);
         String gameBuildIdentity = starsectorBuildIdentity(gameJars);
-        Path manifest = cache.resolve("prepared-audio").resolve("manifests")
+        Path manifest = PreparedAudioCache.manifestDirectory(cache)
                 .resolve(index.profileFingerprint() + ".spam");
 
         Path workFile = Files.createTempFile("preflight-prepared-audio", ".tsv");

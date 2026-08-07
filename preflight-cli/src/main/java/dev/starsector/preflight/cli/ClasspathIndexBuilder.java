@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.ClasspathProfileIndex;
 import dev.starsector.preflight.core.ClasspathProfileIndexIO;
+import dev.starsector.preflight.core.ClasspathCacheDirectories;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.JarArchiveIndex;
 import dev.starsector.preflight.core.JarArchiveIndexIO;
@@ -41,8 +42,8 @@ final class ClasspathIndexBuilder {
         List<String> diagnostics = new ArrayList<>();
         Discovery discovery = discover(installRoot, diagnostics);
         String fingerprint = profileFingerprint(discovery.enabledModIds(), discovery.sources());
-        Path profileRelative = Path.of("classpath", "profiles", fingerprint + ".spfc");
-        Path profilePath = cacheRoot.resolve(profileRelative).normalize();
+        Path profilePath = ClasspathCacheDirectories.profiles(cacheRoot)
+                .resolve(fingerprint + ".spfc").normalize();
 
         if (Files.isRegularFile(profilePath)) {
             try {
@@ -88,10 +89,11 @@ final class ClasspathIndexBuilder {
                 continue;
             }
 
-            String archiveRelativeText = "classpath/archives/" + sourceHash.substring(0, 2)
-                    + "/" + sourceHash + ".spfj";
-            Path archiveRelative = Path.of(archiveRelativeText);
-            Path archivePath = cacheRoot.resolve(archiveRelative).normalize();
+            Path archivePath = ClasspathCacheDirectories.archives(cacheRoot)
+                    .resolve(sourceHash.substring(0, 2))
+                    .resolve(sourceHash + ".spfj").normalize();
+            String archiveRelativeText = cacheRoot.relativize(archivePath)
+                    .toString().replace('\\', '/');
             if (!archivePath.startsWith(cacheRoot)) {
                 diagnostics.add("Archive cache path escaped the cache root for " + source.relativePath());
                 failures++;

@@ -34,8 +34,12 @@ final class CurrentTextureCache {
                     + "only after the profile is internally consistent");
         }
 
-        Path index = firstArtifact(realCache, fingerprint + ".spfi", List.of("resource-indexes", "indexes"));
-        Path manifest = artifact(realCache, realCache.resolve("manifests").resolve(fingerprint + ".spfm"));
+        Path indexCandidate = ResourceIndexIO.directory(realCache).resolve(fingerprint + ".spfi");
+        Path index = Files.isRegularFile(indexCandidate)
+                ? artifact(realCache, indexCandidate)
+                : firstArtifact(realCache, fingerprint + ".spfi", List.of("indexes"));
+        Path manifest = artifact(realCache,
+                TextureManifestIO.directory(realCache).resolve(fingerprint + ".spfm"));
         ResourceIndex stored = ResourceIndexIO.read(index);
         TextureManifest prepared = TextureManifestIO.read(manifest);
 

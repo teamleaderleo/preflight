@@ -14,13 +14,23 @@ public final class GeneratedBytecodeCache {
     private GeneratedBytecodeCache() {
     }
 
+    public static Path root(Path cacheRoot) {
+        Path root = Objects.requireNonNull(cacheRoot, "cacheRoot");
+        if (GeneratedBytecodeBundle.FORMAT_VERSION == 1
+                && GeneratedBytecodePack.FORMAT_VERSION == 1) {
+            return root.resolve("generated-bytecode");
+        }
+        return root.resolve("generated-bytecode-v" + GeneratedBytecodeBundle.FORMAT_VERSION
+                + "-pack-v" + GeneratedBytecodePack.FORMAT_VERSION);
+    }
+
     public static Path bundlePath(Path cacheRoot, String contextKeySha256, String requestedClassName) {
         Objects.requireNonNull(cacheRoot, "cacheRoot");
         Hashes.decodeSha256(contextKeySha256);
         String context = contextKeySha256.toLowerCase(Locale.ROOT);
         String requestHash = Hashes.sha256(requestedClassName.getBytes(StandardCharsets.UTF_8));
         Path root = cacheRoot.toAbsolutePath().normalize();
-        Path target = root.resolve("generated-bytecode")
+        Path target = root(cacheRoot).toAbsolutePath().normalize()
                 .resolve(context.substring(0, 2))
                 .resolve(context)
                 .resolve(requestHash + ".spjb")

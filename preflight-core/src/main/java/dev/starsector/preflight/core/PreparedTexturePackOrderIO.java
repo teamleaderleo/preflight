@@ -23,7 +23,7 @@ import java.util.List;
 /** Checksummed observed access order used to lay out a profile's next texture pack. */
 public final class PreparedTexturePackOrderIO {
     private static final byte[] MAGIC = {'S', 'P', 'F', 'O'};
-    private static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 1;
     private static final int CHECKSUM_BYTES = 32;
     private static final int HEADER_BYTES = MAGIC.length + Integer.BYTES * 2;
     private static final int MAX_FILE_BYTES = 64 * 1024 * 1024;

@@ -5,6 +5,8 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
+import dev.starsector.preflight.core.PreparedAudioCache;
+import dev.starsector.preflight.core.SpecStoreCacheDirectories;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -999,7 +1001,7 @@ final class RunCommand {
             ProfileIdentityContext context, Path cacheRoot) {
         long started = System.nanoTime();
         try {
-            Path preparedRoot = cacheRoot.resolve("prepared-audio");
+            Path preparedRoot = PreparedAudioCache.root(cacheRoot);
             if (!Files.isDirectory(preparedRoot)) {
                 System.out.println("No prepared audio for this installation yet; "
                         + "run `preflight audio prepare` to build it.");
@@ -1007,7 +1009,7 @@ final class RunCommand {
             }
             List<Path> gameJars = PrepareAudioCommand.jars(context.installRoot());
             String decoder = PrepareAudioCommand.decoderPolicyIdentity(gameJars);
-            Path manifestPath = preparedRoot.resolve("manifests")
+            Path manifestPath = PreparedAudioCache.manifestDirectory(cacheRoot)
                     .resolve(context.resources().profileFingerprint() + ".spam")
                     .toAbsolutePath().normalize();
             if (!Files.isRegularFile(manifestPath)) {
@@ -1055,7 +1057,7 @@ final class RunCommand {
         } catch (Exception error) {
             declined("prepared audio path index", error);
             try {
-                if (Files.isDirectory(cacheRoot.resolve("prepared-audio"))) {
+                if (Files.isDirectory(PreparedAudioCache.root(cacheRoot))) {
                     String decoder = PrepareAudioCommand.decoderPolicyIdentity(
                             PrepareAudioCommand.jars(context.installRoot()));
                     return new PreparedAudioCacheContext(cacheRoot, decoder, null, null);
@@ -1101,7 +1103,9 @@ final class RunCommand {
         try {
             VariantJsonProfileIdentityBuilder.Result profile =
                     VariantJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "variant-json", profile.identitySha256(), ".spvj");
+            Path artifact = artifact(
+                    SpecStoreCacheDirectories.variantJson(textures.cacheDirectory()),
+                    profile.identitySha256(), ".spvj");
             report("variant JSON", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d paths, %d providers",
                             profile.logicalPaths(), profile.providerCount()));
@@ -1118,7 +1122,9 @@ final class RunCommand {
         try {
             WeaponJsonProfileIdentityBuilder.Result profile =
                     WeaponJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "weapon-json", profile.identitySha256(), ".spwj");
+            Path artifact = artifact(
+                    SpecStoreCacheDirectories.weaponJson(textures.cacheDirectory()),
+                    profile.identitySha256(), ".spwj");
             report("weapon JSON", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d paths, %d providers",
                             profile.logicalPaths(), profile.providerCount()));
@@ -1135,7 +1141,9 @@ final class RunCommand {
         try {
             ProjectileJsonProfileIdentityBuilder.Result profile =
                     ProjectileJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "projectile-json", profile.identitySha256(), ".sppj");
+            Path artifact = artifact(
+                    SpecStoreCacheDirectories.projectileJson(textures.cacheDirectory()),
+                    profile.identitySha256(), ".sppj");
             report("projectile JSON", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d paths, %d providers",
                             profile.logicalPaths(), profile.providerCount()));
@@ -1152,7 +1160,9 @@ final class RunCommand {
         try {
             HullJsonProfileIdentityBuilder.Result profile =
                     HullJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "hull-json", profile.identitySha256(), ".sphj");
+            Path artifact = artifact(
+                    SpecStoreCacheDirectories.hullJson(textures.cacheDirectory()),
+                    profile.identitySha256(), ".sphj");
             report("hull JSON", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d paths, %d providers",
                             profile.logicalPaths(), profile.providerCount()));
@@ -1169,7 +1179,9 @@ final class RunCommand {
         try {
             RulesCsvProfileIdentityBuilder.Result profile =
                     RulesCsvProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "rules-csv", profile.identitySha256(), ".sprc");
+            Path artifact = artifact(
+                    SpecStoreCacheDirectories.rulesCsv(textures.cacheDirectory()),
+                    profile.identitySha256(), ".sprc");
             report("rules CSV", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d providers", profile.providerCount()));
             return new RulesCsvCacheContext(artifact);
@@ -1185,8 +1197,9 @@ final class RunCommand {
         try {
             RuleCommandClassProfileIdentityBuilder.Result profile =
                     RuleCommandClassProfileIdentityBuilder.build(context);
-            Path artifact =
-                    artifact(textures, "rule-command-classes", profile.identitySha256(), ".sprk");
+            Path artifact = artifact(
+                    SpecStoreCacheDirectories.ruleCommandClasses(textures.cacheDirectory()),
+                    profile.identitySha256(), ".sprk");
             report("rule command class", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d settings.json providers, %d jars, %.1f MB",
                             profile.settingsProviderCount(), profile.jarCount(),
@@ -1204,7 +1217,9 @@ final class RunCommand {
         try {
             MergedReadProfileIdentityBuilder.Result profile =
                     MergedReadProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "merged-reads", profile.identitySha256(), ".spmr");
+            Path artifact = artifact(
+                    SpecStoreCacheDirectories.mergedReads(textures.cacheDirectory()),
+                    profile.identitySha256(), ".spmr");
             report("merged read", profile.identitySha256(), started, artifact,
                     String.format(Locale.ROOT, "%d paths, %d providers",
                             profile.logicalPaths(), profile.providerCount()));
@@ -1215,11 +1230,8 @@ final class RunCommand {
         }
     }
 
-    private static Path artifact(
-            TextureLaunchContext textures, String store, String identity, String extension) {
-        return textures.cacheDirectory()
-                .resolve("spec-store").resolve(store)
-                .resolve(identity + extension)
+    private static Path artifact(Path store, String identity, String extension) {
+        return store.resolve(identity + extension)
                 .toAbsolutePath().normalize();
     }
 

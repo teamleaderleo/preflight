@@ -52,6 +52,17 @@ writer must also change the artifact identity or namespace so the new representa
 with data needed by an older release. Migration stays copy-on-write; an update doesn't rewrite the
 game, mods, saves, or every existing cache in place.
 
+The public-beta cache layout is now the established namespace for texture blobs and packs,
+resource indexes, manifests, prepared audio, spec stores, classpath indexes, and generated
+bytecode. Their current paths remain unchanged. A later binary-format version automatically moves
+that store into a suffixed namespace, while coupled formats such as classpath profiles and archive
+indexes move together. The previous directory remains available to an older Preflight package, so
+rolling back doesn't first destroy the preparation needed by that release.
+
+Cache pruning operates on the active format namespaces. Older namespaces are retained for rollback
+until the user explicitly clears broader cached data; an application update doesn't silently treat
+an unfamiliar old representation as disposable space.
+
 Named mod profiles are user data rather than application state. A future profile schema needs an
 explicit reader or migration and must preserve the previous file until the replacement is accepted.
 

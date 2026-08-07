@@ -31,6 +31,14 @@ public final class TextureManifestIO {
     private TextureManifestIO() {
     }
 
+    public static Path directory(Path cacheRoot) {
+        if (TextureManifest.FORMAT_VERSION == 1 && PreparedTexture.FORMAT_VERSION == 1) {
+            return cacheRoot.resolve("manifests");
+        }
+        return cacheRoot.resolve("manifests-v" + TextureManifest.FORMAT_VERSION
+                + "-blobs-v" + PreparedTexture.FORMAT_VERSION);
+    }
+
     public static void write(Path target, TextureManifest manifest) throws IOException {
         Path absolute = target.toAbsolutePath().normalize();
         if (absolute.getParent() != null) {

@@ -164,7 +164,7 @@ final class TextureBatchBuilder {
             }
 
             TextureManifest manifest = new TextureManifest(index.profileFingerprint(), manifestEntries);
-            Path manifestPath = cacheRoot.resolve("manifests")
+            Path manifestPath = TextureManifestIO.directory(cacheRoot)
                     .resolve(index.profileFingerprint() + ".spfm");
             TextureManifestIO.write(manifestPath, manifest);
             PackResult pack = ensurePack(cacheRoot, manifest);
@@ -696,7 +696,8 @@ final class TextureBatchBuilder {
         String codecSuffix = storageCodec == PreparedTextureIO.StorageCodec.RAW
                 ? ""
                 : "-" + storageCodec.suffix();
-        return "blobs/" + key.sourceSha256().substring(0, 2) + "/"
+        return PreparedTextureIO.cacheDirectoryName() + "/"
+                + key.sourceSha256().substring(0, 2) + "/"
                 + key.sourceSha256() + "-" + suffix + codecSuffix + ".spft";
     }
 

@@ -6,6 +6,7 @@ import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.ResourceIndexValidator;
 import dev.starsector.preflight.core.SpecStoreProfileIdentity;
+import dev.starsector.preflight.core.SpecStoreCacheDirectories;
 import dev.starsector.preflight.core.TextureManifestValidator;
 import dev.starsector.preflight.core.TextureMemoryEstimator;
 import java.io.IOException;
@@ -157,7 +158,7 @@ final class PrepareCommand {
                         ? ResourceIndexBuilder.build(target.installRoot())
                         : plannedResourceBuild;
                 ResourceIndex selected = built.index();
-                Path output = cache.resolve("resource-indexes")
+                Path output = ResourceIndexIO.directory(cache)
                         .resolve(selected.profileFingerprint() + ".spfi");
                 boolean artifactHit = false;
                 if (Files.isRegularFile(output)) {
@@ -237,7 +238,7 @@ final class PrepareCommand {
                 SpecStoreProfileIdentityBuilder.Result built = SpecStoreProfileIdentityBuilder.build(
                         target.installRoot(), resourceIndex, classpathIndex);
                 SpecStoreProfileIdentity identity = built.identity();
-                Path output = cache.resolve("spec-store/profiles")
+                Path output = SpecStoreCacheDirectories.profiles(cache)
                         .resolve(identity.identitySha256() + ".json")
                         .toAbsolutePath().normalize();
                 Map<String, Object> artifact = new LinkedHashMap<>();

@@ -22,6 +22,7 @@ import java.util.Objects;
 /** Versioned raw blob persistence for upload-ready texture data. */
 public final class PreparedTextureIO {
     public static final String SINGLE_READ_LZ4_PROPERTY = "preflight.texture.singleReadLz4";
+    private static final int ESTABLISHED_FORMAT_VERSION = 1;
     private static final byte[] MAGIC = {'S', 'P', 'F', 'T'};
     private static final int CHECKSUM_BYTES = 32;
     private static final int SHA256_BYTES = 32;
@@ -37,6 +38,16 @@ public final class PreparedTextureIO {
             ThreadLocal.withInitial(() -> new byte[0]);
 
     private PreparedTextureIO() {
+    }
+
+    public static String cacheDirectoryName() {
+        return CacheFormatNamespace.name(
+                "blobs", PreparedTexture.FORMAT_VERSION, ESTABLISHED_FORMAT_VERSION);
+    }
+
+    public static Path cacheDirectory(Path cacheRoot) {
+        return CacheFormatNamespace.directory(
+                cacheRoot, "blobs", PreparedTexture.FORMAT_VERSION, ESTABLISHED_FORMAT_VERSION);
     }
 
     public static void write(Path target, PreparedTexture texture) throws IOException {

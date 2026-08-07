@@ -5,6 +5,8 @@ import dev.starsector.preflight.core.PreparedTextureIO;
 import dev.starsector.preflight.core.PreparedTexturePack;
 import dev.starsector.preflight.core.PreparedTexturePackIO;
 import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.ResourceIndexIO;
+import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
@@ -143,9 +145,9 @@ final class PreparationStoragePlanner {
                 }
             }
 
-            boolean profileMetadataPresent = Files.isRegularFile(cacheRoot.resolve("resource-indexes")
+            boolean profileMetadataPresent = Files.isRegularFile(ResourceIndexIO.directory(cacheRoot)
                             .resolve(index.profileFingerprint() + ".spfi"))
-                    && Files.isRegularFile(cacheRoot.resolve("manifests")
+                    && Files.isRegularFile(TextureManifestIO.directory(cacheRoot)
                             .resolve(index.profileFingerprint() + ".spfm"));
             long predictedMetadata = profileMetadataPresent ? 0 : PREDICTED_METADATA_BYTES;
             long upperMetadata = profileMetadataPresent ? 0 : UPPER_METADATA_BYTES;

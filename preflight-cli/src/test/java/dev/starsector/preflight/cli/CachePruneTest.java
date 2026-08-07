@@ -126,6 +126,22 @@ class CachePruneTest {
     }
 
     @Test
+    void inactiveFormatNamespaceIsRetainedForRollback() throws Exception {
+        PreflightHome preflight = home();
+        String profile = "7".repeat(64);
+        Path oldFormat = preflight.cache().resolve("spec-store/variant-json-v3");
+        Files.createDirectories(oldFormat);
+        Path artifact = oldFormat.resolve("8".repeat(64) + ".spvj");
+        Files.writeString(artifact, "older-format cache");
+
+        CachePrune.Plan plan = CachePrune.plan(
+                preflight, Set.of(profile), Set.of("9".repeat(64)));
+
+        assertTrue(plan.safe(), plan.refusals().toString());
+        assertFalse(plan.removals().stream().anyMatch(removal -> removal.path().equals(artifact)));
+    }
+
+    @Test
     void stalePreparedRuleTokensArePrunedByTheirRulesIdentity() throws Exception {
         PreflightHome preflight = home();
         String liveIdentity = "3".repeat(64);

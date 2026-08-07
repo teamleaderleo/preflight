@@ -53,7 +53,7 @@ final class TextureBatchCommand {
         if (options.pathsFile() != null) {
             selection = ResourceIndexSubset.select(sourceIndex, options.pathsFile());
             activeIndex = selection.index();
-            activeIndexPath = cacheDirectory.resolve("resource-indexes")
+            activeIndexPath = ResourceIndexIO.directory(cacheDirectory)
                     .resolve(activeIndex.profileFingerprint() + ".spfi")
                     .toAbsolutePath().normalize();
             ResourceIndexIO.write(activeIndexPath, activeIndex);

@@ -2,9 +2,16 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.GeneratedBytecodeBundle;
 import dev.starsector.preflight.core.GeneratedBytecodeBundleIO;
+import dev.starsector.preflight.core.GeneratedBytecodeCache;
 import dev.starsector.preflight.core.GeneratedBytecodePack;
+import dev.starsector.preflight.core.ClasspathCacheDirectories;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
+import dev.starsector.preflight.core.PreparedAudioCache;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.ResourceIndexIO;
+import dev.starsector.preflight.core.SpecStoreCacheDirectories;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
@@ -72,18 +79,18 @@ final class CachePrune {
         List<Removal> removals = new ArrayList<>();
         List<String> refusals = new ArrayList<>();
 
-        removals.addAll(byFingerprint(cache.resolve("resource-indexes"), ".spfi", survivors));
-        removals.addAll(byFingerprint(cache.resolve("manifests"), ".spfm", survivors));
-        removals.addAll(byFingerprint(cache.resolve("packs"), ".spfp", survivors));
-        removals.addAll(byFingerprint(cache.resolve("packs"), ".spfo", survivors));
+        removals.addAll(byFingerprint(ResourceIndexIO.directory(cache), ".spfi", survivors));
+        removals.addAll(byFingerprint(TextureManifestIO.directory(cache), ".spfm", survivors));
+        removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfp", survivors));
+        removals.addAll(byFingerprint(PreparedTexturePackIO.directory(cache), ".spfo", survivors));
         removals.addAll(byFingerprint(
-                cache.resolve("prepared-audio").resolve("manifests"), ".spam", survivors));
+                PreparedAudioCache.manifestDirectory(cache), ".spam", survivors));
         removals.addAll(byFingerprint(
-                cache.resolve("classpath").resolve("profiles"), ".spfc", survivors));
+                ClasspathCacheDirectories.profiles(cache), ".spfc", survivors));
 
         Set<String> reachable = new HashSet<>();
         for (String survivor : survivors) {
-            Path manifest = cache.resolve("manifests").resolve(survivor + ".spfm");
+            Path manifest = TextureManifestIO.directory(cache).resolve(survivor + ".spfm");
             if (!Files.isRegularFile(manifest)) {
                 // A survivor with no manifest simply contributes no blobs; it is not an error,
                 // because a profile can be indexed without having had its textures prepared.
@@ -108,7 +115,7 @@ final class CachePrune {
 
         Set<String> reachableAudio = new HashSet<>();
         for (String survivor : survivors) {
-            Path manifest = cache.resolve("prepared-audio").resolve("manifests")
+            Path manifest = PreparedAudioCache.manifestDirectory(cache)
                     .resolve(survivor + ".spam");
             if (!Files.isRegularFile(manifest)) {
                 continue;
@@ -176,7 +183,7 @@ final class CachePrune {
      */
     private static List<Removal> generatedBytecode(Path cache, Set<String> keepContexts)
             throws IOException {
-        Path root = cache.resolve("generated-bytecode");
+        Path root = GeneratedBytecodeCache.root(cache);
         List<Removal> removals = new ArrayList<>();
         if (!Files.isDirectory(root)) return removals;
 
@@ -246,7 +253,7 @@ final class CachePrune {
 
     private static List<Removal> unreachableBlobs(Path cache, Set<String> reachable)
             throws IOException {
-        Path blobs = cache.resolve("blobs");
+        Path blobs = PreparedTextureIO.cacheDirectory(cache);
         List<Removal> removals = new ArrayList<>();
         if (!Files.isDirectory(blobs)) {
             return removals;
@@ -269,7 +276,7 @@ final class CachePrune {
 
     private static List<Removal> unreachableAudioBlobs(Path cache, Set<String> reachable)
             throws IOException {
-        Path root = cache.resolve("prepared-audio");
+        Path root = PreparedAudioCache.root(cache);
         List<Removal> removals = new ArrayList<>();
         if (!Files.isDirectory(root)) {
             return removals;
@@ -297,28 +304,33 @@ final class CachePrune {
 
     private static List<Removal> specStore(Path cache, Set<String> keepIdentities)
             throws IOException {
-        Path store = cache.resolve("spec-store");
         List<Removal> removals = new ArrayList<>();
-        if (!Files.isDirectory(store)) {
-            return removals;
-        }
-        try (var directories = Files.list(store)) {
-            for (Path corpus : directories.filter(Files::isDirectory).toList()) {
-                try (var files = Files.list(corpus)) {
-                    for (Path file : files.filter(Files::isRegularFile).toList()) {
-                        String name = file.getFileName().toString();
-                        String identity = SPEC_STORE_EXTENSIONS.stream()
-                                .filter(name::endsWith)
-                                .findFirst()
-                                .map(extension ->
-                                        name.substring(0, name.length() - extension.length()))
-                                .orElse(null);
-                        if (identity != null
-                                && identity.matches("[0-9a-f]{64}")
-                                && !keepIdentities.contains(identity)) {
-                            removals.add(new Removal(
-                                    file, Files.size(file), "stale " + corpus.getFileName()));
-                        }
+        Set<Path> activeStores = Set.of(
+                SpecStoreCacheDirectories.variantJson(cache),
+                SpecStoreCacheDirectories.weaponJson(cache),
+                SpecStoreCacheDirectories.projectileJson(cache),
+                SpecStoreCacheDirectories.hullJson(cache),
+                SpecStoreCacheDirectories.rulesCsv(cache),
+                SpecStoreCacheDirectories.ruleCommandClasses(cache),
+                SpecStoreCacheDirectories.mergedReads(cache));
+        for (Path corpus : activeStores) {
+            if (!Files.isDirectory(corpus)) {
+                continue;
+            }
+            try (var files = Files.list(corpus)) {
+                for (Path file : files.filter(Files::isRegularFile).toList()) {
+                    String name = file.getFileName().toString();
+                    String identity = SPEC_STORE_EXTENSIONS.stream()
+                            .filter(name::endsWith)
+                            .findFirst()
+                            .map(extension ->
+                                    name.substring(0, name.length() - extension.length()))
+                            .orElse(null);
+                    if (identity != null
+                            && identity.matches("[0-9a-f]{64}")
+                            && !keepIdentities.contains(identity)) {
+                        removals.add(new Removal(
+                                file, Files.size(file), "stale " + corpus.getFileName()));
                     }
                 }
             }

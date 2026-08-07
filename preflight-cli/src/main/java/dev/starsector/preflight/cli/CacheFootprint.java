@@ -1,5 +1,12 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.PreparedAudioCache;
+import dev.starsector.preflight.core.ClasspathCacheDirectories;
+import dev.starsector.preflight.core.GeneratedBytecodeCache;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.ResourceIndexIO;
+import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -24,20 +31,24 @@ import java.util.TreeMap;
 final class CacheFootprint {
     /** Directories under the home whose contents are reported separately. */
     private static final Map<String, Category> CATEGORIES = new LinkedHashMap<>(Map.ofEntries(
-            Map.entry("cache/blobs", acceleration(
+            Map.entry(relative(PreparedTextureIO.cacheDirectory(Path.of("cache"))), acceleration(
                     "prepared texture payloads, shared across profiles by content hash")),
-            Map.entry("cache/packs", acceleration("profile texture packs and learned read order")),
-            Map.entry("cache/resource-indexes", acceleration("one per prepared profile")),
-            Map.entry("cache/manifests", acceleration("one per prepared profile")),
+            Map.entry(relative(PreparedTexturePackIO.directory(Path.of("cache"))),
+                    acceleration("profile texture packs and learned read order")),
+            Map.entry(relative(ResourceIndexIO.directory(Path.of("cache"))),
+                    acceleration("one per prepared profile")),
+            Map.entry(relative(TextureManifestIO.directory(Path.of("cache"))),
+                    acceleration("one per prepared profile")),
             Map.entry("cache/spec-store", acceleration(
                     "prepared JSON, rules and command-class artifacts")),
-            Map.entry("cache/prepared-audio", acceleration(
+            Map.entry(relative(PreparedAudioCache.root(Path.of("cache"))), acceleration(
                     "decoded PCM and exact-profile audio manifests")),
-            Map.entry("cache/generated-bytecode", acceleration(
+            Map.entry(relative(GeneratedBytecodeCache.root(Path.of("cache"))), acceleration(
                     "exact-context Janino class maps and deduplicated packs")),
             Map.entry("cache/adapter-transformations", acceleration(
                     "exact-context transformed game and mod classes")),
-            Map.entry("cache/classpath", acceleration("mod jar and class inventories")),
+            Map.entry(relative(ClasspathCacheDirectories.root(Path.of("cache"))),
+                    acceleration("mod jar and class inventories")),
             Map.entry("cache/comparison-state-snapshots", evidence(
                     "benchmark comparison inputs")),
             Map.entry("cache/reports", evidence("generated diagnostic reports")),
@@ -49,6 +60,10 @@ final class CacheFootprint {
             Map.entry("bin", application("the installed copy of preflight.jar"))));
 
     private CacheFootprint() {
+    }
+
+    private static String relative(Path path) {
+        return path.toString().replace('\\', '/');
     }
 
     static Report measure(PreflightHome home) throws IOException {
@@ -105,8 +120,8 @@ final class CacheFootprint {
      */
     private static List<Profile> profiles(PreflightHome home) throws IOException {
         Map<String, Profile> byFingerprint = new TreeMap<>();
-        collect(byFingerprint, home.cache().resolve("resource-indexes"), ".spfi", true);
-        collect(byFingerprint, home.cache().resolve("manifests"), ".spfm", false);
+        collect(byFingerprint, ResourceIndexIO.directory(home.cache()), ".spfi", true);
+        collect(byFingerprint, TextureManifestIO.directory(home.cache()), ".spfm", false);
         List<Profile> profiles = new ArrayList<>(byFingerprint.values());
         profiles.sort(Comparator.comparingLong(Profile::lastModifiedMillis).reversed());
         return List.copyOf(profiles);

@@ -39,12 +39,23 @@ public final class PreparedTexturePackIO {
     private PreparedTexturePackIO() {
     }
 
+    public static Path directory(Path cacheRoot) {
+        if (FORMAT_VERSION == 2
+                && PreparedTexturePackOrderIO.FORMAT_VERSION == 1
+                && PreparedTexture.FORMAT_VERSION == 1) {
+            return cacheRoot.resolve("packs");
+        }
+        return cacheRoot.resolve("packs-v" + FORMAT_VERSION
+                + "-order-v" + PreparedTexturePackOrderIO.FORMAT_VERSION
+                + "-blobs-v" + PreparedTexture.FORMAT_VERSION);
+    }
+
     public static Path path(Path cacheRoot, String profileFingerprint) {
         validateProfile(profileFingerprint);
         String fileStem = profileFingerprint.matches("[0-9a-fA-F]{64}")
                 ? profileFingerprint.toLowerCase(java.util.Locale.ROOT)
                 : Hashes.sha256(profileFingerprint.getBytes(StandardCharsets.UTF_8));
-        return cacheRoot.resolve("packs").resolve(fileStem + ".spfp")
+        return directory(cacheRoot).resolve(fileStem + ".spfp")
                 .toAbsolutePath().normalize();
     }
 

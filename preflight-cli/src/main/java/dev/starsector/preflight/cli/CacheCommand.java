@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
+import dev.starsector.preflight.core.ResourceIndexIO;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -289,7 +290,7 @@ final class CacheCommand {
 
     /** Exact compiler context reachable from the current install, or empty to retain them all. */
     private static Set<String> liveJaninoContexts(PreflightHome home, String fingerprint) {
-        Path index = home.cache().resolve("resource-indexes").resolve(fingerprint + ".spfi");
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(fingerprint + ".spfi");
         if (!Files.isRegularFile(index)) return Set.of();
         try {
             DiscoveryResult discovery = StarsectorDiscovery.discover(
@@ -320,7 +321,7 @@ final class CacheCommand {
      * keeping a stale 28 MB is the right failure here, not guessing.
      */
     private static Set<String> liveSpecStoreIdentities(PreflightHome home, String fingerprint) {
-        Path index = home.cache().resolve("resource-indexes").resolve(fingerprint + ".spfi");
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(fingerprint + ".spfi");
         if (!Files.isRegularFile(index)) {
             return Set.of();
         }
