@@ -146,9 +146,13 @@ jobs:
           - name: macOS
             os: macos-latest
             bundles: dmg
+            # Tauri's updater archive is emitted by the app target, while the installable
+            # package remains the DMG. Building both keeps their payloads verifiably identical.
+            update_bundles: dmg,app
           - name: Windows
             os: windows-latest
             bundles: nsis
+            update_bundles: nsis
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out source
@@ -241,7 +245,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
           PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
-        run: npx tauri build --bundles ${{ matrix.bundles }} --config src-tauri/target/release-updater-config.json
+        run: npx tauri build --bundles ${{ matrix.update_bundles }} --config src-tauri/target/release-updater-config.json
 
       - name: Build Linux Debian package
         if: runner.os == 'Linux'

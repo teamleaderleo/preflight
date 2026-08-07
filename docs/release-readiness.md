@@ -34,7 +34,9 @@ first public beta.
   candidate path now exercises the real signing credentials and complete three-platform artifact
   assembly without granting its job release-publication permission. Candidate files are
   authenticated and encrypted before every upload because public-repository workflow artifacts are
-  readable by signed-in GitHub users.
+  readable by signed-in GitHub users. A local update-signed macOS build has passed DMG/updater-tree
+  equivalence and bundled-runtime smoke verification; the hosted matrix and installed update cycle
+  remain.
 - [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
   synthetic fixtures don't prove game integration.
 - [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the

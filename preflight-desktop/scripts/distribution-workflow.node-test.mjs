@@ -47,6 +47,8 @@ test("signed candidates require updater credentials and compile the reviewed int
   assert.match(distribution, /path: candidate-core\/\*\.pfcandidate/);
   assert.match(desktop, /Decrypt and stage private-candidate engine JAR/);
   assert.match(desktop, /path: preflight-desktop\/candidate-desktop\/\*\.pfcandidate/);
+  assert.match(desktop, /update_bundles: dmg,app/);
+  assert.match(desktop, /--bundles \$\{\{ matrix\.update_bundles \}\}/);
   assert.match(desktop, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
   assert.match(desktop, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
 });

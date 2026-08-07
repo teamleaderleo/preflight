@@ -34,6 +34,12 @@ bundle signature. An ad-hoc signature can prove package structure is internally 
 claim an Apple-identified publisher. Windows verification likewise reports Authenticode status
 without treating it as a first-beta build gate.
 
+The first local update-signed macOS candidate exposed one packaging detail before the hosted
+matrix ran: a DMG target alone doesn't make Tauri's updater archive. The signed build now requests
+both `dmg` and `app`; it produced the DMG, `.app.tar.gz`, and updater signature. The verifier mounted
+the DMG, compared its application tree byte-for-byte with the updater archive, checked the 106-file
+bundled runtime, and completed its packaged smoke test.
+
 ## Report intake
 
 The report service doesn't trust a request because it appears to come from Preflight. A desktop
@@ -52,7 +58,7 @@ publish its contents.
 - report-intake typecheck and thirteen Worker-runtime tests passed, including rate limiting, exact
   daily byte reservations, and the production canary client against the local Worker/R2 runtime;
 - desktop frontend tests passed;
-- 21 desktop release-contract tests passed after refreshing the prepared engine;
+- 28 desktop release/prepared-contract tests passed after refreshing the prepared engine;
 - 15 Rust host tests passed; and
 - the local `test:release` command now prepares the engine before checking its packaged legal and
   scenario boundary, preventing stale generated dependencies from producing a false failure.
