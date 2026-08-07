@@ -20,6 +20,12 @@ manifest, and Cargo lockfile at the release commit. Maven and npm emit CycloneDX
 Cargo generator emits CycloneDX 1.5. Each generator validates its output, and the release stops if
 an expected inventory is missing or empty. `SBOM-SHA256SUMS.txt` records their checksums.
 
+The distribution job also runs `scripts/verify_release_boundary.py` after assembly. It requires the
+exact documented core file set, validates every checksum and CycloneDX document, compares each ZIP
+and tar member byte-for-byte with the staged file, rejects links and unsafe paths, and only accepts
+reviewed project and third-party namespaces inside `preflight.jar`. An accidental copy from a game
+installation, save folder, diagnostics directory, or workspace therefore stops the release job.
+
 The private report-intake service isn't installed on a user's computer, so its Worker dependencies
 aren't mixed into the client SBOMs. Its exact production dependency graph remains locked in
 `report-intake/package-lock.json` and is audited by the separate Worker verification workflow.

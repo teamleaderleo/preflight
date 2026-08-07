@@ -14,6 +14,9 @@ on:
       - 'preflight-desktop/src-tauri/Cargo.toml'
       - 'preflight-desktop/src-tauri/Cargo.lock'
       - 'scripts/generate-release-sboms.sh'
+      - 'scripts/assemble-core-release.sh'
+      - 'scripts/verify_release_boundary.py'
+      - 'scripts/test_verify_release_boundary.py'
   push:
     branches: [main]
     paths:
@@ -27,6 +30,9 @@ on:
       - 'preflight-desktop/src-tauri/Cargo.toml'
       - 'preflight-desktop/src-tauri/Cargo.lock'
       - 'scripts/generate-release-sboms.sh'
+      - 'scripts/assemble-core-release.sh'
+      - 'scripts/verify_release_boundary.py'
+      - 'scripts/test_verify_release_boundary.py'
   workflow_dispatch:
 
 permissions:
@@ -56,10 +62,27 @@ jobs:
       - name: Generate release SBOMs
         run: scripts/generate-release-sboms.sh "$RUNNER_TEMP/preflight-sboms"
 
+      - name: Assemble and verify the real core release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests package
+          scripts/assemble-core-release.sh \
+            "$RUNNER_TEMP/preflight-release" \
+            "$RUNNER_TEMP/preflight-sboms"
+
       - name: Upload verified SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preflight-release-sboms-${{ github.run_id }}
           path: ${{ runner.temp }}/preflight-sboms/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload verified core release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-verified-core-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-release/*
           if-no-files-found: error
           retention-days: 30

@@ -79,7 +79,11 @@ first public beta.
   release pipeline now assembles the legal/privacy files, path-correct checksums, and five validated
   target-specific SBOMs; publication and final release notes remain gated.
 - [ ] Verify that no Starsector, mod, save, activation, or other third-party proprietary content is
-  present in packages, diagnostics fixtures, screenshots, or source history.
+  present in packages, diagnostics fixtures, screenshots, or source history. Core release archives
+  now fail closed against an exact file manifest, compare every archived byte with its staged file,
+  reject unsafe archive entries, and restrict the runnable JAR to reviewed project and dependency
+  namespaces. Native packages, diagnostics fixtures, screenshots, and source history still need
+  their own final review.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
 - [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.

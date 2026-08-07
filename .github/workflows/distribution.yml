@@ -52,75 +52,10 @@ jobs:
         run: |
           set -euo pipefail
           cargo install cargo-cyclonedx --version 0.5.9 --locked
-          scripts/generate-release-sboms.sh dist
+          scripts/generate-release-sboms.sh "$RUNNER_TEMP/preflight-sboms"
 
       - name: Assemble distribution
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          cp preflight-cli/target/preflight.jar dist/preflight.jar
-          cp LICENSE dist/LICENSE
-          cp THIRD_PARTY_NOTICES.md dist/THIRD_PARTY_NOTICES.md
-          cp docs/privacy.md dist/PRIVACY.md
-          cp docs/known-limitations.md dist/KNOWN_LIMITATIONS.md
-          cp docs/dependency-inventory.md dist/DEPENDENCY_INVENTORY.md
-          (
-            cd dist
-            sha256sum preflight.jar > preflight.jar.sha256
-          )
-          cat > dist/README.txt <<'TEXT'
-          Preflight
-          =========
-
-          Requires Java 17 or newer.
-
-          Discover and launch Starsector:
-              java -jar preflight.jar run
-
-          Check discovery without launching:
-              java -jar preflight.jar doctor
-
-          Install a convenient platform launcher:
-              java -jar preflight.jar install
-
-          Verify this download on macOS or Linux:
-              shasum -a 256 -c preflight.jar.sha256
-
-          Verify on Windows PowerShell:
-              (Get-FileHash .\preflight.jar -Algorithm SHA256).Hash.ToLower()
-
-          Project documentation:
-              https://github.com/teamleaderleo/preflight
-
-          This archive also contains the MIT license, third-party notices,
-          privacy statement, known limitations, and release dependency inventories.
-          TEXT
-          tar -C dist -czf dist/preflight.tar.gz \
-            preflight.jar preflight.jar.sha256 README.txt \
-            LICENSE THIRD_PARTY_NOTICES.md PRIVACY.md KNOWN_LIMITATIONS.md \
-            DEPENDENCY_INVENTORY.md \
-            SBOM-SHA256SUMS.txt \
-            preflight-java.cdx.json preflight-desktop-web.cdx.json \
-            preflight-desktop-native-aarch64-apple-darwin.cdx.json \
-            preflight-desktop-native-x86_64-pc-windows-msvc.cdx.json \
-            preflight-desktop-native-x86_64-unknown-linux-gnu.cdx.json
-          (
-            cd dist
-            zip -q preflight.zip \
-              preflight.jar preflight.jar.sha256 README.txt \
-              LICENSE THIRD_PARTY_NOTICES.md PRIVACY.md KNOWN_LIMITATIONS.md \
-              DEPENDENCY_INVENTORY.md \
-              SBOM-SHA256SUMS.txt \
-              preflight-java.cdx.json preflight-desktop-web.cdx.json \
-              preflight-desktop-native-aarch64-apple-darwin.cdx.json \
-              preflight-desktop-native-x86_64-pc-windows-msvc.cdx.json \
-              preflight-desktop-native-x86_64-unknown-linux-gnu.cdx.json
-          )
-          (
-            cd dist
-            sha256sum preflight.tar.gz preflight.zip > archives.sha256
-          )
+        run: scripts/assemble-core-release.sh dist "$RUNNER_TEMP/preflight-sboms"
 
       - name: Smoke-test packaged JAR
         shell: bash
