@@ -293,10 +293,13 @@ inherited by an ordinary Preflight launch and is the practical emergency switch 
 build.
 
 The shutdown adapter report records the effective scope and disabled-plan set, plus the number of
-registered exact targets for each plan. Its bounded evaluations and transformation timings use the
-same plan IDs, so an exact match, a declined rewrite, an applied rewrite, and a cached rewrite remain
-distinguishable after the run. Prepared-pixel and padding reports include their runtime safety state
-even when the corresponding plan never becomes effective.
+registered exact targets for each plan. Its bounded 58-plan inventory also names the exact host
+boundary for plans composed onto another target and marks every entry `REGISTERED`, `COMPOSED`,
+`INACTIVE`, `DISABLED`, or `OUT_OF_SCOPE`. Each entry states the vanilla fallback explicitly. The
+catalog is checked against an exhaustive built-in target inventory, including the alternate texture
+target, and every catalogued plan is exercised through its independent kill switch. Bounded target
+evaluations and transformation timings retain the same plan IDs. Prepared-pixel and padding reports
+include their runtime safety state even when the corresponding plan never becomes effective.
 
 ## Target records
 

@@ -107,7 +107,9 @@ The development profile has clean live gates for the Recommended stack, includin
 textures, merged/spec data, generated Janino bytecode, prepared audio, exact vanilla gameplay
 indexes, and reviewed mod-specific adapters. That doesn't establish universal compatibility.
 Unknown class, source, loader, artifact, or profile identities decline to the original path and are
-reported. A wrapper or discovery change can still require a Preflight update.
+reported. The shutdown report carries a bounded catalog for all 58 direct and composed plans,
+including each exact host boundary, filter state, and original-bytecode fallback. A wrapper or
+discovery change can still require a Preflight update.
 
 Performance claims require comparable game, mod-profile, JVM, launcher, cache, machine-load, and
 measurement identities. The 15.88-second launch is a retained warm record; the strongest controlled

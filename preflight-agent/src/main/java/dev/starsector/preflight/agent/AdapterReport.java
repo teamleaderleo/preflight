@@ -275,6 +275,8 @@ final class AdapterReport {
         numberField(output, "registryTargets", registryTargets);
         key(output, "registeredPlanTargets")
                 .append(Json.value(registeredPlanTargets)).append(',');
+        key(output, "planInventory")
+                .append(Json.value(AdapterPlanCatalog.inventory(registeredPlanTargets))).append(',');
         numberField(output, "observedClasses", observedClasses);
         numberField(output, "parsedClasses", parsedClasses);
         numberField(output, "retainedCandidates", orderedCandidates.size());

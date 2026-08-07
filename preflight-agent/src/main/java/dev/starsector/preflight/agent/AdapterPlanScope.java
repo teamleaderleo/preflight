@@ -31,6 +31,7 @@ public enum AdapterPlanScope {
             AudioStreamSourceErrorRuntime.PLAN_ID,
             AudioMusicTransitionRuntime.PLAN_ID,
             AudioResourceFallbackRuntime.PLAN_ID,
+            AssetProgressLogRuntime.PLAN_ID,
             RuleTokenCacheRuntime.PLAN_ID,
             RuleCommandClassCacheRuntime.PLAN_ID,
             JaninoBytecodeCacheRuntime.PLAN_ID);

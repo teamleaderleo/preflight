@@ -1,10 +1,14 @@
 package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -18,6 +22,22 @@ import org.objectweb.asm.tree.MethodNode;
 
 class AssetProgressLogPlanTest {
     private static final String LOGGER = "org/apache/log4j/Logger";
+
+    @AfterEach
+    void resetRuntimeGate() {
+        System.clearProperty(AssetProgressLogRuntime.PROPERTY);
+        AdapterPlanControl.configure(Set.of());
+    }
+
+    @Test
+    void perPlanFilterOverridesTheRequestedSuppression() {
+        System.setProperty(AssetProgressLogRuntime.PROPERTY, "off");
+        AdapterPlanControl.configure(Set.of());
+        assertTrue(AssetProgressLogRuntime.suppress());
+
+        AdapterPlanControl.configure(Set.of(AssetProgressLogRuntime.PLAN_ID));
+        assertFalse(AssetProgressLogRuntime.suppress());
+    }
 
     @Test
     void removesAllFourWeaponProgressMessagesButKeepsOtherInfo() throws Exception {

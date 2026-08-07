@@ -50,6 +50,12 @@ class CampaignEntityTelemetryReportTest {
         String report = Files.readString(output);
         assertTrue(report.contains("\"registeredPlanTargets\":{"
                 + "\"vanilla-hull-merged-json-cache-v1\":1}"), report);
+        assertTrue(report.contains("\"planInventory\":{"), report);
+        assertTrue(report.contains("\"vanilla-hull-merged-json-cache-v1\":{"
+                + "\"scopeAllowed\":true,\"explicitlyDisabled\":false,"
+                + "\"registeredTargets\":1,"), report);
+        assertTrue(report.contains("\"audio-music-transition-probe-v1\":{"), report);
+        assertTrue(report.contains("\"fallback\":\"ORIGINAL_BYTECODE\""), report);
         assertTrue(report.contains("\"campaignEntityIndex\":{"
                 + "\"planId\":\"campaign-entity-index-v3\","
                 + "\"installed\":true,\"enabled\":true,"), report);
