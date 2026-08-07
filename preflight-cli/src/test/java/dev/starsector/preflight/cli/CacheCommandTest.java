@@ -12,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -85,5 +87,38 @@ class CacheCommandTest {
         assertEquals(List.of(), report.get("profiles"));
         assertEquals(List.of(), report.get("integrations"));
         assertNull(report.get("currentProfileFingerprint"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void cleanupJsonSummarizesEveryRemovalAndBoundsThePathSample() {
+        List<CachePrune.Removal> removals = IntStream.range(0, 105)
+                .mapToObj(index -> new CachePrune.Removal(
+                        directory.resolve("stale-" + index),
+                        10,
+                        index < 100 ? "unreferenced blob" : "stale profile"))
+                .toList();
+        CachePrune.Plan plan = new CachePrune.Plan(removals, List.of(), 12, 3);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        CacheCommand.emitPruneJson(
+                "a".repeat(64),
+                Set.of("a".repeat(64)),
+                plan,
+                true,
+                false,
+                List.of(),
+                new PrintStream(bytes, true, StandardCharsets.UTF_8));
+        Map<String, Object> report = StrictJson.object(bytes.toString(StandardCharsets.UTF_8));
+
+        assertEquals(105L, ((Number) report.get("files")).longValue());
+        assertEquals(1_050L, ((Number) report.get("bytes")).longValue());
+        assertEquals(Boolean.TRUE, report.get("removalsTruncated"));
+        assertEquals(100, ((List<?>) report.get("removals")).size());
+        List<Map<String, Object>> groups = (List<Map<String, Object>>) report.get("groups");
+        assertTrue(groups.stream().anyMatch(group -> "unreferenced blob".equals(group.get("reason"))
+                && ((Number) group.get("files")).longValue() == 100));
+        assertTrue(groups.stream().anyMatch(group -> "stale profile".equals(group.get("reason"))
+                && ((Number) group.get("bytes")).longValue() == 50));
     }
 }

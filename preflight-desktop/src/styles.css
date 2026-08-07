@@ -365,6 +365,12 @@ h2 {
   background: rgba(255, 255, 255, 0.62);
 }
 
+.button--danger {
+  color: white;
+  background: #a54f47;
+  box-shadow: 0 9px 22px rgba(128, 54, 48, 0.18);
+}
+
 .hero__art {
   position: relative;
   min-height: 290px;
@@ -1426,6 +1432,49 @@ h2 {
 
 .storage-note {
   margin-bottom: 0;
+}
+
+.storage-card > .button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.cleanup-review {
+  padding: 24px;
+}
+
+.cleanup-summary {
+  max-width: 760px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.cleanup-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 16px 0 20px;
+}
+
+.cleanup-groups > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.cleanup-groups span {
+  color: var(--ink-soft);
+  font-size: 10px;
+  text-transform: capitalize;
+}
+
+.cleanup-groups strong {
+  font-size: 11px;
 }
 
 .prepare-action {

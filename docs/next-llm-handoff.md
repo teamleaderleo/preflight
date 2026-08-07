@@ -21,8 +21,10 @@ launch-setting writes, and confirmed cache pruning share a cross-process OS leas
 engine. Preparation emits versioned phase events; the Rust host drains both child pipes, forwards
 live progress, and supports cancellation; the interface shows the current phase and completion.
 After an interrupted owner, only matching PID-tagged temporary writes beneath Preflight's own home
-are reclaimed. The next product slice is preview-first cleanup and the two removal scopes, then
-signed update plumbing and unattended desktop smoke automation.
+are reclaimed. Preview-first cache cleanup is also complete in the CLI and desktop. A real read-only
+plan retained the current profile and found 5.42 GiB across 31,338 removable files; the response
+summarizes every reason and caps its path sample at 100 entries. The next product slice is the two
+explicit removal scopes, then signed update plumbing and unattended desktop smoke automation.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are

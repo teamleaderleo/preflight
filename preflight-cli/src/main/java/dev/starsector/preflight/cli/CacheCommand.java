@@ -49,11 +49,14 @@ final class CacheCommand {
         }
         PreflightHome home = PreflightHome.current();
         if (prune) {
-            if (game != null || launcher != null) {
-                System.err.println("preflight cache: --game and --launcher are report-only options");
-                return 2;
-            }
-            return prune(home, confirmed, keepNamed, json, System.out);
+            return prune(
+                    home,
+                    game,
+                    launcher,
+                    confirmed,
+                    keepNamed,
+                    json,
+                    System.out);
         }
         if (confirmed || keepNamed) {
             System.err.println("preflight cache: --yes and --keep-named require prune");
@@ -82,20 +85,33 @@ final class CacheCommand {
             boolean keepNamed,
             boolean json,
             PrintStream out) throws Exception {
-        if (!confirmed) return pruneOwned(home, false, keepNamed, json, out);
+        return prune(home, null, null, confirmed, keepNamed, json, out);
+    }
+
+    private static int prune(
+            PreflightHome home,
+            Path game,
+            Path launcher,
+            boolean confirmed,
+            boolean keepNamed,
+            boolean json,
+            PrintStream out) throws Exception {
+        if (!confirmed) {
+            return pruneOwned(home, currentFingerprint(game, launcher), false, keepNamed, json, out);
+        }
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "cleaning-cache", null);
         try (OperationLease ignored = ownership.lease()) {
-            return pruneOwned(home, true, keepNamed, json, out);
+            return pruneOwned(home, currentFingerprint(game, launcher), true, keepNamed, json, out);
         }
     }
 
     private static int pruneOwned(
             PreflightHome home,
+            String current,
             boolean confirmed,
             boolean keepNamed,
             boolean json,
             PrintStream out) throws Exception {
-        String current = currentFingerprint();
         if (current == null) {
             System.err.println("Cannot identify the current install's profile, so there is nothing");
             System.err.println("safe to keep. Run `preflight doctor` to see why the install could");
@@ -225,7 +241,7 @@ final class CacheCommand {
         return 0;
     }
 
-    private static void emitPruneJson(
+    static void emitPruneJson(
             String current,
             Set<String> survivors,
             CachePrune.Plan plan,
@@ -244,13 +260,30 @@ final class CacheCommand {
         report.put("reachableTextureBlobs", plan == null ? 0 : plan.reachableBlobs());
         report.put("reachablePreparedAudioBlobs", plan == null ? 0 : plan.reachableAudioBlobs());
         report.put("refusals", refusals);
-        report.put("removals", plan == null ? List.of() : plan.removals().stream().map(removal -> {
+        Map<String, long[]> reasonTotals = new LinkedHashMap<>();
+        if (plan != null) {
+            for (CachePrune.Removal removal : plan.removals()) {
+                long[] totals = reasonTotals.computeIfAbsent(removal.reason(), ignored -> new long[2]);
+                totals[0] = Math.addExact(totals[0], removal.bytes());
+                totals[1]++;
+            }
+        }
+        report.put("groups", reasonTotals.entrySet().stream().map(entry -> {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("reason", entry.getKey());
+            value.put("bytes", entry.getValue()[0]);
+            value.put("files", entry.getValue()[1]);
+            return value;
+        }).toList());
+        int sampleLimit = 100;
+        report.put("removals", plan == null ? List.of() : plan.removals().stream().limit(sampleLimit).map(removal -> {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("path", removal.path());
             value.put("bytes", removal.bytes());
             value.put("reason", removal.reason());
             return value;
         }).toList());
+        report.put("removalsTruncated", plan != null && plan.removals().size() > sampleLimit);
         out.println(Json.object(report));
     }
 

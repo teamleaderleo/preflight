@@ -36,8 +36,11 @@ first public beta.
   space, prepares a cold profile, and launches from one action.
 - [x] Show preparation progress, cancellation/recovery, current profile identity, cache use, and the
   expected effect of changing storage policy.
-- [ ] Provide preview-first cleanup and two removal choices: launcher/app only, or all
-  Preflight-owned caches and evidence. Never include game, mod, save, or preference deletion.
+- [x] Provide preview-first cleanup that retains the current and readable named profiles, groups
+  every proposed removal, bounds path samples, and recalculates under shared ownership before
+  deletion.
+- [ ] Provide two removal choices: launcher/app only, or all Preflight-owned caches and evidence.
+  Never include game, mod, save, or preference deletion.
 - [ ] Add an explicit update check and signed install flow. Never surprise-install an update.
 - [ ] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.

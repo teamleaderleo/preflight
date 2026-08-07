@@ -209,6 +209,61 @@ fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
         .map_err(|error| format!("Preflight returned an unreadable cache snapshot: {error}"))
 }
 
+#[tauri::command]
+fn get_cache_cleanup(app: AppHandle, game: String) -> Result<Value, String> {
+    cache_cleanup_json(&app, &game, false)
+}
+
+#[tauri::command]
+fn apply_cache_cleanup(
+    app: AppHandle,
+    tracker: State<'_, ProcessTracker>,
+    game: String,
+) -> Result<Value, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    if running.game.is_some() {
+        return Err("Close Starsector before cleaning acceleration data.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before cleaning acceleration data.".to_string(),
+        );
+    }
+    let result = cache_cleanup_json(&app, &game, true);
+    drop(running);
+    result
+}
+
+fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value, String> {
+    let directory = canonical_game_directory(game)?;
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command
+        .arg("cache")
+        .arg("prune")
+        .arg("--json")
+        .arg("--keep-named")
+        .arg("--game")
+        .arg(directory);
+    if apply {
+        command.arg("--yes");
+    }
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() && output.status.code() != Some(3) {
+        return Err(child_error(
+            "Preflight could not plan cache cleanup",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable cleanup plan: {error}"))
+}
+
 fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
     let requested = PathBuf::from(output);
     if !requested.is_absolute() {
@@ -819,6 +874,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_cache,
+            get_cache_cleanup,
+            apply_cache_cleanup,
             export_diagnostics,
             get_launch_settings,
             update_launch_settings,

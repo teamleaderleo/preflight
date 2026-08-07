@@ -33,8 +33,12 @@ The first lifecycle slice landed on 2026-08-07: preparation, launch, confirmed p
 launch-setting writes, and confirmed cache pruning now share a durable cross-process lease.
 Preparation has structured live phase progress and safe cancellation in the desktop host;
 interrupted PID-tagged temporary writes inside Preflight's home are reclaimed by the next owner.
-The next product slice is preview-first cleanup and the two removal scopes, followed by signed
-update plumbing and unattended desktop smoke automation.
+Preview-first cache cleanup is now wired through the CLI and desktop: the plan preserves the current
+and readable named profiles, groups every removal reason, caps path samples, and is recalculated
+under the lease before applying. A read-only pass over the reviewed install found 5.42 GiB across
+31,338 safely removable files while protecting 30,638 texture blobs reachable from the current
+profile. The next product slice is the two explicit removal scopes, followed by signed update
+plumbing and unattended desktop smoke automation.
 
 ## Measured result (2026-08-01, third campaign)
 

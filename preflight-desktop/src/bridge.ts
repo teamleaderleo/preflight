@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   CacheSnapshot,
+  CacheCleanupPlan,
   DesktopSnapshot,
   DiagnosticsExport,
   LaunchSettings,
@@ -302,4 +303,36 @@ export async function getPreparationPlan(
     textureStorage,
     workers,
   });
+}
+
+export async function getCacheCleanup(game: string): Promise<CacheCleanupPlan> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    return {
+      format: "starsector-preflight-cache-prune-v1",
+      safe: true,
+      applied: false,
+      currentProfileFingerprint: "preview-profile",
+      survivingProfileFingerprints: ["preview-profile"],
+      bytes: 1_842_884_608,
+      files: 8_914,
+      reachableTextureBlobs: 30_639,
+      reachablePreparedAudioBlobs: 412,
+      refusals: [],
+      groups: [
+        { reason: "unused profile artifact", bytes: 1_245_118_464, files: 5 },
+        { reason: "unreferenced blob", bytes: 597_766_144, files: 8_909 },
+      ],
+      removals: [],
+      removalsTruncated: false,
+    };
+  }
+  return invoke<CacheCleanupPlan>("get_cache_cleanup", { game });
+}
+
+export async function applyCacheCleanup(game: string): Promise<CacheCleanupPlan> {
+  if (!isDesktopHost()) {
+    return { ...(await getCacheCleanup(game)), applied: true };
+  }
+  return invoke<CacheCleanupPlan>("apply_cache_cleanup", { game });
 }

@@ -151,6 +151,9 @@ before/after result. Advanced controls remain available without becoming prerequ
   runnable.
 - The app shows current cache/evidence use and the effect of Balanced versus Fastest before changing
   policy. Cleanup is preview-first and never runs while the game or preparation owns the profile.
+  Its desktop plan keeps the current profile and every readable named profile, summarizes every
+  removal reason, and caps the disclosed path sample. Applying it rebuilds the plan under the
+  shared operation lease before deleting anything.
 - Removing launcher integration and removing all Preflight-owned data are separate choices. Both
   enumerate what will be removed; neither removes Starsector, mods, saves, or game-owned settings.
 - A profile or game update selects new content identities. Old data remains removable through the

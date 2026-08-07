@@ -164,6 +164,22 @@ export interface CacheSnapshot {
   }>;
 }
 
+export interface CacheCleanupPlan {
+  format: "starsector-preflight-cache-prune-v1";
+  safe: boolean;
+  applied: boolean;
+  currentProfileFingerprint: string | null;
+  survivingProfileFingerprints: string[];
+  bytes: number;
+  files: number;
+  reachableTextureBlobs: number;
+  reachablePreparedAudioBlobs: number;
+  refusals: string[];
+  groups: Array<{ reason: string; bytes: number; files: number }>;
+  removals: Array<{ path: string; bytes: number; reason: string }>;
+  removalsTruncated: boolean;
+}
+
 export interface NamedProfile {
   name: string;
   installRoot: string;

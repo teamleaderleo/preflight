@@ -112,6 +112,22 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(await screen.findByRole("button", { name: "Prepare current profile" })).toBeEnabled();
 });
 
+test("cache cleanup is previewed before unused artifacts are removed", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Prepare" }));
+  await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
+
+  expect(await screen.findByRole("heading", { name: "Free 1.72 GB?" })).toBeInTheDocument();
+  expect(screen.getByText(/Nothing removed yet/)).toBeInTheDocument();
+  const apply = screen.getByRole("button", { name: "Remove 8,914 files" });
+  expect(apply).toBeEnabled();
+  await user.click(apply);
+  expect(await screen.findByText(/Freed 1.72 GB across 8,914 unused files/)).toBeInTheDocument();
+});
+
 test("launch settings mirror vanilla display and battle controls", async () => {
   const user = userEvent.setup();
   render(<App />);

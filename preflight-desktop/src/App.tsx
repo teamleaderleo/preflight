@@ -3,9 +3,11 @@ import { open, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
   activateProfile,
+  applyCacheCleanup,
   cancelPreparation,
   exportDiagnostics,
   getCache,
+  getCacheCleanup,
   getLaunchSettings,
   getPreparationPlan,
   getProfiles,
@@ -33,6 +35,7 @@ import Logo from "./Logo";
 import type {
   AppStatus,
   CacheSnapshot,
+  CacheCleanupPlan,
   DesktopSnapshot,
   DiagnosticsExport,
   LaunchSettings,
@@ -139,6 +142,8 @@ export default function App() {
   const [page, setPage] = useState<Page>("home");
   const [cache, setCache] = useState<CacheSnapshot | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
+  const [cleanupPlan, setCleanupPlan] = useState<CacheCleanupPlan | null>(null);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cacheInstallRoot, setCacheInstallRoot] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [preparationCancelling, setPreparationCancelling] = useState(false);
@@ -425,6 +430,42 @@ export default function App() {
     } catch (error) {
       setPreparationCancelling(false);
       setMessage(String(error));
+    }
+  };
+
+  const reviewCleanup = async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game || cleanupBusy) return;
+    setCleanupBusy(true);
+    try {
+      const plan = await getCacheCleanup(game);
+      setCleanupPlan(plan);
+      setMessage(plan.safe
+        ? plan.files === 0
+          ? "There’s no unused acceleration data to clean up."
+          : "Cleanup is ready to review. Nothing has been removed."
+        : plan.refusals[0] ?? "Preflight couldn’t prove that cleanup was safe.");
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setCleanupBusy(false);
+    }
+  };
+
+  const cleanCache = async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game || !cleanupPlan?.safe || cleanupPlan.files === 0 || cleanupBusy) return;
+    setCleanupBusy(true);
+    try {
+      const result = await applyCacheCleanup(game);
+      setCleanupPlan(null);
+      setMessage(`Freed ${formatBytes(result.bytes)} across ${result.files.toLocaleString()} unused files. The current and named profiles stay warm.`);
+      await refreshCache();
+      setPreparationPlan(null);
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setCleanupBusy(false);
     }
   };
 
@@ -843,6 +884,10 @@ export default function App() {
               </div>
             </section>
 
+            {message && (
+              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
+            )}
+
             <div className="prepare-grid">
               <section className="card prepare-options">
                 <div className="card__heading">
@@ -888,6 +933,9 @@ export default function App() {
                 </div>
                 {preparationPlan && !preparationPlan.safeToPrepare && <p className="activation-warning">{preparationPlan.refusalReason}</p>}
                 <p className="storage-note">Acceleration data and diagnostic evidence are tracked separately. Cleanup is always previewed before deletion.</p>
+                <button className="button button--quiet button--compact" type="button" onClick={() => void reviewCleanup()} disabled={cleanupBusy || preparing || status === "running"}>
+                  {cleanupBusy ? "Checking…" : "Review cleanup"}
+                </button>
               </section>
             </div>
 
@@ -904,6 +952,26 @@ export default function App() {
                 </button>
               </div>
             </section>
+
+            {cleanupPlan && (
+              <section className="card cleanup-review" aria-label="Cache cleanup review">
+                <div className="activation-review__heading">
+                  <div><p className="eyebrow">Nothing removed yet</p><h2>{cleanupPlan.files === 0 ? "Everything here is still useful" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
+                  <button className="text-button" type="button" onClick={() => setCleanupPlan(null)} disabled={cleanupBusy}>Close</button>
+                </div>
+                {!cleanupPlan.safe && <p className="activation-warning">{cleanupPlan.refusals.join(" ")}</p>}
+                <p className="cleanup-summary">Preflight will keep the current profile and {Math.max(0, cleanupPlan.survivingProfileFingerprints.length - 1).toLocaleString()} named profile{cleanupPlan.survivingProfileFingerprints.length === 2 ? "" : "s"}. Game files, mods, saves, settings, and diagnostic evidence aren’t part of this cleanup.</p>
+                {cleanupPlan.groups.length > 0 && <div className="cleanup-groups">
+                  {cleanupPlan.groups.map((group) => <div key={group.reason}><span>{group.reason.replaceAll("-", " ")}</span><strong>{formatBytes(group.bytes)} · {group.files.toLocaleString()} files</strong></div>)}
+                </div>}
+                <div className="activation-review__footer">
+                  <span><ShieldIcon /> The plan is recalculated under the shared operation lock before deletion.</span>
+                  <button className="button button--danger" type="button" onClick={() => void cleanCache()} disabled={!cleanupPlan.safe || cleanupPlan.files === 0 || cleanupBusy}>
+                    {cleanupBusy ? "Cleaning…" : cleanupPlan.files === 0 ? "Nothing to remove" : `Remove ${cleanupPlan.files.toLocaleString()} files`}
+                  </button>
+                </div>
+              </section>
+            )}
           </div>
         ) : page === "profiles" ? (
           <div className="profiles-page">
