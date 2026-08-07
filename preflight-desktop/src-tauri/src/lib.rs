@@ -20,6 +20,7 @@ use url::Url;
 
 const UPDATE_ENDPOINT: &str =
     "https://github.com/teamleaderleo/preflight/releases/latest/download/latest.json";
+#[cfg(target_os = "macos")]
 const MACOS_ACCESSIBILITY_SETTINGS: &str =
     "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
 const DESKTOP_SMOKE_CANCELLATION_FILE: &str = "cancel.requested";
@@ -2428,13 +2429,12 @@ pub fn run() {
 mod tests {
     use super::{
         DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess, LaunchSettingsInput,
-        MACOS_ACCESSIBILITY_SETTINGS, PreparationProcess, ProcessState, ReportUploadInput,
-        ReportUploadProcess, UPDATE_ENDPOINT, begin_exit_cleanup,
-        desktop_smoke_cancellation_outcome, desktop_smoke_cancellation_requested,
-        desktop_smoke_outcome, diagnostic_output_path, parse_preparation_progress, read_tail,
-        refuse_update_install, take_deferred_exit, validate_launch_settings,
-        validate_optimization_preset, validate_removal_scope, validate_report_origin,
-        validated_case_url, validated_report_archive,
+        PreparationProcess, ProcessState, ReportUploadInput, ReportUploadProcess, UPDATE_ENDPOINT,
+        begin_exit_cleanup, desktop_smoke_cancellation_outcome,
+        desktop_smoke_cancellation_requested, desktop_smoke_outcome, diagnostic_output_path,
+        parse_preparation_progress, read_tail, refuse_update_install, take_deferred_exit,
+        validate_launch_settings, validate_optimization_preset, validate_removal_scope,
+        validate_report_origin, validated_case_url, validated_report_archive,
     };
     use std::fs;
     use std::io::Cursor;
@@ -2442,6 +2442,9 @@ mod tests {
     use std::sync::mpsc;
     use std::time::{SystemTime, UNIX_EPOCH};
     use tokio::sync::watch;
+
+    #[cfg(target_os = "macos")]
+    use super::MACOS_ACCESSIBILITY_SETTINGS;
 
     #[test]
     fn keeps_only_the_bounded_end_of_child_stderr() {
@@ -2682,6 +2685,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn macos_accessibility_link_targets_the_system_privacy_pane() {
         assert_eq!(
