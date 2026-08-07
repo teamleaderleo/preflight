@@ -49,6 +49,10 @@ calculates their sizes and SHA-256 digests, and atomically writes `smoke-evidenc
 layer is also implemented: a mock-tested driver interface and runner validate capabilities, reload
 the PID identity before each exact scenario step, demand a fresh observation after input, enforce
 monotonic deadlines, stop on the first failure, require quit to end attachment, and seal the result.
+Semantic waits are engine-owned now: an exact, process-bound `runtime-state.json` publishes only
+`starting`, main-menu, campaign, combat, and stopped transitions. The runner reads that record rather
+than asking a platform driver to infer game state from pixels. Unknown target bytes simply leave the
+capability unavailable.
 The next implementation is an interruptible macOS adapter and isolated PID-addressed window probe,
 then equivalent Windows and Linux adapters. Don't launch the game merely to exercise the
 driver-neutral pieces.

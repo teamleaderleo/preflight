@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
@@ -20,10 +22,27 @@ class CombatRuntimeIntegrityPlanTest {
             CombatRuntimeIntegrityRuntime.class.getName().replace('.', '/');
     private static final String FRAME_RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
 
+    @TempDir
+    Path temporaryDirectory;
+
     @AfterEach
     void reset() {
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.reset();
+        RuntimeSemanticState.reset();
+    }
+
+    @Test
+    void composesSemanticCombatStateWithoutFrameCollection() throws Exception {
+        byte[] original = fixture();
+        FrameTimeRuntime.beginSession(false);
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+
+        byte[] transformed = CombatRuntimeIntegrityPlan.transform(exactSignature(original), original);
+
+        assertNotNull(transformed);
+        assertEquals(1, calls(method(read(transformed)), INTEGRITY_RUNTIME, "observe"));
+        assertEquals(1, calls(method(read(transformed)), FRAME_RUNTIME, "observeCombat"));
     }
 
     @Test

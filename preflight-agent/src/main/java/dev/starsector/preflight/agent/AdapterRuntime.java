@@ -85,6 +85,12 @@ final class AdapterRuntime {
         } catch (IOException error) {
             report.contained("Could not publish runtime process identity", error);
         }
+        try {
+            RuntimeSemanticState.beginSession(
+                    options.adapterReport().resolveSibling("runtime-state.json"));
+        } catch (IOException error) {
+            report.contained("Could not publish runtime semantic state", error);
+        }
         CodeLoaderSignatureReport codeLoaderReport = new CodeLoaderSignatureReport(
                 sibling(options.adapterReport(), "code-loader-signatures.json"));
         AudioDecoderSignatureReport audioDecoderReport = new AudioDecoderSignatureReport(
@@ -446,6 +452,7 @@ final class AdapterRuntime {
                 System.err.println("[Preflight] Failed to finalize runtime process identity: "
                         + error.getMessage());
             }
+            RuntimeSemanticState.stopped();
             if (!writeReport) return;
             try {
                 MergedReadCacheRuntime.complete();

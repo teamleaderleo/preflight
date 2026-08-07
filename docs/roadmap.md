@@ -55,6 +55,10 @@ validates the live PID before each ordered step, requires a fresh observation af
 monotonic call deadlines, stops on the first failure, and seals pass/skip/failure output through the
 engine. Its mock pass, missing-capability skip, and mid-run failure paths are covered without
 launching a game.
+Semantic waits now come from a second atomic runtime record bound to the same PID and process start
+instant. Exact resource-init, campaign-loop, and combat-loop seams publish only state transitions;
+ordinary frames pay one volatile comparison. The runner validates that identity and owns the wait,
+so OS adapters don't infer gameplay state from a screenshot or window title.
 The remaining work is a separately interruptible platform adapter, starting with isolated macOS
 PID-addressed window attachment.
 

@@ -26,7 +26,7 @@ final class FrameTimeStatePlan {
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
         String observer = "observeCampaign";
-        if (!FrameTimeRuntime.enabled()
+        if ((!FrameTimeRuntime.enabled() && !RuntimeSemanticState.enabled())
                 || !CAMPAIGN_CLASS.equals(signature.internalName())
                 || !CAMPAIGN_SHA256.equals(signature.sha256())
                 || signature.majorVersion() != 61

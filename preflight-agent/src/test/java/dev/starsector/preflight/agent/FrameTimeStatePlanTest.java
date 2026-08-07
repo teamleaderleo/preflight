@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.nio.file.Path;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
@@ -19,6 +21,9 @@ import org.objectweb.asm.tree.MethodNode;
 class FrameTimeStatePlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
 
+    @TempDir
+    Path temporaryDirectory;
+
     @BeforeEach
     void enable() {
         FrameTimeRuntime.beginSession(true);
@@ -27,6 +32,16 @@ class FrameTimeStatePlanTest {
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
+        RuntimeSemanticState.reset();
+    }
+
+    @Test
+    void marksCampaignForSemanticAutomationWithoutFrameCollection() throws Exception {
+        FrameTimeRuntime.beginSession(false);
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+
+        assertObserver(FrameTimeStatePlan.CAMPAIGN_CLASS,
+                FrameTimeStatePlan.CAMPAIGN_SHA256, "observeCampaign");
     }
 
     @Test

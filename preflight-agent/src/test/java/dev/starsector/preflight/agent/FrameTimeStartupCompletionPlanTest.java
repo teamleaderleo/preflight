@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -19,11 +21,28 @@ class FrameTimeStartupCompletionPlanTest {
     private static final String RUNTIME = FrameTimeRuntime.class.getName().replace('.', '/');
     private static final String JSON_RUNTIME = LoadJsonMemoRuntime.class.getName().replace('.', '/');
 
+    @TempDir
+    Path temporaryDirectory;
+
     @AfterEach
     void reset() {
         FrameTimeRuntime.reset();
         LoadJsonMemoRuntime.enable(false);
         LoadJsonMemoRuntime.reset();
+        RuntimeSemanticState.reset();
+    }
+
+    @Test
+    void installsForSemanticAutomationWithoutTheOtherConsumers() throws Exception {
+        FrameTimeRuntime.beginSession(false);
+        LoadJsonMemoRuntime.enable(false);
+        RuntimeSemanticState.beginSession(temporaryDirectory.resolve("runtime-state.json"));
+        byte[] original = fixture(1);
+
+        byte[] transformed = FrameTimeStartupCompletionPlan.transform(
+                exactSignature(original), original);
+
+        assertEquals(1, calls(method(transformed), RUNTIME, "markStartupComplete", "()V"));
     }
 
     @Test

@@ -77,20 +77,31 @@ final class DesktopSmokeRunner {
             descriptor.diagnostics().stream().map(DesktopSmokeRunner::bounded).forEach(diagnostics::add);
         }
 
+        TargetCheck initial = target(runtimeProcess);
+        if (!initial.attachable()) {
+            diagnostics.add("Runtime process isn't attachable: " + initial.reason());
+            return seal(scenario, realRun, descriptor, "skipped", startedAt, clock.instant(),
+                    completedSteps, diagnostics);
+        }
+        Path runtimeState = runtimeProcess.toAbsolutePath().normalize()
+                .resolveSibling("runtime-state.json");
         Set<String> capabilities = descriptor.capabilities() == null
-                ? Set.of()
+                ? new LinkedHashSet<>()
                 : new LinkedHashSet<>(descriptor.capabilities());
+        capabilities.remove("semantic-state");
+        try {
+            RuntimeSemanticStateIdentity.read(runtimeState, initial.target());
+            capabilities.add("semantic-state");
+        } catch (Exception unavailable) {
+            diagnostics.add("Runtime semantic state is unavailable: " + message(unavailable));
+        }
+        descriptor = new DesktopSmokeDriver.Descriptor(
+                descriptor.id(), descriptor.version(), descriptor.platform(),
+                Collections.unmodifiableSet(capabilities), descriptor.diagnostics());
         Set<String> missing = new LinkedHashSet<>(scenario.requiredCapabilities());
         missing.removeAll(capabilities);
         if (!missing.isEmpty()) {
             diagnostics.add("Driver is missing required capabilities: " + String.join(", ", missing));
-            return seal(scenario, realRun, descriptor, "skipped", startedAt, clock.instant(),
-                    completedSteps, diagnostics);
-        }
-
-        TargetCheck initial = target(runtimeProcess);
-        if (!initial.attachable()) {
-            diagnostics.add("Runtime process isn't attachable: " + initial.reason());
             return seal(scenario, realRun, descriptor, "skipped", startedAt, clock.instant(),
                     completedSteps, diagnostics);
         }
@@ -131,8 +142,16 @@ final class DesktopSmokeRunner {
                         completedSteps, diagnostics);
             }
             try {
-                DesktopSmokeDriver.ActionResult action = calls.call(
-                        () -> driver.execute(step, realRun), stepTimeoutSeconds(step, scenario));
+                DesktopSmokeDriver.ActionResult action;
+                if ("wait-state".equals(kind)) {
+                    String expected = step.get("state").toString();
+                    waitForState(runtimeProcess, runtimeState, initial.target(), expected,
+                            stepTimeoutSeconds(step, scenario));
+                    action = DesktopSmokeDriver.ActionResult.completed("observed " + expected);
+                } else {
+                    action = calls.call(
+                            () -> driver.execute(step, realRun), stepTimeoutSeconds(step, scenario));
+                }
                 if (action == null) {
                     throw new IllegalStateException("Driver returned no action result");
                 }
@@ -174,6 +193,45 @@ final class DesktopSmokeRunner {
         }
         return seal(scenario, realRun, descriptor, "passed", startedAt, clock.instant(),
                 completedSteps, diagnostics);
+    }
+
+    private static void waitForState(
+            Path runtimeProcess,
+            Path runtimeState,
+            DesktopSmokeDriver.ProcessTarget expectedTarget,
+            String expected,
+            int timeoutSeconds) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+        String lastState = "unavailable";
+        String lastProblem = null;
+        while (System.nanoTime() < deadline) {
+            TargetCheck current = target(runtimeProcess);
+            if (!current.attachable()
+                    || current.target().pid() != expectedTarget.pid()
+                    || !current.target().startedAt().equals(expectedTarget.startedAt())) {
+                throw new IllegalStateException("Runtime process changed while waiting for " + expected);
+            }
+            try {
+                RuntimeSemanticStateIdentity state =
+                        RuntimeSemanticStateIdentity.read(runtimeState, expectedTarget);
+                lastState = state.state();
+                lastProblem = null;
+                if (state.is(expected)) return;
+                if ("stopped".equals(lastState)) {
+                    throw new IllegalStateException("Runtime stopped while waiting for " + expected);
+                }
+            } catch (IOException | IllegalArgumentException unavailable) {
+                lastProblem = message(unavailable);
+            }
+            try {
+                Thread.sleep(50L);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw interrupted;
+            }
+        }
+        String detail = lastProblem == null ? "last state was " + lastState : lastProblem;
+        throw new TimeoutException("Timed out waiting for " + expected + "; " + detail);
     }
 
     private static int stepTimeoutSeconds(

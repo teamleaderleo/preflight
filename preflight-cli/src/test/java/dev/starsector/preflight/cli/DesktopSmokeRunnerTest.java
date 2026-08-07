@@ -31,7 +31,7 @@ final class DesktopSmokeRunnerTest {
                 scenario(), runtime, run, driver, Clock.systemUTC());
 
         assertEquals("passed", result.get("status"));
-        assertEquals(List.of("menu", "continue", "capture"), driver.executed);
+        assertEquals(List.of("continue", "capture"), driver.executed);
         assertEquals(1, driver.observations);
         assertTrue(driver.attached);
         assertTrue(Files.isRegularFile(run.resolve("driver-result.json")));
@@ -62,7 +62,7 @@ final class DesktopSmokeRunnerTest {
                 scenario(), runtime, run, driver, Clock.systemUTC());
 
         assertEquals("failed", result.get("status"));
-        assertEquals(List.of("menu", "continue"), driver.executed);
+        assertEquals(List.of("continue"), driver.executed);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> steps = (List<Map<String, Object>>) result.get("steps");
         assertEquals("passed", steps.get(0).get("status"));
@@ -81,11 +81,19 @@ final class DesktopSmokeRunnerTest {
         identity.put("stoppedAt", null);
         Path path = run.resolve("runtime-process.json");
         Files.writeString(path, Json.object(identity));
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("format", "starsector-preflight-runtime-state-v1");
+        state.put("pid", process.pid());
+        state.put("processStartedAt", process.info().startInstant().orElseThrow());
+        state.put("state", "main-menu-ready");
+        state.put("sequence", 1L);
+        state.put("observedAt", Instant.now());
+        Files.writeString(run.resolve("runtime-state.json"), Json.object(state));
         return path;
     }
 
     private static Set<String> capabilities() {
-        return Set.of("process-control", "semantic-state", "window-control", "screen-capture");
+        return Set.of("process-control", "window-control", "screen-capture");
     }
 
     private static DesktopSmokeScenario scenario() {

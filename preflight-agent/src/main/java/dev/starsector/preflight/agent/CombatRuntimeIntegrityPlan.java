@@ -47,7 +47,7 @@ final class CombatRuntimeIntegrityPlan {
         InsnList observations = new InsnList();
         observations.add(new MethodInsnNode(
                 Opcodes.INVOKESTATIC, INTEGRITY_RUNTIME, "observe", "()V", false));
-        if (FrameTimeRuntime.enabled()) {
+        if (FrameTimeRuntime.enabled() || RuntimeSemanticState.enabled()) {
             observations.add(new MethodInsnNode(
                     Opcodes.INVOKESTATIC, FRAME_RUNTIME, "observeCombat", "()V", false));
         }

@@ -26,6 +26,7 @@ final class DiagnosticBundleTest {
         Files.writeString(run.resolve("run.json"),
                 "{\"path\":\"" + json(home.root().toString()) + "/runs/latest-run\"}");
         Files.writeString(run.resolve("adapter-health.json"), "{\"active\":true}");
+        Files.writeString(run.resolve("runtime-state.json"), "{\"state\":\"stopped\"}");
         Files.writeString(run.resolve("console.txt"), "SECRET_TOKEN=do-not-export");
         Files.write(run.resolve("startup.jfr"), new byte[] {1, 2, 3});
         Files.write(run.resolve("summary.json"), new byte[DiagnosticBundle.MAX_FILE_BYTES + 1]);
@@ -45,6 +46,7 @@ final class DiagnosticBundleTest {
         assertTrue(entries.containsKey("manifest.json"));
         assertTrue(entries.containsKey("runs/1/run.json"));
         assertTrue(entries.containsKey("runs/1/adapter-health.json"));
+        assertTrue(entries.containsKey("runs/1/runtime-state.json"));
         assertTrue(entries.containsKey("benchmarks/1/results.jsonl"));
         assertFalse(entries.containsKey("runs/1/console.txt"));
         assertFalse(entries.containsKey("runs/1/startup.jfr"));

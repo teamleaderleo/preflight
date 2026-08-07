@@ -32,7 +32,9 @@ final class FrameTimeStartupCompletionPlan {
     }
 
     static boolean apply(ClassSignature signature, ClassNode owner) {
-        if ((!FrameTimeRuntime.enabled() && !LoadJsonMemoRuntime.ready())
+        if ((!FrameTimeRuntime.enabled()
+                        && !LoadJsonMemoRuntime.ready()
+                        && !RuntimeSemanticState.enabled())
                 || !TARGET_CLASS.equals(signature.internalName())
                 || !ORIGINAL_SHA256.equals(signature.sha256())
                 || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {

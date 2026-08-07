@@ -46,6 +46,9 @@ final class DiagnosticBundle {
             "operator-gameplay-result.json",
             "profile.json",
             "run.json",
+            "runtime-process.json",
+            "runtime-state.json",
+            "smoke-evidence.json",
             "summary.json");
     private static final Set<String> BENCHMARK_FILES = Set.of(
             "benchmark-summary.json",
@@ -67,6 +70,7 @@ final class DiagnosticBundle {
             - run outcome, runtime and launch-option metadata
             - enabled-mod/resource metadata (names, counts, sizes and hashes; never asset contents)
             - adapter activation, health, counters and bounded timing summaries
+            - desktop-smoke process/state identity and sealed outcome metadata
             - benchmark identity, settings and result metadata
 
             Always excluded:

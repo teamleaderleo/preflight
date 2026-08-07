@@ -24,6 +24,14 @@ Screenshots are visual evidence, not the sole proof that the game reached a stat
 key action is followed by a fresh observation before the next action. The runner owns exactly one
 game process and refuses an already-running or second instance.
 
+The injected JVM also atomically publishes `runtime-state.json`. Its PID and process start instant
+bind it to the same lifetime as `runtime-process.json`; its state advances through `starting`,
+`main-menu-ready`, `campaign-ready`, `combat-ready`, and `stopped`. The main-menu marker is the exact
+reviewed resource-initialization return already used by startup measurement. Campaign and combat
+come from exact reviewed game-loop entry points. Only transitions touch disk; an unchanged campaign
+or combat frame performs one volatile comparison. Unknown class bytes leave the game untouched and
+the state absent, so semantic automation becomes unavailable instead of guessing from pixels.
+
 Every injected game JVM atomically publishes `runtime-process.json` in its run directory before
 normal game initialization. The versioned record contains the JVM's PID, parent PID, available
 process start instant, observation instant, and `running|stopped` state. A driver attaches only by
@@ -122,8 +130,9 @@ driver can't redirect the write onto unrelated run evidence.
 
 The driver-neutral runner now owns the state machine that produces this request. It probes
 capabilities before attachment, reloads and validates `runtime-process.json` before every step,
-executes the scenario in exact order, and obtains a fresh observation after every window or input
-action. The first failure ends the run; permission/capability loss becomes `skipped`; a successful
+waits on the process-bound semantic state itself, executes remaining actions in exact order, and
+obtains a fresh observation after every window or input action. The first failure ends the run;
+permission/capability loss becomes `skipped`; a successful
 `quit` must leave the recorded JVM non-attachable. Driver calls run on a monotonic global deadline,
 with tighter probe, attachment, observation, and semantic-wait bounds. An interrupted adapter is
 required to stop input, and a subprocess-backed adapter must terminate its child. Mock-driver tests

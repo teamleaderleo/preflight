@@ -92,11 +92,13 @@ public final class FrameTimeRuntime {
 
     /** Called from the reviewed campaign loop before the display boundary. */
     public static void observeCampaign() {
+        RuntimeSemanticState.campaignReady();
         if (enabled) observedState = STATE_CAMPAIGN;
     }
 
     /** Called from the reviewed combat-engine loop before the display boundary. */
     public static void observeCombat() {
+        RuntimeSemanticState.combatReady();
         if (enabled) observedState = STATE_COMBAT;
     }
 
@@ -115,6 +117,7 @@ public final class FrameTimeRuntime {
     /** Called from an exact transformed game class when resource initialization returns. */
     public static synchronized void markStartupComplete() {
         if (enabled) startupComplete = true;
+        RuntimeSemanticState.mainMenuReady();
         LoadJsonMemoRuntime.markStartupComplete();
         MergedReadCacheRuntime.complete();
         RuleTokenCacheRuntime.complete();

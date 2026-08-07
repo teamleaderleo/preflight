@@ -59,6 +59,13 @@ class SelfAgentIT {
         assertTrue(runtimeIdentity.contains("\"pid\":" + process.pid()), runtimeIdentity);
         assertTrue(runtimeIdentity.contains("\"state\":\"stopped\""), runtimeIdentity);
         assertTrue(runtimeIdentity.contains("\"startedAt\":"), runtimeIdentity);
+        Path runtimeState = recording.resolveSibling("runtime-state.json");
+        assertTrue(Files.isRegularFile(runtimeState), output);
+        String semanticState = Files.readString(runtimeState);
+        assertTrue(semanticState.contains("\"format\":\"starsector-preflight-runtime-state-v1\""),
+                semanticState);
+        assertTrue(semanticState.contains("\"pid\":" + process.pid()), semanticState);
+        assertTrue(semanticState.contains("\"state\":\"stopped\""), semanticState);
         try (RecordingFile file = new RecordingFile(recording)) {
             assertTrue(file.hasMoreEvents(), output);
             RecordedEvent started = agentStarted(file);
