@@ -180,6 +180,26 @@ export interface CacheCleanupPlan {
   removalsTruncated: boolean;
 }
 
+export type RemovalScope = "launcher" | "all-data";
+
+export interface RemovalPlan {
+  format: "preflight-removal-v1";
+  scope: RemovalScope;
+  safe: boolean;
+  applied: boolean;
+  bytes: number;
+  files: number;
+  targets: Array<{
+    kind: "launch-integration" | "installed-engine" | "preflight-data";
+    label: string;
+    path: string;
+    bytes: number;
+    files: number;
+  }>;
+  refusals: string[];
+  preserves: string[];
+}
+
 export interface NamedProfile {
   name: string;
   installRoot: string;

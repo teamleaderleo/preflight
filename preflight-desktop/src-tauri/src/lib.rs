@@ -264,6 +264,66 @@ fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value,
         .map_err(|error| format!("Preflight returned an unreadable cleanup plan: {error}"))
 }
 
+fn validate_removal_scope(scope: &str) -> Result<(), String> {
+    match scope {
+        "launcher" | "all-data" => Ok(()),
+        _ => Err("Removal scope must be launcher or all-data.".to_string()),
+    }
+}
+
+#[tauri::command]
+fn get_removal_plan(app: AppHandle, scope: String) -> Result<Value, String> {
+    removal_json(&app, &scope, false)
+}
+
+#[tauri::command]
+fn apply_removal(
+    app: AppHandle,
+    tracker: State<'_, ProcessTracker>,
+    scope: String,
+) -> Result<Value, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    if running.game.is_some() {
+        return Err("Close Starsector before removing Preflight files.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before removing Preflight files.".to_string(),
+        );
+    }
+    let result = removal_json(&app, &scope, true);
+    drop(running);
+    result
+}
+
+fn removal_json(app: &AppHandle, scope: &str, apply: bool) -> Result<Value, String> {
+    validate_removal_scope(scope)?;
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command
+        .arg("uninstall")
+        .arg("--scope")
+        .arg(scope)
+        .arg("--json");
+    if apply {
+        command.arg("--yes");
+    }
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not apply the removal plan",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable removal plan: {error}"))
+}
+
 fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
     let requested = PathBuf::from(output);
     if !requested.is_absolute() {
@@ -876,6 +936,8 @@ pub fn run() {
             get_cache,
             get_cache_cleanup,
             apply_cache_cleanup,
+            get_removal_plan,
+            apply_removal,
             export_diagnostics,
             get_launch_settings,
             update_launch_settings,
@@ -895,7 +957,7 @@ pub fn run() {
 mod tests {
     use super::{
         LaunchSettingsInput, diagnostic_output_path, parse_preparation_progress, read_tail,
-        validate_launch_settings, validate_optimization_preset,
+        validate_launch_settings, validate_optimization_preset, validate_removal_scope,
     };
     use std::io::Cursor;
 
@@ -911,6 +973,14 @@ mod tests {
         let mut stderr = Cursor::new(b"useful failure");
 
         assert_eq!(b"useful failure", read_tail(&mut stderr, 1024).as_slice());
+    }
+
+    #[test]
+    fn removal_scopes_are_a_closed_product_contract() {
+        assert!(validate_removal_scope("launcher").is_ok());
+        assert!(validate_removal_scope("all-data").is_ok());
+        assert!(validate_removal_scope("cache").is_err());
+        assert!(validate_removal_scope("../game").is_err());
     }
 
     #[test]

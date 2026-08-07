@@ -1477,6 +1477,41 @@ h2 {
   font-size: 11px;
 }
 
+.removal-card,
+.removal-review {
+  margin-top: 18px;
+  padding: 24px;
+}
+
+.removal-card > p {
+  max-width: 760px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.removal-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.removal-choices > div {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.removal-choices strong { font-size: 12px; }
+.removal-choices span { color: var(--ink-soft); font-size: 10px; line-height: 1.55; }
+.removal-choices .button { margin-top: auto; }
+
 .prepare-action {
   display: flex;
   align-items: center;

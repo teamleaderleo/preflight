@@ -27,6 +27,8 @@ import java.util.UUID;
  */
 final class OperationLease implements AutoCloseable {
     static final String FORMAT = "preflight-operation-v1";
+    static final String REMOVE_ALL_OPERATION = "remove-all-data";
+    private static final String REMOVAL_MARKER = "removal.pending";
 
     private final Path ownerFile;
     private final FileChannel channel;
@@ -46,6 +48,7 @@ final class OperationLease implements AutoCloseable {
             throw new IllegalArgumentException("Invalid operation name: " + operation);
         }
         Path state = home.state().toAbsolutePath().normalize();
+        refuseIncompleteRemoval(state, operation);
         Files.createDirectories(state);
         Path lockFile = state.resolve("operation.lock");
         Path ownerFile = state.resolve("operation.json");
@@ -67,6 +70,8 @@ final class OperationLease implements AutoCloseable {
                         : "Preflight is already " + owner.operation() + " (process " + owner.pid()
                                 + ", started " + owner.startedAt() + ").");
             }
+
+            refuseIncompleteRemoval(state, operation);
 
             Owner recovered = readOwner(ownerFile);
             int recoveredTemporaryFiles = recovered == null
@@ -98,6 +103,17 @@ final class OperationLease implements AutoCloseable {
                 failed.addSuppressed(closeFailed);
             }
             throw failed;
+        }
+    }
+
+    static Path removalMarker(PreflightHome home) {
+        return home.state().resolve(REMOVAL_MARKER);
+    }
+
+    private static void refuseIncompleteRemoval(Path state, String operation) throws BusyException {
+        if (!REMOVE_ALL_OPERATION.equals(operation) && Files.exists(state.resolve(REMOVAL_MARKER))) {
+            throw new BusyException(
+                    "Preflight data removal was interrupted. Re-run `preflight uninstall --purge --yes` to finish it.");
         }
     }
 

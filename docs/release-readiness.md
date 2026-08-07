@@ -39,7 +39,7 @@ first public beta.
 - [x] Provide preview-first cleanup that retains the current and readable named profiles, groups
   every proposed removal, bounds path samples, and recalculates under shared ownership before
   deletion.
-- [ ] Provide two removal choices: launcher/app only, or all Preflight-owned caches and evidence.
+- [x] Provide two removal choices: launcher/app only, or all Preflight-owned caches and evidence.
   Never include game, mod, save, or preference deletion.
 - [ ] Add an explicit update check and signed install flow. Never surprise-install an update.
 - [ ] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and

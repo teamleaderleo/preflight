@@ -156,6 +156,10 @@ before/after result. Advanced controls remain available without becoming prerequ
   shared operation lease before deleting anything.
 - Removing launcher integration and removing all Preflight-owned data are separate choices. Both
   enumerate what will be removed; neither removes Starsector, mods, saves, or game-owned settings.
+  The first scope removes OS launch shortcuts and the installed command engine while retaining
+  prepared data and evidence. The second also removes caches, profiles, evidence, and backups under
+  Preflight's home. A packaged desktop app remains subject to the platform's signed package
+  uninstaller; a running app doesn't attempt to delete its own bundle.
 - A profile or game update selects new content identities. Old data remains removable through the
   same preview-first storage flow rather than accumulating invisibly forever.
 - “Send run report” is a deliberate action with disclosure, digest, progress, cancel/retry behavior,

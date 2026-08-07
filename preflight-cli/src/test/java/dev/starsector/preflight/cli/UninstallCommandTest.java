@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -42,6 +43,54 @@ class UninstallCommandTest {
         assertFalse(preflight.integrations().get(0).present(), "the app should be gone");
         assertTrue(Files.isRegularFile(preflight.root().resolve("cache/artifact")),
                 "the cache is only removed by --purge");
+    }
+
+    @Test
+    void theDefaultScopeAlsoRemovesTheInstalledCommandEngine() throws Exception {
+        PreflightHome preflight = macHome();
+        installIntegration(preflight);
+        Files.createDirectories(preflight.installedJar().getParent());
+        Files.writeString(preflight.installedJar(), "engine");
+        Files.createDirectories(preflight.root().resolve("cache"));
+        Files.writeString(preflight.root().resolve("cache/artifact"), "prepared");
+
+        assertEquals(0, UninstallCommand.run(preflight, false, true, quiet()));
+        assertFalse(Files.exists(preflight.installedJar().getParent()));
+        assertTrue(Files.isRegularFile(preflight.root().resolve("cache/artifact")));
+    }
+
+    @Test
+    void jsonPreviewNamesTheScopeAndPinsTheGameBoundary() throws Exception {
+        PreflightHome preflight = macHome();
+        installIntegration(preflight);
+
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        try (PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8)) {
+            assertEquals(0, UninstallCommand.run(
+                    preflight, UninstallCommand.Scope.LAUNCHER, false, true, out));
+        }
+        String json = captured.toString(StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"format\":\"preflight-removal-v1\""), json);
+        assertTrue(json.contains("\"scope\":\"launcher\""), json);
+        assertTrue(json.contains("\"applied\":false"), json);
+        assertTrue(json.contains("\"Starsector installation\""), json);
+        assertTrue(preflight.integrations().get(0).present(), "preview must not remove anything");
+    }
+
+    @Test
+    void anInterruptedAllDataRemovalBlocksOtherMutationsButCanResume() throws Exception {
+        PreflightHome preflight = macHome();
+        Files.createDirectories(preflight.state());
+        Files.writeString(OperationLease.removalMarker(preflight), "interrupted\n");
+        Files.createDirectories(preflight.root().resolve("cache"));
+        Files.writeString(preflight.root().resolve("cache/artifact"), "prepared");
+
+        OperationLease.BusyException refused = assertThrows(OperationLease.BusyException.class,
+                () -> OperationLease.acquire(preflight, "launching", null));
+        assertTrue(refused.getMessage().contains("uninstall --purge --yes"));
+
+        assertEquals(0, UninstallCommand.run(preflight, true, true, quiet()));
+        assertFalse(Files.exists(preflight.root()), "the explicit purge should resume and finish");
     }
 
     @Test

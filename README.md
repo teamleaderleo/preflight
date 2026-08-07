@@ -294,12 +294,14 @@ signing/notarization, Windows signing, and a PID-safe automated game smoke remai
 On macOS, `install` creates `~/Applications/Preflight.app`. Linux receives a command and desktop
 entry. Windows receives a local command launcher.
 
-Remove the launcher integration with a preview before confirmation; add `--purge` to include
-Preflight's caches and retained evidence. Neither form removes Starsector, mods, or saves:
+Remove the launcher integrations and installed command engine with a preview before confirmation;
+choose `all-data` to include Preflight's caches, profiles, retained evidence, and backups. The
+desktop app exposes the same two reviews. Its signed package remains under the operating system's
+normal app uninstaller. Neither scope removes Starsector, mods, saves, or game-owned settings:
 
 ```bash
 java -jar preflight.jar uninstall
-java -jar preflight.jar uninstall --purge
+java -jar preflight.jar uninstall --scope all-data
 ```
 
 ## Before public release

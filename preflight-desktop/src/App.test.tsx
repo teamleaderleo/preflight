@@ -185,3 +185,25 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   expect(await screen.findByText("Diagnostics are ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
 });
+
+test("removal keeps launcher files and all data as separate previewed scopes", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+
+  const launcher = await screen.findByRole("button", { name: "Review launcher removal" });
+  const allData = screen.getByRole("button", { name: "Review all data removal" });
+  expect(launcher).toBeEnabled();
+  expect(allData).toBeEnabled();
+
+  await user.click(launcher);
+  expect(await screen.findByRole("heading", { name: "Remove launch integration?" })).toBeInTheDocument();
+  expect(screen.getByText(/Starsector, mods, saves, and game settings aren’t removal targets/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+  await user.click(allData);
+  expect(await screen.findByRole("heading", { name: "Remove all Preflight data?" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove all Preflight data" })).toBeEnabled();
+});

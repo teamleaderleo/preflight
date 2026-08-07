@@ -278,9 +278,11 @@ public final class PreflightCli {
                 "  balanced is the default. Worker and memory controls apply only to preparation;",
                 "  without --prepare they are rejected rather than silently ignored."));
         usage.put("uninstall", List.of(
-                "preflight uninstall [--purge] [--yes]",
-                "  Prints what it would remove and exits; --yes performs the removal.",
-                "  --purge also removes ~/.starsector-preflight, discarding prepared caches",
+                "preflight uninstall [--scope launcher|all-data] [--json] [--yes]",
+                "  Prints an exact removal plan and exits; --yes performs the removal.",
+                "  launcher removes installed launch integrations and the installed command engine.",
+                "  all-data (or the legacy --purge spelling) also removes ~/.starsector-preflight,",
+                "  discarding prepared caches",
                 "  and every run and benchmark record under it. The Starsector installation",
                 "  is never modified by Preflight, so nothing there needs restoring."));
         usage.put("cache", List.of(

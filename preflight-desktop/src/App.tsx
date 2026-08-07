@@ -4,12 +4,14 @@ import { listen } from "@tauri-apps/api/event";
 import {
   activateProfile,
   applyCacheCleanup,
+  applyRemoval,
   cancelPreparation,
   exportDiagnostics,
   getCache,
   getCacheCleanup,
   getLaunchSettings,
   getPreparationPlan,
+  getRemovalPlan,
   getProfiles,
   getSnapshot,
   isDesktopHost,
@@ -46,6 +48,8 @@ import type {
   PreparationProgressEvent,
   ProfileActivationPlan,
   ProfileList,
+  RemovalPlan,
+  RemovalScope,
   RunStateEvent,
 } from "./types";
 
@@ -166,6 +170,8 @@ export default function App() {
   const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
   const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
   const [launcherSettingsSaving, setLauncherSettingsSaving] = useState(false);
+  const [removalPlan, setRemovalPlan] = useState<RemovalPlan | null>(null);
+  const [removalBusy, setRemovalBusy] = useState(false);
 
   const refresh = useCallback(async (game?: string) => {
     setStatus("loading");
@@ -567,6 +573,47 @@ export default function App() {
       setMessage(String(error));
     } finally {
       setLauncherSettingsSaving(false);
+    }
+  };
+
+  const reviewRemoval = async (scope: RemovalScope) => {
+    if (removalBusy) return;
+    setRemovalBusy(true);
+    try {
+      const plan = await getRemovalPlan(scope);
+      setRemovalPlan(plan);
+      setMessage(plan.targets.length === 0
+        ? "There’s nothing in that removal scope."
+        : "Removal is ready to review. Nothing has been removed.");
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setRemovalBusy(false);
+    }
+  };
+
+  const removePreflight = async () => {
+    if (!removalPlan?.safe || removalPlan.targets.length === 0 || removalBusy) return;
+    const scope = removalPlan.scope;
+    setRemovalBusy(true);
+    try {
+      const result = await applyRemoval(scope);
+      if (scope === "all-data") {
+        try { window.localStorage.removeItem("preflight.optimizationPreset"); } catch { /* already removed on disk */ }
+        setCache(null);
+        setProfiles(null);
+      }
+      setRemovalPlan(null);
+      const platformStep = snapshot?.platform === "windows"
+        ? "Use Windows Installed apps to remove this desktop app."
+        : snapshot?.platform === "linux"
+          ? "Remove this desktop package with the package manager that installed it."
+          : "Move this desktop app to the Trash when you’re ready.";
+      setMessage(`${result.files.toLocaleString()} Preflight-owned files removed. ${platformStep}`);
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setRemovalBusy(false);
     }
   };
 
@@ -1108,6 +1155,33 @@ export default function App() {
                 <FolderIcon />{diagnosticsBusy ? "Saving…" : "Save diagnostics bundle"}
               </button>
             </section>
+
+            <section className="card removal-card">
+              <div className="card__heading">
+                <div><p className="eyebrow">Removal</p><h2>Choose exactly what leaves</h2></div>
+                <ShieldIcon className="settings-check" />
+              </div>
+              <p>Both choices are previewed first. Starsector, mods, saves, and game-owned settings stay outside every plan.</p>
+              <div className="removal-choices">
+                <div><strong>Launch integration</strong><span>Remove Preflight’s installed command engine and OS launch shortcuts. Keep prepared data and diagnostics.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("launcher")} disabled={removalBusy || preparing || status === "running"}>Review launcher removal</button></div>
+                <div><strong>All Preflight data</strong><span>Remove launch integrations, caches, profiles, evidence, and backups. The packaged desktop app remains for the operating system to uninstall.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("all-data")} disabled={removalBusy || preparing || status === "running"}>Review all data removal</button></div>
+              </div>
+            </section>
+
+            {removalPlan && (
+              <section className="card removal-review" aria-label="Removal review">
+                <div className="activation-review__heading">
+                  <div><p className="eyebrow">Nothing removed yet</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
+                  <button className="text-button" type="button" onClick={() => setRemovalPlan(null)} disabled={removalBusy}>Cancel</button>
+                </div>
+                <p className="cleanup-summary">{formatBytes(removalPlan.bytes)} across {removalPlan.files.toLocaleString()} files. The plan was measured from the paths below.</p>
+                <div className="cleanup-groups">{removalPlan.targets.map((target) => <div key={`${target.kind}:${target.path}`}><span>{target.label}</span><strong>{formatBytes(target.bytes)} · {shortPath(target.path)}</strong></div>)}</div>
+                <div className="activation-review__footer">
+                  <span><ShieldIcon /> Starsector, mods, saves, and game settings aren’t removal targets.</span>
+                  <button className="button button--danger" type="button" onClick={() => void removePreflight()} disabled={!removalPlan.safe || removalPlan.targets.length === 0 || removalBusy}>{removalBusy ? "Removing…" : removalPlan.targets.length === 0 ? "Nothing to remove" : removalPlan.scope === "all-data" ? "Remove all Preflight data" : "Remove launch integration"}</button>
+                </div>
+              </section>
+            )}
           </div>
         )}
 

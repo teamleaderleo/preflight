@@ -11,6 +11,8 @@ import type {
   ProfileActivationPlan,
   ProfileList,
   PreparationStoragePlan,
+  RemovalPlan,
+  RemovalScope,
   RunStarted,
 } from "./types";
 
@@ -335,4 +337,30 @@ export async function applyCacheCleanup(game: string): Promise<CacheCleanupPlan>
     return { ...(await getCacheCleanup(game)), applied: true };
   }
   return invoke<CacheCleanupPlan>("apply_cache_cleanup", { game });
+}
+
+export async function getRemovalPlan(scope: RemovalScope): Promise<RemovalPlan> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+    const allData = scope === "all-data";
+    return {
+      format: "preflight-removal-v1",
+      scope,
+      safe: true,
+      applied: false,
+      bytes: allData ? 4_831_838_208 : 8_388_608,
+      files: allData ? 31_204 : 4,
+      targets: allData
+        ? [{ kind: "preflight-data", label: "Preflight data", path: "~/.starsector-preflight", bytes: 4_831_838_208, files: 31_204 }]
+        : [{ kind: "launch-integration", label: "macOS launcher app", path: "~/Applications/Preflight.app", bytes: 8_388_608, files: 4 }],
+      refusals: [],
+      preserves: ["Starsector installation", "mods", "saves", "game-owned settings"],
+    };
+  }
+  return invoke<RemovalPlan>("get_removal_plan", { scope });
+}
+
+export async function applyRemoval(scope: RemovalScope): Promise<RemovalPlan> {
+  if (!isDesktopHost()) return { ...(await getRemovalPlan(scope)), applied: true };
+  return invoke<RemovalPlan>("apply_removal", { scope });
 }

@@ -23,8 +23,14 @@ live progress, and supports cancellation; the interface shows the current phase 
 After an interrupted owner, only matching PID-tagged temporary writes beneath Preflight's own home
 are reclaimed. Preview-first cache cleanup is also complete in the CLI and desktop. A real read-only
 plan retained the current profile and found 5.42 GiB across 31,338 removable files; the response
-summarizes every reason and caps its path sample at 100 entries. The next product slice is the two
-explicit removal scopes, then signed update plumbing and unattended desktop smoke automation.
+summarizes every reason and caps its path sample at 100 entries. The two removal scopes are now
+implemented in the CLI and desktop: launcher integrations plus the
+installed command engine can be removed while retaining prepared data, or every Preflight-owned
+cache/profile/evidence/backup can be cleared. Both are preview-first and game/mod/save/preferences
+stay outside the target set. All-data removal holds the shared lease and leaves an interruption
+marker that blocks other mutations until removal is explicitly resumed. Packaged-app deletion
+remains with the operating system's signed installer rather than asking a running app to erase its
+own bundle. Signed update plumbing and unattended desktop smoke automation are next.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are

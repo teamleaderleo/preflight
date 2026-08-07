@@ -37,8 +37,11 @@ Preview-first cache cleanup is now wired through the CLI and desktop: the plan p
 and readable named profiles, groups every removal reason, caps path samples, and is recalculated
 under the lease before applying. A read-only pass over the reviewed install found 5.42 GiB across
 31,338 safely removable files while protecting 30,638 texture blobs reachable from the current
-profile. The next product slice is the two explicit removal scopes, followed by signed update
-plumbing and unattended desktop smoke automation.
+profile. The two removal scopes now have the same preview/apply contract in the CLI and desktop:
+launch integrations plus the installed command engine can leave prepared data intact, while an
+all-data removal also clears caches, profiles, evidence, and backups without targeting the game.
+An interrupted all-data removal blocks other mutations until it is explicitly resumed. Signed
+update plumbing and unattended desktop smoke automation follow.
 
 ## Measured result (2026-08-01, third campaign)
 
