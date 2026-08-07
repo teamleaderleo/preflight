@@ -183,12 +183,16 @@ waits for its process record, runs the scenario, and waits for bounded postproce
 `finally` path rereads the identity and can terminate only the same PID/start-instant lifetime.
 The launch result and bounded launcher output remain in the run directory even when startup fails.
 
-The command probes current Accessibility permission before attachment. Screen Recording is proved
-by the first bounded capture; a denial becomes `skipped`. The generated scripts, PID-only boundary,
-coordinate math, key release, bounded screenshot, live evidence, and failure cleanup have isolated
-tests that don't open the game. One live isolated action test is still required before calling the
-macOS driver production-ready. Windows and Linux currently return an explicit unsupported-driver
-skip.
+The macOS command probes current Accessibility permission before attachment. Screen Recording is
+proved by the first bounded capture; a denial becomes `skipped`. The generated scripts, PID-only
+boundary, coordinate math, key release, bounded screenshot, live evidence, and failure cleanup have
+isolated tests that don't open the game. One live isolated action test is still required before
+calling the macOS driver production-ready.
+
+Windows has an exact-PID `MainWindowHandle` adapter backed by PowerShell and User32. Linux has an
+exact-PID X11 adapter backed by `xdotool` and ImageMagick `import`; Wayland and missing helper tools
+produce an explicit unavailable result. Both adapters compile and have offline boundary tests, but
+neither is labelled live-validated until a beta run happens on that platform.
 
 A packaged no-launch probe is available as `desktop smoke probe`. On this development machine it
 reported Accessibility unavailable on 2026-08-07, so the live gate remains closed even though all

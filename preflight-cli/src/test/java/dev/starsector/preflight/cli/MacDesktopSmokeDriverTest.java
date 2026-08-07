@@ -162,32 +162,32 @@ final class MacDesktopSmokeDriverTest {
         return new DesktopSmokeDriver.ProcessTarget(current.pid(), startedAt);
     }
 
-    private static final class FakeCommands implements MacDesktopSmokeDriver.CommandExecutor {
+    private static final class FakeCommands implements DesktopCommandExecutor {
         private final List<List<String>> commands = new ArrayList<>();
         private boolean fail;
 
         @Override
-        public MacDesktopSmokeDriver.CommandResult run(
+        public Result run(
                 List<String> command, Duration timeout) throws Exception {
             commands.add(List.copyOf(command));
-            if (fail) return new MacDesktopSmokeDriver.CommandResult(1, "permission denied");
+            if (fail) return new Result(1, "permission denied");
             if (command.get(0).endsWith("screencapture")) {
                 Files.writeString(Path.of(command.get(command.size() - 1)), "pixels");
-                return new MacDesktopSmokeDriver.CommandResult(0, "");
+                return new Result(0, "");
             }
             String script = command.get(command.size() - 1);
             if (script.contains("UI elements enabled")) {
-                return new MacDesktopSmokeDriver.CommandResult(0, "true\n");
+                return new Result(0, "true\n");
             }
             if (script.contains("return (item 1 of winPosition")) {
-                return new MacDesktopSmokeDriver.CommandResult(0, "10, 20, 1974, 1240\n");
+                return new Result(0, "10, 20, 1974, 1240\n");
             }
             if (script.contains("frontmost=")) {
-                return new MacDesktopSmokeDriver.CommandResult(
+                return new Result(
                         0, "PID " + ProcessHandle.current().pid()
                                 + " window 10,20,1974,1240 frontmost=true\n");
             }
-            return new MacDesktopSmokeDriver.CommandResult(0, "ok\n");
+            return new Result(0, "ok\n");
         }
 
         private List<String> scripts() {

@@ -65,8 +65,9 @@ exact-process cleanup plus launcher postprocessing. The remaining macOS gate is 
 action run.
 
 The packaged `desktop smoke probe` currently reports that this bridge process lacks Accessibility
-trust, so don't attempt the game run until that exact permission is fixed. Windows and Linux
-adapters follow.
+trust, so don't attempt the game run until that exact permission is fixed. Exact-PID Windows/User32
+and Linux/X11 adapters are implemented and offline-tested; both still need live platform beta runs,
+and Linux deliberately skips Wayland.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are

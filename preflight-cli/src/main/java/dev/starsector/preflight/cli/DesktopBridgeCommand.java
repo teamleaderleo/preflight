@@ -173,6 +173,8 @@ final class DesktopBridgeCommand {
     private static DesktopSmokeDriver driver() {
         return switch (Platform.current()) {
             case MAC -> new MacDesktopSmokeDriver();
+            case WINDOWS -> new WindowsDesktopSmokeDriver();
+            case LINUX -> new LinuxDesktopSmokeDriver();
             default -> new UnavailableDesktopSmokeDriver();
         };
     }

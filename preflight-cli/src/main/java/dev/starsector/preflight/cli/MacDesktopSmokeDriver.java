@@ -1,8 +1,6 @@
 package dev.starsector.preflight.cli;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -18,7 +16,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /** macOS desktop smoke adapter that resolves the game window only through its recorded PID. */
 final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
@@ -35,17 +32,17 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
             "space", 49,
             "escape", 53);
 
-    private final CommandExecutor commands;
+    private final DesktopCommandExecutor commands;
     private final Path osascript;
     private final Path screenCapture;
     private ProcessTarget target;
 
     MacDesktopSmokeDriver() {
-        this(new SystemCommandExecutor(), Path.of("/usr/bin/osascript"),
+        this(new SystemDesktopCommandExecutor(), Path.of("/usr/bin/osascript"),
                 Path.of("/usr/sbin/screencapture"));
     }
 
-    MacDesktopSmokeDriver(CommandExecutor commands, Path osascript, Path screenCapture) {
+    MacDesktopSmokeDriver(DesktopCommandExecutor commands, Path osascript, Path screenCapture) {
         this.commands = commands;
         this.osascript = osascript;
         this.screenCapture = screenCapture;
@@ -59,7 +56,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!Files.isExecutable(osascript)) {
             throw new UnavailableException("osascript is unavailable at " + osascript);
         }
-        CommandResult accessibility = command(List.of(
+        DesktopCommandExecutor.Result accessibility = command(List.of(
                 osascript.toString(), "-e",
                 "tell application \"System Events\" to return UI elements enabled"));
         if (!"true".equals(accessibility.output().trim().toLowerCase(Locale.ROOT))) {
@@ -185,7 +182,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private Artifact screenshot(ProcessTarget attached, Path runDirectory) throws Exception {
         WindowBounds bounds = windowBounds(attached.pid());
         Path destination = runDirectory.resolve("desktop-smoke.png");
-        CommandResult result = command(List.of(
+        DesktopCommandExecutor.Result result = command(List.of(
                 screenCapture.toString(), "-x", "-R" + bounds.region(), destination.toString()));
         if (!Files.isRegularFile(destination, LinkOption.NOFOLLOW_LINKS)
                 || Files.size(destination) == 0) {
@@ -314,8 +311,8 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         return normalized;
     }
 
-    private CommandResult command(List<String> command) throws Exception {
-        CommandResult result;
+    private DesktopCommandExecutor.Result command(List<String> command) throws Exception {
+        DesktopCommandExecutor.Result result;
         try {
             result = commands.run(command, COMMAND_TIMEOUT);
         } catch (InterruptedException interrupted) {
@@ -453,73 +450,4 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         }
     }
 
-    interface CommandExecutor {
-        CommandResult run(List<String> command, Duration timeout) throws Exception;
-    }
-
-    record CommandResult(int exitCode, String output) {
-    }
-
-    static final class SystemCommandExecutor implements CommandExecutor {
-        private static final int OUTPUT_LIMIT = 64 * 1024;
-
-        @Override
-        public CommandResult run(List<String> command, Duration timeout) throws Exception {
-            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-            BoundedOutput output = new BoundedOutput(process.getInputStream(), OUTPUT_LIMIT);
-            Thread reader = new Thread(output, "Preflight-Mac-Desktop-Command-Output");
-            reader.setDaemon(true);
-            reader.start();
-            try {
-                if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                    process.destroyForcibly();
-                    process.waitFor(2, TimeUnit.SECONDS);
-                    throw new IOException(
-                            "macOS desktop command exceeded " + timeout.toSeconds() + " seconds");
-                }
-                reader.join(2_000L);
-                return new CommandResult(process.exitValue(), output.text());
-            } catch (InterruptedException interrupted) {
-                process.destroyForcibly();
-                process.waitFor(2, TimeUnit.SECONDS);
-                Thread.currentThread().interrupt();
-                throw interrupted;
-            }
-        }
-    }
-
-    private static final class BoundedOutput implements Runnable {
-        private final InputStream input;
-        private final int limit;
-        private final ByteArrayOutputStream retained;
-        private IOException problem;
-        private boolean truncated;
-
-        private BoundedOutput(InputStream input, int limit) {
-            this.input = input;
-            this.limit = limit;
-            this.retained = new ByteArrayOutputStream(limit);
-        }
-
-        @Override
-        public void run() {
-            byte[] bytes = new byte[4_096];
-            try (input) {
-                int count;
-                while ((count = input.read(bytes)) >= 0) {
-                    int accepted = Math.min(count, limit - retained.size());
-                    if (accepted > 0) retained.write(bytes, 0, accepted);
-                    if (accepted < count) truncated = true;
-                }
-            } catch (IOException error) {
-                problem = error;
-            }
-        }
-
-        private String text() throws IOException {
-            if (problem != null) throw problem;
-            String value = retained.toString(StandardCharsets.UTF_8);
-            return truncated ? value + "\n[output truncated]" : value;
-        }
-    }
 }
