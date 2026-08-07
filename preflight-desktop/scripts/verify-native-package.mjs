@@ -169,13 +169,20 @@ export function verifyExtractedPayload(root, engineOptions = {}) {
   if (engineDirectories.length !== 1) {
     throw new Error(`Extracted package must contain exactly one bounded engine; found ${engineDirectories.length}`);
   }
+  const expectedFontLicenses = ["Inter-OFL.txt", "Orbitron-OFL.txt"];
   const fontLicenses = entries.filter(
-    (entry) => entry.details.isFile() && basename(entry.path) === "Orbitron-OFL.txt",
+    (entry) => entry.details.isFile() && expectedFontLicenses.includes(basename(entry.path)),
   );
-  if (fontLicenses.length !== 1) {
-    throw new Error(`Extracted package must contain one Orbitron license; found ${fontLicenses.length}`);
+  const packagedFontLicenseNames = fontLicenses.map((entry) => basename(entry.path)).sort();
+  if (JSON.stringify(packagedFontLicenseNames) !== JSON.stringify(expectedFontLicenses)) {
+    throw new Error(`Extracted package font licenses differ: ${packagedFontLicenseNames.join(", ")}`);
   }
-  assertSameFile(fontLicenses[0].path, join(desktopDirectory, "src-tauri", "licenses", "Orbitron-OFL.txt"));
+  for (const fontLicense of fontLicenses) {
+    assertSameFile(
+      fontLicense.path,
+      join(desktopDirectory, "src-tauri", "licenses", basename(fontLicense.path)),
+    );
+  }
   const engine = verifyPackagedEngine(engineDirectories[0].path, engineOptions);
   return { extractedEntries: entries.length, engine };
 }
@@ -229,8 +236,12 @@ function verifyMacApp(appDirectory, signatureRequired) {
   if (extra.length) throw new Error(`Unexpected macOS app content: ${extra.join(", ")}`);
   assertExactEntries(join(contents, "MacOS"), ["starsector-preflight-desktop"]);
   assertExactEntries(join(contents, "Resources"), ["engine", "icon.icns", "licenses"]);
-  assertExactEntries(join(contents, "Resources", "licenses"), ["Orbitron-OFL.txt"]);
+  assertExactEntries(join(contents, "Resources", "licenses"), ["Inter-OFL.txt", "Orbitron-OFL.txt"]);
   assertSameFile(join(contents, "Resources", "icon.icns"), join(desktopDirectory, "src-tauri", "icons", "icon.icns"));
+  assertSameFile(
+    join(contents, "Resources", "licenses", "Inter-OFL.txt"),
+    join(desktopDirectory, "src-tauri", "licenses", "Inter-OFL.txt"),
+  );
   assertSameFile(
     join(contents, "Resources", "licenses", "Orbitron-OFL.txt"),
     join(desktopDirectory, "src-tauri", "licenses", "Orbitron-OFL.txt"),

@@ -1,9 +1,11 @@
 :root {
-  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, "Segoe UI", sans-serif;
+  font-family: "Inter Variable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #233757;
   background: #f7efe2;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  --font-body: "Inter Variable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Orbitron Variable", Orbitron, var(--font-body);
   --ink: #233757;
   --ink-soft: #667087;
   --cream: #f7efe2;
@@ -33,6 +35,8 @@ body,
 body {
   min-height: 100vh;
   overflow-x: hidden;
+  font-size: 15px;
+  line-height: 1.45;
   background:
     radial-gradient(circle at 8% 12%, rgba(255, 255, 255, 0.9) 0 2px, transparent 3px),
     radial-gradient(circle at 83% 7%, rgba(228, 184, 92, 0.22) 0 2px, transparent 3px),
@@ -87,7 +91,7 @@ button:focus-visible {
 }
 
 .brand__type strong {
-  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
+  font-family: var(--font-display);
   font-size: 19px;
   font-weight: 700;
   letter-spacing: 0.035em;
@@ -95,7 +99,7 @@ button:focus-visible {
 
 .brand__type small {
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -133,7 +137,7 @@ button:focus-visible {
   border-radius: 99px;
   color: #9a887d;
   background: rgba(123, 99, 84, 0.07);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -159,7 +163,7 @@ button:focus-visible {
   gap: 8px;
   margin: 16px 13px 0;
   color: #8b8290;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -188,7 +192,7 @@ button:focus-visible {
 .eyebrow {
   margin: 0 0 7px;
   color: #9a7b71;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -202,7 +206,7 @@ p {
 
 h1 {
   margin-bottom: 0;
-  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
+  font-family: var(--font-display);
   font-size: clamp(28px, 3vw, 38px);
   font-weight: 650;
   letter-spacing: 0.01em;
@@ -210,10 +214,10 @@ h1 {
 
 h2 {
   margin-bottom: 0;
-  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
+  font-family: var(--font-body);
   font-size: 21px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  font-weight: 720;
+  letter-spacing: -0.01em;
 }
 
 .icon-button {
@@ -276,7 +280,7 @@ h2 {
   border-radius: 99px;
   color: #936a2e;
   background: #fff1c9;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -292,15 +296,17 @@ h2 {
 
 .hero h2 {
   margin-bottom: 12px;
+  font-family: var(--font-display);
   font-size: clamp(28px, 3vw, 37px);
+  letter-spacing: 0.01em;
 }
 
 .hero__copy > p {
   max-width: 610px;
   margin-bottom: 24px;
   color: var(--ink-soft);
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 .hero__actions {
@@ -316,13 +322,13 @@ h2 {
   max-width: 610px;
   margin-top: 16px;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
 .hero__launch-note strong {
   color: var(--ink);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .button {
@@ -334,7 +340,7 @@ h2 {
   padding: 0 18px;
   border: 0;
   border-radius: 13px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
@@ -509,7 +515,7 @@ h2 {
   border-radius: 12px;
   color: #4f6c61;
   background: rgba(220, 241, 232, 0.75);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .notice p {
@@ -537,8 +543,11 @@ h2 {
   margin-top: 16px;
 }
 
-.installation-card,
-.next-card {
+.content-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.installation-card {
   min-height: 208px;
   padding: 24px;
 }
@@ -559,7 +568,7 @@ h2 {
   border-radius: 99px;
   color: #8b8290;
   background: rgba(84, 77, 91, 0.06);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -614,7 +623,7 @@ h2 {
 .install-detail strong,
 .empty-detail strong {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -622,7 +631,7 @@ h2 {
 .install-detail span,
 .empty-detail span {
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .text-button {
@@ -633,71 +642,13 @@ h2 {
   border: 0;
   color: var(--peach-dark);
   background: transparent;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .text-button svg {
   width: 14px;
-}
-
-.heading-sparkle {
-  width: 24px;
-  height: 24px;
-  color: var(--gold);
-}
-
-.next-card > p {
-  margin-bottom: 19px;
-  color: var(--ink-soft);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.feature-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.feature-dot {
-  flex: 0 0 9px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-
-.feature-dot--peach {
-  background: var(--peach);
-  box-shadow: 0 0 0 5px rgba(240, 128, 109, 0.12);
-}
-
-.feature-row > div {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.feature-row strong {
-  font-size: 11px;
-}
-
-.feature-row span:not(.feature-dot):not(.soon-tag) {
-  color: var(--ink-soft);
-  font-size: 9px;
-}
-
-.soon-tag {
-  padding: 4px 7px;
-  border-radius: 6px;
-  color: #9a7b71;
-  background: #faede4;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .prepare-page {
@@ -734,7 +685,7 @@ h2 {
   max-width: 720px;
   margin-bottom: 0;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -762,7 +713,7 @@ h2 {
   margin: 0;
   padding-left: 18px;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -793,7 +744,7 @@ h2 {
 .automation-card > small {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -808,7 +759,7 @@ h2 {
 .automation-review > p {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -816,7 +767,7 @@ h2 {
 .update-card > small {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -834,7 +785,7 @@ h2 {
   border-radius: 8px;
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.32);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .diagnostics-action {
@@ -852,13 +803,13 @@ h2 {
 }
 
 .diagnostics-action strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .diagnostics-action span {
   overflow: hidden;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -876,7 +827,7 @@ h2 {
   gap: 9px;
   margin: -4px 4px 0;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -900,7 +851,7 @@ h2 {
 .report-contents > p {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -924,7 +875,7 @@ h2 {
 .report-facts span,
 .report-contents > strong {
   color: var(--ink-faint);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -933,7 +884,7 @@ h2 {
 .report-facts code {
   overflow-wrap: anywhere;
   color: var(--ink);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -967,7 +918,7 @@ h2 {
   gap: 16px;
   padding: 5px 7px;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .report-contents li span {
@@ -1000,7 +951,7 @@ h2 {
   display: block;
   padding: 9px 11px;
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .launch-page {
@@ -1021,7 +972,7 @@ h2 {
 .launch-intro h2,
 .launch-settings-card h2 {
   margin: 3px 0 8px;
-  font-size: 17px;
+  font-size: 20px;
 }
 
 .launch-intro p:last-child,
@@ -1029,7 +980,7 @@ h2 {
   max-width: 710px;
   margin: 0;
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.7;
 }
 
@@ -1064,14 +1015,14 @@ h2 {
 .setting-field strong,
 .setting-toggle strong,
 .setting-slider strong {
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .setting-field small,
 .setting-toggle small {
   max-width: 340px;
   color: var(--ink-soft);
-  font-size: 8px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -1084,7 +1035,7 @@ h2 {
   color: var(--ink);
   background: rgba(255, 255, 255, 0.42);
   font: inherit;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .setting-toggle input {
@@ -1106,7 +1057,7 @@ h2 {
 
 .setting-slider b {
   color: var(--peach-dark);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .setting-slider input {
@@ -1120,31 +1071,13 @@ h2 {
   gap: 8px;
   margin-top: 8px;
   color: var(--ink-soft);
-  font-size: 8px;
-}
-
-.setting-safety {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-top: 18px;
-  padding: 12px;
-  border-radius: 12px;
-  color: #4d8b73;
-  background: rgba(110, 169, 143, 0.1);
-  font-size: 9px;
-  line-height: 1.55;
-}
-
-.setting-safety svg {
-  flex: 0 0 17px;
-  width: 17px;
+  font-size: 11px;
 }
 
 .launch-diagnostics {
   padding: 14px 20px;
   color: #a15d3f;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .launch-diagnostics p {
@@ -1158,13 +1091,13 @@ h2 {
 }
 
 .launch-save strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .launch-save span,
 .launch-loading {
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .launch-loading {
@@ -1187,7 +1120,7 @@ h2 {
   max-width: 720px;
   margin-bottom: 0;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -1260,7 +1193,7 @@ h2 {
 }
 
 .profile-card__copy strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .profile-card__copy b {
@@ -1268,7 +1201,7 @@ h2 {
   border-radius: 99px;
   color: #417b66;
   background: #d4eadf;
-  font-size: 7px;
+  font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -1282,7 +1215,7 @@ h2 {
 .activation-columns li,
 .activation-review__footer > span {
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -1293,7 +1226,7 @@ h2 {
 .button--compact {
   min-height: 34px;
   padding-inline: 12px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .profile-empty {
@@ -1310,7 +1243,7 @@ h2 {
   border-radius: 12px;
   color: #926a31;
   background: #fff1c9;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .profile-diagnostics p {
@@ -1328,7 +1261,7 @@ h2 {
 .profile-save-card label {
   display: block;
   margin-bottom: 6px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -1341,7 +1274,7 @@ h2 {
   color: var(--ink);
   background: rgba(255, 255, 255, 0.46);
   font: inherit;
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .profile-save-card input:focus {
@@ -1382,7 +1315,7 @@ h2 {
   border-radius: 10px;
   color: #9e4d44;
   background: rgba(255, 222, 215, 0.78);
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .activation-columns {
@@ -1403,7 +1336,7 @@ h2 {
 .activation-columns strong {
   display: block;
   margin-bottom: 7px;
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .activation-columns ul {
@@ -1446,7 +1379,7 @@ h2 {
   max-width: 720px;
   margin-bottom: 0;
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -1468,7 +1401,7 @@ h2 {
 .optimization-card__saved,
 .optimization-card__note {
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -1520,7 +1453,7 @@ h2 {
 }
 
 .choice-card strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .choice-card small,
@@ -1530,7 +1463,7 @@ h2 {
 .storage-note,
 .prepare-action span {
   color: var(--ink-soft);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -1539,7 +1472,7 @@ h2 {
   border-radius: 7px;
   color: #9a7b71;
   background: #faede4;
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -1550,7 +1483,7 @@ h2 {
   justify-content: space-between;
   gap: 12px;
   margin: 23px 2px 10px;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .preset-row {
@@ -1579,7 +1512,7 @@ h2 {
 }
 
 .preset strong {
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .icon-button--small {
@@ -1590,7 +1523,7 @@ h2 {
 .storage-total {
   display: block;
   margin-top: 2px;
-  font-family: "Orbitron Variable", "Orbitron", ui-sans-serif, sans-serif;
+  font-family: var(--font-body);
   font-size: 31px;
   font-weight: 650;
   letter-spacing: 0.01em;
@@ -1614,7 +1547,7 @@ h2 {
   gap: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--line);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .storage-groups span {
@@ -1648,7 +1581,7 @@ h2 {
 .cleanup-summary {
   max-width: 760px;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -1671,12 +1604,12 @@ h2 {
 
 .cleanup-groups span {
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 12px;
   text-transform: capitalize;
 }
 
 .cleanup-groups strong {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .removal-card,
@@ -1688,7 +1621,7 @@ h2 {
 .removal-card > p {
   max-width: 760px;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -1710,8 +1643,8 @@ h2 {
   background: rgba(255, 255, 255, 0.3);
 }
 
-.removal-choices strong { font-size: 12px; }
-.removal-choices span { color: var(--ink-soft); font-size: 10px; line-height: 1.55; }
+.removal-choices strong { font-size: 14px; }
+.removal-choices span { color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
 .removal-choices .button { margin-top: auto; }
 
 .prepare-action {
@@ -1751,52 +1684,7 @@ h2 {
 }
 
 .prepare-action strong {
-  font-size: 12px;
-}
-
-.safety {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 16px;
-  padding: 17px 21px;
-  box-shadow: 0 9px 28px rgba(71, 50, 42, 0.05);
-}
-
-.safety__icon {
-  display: grid;
-  flex: 0 0 38px;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: 12px;
-  color: #4d8b73;
-  background: #e1f1e9;
-}
-
-.safety strong {
-  font-size: 12px;
-}
-
-.safety p {
-  margin: 3px 0 0;
-  color: var(--ink-soft);
-  font-size: 10px;
-}
-
-.safety__check {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: auto;
-  color: #4d8b73;
-  font-size: 9px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.safety__check svg {
-  width: 14px;
+  font-size: 14px;
 }
 
 footer {
@@ -1804,7 +1692,7 @@ footer {
   justify-content: space-between;
   padding: 19px 4px 0;
   color: #9a9197;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .spin {

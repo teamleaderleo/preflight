@@ -128,6 +128,7 @@ export function verifyEngineBoundary(
 
   const tauriConfig = JSON.parse(readFileSync(join(desktopDirectory, "src-tauri", "tauri.conf.json"), "utf8"));
   const expectedResources = {
+    "licenses/Inter-OFL.txt": "licenses/Inter-OFL.txt",
     "licenses/Orbitron-OFL.txt": "licenses/Orbitron-OFL.txt",
     "target/engine/": "engine/",
   };

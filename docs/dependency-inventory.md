@@ -37,9 +37,9 @@ and rejects duplicates and unexpected updater artifacts.
 The desktop CI matrix also builds real development packages on macOS, Windows, and Linux. The
 package verifier mounts the DMG, extracts the NSIS installer with 7-Zip, expands the Debian archive,
 and asks the AppImage to extract its SquashFS payload. Every extracted package must contain exactly
-one engine matching the reviewed sources and runtime digest, exactly one Orbitron license matching
-the source file, and no known game, mod, save, activation, log, or screenshot path. The DMG has a
-tighter exact app/volume manifest. Tagged packages require a separate exact updater artifact and
+one engine matching the reviewed sources and runtime digest, exact Inter and Orbitron licenses
+matching the source files, and no known game, mod, save, activation, log, or screenshot path. The
+DMG has a tighter exact app/volume manifest. Tagged packages require a separate updater artifact and
 project-key signature pair. Paid Apple and Windows publisher identities aren't required for the
 first beta, so platform-signature status is reported without blocking the build.
 

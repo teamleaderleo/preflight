@@ -1,5 +1,12 @@
 # Third-party notices
 
+## Inter
+
+The desktop interface bundles the Inter variable font through `@fontsource-variable/inter`. Inter
+is copyright 2016 The Inter Project Authors and is licensed under the SIL Open Font License 1.1. The
+complete license is packaged at `licenses/Inter-OFL.txt` and retained in the source tree as
+[Inter-OFL.txt](preflight-desktop/src-tauri/licenses/Inter-OFL.txt).
+
 ## Orbitron
 
 The desktop interface bundles the Orbitron variable font through

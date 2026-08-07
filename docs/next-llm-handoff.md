@@ -1249,9 +1249,9 @@ signature leaves the 0.1.1 tree unchanged, then restored the checked 0.1.0 DMG. 
 was stopped and the production workflow remains pinned to GitHub. See
 `docs/evidence/2026-08-08-signed-update-rollback-rehearsal.md`.
 The first beta's Apple/Windows packages will remain without paid platform identities; checksum and
-OS-warning guidance replace that former release gate. The
-desktop UI now uses the bundled variable Orbitron face throughout, with the exact OFL text included
-in every native package; it has no font-network dependency. macOS DMG and Windows NSIS packaging are
+OS-warning guidance replace that former release gate. The desktop UI uses bundled Inter for
+controls and body copy, reserving Orbitron for display headings. Both exact OFL texts are included
+in every native package, with no font-network dependency. macOS DMG and Windows NSIS packaging are
 green. Linux Debian and AppImage packaging are green as well. AppImage's `linuxdeploy` scan needs the
 bundled JRE's private `runtime/lib/server` dependency path while resolving `libjvm.so`; with it, the
 complete distribution matrix passed. Exact packages were 35.9MB DMG, 31.9MB NSIS, 39.9MB Debian,

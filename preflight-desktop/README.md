@@ -28,6 +28,8 @@ npm run desktop:build
 ```
 
 Tauri writes native artifacts below `src-tauri/target/release/bundle/`. The distribution workflow
+starts from a clean runner, while `npm run desktop:build` clears that exact derived bundle directory
+before a local build so old updater signatures can't be mistaken for current output. The workflow
 builds each target on its native GitHub runner rather than cross-compiling:
 
 - Windows: NSIS `.exe`

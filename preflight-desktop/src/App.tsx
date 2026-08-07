@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { open, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -148,10 +148,21 @@ function savedOptimizationPreset(): OptimizationPreset {
 }
 
 const resourcePresets = {
-  gentle: { workers: 2, memoryMib: 128, label: "Gentle" },
+  gentle: { workers: 2, memoryMib: 128, label: "Low" },
   balanced: { workers: 4, memoryMib: 256, label: "Balanced" },
-  eager: { workers: 8, memoryMib: 512, label: "Eager" },
+  eager: { workers: 8, memoryMib: 512, label: "High" },
 } as const;
+
+function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean): string {
+  if (page === "launch") return "Launch settings";
+  if (page === "prepare") return preparing ? "Preparing…" : "Prepare";
+  if (page === "profiles") return "Profiles";
+  if (page === "settings") return "Settings";
+  if (preparing) return "Preparing…";
+  if (status === "loading") return "Checking installation…";
+  if (status === "running") return "Starsector is running";
+  return isReady ? "Ready to launch" : "Choose your Starsector installation";
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -967,17 +978,7 @@ export default function App() {
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
-  const title = useMemo(() => {
-    if (page === "launch") return "Starsector launch settings";
-    if (page === "prepare") return preparing ? "Warming the flight deck…" : "Prepare your profile";
-    if (page === "profiles") return "Your saved flight plans";
-    if (page === "settings") return "Support and diagnostics";
-    if (preparing) return "Preparing your first launch…";
-    if (status === "loading") return "Checking the launch pad…";
-    if (status === "running") return "You’re cleared for adventure";
-    if (isReady) return "Your launch pad is cozy and ready";
-    return "Let’s find your Starsector home";
-  }, [isReady, page, preparing, status]);
+  const title = pageTitle(page, status, preparing, isReady);
 
   return (
     <div className="app-shell">
@@ -1017,10 +1018,7 @@ export default function App() {
 
       <main className="main">
         <header className="topbar">
-          <div>
-            <p className="eyebrow">Good evening, captain</p>
-            <h1>{title}</h1>
-          </div>
+          <h1>{title}</h1>
           <button className="icon-button" type="button" onClick={() => void refresh(snapshot?.selected?.installRoot)} aria-label="Refresh installation status" disabled={status === "loading"}>
             <RefreshIcon className={status === "loading" ? "spin" : ""} />
           </button>
@@ -1031,16 +1029,12 @@ export default function App() {
           <div className="hero__copy">
             <div className={`status-chip ${isReady ? "status-chip--ready" : ""}`}>
               {isReady ? <CheckIcon /> : <SparklesIcon />}
-              {status === "running" ? "Game running" : preparing ? "Preparing profile" : isReady ? "All systems comfy" : "A tiny bit of setup"}
+              {status === "running" ? "Game running" : preparing ? "Preparing profile" : isReady ? "Ready" : "Setup required"}
             </div>
-            <h2>{isReady ? needsPreparation ? "Prepare once, then launch faster." : "Ready when you are." : "Show Preflight where the game lives."}</h2>
-            <p>
-              {isReady
-                ? needsPreparation
-                  ? "Preflight found your installation. The first launch can prepare the exact current mod profile, then open the game automatically."
-                  : "Preflight found your installation and can launch it with run notes enabled. Your game files, mods, and saves stay exactly where they are."
-                : "Pick the folder that contains Starsector. Preflight will check it gently and remember the way back."}
-            </p>
+            <h2>{isReady ? needsPreparation ? "Prepare this profile" : "Launch Starsector" : "Choose the game folder"}</h2>
+            {!isReady || needsPreparation ? <p>{isReady
+              ? "Build the caches for the current mod profile, then launch."
+              : "Select the folder that contains the Starsector launcher."}</p> : null}
             <div className="hero__actions">
               {isReady ? (
                 <button className="button button--primary" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
@@ -1061,7 +1055,7 @@ export default function App() {
             </div>
             {isReady && (
               <div className="hero__launch-note">
-                <strong>{selectedOptimization.label} optimizations</strong>
+                <strong>{selectedOptimization.label}</strong>
                 <span>{needsPreparation
                   ? preparationPlanLoading
                     ? "Reading the winning textures and calculating a safe disk requirement…"
@@ -1069,7 +1063,7 @@ export default function App() {
                       ? `${textureStorage === "balanced" ? "Balanced" : "Fastest"} predicts ${formatBytes(preparationPlan.predictedAdditionalBytes)} additional; ${formatBytes(preparationPlan.usableBytes)} is available.`
                       : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
                   : profilePrepared
-                    ? `Current profile prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}`
+                    ? `Prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}`
                     : "Preparation is disabled for this troubleshooting launch."}</span>
               </div>
             )}
@@ -1096,11 +1090,10 @@ export default function App() {
           </div>
         )}
 
-        <div className="content-grid">
+        <div className="content-grid content-grid--single">
           <section className="card installation-card">
             <div className="card__heading">
               <div>
-                <p className="eyebrow">Game home</p>
                 <h2>Installation</h2>
               </div>
               <div className={`tiny-status ${isReady ? "tiny-status--good" : ""}`}>
@@ -1127,38 +1120,13 @@ export default function App() {
             )}
           </section>
 
-          <section className="card next-card">
-            <div className="card__heading">
-              <div>
-                <p className="eyebrow">Ready now</p>
-                <h2>Prepare your voyage</h2>
-              </div>
-              <SparklesIcon className="heading-sparkle" />
-            </div>
-            <p>Warm the safe caches before launch and get a clear, plain-English summary of what changed.</p>
-            <div className="feature-row">
-              <span className="feature-dot feature-dot--peach" />
-              <div><strong>One gentle button</strong><span>Useful defaults, details when you want them</span></div>
-              <button className="text-button" type="button" onClick={() => setPage("prepare")}>Open <ArrowIcon /></button>
-            </div>
-          </section>
         </div>
-
-        <section className="safety card">
-          <div className="safety__icon"><ShieldIcon /></div>
-          <div>
-            <strong>Your save is sacred.</strong>
-            <p>Preflight never rewrites game binaries, mods, or saves. A profile switch changes only the enabled-mod list after an exact review and backup.</p>
-          </div>
-          <span className="safety__check"><CheckIcon /> Narrow changes only</span>
-        </section>
         </> : page === "launch" ? (
           <div className="launch-page">
             <section className="card launch-intro">
               <div>
-                <p className="eyebrow">The game’s own preferences</p>
-                <h2>One setup, whichever launcher you use</h2>
-                <p>These are the same values Starsector’s vanilla launcher and in-game settings save. Preflight does not patch a display or combat hook to apply them.</p>
+                <p className="eyebrow">Shared with Starsector</p>
+                <h2>Game settings</h2>
               </div>
               <div className={`tiny-status ${launcherSettings?.directLaunchAvailable ? "tiny-status--good" : ""}`}>
                 <span />
@@ -1175,8 +1143,8 @@ export default function App() {
                 <section className="card optimization-card">
                   <div className="card__heading">
                     <div>
-                      <p className="eyebrow">Optimization level</p>
-                      <h2>Choose the boundary, not individual patches</h2>
+                      <p className="eyebrow">Launch behavior</p>
+                      <h2>Optimizations</h2>
                     </div>
                     <span className="optimization-card__saved">Saved for future launches</span>
                   </div>
@@ -1195,7 +1163,6 @@ export default function App() {
                       </label>
                     ))}
                   </div>
-                  <p className="optimization-card__note">Every exact adapter still declines safely when the installed game or mod no longer matches its reviewed fingerprint.</p>
                 </section>
                 <div className="launch-settings-grid">
                   <section className="card launch-settings-card">
@@ -1206,15 +1173,15 @@ export default function App() {
                       </button>
                     </div>
                     <label className="setting-field" htmlFor="launch-resolution">
-                      <span><strong>Resolution</strong><small>WIDTHxHEIGHT, exactly as the vanilla launcher stores it</small></span>
+                      <span><strong>Resolution</strong></span>
                       <input id="launch-resolution" aria-label="Resolution" value={launcherDraft.resolution} onChange={(event) => setLauncherDraft({ ...launcherDraft, resolution: event.target.value })} inputMode="text" spellCheck={false} />
                     </label>
                     <label className="setting-toggle">
-                      <span><strong>Fullscreen</strong><small>Use Starsector’s fullscreen mode</small></span>
+                      <span><strong>Fullscreen</strong></span>
                       <input type="checkbox" aria-label="Fullscreen" checked={launcherDraft.fullscreen} onChange={(event) => setLauncherDraft({ ...launcherDraft, fullscreen: event.target.checked })} />
                     </label>
                     <label className="setting-toggle">
-                      <span><strong>Sound</strong><small>Initialize the game’s audio system</small></span>
+                      <span><strong>Sound</strong></span>
                       <input type="checkbox" aria-label="Sound" checked={launcherDraft.sound} onChange={(event) => setLauncherDraft({ ...launcherDraft, sound: event.target.checked })} />
                     </label>
                     <label className="setting-field" htmlFor="launch-aa">
@@ -1231,7 +1198,7 @@ export default function App() {
 
                   <section className="card launch-settings-card">
                     <div className="card__heading"><div><p className="eyebrow">Combat</p><h2>Battle size</h2></div></div>
-                    <p className="setting-explainer">This changes the same campaign gameplay preference as the in-game slider. Preflight respects the currently installed settings.json bounds.</p>
+                    <p className="setting-explainer">Uses the installed game’s supported range.</p>
                     <label className="setting-slider" htmlFor="launch-battle-size">
                       <span><strong>Deployment-point budget</strong><b>{launcherDraft.battleSize}</b></span>
                       <input id="launch-battle-size" aria-label="Deployment-point budget" type="range" min={launcherSettings.limits.battleSizeMin ?? 1} max={launcherSettings.limits.battleSizeMax ?? Math.max(launcherDraft.battleSize, 400)} step="10" value={launcherDraft.battleSize} onChange={(event) => setLauncherDraft({ ...launcherDraft, battleSize: Number(event.target.value) })} />
@@ -1241,7 +1208,6 @@ export default function App() {
                       <span>Game default {launcherSettings.limits.battleSizeDefault ?? "unknown"}</span>
                       <span>Maximum {launcherSettings.limits.battleSizeMax ?? "unknown"}</span>
                     </div>
-                    <div className="setting-safety"><ShieldIcon /><span>A preference backup is written before every save. Game binaries, mods and saves remain untouched.</span></div>
                   </section>
                 </div>
 
@@ -1252,7 +1218,7 @@ export default function App() {
                 )}
 
                 <section className="card launch-save">
-                  <div><strong>Use these settings everywhere</strong><span>{launcherSettings.backup ? `Previous values saved at ${shortPath(launcherSettings.backup)}` : "Vanilla and Preflight launches share this preference store."}</span></div>
+                  <div><strong>Save game settings</strong><span>{launcherSettings.backup ? `Previous values: ${shortPath(launcherSettings.backup)}` : "A backup is written before saving."}</span></div>
                   <button className="button button--primary" type="button" onClick={() => void saveLauncherSettings()} disabled={launcherSettingsSaving || status === "running" || preparing}>
                     <CheckIcon />{launcherSettingsSaving ? "Saving…" : "Save launch settings"}
                   </button>
@@ -1266,9 +1232,9 @@ export default function App() {
           <div className="prepare-page">
             <section className="card prepare-intro">
               <div>
-                <p className="eyebrow">Exact current mod profile</p>
-                <h2>Build once, reuse safely</h2>
-                <p>Preflight prepares content-addressed caches outside the game. Changed game or mod files select new identities; missing or rejected entries use the original loader.</p>
+                <p className="eyebrow">Current mod profile</p>
+                <h2>Build reusable caches</h2>
+                <p>Changed game or mod files automatically use new cache identities.</p>
               </div>
               <div className={`tiny-status ${cache?.currentProfileFingerprint ? "tiny-status--good" : ""}`}>
                 <span />
@@ -1369,9 +1335,9 @@ export default function App() {
           <div className="profiles-page">
             <section className="card profiles-intro">
               <div>
-                <p className="eyebrow">Named mod profiles</p>
-                <h2>Change fleets without losing your place</h2>
-                <p>Profiles remember the exact enabled-mod order for this installation. Switching is always previewed, refuses missing mods, and backs up the current file before applying.</p>
+                <p className="eyebrow">Mod profiles</p>
+                <h2>Saved mod sets</h2>
+                <p>Switches are previewed and backed up before applying.</p>
               </div>
               <div className={`tiny-status ${profiles?.profiles.some((profile) => profile.active) ? "tiny-status--good" : ""}`}>
                 <span />
@@ -1453,9 +1419,9 @@ export default function App() {
           <div className="settings-page">
             <section className="card settings-intro">
               <div>
-                <p className="eyebrow">Attachable support evidence</p>
-                <h2>Make a small diagnostics ZIP</h2>
-                <p>Preflight exports only allowlisted text metadata from the newest three runs and two benchmarks. The bundle explains its own contents and redactions.</p>
+                <p className="eyebrow">Diagnostics</p>
+                <h2>Export or send a run</h2>
+                <p>Review the exact contents before saving or sending anything.</p>
               </div>
               <ShieldIcon className="settings-shield" />
             </section>

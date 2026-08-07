@@ -42,6 +42,7 @@
     ],
     "resources": {
       "target/engine/": "engine/",
+      "licenses/Inter-OFL.txt": "licenses/Inter-OFL.txt",
       "licenses/Orbitron-OFL.txt": "licenses/Orbitron-OFL.txt"
     }
   }
