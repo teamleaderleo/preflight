@@ -13,8 +13,25 @@ jobs:
   distribution:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate tagged-release signing credentials
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "::error::TAURI_SIGNING_PRIVATE_KEY is required for a tag"; exit 1; }
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "::error::TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required for a tag"; exit 1; }
+          test -n "$PREFLIGHT_UPDATER_PUBLIC_KEY" || { echo "::error::PREFLIGHT_UPDATER_PUBLIC_KEY is required for a tag"; exit 1; }
+
       - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Validate tagged-release version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node preflight-desktop/scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
 
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk
@@ -73,7 +90,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: preflight-${{ github.run_id }}
+          name: preflight-release-core-${{ github.run_id }}
           path: |
             dist/preflight.jar
             dist/preflight.jar.sha256
@@ -83,24 +100,6 @@ jobs:
             dist/README.txt
           if-no-files-found: error
           retention-days: 30
-
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" \
-            dist/preflight.jar \
-            dist/preflight.jar.sha256 \
-            dist/preflight.tar.gz \
-            dist/preflight.zip \
-            dist/archives.sha256 \
-            dist/README.txt \
-            --verify-tag \
-            --generate-notes \
-            --title "Preflight $GITHUB_REF_NAME"
 
   desktop:
     name: Desktop / ${{ matrix.name }}
@@ -158,28 +157,57 @@ jobs:
         shell: bash
         run: |
           npm test
+          npm run test:release
           npm run engine:prepare
           cargo test --locked --manifest-path src-tauri/Cargo.toml
 
+      - name: Write signed updater configuration
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+        run: node scripts/write-updater-config.mjs src-tauri/target/release-updater-config.json
+
       - name: Build native desktop package
-        if: runner.os != 'Linux'
+        if: runner.os != 'Linux' && !startsWith(github.ref, 'refs/tags/v')
         working-directory: preflight-desktop
         run: npx tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Build signed native desktop package
+        if: runner.os != 'Linux' && startsWith(github.ref, 'refs/tags/v')
+        working-directory: preflight-desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+        run: npx tauri build --bundles ${{ matrix.bundles }} --config src-tauri/target/release-updater-config.json
 
       - name: Build Linux Debian package
         if: runner.os == 'Linux'
         working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ startsWith(github.ref, 'refs/tags/v') && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
         run: npx tauri build --bundles deb
 
       - name: Build Linux AppImage
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && !startsWith(github.ref, 'refs/tags/v')
         working-directory: preflight-desktop
         env:
           # linuxdeploy scans the bundled jlink runtime as part of the AppDir. Its dependency
-          # resolver does not infer the JVM's private server directory, so make the existing
-          # libjvm.so visible while it validates those ELF files.
+          # resolver does not infer the JVM's private server directory, so expose the existing
+          # libjvm.so while it validates those ELF files.
           LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
         run: npx tauri bundle --verbose --bundles appimage
+
+      - name: Build signed Linux AppImage
+        if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/v')
+        working-directory: preflight-desktop
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+        run: npx tauri bundle --verbose --bundles appimage --config src-tauri/target/release-updater-config.json
 
       - name: Collect native package and checksum
         working-directory: preflight-desktop
@@ -188,16 +216,52 @@ jobs:
       - name: Upload desktop package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: preflight-${{ matrix.name }}-${{ github.run_id }}
+          name: preflight-release-${{ matrix.name }}-${{ github.run_id }}
           path: preflight-desktop/desktop-dist/*
           if-no-files-found: error
           retention-days: 30
 
-      - name: Add desktop package to tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
+  publish:
+    name: Publish complete signed release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [distribution, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Download verified release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: preflight-release-*-${{ github.run_id }}
+          path: release-input
+          merge-multiple: true
+
+      - name: Build signed update feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          node preflight-desktop/scripts/build-updater-manifest.mjs \
+            release-input "$GITHUB_REF_NAME" release-input/latest.json
+
+      - name: Preserve complete release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preflight-complete-release-${{ github.run_id }}
+          path: release-input/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Stage and publish complete tagged release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          find preflight-desktop/desktop-dist -type f -print0 |
-            xargs -0 gh release upload "$GITHUB_REF_NAME" --clobber
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            release-input/* \
+            --draft \
+            --verify-tag \
+            --generate-notes \
+            --title "Preflight $GITHUB_REF_NAME"
+          gh release edit "$GITHUB_REF_NAME" --draft=false

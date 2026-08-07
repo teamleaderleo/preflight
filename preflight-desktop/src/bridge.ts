@@ -14,6 +14,7 @@ import type {
   RemovalPlan,
   RemovalScope,
   RunStarted,
+  UpdateStatus,
 } from "./types";
 
 declare global {
@@ -363,4 +364,26 @@ export async function getRemovalPlan(scope: RemovalScope): Promise<RemovalPlan> 
 export async function applyRemoval(scope: RemovalScope): Promise<RemovalPlan> {
   if (!isDesktopHost()) return { ...(await getRemovalPlan(scope)), applied: true };
   return invoke<RemovalPlan>("apply_removal", { scope });
+}
+
+export async function checkForUpdate(): Promise<UpdateStatus> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    return {
+      format: "preflight-update-v1",
+      configured: false,
+      currentVersion: "0.1.0",
+      available: false,
+      version: null,
+      date: null,
+      notes: null,
+      reason: "Browser preview has no signed update channel.",
+    };
+  }
+  return invoke<UpdateStatus>("check_for_update");
+}
+
+export async function installUpdate(): Promise<void> {
+  if (!isDesktopHost()) return;
+  return invoke<void>("install_update");
 }

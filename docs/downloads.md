@@ -5,8 +5,9 @@ same Java engine provides the CLI, launch wrapper, profile census, cache prepara
 and startup profiler.
 
 > **No public download yet.** The packaging pipeline below is verified, but public distribution is
-> blocked on written Fractal Softworks authorization and disclaimer guidance, signing
-> and updater setup, release-candidate compatibility testing, and the product-lifecycle work in
+> blocked on written Fractal Softworks authorization and disclaimer guidance, updater-key
+> provisioning, platform signing decisions, release-candidate compatibility testing, and the
+> remaining product-lifecycle work in
 > [Release readiness](release-readiness.md).
 
 ## Planned release downloads
@@ -22,6 +23,8 @@ A public tagged release is expected to attach:
 - macOS: a `.dmg` containing the desktop application
 - Linux: `.AppImage` and `.deb` desktop packages
 - a platform-qualified `SHA256SUMS-<platform>-<architecture>.txt` manifest beside each native package
+- signed updater artifacts for the Windows installer, macOS application archive, and Linux AppImage
+- `latest.json` and `latest.json.sha256` for the fixed GitHub update feed
 
 Native installers use stable names such as `Preflight-Windows-x86_64.exe`,
 `Preflight-macOS-arm64.dmg`, and `Preflight-Linux-x86_64.AppImage`. That lets the README and future
@@ -40,6 +43,14 @@ A manually dispatched Distribution workflow currently produces the same files as
 artifacts without creating a release. Desktop packages contain their own minimal Java runtime and
 don't require a system JDK. Those development packages are unsigned; they aren't the intended
 public install experience.
+
+Tagged builds are stricter. The workflow first requires the updater private key, its password, and
+the matching public key. It signs every supported updater artifact, assembles `latest.json` only
+after Linux, macOS, and Windows are present, and makes the staged GitHub release public only after
+every asset uploads. The desktop app checks that fixed HTTPS feed quietly and waits for an explicit
+**Install and restart** action. Tauri verifies the downloaded signature before installation. A
+failed download or verification leaves the current version installed. Debian packages don't use
+the AppImage update payload; they continue through the package manager used to install them.
 
 ## Requirements
 
@@ -112,8 +123,27 @@ git tag -a v0.1.0 -m "Preflight v0.1.0"
 git push origin v0.1.0
 ```
 
-The Distribution workflow runs the full verification suite, assembles archives, smoke-tests the
+The Distribution workflow checks that the tag, frontend package, Tauri application, and Rust
+package versions agree, runs the full verification suite, assembles archives, smoke-tests the
 packaged JAR, then builds the desktop host and its platform-native Java runtime independently on
-Linux, macOS, and Windows. It uploads workflow artifacts and adds successful native packages to the
-GitHub release created from the existing tag. A failed core verification leaves the tag without a
-published release; a failed desktop platform doesn't cancel the other platform builds.
+Linux, macOS, and Windows. Platform jobs upload private workflow artifacts. The final job builds the
+signed static feed, uploads every asset to a draft, then publishes it. Any failed verification,
+missing signature, failed upload, or failed desktop platform leaves the tag without a public
+release.
+
+### Provision the updater key
+
+Generate the updater key outside the repository and protect it with a password:
+
+```bash
+cd preflight-desktop
+npm run tauri signer generate -- -w ~/.tauri/preflight.key
+```
+
+Back up that private key and password separately. Add the private key contents to the GitHub Actions
+secret `TAURI_SIGNING_PRIVATE_KEY`, its password to
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the generated public key to the repository variable
+`PREFLIGHT_UPDATER_PUBLIC_KEY`. The public key is compiled into tagged desktop packages; the private
+key is available only to the packaging jobs and must never enter the repository or a release asset.
+This follows [Tauri's signed-updater contract](https://v2.tauri.app/plugin/updater/), whose signature
+verification can't be disabled.

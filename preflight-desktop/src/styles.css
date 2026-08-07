@@ -775,6 +775,38 @@ h2 {
   color: var(--sage);
 }
 
+.update-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+}
+
+.update-card > p,
+.update-card > small {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.update-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.update-progress {
+  overflow: hidden;
+  min-height: 32px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.32);
+  font-size: 9px;
+}
+
 .diagnostics-action {
   display: flex;
   align-items: center;

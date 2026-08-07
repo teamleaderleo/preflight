@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "test:release": "node --test scripts/*.node-test.mjs",
     "test:watch": "vitest",
     "engine:prepare": "node scripts/prepare-engine.mjs",
     "desktop:collect": "node scripts/collect-bundles.mjs",

@@ -15,8 +15,8 @@ first public beta.
 - [x] Use **Preflight** as the public product, repository, and application name.
 - [ ] Confirm descriptive use of the Starsector name, trademark attribution, and disclaimer with
   Fractal Softworks.
-- [ ] Replace the development bundle identifier with a namespace controlled by the project before
-  users install persistent packages.
+- [x] Use the project-controlled `io.github.teamleaderleo.preflight` bundle identifier before users
+  install persistent packages.
 - [ ] Decide whether the first beta waits for platform signing. Documented unsigned warnings aren't
   a substitute for an intentional trust decision.
 - [ ] Provision and back up the Tauri updater signing key; ship only metadata and packages verified
@@ -41,7 +41,9 @@ first public beta.
   deletion.
 - [x] Provide two removal choices: launcher/app only, or all Preflight-owned caches and evidence.
   Never include game, mod, save, or preference deletion.
-- [ ] Add an explicit update check and signed install flow. Never surprise-install an update.
+- [x] Add a background update check and explicit signed install/restart flow. Development builds
+  report that their channel is disabled, Linux package installs stay with their package manager,
+  and no update surprise-installs.
 - [ ] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
 - [ ] Keep automatic crash upload separate, default off, and out of scope unless its consent and

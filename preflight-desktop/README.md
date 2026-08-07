@@ -37,8 +37,15 @@ builds each target on its native GitHub runner rather than cross-compiling:
 The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users don't need
 Java, Node, Maven, npm, or Rust. Current packages are private, unsigned development artifacts. Don't
 distribute or describe them as warning-free installs until public distribution is authorized,
-Windows signing and Apple signing/notarization are wired into CI, and the signed updater is verified
-on a release candidate.
+Windows signing and Apple signing/notarization are decided and configured, and the signed updater is
+verified on a release candidate.
+
+Tagged builds generate a release-only Tauri configuration containing the public updater key and the
+v2 artifact switch. They require `TAURI_SIGNING_PRIVATE_KEY`,
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the compile-time `PREFLIGHT_UPDATER_PUBLIC_KEY`; missing
+credentials stop the release before packaging. The client uses the fixed GitHub `latest.json` feed,
+checks in the background, and waits for explicit install confirmation. Ordinary development builds
+contain no verification key and report their update channel as disabled.
 
 ## Boundaries
 
@@ -64,3 +71,6 @@ on a release candidate.
   gameplay-settings preferences after a bounded backup. Activation changes only
   `enabled_mods.json` through the backed-up, rechecked replacement path. Neither operation rewrites
   game binaries, mod contents, or saves.
+- Update installation is also tracked by the host. It refuses to start while the game or preparation
+  is active, blocks competing mutations while replacement is underway, verifies the release
+  signature, and restarts only after installation succeeds.

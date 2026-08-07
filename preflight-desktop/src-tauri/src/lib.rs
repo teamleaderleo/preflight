@@ -4,15 +4,22 @@ use std::env;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Mutex, mpsc};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_updater::{Update, UpdaterExt};
+use url::Url;
+
+const UPDATE_ENDPOINT: &str =
+    "https://github.com/teamleaderleo/preflight/releases/latest/download/latest.json";
 
 #[derive(Default)]
 struct ProcessState {
     game: Option<u32>,
     preparation: Option<PreparationProcess>,
+    update_installing: bool,
 }
 
 struct PreparationProcess {
@@ -21,6 +28,8 @@ struct PreparationProcess {
 }
 
 struct ProcessTracker(Mutex<ProcessState>);
+
+struct UpdateTracker(Mutex<Option<Update>>);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +69,27 @@ struct PreparationProgressEvent {
     duration_ms: Option<f64>,
     #[serde(default)]
     metrics: Value,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateStatus {
+    format: &'static str,
+    configured: bool,
+    current_version: String,
+    available: bool,
+    version: Option<String>,
+    date: Option<String>,
+    notes: Option<String>,
+    reason: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProgressEvent {
+    state: &'static str,
+    downloaded_bytes: u64,
+    content_length: Option<u64>,
 }
 
 struct EnginePaths {
@@ -224,6 +254,7 @@ fn apply_cache_cleanup(
         .0
         .lock()
         .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
     if running.game.is_some() {
         return Err("Close Starsector before cleaning acceleration data.".to_string());
     }
@@ -286,6 +317,7 @@ fn apply_removal(
         .0
         .lock()
         .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
     if running.game.is_some() {
         return Err("Close Starsector before removing Preflight files.".to_string());
     }
@@ -322,6 +354,198 @@ fn removal_json(app: &AppHandle, scope: &str, apply: bool) -> Result<Value, Stri
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("Preflight returned an unreadable removal plan: {error}"))
+}
+
+fn compiled_updater_public_key() -> Option<&'static str> {
+    option_env!("PREFLIGHT_UPDATER_PUBLIC_KEY")
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+}
+
+fn updater_platform_reason() -> Option<&'static str> {
+    #[cfg(target_os = "linux")]
+    if env::var_os("APPIMAGE").is_none() {
+        return Some(
+            "Built-in updates are available in the AppImage. Update this package with the same package manager used to install it.",
+        );
+    }
+    None
+}
+
+fn updater_disabled(app: &AppHandle, reason: impl Into<String>) -> UpdateStatus {
+    UpdateStatus {
+        format: "preflight-update-v1",
+        configured: false,
+        current_version: app.package_info().version.to_string(),
+        available: false,
+        version: None,
+        date: None,
+        notes: None,
+        reason: Some(reason.into()),
+    }
+}
+
+#[tauri::command]
+async fn check_for_update(
+    app: AppHandle,
+    updates: State<'_, UpdateTracker>,
+) -> Result<UpdateStatus, String> {
+    if let Some(reason) = updater_platform_reason() {
+        return Ok(updater_disabled(&app, reason));
+    }
+    let Some(public_key) = compiled_updater_public_key() else {
+        return Ok(updater_disabled(
+            &app,
+            "This development build has no updater verification key.",
+        ));
+    };
+    let endpoint = Url::parse(UPDATE_ENDPOINT)
+        .map_err(|error| format!("The compiled update endpoint is invalid: {error}"))?;
+    let updater = app
+        .updater_builder()
+        .pubkey(public_key)
+        .endpoints(vec![endpoint])
+        .map_err(|error| format!("Could not configure signed updates: {error}"))?
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|error| format!("Could not initialize signed updates: {error}"))?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|error| format!("Could not check for a signed update: {error}"))?;
+    let status = match update.as_ref() {
+        Some(update) => UpdateStatus {
+            format: "preflight-update-v1",
+            configured: true,
+            current_version: update.current_version.clone(),
+            available: true,
+            version: Some(update.version.clone()),
+            date: update.date.map(|date| date.to_string()),
+            notes: update.body.clone(),
+            reason: None,
+        },
+        None => UpdateStatus {
+            format: "preflight-update-v1",
+            configured: true,
+            current_version: app.package_info().version.to_string(),
+            available: false,
+            version: None,
+            date: None,
+            notes: None,
+            reason: None,
+        },
+    };
+    *updates
+        .0
+        .lock()
+        .map_err(|_| "The update tracker is unavailable.".to_string())? = update;
+    Ok(status)
+}
+
+#[tauri::command]
+async fn install_update(
+    app: AppHandle,
+    processes: State<'_, ProcessTracker>,
+    updates: State<'_, UpdateTracker>,
+) -> Result<(), String> {
+    {
+        let mut running = processes
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable.".to_string())?;
+        if running.game.is_some() {
+            return Err("Close Starsector before installing a Preflight update.".to_string());
+        }
+        if running.preparation.is_some() {
+            return Err(
+                "Wait for profile preparation to finish before installing an update.".to_string(),
+            );
+        }
+        if running.update_installing {
+            return Err("A Preflight update is already being installed.".to_string());
+        }
+        running.update_installing = true;
+    }
+
+    let update = updates
+        .0
+        .lock()
+        .map_err(|_| "The update tracker is unavailable.".to_string())?
+        .take();
+    let Some(update) = update else {
+        processes
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable.".to_string())?
+            .update_installing = false;
+        return Err("Check for an update before trying to install one.".to_string());
+    };
+
+    let progress_app = app.clone();
+    let finished_app = app.clone();
+    let downloaded_bytes = Arc::new(AtomicU64::new(0));
+    let progress_bytes = downloaded_bytes.clone();
+    let finished_bytes = downloaded_bytes.clone();
+    let result = update
+        .download_and_install(
+            move |chunk_length, content_length| {
+                let total = progress_bytes
+                    .fetch_add(chunk_length as u64, Ordering::Relaxed)
+                    .saturating_add(chunk_length as u64);
+                let _ = progress_app.emit(
+                    "update-progress",
+                    UpdateProgressEvent {
+                        state: "downloading",
+                        downloaded_bytes: total,
+                        content_length,
+                    },
+                );
+            },
+            move || {
+                let _ = finished_app.emit(
+                    "update-progress",
+                    UpdateProgressEvent {
+                        state: "downloaded",
+                        downloaded_bytes: finished_bytes.load(Ordering::Relaxed),
+                        content_length: None,
+                    },
+                );
+            },
+        )
+        .await;
+
+    if let Err(error) = result {
+        processes
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable.".to_string())?
+            .update_installing = false;
+        *updates
+            .0
+            .lock()
+            .map_err(|_| "The update tracker is unavailable.".to_string())? = Some(update);
+        return Err(format!(
+            "The signed update could not be installed; this version is unchanged: {error}"
+        ));
+    }
+
+    let _ = app.emit(
+        "update-progress",
+        UpdateProgressEvent {
+            state: "installed",
+            downloaded_bytes: downloaded_bytes.load(Ordering::Relaxed),
+            content_length: None,
+        },
+    );
+    app.restart();
+}
+
+fn refuse_update_install(running: &ProcessState) -> Result<(), String> {
+    if running.update_installing {
+        Err("Wait for the Preflight update to finish installing.".to_string())
+    } else {
+        Ok(())
+    }
 }
 
 fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
@@ -404,6 +628,7 @@ fn update_launch_settings(
         .0
         .lock()
         .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
     if running.game.is_some() {
         return Err("Close Starsector before changing its launch settings.".to_string());
     }
@@ -507,6 +732,7 @@ fn activate_profile(
         .0
         .lock()
         .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
     if running.game.is_some() {
         return Err("Close Starsector before switching mod profiles.".to_string());
     }
@@ -567,6 +793,7 @@ fn start_game(
         .0
         .lock()
         .map_err(|_| "The launch tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
     if running.game.is_some() {
         return Err("Starsector is already running through Preflight.".to_string());
     }
@@ -636,6 +863,7 @@ fn start_preparation(
         .0
         .lock()
         .map_err(|_| "The preparation tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
     if running.preparation.is_some() {
         return Err("This profile is already being prepared.".to_string());
     }
@@ -930,7 +1158,9 @@ fn configure_child_process(_command: &mut Command) {}
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ProcessTracker(Mutex::new(ProcessState::default())))
+        .manage(UpdateTracker(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_cache,
@@ -938,6 +1168,8 @@ pub fn run() {
             apply_cache_cleanup,
             get_removal_plan,
             apply_removal,
+            check_for_update,
+            install_update,
             export_diagnostics,
             get_launch_settings,
             update_launch_settings,
@@ -956,8 +1188,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        LaunchSettingsInput, diagnostic_output_path, parse_preparation_progress, read_tail,
-        validate_launch_settings, validate_optimization_preset, validate_removal_scope,
+        LaunchSettingsInput, ProcessState, UPDATE_ENDPOINT, diagnostic_output_path,
+        parse_preparation_progress, read_tail, refuse_update_install, validate_launch_settings,
+        validate_optimization_preset, validate_removal_scope,
     };
     use std::io::Cursor;
 
@@ -1038,5 +1271,24 @@ mod tests {
         assert_eq!("off", validate_optimization_preset("off").unwrap());
         assert!(validate_optimization_preset("custom").is_err());
         assert!(validate_optimization_preset("recommended --no-adapter").is_err());
+    }
+
+    #[test]
+    fn updater_endpoint_is_a_fixed_https_release_feed() {
+        let endpoint = url::Url::parse(UPDATE_ENDPOINT).unwrap();
+        assert_eq!("https", endpoint.scheme());
+        assert_eq!(Some("github.com"), endpoint.host_str());
+        assert_eq!(
+            "/teamleaderleo/preflight/releases/latest/download/latest.json",
+            endpoint.path()
+        );
+    }
+
+    #[test]
+    fn mutable_operations_stop_during_update_installation() {
+        let mut running = ProcessState::default();
+        assert!(refuse_update_install(&running).is_ok());
+        running.update_installing = true;
+        assert!(refuse_update_install(&running).is_err());
     }
 }

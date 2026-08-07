@@ -8,13 +8,22 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
 const outputDirectory = join(desktopDirectory, "desktop-dist");
-const packageExtensions = new Set([".appimage", ".deb", ".dmg", ".exe"]);
+const packageSuffixes = [
+  ".appimage.sig",
+  ".app.tar.gz.sig",
+  ".app.tar.gz",
+  ".exe.sig",
+  ".appimage",
+  ".deb",
+  ".dmg",
+  ".exe",
+];
 
 if (!statSync(bundleDirectory, { throwIfNoEntry: false })?.isDirectory()) {
   throw new Error(`Tauri bundle directory does not exist: ${bundleDirectory}`);
@@ -53,7 +62,7 @@ function collectPackages(directory) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
       found.push(...collectPackages(path));
-    } else if (entry.isFile() && packageExtensions.has(extname(entry.name).toLowerCase())) {
+    } else if (entry.isFile() && packageSuffixes.some((suffix) => entry.name.toLowerCase().endsWith(suffix))) {
       found.push(path);
     }
   }
@@ -74,14 +83,11 @@ function publicPackageName(source) {
     throw new Error(`Unsupported release target: ${process.platform}/${process.arch}`);
   }
 
-  const extension = {
-    ".appimage": ".AppImage",
-    ".deb": ".deb",
-    ".dmg": ".dmg",
-    ".exe": ".exe",
-  }[extname(source).toLowerCase()];
+  const sourceName = basename(source).toLowerCase();
+  const extension = packageSuffixes.find((suffix) => sourceName.endsWith(suffix));
   if (!extension) {
     throw new Error(`Unsupported package extension: ${source}`);
   }
-  return `Preflight-${platform}-${architecture}${extension}`;
+  const publicExtension = extension.replace(".appimage", ".AppImage");
+  return `Preflight-${platform}-${architecture}${publicExtension}`;
 }

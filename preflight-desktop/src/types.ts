@@ -200,6 +200,23 @@ export interface RemovalPlan {
   preserves: string[];
 }
 
+export interface UpdateStatus {
+  format: "preflight-update-v1";
+  configured: boolean;
+  currentVersion: string;
+  available: boolean;
+  version: string | null;
+  date: string | null;
+  notes: string | null;
+  reason: string | null;
+}
+
+export interface UpdateProgressEvent {
+  state: "downloading" | "downloaded" | "installed";
+  downloadedBytes: number;
+  contentLength: number | null;
+}
+
 export interface NamedProfile {
   name: string;
   installRoot: string;

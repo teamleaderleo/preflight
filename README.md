@@ -8,9 +8,9 @@ more smoothly without permanently patching the game, its mods, or your saves.**
 
 > **Development preview.** Public binaries aren't available yet. Distribution, descriptive use of
 > the Starsector name, and final disclaimer wording are pending written guidance from Fractal
-> Softworks. The remaining release gates include signed updates, first-class removal and storage
-> controls, consent-based
-> diagnostics submission, and real Windows/Linux game testing. See
+> Softworks. The remaining release gates include updater-key and platform-signing setup,
+> consent-based diagnostics submission, release-candidate lifecycle testing, and real Windows/Linux
+> game testing. See
 > [Release readiness](docs/release-readiness.md).
 
 Preflight prepares work that Starsector and its mods would otherwise repeat on every launch, then starts the same game and mod profile using those prepared results.
@@ -286,8 +286,9 @@ The native desktop host and its build instructions live in
 [preflight-desktop](preflight-desktop/README.md). Launch settings, Prepare, Profiles, Storage, and tracked game launch
 all use the same narrow engine contract as the CLI. The native packaging matrix is green for a
 macOS arm64 DMG, Windows x64 NSIS installer, and Linux x64 Debian and AppImage packages. These are
-currently private, unsigned development artifacts: public distribution authorization, Apple
-signing/notarization, Windows signing, and a PID-safe automated game smoke remain release work. See
+currently private, unsigned development artifacts: public distribution authorization, updater-key
+provisioning, Apple signing/notarization, Windows signing, and a PID-safe automated game smoke remain
+release work. See
 [Downloads and installation](docs/downloads.md) and the
 [exact distribution matrix](docs/evidence/2026-08-06-desktop-distribution-matrix.md).
 
@@ -310,8 +311,7 @@ Preflight is fast enough for a beta; the remaining work is product trust and com
 
 1. Obtain written authorization for distribution and the integration approach, plus guidance on
    descriptive use of the Starsector name and the disclaimer.
-2. Finish the single-action desktop flow, visible disk use, preview-first cleanup/removal, signed
-   updates, and an explicit **Send run report** consent flow.
+2. Provision and test signing, then finish the explicit **Send run report** consent flow.
 3. Exercise clean licensed-game installs on Windows and Linux. CI verifies the portable engine and
    native packages. Licensed-game execution requires user installations.
 4. Run a fresh controlled before/after cohort against the release candidate, then publish only the

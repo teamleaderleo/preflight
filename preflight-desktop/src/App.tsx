@@ -6,6 +6,7 @@ import {
   applyCacheCleanup,
   applyRemoval,
   cancelPreparation,
+  checkForUpdate,
   exportDiagnostics,
   getCache,
   getCacheCleanup,
@@ -15,6 +16,7 @@ import {
   getProfiles,
   getSnapshot,
   isDesktopHost,
+  installUpdate,
   saveProfile,
   startGame,
   startPreparation,
@@ -51,6 +53,8 @@ import type {
   RemovalPlan,
   RemovalScope,
   RunStateEvent,
+  UpdateProgressEvent,
+  UpdateStatus,
 } from "./types";
 
 type Page = "home" | "launch" | "prepare" | "profiles" | "settings";
@@ -172,6 +176,12 @@ export default function App() {
   const [launcherSettingsSaving, setLauncherSettingsSaving] = useState(false);
   const [removalPlan, setRemovalPlan] = useState<RemovalPlan | null>(null);
   const [removalBusy, setRemovalBusy] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgressEvent | null>(null);
+  const [updateError, setUpdateError] = useState("");
+  const updateChecked = useRef(false);
 
   const refresh = useCallback(async (game?: string) => {
     setStatus("loading");
@@ -189,6 +199,35 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const checkUpdates = useCallback(async (announce = false) => {
+    if (updateChecking || updateInstalling) return;
+    setUpdateChecking(true);
+    setUpdateError("");
+    try {
+      const result = await checkForUpdate();
+      setUpdateStatus(result);
+      if (announce) {
+        setMessage(result.available
+          ? `Preflight ${result.version} is available. Review it before installing.`
+          : result.configured
+            ? "Preflight is up to date."
+            : result.reason ?? "Signed updates aren’t configured in this build.");
+      }
+    } catch (error) {
+      const detail = String(error);
+      setUpdateError(detail);
+      if (announce) setMessage(detail);
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, [updateChecking, updateInstalling]);
+
+  useEffect(() => {
+    if (!isDesktopHost() || status !== "ready" || updateChecked.current) return;
+    updateChecked.current = true;
+    void checkUpdates(false);
+  }, [checkUpdates, status]);
 
   useEffect(() => {
     try {
@@ -421,6 +460,18 @@ export default function App() {
     return () => stopListening?.();
   }, []);
 
+  useEffect(() => {
+    if (!isDesktopHost()) return;
+    let stopListening: (() => void) | undefined;
+    void listen<UpdateProgressEvent>("update-progress", ({ payload }) => {
+      setUpdateProgress(payload);
+      if (payload.state === "installed") setMessage("The signed update is installed. Restarting Preflight…");
+    }).then((unlisten) => {
+      stopListening = unlisten;
+    });
+    return () => stopListening?.();
+  }, []);
+
   const stopPreparation = async () => {
     if (!preparing || preparationCancelling) return;
     setPreparationCancelling(true);
@@ -614,6 +665,22 @@ export default function App() {
       setMessage(String(error));
     } finally {
       setRemovalBusy(false);
+    }
+  };
+
+  const installSignedUpdate = async () => {
+    if (!updateStatus?.available || updateInstalling || preparing || status === "running") return;
+    setUpdateInstalling(true);
+    setUpdateProgress(null);
+    setUpdateError("");
+    setMessage(`Downloading and verifying Preflight ${updateStatus.version}…`);
+    try {
+      await installUpdate();
+    } catch (error) {
+      const detail = String(error);
+      setUpdateError(detail);
+      setMessage(detail);
+      setUpdateInstalling(false);
     }
   };
 
@@ -1118,6 +1185,25 @@ export default function App() {
             {message && (
               <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
             )}
+
+            <section className="card update-card">
+              <div className="card__heading">
+                <div><p className="eyebrow">Signed updates</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version} is available` : "Keep Preflight current"}</h2></div>
+                <ShieldIcon className="settings-check" />
+              </div>
+              <p>{updateStatus?.available
+                ? updateStatus.notes || "A newer signed release is ready. Installation starts only after confirmation."
+                : updateStatus?.configured
+                  ? `Version ${updateStatus.currentVersion} is current.`
+                  : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
+              {updateError && <p className="activation-warning">{updateError}</p>}
+              {updateInstalling && <div className="update-progress" role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={updateProgress?.contentLength ?? undefined} aria-valuenow={updateProgress?.downloadedBytes ?? 0}><span>{updateProgress?.contentLength ? `${formatBytes(updateProgress.downloadedBytes)} of ${formatBytes(updateProgress.contentLength)}` : `${formatBytes(updateProgress?.downloadedBytes ?? 0)} downloaded`}</span></div>}
+              <div className="update-actions">
+                <button className="button button--quiet button--compact" type="button" onClick={() => void checkUpdates(true)} disabled={updateChecking || updateInstalling}>{updateChecking ? "Checking…" : updateStatus ? "Check again" : "Check for updates"}</button>
+                {updateStatus?.available && <button className="button button--primary" type="button" onClick={() => void installSignedUpdate()} disabled={updateInstalling || preparing || status === "running"}>{updateInstalling ? "Installing…" : "Install and restart"}</button>}
+              </div>
+              <small>Downloads are verified with the release key embedded in this build. A failed download or signature check leaves the installed version unchanged.</small>
+            </section>
 
             <div className="settings-grid">
               <section className="card diagnostics-card">

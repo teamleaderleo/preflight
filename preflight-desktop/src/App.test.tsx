@@ -186,6 +186,42 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
 });
 
+test("signed updates are explicit and explain when a build has no update channel", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check for updates" }));
+
+  expect(await screen.findAllByText("Browser preview has no signed update channel.")).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: "Install and restart" })).not.toBeInTheDocument();
+});
+
+test("a verified available update still waits for install confirmation", async () => {
+  const user = userEvent.setup();
+  const check = vi.spyOn(bridge, "checkForUpdate").mockResolvedValue({
+    format: "preflight-update-v1",
+    configured: true,
+    currentVersion: "0.1.0",
+    available: true,
+    version: "0.2.0",
+    date: "2026-08-07T00:00:00Z",
+    notes: "A signed test release.",
+    reason: null,
+  });
+
+  render(<App />);
+  await screen.findByText("Your launch pad is cozy and ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check for updates" }));
+
+  expect(await screen.findByRole("heading", { name: "Preflight 0.2.0 is available" })).toBeInTheDocument();
+  expect(screen.getByText("A signed test release.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Install and restart" })).toBeEnabled();
+  check.mockRestore();
+});
+
 test("removal keeps launcher files and all data as separate previewed scopes", async () => {
   const user = userEvent.setup();
   render(<App />);

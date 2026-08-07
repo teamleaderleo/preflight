@@ -40,8 +40,9 @@ under the lease before applying. A read-only pass over the reviewed install foun
 profile. The two removal scopes now have the same preview/apply contract in the CLI and desktop:
 launch integrations plus the installed command engine can leave prepared data intact, while an
 all-data removal also clears caches, profiles, evidence, and backups without targeting the game.
-An interrupted all-data removal blocks other mutations until it is explicitly resumed. Signed
-update plumbing and unattended desktop smoke automation follow.
+An interrupted all-data removal blocks other mutations until it is explicitly resumed. The signed
+update client and fail-closed three-platform feed pipeline are now implemented; key provisioning,
+release-candidate update/rollback verification, and unattended desktop smoke automation follow.
 
 ## Measured result (2026-08-01, third campaign)
 
