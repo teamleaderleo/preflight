@@ -44,10 +44,10 @@ An interrupted all-data removal blocks other mutations until it is explicitly re
 signature-verified update client and fail-closed three-platform feed pipeline are now implemented;
 the free updater key is provisioned and recoverable, while release-candidate update/rollback
 verification and unattended desktop smoke automation follow. A manual private-candidate path now
-uses the real key across the three-platform matrix, assembles an inert signed feed, and retains the
-complete result without publication authority. Paid Apple and Windows publisher identities are
-explicitly outside the first-beta gate; packages will publish checksums and honest OS-warning
-instructions instead.
+uses the real key across the three-platform matrix, assembles an inert signed feed, encrypts and
+authenticates every file before workflow-artifact upload, and retains the complete result without
+publication authority. Paid Apple and Windows publisher identities are explicitly outside the
+first-beta gate; packages will publish checksums and honest OS-warning instructions instead.
 The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
 strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
 Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop

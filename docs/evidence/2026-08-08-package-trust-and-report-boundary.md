@@ -23,9 +23,11 @@ present in Git or the desktop client.
 
 The distribution workflow now has a separate manual signed-candidate mode. It builds the ordinary
 native installers plus all updater artifacts and signatures, includes the reviewed report-intake
-origin, assembles a complete candidate with inert `.invalid` feed URLs, and retains it only as a
-private workflow artifact. Repository write permission and both `gh release` commands remain in the
-tag-only publish job.
+origin, and assembles a complete candidate with inert `.invalid` feed URLs. GitHub permits signed-in
+readers of a public repository to download its workflow artifacts, so candidate files use a
+separate authenticated AES-256-GCM envelope before every upload. Plaintext exists only on ephemeral
+build runners and after an authorized local download. Repository write permission and both
+`gh release` commands remain in the tag-only publish job.
 
 The macOS package verifier now distinguishes a paid Developer ID signature from Tauri's ad-hoc
 bundle signature. An ad-hoc signature can prove package structure is internally coherent; it can't

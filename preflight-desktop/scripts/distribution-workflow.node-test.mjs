@@ -25,6 +25,10 @@ test("private signed candidates have no publication authority or release command
   assert.match(candidate, /github\.event_name == 'workflow_dispatch' && inputs\.signed_candidate/);
   assert.match(candidate, /permissions:\n      contents: read/);
   assert.match(candidate, /private-candidate\.invalid/);
+  assert.match(candidate, /candidate-crypt\.mjs[\s\\]+decrypt/);
+  assert.match(candidate, /candidate-crypt\.mjs[\s\\]+encrypt/);
+  assert.match(candidate, /path: candidate-output\/\*\.pfcandidate/);
+  assert.doesNotMatch(candidate, /path: candidate-input\/\*/);
   assert.doesNotMatch(candidate, /gh release|contents: write/);
 
   assert.match(publish, /if: startsWith\(github\.ref, 'refs\/tags\/v'\)/);
@@ -39,6 +43,10 @@ test("signed candidates require updater credentials and compile the reviewed int
   assert.match(distribution, /if: startsWith\(github\.ref, 'refs\/tags\/v'\) \|\| inputs\.signed_candidate/);
   assert.match(distribution, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
   assert.match(distribution, /PREFLIGHT_REPORT_INTAKE_ORIGIN is required for a private signed candidate/);
+  assert.match(distribution, /PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD must contain at least 32 characters/);
+  assert.match(distribution, /path: candidate-core\/\*\.pfcandidate/);
+  assert.match(desktop, /Decrypt and stage private-candidate engine JAR/);
+  assert.match(desktop, /path: preflight-desktop\/candidate-desktop\/\*\.pfcandidate/);
   assert.match(desktop, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
   assert.match(desktop, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
 });

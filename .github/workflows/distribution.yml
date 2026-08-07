@@ -36,10 +36,12 @@ jobs:
         if: inputs.signed_candidate
         env:
           PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ vars.PREFLIGHT_REPORT_INTAKE_ORIGIN }}
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$PREFLIGHT_REPORT_INTAKE_ORIGIN" || { echo "::error::PREFLIGHT_REPORT_INTAKE_ORIGIN is required for a private signed candidate"; exit 1; }
+          test "${#PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD}" -ge 32 || { echo "::error::PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD must contain at least 32 characters"; exit 1; }
 
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,7 +86,22 @@ jobs:
           java -jar dist/preflight.jar --help
           java -jar dist/preflight.jar doctor --game "$RUNNER_TEMP/does-not-exist" >/dev/null 2>&1 || test $? -eq 3
 
+      - name: Encrypt private-candidate core artifacts
+        if: inputs.signed_candidate
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-core
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            node preflight-desktop/scripts/candidate-crypt.mjs \
+              encrypt "$file" "candidate-core/${name}.pfcandidate"
+          done < <(find dist -maxdepth 1 -type f -print0)
+
       - name: Upload workflow artifact
+        if: ${{ !inputs.signed_candidate }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preflight-release-core-${{ github.run_id }}
@@ -104,6 +121,15 @@ jobs:
             dist/*.cdx.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload encrypted private-candidate core
+        if: inputs.signed_candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-release-core-${{ github.run_id }}
+          path: candidate-core/*.pfcandidate
+          if-no-files-found: error
+          retention-days: 14
 
   desktop:
     name: Desktop / ${{ matrix.name }}
@@ -163,11 +189,24 @@ jobs:
           path: ${{ runner.temp }}/preflight-verified-core
 
       - name: Stage verified engine JAR
+        if: ${{ !inputs.signed_candidate }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p preflight-cli/target
           cp "$RUNNER_TEMP/preflight-verified-core/preflight.jar" preflight-cli/target/preflight.jar
+
+      - name: Decrypt and stage private-candidate engine JAR
+        if: inputs.signed_candidate
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          node preflight-desktop/scripts/candidate-crypt.mjs decrypt \
+            "$RUNNER_TEMP/preflight-verified-core/preflight.jar.pfcandidate" \
+            preflight-cli/target/preflight.jar
 
       - name: Test frontend and prepare desktop engine
         working-directory: preflight-desktop
@@ -253,13 +292,38 @@ jobs:
           PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate }}
         run: npm run desktop:collect
 
+      - name: Encrypt private-candidate desktop artifacts
+        if: inputs.signed_candidate
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-desktop
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            node scripts/candidate-crypt.mjs \
+              encrypt "$file" "candidate-desktop/${name}.pfcandidate"
+          done < <(find desktop-dist -maxdepth 1 -type f -print0)
+
       - name: Upload desktop package
+        if: ${{ !inputs.signed_candidate }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preflight-release-${{ matrix.name }}-${{ github.run_id }}
           path: preflight-desktop/desktop-dist/*
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload encrypted private-candidate desktop package
+        if: inputs.signed_candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-release-${{ matrix.name }}-${{ github.run_id }}
+          path: preflight-desktop/candidate-desktop/*.pfcandidate
+          if-no-files-found: error
+          retention-days: 14
 
   candidate:
     name: Assemble private signed candidate
@@ -276,8 +340,24 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: preflight-release-*-${{ github.run_id }}
-          path: candidate-input
+          path: candidate-encrypted
           merge-multiple: true
+
+      - name: Authenticate and decrypt private-candidate artifacts
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-input
+          count=0
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file" .pfcandidate)"
+            node preflight-desktop/scripts/candidate-crypt.mjs \
+              decrypt "$file" "candidate-input/${name}"
+            count=$((count + 1))
+          done < <(find candidate-encrypted -type f -name '*.pfcandidate' -print0)
+          test "$count" -gt 0 || { echo "::error::No encrypted candidate inputs were found"; exit 1; }
 
       - name: Build inert private-candidate update feed
         shell: bash
@@ -288,11 +368,24 @@ jobs:
             candidate-input "v${version}" candidate-input/candidate-latest.json \
             "https://private-candidate.invalid/run-${GITHUB_RUN_ID}"
 
-      - name: Preserve complete private candidate
+      - name: Encrypt complete private candidate
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-output
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            node preflight-desktop/scripts/candidate-crypt.mjs \
+              encrypt "$file" "candidate-output/${name}.pfcandidate"
+          done < <(find candidate-input -maxdepth 1 -type f -print0)
+
+      - name: Preserve encrypted private candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preflight-private-signed-candidate-${{ github.run_id }}
-          path: candidate-input/*
+          path: candidate-output/*.pfcandidate
           if-no-files-found: error
           retention-days: 14
 

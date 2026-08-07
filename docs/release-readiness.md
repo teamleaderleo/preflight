@@ -32,7 +32,9 @@ first public beta.
   real `.deb` and NSIS install/verify/remove cycles on Ubuntu and Windows; tagged-candidate update,
   rollback, OS-warning instructions, and user-data lifecycle checks remain. A manual private
   candidate path now exercises the real signing credentials and complete three-platform artifact
-  assembly without granting its job release-publication permission.
+  assembly without granting its job release-publication permission. Candidate files are
+  authenticated and encrypted before every upload because public-repository workflow artifacts are
+  readable by signed-in GitHub users.
 - [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
   synthetic fixtures don't prove game integration.
 - [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the

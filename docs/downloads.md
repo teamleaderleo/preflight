@@ -187,12 +187,24 @@ must be retained even after a successful release.
 
 Run the **Distribution** workflow manually with `signed_candidate` enabled. It uses the same updater
 key and exact native packaging paths as a tag, compiles the reviewed report-intake origin into the
-candidate, and requires the update artifact/signature pairs on every platform. The final candidate
-job has read-only repository permission and uploads one private workflow artifact retained for 14
-days. It can't create or edit a GitHub release.
+candidate, and requires the update artifact/signature pairs on every platform. Because this is a
+public repository, every candidate file is encrypted and authenticated before its first workflow-
+artifact upload. The final candidate job decrypts only on its ephemeral runner, verifies complete
+feed assembly, and uploads a newly encrypted set retained for 14 days. Its repository permission is
+read-only, and it can't create or edit a GitHub release.
 
 The candidate also contains `candidate-latest.json` and its checksum. Its package URLs intentionally
 use the reserved `.invalid` domain, so the file proves complete feed assembly without becoming an
 installable public update channel. Update/rollback testing must serve a reviewed copy from the
 isolated rehearsal endpoint; changing the candidate feed to a public URL is not part of this
 workflow.
+
+Candidate encryption uses a separate random secret, never the updater-signing key. The secret is
+stored as `PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD` in GitHub Actions and under the macOS Keychain
+service `dev.starsector.preflight.candidate-artifact`. The repository contains only the versioned
+AES-256-GCM envelope implementation and tests. After a successful run, download and authenticate the
+candidate without printing the secret:
+
+```bash
+scripts/download-private-candidate.sh RUN_ID
+```
