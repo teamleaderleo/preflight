@@ -368,9 +368,11 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p "require('./preflight-desktop/package.json').version")"
+          notes="docs/releases/${version}.md"
+          test -f "$notes" || { echo "::error::Missing reviewed release notes: $notes"; exit 1; }
           node preflight-desktop/scripts/build-updater-manifest.mjs \
             candidate-input "v${version}" candidate-input/candidate-latest.json \
-            "https://private-candidate.invalid/run-${GITHUB_RUN_ID}"
+            "https://private-candidate.invalid/run-${GITHUB_RUN_ID}" "$notes"
 
       - name: Encrypt complete private candidate
         env:
@@ -415,8 +417,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          notes="docs/releases/${version}.md"
+          test -f "$notes" || { echo "::error::Missing reviewed release notes: $notes"; exit 1; }
           node preflight-desktop/scripts/build-updater-manifest.mjs \
-            release-input "$GITHUB_REF_NAME" release-input/latest.json
+            release-input "$GITHUB_REF_NAME" release-input/latest.json \
+            "https://github.com/teamleaderleo/preflight/releases/download/$GITHUB_REF_NAME" "$notes"
 
       - name: Preserve complete release artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -432,10 +438,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" \
             release-input/* \
             --draft \
             --verify-tag \
-            --generate-notes \
+            --notes-file "docs/releases/${version}.md" \
             --title "Preflight $GITHUB_REF_NAME"
           gh release edit "$GITHUB_REF_NAME" --draft=false

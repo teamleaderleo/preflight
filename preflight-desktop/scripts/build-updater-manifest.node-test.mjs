@@ -19,8 +19,10 @@ function fixture() {
 }
 
 test("builds the static Tauri feed from all three update-signed artifacts", () => {
-  const manifest = buildUpdaterManifest(fixture(), "v0.2.0");
+  const notes = "Faster profile preparation and clearer storage controls.";
+  const manifest = buildUpdaterManifest(fixture(), "v0.2.0", undefined, undefined, notes);
   assert.equal(manifest.version, "0.2.0");
+  assert.equal(manifest.notes, notes);
   assert.deepEqual(Object.keys(manifest.platforms), [
     "darwin-aarch64",
     "linux-x86_64",
@@ -29,6 +31,17 @@ test("builds the static Tauri feed from all three update-signed artifacts", () =
   assert.equal(
     manifest.platforms["darwin-aarch64"].url,
     "https://github.com/teamleaderleo/preflight/releases/download/v0.2.0/Preflight-macOS-arm64.app.tar.gz",
+  );
+});
+
+test("refuses empty or unbounded updater release notes", () => {
+  assert.throws(
+    () => buildUpdaterManifest(fixture(), "v0.2.0", undefined, undefined, "   "),
+    /between 1 and 16,384/,
+  );
+  assert.throws(
+    () => buildUpdaterManifest(fixture(), "v0.2.0", undefined, undefined, "x".repeat(16_385)),
+    /between 1 and 16,384/,
   );
 });
 

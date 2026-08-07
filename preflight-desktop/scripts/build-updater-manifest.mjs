@@ -17,10 +17,12 @@ export function buildUpdaterManifest(
   tag,
   requestedAssetBase = `${releaseAssetBase}/${tag}`,
   requiredSystems = supportedSystems,
+  requestedNotes,
 ) {
   const version = releaseVersion(tag);
   const assetBase = exactHttpsBase(requestedAssetBase);
   const required = exactRequiredSystems(requiredSystems);
+  const notes = exactReleaseNotes(requestedNotes, version);
   const entries = readdirSync(inputDirectory, { withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
@@ -57,16 +59,25 @@ export function buildUpdaterManifest(
 
   return {
     version,
-    notes: `Preflight ${version}`,
+    notes,
     platforms: Object.fromEntries(Object.entries(platforms).sort(([left], [right]) => left.localeCompare(right))),
   };
 }
 
-export function writeUpdaterManifest(inputDirectory, tag, outputPath, assetBase, requiredSystems) {
-  const json = `${JSON.stringify(buildUpdaterManifest(inputDirectory, tag, assetBase, requiredSystems), null, 2)}\n`;
+export function writeUpdaterManifest(inputDirectory, tag, outputPath, assetBase, requiredSystems, notes) {
+  const json = `${JSON.stringify(buildUpdaterManifest(inputDirectory, tag, assetBase, requiredSystems, notes), null, 2)}\n`;
   writeFileSync(outputPath, json);
   const digest = createHash("sha256").update(json).digest("hex");
   writeFileSync(`${outputPath}.sha256`, `${digest}  ${basename(outputPath)}\n`);
+}
+
+function exactReleaseNotes(value, version) {
+  if (value === undefined) return `Preflight ${version}`;
+  const notes = value.trim();
+  if (!notes || notes.length > 16_384 || notes.includes("\0")) {
+    throw new Error("Updater release notes must contain between 1 and 16,384 safe characters");
+  }
+  return notes;
 }
 
 function exactRequiredSystems(values) {
@@ -103,11 +114,12 @@ function releaseVersion(tag) {
 const isMain = process.argv[1]
   && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
 if (isMain) {
-  const [, , inputDirectory, tag, requestedOutput, assetBase] = process.argv;
+  const [, , inputDirectory, tag, requestedOutput, assetBase, notesPath] = process.argv;
   if (!inputDirectory || !tag) {
-    throw new Error("Usage: node build-updater-manifest.mjs <artifact-directory> <tag> [output] [asset-base-url]");
+    throw new Error("Usage: node build-updater-manifest.mjs <artifact-directory> <tag> [output] [asset-base-url] [release-notes-file]");
   }
   const output = resolve(requestedOutput ?? resolve(inputDirectory, "latest.json"));
-  writeUpdaterManifest(resolve(inputDirectory), tag, output, assetBase);
+  const notes = notesPath === undefined ? undefined : readFileSync(resolve(notesPath), "utf8");
+  writeUpdaterManifest(resolve(inputDirectory), tag, output, assetBase, undefined, notes);
   console.log(`Wrote signature-verified update manifest to ${output}`);
 }

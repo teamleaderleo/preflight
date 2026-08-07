@@ -37,6 +37,7 @@ test("private signed candidates have no publication authority or release command
   assert.match(candidate, /private-candidate\.invalid/);
   assert.match(candidate, /candidate-crypt\.mjs[\s\\]+decrypt/);
   assert.match(candidate, /candidate-crypt\.mjs[\s\\]+encrypt/);
+  assert.match(candidate, /docs\/releases\/\$\{version\}\.md/);
   assert.match(candidate, /path: candidate-output\/\*\.pfcandidate/);
   assert.doesNotMatch(candidate, /path: candidate-input\/\*/);
   assert.doesNotMatch(candidate, /gh release|contents: write/);
@@ -44,6 +45,8 @@ test("private signed candidates have no publication authority or release command
   assert.match(publish, /if: startsWith\(github\.ref, 'refs\/tags\/v'\)/);
   assert.match(publish, /permissions:\n      contents: write/);
   assert.match(publish, /gh release create/);
+  assert.match(publish, /--notes-file "docs\/releases\/\$\{version\}\.md"/);
+  assert.doesNotMatch(publish, /--generate-notes/);
 });
 
 test("signed candidates require updater credentials and compile the reviewed intake origin", () => {

@@ -156,9 +156,10 @@ The Distribution workflow checks that the tag, frontend package, Tauri applicati
 package versions agree, runs the full verification suite, assembles archives, smoke-tests the
 packaged JAR, then builds the desktop host and its platform-native Java runtime independently on
 Linux, macOS, and Windows. Platform jobs upload private workflow artifacts. The final job builds the
-signature-verified static update feed, uploads every asset to a draft, then publishes it. Any failed
-verification, missing updater signature, failed upload, or failed desktop platform leaves the tag
-without a public release.
+signature-verified static update feed, uploads every asset to a draft, then publishes it. The
+reviewed `docs/releases/<version>.md` file supplies both the updater notes and GitHub release body;
+a missing or empty file stops candidate assembly. Any failed verification, missing updater
+signature, failed upload, or failed desktop platform leaves the tag without a public release.
 
 ### Provision the updater key
 

@@ -836,6 +836,10 @@ h2 {
   line-height: 1.6;
 }
 
+.update-release-notes {
+  white-space: pre-line;
+}
+
 .update-actions {
   display: flex;
   align-items: center;

@@ -1429,7 +1429,7 @@ export default function App() {
                 <div><p className="eyebrow">Verified updates</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version} is available` : "Keep Preflight current"}</h2></div>
                 <ShieldIcon className="settings-check" />
               </div>
-              <p>{updateStatus?.available
+              <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
                 ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
                 : updateStatus?.configured
                   ? `Version ${updateStatus.currentVersion} is current.`
