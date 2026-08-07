@@ -24,7 +24,9 @@ first public beta.
   by its public key. Keep the private key out of the repository and client.
 - [ ] Configure and verify Apple signing/notarization and Windows signing if they are release gates.
 - [ ] Test clean install, update, rollback, launcher ownership, ordinary removal, and full Preflight
-  data removal on each published platform.
+  data removal on each published platform. Development CI now copies the macOS app and performs
+  real Debian and NSIS install/verify/remove cycles; signed-candidate update, rollback, and
+  user-data lifecycle checks remain.
 - [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
   synthetic fixtures don't prove game integration.
 - [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the

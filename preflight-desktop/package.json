@@ -19,7 +19,9 @@
     "engine:prepare:verified": "node scripts/prepare-engine.mjs --use-verified-jar",
     "engine:verify": "node scripts/verify-engine.mjs",
     "desktop:collect": "node scripts/collect-bundles.mjs",
+    "desktop:exercise-install": "node scripts/exercise-native-install.mjs",
     "desktop:verify-package": "node scripts/verify-native-package.mjs",
+    "desktop:verify-installed": "node scripts/verify-installed-engine.mjs",
     "desktop:dev": "npm run engine:prepare && tauri dev",
     "desktop:build": "npm run engine:prepare && tauri build",
     "tauri": "tauri"

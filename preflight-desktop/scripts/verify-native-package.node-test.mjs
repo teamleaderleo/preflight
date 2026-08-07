@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import test from "node:test";
+import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
 import { assertTreesEqual } from "./verify-native-package.mjs";
 
 test("native package tree comparison accepts identical content", async () => {
@@ -36,6 +37,15 @@ test("native package tree comparison checks link destinations", { skip: process.
     symlinkSync("first", join(directory, "left"));
     symlinkSync("second", join(directory, "right"));
     assert.throws(() => assertTreesEqual(join(directory, "left"), join(directory, "right")), /links differ/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("installed engine verification rejects an empty package root", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "preflight-installed-empty-"));
+  try {
+    assert.throws(() => verifyInstalledEngine(directory), /exactly one bounded engine; found 0/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

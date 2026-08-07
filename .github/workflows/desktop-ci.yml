@@ -112,3 +112,8 @@ jobs:
       - name: Verify extracted development package contents
         working-directory: preflight-desktop
         run: npm run desktop:verify-package
+
+      - name: Exercise native installation and removal
+        if: runner.os != 'macOS'
+        working-directory: preflight-desktop
+        run: npm run desktop:exercise-install

@@ -66,11 +66,22 @@ export function verifyMacPackage(directory = bundleDirectory) {
         rmSync(extractDirectory, { recursive: true, force: true });
       }
     }
+    const installedDirectory = mkdtempSync(join(tmpdir(), "preflight-installed-app-"));
+    const installedApp = join(installedDirectory, "Preflight.app");
+    let installedEngine;
+    try {
+      run("ditto", [appDirectory, installedApp]);
+      assertTreesEqual(appDirectory, installedApp);
+      installedEngine = verifyPackagedEngine(join(installedApp, "Contents", "Resources", "engine"));
+    } finally {
+      rmSync(installedDirectory, { recursive: true, force: true });
+    }
     return {
       dmg: basename(dmgFiles[0]),
       updaterArchive: signedRelease,
       platformSignature,
-      engine: verifyPackagedEngine(join(appDirectory, "Contents", "Resources", "engine")),
+      installedCopy: true,
+      engine: installedEngine,
     };
   } finally {
     if (mounted) run("hdiutil", ["detach", mountDirectory]);
