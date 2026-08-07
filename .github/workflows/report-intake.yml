@@ -1,0 +1,54 @@
+name: Private report intake
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/report-intake.yml'
+      - 'report-intake/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/report-intake.yml'
+      - 'report-intake/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: report-intake
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: report-intake/package-lock.json
+
+      - run: npm ci
+
+      - name: Verify generated bindings
+        shell: bash
+        run: |
+          npm run cf-typegen
+          git diff --exit-code -- worker-configuration.d.ts
+
+      - name: Verify Worker boundary
+        run: npm run check
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
+      - name: Build production Worker without deploying
+        run: npx wrangler deploy --dry-run --outdir dist

@@ -1,0 +1,89 @@
+name: Desktop application
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/desktop-ci.yml'
+      - 'pom.xml'
+      - 'preflight-agent/**'
+      - 'preflight-cli/**'
+      - 'preflight-core/**'
+      - 'preflight-desktop/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/desktop-ci.yml'
+      - 'pom.xml'
+      - 'preflight-agent/**'
+      - 'preflight-cli/**'
+      - 'preflight-core/**'
+      - 'preflight-desktop/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: ./.github/actions/setup-build-jdk
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install frontend dependencies
+        working-directory: preflight-desktop
+        run: npm ci
+
+      - name: Prepare the bounded desktop engine
+        working-directory: preflight-desktop
+        run: npm run engine:prepare
+
+      - name: Verify frontend and release helpers
+        working-directory: preflight-desktop
+        shell: bash
+        run: |
+          npm test
+          npm run test:release
+          npm run build
+
+      - name: Verify native host
+        working-directory: preflight-desktop
+        shell: bash
+        run: |
+          cargo fmt --check --manifest-path src-tauri/Cargo.toml
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+          cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
