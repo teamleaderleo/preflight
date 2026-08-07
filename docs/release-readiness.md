@@ -1,7 +1,7 @@
 # Release readiness
 
 **Status:** private development preview; Fractal Softworks guidance requested, awaiting response
-**Updated:** 2026-08-07
+**Updated:** 2026-08-08
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
 not ready to publish merely because it is fast. This checklist is the release boundary for the
@@ -49,14 +49,18 @@ first public beta.
 - [x] Add a background update check and explicit signed install/restart flow. Development builds
   report that their channel is disabled, Linux package installs stay with their package manager,
   and no update surprise-installs.
-- [ ] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and
+- [x] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
   The private receiving service, local Java-export interoperability check, and desktop
-  consent/upload/cancel/receipt/delete path are complete. Production provisioning, abuse-rate
-  limits, public operator details, and a packaged release-candidate canary remain, so distributed
-  builds still omit the intake origin.
-- [ ] Keep automatic crash upload separate, default off, and out of scope unless its consent and
-  privacy lifecycle are complete.
+  consent/upload/cancel/receipt/delete path are complete.
+- [x] Provision the production intake with a private bucket, automatic expiration, encrypted grant
+  signing, per-client edge brakes, an exact 500 MiB daily grant ceiling, and a synthetic live
+  create/upload/finalize/delete canary. The canary left the bucket empty.
+- [ ] Put the intake origin in a packaged release candidate and exercise disclosure, consent,
+  cancel/retry, receipt, and deletion through the packaged UI. Distributed builds continue to omit
+  the origin until that final canary passes.
+- [x] Keep automatic crash upload separate, default off, and out of scope unless its consent and
+  privacy lifecycle are complete. No automatic crash-upload path is present.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
   Advanced disclosure and let the engine enforce dependencies.
 - [x] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,

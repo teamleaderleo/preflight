@@ -50,8 +50,14 @@ strict ZIP/manifest validation, immutable upload, signed receipt, deletion autho
 Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop
 now reviews the exact entry list, size, digest, and exclusions; the native host revalidates and
 streams the file with progress/cancellation; and the accepted receipt can be copied or used for
-early deletion. Production provisioning, abuse-rate limits, operator details, and a packaged
-release-candidate canary still block enabling its compile-time origin.
+early deletion. Production deployment and its direct canary are complete; a packaged
+release-candidate canary still blocks enabling the compile-time origin.
+Production provisioning is now complete: the private bucket has 14-day expiration, the signing key
+lives in Cloudflare's secret store, per-client edge brakes run before mutation work, and a
+day-sharded SQLite counter imposes an exact 500 MiB grant ceiling per UTC day. A live synthetic
+create/upload/finalize/delete canary passed and left the bucket empty. The remaining gate is the
+same flow through a packaged release candidate; development and distributed builds still omit the
+compile-time intake origin.
 The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes
 its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
 driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime

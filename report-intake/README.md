@@ -20,23 +20,28 @@ npm run cf-typegen
 npm run check
 ```
 
-Tests run inside `workerd` with a local R2 binding. They cover the accepted lifecycle and rejection
-of digest changes, unexpected entries, oversized decompression, token changes, replay, and protocol
-drift. `npm audit --omit=dev` covers the two production dependencies; the lockfile also overrides a
-vulnerable transitive development copy of Undici to its patched 7.x release.
+Thirteen tests run inside `workerd` with local R2 and Durable Object bindings. They cover the
+accepted lifecycle, exact daily quota accounting, edge rate limiting, the production canary, and
+rejection of digest changes, unexpected entries, oversized decompression, token changes, replay,
+and protocol drift. `npm audit --omit=dev` covers the two production dependencies; the lockfile also
+overrides a vulnerable transitive development copy of Undici to its patched 7.x release.
 
 ## Production provisioning
 
-Deployment is intentionally separate from the source tree. No account identifier, API token,
-bucket credential, route, or signing secret belongs in Git.
+Deployment credentials and signing secrets stay outside the source tree. The production origin and
+non-secret binding configuration are checked in so a deployment is reviewable and reproducible.
 
-1. Create the private bucket named in `wrangler.jsonc`:
+1. Enable R2 Object Storage for the Cloudflare account in the dashboard, without selecting a paid
+   upgrade. Until the account owner accepts that service activation, Wrangler returns API code
+   `10042` and can't list or create buckets.
+
+2. Create the private bucket named in `wrangler.jsonc`:
 
    ```bash
    npx wrangler r2 bucket create preflight-reports
    ```
 
-2. Add the lifecycle rule used by the receipt calculation:
+3. Add the lifecycle rule used by the receipt calculation:
 
    ```bash
    npx wrangler r2 bucket lifecycle add preflight-reports \
@@ -48,26 +53,48 @@ bucket credential, route, or signing secret belongs in Git.
    day after the 14-day expiration threshold. The deletion token remains available through that
    window.
 
-3. Generate at least 32 random bytes and provide them through Wrangler's encrypted secret store:
+4. Generate at least 32 random bytes and provide them through Wrangler's encrypted secret store:
 
    ```bash
    npx wrangler secret put REPORT_SIGNING_KEY
    ```
 
-4. Add an IP-based Cloudflare rate-limiting rule for `/v1/cases*`. Keep the bucket private, disable
-   `r2.dev`, and don't attach a public custom domain to it.
+5. Keep the bucket private, leave `r2.dev` disabled, and don't attach a public custom domain to it.
+   The checked-in Worker-native bindings limit case creation to five requests per minute and all
+   mutating intake requests to sixty per minute for a client address in one Cloudflare location.
+   These are permissive abuse brakes rather than exact accounting counters
+   ([Rate Limiting API](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)).
+   The SQLite Durable Object binding is the exact boundary: each accepted grant reserves its
+   declared bytes against a 500 MiB ceiling in the UTC day's own object. A grant isn't refunded if
+   the client abandons it, keeping the accounting conservative. Each daily object deletes its own
+   storage after 32 days, so old counters don't accumulate indefinitely.
 
-5. Deploy and verify `/healthz`, the lifecycle rule, the rate-limiting rule, and one complete
-   create/upload/finalize/delete canary before placing the intake origin in a release build:
+6. Deploy and verify `/healthz`, the lifecycle rule, and the rate-limiting bindings before placing the
+   intake origin in a release build:
 
    ```bash
    npm run deploy
+   npm run canary -- https://<deployed-worker-origin>
    ```
 
-Set `PUBLIC_ORIGIN` to the production HTTPS origin before deployment; the checked-in `.invalid`
-value deliberately fails closed. `RETENTION_DAYS`, `MAX_UPLOAD_BYTES`, `GRANT_TTL_SECONDS`, and
-`PUBLIC_ORIGIN` are non-secret deployment values. Any change to the retention value must be made
-together with the R2 lifecycle rule and reviewed receipt wording.
+   The canary constructs a synthetic text-only report containing no game or user data, exercises
+   create/upload/finalize/delete, then confirms finalization can no longer see the deleted object.
+   It performs best-effort deletion if an intermediate check fails.
+
+`PUBLIC_ORIGIN` is the exact production HTTPS origin and requests for any other origin fail closed.
+`RETENTION_DAYS`, `MAX_UPLOAD_BYTES`, `GRANT_TTL_SECONDS`, and `PUBLIC_ORIGIN` are non-secret
+deployment values. Any change to the retention value must be made together with the R2 lifecycle
+rule and reviewed receipt wording. Raising the daily grant constant also requires a storage-cost
+review.
+
+### Current production state
+
+The private bucket, lifecycle rule, signing secret, rate-limit bindings, SQLite Durable Object, and
+Worker are provisioned on Cloudflare's free plans. Live canary case
+`2555abea-efda-4cd0-be94-fe23d95e18cd` passed against Worker version
+`5a9c4e0d-d740-4271-af65-f5b98da850d9` on 2026-08-08 and was deleted; the bucket then reported zero
+objects and zero bytes. The desktop application still omits the compile-time intake origin until a
+packaged release candidate passes the same lifecycle through its UI.
 
 ### Early-beta capacity and cost
 
@@ -75,14 +102,18 @@ As of 2026-08-08, R2's free monthly allowance includes 10 GB-month of Standard s
 Class A operations, ten million Class B operations, and free Internet egress
 ([R2 pricing](https://developers.cloudflare.com/r2/pricing/)). Workers Free includes 100,000
 requests per day with a 10 ms CPU allowance per invocation
-([Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)). The Free plan also
-supports one IP/path rate-limiting rule, which fits this intake's single `/v1/cases*` boundary
-([WAF rate limiting](https://developers.cloudflare.com/waf/rate-limiting-rules/)).
+([Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)). The Worker-native
+Rate Limiting API applies before the bounded upload work and doesn't require a custom-domain WAF
+rule ([Rate Limiting API](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)).
 
-Those allowances are ample for a small opt-in beta at the current 6 MiB request ceiling and 14-day
-retention, though they aren't a substitute for alerts. Monitor stored bytes, request counts, rejected
-requests, and Worker CPU before enabling the origin in a release. If volume approaches a limit,
-disable the compile-time intake origin in the next build and leave local export available.
+The exact 500 MiB daily grant ceiling bounds how quickly accepted intake can consume storage even
+when the per-location limiter is permissive. At the 6 MiB object ceiling it permits at least 83
+maximum-size reports per UTC day; smaller reports share the same byte budget. Fourteen-day
+expiration keeps the intended steady-state envelope within the free storage allowance, though
+lifecycle processing is asynchronous and alerts remain necessary. Monitor stored bytes, request
+counts, rejected requests, and Worker CPU before enabling the origin in a release. If volume
+approaches a limit, remove the compile-time intake origin from the next build and leave local export
+available.
 
 ## Protocol
 

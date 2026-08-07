@@ -36,12 +36,22 @@ publish its contents.
 
 ## Verification
 
-- report-intake typecheck and nine Worker-runtime tests passed;
+- report-intake typecheck and thirteen Worker-runtime tests passed, including rate limiting, exact
+  daily byte reservations, and the production canary client against the local Worker/R2 runtime;
 - desktop frontend tests passed;
 - 21 desktop release-contract tests passed after refreshing the prepared engine;
 - 15 Rust host tests passed; and
 - the local `test:release` command now prepares the engine before checking its packaged legal and
   scenario boundary, preventing stale generated dependencies from producing a false failure.
 
-No public package was published, no intake was deployed, and no game launch was needed for this
-decision.
+The Cloudflare account's free R2 service is active. Production provisioning created the private
+`preflight-reports` bucket, a 14-day `accepted/` expiration rule, an encrypted signing secret, and
+the `preflight-report-intake` Worker. The Worker combines per-client edge brakes with a globally
+coordinated 500 MiB grant limit for each UTC day. Each day's exact counter lives in its own SQLite
+Durable Object, keeping unrelated days out of the same coordination point.
+
+Live canary case `2555abea-efda-4cd0-be94-fe23d95e18cd` completed create, upload, finalize, and
+authenticated deletion against deployed version `5a9c4e0d-d740-4271-af65-f5b98da850d9`. The
+synthetic archive was 902 bytes, finalization stopped seeing it after deletion, and the bucket
+subsequently reported zero objects and zero stored bytes. No public package or paid service was
+created, the desktop release build still omits the intake origin, and no game launch was needed.

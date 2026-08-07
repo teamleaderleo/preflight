@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "canary": "node scripts/canary.mjs",
     "check": "npm run typecheck && npm test",
     "cf-typegen": "wrangler types --include-runtime false",
     "deploy": "wrangler deploy",

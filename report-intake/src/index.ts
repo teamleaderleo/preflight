@@ -1,3 +1,4 @@
+import { DailyReportQuota } from "./daily-quota";
 import { verifyDiagnosticBundle } from "./bundle";
 import { sha256Hex, signGrant, signReceipt, verifyGrant } from "./crypto";
 import {
@@ -9,10 +10,17 @@ import {
   ZIP_CONTENT_TYPE,
 } from "./protocol";
 
-type IntakeEnv = Env & { REPORT_SIGNING_KEY: string };
+export { DailyReportQuota } from "./daily-quota";
+
+type IntakeEnv = Env & {
+  DAILY_REPORT_QUOTA: DurableObjectNamespace<DailyReportQuota>;
+  REPORT_SIGNING_KEY: string;
+};
+
+const DAILY_GRANT_LIMIT_BYTES = 500 * 1024 * 1024;
 
 class HttpError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly headers: HeadersInit = {}) {
     super(message);
   }
 }
@@ -24,7 +32,11 @@ export default {
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
       if (status === 500) console.error("report intake failed", error);
-      return json({ error: status === 500 ? "internal error" : message(error) }, status);
+      return json(
+        { error: status === 500 ? "internal error" : message(error) },
+        status,
+        error instanceof HttpError ? error.headers : {},
+      );
     }
   },
 } satisfies ExportedHandler<Env>;
@@ -36,7 +48,11 @@ async function route(request: Request, env: IntakeEnv): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/healthz") {
     return json({ status: "ok", protocolVersion: PROTOCOL_VERSION });
   }
+  if (request.method === "POST" || request.method === "PUT" || request.method === "DELETE") {
+    await enforceRateLimit(env.MUTATION_RATE_LIMITER, request, "too many intake requests");
+  }
   if (request.method === "POST" && url.pathname === "/v1/cases") {
+    await enforceRateLimit(env.CASE_CREATION_RATE_LIMITER, request, "too many report cases");
     return createCase(request, env);
   }
   const match = /^\/v1\/cases\/([0-9a-f-]{36})\/(archive|finalize)$/.exec(url.pathname);
@@ -58,7 +74,16 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
   const maxUploadBytes = positiveInteger(env.MAX_UPLOAD_BYTES, "MAX_UPLOAD_BYTES");
   if (body.bytes < 1 || body.bytes > maxUploadBytes) throw new HttpError(413, "archive size is outside the allowed range");
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = new Date();
+  const quota = env.DAILY_REPORT_QUOTA.getByName(now.toISOString().slice(0, 10));
+  const reservation = await quota.reserve(body.bytes, DAILY_GRANT_LIMIT_BYTES);
+  if (!reservation.accepted) {
+    throw new HttpError(429, "daily report intake capacity has been reached", {
+      "retry-after": String(secondsUntilNextUtcDay(now)),
+    });
+  }
+
+  const nowSeconds = Math.floor(now.getTime() / 1000);
   const caseId = crypto.randomUUID();
   const objectKey = `accepted/${caseId}.zip`;
   const base = {
@@ -72,12 +97,12 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
   const uploadClaims: GrantClaims = {
     ...base,
     purpose: "upload",
-    exp: now + positiveInteger(env.GRANT_TTL_SECONDS, "GRANT_TTL_SECONDS"),
+    exp: nowSeconds + positiveInteger(env.GRANT_TTL_SECONDS, "GRANT_TTL_SECONDS"),
   };
   const deleteClaims: GrantClaims = {
     ...base,
     purpose: "delete",
-    exp: now + (positiveInteger(env.RETENTION_DAYS, "RETENTION_DAYS") + 2) * 86400,
+    exp: nowSeconds + (positiveInteger(env.RETENTION_DAYS, "RETENTION_DAYS") + 2) * 86400,
   };
   return json({
     protocolVersion: PROTOCOL_VERSION,
@@ -276,13 +301,25 @@ function requiredMetadata(metadata: Record<string, string>, name: string): strin
   return value;
 }
 
-function json(value: unknown, status = 200): Response {
+function secondsUntilNextUtcDay(now: Date): number {
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
+}
+
+async function enforceRateLimit(limiter: RateLimit, request: Request, detail: string): Promise<void> {
+  const key = request.headers.get("cf-connecting-ip") ?? "unknown-client";
+  const result = await limiter.limit({ key });
+  if (!result.success) throw new HttpError(429, detail, { "retry-after": "60" });
+}
+
+function json(value: unknown, status = 200, extraHeaders: HeadersInit = {}): Response {
   return Response.json(value, {
     status,
     headers: {
       "cache-control": "no-store",
       "content-type": "application/json; charset=utf-8",
       "x-content-type-options": "nosniff",
+      ...Object.fromEntries(new Headers(extraHeaders)),
     },
   });
 }

@@ -127,10 +127,14 @@ The embedded application has no durable secret. A secret shipped in a desktop bi
 so it can't prove that an upload came from an untampered official client. The intake therefore
 treats every request as anonymous hostile input. The receipt proves what the service accepted;
 strict server-side format checks, private storage, short retention, and rate limits constrain abuse.
-Cloudflare's rate-limiting rules can cap requests by path and IP
-([WAF documentation](https://developers.cloudflare.com/waf/rate-limiting-rules/)). If uploader
-identity becomes necessary, GitHub's device flow can add an explicit sign-in without asking users
-to paste tokens ([GitHub documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)); it shouldn't be required for ordinary beta feedback.
+Cloudflare's Worker-native rate-limiting bindings cap report creation and mutating intake requests
+before archive processing. Those bindings are intentionally permissive and local to a Cloudflare
+location, so accepted grants also pass through an exact 500 MiB limit for each UTC day, coordinated
+by one SQLite Durable Object per day
+([Rate Limiting API](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)).
+If uploader identity becomes necessary, GitHub's device flow can add an explicit sign-in without
+asking users to paste tokens
+([GitHub documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow)); it shouldn't be required for ordinary beta feedback.
 
 Operational defaults should include a small maximum object size, private bucket, short retention,
 no public object URLs, least-privilege intake credentials, deletion by case ID, and a visible privacy

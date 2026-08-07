@@ -3,7 +3,9 @@ import { strToU8, zipSync } from "fflate";
 import { beforeEach, describe, expect, it } from "vitest";
 import worker from "../src/index";
 import { sha256Hex } from "../src/crypto";
+import type { DailyReportQuota } from "../src/daily-quota";
 import { BUNDLE_FORMAT, PROTOCOL_VERSION, ZIP_CONTENT_TYPE } from "../src/protocol";
+import { runCanary } from "../scripts/canary.mjs";
 
 type TestEnv = Env & { REPORT_SIGNING_KEY: string };
 type Grant = {
@@ -14,6 +16,7 @@ type Grant = {
 };
 
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
+let nextClientAddress = 1;
 
 describe("private report intake", () => {
   beforeEach(async () => {
@@ -181,12 +184,69 @@ describe("private report intake", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid case request" });
   });
+
+  it("rate-limits repeated case creation from one client address", async () => {
+    const archive = await bundle();
+    const body = JSON.stringify({
+      protocolVersion: PROTOCOL_VERSION,
+      productVersion: "rate-limit-test",
+      bytes: archive.byteLength,
+      sha256: await sha256Hex(archive),
+    });
+    const request = () => dispatch(new IncomingRequest("https://intake.test/v1/cases", {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "192.0.2.250",
+        "content-type": "application/json",
+      },
+      body,
+    }));
+
+    for (let index = 0; index < 5; index++) expect((await request()).status).toBe(201);
+    const rejected = await request();
+    expect(rejected.status).toBe(429);
+    expect(rejected.headers.get("retry-after")).toBe("60");
+    expect(await rejected.json()).toEqual({ error: "too many report cases" });
+  });
+
+  it("enforces exact byte reservations within each UTC-day quota object", async () => {
+    const firstDay = quotaFor(`test-day-one-${crypto.randomUUID()}`);
+    expect(await firstDay.reserve(6, 10)).toEqual({ accepted: true, usedBytes: 6 });
+    expect(await firstDay.reserve(5, 10)).toEqual({ accepted: false, usedBytes: 6 });
+    expect(await firstDay.reserve(4, 10)).toEqual({ accepted: true, usedBytes: 10 });
+    expect(await firstDay.reserve(1, 10)).toEqual({ accepted: false, usedBytes: 10 });
+
+    const secondDay = quotaFor(`test-day-two-${crypto.randomUUID()}`);
+    expect(await secondDay.reserve(10, 10)).toEqual({ accepted: true, usedBytes: 10 });
+  });
+
+  it("runs the production canary client through upload, receipt, and verified deletion", async () => {
+    const canaryFetch: typeof fetch = async (input, init) => dispatch(new IncomingRequest(
+      input,
+      init as RequestInit<IncomingRequestCfProperties> | undefined,
+    ));
+    const result = await runCanary("https://intake.test", canaryFetch);
+
+    expect(result).toMatchObject({
+      format: "preflight-report-intake-canary-v1",
+      origin: "https://intake.test",
+      deleted: true,
+    });
+    expect(result.caseId).toMatch(/^[0-9a-f-]{36}$/);
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("refuses a production canary outside an exact HTTPS origin", async () => {
+    await expect(runCanary("http://intake.test")).rejects.toThrow("exact configured HTTPS origin");
+    await expect(runCanary("https://intake.test/path")).rejects.toThrow("exact configured HTTPS origin");
+  });
 });
 
 async function createGrant(archive: Uint8Array): Promise<Grant> {
+  const clientAddress = `192.0.2.${nextClientAddress++}`;
   const response = await dispatch(new IncomingRequest("https://intake.test/v1/cases", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "cf-connecting-ip": clientAddress, "content-type": "application/json" },
     body: JSON.stringify({
       protocolVersion: PROTOCOL_VERSION,
       productVersion: "0.1.0-test",
@@ -212,6 +272,10 @@ async function upload(grant: Grant, archive: Uint8Array): Promise<Response> {
 
 async function dispatch(incoming: Request<unknown, IncomingRequestCfProperties>): Promise<Response> {
   return worker.fetch(incoming, env as TestEnv);
+}
+
+function quotaFor(name: string): DurableObjectStub<DailyReportQuota> {
+  return env.DAILY_REPORT_QUOTA.getByName(name);
 }
 
 async function bundle(
