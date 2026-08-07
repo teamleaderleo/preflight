@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ class CampaignEntityTelemetryReportTest {
     void reset() {
         System.clearProperty(EntityLookupRuntime.ENABLED_PROPERTY);
         EntityLookupRuntime.beginSession();
+        AdapterPlanControl.configure(Set.of());
     }
 
     @Test
@@ -41,13 +43,23 @@ class CampaignEntityTelemetryReportTest {
                 EntityLookupRuntime.lookup(entities, location, "missing")));
 
         Path output = temporaryDirectory.resolve("adapter.json");
-        new AdapterReport(AdapterMode.ENABLED, output, null, List.of("com/fs/")).write();
+        AdapterReport adapter = new AdapterReport(
+                AdapterMode.ENABLED, output, null, List.of("com/fs/"));
+        adapter.transformerInstalled(AdapterTargetRegistry.empty().withHullJsonCacheTarget());
+        adapter.write();
         String report = Files.readString(output);
+        assertTrue(report.contains("\"registeredPlanTargets\":{"
+                + "\"vanilla-hull-merged-json-cache-v1\":1}"), report);
         assertTrue(report.contains("\"campaignEntityIndex\":{"
                 + "\"planId\":\"campaign-entity-index-v3\","
                 + "\"installed\":true,\"enabled\":true,"), report);
         assertTrue(report.contains("\"served\":1,\"missingServed\":1,\"declined\":0,"), report);
         assertTrue(report.contains("\"rebuilds\":1,\"indexedEntities\":16,"), report);
+        assertTrue(report.contains("\"planControl\":"), report);
+        assertTrue(report.contains("\"scope\":\"full\""), report);
+        assertTrue(report.contains("\"disabledPlans\":[]"), report);
+        assertTrue(report.contains("\"texturePreparedPixels\":"), report);
+        assertTrue(report.contains("\"texturePadding\":"), report);
     }
 
     private record Token(String id) implements SectorEntityToken {

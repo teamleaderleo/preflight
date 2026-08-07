@@ -14,6 +14,7 @@ import java.security.CodeSource;
 import java.security.MessageDigest;
 import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -308,6 +309,48 @@ class AdapterSignatureGateTest {
         assertFalse(plans.contains(SimOpponentSafetyRuntime.PLAN_ID));
         assertFalse(plans.contains(GraphicsLibCompactReplayPlan.PLAN_ID));
         assertFalse(plans.contains(GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID));
+    }
+
+    @Test
+    void everyBuiltInTargetIsBoundToAnExactArchiveClassLoaderAndMethodShape() {
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withStartupPhaseTarget()
+                .withVariantJsonCacheTarget()
+                .withSpecStoreQuoteNormalizationTarget()
+                .withWeaponJsonCacheTarget()
+                .withProjectileJsonCacheTarget()
+                .withHullJsonCacheTarget()
+                .withRulesDuplicateIndexTarget()
+                .withRulesCsvCacheTarget()
+                .withRulesRegexCacheTarget()
+                .withRuleTokenCacheTarget()
+                .withRuleCommandClassCacheTarget()
+                .withMergedReadCacheTarget()
+                .withLoadJsonMemoTarget()
+                .withResourceProbeCacheTarget()
+                .withPreparedAudioTarget()
+                .withGraphicsLibCompactReplayTarget()
+                .withJaninoBytecodeCacheTarget()
+                .withGraphicsLibInsigniaManagerCacheTarget()
+                .withCampaignCallTimeTargets()
+                .withCampaignEngineTimeTarget()
+                .withCampaignLocationEconomyTimeTargets()
+                .withCampaignMarketFleetTimeTargets()
+                .withFrameTimeStartupCompletionTarget();
+
+        List<AdapterTarget> targets = new ArrayList<>(registry.targets());
+        targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());
+        assertTrue(targets.size() > 70, "inventory unexpectedly shrank");
+        for (AdapterTarget target : targets) {
+            assertTrue(target.hasLiveSourceBinding(), target.id());
+            assertTrue(target.sha256().matches("[0-9a-f]{64}"), target.id());
+            assertTrue(target.sourceSha256().matches("[0-9a-f]{64}"), target.id());
+            assertFalse(target.sourceKind().isBlank(), target.id());
+            assertFalse(target.sourceSuffix().isBlank(), target.id());
+            assertFalse(target.loaderClass().isBlank(), target.id());
+            assertFalse(target.requiredMethods().isEmpty(), target.id());
+        }
     }
 
     @Test

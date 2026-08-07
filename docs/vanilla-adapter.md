@@ -288,6 +288,12 @@ its identity, so differently gated bytecode can't share a cached result. The env
 inherited by an ordinary Preflight launch and is the practical emergency switch for a packaged
 build.
 
+The shutdown adapter report records the effective scope and disabled-plan set, plus the number of
+registered exact targets for each plan. Its bounded evaluations and transformation timings use the
+same plan IDs, so an exact match, a declined rewrite, an applied rewrite, and a cached rewrite remain
+distinguishable after the run. Prepared-pixel and padding reports include their runtime safety state
+even when the corresponding plan never becomes effective.
+
 ## Target records
 
 Every target includes class identity:

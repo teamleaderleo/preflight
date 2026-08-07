@@ -1,6 +1,10 @@
 package dev.starsector.preflight.agent;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /** Session-wide kill switches for direct and composed adapter plans. */
 final class AdapterPlanControl {
@@ -32,6 +36,14 @@ final class AdapterPlanControl {
 
     static AdapterPlanScope scope() {
         return state.scope();
+    }
+
+    static Map<String, Object> telemetry() {
+        State current = state;
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("scope", current.scope().optionValue());
+        values.put("disabledPlans", List.copyOf(new TreeSet<>(current.disabledPlans())));
+        return Map.copyOf(values);
     }
 
     private record State(AdapterPlanScope scope, Set<String> disabledPlans) {

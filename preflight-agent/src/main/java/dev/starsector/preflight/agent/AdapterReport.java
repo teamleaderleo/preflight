@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Thread-safe bounded diagnostics for adapter probing and activation. */
 final class AdapterReport {
@@ -41,6 +42,7 @@ final class AdapterReport {
     private boolean transformerInstalled;
     private boolean killSwitchActive;
     private int registryTargets;
+    private final Map<String, Integer> registeredPlanTargets = new TreeMap<>();
     private long observedClasses;
     private long parsedClasses;
     private long malformedClasses;
@@ -66,9 +68,13 @@ final class AdapterReport {
         this.prefixes = List.copyOf(prefixes);
     }
 
-    synchronized void transformerInstalled(int targets) {
+    synchronized void transformerInstalled(AdapterTargetRegistry registry) {
         transformerInstalled = true;
-        registryTargets = targets;
+        registryTargets = registry.targets().size();
+        registeredPlanTargets.clear();
+        for (AdapterTarget target : registry.targets()) {
+            registeredPlanTargets.merge(target.planId(), 1, Integer::sum);
+        }
     }
 
     synchronized void killSwitch(String detail) {
@@ -267,6 +273,8 @@ final class AdapterReport {
         booleanField(output, "transformerInstalled", transformerInstalled);
         booleanField(output, "killSwitchActive", killSwitchActive);
         numberField(output, "registryTargets", registryTargets);
+        key(output, "registeredPlanTargets")
+                .append(Json.value(registeredPlanTargets)).append(',');
         numberField(output, "observedClasses", observedClasses);
         numberField(output, "parsedClasses", parsedClasses);
         numberField(output, "retainedCandidates", orderedCandidates.size());
@@ -288,7 +296,11 @@ final class AdapterReport {
         booleanField(output, "candidateTruncated", candidateTruncated);
         booleanField(output, "diagnosticsTruncated", diagnosticsTruncated);
         booleanField(output, "evaluationsTruncated", evaluationsTruncated);
+        key(output, "planControl").append(Json.value(AdapterPlanControl.telemetry())).append(',');
         key(output, "textureCompatibility").append(Json.value(TextureCompatibilityRuntime.telemetry())).append(',');
+        key(output, "texturePreparedPixels")
+                .append(Json.value(TexturePreparedPixelRuntime.telemetry())).append(',');
+        key(output, "texturePadding").append(Json.value(TexturePaddingRuntime.report())).append(',');
         key(output, "adapterTransformationCache")
                 .append(Json.value(AdapterTransformationCache.telemetry())).append(',');
         key(output, "startupPhases").append(Json.value(StartupPhaseRuntime.telemetry())).append(',');

@@ -334,7 +334,7 @@ final class AdapterRuntime {
                     soundLoaderReport,
                     textureLoaderReport,
                     janinoLoaderReport), false);
-            report.transformerInstalled(registry.targets().size());
+            report.transformerInstalled(registry);
             if (registry.targets().isEmpty()) {
                 report.diagnostic("No adapter targets are allowlisted; probe-only observation remains safe");
             }
