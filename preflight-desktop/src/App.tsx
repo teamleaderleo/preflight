@@ -33,7 +33,6 @@ import {
 import {
   ArrowIcon,
   CheckIcon,
-  ClockIcon,
   FolderIcon,
   HomeIcon,
   LayersIcon,
@@ -1000,11 +999,6 @@ export default function App() {
           <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" aria-current={page === "profiles" ? "page" : undefined} onClick={() => setPage("profiles")} disabled={!isReady}>
             <LayersIcon />
             <span>Profiles</span>
-          </button>
-          <button className="nav__item" type="button" disabled title="Coming in the next desktop slice">
-            <ClockIcon />
-            <span>Runs</span>
-            <small>Soon</small>
           </button>
         </nav>
         <div className="sidebar__footer">

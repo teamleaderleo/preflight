@@ -32,15 +32,6 @@ export function SparklesIcon(props: IconProps) {
   );
 }
 
-export function ClockIcon(props: IconProps) {
-  return (
-    <svg {...defaults} {...props}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7v5l3.2 2" />
-    </svg>
-  );
-}
-
 export function LayersIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

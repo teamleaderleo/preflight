@@ -131,17 +131,6 @@ button:focus-visible {
   width: 19px;
 }
 
-.nav__item small {
-  margin-left: auto;
-  padding: 2px 7px;
-  border-radius: 99px;
-  color: #9a887d;
-  background: rgba(123, 99, 84, 0.07);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .nav__item--active {
   color: var(--ink);
   background: var(--peach-pale);
@@ -1715,7 +1704,6 @@ footer {
 
   .brand__type,
   .nav__item span,
-  .nav__item small,
   .alpha-pill {
     display: none;
   }
