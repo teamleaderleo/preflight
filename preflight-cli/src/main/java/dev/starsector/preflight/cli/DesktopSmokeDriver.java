@@ -21,6 +21,16 @@ interface DesktopSmokeDriver {
 
     Observation observe() throws Exception;
 
+    /**
+     * Stops only the process lifetime accepted by {@link #attach(ProcessTarget)}.
+     *
+     * <p>The runner calls this after any terminal outcome, including a timeout or adapter failure.
+     * Implementations must treat an absent or replaced PID as already stopped.
+     */
+    default void shutdown() throws Exception {
+        // A driver that only observes an externally managed process has nothing to stop.
+    }
+
     record Descriptor(
             String id,
             String version,

@@ -96,12 +96,17 @@ class CommandLineAdapterTest {
         assertEquals(false, defaults.quietLogs());
         assertEquals(false, defaults.suppressAssetProgressLogs());
         assertEquals(false, defaults.trustValidatedTextureIndex());
+        assertEquals(false, defaults.desktopSmoke());
 
         CommandLine direct = CommandLine.parse(
                 new String[] {"run", "--direct", "--quiet-logs"}, 1);
         assertEquals(true, direct.directLaunch());
         assertEquals(true, direct.fileOnlyLogs());
         assertEquals(true, direct.quietLogs());
+
+        CommandLine smoke = CommandLine.parse(
+                new String[] {"run", "--fast", "--direct", "--desktop-smoke"}, 1);
+        assertEquals(true, smoke.desktopSmoke());
 
         CommandLine probe = CommandLine.parse(
                 new String[] {"run", "--adapter-probe", "--adapter-targets", "targets.txt"}, 1);

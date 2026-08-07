@@ -63,6 +63,7 @@ final class DesktopSmokeRunnerTest {
 
         assertEquals("failed", result.get("status"));
         assertEquals(List.of("continue"), driver.executed);
+        assertTrue(driver.shutdown);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> steps = (List<Map<String, Object>>) result.get("steps");
         assertEquals("passed", steps.get(0).get("status"));
@@ -118,6 +119,7 @@ final class DesktopSmokeRunnerTest {
         private final List<String> executed = new ArrayList<>();
         private boolean attached;
         private int observations;
+        private boolean shutdown;
 
         private FakeDriver(Set<String> capabilities, String failAt) {
             this.capabilities = capabilities;
@@ -152,6 +154,11 @@ final class DesktopSmokeRunnerTest {
         public Observation observe() {
             observations++;
             return new Observation("fresh frame");
+        }
+
+        @Override
+        public void shutdown() {
+            shutdown = true;
         }
     }
 

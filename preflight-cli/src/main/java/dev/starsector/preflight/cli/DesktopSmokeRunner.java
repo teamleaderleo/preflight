@@ -130,16 +130,16 @@ final class DesktopSmokeRunner {
                 diagnostics.add("Scenario timeout expired before step " + id);
                 completedSteps.add(step(id, "failed", stepStarted, stepStarted,
                         "Scenario timeout expired", List.of()));
-                return seal(scenario, realRun, descriptor, "failed", startedAt, clock.instant(),
-                        completedSteps, diagnostics);
+                return finish(scenario, realRun, descriptor, "failed", startedAt, clock,
+                        completedSteps, diagnostics, driver);
             }
             TargetCheck current = target(runtimeProcess);
             if (!current.attachable()) {
                 diagnostics.add("Runtime process became unavailable at " + id + ": " + current.reason());
                 completedSteps.add(step(id, "failed", stepStarted, clock.instant(),
                         "Runtime process became unavailable", List.of()));
-                return seal(scenario, realRun, descriptor, "failed", startedAt, clock.instant(),
-                        completedSteps, diagnostics);
+                return finish(scenario, realRun, descriptor, "failed", startedAt, clock,
+                        completedSteps, diagnostics, driver);
             }
             try {
                 DesktopSmokeDriver.ActionResult action;
@@ -181,18 +181,64 @@ final class DesktopSmokeRunner {
                 diagnostics.add("Driver became unavailable at " + id + ": " + message(unavailable));
                 completedSteps.add(step(id, "skipped", stepStarted, clock.instant(),
                         message(unavailable), List.of()));
-                return seal(scenario, realRun, descriptor, "skipped", startedAt, clock.instant(),
-                        completedSteps, diagnostics);
+                return finish(scenario, realRun, descriptor, "skipped", startedAt, clock,
+                        completedSteps, diagnostics, driver);
             } catch (Exception failure) {
                 diagnostics.add("Driver failed at " + id + ": " + message(failure));
                 completedSteps.add(step(id, "failed", stepStarted, clock.instant(),
                         message(failure), List.of()));
-                return seal(scenario, realRun, descriptor, "failed", startedAt, clock.instant(),
-                        completedSteps, diagnostics);
+                return finish(scenario, realRun, descriptor, "failed", startedAt, clock,
+                        completedSteps, diagnostics, driver);
             }
         }
-        return seal(scenario, realRun, descriptor, "passed", startedAt, clock.instant(),
-                completedSteps, diagnostics);
+        return finish(scenario, realRun, descriptor, "passed", startedAt, clock,
+                completedSteps, diagnostics, driver);
+    }
+
+    private static Map<String, Object> finish(
+            DesktopSmokeScenario scenario,
+            Path runDirectory,
+            DesktopSmokeDriver.Descriptor descriptor,
+            String status,
+            Instant startedAt,
+            Clock clock,
+            List<Map<String, Object>> steps,
+            List<String> diagnostics,
+            DesktopSmokeDriver driver) throws IOException {
+        String finalStatus = status;
+        try (DriverCalls cleanup = new DriverCalls(15)) {
+            cleanup.call(() -> {
+                driver.shutdown();
+                return null;
+            }, 15);
+        } catch (Exception failure) {
+            String detail = "Exact-process shutdown failed: " + message(failure);
+            diagnostics.add(detail);
+            finalStatus = "failed";
+            Instant now = clock.instant();
+            if (steps.isEmpty()) {
+                steps.add(step(scenario.stepIds().get(0), "failed", now, now, detail, List.of()));
+            } else {
+                Map<String, Object> previous = steps.remove(steps.size() - 1);
+                steps.add(step(
+                        previous.get("id").toString(),
+                        "failed",
+                        (Instant) previous.get("startedAt"),
+                        now,
+                        bounded(previous.get("detail") + "; " + detail),
+                        artifactsFromStep(previous)));
+            }
+        }
+        return seal(scenario, runDirectory, descriptor, finalStatus, startedAt, clock.instant(),
+                steps, diagnostics);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> artifactsFromStep(Map<String, Object> step) {
+        Object value = step.get("artifacts");
+        return value instanceof List<?> artifacts
+                ? (List<Map<String, Object>>) artifacts
+                : List.of();
     }
 
     private static void waitForState(

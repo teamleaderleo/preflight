@@ -177,6 +177,11 @@ final class RunCommand {
                     javaToolOptions,
                     List.of("-Dpreflight.texture.trustValidatedIndex=true"));
         }
+        if (options.desktopSmoke()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.desktopSmoke=true", "-Dpreflight.frameTimes=true"));
+        }
         String javaOptions = CombatJvmSafeguard.appendOptions(
                 System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
 
@@ -674,6 +679,7 @@ final class RunCommand {
         values.put("fileOnlyLogs", options.fileOnlyLogs());
         values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
         values.put("trustedValidatedTextureIndex", options.trustValidatedTextureIndex());
+        values.put("desktopSmoke", options.desktopSmoke());
         values.put("quietLogConfiguration", options.fileOnlyLogs()
                 ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())
                 : null);

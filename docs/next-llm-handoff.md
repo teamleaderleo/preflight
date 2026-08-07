@@ -53,9 +53,15 @@ Semantic waits are engine-owned now: an exact, process-bound `runtime-state.json
 `starting`, main-menu, campaign, combat, and stopped transitions. The runner reads that record rather
 than asking a platform driver to infer game state from pixels. Unknown target bytes simply leave the
 capability unavailable.
-The next implementation is an interruptible macOS adapter and isolated PID-addressed window probe,
-then equivalent Windows and Linux adapters. Don't launch the game merely to exercise the
-driver-neutral pieces.
+
+The macOS desktop driver is now checked in behind the hidden desktop bridge. It targets only the
+recorded JVM PID/start-instant lifetime, never an application name, and has bounded System Events
+commands, a reviewed relative Continue target, guaranteed key-up, window-only screenshots, and
+exact-process shutdown on every attached terminal outcome. Opt-in smoke launches publish live frame
+and adapter-health evidence once per second; ordinary launches do no extra work. Offline tests are
+green. The remaining macOS gate is one isolated live action run, followed by a single orchestrator
+that launches `run --desktop-smoke` and starts the bridge without an operator race. Windows and
+Linux adapters follow.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are

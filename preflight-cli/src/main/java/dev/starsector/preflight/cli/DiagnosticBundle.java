@@ -48,6 +48,8 @@ final class DiagnosticBundle {
             "run.json",
             "runtime-process.json",
             "runtime-state.json",
+            "runtime-frame-report.json",
+            "runtime-adapter-health.json",
             "smoke-evidence.json",
             "summary.json");
     private static final Set<String> BENCHMARK_FILES = Set.of(

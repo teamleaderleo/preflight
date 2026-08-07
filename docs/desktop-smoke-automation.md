@@ -140,21 +140,38 @@ cover pass, skip, and mid-scenario failure without opening the game.
 
 ## Current macOS status
 
-The Codex-native accessibility bridge can synthesize input. The 2026-08-06 direct-launch probe
-found a targeting ambiguity in display-name attachment. The live game window is
-owned by Azul's generic `com.azul.zulu.java` process while Launch Services also registers the dormant
-`Starsector.app` bundle under the display name `Starsector`. Resolving the display name selects and
-launches the dormant bundle instead of attaching to the already-running direct JVM. That briefly
-created a second instance during the probe, so display-name targeting is prohibited.
+The first checked-in macOS driver uses System Events through `/usr/bin/osascript`. Every window,
+click, key, observation, and quit script resolves `application process whose unix id is <pid>` from
+the injected JVM's runtime record. No script contains the game's application name or asks Launch
+Services to open an application. The 2026-08-06 direct-launch probe showed why this matters: the
+live game window belongs to Azul's generic `com.azul.zulu.java` process while Launch Services also
+registers the dormant `Starsector.app` bundle. Display-name attachment launched that dormant bundle
+and briefly created a second instance.
 
-The runtime now publishes its own PID and start instant, removing the need to discover that window
-through Launch Services. The gameplay pilot also watches continuously for a foreign Starsector JVM.
-If one appears after the pilot starts, the pilot aborts and terminates only the game process IDs it
-observed as descendants of its own wrapper. This contains the duplicate-instance failure without
-making UI targeting safe by itself.
+The driver checks the live process start instant in Java before every action and again resolves the
+same numeric PID inside System Events. Its current reviewed coordinate asset covers only
+`main-menu.continue`; the point is relative to freshly queried game-window bounds. Unknown targets
+and keys fail closed. A held key has a `finally` key-up path, child commands have hard timeouts and
+bounded output, screenshots cover only fresh game-window bounds, and orderly Command-Q has a
+bounded fallback that can terminate only the same PID/start-instant lifetime. The runner now calls
+that shutdown path after every attached terminal outcome, including adapter failure and timeout.
 
-Peekaboo 3.9.7 separately reported Screen Recording granted, with Accessibility and event synthesis
-denied during that probe. The checked-in driver is still absent, so macOS remains `skipped`, not
-`failed`, until PID attachment, current permissions, and click/key execution pass an isolated
-driver test. The scenario, process identity, and evidence contracts require no OS permission and
-remain testable on every platform.
+`--desktop-smoke` is an internal launch switch. It enables frame-time instrumentation and a
+one-second, smoke-only publisher for `runtime-frame-report.json` and
+`runtime-adapter-health.json`; regular launches create neither the thread nor the files. The hidden
+bridge can run the checked scenario against an already launched smoke run:
+
+```bash
+java -jar preflight.jar desktop smoke run \
+  scripts/scenarios/campaign-roam.json \
+  /absolute/run/runtime-process.json \
+  /absolute/run
+```
+
+The command probes current Accessibility permission before attachment. Screen Recording is proved
+by the first bounded capture; a denial becomes `skipped`. The generated scripts, PID-only boundary,
+coordinate math, key release, bounded screenshot, live evidence, and failure cleanup have isolated
+tests that don't open the game. One live isolated action test is still required before calling the
+macOS driver production-ready. Launching the game and starting this bridge are also still separate
+processes; the next orchestration slice joins them so the desktop UI can own one unattended run.
+Windows and Linux currently return an explicit unsupported-driver skip.

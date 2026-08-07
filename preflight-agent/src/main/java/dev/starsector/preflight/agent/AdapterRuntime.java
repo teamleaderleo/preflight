@@ -91,6 +91,18 @@ final class AdapterRuntime {
         } catch (IOException error) {
             report.contained("Could not publish runtime semantic state", error);
         }
+        DesktopSmokeLiveReport desktopSmoke;
+        try {
+            desktopSmoke = DesktopSmokeLiveReport.start(options.adapterReport(), options.adapterMode());
+        } catch (IOException error) {
+            report.contained("Could not start desktop smoke live evidence", error);
+            try {
+                desktopSmoke = DesktopSmokeLiveReport.start(
+                        options.adapterReport(), options.adapterMode(), false);
+            } catch (IOException impossible) {
+                throw new IllegalStateException(impossible);
+            }
+        }
         CodeLoaderSignatureReport codeLoaderReport = new CodeLoaderSignatureReport(
                 sibling(options.adapterReport(), "code-loader-signatures.json"));
         AudioDecoderSignatureReport audioDecoderReport = new AudioDecoderSignatureReport(
@@ -110,6 +122,7 @@ final class AdapterRuntime {
                 soundLoaderReport,
                 textureLoaderReport,
                 janinoLoaderReport,
+                desktopSmoke,
                 options.adapterMode() != AdapterMode.OFF);
         if (options.adapterMode() == AdapterMode.OFF) {
             return session;
@@ -419,6 +432,7 @@ final class AdapterRuntime {
         private final SoundLoaderContractReport soundLoaderReport;
         private final BytecodeShapeReport textureLoaderReport;
         private final BytecodeShapeReport janinoLoaderReport;
+        private final DesktopSmokeLiveReport desktopSmoke;
         private final boolean writeReport;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -430,6 +444,7 @@ final class AdapterRuntime {
                 SoundLoaderContractReport soundLoaderReport,
                 BytecodeShapeReport textureLoaderReport,
                 BytecodeShapeReport janinoLoaderReport,
+                DesktopSmokeLiveReport desktopSmoke,
                 boolean writeReport) {
             this.runtimeProcess = runtimeProcess;
             this.report = report;
@@ -438,6 +453,7 @@ final class AdapterRuntime {
             this.soundLoaderReport = soundLoaderReport;
             this.textureLoaderReport = textureLoaderReport;
             this.janinoLoaderReport = janinoLoaderReport;
+            this.desktopSmoke = desktopSmoke;
             this.writeReport = writeReport;
         }
 
@@ -453,6 +469,7 @@ final class AdapterRuntime {
                         + error.getMessage());
             }
             RuntimeSemanticState.stopped();
+            desktopSmoke.close();
             if (!writeReport) return;
             try {
                 MergedReadCacheRuntime.complete();

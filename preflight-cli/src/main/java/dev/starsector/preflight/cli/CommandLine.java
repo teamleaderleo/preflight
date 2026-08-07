@@ -44,6 +44,7 @@ record CommandLine(
         boolean quietLogs,
         boolean suppressAssetProgressLogs,
         boolean trustValidatedTextureIndex,
+        boolean desktopSmoke,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -74,6 +75,7 @@ record CommandLine(
         boolean quietLogs = false;
         boolean suppressAssetProgressLogs = false;
         boolean trustValidatedTextureIndex = false;
+        boolean desktopSmoke = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -170,6 +172,7 @@ record CommandLine(
                 case "--full-asset-progress-logs" -> suppressAssetProgressLogs = false;
                 case "--trust-validated-texture-index" -> trustValidatedTextureIndex = true;
                 case "--recheck-texture-sources" -> trustValidatedTextureIndex = false;
+                case "--desktop-smoke" -> desktopSmoke = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -305,6 +308,7 @@ record CommandLine(
                 quietLogs,
                 suppressAssetProgressLogs,
                 trustValidatedTextureIndex,
+                desktopSmoke,
                 List.copyOf(forwarded));
     }
 

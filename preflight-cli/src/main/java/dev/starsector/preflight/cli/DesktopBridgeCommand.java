@@ -36,6 +36,9 @@ final class DesktopBridgeCommand {
         if (offset < args.length && "evidence".equals(args[offset])) {
             return evidence(args, offset + 1);
         }
+        if (offset < args.length && "smoke".equals(args[offset])) {
+            return smoke(args, offset + 1);
+        }
         Options options = Options.parse(args, offset);
         Map<String, Object> snapshot = snapshot(
                 Platform.current(),
@@ -89,6 +92,52 @@ final class DesktopBridgeCommand {
         response.put("evidence", result);
         System.out.println(Json.object(response));
         return 0;
+    }
+
+    private static int smoke(String[] args, int offset) throws IOException {
+        if (args.length != offset + 4 || !"run".equals(args[offset])) {
+            throw new IllegalArgumentException(
+                    "Expected desktop bridge request: desktop smoke run "
+                            + "<scenario.json> <runtime-process.json> <run-directory>");
+        }
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(Path.of(args[offset + 1]));
+        Path runtimeProcess = Path.of(args[offset + 2]);
+        Path runDirectory = Path.of(args[offset + 3]);
+        DesktopSmokeDriver driver = switch (Platform.current()) {
+            case MAC -> new MacDesktopSmokeDriver();
+            default -> new UnavailableDesktopSmokeDriver();
+        };
+        Map<String, Object> evidence = DesktopSmokeRunner.run(
+                scenario, runtimeProcess, runDirectory, driver, java.time.Clock.systemUTC());
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("protocol", PROTOCOL_VERSION);
+        response.put("evidence", evidence);
+        System.out.println(Json.object(response));
+        return 0;
+    }
+
+    private static final class UnavailableDesktopSmokeDriver implements DesktopSmokeDriver {
+        @Override
+        public Descriptor descriptor() throws UnavailableException {
+            throw new UnavailableException(
+                    "No PID-addressed desktop smoke driver is available on this platform yet");
+        }
+
+        @Override
+        public void attach(ProcessTarget target) throws UnavailableException {
+            throw new UnavailableException("Desktop smoke attachment is unavailable");
+        }
+
+        @Override
+        public ActionResult execute(Map<String, Object> step, Path runDirectory)
+                throws UnavailableException {
+            throw new UnavailableException("Desktop smoke actions are unavailable");
+        }
+
+        @Override
+        public Observation observe() throws UnavailableException {
+            throw new UnavailableException("Desktop smoke observation is unavailable");
+        }
     }
 
     static Map<String, Object> snapshot(

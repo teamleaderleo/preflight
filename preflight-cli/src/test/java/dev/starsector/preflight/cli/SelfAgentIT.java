@@ -38,6 +38,8 @@ class SelfAgentIT {
 
         Process process = new ProcessBuilder(
                 java.toString(),
+                "-Dpreflight.desktopSmoke=true",
+                "-Dpreflight.frameTimes=true",
                 "-javaagent:" + jar + "=dest64=" + encoded,
                 "-cp",
                 testClasses.toString(),
@@ -66,6 +68,18 @@ class SelfAgentIT {
                 semanticState);
         assertTrue(semanticState.contains("\"pid\":" + process.pid()), semanticState);
         assertTrue(semanticState.contains("\"state\":\"stopped\""), semanticState);
+        Path frameReport = recording.resolveSibling("runtime-frame-report.json");
+        assertTrue(Files.isRegularFile(frameReport), output);
+        String frameEvidence = Files.readString(frameReport);
+        assertTrue(frameEvidence.contains(
+                "\"format\":\"starsector-preflight-runtime-frame-report-v1\""), frameEvidence);
+        assertTrue(frameEvidence.contains("\"pid\":" + process.pid()), frameEvidence);
+        Path liveHealth = recording.resolveSibling("runtime-adapter-health.json");
+        assertTrue(Files.isRegularFile(liveHealth), output);
+        String healthEvidence = Files.readString(liveHealth);
+        assertTrue(healthEvidence.contains(
+                "\"format\":\"starsector-preflight-runtime-adapter-health-v1\""), healthEvidence);
+        assertTrue(healthEvidence.contains("\"pid\":" + process.pid()), healthEvidence);
         try (RecordingFile file = new RecordingFile(recording)) {
             assertTrue(file.hasMoreEvents(), output);
             RecordedEvent started = agentStarted(file);
