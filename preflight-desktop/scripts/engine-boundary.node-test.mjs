@@ -22,7 +22,10 @@ test("runtime inventory is stable across creation order", async () => {
     writeFileSync(join(second, "release"), "JAVA_VERSION=17");
     mkdirSync(join(second, "lib"));
     writeFileSync(join(second, "lib", "modules"), "module bytes");
-    assert.deepEqual(runtimeInventory(first), runtimeInventory(second));
+    const inventory = runtimeInventory(first);
+    assert.deepEqual(inventory, runtimeInventory(second));
+    assert.deepEqual(inventory.entries.map((entry) => entry.path), ["lib/modules", "release"]);
+    assert.match(inventory.entries[0].sha256, /^[a-f0-9]{64}$/);
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });

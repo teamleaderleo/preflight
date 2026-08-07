@@ -31,6 +31,7 @@ export function runtimeInventory(runtimeDirectory) {
   const hash = createHash("sha256");
   let files = 0;
   let bytes = 0;
+  const entries = [];
   for (const path of regularFiles(runtimeDirectory)) {
     const name = relative(runtimeDirectory, path).split(sep).join("/");
     rejectForbiddenPath(name);
@@ -44,9 +45,10 @@ export function runtimeInventory(runtimeDirectory) {
     hash.update(data);
     files += 1;
     bytes += data.length;
+    entries.push({ path: name, bytes: data.length, sha256: createHash("sha256").update(data).digest("hex") });
   }
   if (files === 0) throw new Error("Bundled runtime has no files");
-  return { files, bytes, sha256: hash.digest("hex") };
+  return { files, bytes, sha256: hash.digest("hex"), entries };
 }
 
 export function verifyEngineBoundary(engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine")) {
@@ -106,7 +108,7 @@ export function verifyEngineBoundary(engineDirectory = join(desktopDirectory, "s
   }
   const actualRuntime = runtimeInventory(join(engineDirectory, "runtime"));
   if (stableJson(manifest.runtime) !== stableJson(actualRuntime)) {
-    throw new Error("Desktop engine runtime differs from its content inventory");
+    throw new Error(`Desktop engine runtime differs from its content inventory: ${runtimeDifference(manifest.runtime, actualRuntime)}`);
   }
 
   const runtimeRoot = readdirSync(join(engineDirectory, "runtime"), { withFileTypes: true })
@@ -129,6 +131,33 @@ export function verifyEngineBoundary(engineDirectory = join(desktopDirectory, "s
   }
 
   return { runtimeFiles: actualRuntime.files, runtimeBytes: actualRuntime.bytes };
+}
+
+function runtimeDifference(expected, actual) {
+  const expectedEntries = new Map(
+    Array.isArray(expected?.entries) ? expected.entries.map((entry) => [entry.path, entry]) : [],
+  );
+  const actualEntries = new Map(actual.entries.map((entry) => [entry.path, entry]));
+  const missing = [...expectedEntries.keys()].filter((path) => !actualEntries.has(path));
+  const added = [...actualEntries.keys()].filter((path) => !expectedEntries.has(path));
+  const changed = [...expectedEntries.keys()].filter((path) => {
+    const found = actualEntries.get(path);
+    return found && stableJson(expectedEntries.get(path)) !== stableJson(found);
+  });
+  const details = [];
+  if (missing.length) details.push(`missing ${missing.join(", ")}`);
+  if (added.length) details.push(`added ${added.join(", ")}`);
+  if (changed.length) details.push(`changed ${changed.join(", ")}`);
+  if (!details.length) {
+    details.push(
+      `summary expected ${stableJson(runtimeSummary(expected))}, got ${stableJson(runtimeSummary(actual))}`,
+    );
+  }
+  return details.join("; ");
+}
+
+function runtimeSummary(inventory) {
+  return { files: inventory?.files, bytes: inventory?.bytes, sha256: inventory?.sha256 };
 }
 
 function regularFiles(directory) {

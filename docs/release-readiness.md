@@ -17,8 +17,9 @@ first public beta.
   Fractal Softworks.
 - [x] Use the project-controlled `io.github.teamleaderleo.preflight` bundle identifier before users
   install persistent packages.
-- [ ] Decide whether the first beta waits for platform signing. Documented unsigned warnings aren't
-  a substitute for an intentional trust decision.
+- [x] Make the first beta wait for platform signing. Development packages can remain unsigned for
+  CI, but tagged macOS and Windows artifacts fail before upload unless their platform signatures
+  verify.
 - [ ] Provision and back up the Tauri updater signing key; ship only metadata and packages verified
   by its public key. Keep the private key out of the repository and client.
 - [ ] Configure and verify Apple signing/notarization and Windows signing if they are release gates.

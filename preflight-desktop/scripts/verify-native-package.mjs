@@ -27,7 +27,7 @@ export function verifyMacPackage(directory = bundleDirectory) {
   try {
     run("hdiutil", ["attach", "-readonly", "-nobrowse", "-noautoopen", "-mountpoint", mountDirectory, dmgFiles[0]]);
     mounted = true;
-    assertExactEntries(mountDirectory, [".DS_Store", ".VolumeIcon.icns", "Applications", "Preflight.app"]);
+    assertEntries(mountDirectory, [".VolumeIcon.icns", "Applications", "Preflight.app"], [".DS_Store"]);
     const applications = lstatSync(join(mountDirectory, "Applications"));
     if (!applications.isSymbolicLink() || readlinkSync(join(mountDirectory, "Applications")) !== "/Applications") {
       throw new Error("DMG Applications entry isn't the standard /Applications link");
@@ -69,7 +69,7 @@ export function verifyMacPackage(directory = bundleDirectory) {
       dmg: basename(dmgFiles[0]),
       updaterArchive: signedRelease,
       platformSignature,
-      engine: verifyEngineBoundary(join(appDirectory, "Contents", "Resources", "engine")),
+      engine: verifyPackagedEngine(join(appDirectory, "Contents", "Resources", "engine")),
     };
   } finally {
     if (mounted) run("hdiutil", ["detach", mountDirectory]);
@@ -161,7 +161,7 @@ export function verifyExtractedPayload(root) {
     throw new Error(`Extracted package must contain one Orbitron license; found ${fontLicenses.length}`);
   }
   assertSameFile(fontLicenses[0].path, join(desktopDirectory, "src-tauri", "licenses", "Orbitron-OFL.txt"));
-  const engine = verifyEngineBoundary(engineDirectories[0].path);
+  const engine = verifyPackagedEngine(engineDirectories[0].path);
   return { extractedEntries: entries.length, engine };
 }
 
@@ -236,8 +236,22 @@ function verifyMacApp(appDirectory, signatureRequired) {
   if (signatureRequired && signature.status !== 0) {
     throw new Error(`Tagged macOS package isn't platform-signed: ${(signature.stderr ?? "").trim()}`);
   }
-  verifyEngineBoundary(join(contents, "Resources", "engine"));
   return signature.status === 0 ? "verified" : "development-only";
+}
+
+function verifyPackagedEngine(engineDirectory) {
+  const boundary = verifyEngineBoundary(engineDirectory);
+  const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
+  const result = spawnSync(java, ["-jar", join(engineDirectory, "preflight.jar"), "--help"], {
+    cwd: engineDirectory,
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0 || !(result.stdout ?? "").includes("Commands:")) {
+    throw new Error(`Extracted engine smoke test failed: ${(result.stderr ?? "").trim()}`);
+  }
+  return { ...boundary, smoke: "passed" };
 }
 
 function filesWithSuffix(directory, suffix) {
@@ -277,6 +291,19 @@ function assertExactEntries(directory, expected) {
   const wanted = [...expected].sort();
   if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
     throw new Error(`Package entries differ under ${directory}: expected ${wanted}; got ${actual}`);
+  }
+}
+
+function assertEntries(directory, required, optional) {
+  const actual = readdirSync(directory).sort();
+  const allowed = new Set([...required, ...optional]);
+  const missing = required.filter((name) => !actual.includes(name));
+  const extra = actual.filter((name) => !allowed.has(name));
+  if (missing.length || extra.length) {
+    throw new Error(
+      `Package entries differ under ${directory}: missing ${missing.join(", ") || "none"}; ` +
+      `unexpected ${extra.join(", ") || "none"}`,
+    );
   }
 }
 

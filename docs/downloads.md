@@ -6,7 +6,7 @@ and startup profiler.
 
 > **No public download yet.** The packaging pipeline below is verified, but public distribution is
 > blocked on written Fractal Softworks authorization and disclaimer guidance, updater-key
-> provisioning, platform signing decisions, release-candidate compatibility testing, and the
+> provisioning, platform-signing setup, release-candidate compatibility testing, and the
 > remaining product-lifecycle work in
 > [Release readiness](release-readiness.md).
 

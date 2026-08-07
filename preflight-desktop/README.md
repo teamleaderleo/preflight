@@ -37,7 +37,7 @@ builds each target on its native GitHub runner rather than cross-compiling:
 The bundle contains `preflight.jar` and a platform-native `jlink` runtime, so end users don't need
 Java, Node, Maven, npm, or Rust. Current packages are private, unsigned development artifacts. Don't
 distribute or describe them as warning-free installs until public distribution is authorized,
-Windows signing and Apple signing/notarization are decided and configured, and the signed updater is
+Windows signing and Apple signing/notarization are configured, and the signed updater is
 verified on a release candidate.
 
 Tagged builds generate a release-only Tauri configuration containing the public updater key and the
