@@ -51,9 +51,16 @@ jobs:
       - name: Verify source and history boundary
         run: python3 scripts/verify_source_boundary.py
 
-      - name: Validate tagged-release version
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: node preflight-desktop/scripts/validate-release-version.mjs "$GITHUB_REF_NAME"
+      - name: Validate update-signed version and notes
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          if [[ "$tag" != v* ]]; then
+            tag="v$(node -p "require('./preflight-desktop/package.json').version")"
+          fi
+          node preflight-desktop/scripts/validate-release-version.mjs "$tag"
 
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk

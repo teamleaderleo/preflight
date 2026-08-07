@@ -148,15 +148,20 @@ updater public key, unsigned-package instructions, and disclaimer are final.
 A maintainer creates and pushes an annotated version tag:
 
 ```bash
+mkdir -p docs/releases
+# Write and review docs/releases/0.1.0.md first.
+npm --prefix preflight-desktop run release:version -- 0.1.0
+node preflight-desktop/scripts/validate-release-version.mjs v0.1.0
 git tag -a v0.1.0 -m "Preflight v0.1.0"
 git push origin v0.1.0
 ```
 
-The Distribution workflow checks that the tag, frontend package, Tauri application, and Rust
-package versions agree, runs the full verification suite, assembles archives, smoke-tests the
-packaged JAR, then builds the desktop host and its platform-native Java runtime independently on
-Linux, macOS, and Windows. Platform jobs upload private workflow artifacts. The final job builds the
-signature-verified static update feed, uploads every asset to a draft, then publishes it. The
+The Distribution workflow checks that the tag, frontend package and lockfile, Tauri application,
+Rust package and lockfile, and every Maven reactor module agree. It then runs the full verification
+suite, assembles archives, smoke-tests the packaged JAR, and builds the desktop host and its
+platform-native Java runtime independently on Linux, macOS, and Windows. Platform jobs upload
+private workflow artifacts. The final job builds the signature-verified static update feed, uploads
+every asset to a draft, then publishes it. The
 reviewed `docs/releases/<version>.md` file supplies both the updater notes and GitHub release body;
 a missing or empty file stops candidate assembly. Any failed verification, missing updater
 signature, failed upload, or failed desktop platform leaves the tag without a public release.

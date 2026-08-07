@@ -45,3 +45,13 @@ These are unsigned development checks. The first public beta still waits for the
 final tagged-candidate run, written Fractal Softworks guidance, and licensed Windows/Linux game
 evidence. Paid Apple signing/notarization and Windows signing were later removed from the
 first-beta gate.
+
+## Current-branch macOS replay
+
+After the native report transport and update/storage UI work, commit `1c70ee1b` was rebuilt locally
+as the ordinary arm64 development DMG. Package verification mounted the image read-only, checked the
+application tree, copied it to an isolated install directory, and ran the embedded engine through
+its bundled runtime. The runtime contained 106 files totaling 50,232,379 bytes with no unexpected
+changes, and its smoke command passed. A second install exercise removed every copied application
+file while preserving a separately owned data sentinel. This replay used the expected unsigned
+development package and didn't launch Starsector.
