@@ -42,6 +42,13 @@ process before attachment. A dead process, missing start instant, stale lifecycl
 or reused PID isn't attachable. No platform driver is claimed yet; macOS remains skipped until the
 PID-addressed window attachment and current OS permissions pass an isolated test.
 
+The evidence boundary no longer trusts a platform driver to declare its own pass. The hidden
+`desktop evidence collect` bridge checks the driver's bounded result against the scenario, enforces
+ordered steps and capability-aware outcomes, confines stable artifacts to the run directory,
+calculates their sizes and SHA-256 digests, and atomically writes `smoke-evidence.json`. The next
+implementation is the platform-driver protocol and a mock-driven runner, followed by an isolated
+macOS PID-attachment probe. Don't launch the game merely to exercise the driver-neutral pieces.
+
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are
 explicit, bounded by the selected installation's settings, preserve unrelated gameplay preference

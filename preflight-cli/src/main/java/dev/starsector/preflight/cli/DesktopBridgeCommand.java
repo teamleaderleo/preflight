@@ -33,6 +33,9 @@ final class DesktopBridgeCommand {
         if (offset < args.length && "process".equals(args[offset])) {
             return process(args, offset + 1);
         }
+        if (offset < args.length && "evidence".equals(args[offset])) {
+            return evidence(args, offset + 1);
+        }
         Options options = Options.parse(args, offset);
         Map<String, Object> snapshot = snapshot(
                 Platform.current(),
@@ -69,6 +72,22 @@ final class DesktopBridgeCommand {
         result.put("protocol", PROTOCOL_VERSION);
         result.put("process", identity.inspect());
         System.out.println(Json.object(result));
+        return 0;
+    }
+
+    private static int evidence(String[] args, int offset) throws IOException {
+        if (args.length != offset + 4 || !"collect".equals(args[offset])) {
+            throw new IllegalArgumentException(
+                    "Expected desktop bridge request: desktop evidence collect "
+                            + "<scenario.json> <driver-result.json> <smoke-evidence.json>");
+        }
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(Path.of(args[offset + 1]));
+        Map<String, Object> result = DesktopSmokeEvidence.collect(
+                scenario, Path.of(args[offset + 2]), Path.of(args[offset + 3]));
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("protocol", PROTOCOL_VERSION);
+        response.put("evidence", result);
+        System.out.println(Json.object(response));
         return 0;
     }
 

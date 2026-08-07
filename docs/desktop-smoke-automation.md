@@ -101,6 +101,25 @@ driver failure must not be reported as a game regression. Audio and visual compa
 thresholds and reference identities in additive artifact fields rather than hiding them in driver
 code.
 
+Drivers don't write the accepted evidence document directly. They write a bounded
+`starsector-preflight-smoke-driver-result-v1` request containing the same driver, outcome, step, and
+diagnostic fields; each step artifact contains only its `kind` and an absolute or run-relative
+`path`. The engine seals it with:
+
+```bash
+java -jar preflight.jar desktop evidence collect \
+  scripts/scenarios/campaign-roam.json \
+  /absolute/run/driver-result.json \
+  /absolute/run/smoke-evidence.json
+```
+
+Collection requires an exact scenario-order prefix, monotonic timestamps, a terminal outcome that
+agrees with the last step, and every step for a pass. A driver lacking a required capability can
+only report `skipped`. Each artifact must resolve to a regular file inside the real run directory;
+the collector caps individual and total bytes, rejects duplicates and changing files, calculates
+SHA-256 itself, and atomically publishes the final document. The output filename is fixed so a
+driver can't redirect the write onto unrelated run evidence.
+
 ## Current macOS status
 
 The Codex-native accessibility bridge can synthesize input. The 2026-08-06 direct-launch probe

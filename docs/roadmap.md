@@ -47,6 +47,10 @@ The first smoke prerequisite is now in the runtime itself: every injected JVM at
 its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
 driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime
 whose operating system doesn't expose a start instant stays non-attachable.
+The driver-neutral evidence sealer is also implemented. It accepts only an ordered scenario result,
+turns missing capabilities into a skip rather than a pass, bounds diagnostics and artifact bytes,
+confines artifacts to the real run directory, hashes stable files itself, and publishes the accepted
+evidence atomically. Platform drivers and their permission probes remain the next smoke slice.
 
 ## Measured result (2026-08-01, third campaign)
 

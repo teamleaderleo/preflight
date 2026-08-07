@@ -103,6 +103,18 @@ final class DesktopSmokeScenario {
         return value;
     }
 
+    String name() {
+        return name;
+    }
+
+    Set<String> requiredCapabilities() {
+        return requiredCapabilities;
+    }
+
+    List<String> stepIds() {
+        return steps.stream().map(Step::id).toList();
+    }
+
     private static Launch launch(Map<String, Object> value) {
         exactFields(value, LAUNCH_FIELDS, "launch");
         String preset = requireString(value, "preset");
