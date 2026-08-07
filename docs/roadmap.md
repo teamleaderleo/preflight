@@ -42,9 +42,10 @@ launch integrations plus the installed command engine can leave prepared data in
 all-data removal also clears caches, profiles, evidence, and backups without targeting the game.
 An interrupted all-data removal blocks other mutations until it is explicitly resumed. The
 signature-verified update client and fail-closed three-platform feed pipeline are now implemented;
-free updater-key provisioning, release-candidate update/rollback verification, and unattended
-desktop smoke automation follow. Paid Apple and Windows publisher identities are explicitly outside
-the first-beta gate; packages will publish checksums and honest OS-warning instructions instead.
+the free updater key is provisioned and recoverable, while release-candidate update/rollback
+verification and unattended desktop smoke automation follow. Paid Apple and Windows publisher
+identities are explicitly outside the first-beta gate; packages will publish checksums and honest
+OS-warning instructions instead.
 The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
 strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
 Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop

@@ -1237,7 +1237,9 @@ bounds child stderr, launches one of the typed `recommended|conservative|off` op
 and exposes narrow installation, cache, preparation, and
 named-profile commands rather than arbitrary shell access. Native bundling and the three-platform
 CI matrix are restored with regenerated vector-derived icons; the packages remain private,
-unsigned development artifacts pending distribution authorization and updater-key provisioning.
+unsigned development artifacts pending distribution authorization and release-candidate lifecycle
+verification. The free Tauri updater key is provisioned outside the repository, with its password
+in macOS Keychain and the required GitHub Actions secrets/repository variable installed.
 The first beta's Apple/Windows packages will remain without paid platform identities; checksum and
 OS-warning guidance replace that former release gate. The
 desktop UI now uses the bundled variable Orbitron face throughout, with the exact OFL text included

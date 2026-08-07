@@ -5,9 +5,9 @@ same Java engine provides the CLI, launch wrapper, profile census, cache prepara
 and startup profiler.
 
 > **No public download yet.** The packaging pipeline below is verified, but public distribution is
-> blocked on written Fractal Softworks authorization and disclaimer guidance, updater-key
-> provisioning, unsigned-package installation guidance, release-candidate compatibility testing,
-> and the remaining product-lifecycle work in
+> blocked on written Fractal Softworks authorization and disclaimer guidance, unsigned-package
+> installation guidance, release-candidate compatibility testing, and the remaining
+> product-lifecycle work in
 > [Release readiness](release-readiness.md).
 
 ## Planned release downloads
@@ -176,3 +176,9 @@ secret `TAURI_SIGNING_PRIVATE_KEY`, its password to
 key is available only to the packaging jobs and must never enter the repository or a release asset.
 This follows [Tauri's signed-updater contract](https://v2.tauri.app/plugin/updater/), whose signature
 verification can't be disabled.
+
+The project key was provisioned on 2026-08-08. Its encrypted recovery copy is outside the
+repository with owner-only permissions, its password is stored separately in macOS Keychain, and
+GitHub Actions contains the private key and password as secrets. The public key is a repository
+variable. GitHub doesn't permit reading secret values back, so the local encrypted recovery copy
+must be retained even after a successful release.

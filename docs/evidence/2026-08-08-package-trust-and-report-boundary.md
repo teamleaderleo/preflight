@@ -16,6 +16,11 @@ pairs; and `latest.json` is assembled only after every supported platform is pre
 signature check leaves the installed version unchanged. This free update signature has a different
 purpose from an operating-system publisher identity.
 
+The updater key is now provisioned. Its encrypted recovery copy is owner-readable outside the
+repository, its password is held separately in macOS Keychain, its private values are GitHub
+Actions secrets, and its public key is the only repository-level variable. Neither private value is
+present in Git or the desktop client.
+
 The macOS package verifier now distinguishes a paid Developer ID signature from Tauri's ad-hoc
 bundle signature. An ad-hoc signature can prove package structure is internally coherent; it can't
 claim an Apple-identified publisher. Windows verification likewise reports Authenticode status

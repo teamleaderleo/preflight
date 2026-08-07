@@ -45,7 +45,8 @@ v2 artifact switch. They require `TAURI_SIGNING_PRIVATE_KEY`,
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the compile-time `PREFLIGHT_UPDATER_PUBLIC_KEY`; missing
 credentials stop the release before packaging. The client uses the fixed GitHub `latest.json` feed,
 checks in the background, and waits for explicit install confirmation. Ordinary development builds
-contain no verification key and report their update channel as disabled.
+contain no verification key and report their update channel as disabled. The project key and GitHub
+credentials were provisioned on 2026-08-08; release-candidate update and rollback remain untested.
 
 Run-report sending is also a compile-time release capability. Ordinary builds omit it and retain
 local diagnostics export only. After the private intake has been provisioned and verified, build

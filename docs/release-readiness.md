@@ -20,8 +20,10 @@ first public beta.
 - [x] Record the first-beta package trust policy. macOS and Windows packages will ship without paid
   platform identities, with the expected Gatekeeper/SmartScreen warnings stated before download.
   Tagged artifacts still require exact package-boundary verification and published SHA-256 files.
-- [ ] Provision and back up the Tauri updater signing key; ship only metadata and packages verified
-  by its public key. Keep the private key out of the repository and client.
+- [x] Provision and back up the Tauri updater signing key; ship only metadata and packages verified
+  by its public key. The encrypted recovery key has owner-only permissions outside the repository,
+  its password is stored separately in macOS Keychain, the private values are GitHub Actions
+  secrets, and only the public key is a repository variable.
 - [x] Keep Apple signing/notarization and Windows Authenticode outside the first-beta gate. They can
   be added later without changing the cache or runtime-adapter model. The exact trust boundary is
   recorded in [the package and report decision](evidence/2026-08-08-package-trust-and-report-boundary.md).

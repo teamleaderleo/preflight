@@ -1,7 +1,7 @@
 # Public beta announcement draft
 
 **Don't publish yet.** Replace every bracketed field after authorization, release-candidate testing,
-updater-key provisioning, and the final controlled benchmark.
+and the final controlled benchmark.
 
 ## Headline
 
