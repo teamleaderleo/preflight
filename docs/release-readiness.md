@@ -70,7 +70,11 @@ first public beta.
 - [x] Preparation, profile switching, cleanup, and launch share ownership so stale concurrent state
   can't be published or deleted.
 - [ ] Cache corruption, interruption, stale profile data, and low-disk behavior are exercised without
-  damaging the installation.
+  damaging the installation. Binary cache codecs reject truncation and checksum drift, failed
+  atomic publication preserves the existing destination and removes its temporary file, operation
+  leases recover stale PID-tagged temporaries, stale-profile cleanup is fail-closed, and the
+  conservative storage planner refuses low space before creating the cache root. An end-to-end
+  killed preparation and injected `ENOSPC` run still need to exercise the packaged process boundary.
 - [ ] Fast Rendering, GraphicsLib, BoxUtil, and the reviewed large-mod profile complete startup,
   campaign, combat, simulation, retreat, save, reload, and clean exit scenarios.
 - [ ] Audio transitions, title/refit visuals, simulation opponents, campaign notifications, and
