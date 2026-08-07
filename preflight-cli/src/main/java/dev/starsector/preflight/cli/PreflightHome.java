@@ -181,6 +181,11 @@ record PreflightHome(Path root, List<Integration> integrations) {
         return root.resolve("runs");
     }
 
+    /** Cross-entrypoint ownership and recovery records. */
+    Path state() {
+        return root.resolve("state");
+    }
+
     Path benchmarks() {
         return root.resolve("benchmarks");
     }

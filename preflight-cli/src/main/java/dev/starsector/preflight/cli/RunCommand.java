@@ -50,6 +50,34 @@ final class RunCommand {
             printDiscovery(discovery);
             return 3;
         }
+        return executeSelected(options, discovery, target, platform);
+    }
+
+    private static int executeSelected(
+            CommandLine options,
+            DiscoveryResult discovery,
+            LaunchTarget target,
+            Platform platform) throws Exception {
+        OperationLease.Acquisition operationOwnership = options.dryRun()
+                ? null
+                : OperationLease.acquire(PreflightHome.current(), "launching", target.installRoot());
+        if (operationOwnership != null && operationOwnership.recovered() != null) {
+            System.err.println("Preflight recovered ownership left by interrupted "
+                    + operationOwnership.recovered().operation() + " process "
+                    + operationOwnership.recovered().pid() + "; removed "
+                    + operationOwnership.recoveredTemporaryFiles() + " incomplete temporary files.");
+        }
+        try (OperationLease ignored = operationOwnership == null ? null : operationOwnership.lease()) {
+            return executeOwned(options, discovery, target, platform);
+        }
+    }
+
+    private static int executeOwned(
+            CommandLine options,
+            DiscoveryResult discovery,
+            LaunchTarget target,
+            Platform platform) throws Exception {
+        Path home = Path.of(System.getProperty("user.home"));
         CombatJvmSafeguard.Resolution combatJvmSafeguard =
                 CombatJvmSafeguard.resolve(platform, target, System.getenv());
         LaunchOwnership ownership = LaunchOwnership.detect(target);
@@ -196,7 +224,6 @@ final class RunCommand {
         ChildProcessOutput.Result childOutput = null;
         List<String> postprocessingFailures = new ArrayList<>();
         StarsectorRunLogEvidence.Snapshot logSnapshot = StarsectorRunLogEvidence.snapshot(target.installRoot());
-
         try {
             writeMetadata(
                     metadata, target, command, runIdentity, started, null, null, null, outcome, null,

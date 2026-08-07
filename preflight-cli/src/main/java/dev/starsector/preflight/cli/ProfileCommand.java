@@ -137,6 +137,22 @@ final class ProfileCommand {
             boolean json,
             PrintStream out) throws Exception {
         name = validateName(name);
+        if (!confirmed) {
+            return activateOwned(home, installRoot, name, false, json, out);
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "switching-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            return activateOwned(home, installRoot, name, true, json, out);
+        }
+    }
+
+    private static int activateOwned(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
         SavedProfile profile = readProfile(profilePath(home, name));
         if (!profile.name().equals(name)) {

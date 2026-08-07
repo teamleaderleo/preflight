@@ -82,6 +82,19 @@ final class CacheCommand {
             boolean keepNamed,
             boolean json,
             PrintStream out) throws Exception {
+        if (!confirmed) return pruneOwned(home, false, keepNamed, json, out);
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "cleaning-cache", null);
+        try (OperationLease ignored = ownership.lease()) {
+            return pruneOwned(home, true, keepNamed, json, out);
+        }
+    }
+
+    private static int pruneOwned(
+            PreflightHome home,
+            boolean confirmed,
+            boolean keepNamed,
+            boolean json,
+            PrintStream out) throws Exception {
         String current = currentFingerprint();
         if (current == null) {
             System.err.println("Cannot identify the current install's profile, so there is nothing");

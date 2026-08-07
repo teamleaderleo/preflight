@@ -250,6 +250,11 @@ export async function startPreparation(
   });
 }
 
+export async function cancelPreparation(): Promise<boolean> {
+  if (!isDesktopHost()) return true;
+  return invoke<boolean>("cancel_preparation");
+}
+
 export async function getPreparationPlan(
   game: string,
   textureStorage: "balanced" | "fastest",

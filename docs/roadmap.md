@@ -29,6 +29,13 @@ Release work now has priority over another narrow startup experiment:
 Further startup or gameplay work remains welcome only when it keeps exact identity gates, bounded
 diagnostics, an independently disableable plan, and the original behavior on uncertainty.
 
+The first lifecycle slice landed on 2026-08-07: preparation, launch, confirmed profile switches,
+launch-setting writes, and confirmed cache pruning now share a durable cross-process lease.
+Preparation has structured live phase progress and safe cancellation in the desktop host;
+interrupted PID-tagged temporary writes inside Preflight's home are reclaimed by the next owner.
+The next product slice is preview-first cleanup and the two removal scopes, followed by signed
+update plumbing and unattended desktop smoke automation.
+
 ## Measured result (2026-08-01, third campaign)
 
 `benchmarkAccepted: true`, 15 of 15 runs, no exclusions, launch-order drift **-0.04s (0.0% of

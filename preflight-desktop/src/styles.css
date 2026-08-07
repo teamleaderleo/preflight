@@ -1442,6 +1442,28 @@ h2 {
   gap: 4px;
 }
 
+.prepare-action .prepare-actions {
+  flex-direction: row;
+  flex: 0 0 auto;
+}
+
+.preparation-progress {
+  width: min(420px, 50vw);
+  height: 6px;
+  overflow: hidden;
+  margin-top: 5px;
+  border-radius: 99px;
+  background: rgba(84, 77, 91, 0.09);
+}
+
+.preparation-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--peach), #e76e61);
+  transition: width 180ms ease;
+}
+
 .prepare-action strong {
   font-size: 12px;
 }

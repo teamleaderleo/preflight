@@ -26,6 +26,9 @@ import java.util.concurrent.Executors;
 
 /** Runs every renderer-independent preparation stage and writes one atomic report. */
 final class PrepareCommand {
+    static final String PROGRESS_PREFIX = "PREFLIGHT_PROGRESS ";
+    private static final String PROGRESS_FORMAT = "preflight-preparation-progress-v1";
+    private static final int PROGRESS_PHASES = 7;
     private static final int DEFAULT_WORKERS = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()));
     private static final long DEFAULT_MEMORY_MIB = 256;
     private static final int DEFAULT_LOOKUP_QUERIES = 5_000;
@@ -53,6 +56,7 @@ final class PrepareCommand {
         ResourceIndexBuilder.BuildResult plannedResourceBuild = null;
         PreparationStoragePlanner.Plan storagePlan = null;
         if (options.textures() && options.resourceIndex()) {
+            emitProgress("storage-plan", "started", null, null, Map.of());
             System.err.println("prepare: storage-plan started");
             plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
             storagePlan = PreparationStoragePlanner.plan(
@@ -65,6 +69,15 @@ final class PrepareCommand {
                     storagePlan.upperBoundAdditionalBytes(),
                     storagePlan.usableBytes(),
                     storagePlan.durationNanos() / 1_000_000.0);
+            emitProgress(
+                    "storage-plan",
+                    "completed",
+                    storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
+                    storagePlan.durationNanos(),
+                    Map.of(
+                            "predictedAdditionalBytes", storagePlan.predictedAdditionalBytes(),
+                            "upperBoundAdditionalBytes", storagePlan.upperBoundAdditionalBytes(),
+                            "usableBytes", storagePlan.usableBytes()));
             if (options.plan()) {
                 if (options.json()) {
                     System.out.println(Json.object(storagePlan.toMap()));
@@ -80,6 +93,24 @@ final class PrepareCommand {
         } else if (options.plan()) {
             throw new IllegalArgumentException("--plan requires resource-index and texture preparation");
         }
+        OperationLease.Acquisition ownership = OperationLease.acquire(
+                PreflightHome.current(), "preparing", target.installRoot());
+        if (ownership.recovered() != null) {
+            System.err.println("Preflight recovered ownership left by interrupted "
+                    + ownership.recovered().operation() + " process " + ownership.recovered().pid()
+                    + "; removed " + ownership.recoveredTemporaryFiles() + " incomplete temporary files.");
+        }
+        try (OperationLease ignored = ownership.lease()) {
+            return prepareOwned(options, target, cache, plannedResourceBuild, storagePlan);
+        }
+    }
+
+    private static int prepareOwned(
+            Options options,
+            LaunchTarget target,
+            Path cache,
+            ResourceIndexBuilder.BuildResult plannedResourceBuild,
+            PreparationStoragePlanner.Plan storagePlan) throws Exception {
         Files.createDirectories(cache);
         Path report = (options.report() == null
                 ? cache.resolve("reports/preparation-latest.json")
@@ -465,6 +496,7 @@ final class PrepareCommand {
     }
 
     private static void stageStarted(String name) {
+        emitProgress(name, "started", null, null, Map.of());
         System.err.println("prepare: " + name + " started");
     }
 
@@ -475,6 +507,36 @@ final class PrepareCommand {
                 name,
                 stage.status(),
                 stage.durationNanos() / 1_000_000.0);
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        copyMetric(stage.details(), metrics, "entryCount");
+        copyMetric(stage.details(), metrics, "candidateEntries");
+        copyMetric(stage.details(), metrics, "uniqueContent");
+        copyMetric(stage.details(), metrics, "cacheHitBlobs");
+        copyMetric(stage.details(), metrics, "builtBlobs");
+        copyMetric(stage.details(), metrics, "uniqueBlobBytes");
+        emitProgress(name, "completed", stage.status(), stage.durationNanos(), metrics);
+    }
+
+    private static void copyMetric(Map<String, Object> source, Map<String, Object> target, String key) {
+        Object value = source.get(key);
+        if (value != null) target.put(key, value);
+    }
+
+    private static void emitProgress(
+            String phase,
+            String state,
+            String status,
+            Long durationNanos,
+            Map<String, Object> metrics) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("format", PROGRESS_FORMAT);
+        event.put("phase", phase);
+        event.put("state", state);
+        event.put("totalPhases", PROGRESS_PHASES);
+        event.put("status", status);
+        event.put("durationMs", durationNanos == null ? null : durationNanos / 1_000_000.0);
+        event.put("metrics", metrics);
+        System.err.println(PROGRESS_PREFIX + Json.object(event));
     }
 
     private static void writeAtomic(Path target, String content) throws IOException {

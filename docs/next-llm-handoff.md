@@ -16,7 +16,15 @@ used to carry is merged, and is described by `docs/evidence/` and `docs/prepared
 
 ## Product surface checkpoint
 
-The desktop and CLI now share a versioned `launch-settings` contract for Starsector's own
+The first operation-lifecycle slice is complete. Preparation, launch, confirmed profile switching,
+launch-setting writes, and confirmed cache pruning share a cross-process OS lease owned by the Java
+engine. Preparation emits versioned phase events; the Rust host drains both child pipes, forwards
+live progress, and supports cancellation; the interface shows the current phase and completion.
+After an interrupted owner, only matching PID-tagged temporary writes beneath Preflight's own home
+are reclaimed. The next product slice is preview-first cleanup and the two removal scopes, then
+signed update plumbing and unattended desktop smoke automation.
+
+The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are
 explicit, bounded by the selected installation's settings, preserve unrelated gameplay preference
 fields, and save the six mutable raw values before flushing. The registration serial is excluded
@@ -29,10 +37,10 @@ tests, and native release build pass.
 and voluntary diagnostic upload. Important constraints: only a process Preflight starts/wraps is
 accelerated; runtime transforms stay in memory and exact-identity/fail-closed; unknown updates may
 lose optimizations but are never promised universal compatibility; and cache deletion remains
-separate from toggling a reader. The next product implementation should add the typed launch-preset
-engine model (**Recommended** default, **Conservative**, **Off / troubleshooting**, then grouped
-advanced domains) before exposing cache switches in the GUI. The upload backend is designed but not
-deployed: reuse the bounded evidence ZIP, explicit consent and digest preview, a short-lived
+separate from toggling a reader. The typed launch-preset engine model (**Recommended** default,
+**Conservative**, **Off / troubleshooting**) is wired through the CLI, desktop host, and agent;
+grouped advanced domains still belong behind a later disclosure. The upload backend is designed but
+isn't deployed: reuse the bounded evidence ZIP, explicit consent and digest preview, a short-lived
 single-object grant, server verification, signed receipt, rate limits, private short retention, and
 no embedded durable secret.
 

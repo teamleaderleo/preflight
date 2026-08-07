@@ -1,17 +1,23 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::env;
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, mpsc};
+use std::time::Duration;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Default)]
 struct ProcessState {
     game: Option<u32>,
-    preparation: Option<u32>,
+    preparation: Option<PreparationProcess>,
+}
+
+struct PreparationProcess {
+    pid: u32,
+    cancel: mpsc::Sender<()>,
 }
 
 struct ProcessTracker(Mutex<ProcessState>);
@@ -39,6 +45,21 @@ struct PreparationStateEvent {
     success: Option<bool>,
     detail: Option<String>,
     report: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreparationProgressEvent {
+    #[serde(default)]
+    pid: u32,
+    format: String,
+    phase: String,
+    state: String,
+    total_phases: u32,
+    status: Option<String>,
+    duration_ms: Option<f64>,
+    #[serde(default)]
+    metrics: Value,
 }
 
 struct EnginePaths {
@@ -524,7 +545,8 @@ fn start_preparation(
         .spawn()
         .map_err(|error| format!("Could not start profile preparation: {error}"))?;
     let pid = child.id();
-    running.preparation = Some(pid);
+    let (cancel, cancel_receiver) = mpsc::channel();
+    running.preparation = Some(PreparationProcess { pid, cancel });
     drop(running);
 
     let _ = app.emit(
@@ -537,8 +559,36 @@ fn start_preparation(
             report: None,
         },
     );
-    watch_preparation(app, child);
+    watch_preparation(app, child, cancel_receiver);
     Ok(RunStarted { pid })
+}
+
+#[tauri::command]
+fn cancel_preparation(app: AppHandle, tracker: State<'_, ProcessTracker>) -> Result<bool, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The preparation tracker is unavailable.".to_string())?;
+    let Some(preparation) = running.preparation.as_ref() else {
+        return Ok(false);
+    };
+    let pid = preparation.pid;
+    preparation
+        .cancel
+        .send(())
+        .map_err(|_| "Preparation has already stopped.".to_string())?;
+    drop(running);
+    let _ = app.emit(
+        "prepare-state",
+        PreparationStateEvent {
+            state: "cancelling",
+            pid,
+            success: None,
+            detail: None,
+            report: None,
+        },
+    );
+    Ok(true)
 }
 
 #[tauri::command]
@@ -609,27 +659,68 @@ fn watch_child(app: AppHandle, mut child: Child) {
     });
 }
 
-fn watch_preparation(app: AppHandle, child: Child) {
+fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()>) {
     let pid = child.id();
     std::thread::spawn(move || {
-        let output = child.wait_with_output();
-        let success = output.as_ref().is_ok_and(|output| output.status.success());
-        let report = output.as_ref().ok().and_then(|output| {
-            let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            (!value.is_empty()).then_some(value)
+        let stdout = child
+            .stdout
+            .take()
+            .map(|mut stdout| std::thread::spawn(move || read_tail(&mut stdout, 16 * 1024)));
+        let stderr_app = app.clone();
+        let stderr = child.stderr.take().map(|stderr| {
+            std::thread::spawn(move || read_preparation_stderr(stderr_app, pid, stderr))
         });
-        let detail = match &output {
-            Ok(output) if output.status.success() => None,
-            Ok(output) => Some(child_error("Profile preparation failed", &output.stderr)),
-            Err(error) => Some(format!("Could not wait for profile preparation: {error}")),
+
+        let mut cancelled = false;
+        let status = loop {
+            if cancel.try_recv().is_ok() {
+                cancelled = true;
+                let _ = child.kill();
+                break child.wait();
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => break Ok(status),
+                Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+                Err(error) => break Err(error),
+            }
+        };
+        let stdout = stdout
+            .and_then(|reader| reader.join().ok())
+            .unwrap_or_default();
+        let stderr = stderr
+            .and_then(|reader| reader.join().ok())
+            .unwrap_or_default();
+        let success = !cancelled && status.as_ref().is_ok_and(|status| status.success());
+        let report = if success {
+            let value = String::from_utf8_lossy(&stdout).trim().to_string();
+            (!value.is_empty()).then_some(value)
+        } else {
+            None
+        };
+        let detail = if cancelled {
+            Some(
+                "Preparation stopped safely. Finished cache artifacts remain reusable.".to_string(),
+            )
+        } else {
+            match &status {
+                Ok(status) if status.success() => None,
+                Ok(_) => Some(child_error("Profile preparation failed", &stderr)),
+                Err(error) => Some(format!("Could not wait for profile preparation: {error}")),
+            }
         };
         if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
-            running.preparation = None;
+            if running
+                .preparation
+                .as_ref()
+                .is_some_and(|process| process.pid == pid)
+            {
+                running.preparation = None;
+            }
         }
         let _ = app.emit(
             "prepare-state",
             PreparationStateEvent {
-                state: "finished",
+                state: if cancelled { "cancelled" } else { "finished" },
                 pid,
                 success: Some(success),
                 detail,
@@ -637,6 +728,45 @@ fn watch_preparation(app: AppHandle, child: Child) {
             },
         );
     });
+}
+
+const PREPARATION_PROGRESS_PREFIX: &str = "PREFLIGHT_PROGRESS ";
+const PREPARATION_PROGRESS_FORMAT: &str = "preflight-preparation-progress-v1";
+
+fn parse_preparation_progress(line: &str, pid: u32) -> Option<PreparationProgressEvent> {
+    let json = line.strip_prefix(PREPARATION_PROGRESS_PREFIX)?;
+    let mut event: PreparationProgressEvent = serde_json::from_str(json).ok()?;
+    if event.format != PREPARATION_PROGRESS_FORMAT || event.phase.is_empty() {
+        return None;
+    }
+    event.pid = pid;
+    Some(event)
+}
+
+fn read_preparation_stderr(app: AppHandle, pid: u32, stderr: impl Read) -> Vec<u8> {
+    let mut tail = Vec::with_capacity(8 * 1024);
+    for line in BufReader::new(stderr).lines() {
+        let Ok(line) = line else { break };
+        if let Some(progress) = parse_preparation_progress(&line, pid) {
+            let _ = app.emit("prepare-progress", progress);
+        }
+        append_tail(&mut tail, line.as_bytes(), 8 * 1024);
+        append_tail(&mut tail, b"\n", 8 * 1024);
+    }
+    tail
+}
+
+fn append_tail(tail: &mut Vec<u8>, bytes: &[u8], limit: usize) {
+    if bytes.len() >= limit {
+        tail.clear();
+        tail.extend_from_slice(&bytes[bytes.len() - limit..]);
+        return;
+    }
+    let overflow = tail.len().saturating_add(bytes.len()).saturating_sub(limit);
+    if overflow > 0 {
+        tail.drain(..overflow);
+    }
+    tail.extend_from_slice(bytes);
 }
 
 fn read_tail(reader: &mut dyn Read, limit: usize) -> Vec<u8> {
@@ -697,7 +827,8 @@ pub fn run() {
             activate_profile,
             start_game,
             get_preparation_plan,
-            start_preparation
+            start_preparation,
+            cancel_preparation
         ])
         .run(tauri::generate_context!())
         .expect("error while running Preflight");
@@ -706,8 +837,8 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        LaunchSettingsInput, diagnostic_output_path, read_tail, validate_launch_settings,
-        validate_optimization_preset,
+        LaunchSettingsInput, diagnostic_output_path, parse_preparation_progress, read_tail,
+        validate_launch_settings, validate_optimization_preset,
     };
     use std::io::Cursor;
 
@@ -723,6 +854,19 @@ mod tests {
         let mut stderr = Cursor::new(b"useful failure");
 
         assert_eq!(b"useful failure", read_tail(&mut stderr, 1024).as_slice());
+    }
+
+    #[test]
+    fn parses_only_versioned_preparation_progress() {
+        let parsed = parse_preparation_progress(
+            "PREFLIGHT_PROGRESS {\"format\":\"preflight-preparation-progress-v1\",\"phase\":\"textures\",\"state\":\"completed\",\"totalPhases\":7,\"status\":\"SUCCESS\",\"durationMs\":12.5,\"metrics\":{\"builtBlobs\":3}}",
+            42,
+        )
+        .unwrap();
+        assert_eq!(42, parsed.pid);
+        assert_eq!("textures", parsed.phase);
+        assert_eq!(Some("SUCCESS".to_string()), parsed.status);
+        assert!(parse_preparation_progress("prepare: textures started", 42).is_none());
     }
 
     #[test]

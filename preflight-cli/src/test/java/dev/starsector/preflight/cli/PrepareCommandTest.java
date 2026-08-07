@@ -162,8 +162,12 @@ class PrepareCommandTest {
                 "lookup-verification"}) {
             assertTrue(progress.contains("prepare: " + stage + " started"), progress);
             assertTrue(progress.contains("prepare: " + stage + " completed status="), progress);
+            assertTrue(progress.contains(
+                    PrepareCommand.PROGRESS_PREFIX
+                            + "{\"format\":\"preflight-preparation-progress-v1\",\"phase\":\""
+                            + stage + "\""), progress);
         }
-        assertTrue(progress.length() < 2_000, progress);
+        assertTrue(progress.length() < 8_000, progress);
     }
 
     @Test

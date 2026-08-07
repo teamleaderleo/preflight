@@ -67,17 +67,10 @@ final class LaunchSettingsCommand {
                     resolution, fullscreen, sound, antialiasing, uiScale, battleSize);
             GameLaunchPreferences.validate(update);
             limits.validate(update, existing);
-            GameLaunchPreferences.Backup before = GameLaunchPreferences.backup(store);
-            backup = writeBackup(before);
-            try {
-                GameLaunchPreferences.apply(store, update);
-            } catch (Exception failed) {
-                try {
-                    GameLaunchPreferences.restore(store, before);
-                } catch (Exception rollbackFailed) {
-                    failed.addSuppressed(rollbackFailed);
-                }
-                throw failed;
+            OperationLease.Acquisition ownership = OperationLease.acquire(
+                    PreflightHome.current(), "changing-launch-settings", installRoot);
+            try (OperationLease ignored = ownership.lease()) {
+                backup = applyUpdate(store, update);
             }
         }
 
@@ -92,6 +85,24 @@ final class LaunchSettingsCommand {
         // accepting the flag explicitly for desktop callers and shell consistency.
         if (json || !report.isEmpty()) System.out.println(Json.object(report));
         return 0;
+    }
+
+    private static Path applyUpdate(
+            GameLaunchPreferences.Store store,
+            GameLaunchPreferences.Update update) throws Exception {
+        GameLaunchPreferences.Backup before = GameLaunchPreferences.backup(store);
+        Path backup = writeBackup(before);
+        try {
+            GameLaunchPreferences.apply(store, update);
+        } catch (Exception failed) {
+            try {
+                GameLaunchPreferences.restore(store, before);
+            } catch (Exception rollbackFailed) {
+                failed.addSuppressed(rollbackFailed);
+            }
+            throw failed;
+        }
+        return backup;
     }
 
     static Map<String, Object> describe(DirectLaunchSettings.Availability availability) {

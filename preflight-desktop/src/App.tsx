@@ -3,6 +3,7 @@ import { open, save as saveFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
   activateProfile,
+  cancelPreparation,
   exportDiagnostics,
   getCache,
   getLaunchSettings,
@@ -39,6 +40,7 @@ import type {
   OptimizationPreset,
   PreparationStoragePlan,
   PreparationStateEvent,
+  PreparationProgressEvent,
   ProfileActivationPlan,
   ProfileList,
   RunStateEvent,
@@ -139,6 +141,9 @@ export default function App() {
   const [cacheLoading, setCacheLoading] = useState(false);
   const [cacheInstallRoot, setCacheInstallRoot] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const [preparationCancelling, setPreparationCancelling] = useState(false);
+  const [preparationProgress, setPreparationProgress] = useState<PreparationProgressEvent | null>(null);
+  const completedPreparationPhases = useRef(new Set<string>());
   const [preparationPlan, setPreparationPlan] = useState<PreparationStoragePlan | null>(null);
   const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
   const launchAfterPreparation = useRef(false);
@@ -335,6 +340,9 @@ export default function App() {
         return;
       }
       launchAfterPreparation.current = launchWhenReady;
+      completedPreparationPhases.current.clear();
+      setPreparationProgress(null);
+      setPreparationCancelling(false);
       setPreparing(true);
       setMessage(launchWhenReady
         ? "Preparing the exact current profile. Starsector will open when it’s ready."
@@ -362,10 +370,16 @@ export default function App() {
     if (!isDesktopHost()) return;
     let stopListening: (() => void) | undefined;
     void listen<PreparationStateEvent>("prepare-state", ({ payload }) => {
-      if (payload.state !== "finished") return;
+      if (payload.state === "cancelling") {
+        setPreparationCancelling(true);
+        setMessage("Stopping preparation safely…");
+        return;
+      }
+      if (payload.state !== "finished" && payload.state !== "cancelled") return;
       const shouldLaunch = launchAfterPreparation.current;
       launchAfterPreparation.current = false;
       setPreparing(false);
+      setPreparationCancelling(false);
       if (!payload.success) {
         setMessage(payload.detail ?? "Preparation stopped before it completed.");
         void refreshCache();
@@ -383,6 +397,43 @@ export default function App() {
     });
     return () => stopListening?.();
   }, [launch, refreshCache]);
+
+  useEffect(() => {
+    if (!isDesktopHost()) return;
+    let stopListening: (() => void) | undefined;
+    void listen<PreparationProgressEvent>("prepare-progress", ({ payload }) => {
+      if (payload.state === "completed") completedPreparationPhases.current.add(payload.phase);
+      setPreparationProgress({ ...payload });
+    }).then((unlisten) => {
+      stopListening = unlisten;
+    });
+    return () => stopListening?.();
+  }, []);
+
+  const stopPreparation = async () => {
+    if (!preparing || preparationCancelling) return;
+    setPreparationCancelling(true);
+    launchAfterPreparation.current = false;
+    setMessage("Stopping preparation safely…");
+    try {
+      const requested = await cancelPreparation();
+      if (!requested) {
+        setPreparing(false);
+        setPreparationCancelling(false);
+        setMessage("Preparation had already finished.");
+      }
+    } catch (error) {
+      setPreparationCancelling(false);
+      setMessage(String(error));
+    }
+  };
+
+  const preparationPhaseLabel = preparationProgress?.phase
+    ?.replaceAll("-", " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+  const preparationPercent = preparationProgress
+    ? Math.min(100, Math.round((completedPreparationPhases.current.size / preparationProgress.totalPhases) * 100))
+    : 0;
 
   const saveCurrentProfile = async () => {
     const game = snapshot?.selected?.installRoot;
@@ -841,10 +892,17 @@ export default function App() {
             </div>
 
             <section className="card prepare-action">
-              <div><strong>{preparing ? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : preparationPlan?.safeToPrepare ? "There’s room to prepare this profile" : "Preparation needs attention"}</strong><span>{textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · {resourcePresets[resourcePreset].label.toLowerCase()} resource use</span></div>
-              <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={preparing || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}>
-                <SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}
-              </button>
+              <div>
+                <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : preparationPlan?.safeToPrepare ? "There’s room to prepare this profile" : "Preparation needs attention"}</strong>
+                <span>{preparing ? `${preparationPercent}% complete · finished artifacts stay reusable` : `${textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
+                {preparing && <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div>}
+              </div>
+              <div className="prepare-actions">
+                {preparing && <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button>}
+                <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={preparing || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}>
+                  <SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}
+                </button>
+              </div>
             </section>
           </div>
         ) : page === "profiles" ? (

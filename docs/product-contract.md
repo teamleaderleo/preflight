@@ -158,5 +158,23 @@ before/after result. Advanced controls remain available without becoming prerequ
 - “Send run report” is a deliberate action with disclosure, digest, progress, cancel/retry behavior,
   a case receipt, retention information, and a deletion path. It isn't ambient telemetry.
 
+## Operation lifecycle
+
+Preparation, launch, confirmed profile activation, launch-setting changes, and confirmed cache
+pruning use one cross-process operation lease. The CLI owns the lease, so the rule applies equally
+to the desktop application, terminal use, and installed launch shortcuts. Read-only previews don't
+take it.
+
+The operating system releases the lease if its owner exits or crashes. A small JSON owner record
+identifies the operation and installation for diagnostics. When a later operation finds an
+interrupted record, it removes only PID-tagged atomic-write remnants below Preflight's own home,
+then continues. Completed content-addressed artifacts remain reusable; the game installation isn't
+part of recovery.
+
+Preparation also emits a versioned JSON-line progress stream while retaining its existing human
+stage messages. The desktop host drains stdout and stderr concurrently, forwards those events to
+the interface, and can stop the child process. A stop may leave an incomplete temporary file, which
+is never published as an artifact and is reclaimed through the same interrupted-owner recovery.
+
 The blocking implementation and publication checks are tracked in
 [Release readiness](release-readiness.md).

@@ -120,7 +120,7 @@ export interface LaunchSettingsUpdate {
 }
 
 export interface RunStateEvent {
-  state: "started" | "finished";
+  state: "started" | "cancelling" | "cancelled" | "finished";
   pid: number;
   success?: boolean;
 }
@@ -128,6 +128,17 @@ export interface RunStateEvent {
 export interface PreparationStateEvent extends RunStateEvent {
   detail?: string;
   report?: string;
+}
+
+export interface PreparationProgressEvent {
+  pid: number;
+  format: "preflight-preparation-progress-v1";
+  phase: string;
+  state: "started" | "completed";
+  totalPhases: number;
+  status?: "SUCCESS" | "FAILED" | "SKIPPED";
+  durationMs?: number;
+  metrics: Record<string, number>;
 }
 
 export interface CacheGroup {

@@ -34,7 +34,7 @@ first public beta.
 - [x] Complete the first-run flow. It detects the installation, selects Recommended and Balanced,
   calculates the exact profile's predicted and conservative disk requirements, refuses unsafe free
   space, prepares a cold profile, and launches from one action.
-- [ ] Show preparation progress, cancellation/recovery, current profile identity, cache use, and the
+- [x] Show preparation progress, cancellation/recovery, current profile identity, cache use, and the
   expected effect of changing storage policy.
 - [ ] Provide preview-first cleanup and two removal choices: launcher/app only, or all
   Preflight-owned caches and evidence. Never include game, mod, save, or preference deletion.
@@ -43,9 +43,9 @@ first public beta.
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
 - [ ] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete.
-- [ ] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
+- [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
   Advanced disclosure and let the engine enforce dependencies.
-- [ ] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,
+- [x] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,
   antialiasing, UI scaling, and battle size.
 
 ## Compatibility and correctness gate
@@ -54,7 +54,7 @@ first public beta.
   independent kill switch, and vanilla fallback on uncertainty.
 - [ ] Unknown game or mod versions visibly distinguish adapter decline, cache miss/rejection,
   wrapper failure, and runtime integrity failure.
-- [ ] Preparation, profile switching, cleanup, and launch share ownership so stale concurrent state
+- [x] Preparation, profile switching, cleanup, and launch share ownership so stale concurrent state
   can't be published or deleted.
 - [ ] Cache corruption, interruption, stale profile data, and low-disk behavior are exercised without
   damaging the installation.
