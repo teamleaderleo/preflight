@@ -24,6 +24,23 @@ Screenshots are visual evidence, not the sole proof that the game reached a stat
 key action is followed by a fresh observation before the next action. The runner owns exactly one
 game process and refuses an already-running or second instance.
 
+Every injected game JVM atomically publishes `runtime-process.json` in its run directory before
+normal game initialization. The versioned record contains the JVM's PID, parent PID, available
+process start instant, observation instant, and `running|stopped` state. A driver attaches only by
+that PID after confirming the live process start instant matches the record. It never resolves an
+application by display name, and a PID without a matching start instant isn't attachable. Orderly
+shutdown changes the state to `stopped`; a crash can leave `running`, so liveness still comes from
+the operating system.
+Drivers use the same strict check immediately before attachment or input:
+
+```bash
+java -jar preflight.jar desktop process validate /absolute/run/runtime-process.json
+```
+
+The result exposes `alive`, `startMatches`, and `attachable`. Unknown fields, symlinks, oversized
+records, malformed timestamps, contradictory lifecycle state, dead processes, and PID reuse are
+rejected or reported without activating a window.
+
 The first scenario deliberately covers only the repeatable core:
 
 1. launch direct with the selected exact profile and storage policy;
@@ -86,19 +103,21 @@ code.
 
 ## Current macOS status
 
-The Codex-native accessibility bridge can synthesize input, but the 2026-08-06 direct-launch probe
-found a targeting ambiguity that must be resolved before it can be a driver. The live game window is
+The Codex-native accessibility bridge can synthesize input. The 2026-08-06 direct-launch probe
+found a targeting ambiguity in display-name attachment. The live game window is
 owned by Azul's generic `com.azul.zulu.java` process while Launch Services also registers the dormant
 `Starsector.app` bundle under the display name `Starsector`. Resolving the display name selects and
 launches the dormant bundle instead of attaching to the already-running direct JVM. That briefly
 created a second instance during the probe, so display-name targeting is prohibited.
 
-The gameplay pilot now watches continuously for a foreign Starsector JVM. If one appears after the
-pilot starts, the pilot aborts and terminates only the game process IDs it observed as descendants of
-its own wrapper. This contains the duplicate-instance failure but does not make UI targeting safe.
+The runtime now publishes its own PID and start instant, removing the need to discover that window
+through Launch Services. The gameplay pilot also watches continuously for a foreign Starsector JVM.
+If one appears after the pilot starts, the pilot aborts and terminates only the game process IDs it
+observed as descendants of its own wrapper. This contains the duplicate-instance failure without
+making UI targeting safe by itself.
 
-Peekaboo 3.9.7 separately reports Screen Recording granted, with Accessibility and event synthesis
-denied. It remains suitable for observation and screenshot development, not deterministic click/key
-execution. A macOS driver is therefore `skipped`, not `failed`, until it can address the live direct
-JVM by process identity without launching an app. The scenario and evidence contracts require no OS
-permission and remain testable on every platform.
+Peekaboo 3.9.7 separately reported Screen Recording granted, with Accessibility and event synthesis
+denied during that probe. The checked-in driver is still absent, so macOS remains `skipped`, not
+`failed`, until PID attachment, current permissions, and click/key execution pass an isolated
+driver test. The scenario, process identity, and evidence contracts require no OS permission and
+remain testable on every platform.

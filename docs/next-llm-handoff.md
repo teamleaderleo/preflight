@@ -30,7 +30,17 @@ cache/profile/evidence/backup can be cleared. Both are preview-first and game/mo
 stay outside the target set. All-data removal holds the shared lease and leaves an interruption
 marker that blocks other mutations until removal is explicitly resumed. Packaged-app deletion
 remains with the operating system's signed installer rather than asking a running app to erase its
-own bundle. Signed update plumbing and unattended desktop smoke automation are next.
+own bundle. Signed updates are now fail-closed end to end: the desktop verifies Tauri signatures,
+development builds don't check the production feed, and a release remains a draft until every
+supported artifact, signature, and update-manifest entry is present. The next release slices are
+key provisioning, an update/rollback rehearsal, and unattended desktop smoke automation.
+
+The first smoke prerequisite is implemented. Every injected game JVM atomically publishes a
+versioned `runtime-process.json` beside its run evidence with the PID, parent PID, available OS
+start instant, and lifecycle state. The hidden desktop bridge validates that record against the live
+process before attachment. A dead process, missing start instant, stale lifecycle record, symlink,
+or reused PID isn't attachable. No platform driver is claimed yet; macOS remains skipped until the
+PID-addressed window attachment and current OS permissions pass an isolated test.
 
 The desktop and CLI share a versioned `launch-settings` contract for Starsector's own
 resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size preferences. Writes are

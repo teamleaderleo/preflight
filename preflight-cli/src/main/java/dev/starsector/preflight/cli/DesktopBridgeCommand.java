@@ -30,6 +30,9 @@ final class DesktopBridgeCommand {
         if (offset < args.length && "scenario".equals(args[offset])) {
             return scenario(args, offset + 1);
         }
+        if (offset < args.length && "process".equals(args[offset])) {
+            return process(args, offset + 1);
+        }
         Options options = Options.parse(args, offset);
         Map<String, Object> snapshot = snapshot(
                 Platform.current(),
@@ -52,6 +55,19 @@ final class DesktopBridgeCommand {
         result.put("protocol", PROTOCOL_VERSION);
         result.put("valid", true);
         result.put("scenario", scenario.view());
+        System.out.println(Json.object(result));
+        return 0;
+    }
+
+    private static int process(String[] args, int offset) throws IOException {
+        if (args.length != offset + 2 || !"validate".equals(args[offset])) {
+            throw new IllegalArgumentException(
+                    "Expected desktop bridge request: desktop process validate <runtime-process.json>");
+        }
+        RuntimeProcessIdentity identity = RuntimeProcessIdentity.read(Path.of(args[offset + 1]));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("protocol", PROTOCOL_VERSION);
+        result.put("process", identity.inspect());
         System.out.println(Json.object(result));
         return 0;
     }

@@ -78,6 +78,13 @@ final class AdapterRuntime {
                 options.adapterReport(),
                 options.adapterTargets(),
                 options.candidatePrefixes());
+        RuntimeProcessReport runtimeProcess = RuntimeProcessReport.current(
+                options.adapterReport().resolveSibling("runtime-process.json"));
+        try {
+            runtimeProcess.running();
+        } catch (IOException error) {
+            report.contained("Could not publish runtime process identity", error);
+        }
         CodeLoaderSignatureReport codeLoaderReport = new CodeLoaderSignatureReport(
                 sibling(options.adapterReport(), "code-loader-signatures.json"));
         AudioDecoderSignatureReport audioDecoderReport = new AudioDecoderSignatureReport(
@@ -90,6 +97,7 @@ final class AdapterRuntime {
                 sibling(options.adapterReport(), "janino-loader-contract.json"),
                 janinoTarget());
         Session session = new Session(
+                runtimeProcess,
                 report,
                 codeLoaderReport,
                 audioDecoderReport,
@@ -398,6 +406,7 @@ final class AdapterRuntime {
     }
 
     static final class Session implements AutoCloseable {
+        private final RuntimeProcessReport runtimeProcess;
         private final AdapterReport report;
         private final CodeLoaderSignatureReport codeLoaderReport;
         private final AudioDecoderSignatureReport audioDecoderReport;
@@ -408,6 +417,7 @@ final class AdapterRuntime {
         private final AtomicBoolean closed = new AtomicBoolean();
 
         private Session(
+                RuntimeProcessReport runtimeProcess,
                 AdapterReport report,
                 CodeLoaderSignatureReport codeLoaderReport,
                 AudioDecoderSignatureReport audioDecoderReport,
@@ -415,6 +425,7 @@ final class AdapterRuntime {
                 BytecodeShapeReport textureLoaderReport,
                 BytecodeShapeReport janinoLoaderReport,
                 boolean writeReport) {
+            this.runtimeProcess = runtimeProcess;
             this.report = report;
             this.codeLoaderReport = codeLoaderReport;
             this.audioDecoderReport = audioDecoderReport;
@@ -426,9 +437,16 @@ final class AdapterRuntime {
 
         @Override
         public void close() {
-            if (!closed.compareAndSet(false, true) || !writeReport) {
+            if (!closed.compareAndSet(false, true)) {
                 return;
             }
+            try {
+                runtimeProcess.stopped();
+            } catch (IOException error) {
+                System.err.println("[Preflight] Failed to finalize runtime process identity: "
+                        + error.getMessage());
+            }
+            if (!writeReport) return;
             try {
                 MergedReadCacheRuntime.complete();
             } catch (ThreadDeath | VirtualMachineError fatal) {
