@@ -100,7 +100,10 @@ first public beta.
   inventory the bundled Java runtime, and require an exact native artifact set. A full-history audit
   rejects game/save/archive/crash paths, unexpected binary files, screenshots, and unreviewed large
   blobs. CI now extracts the DMG, NSIS, Debian, and AppImage payloads and re-verifies the embedded
-  engine and reviewed resources. A final signed-candidate run remains.
+  engine and reviewed resources, then exercises ordinary native installation and removal where the
+  package has an installer. The exact evidence is recorded in
+  [the native-package boundary](evidence/2026-08-07-native-package-boundary.md). A final signed-candidate
+  run remains.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
 - [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.

@@ -1,5 +1,8 @@
 # Cross-platform desktop distribution is green
 
+> **Historical package-build gate.** A newer check now extracts, executes, installs, and removes the
+> native packages: [Native packages are inspected, executed, installed, and removed](2026-08-07-native-package-boundary.md).
+
 **Date:** 2026-08-06
 
 **Green workflow:** <https://github.com/teamleaderleo/preflight/actions/runs/31073751507>
@@ -39,8 +42,8 @@ not be implemented as a blind file deletion.
 
 ## Release boundary
 
-These are intentionally unsigned beta packages. Apple signing/notarization and Windows signing need
-real credentials. CI cannot include the licensed Starsector installation, so Windows/Linux prove
-portable engine construction, tests, and packaging—not live game compatibility. Runtime adapters
-continue to exact-gate and fall back to vanilla on unknown platform/game/mod bytecode; real beta
-telemetry remains the Windows/Linux activation gate.
+These were unsigned development packages, not public beta artifacts. Apple signing/notarization and
+Windows signing need real credentials. CI cannot include the licensed Starsector installation, so
+Windows/Linux prove portable engine construction, tests, and packaging—not live game compatibility.
+Runtime adapters continue to exact-gate and fall back to vanilla on unknown platform/game/mod
+bytecode; real beta evidence remains the Windows/Linux activation gate.
