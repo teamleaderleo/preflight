@@ -1,14 +1,16 @@
 # Accumulated startup scorecard
 
-**Date:** 2026-08-02, superseded 2026-08-03 by a measured campaign
-**Measured result:** 80.09s -> 42.36s, **37.74s removed, 47.1%, 1.89x**
+**Date:** 2026-08-02, superseded by later campaigns and the 15.88-second warm record
 **Source:** [The whole stack, measured at once](2026-08-03-the-whole-stack-measured-at-once.md)
 
 This page was the running scorecard while the fully composed campaign was still being assembled. It
 added component results measured one at a time and subtracted the total from an earlier campaign's
 baseline, producing a predicted floor rather than a measured one.
 
-That campaign has now run. **Quote the measured numbers, not the arithmetic below.**
+That campaign later ran after hard-coded AshLib and GraphicsLib fixes had entered the installed mod
+JARs. Its two arms were internally comparable, while its baseline no longer represented the
+original installation. The arithmetic and intermediate result below remain only as engineering
+history. The current project headline follows the chronological record.
 
 | | predicted here | measured |
 | --- | ---: | ---: |
@@ -51,7 +53,9 @@ multipliers in it were each measured directly. What it cannot do is add up to an
 
 Subtracting that stack from the 2026-08-01 baseline predicted **40.127–40.496 seconds**. The measured campaign came in at **42.36 seconds** against a **80.09-second** same-session baseline: **37.74s removed, 47.1%, 1.89×**.
 
-The development installation originally occupied the **90–100+ second** range, which includes a cold page cache, a thermally loaded machine, and the launcher itself. Against that lived range a 42.36s load is roughly **2.1–2.4×**. The controlled 1.89× is the claim; the lived range is context.
+The development installation's early accepted launches reached roughly **101 seconds**. The later
+intermediate campaign used a changed installation state, so it can't supply a multiplier against
+that earlier high range.
 
 ## Individual multipliers
 

@@ -6,17 +6,16 @@
 
 **Updated:** 2026-08-07
 
-On the 83-mod test installation, a normal launch initially took about 88 seconds. The fastest warm
-launch recorded so far takes 15.88 seconds. That warm run is a single record from a later stage of
-the investigation; the controlled whole-stack result comes from an earlier randomized comparison.
+The development installation initially centered around 88 seconds in a controlled five-run
+baseline, while early accepted launches reached roughly 101 seconds at the high end. The fastest
+warm launch recorded so far takes 15.88 seconds on the later 83-mod profile. These numbers describe
+the observed progression across different development stages. The release candidate still needs
+its own controlled before/after measurement.
 
-The strongest causal result for the complete stack is a randomized fifteen-launch comparison made
-partway through the work: five vanilla launches, five texture-only launches, and five launches with
-the then-current complete stack. Vanilla measured 80.09 seconds and the complete stack measured
-42.36 seconds, with every round agreeing on the effect within 1.9 seconds. The full design and raw
-results are in [the whole-stack comparison](evidence/2026-08-03-the-whole-stack-measured-at-once.md).
-Narrow replays, component timings, integration gates, and chronological launch records support the
-work completed after that comparison.
+An intermediate randomized campaign remains in the evidence archive. Its baseline already
+contained hard-coded AshLib and GraphicsLib fixes, which means it compares two partially optimized
+states. It records an intermediate state in the investigation. Narrow replays, component
+timings, integration gates, and chronological launch records establish where later changes landed.
 
 The [experiment ledger](experiment-ledger.md) records accepted, rejected, diagnostic, and deferred
 branches. The [performance and storage reference](performance-storage-tradeoffs.md) collects the
@@ -40,9 +39,10 @@ controlled replays or larger cohorts. Reports record browser activity, memory pr
 temperature, and back-to-back thermal throttling. The current harness and condition definitions are
 documented in [startup-benchmark.md](startup-benchmark.md).
 
-The chronology begins at 88.13 seconds. The first accepted waypoint, after the initial texture
-campaign, was 62.60 seconds. Later gates record the order in which improvements entered the working
-stack.
+The controlled chronology begins at an 88.13-second median. Earlier accepted launches reached
+roughly 101 seconds under less favorable conditions. The first accepted optimization waypoint was
+62.60 seconds after the initial texture campaign. Later gates record the order in which improvements
+entered the working stack.
 
 | Accepted gate | Main-menu time |
 | --- | ---: |

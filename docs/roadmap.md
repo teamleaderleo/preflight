@@ -10,10 +10,10 @@ Preflight follows a measurement-first sequence. Each optimization keeps the orig
 
 ## Current release program (2026-08-07)
 
-The current development profile has reached a 15.88-second warm record and clean 16.66-second cold
-and 16.28-second warm gates. The strongest controlled whole-stack comparison remains 80.09 seconds
-versus 42.36 seconds on an earlier stack. The next performance publication needs a fresh controlled
-release-candidate cohort; a record is not a median.
+Startup began around an 88.13-second controlled median, with early accepted launches reaching
+roughly 101 seconds. The current development profile has reached a 15.88-second warm record and
+clean 16.66-second cold and 16.28-second warm gates. The next performance publication needs a fresh
+controlled release-candidate cohort. The current record remains a single warm result.
 
 Release work now has priority over another narrow startup experiment:
 

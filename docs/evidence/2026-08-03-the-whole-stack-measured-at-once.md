@@ -7,6 +7,11 @@
 **Protocol:** direct (unattended), 45s cooldown before every launch, no settling launch, 5 rounds x 3 conditions, seed 14624
 **Status:** 15 of 15 runs accepted, no exclusions
 
+> **Historical intermediate measurement.** Both comparison arms already included hard-coded AshLib
+> and GraphicsLib fixes installed in the mod JARs. This campaign measures the additional Preflight
+> stack that existed on August 3. Use it as a record of that intermediate state. The project's
+> original before/after story begins before those mod-side fixes.
+
 Until now the project's headline was arithmetic: component savings measured one at a time and
 added together, producing a predicted floor rather than a measured one. This is the first campaign
 that turns on everything that has landed and times it.
@@ -21,7 +26,7 @@ that turns on everything that has landed and times it.
 
 | comparison | delta | isolates |
 | --- | ---: | --- |
-| **`full` vs `vanilla`** | **+37.74s (47.1%), 1.89x** | the whole project |
+| **`full` vs `vanilla`** | **+37.74s (47.1%), 1.89x** | the then-current Preflight stack after the installed mod-side fixes |
 | `fast` vs `vanilla` | +33.01s (41.2%), 1.70x | everything except the pixel path and the rule caches |
 | `full` vs `fast` | +4.72s (10.0%) | the prepared-pixel path plus the two rule caches |
 
@@ -106,17 +111,16 @@ your own -- moves it.
 
 ## What the number is and is not
 
-**1.89x, 37.74s removed, 47.1% of a modded startup, on one machine and one profile.**
+**A historical measurement of the August 3 installation state, on one machine and one profile.**
 
-It is a controlled measurement: unattended, direct-launch, interleaved, quiet machine, warm caches,
-no settling launch needed because the installation had already stopped changing. That is the number
-to quote when someone asks what Preflight does.
+It is internally controlled: unattended, direct-launch, interleaved, quiet machine, warm caches,
+with no settling launch needed because the installation had already stopped changing. It isolates
+the Preflight stack present that day after the two mod-side patches. Its scope ends at that
+intermediate installation state.
 
-It is not the number a person experiences on a bad day. The lived range on this installation before
-any of this work was 90-100+ seconds, which includes a cold page cache, a thermally loaded machine,
-and the launcher itself. Against that range, a 42.36s load is roughly 2.1-2.4x. Both belong in the
-writeup: the controlled figure as the claim, the lived range as context, rather than picking
-whichever is larger.
+The development installation's earlier lived range reached roughly 101 seconds. That context and
+this intermediate campaign have different installation states, so dividing one by the other would
+produce another invalid comparison.
 
 ## Variance, and how many rounds this needed
 

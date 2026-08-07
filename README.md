@@ -37,25 +37,25 @@ java -jar preflight.jar run --direct --optimization-preset recommended
 
 ## What has been demonstrated
 
-On the development machine — Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, the game's bundled
-x86-64 Java runtime under Rosetta — the current **Recommended** path (`--fast` compatibility alias)
-has reached the main menu in
-**15.88 seconds**. The two preceding clean production gates were **16.66 seconds cold** and
-**16.28 seconds warm**.
+On the development machine — Starsector 0.98a-RC8, M5 MacBook Air, and the game's bundled x86-64
+Java runtime under Rosetta — startup began around **88 seconds** in a controlled five-run baseline,
+with early accepted launches reaching roughly **101 seconds**. The current 83-mod **Recommended**
+path (`--fast` compatibility alias) has reached the main menu in **15.88 seconds**. The two
+preceding clean production gates were **16.66 seconds cold** and **16.28 seconds warm**.
 
 The 15.88-second result is the current warm record. It retained 42/42 transformed-class cache hits,
 all 15,469 prepared-texture and
 pixel-conversion hits, active adapter health, and zero adapter decline or failure. The exact run is
 documented in [Codex fleet members are now created only when consumed](docs/evidence/2026-08-06-codex-lazy-fleet-members.md).
 
-The project also retains its earlier controlled comparison: fifteen unattended launches, five per
-condition, measured vanilla at **80.09 seconds** and the then-current complete Preflight stack at
-**42.36 seconds**. Every round agreed to within 1.9 seconds on the 37-second effect. That historical
-campaign and its full identity are in
-[The whole stack, measured at once](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md).
-Later work reduced the tracked 62.60-second prepared-texture waypoint through accepted 29-, 25-,
-23-, 18-, 17-, and 16-second gates; the current milestone table is in the
-[engineering handoff](docs/next-llm-handoff.md).
+The 88-second baseline and 15.88-second record are chronological reference points from different
+stages of development. A fresh release-candidate cohort will provide the same-session effect
+estimate. The original baseline is in the
+[29 percent texture campaign](docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md),
+the early high range is explained in the
+[benchmark-anchor diagnosis](docs/evidence/2026-08-01-the-bimodality-was-the-anchor.md), and the
+later accepted gates are collected in the
+[optimization history](docs/optimization-history.md).
 
 The next public performance claim will be a new controlled before/after cohort on the release
 candidate. Until then, reproduce the existing measurements with:
@@ -112,7 +112,7 @@ The final startup tail contained repeated work in mod callbacks. AshLib repeated
 | Merged ship-hull JSON | **3.52× faster loader; ~1.7s net** | [PR #284](https://github.com/teamleaderleo/preflight/pull/284) |
 | Rules CSV, duplicate checks, tokens, command packages | **~1.56s combined** | [#286](https://github.com/teamleaderleo/preflight/pull/286), [#288](https://github.com/teamleaderleo/preflight/pull/288), [#291](https://github.com/teamleaderleo/preflight/pull/291), [#298](https://github.com/teamleaderleo/preflight/pull/298) |
 | Shared cache-profile identity | **1.613s → 0.452s; 3.57× faster** | [PR #300](https://github.com/teamleaderleo/preflight/pull/300) |
-| **Historical composed campaign** | **80.09s → 42.36s; 1.89× overall** | [2026-08-03 campaign](docs/evidence/2026-08-03-the-whole-stack-measured-at-once.md) |
+| **Observed startup progression** | **~88s baseline; ~101s early high; 15.88s warm record** | [Optimization history](docs/optimization-history.md) |
 | **Current clean production gates** | **16.66s cold / 16.28s warm / 15.88s warm record** | [2026-08-06 gate](docs/evidence/2026-08-06-codex-lazy-fleet-members.md) |
 
 The texture path also stopped allocating empty power-of-two padding. In a full load, texture uploads

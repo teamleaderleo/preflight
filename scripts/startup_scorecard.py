@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Print the accumulated Preflight startup scorecard.
+"""Print the historical Preflight startup component scorecard.
 
 The inputs below are measured deltas from the linked repository evidence.
 They deliberately keep ranges where the same optimization was repeated.
+
+The component measurements span different installation states and must not be
+summed into a current before/after claim.
 """
 
 from __future__ import annotations
@@ -11,10 +14,8 @@ from dataclasses import dataclass
 
 
 BASELINE_SECONDS = 88.13
-MEASURED_VANILLA_SECONDS = 80.09
-MEASURED_FULL_SECONDS = 42.36
-ORIGINAL_OBSERVED_LOW_SECONDS = 90.0
-ORIGINAL_OBSERVED_HIGH_SECONDS = 100.0
+ORIGINAL_OBSERVED_HIGH_SECONDS = 101.0
+CURRENT_WARM_RECORD_SECONDS = 15.88
 
 
 @dataclass(frozen=True)
@@ -89,21 +90,13 @@ CACHE_OR_MEMO_HITS = (
 )
 
 
-def percent_reduction(before: float, after: float) -> float:
-    return (before - after) / before * 100.0
-
-
-def speedup(before: float, after: float) -> float:
-    return before / after
-
-
 def main() -> None:
     saved_low = sum(item.low_seconds for item in SAVINGS)
     saved_high = sum(item.high_seconds for item in SAVINGS)
     floor_high = BASELINE_SECONDS - saved_low
     floor_low = BASELINE_SECONDS - saved_high
 
-    print("Accumulated measured startup savings")
+    print("Historical startup component measurements")
     for item in SAVINGS:
         value = (
             f"{item.low_seconds:.3f}s"
@@ -118,21 +111,14 @@ def main() -> None:
           f"{floor_low:.3f}-{floor_high:.3f}s")
 
     print()
-    print("MEASURED, 2026-08-03 composed campaign (this is the number to quote):")
-    print(f"  vanilla                {MEASURED_VANILLA_SECONDS:.2f}s")
-    print(f"  full                   {MEASURED_FULL_SECONDS:.2f}s")
-    print(f"  removed                {MEASURED_VANILLA_SECONDS - MEASURED_FULL_SECONDS:.2f}s "
-          f"({percent_reduction(MEASURED_VANILLA_SECONDS, MEASURED_FULL_SECONDS):.1f}%)")
-    print(f"  speedup                {speedup(MEASURED_VANILLA_SECONDS, MEASURED_FULL_SECONDS):.2f}x")
-    print(
-        f"  against the 90-100s lived range: "
-        f"{speedup(ORIGINAL_OBSERVED_LOW_SECONDS, MEASURED_FULL_SECONDS):.2f}-"
-        f"{speedup(ORIGINAL_OBSERVED_HIGH_SECONDS, MEASURED_FULL_SECONDS):.2f}x"
-    )
+    print("Observed chronological reference points from different development stages:")
+    print(f"  initial controlled median   {BASELINE_SECONDS:.2f}s")
+    print(f"  early accepted high        ~{ORIGINAL_OBSERVED_HIGH_SECONDS:.0f}s")
+    print(f"  current warm record         {CURRENT_WARM_RECORD_SECONDS:.2f}s")
     print()
-    print("The component savings above summed to within ~2s of the measured floor, but the")
-    print("2026-08-01 baseline they were subtracted from had moved 8s by the time the composed")
-    print("campaign ran. Divide by the vanilla measured in the same session, not an older one.")
+    print("The component total mixes measurements from changing installation states, including")
+    print("hard-coded AshLib and GraphicsLib fixes. This output serves as an engineering ledger.")
+    print("The release candidate needs a fresh same-session before/after cohort.")
 
     print()
     print(f"Cache or memo hits represented by the component runs: {CACHE_OR_MEMO_HITS:,}")
