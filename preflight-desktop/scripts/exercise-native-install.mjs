@@ -44,6 +44,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
     const installedApp = join(installDirectory, "Preflight.app");
     run("ditto", [packagedApp, installedApp]);
     const report = verifyInstalledEngine(installedApp);
+    const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(installedApp);
     const allDataRemoval = exercisePackagedAllDataRemoval(installedApp);
     const installedFiles = regularFiles(installedApp);
     if (installedFiles.length === 0) throw new Error("Installed macOS app owns no files");
@@ -60,6 +61,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
       installedCopy: true,
       removed: true,
       separateDataRetained: true,
+      desktopSmokeProbe,
       allDataRemoval,
       engine: report.engine,
     };
@@ -93,6 +95,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
     });
     if (installedFiles.length === 0) throw new Error("Installed Debian package owns no files");
     const report = verifyInstalledEngine(dirname(engineRoot));
+    const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(dirname(engineRoot));
     const allDataRemoval = exercisePackagedAllDataRemoval(dirname(engineRoot));
     run("sudo", ["dpkg", "--remove", packageName]);
     const remainingFiles = installedFiles.filter((path) => existsSync(path));
@@ -107,7 +110,14 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
       throw new Error(`${packageName} remained installed after removal`);
     }
     cleanupNeeded = false;
-    return { package: basename(packagePath), packageName, removed: true, allDataRemoval, engine: report.engine };
+    return {
+      package: basename(packagePath),
+      packageName,
+      removed: true,
+      desktopSmokeProbe,
+      allDataRemoval,
+      engine: report.engine,
+    };
   } finally {
     if (cleanupNeeded) spawnSync("sudo", ["dpkg", "--purge", packageName], { stdio: "ignore" });
   }
@@ -121,6 +131,7 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
   try {
     run(packagePath, ["/S", `/D=${installDirectory}`]);
     const report = verifyInstalledEngine(installDirectory);
+    const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(installDirectory);
     const allDataRemoval = exercisePackagedAllDataRemoval(installDirectory);
     const installedFiles = regularFiles(installDirectory);
     if (installedFiles.length === 0) throw new Error("Installed NSIS package owns no files");
@@ -137,10 +148,37 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
     if (remainingFiles.length) {
       throw new Error(`NSIS removal left ${remainingFiles.length} owned file(s): ${remainingFiles.slice(0, 5).join(", ")}`);
     }
-    return { package: basename(packagePath), removed: true, allDataRemoval, engine: report.engine };
+    return { package: basename(packagePath), removed: true, desktopSmokeProbe, allDataRemoval, engine: report.engine };
   } finally {
     if (existsSync(installDirectory)) rmSync(installDirectory, { recursive: true, force: true });
   }
+}
+
+export function exercisePackagedDesktopSmokeProbe(packageRoot) {
+  const engineDirectory = onlyPackagedEngine(packageRoot);
+  const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
+  const probe = JSON.parse(capture(
+    java,
+    ["-jar", join(engineDirectory, "preflight.jar"), "desktop", "smoke", "probe"],
+    { cwd: engineDirectory },
+  ));
+  if (probe.protocol !== 1 || typeof probe.probe?.ready !== "boolean"
+      || !Array.isArray(probe.probe?.diagnostics)) {
+    throw new Error(`Packaged desktop smoke probe is malformed: ${JSON.stringify(probe)}`);
+  }
+  if (probe.probe.ready) {
+    if (typeof probe.probe.driver?.id !== "string"
+        || !Array.isArray(probe.probe.driver?.capabilities)) {
+      throw new Error(`Ready packaged desktop smoke probe has no driver: ${JSON.stringify(probe)}`);
+    }
+  } else if (probe.probe.driver !== null || probe.probe.diagnostics.length === 0) {
+    throw new Error(`Unavailable packaged desktop smoke probe has no reason: ${JSON.stringify(probe)}`);
+  }
+  return {
+    ready: probe.probe.ready,
+    driver: probe.probe.driver?.id ?? null,
+    diagnostic: probe.probe.diagnostics[0] ?? null,
+  };
 }
 
 export function exercisePackagedAllDataRemoval(packageRoot) {

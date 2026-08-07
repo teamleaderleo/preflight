@@ -33,9 +33,10 @@ first public beta.
   package completed signed forward update, rejected-signature recovery with a byte-identical app,
   checked-package rollback, app-only removal with separate data retained, and full-data removal
   with game, mod, and save sentinels retained. Every native install exercise now runs the packaged
-  engine's preview and confirmed all-data paths inside a disposable home. Windows and Linux still
-  need a completed hosted run of that check, along with update/rollback, hosted-candidate
-  completion, and OS-warning instructions. A manual private
+  engine's preview and confirmed all-data paths inside a disposable home, followed by a no-launch
+  platform-adapter probe that must return a valid driver or a specific unavailable reason. Windows
+  and Linux still need a completed hosted run of those checks, along with update/rollback,
+  hosted-candidate completion, and OS-warning instructions. A manual private
   candidate path now exercises the real signing credentials and complete three-platform artifact
   assembly without granting its job release-publication permission. Candidate files are
   authenticated and encrypted before every upload because public-repository workflow artifacts are

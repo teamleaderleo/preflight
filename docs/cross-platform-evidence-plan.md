@@ -9,7 +9,7 @@ plans. The release evidence should match those boundaries.
 
 | Level | Environment | What it can establish | What it can't establish |
 | --- | --- | --- | --- |
-| Hosted package checks | GitHub-hosted Windows, Ubuntu, and macOS runners | Reproducible builds, portable cache contracts, JAR startup, package contents, install/remove behavior, checksums, and update metadata | Integration with the licensed game, GPU/audio behavior, or performance |
+| Hosted package checks | GitHub-hosted Windows, Ubuntu, and macOS runners | Reproducible builds, portable cache contracts, JAR startup, package contents, install/remove behavior, no-launch platform-adapter probes, checksums, and update metadata | Integration with the licensed game, live desktop actions, GPU/audio behavior, or performance |
 | Emulated game checks | A Windows or Linux guest on Apple silicon | Discovery, first-run preparation, launch, cache acceptance, fallback behavior, settings writes, and basic gameplay compatibility | Native x86-64 performance or representative driver behavior |
 | Native beta checks | A user's Windows or Linux machine with its own game installation | Package UX, real-game correctness, graphics/audio behavior, startup time, and frame-time distributions | Another machine's hardware or mod profile |
 
