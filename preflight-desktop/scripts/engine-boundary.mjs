@@ -51,7 +51,10 @@ export function runtimeInventory(runtimeDirectory) {
   return { files, bytes, sha256: hash.digest("hex"), entries };
 }
 
-export function verifyEngineBoundary(engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine")) {
+export function verifyEngineBoundary(
+  engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine"),
+  options = {},
+) {
   assertDirectory(engineDirectory, "desktop engine");
   assertExactEntries(engineDirectory, rootEntries);
   assertDirectory(join(engineDirectory, "legal"), "legal directory");
@@ -107,9 +110,11 @@ export function verifyEngineBoundary(engineDirectory = join(desktopDirectory, "s
     throw new Error("Desktop engine manifest has no source version");
   }
   const actualRuntime = runtimeInventory(join(engineDirectory, "runtime"));
-  if (stableJson(manifest.runtime) !== stableJson(actualRuntime)) {
-    throw new Error(`Desktop engine runtime differs from its content inventory: ${runtimeDifference(manifest.runtime, actualRuntime)}`);
-  }
+  const runtimeChanges = verifyRuntimeInventory(
+    manifest.runtime,
+    actualRuntime,
+    options.allowedRuntimeChanges ?? [],
+  );
 
   const runtimeRoot = readdirSync(join(engineDirectory, "runtime"), { withFileTypes: true })
     .map((entry) => entry.name)
@@ -130,12 +135,14 @@ export function verifyEngineBoundary(engineDirectory = join(desktopDirectory, "s
     throw new Error("Tauri resource map differs from the reviewed desktop boundary");
   }
 
-  return { runtimeFiles: actualRuntime.files, runtimeBytes: actualRuntime.bytes };
+  return { runtimeFiles: actualRuntime.files, runtimeBytes: actualRuntime.bytes, runtimeChanges };
 }
 
-function runtimeDifference(expected, actual) {
+export function verifyRuntimeInventory(expected, actual, allowedChanges = []) {
+  validateRuntimeInventory(expected, "manifest");
+  validateRuntimeInventory(actual, "packaged runtime");
   const expectedEntries = new Map(
-    Array.isArray(expected?.entries) ? expected.entries.map((entry) => [entry.path, entry]) : [],
+    expected.entries.map((entry) => [entry.path, entry]),
   );
   const actualEntries = new Map(actual.entries.map((entry) => [entry.path, entry]));
   const missing = [...expectedEntries.keys()].filter((path) => !actualEntries.has(path));
@@ -144,16 +151,58 @@ function runtimeDifference(expected, actual) {
     const found = actualEntries.get(path);
     return found && stableJson(expectedEntries.get(path)) !== stableJson(found);
   });
+  const allowed = [...allowedChanges].sort();
+  if (!missing.length && !added.length && !changed.length && allowed.length === 0 &&
+      stableJson(expected) === stableJson(actual)) {
+    return [];
+  }
+  if (allowed.length > 0 && !missing.length && !added.length &&
+      stableJson(changed.sort()) === stableJson(allowed)) {
+    return changed;
+  }
   const details = [];
   if (missing.length) details.push(`missing ${missing.join(", ")}`);
   if (added.length) details.push(`added ${added.join(", ")}`);
   if (changed.length) details.push(`changed ${changed.join(", ")}`);
+  if (allowed.length) details.push(`allowed changes ${allowed.join(", ")}`);
   if (!details.length) {
     details.push(
       `summary expected ${stableJson(runtimeSummary(expected))}, got ${stableJson(runtimeSummary(actual))}`,
     );
   }
-  return details.join("; ");
+  throw new Error(`Desktop engine runtime differs from its content inventory: ${details.join("; ")}`);
+}
+
+function validateRuntimeInventory(inventory, label) {
+  const expectedKeys = ["bytes", "entries", "files", "sha256"];
+  if (!inventory || typeof inventory !== "object" ||
+      stableJson(Object.keys(inventory).sort()) !== stableJson(expectedKeys)) {
+    throw new Error(`Invalid ${label} inventory fields`);
+  }
+  if (!Number.isSafeInteger(inventory.files) || inventory.files <= 0 ||
+      !Number.isSafeInteger(inventory.bytes) || inventory.bytes <= 0 ||
+      !/^[a-f0-9]{64}$/.test(inventory.sha256) || !Array.isArray(inventory.entries) ||
+      inventory.entries.length !== inventory.files) {
+    throw new Error(`Invalid ${label} inventory summary`);
+  }
+  const paths = [];
+  let bytes = 0;
+  for (const entry of inventory.entries) {
+    if (!entry || typeof entry !== "object" ||
+        stableJson(Object.keys(entry).sort()) !== stableJson(["bytes", "path", "sha256"]) ||
+        typeof entry.path !== "string" || !entry.path || entry.path.includes("\\") ||
+        entry.path.startsWith("/") || entry.path.split("/").some((part) => !part || part === "." || part === "..") ||
+        !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || !/^[a-f0-9]{64}$/.test(entry.sha256)) {
+      throw new Error(`Invalid ${label} inventory entry`);
+    }
+    rejectForbiddenPath(entry.path);
+    paths.push(entry.path);
+    bytes += entry.bytes;
+  }
+  if (new Set(paths).size !== paths.length ||
+      stableJson(paths) !== stableJson([...paths].sort((a, b) => a.localeCompare(b))) || bytes !== inventory.bytes) {
+    throw new Error(`Invalid ${label} inventory contents`);
+  }
 }
 
 function runtimeSummary(inventory) {

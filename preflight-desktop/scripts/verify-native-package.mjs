@@ -16,6 +16,7 @@ import { verifyEngineBoundary } from "./engine-boundary.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
+const appImageRuntimeChanges = ["lib/jexec", "lib/jspawnhelper", "lib/server/libjvm.so"];
 
 export function verifyMacPackage(directory = bundleDirectory) {
   if (process.platform !== "darwin") throw new Error("macOS package verification requires macOS");
@@ -107,7 +108,10 @@ export function verifyLinuxPackages(directory = bundleDirectory) {
     }
     reports.push({
       package: basename(appImageFiles[0]),
-      ...verifyExtractedPayload(join(appImageDirectory, "squashfs-root")),
+      ...verifyExtractedPayload(join(appImageDirectory, "squashfs-root"), {
+        allowedRuntimeChanges: appImageRuntimeChanges,
+        expectedRuntimeRpaths: Object.fromEntries(appImageRuntimeChanges.map((path) => [path, "$ORIGIN"])),
+      }),
     });
   } finally {
     rmSync(appImageDirectory, { recursive: true, force: true });
@@ -144,7 +148,7 @@ export function verifyWindowsPackage(directory = bundleDirectory) {
   }
 }
 
-export function verifyExtractedPayload(root) {
+export function verifyExtractedPayload(root, engineOptions = {}) {
   const entries = packageEntries(root);
   const engineDirectories = entries.filter((entry) => {
     if (!entry.details.isDirectory() || basename(entry.path).toLowerCase() !== "engine") return false;
@@ -161,7 +165,7 @@ export function verifyExtractedPayload(root) {
     throw new Error(`Extracted package must contain one Orbitron license; found ${fontLicenses.length}`);
   }
   assertSameFile(fontLicenses[0].path, join(desktopDirectory, "src-tauri", "licenses", "Orbitron-OFL.txt"));
-  const engine = verifyPackagedEngine(engineDirectories[0].path);
+  const engine = verifyPackagedEngine(engineDirectories[0].path, engineOptions);
   return { extractedEntries: entries.length, engine };
 }
 
@@ -239,8 +243,19 @@ function verifyMacApp(appDirectory, signatureRequired) {
   return signature.status === 0 ? "verified" : "development-only";
 }
 
-function verifyPackagedEngine(engineDirectory) {
-  const boundary = verifyEngineBoundary(engineDirectory);
+function verifyPackagedEngine(engineDirectory, options = {}) {
+  const boundary = verifyEngineBoundary(engineDirectory, options);
+  for (const [relativePath, expectedRpath] of Object.entries(options.expectedRuntimeRpaths ?? {})) {
+    const path = join(engineDirectory, "runtime", ...relativePath.split("/"));
+    const bytes = readFileSync(path);
+    if (bytes.length < 4 || !bytes.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))) {
+      throw new Error(`AppImage runtime change isn't an ELF file: ${relativePath}`);
+    }
+    const actualRpath = run("patchelf", ["--print-rpath", path], true).trim();
+    if (actualRpath !== expectedRpath) {
+      throw new Error(`AppImage runtime RPATH differs for ${relativePath}: ${actualRpath}`);
+    }
+  }
   const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
   const result = spawnSync(java, ["-jar", join(engineDirectory, "preflight.jar"), "--help"], {
     cwd: engineDirectory,

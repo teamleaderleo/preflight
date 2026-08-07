@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import test from "node:test";
-import { runtimeInventory, verifyEngineBoundary } from "./engine-boundary.mjs";
+import { runtimeInventory, verifyEngineBoundary, verifyRuntimeInventory } from "./engine-boundary.mjs";
 
 test("prepared desktop engine stays inside the reviewed resource boundary", () => {
   const report = verifyEngineBoundary();
@@ -49,6 +49,48 @@ test("runtime inventory rejects game-content path segments", async () => {
     mkdirSync(join(directory, "saves"));
     writeFileSync(join(directory, "saves", "campaign.xml"), "private");
     assert.throws(() => runtimeInventory(directory), /Forbidden desktop engine path segment: saves/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("runtime inventory allows only the exact declared packaging changes", async () => {
+  const expectedDirectory = await mkdtemp(join(tmpdir(), "preflight-runtime-expected-"));
+  const actualDirectory = await mkdtemp(join(tmpdir(), "preflight-runtime-actual-"));
+  try {
+    writeFileSync(join(expectedDirectory, "java"), "original");
+    writeFileSync(join(actualDirectory, "java"), "packaged");
+    const expected = runtimeInventory(expectedDirectory);
+    const actual = runtimeInventory(actualDirectory);
+    assert.deepEqual(verifyRuntimeInventory(expected, actual, ["java"]), ["java"]);
+    assert.throws(
+      () => verifyRuntimeInventory(expected, actual),
+      /changed java/,
+    );
+    assert.throws(
+      () => verifyRuntimeInventory(expected, actual, ["libjvm.so"]),
+      /changed java; allowed changes libjvm.so/,
+    );
+  } finally {
+    await rm(expectedDirectory, { recursive: true, force: true });
+    await rm(actualDirectory, { recursive: true, force: true });
+  }
+});
+
+test("runtime inventory rejects a legacy or malformed manifest", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "preflight-runtime-current-"));
+  try {
+    writeFileSync(join(directory, "java"), "runtime");
+    const actual = runtimeInventory(directory);
+    assert.throws(
+      () => verifyRuntimeInventory({ files: 1, bytes: 7, sha256: "0".repeat(64) }, actual),
+      /Invalid manifest inventory fields/,
+    );
+    const duplicate = { ...actual, files: 2, bytes: 14, entries: [...actual.entries, ...actual.entries] };
+    assert.throws(
+      () => verifyRuntimeInventory(duplicate, actual),
+      /Invalid manifest inventory contents/,
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
