@@ -53,5 +53,8 @@ as the ordinary arm64 development DMG. Package verification mounted the image re
 application tree, copied it to an isolated install directory, and ran the embedded engine through
 its bundled runtime. The runtime contained 106 files totaling 50,232,379 bytes with no unexpected
 changes, and its smoke command passed. A second install exercise removed every copied application
-file while preserving a separately owned data sentinel. This replay used the expected unsigned
-development package and didn't launch Starsector.
+file while preserving a separately owned data sentinel. The packaged engine then previewed and
+confirmed full-data removal in a disposable home. It removed the synthetic Preflight data root and
+launch integration while byte-identical Starsector settings, mod metadata, and save sentinels
+remained. The native exercise now applies that same boundary on Debian and Windows. This replay used
+the expected unsigned development package and didn't launch Starsector.

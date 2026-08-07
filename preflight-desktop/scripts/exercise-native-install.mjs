@@ -1,5 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +44,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
     const installedApp = join(installDirectory, "Preflight.app");
     run("ditto", [packagedApp, installedApp]);
     const report = verifyInstalledEngine(installedApp);
+    const allDataRemoval = exercisePackagedAllDataRemoval(installedApp);
     const installedFiles = regularFiles(installedApp);
     if (installedFiles.length === 0) throw new Error("Installed macOS app owns no files");
     rmSync(installedApp, { recursive: true });
@@ -50,6 +60,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
       installedCopy: true,
       removed: true,
       separateDataRetained: true,
+      allDataRemoval,
       engine: report.engine,
     };
   } finally {
@@ -82,6 +93,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
     });
     if (installedFiles.length === 0) throw new Error("Installed Debian package owns no files");
     const report = verifyInstalledEngine(dirname(engineRoot));
+    const allDataRemoval = exercisePackagedAllDataRemoval(dirname(engineRoot));
     run("sudo", ["dpkg", "--remove", packageName]);
     const remainingFiles = installedFiles.filter((path) => existsSync(path));
     if (remainingFiles.length) {
@@ -95,7 +107,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
       throw new Error(`${packageName} remained installed after removal`);
     }
     cleanupNeeded = false;
-    return { package: basename(packagePath), packageName, removed: true, engine: report.engine };
+    return { package: basename(packagePath), packageName, removed: true, allDataRemoval, engine: report.engine };
   } finally {
     if (cleanupNeeded) spawnSync("sudo", ["dpkg", "--purge", packageName], { stdio: "ignore" });
   }
@@ -109,6 +121,7 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
   try {
     run(packagePath, ["/S", `/D=${installDirectory}`]);
     const report = verifyInstalledEngine(installDirectory);
+    const allDataRemoval = exercisePackagedAllDataRemoval(installDirectory);
     const installedFiles = regularFiles(installDirectory);
     if (installedFiles.length === 0) throw new Error("Installed NSIS package owns no files");
     const uninstallers = filesWithSuffix(installDirectory, "uninstall.exe");
@@ -124,10 +137,119 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
     if (remainingFiles.length) {
       throw new Error(`NSIS removal left ${remainingFiles.length} owned file(s): ${remainingFiles.slice(0, 5).join(", ")}`);
     }
-    return { package: basename(packagePath), removed: true, engine: report.engine };
+    return { package: basename(packagePath), removed: true, allDataRemoval, engine: report.engine };
   } finally {
     if (existsSync(installDirectory)) rmSync(installDirectory, { recursive: true, force: true });
   }
+}
+
+export function exercisePackagedAllDataRemoval(packageRoot) {
+  const engineDirectory = onlyPackagedEngine(packageRoot);
+  const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
+  const jar = join(engineDirectory, "preflight.jar");
+  const isolatedHome = mkdtempSync(join(tmpdir(), "preflight-removal-home-"));
+  const localAppData = join(isolatedHome, "AppData", "Local");
+  const ownedRoot = join(isolatedHome, ".starsector-preflight");
+  const preserved = [
+    join(isolatedHome, "Starsector", "starsector-core", "data", "config", "settings.json"),
+    join(isolatedHome, "Starsector", "mods", "example", "mod_info.json"),
+    join(isolatedHome, ".starsector", "saves", "example", "campaign.xml"),
+  ];
+  const integrations = packagedRemovalIntegrations(isolatedHome, localAppData);
+  try {
+    writeFixture(join(ownedRoot, "cache", "profile", "artifact.bin"), "owned cache\n");
+    writeFixture(join(ownedRoot, "runs", "run-1", "evidence.json"), "owned evidence\n");
+    for (const path of integrations) writeFixture(path, "owned integration\n");
+    for (const path of preserved) writeFixture(path, `preserved ${basename(path)}\n`);
+    const before = new Map(preserved.map((path) => [path, readFileSync(path)]));
+    const environment = {
+      ...process.env,
+      HOME: isolatedHome,
+      USERPROFILE: isolatedHome,
+      LOCALAPPDATA: localAppData,
+    };
+    const common = [`-Duser.home=${isolatedHome}`, "-jar", jar, "uninstall", "--scope", "all-data", "--json"];
+    const preview = JSON.parse(capture(java, common, { cwd: engineDirectory, env: environment }));
+    assertRemovalResult(preview, false);
+    const expectedTargets = [ownedRoot, ...packagedRemovalTargets(isolatedHome, localAppData)]
+      .map((path) => resolve(path))
+      .sort();
+    const previewTargets = preview.targets.map((target) => resolve(target.path)).sort();
+    if (JSON.stringify(previewTargets) !== JSON.stringify(expectedTargets)) {
+      throw new Error(`All-data preview targets differ: expected ${expectedTargets}; got ${previewTargets}`);
+    }
+    for (const path of expectedTargets) {
+      if (!existsSync(path)) throw new Error(`All-data preview changed its target: ${path}`);
+    }
+
+    const applied = JSON.parse(capture(java, [...common, "--yes"], { cwd: engineDirectory, env: environment }));
+    assertRemovalResult(applied, true);
+    const remaining = expectedTargets.filter((path) => existsSync(path));
+    if (remaining.length) throw new Error(`All-data removal left owned targets: ${remaining.join(", ")}`);
+    for (const [path, bytes] of before) {
+      if (!existsSync(path) || !readFileSync(path).equals(bytes)) {
+        throw new Error(`All-data removal changed separately owned game data: ${path}`);
+      }
+    }
+    return {
+      previewed: true,
+      applied: true,
+      ownedTargetsRemoved: expectedTargets.length,
+      gameModAndSaveDataRetained: true,
+    };
+  } finally {
+    rmSync(isolatedHome, { recursive: true, force: true });
+  }
+}
+
+function assertRemovalResult(result, applied) {
+  if (result.format !== "preflight-removal-v1" || result.scope !== "all-data"
+      || result.safe !== true || result.applied !== applied || !Array.isArray(result.targets)) {
+    throw new Error(`Unexpected all-data removal result: ${JSON.stringify(result)}`);
+  }
+}
+
+function packagedRemovalIntegrations(home, localAppData) {
+  if (process.platform === "darwin") return [join(home, "Applications", "Preflight.app", "Contents", "fixture")];
+  if (process.platform === "linux") return [
+    join(home, ".local", "bin", "preflight"),
+    join(home, ".local", "share", "applications", "preflight.desktop"),
+  ];
+  if (process.platform === "win32") return [join(localAppData, "Preflight", "Preflight.cmd")];
+  throw new Error(`Packaged removal exercise isn't implemented for ${process.platform}`);
+}
+
+function packagedRemovalTargets(home, localAppData) {
+  if (process.platform === "darwin") return [join(home, "Applications", "Preflight.app")];
+  if (process.platform === "linux") return packagedRemovalIntegrations(home, localAppData);
+  if (process.platform === "win32") return [join(localAppData, "Preflight")];
+  throw new Error(`Packaged removal exercise isn't implemented for ${process.platform}`);
+}
+
+function onlyPackagedEngine(root) {
+  const engines = regularDirectories(root).filter((path) => {
+    if (basename(path).toLowerCase() !== "engine") return false;
+    const names = new Set(readdirSync(path));
+    return ["bundle.json", "preflight.jar", "runtime"].every((name) => names.has(name));
+  });
+  if (engines.length !== 1) throw new Error(`Installed package must contain one engine; found ${engines.length}`);
+  return engines[0];
+}
+
+function regularDirectories(directory) {
+  const result = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      result.push(path, ...regularDirectories(path));
+    }
+  }
+  return result;
+}
+
+function writeFixture(path, contents) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, contents);
 }
 
 function onlyFile(directory, suffix) {
@@ -156,8 +278,8 @@ function run(command, args) {
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
 }
 
-function capture(command, args) {
-  const result = spawnSync(command, args, { encoding: "utf8", stdio: "pipe" });
+function capture(command, args, options = {}) {
+  const result = spawnSync(command, args, { ...options, encoding: "utf8", stdio: "pipe" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}: ${result.stderr.trim()}`);
   return result.stdout;

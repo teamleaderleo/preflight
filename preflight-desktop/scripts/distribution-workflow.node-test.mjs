@@ -8,6 +8,9 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const workflow = normalizedWorkflowText(
   readFileSync(resolve(repository, ".github/workflows/distribution.yml"), "utf8"),
 );
+const desktopCi = normalizedWorkflowText(
+  readFileSync(resolve(repository, ".github/workflows/desktop-ci.yml"), "utf8"),
+);
 
 export function normalizedWorkflowText(value) {
   return value.replaceAll("\r\n", "\n");
@@ -65,4 +68,16 @@ test("signed candidates require updater credentials and compile the reviewed int
   assert.match(desktop, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
   assert.match(desktop, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
   assert.doesNotMatch(workflow, /PREFLIGHT_UPDATER_ENDPOINT/);
+});
+
+test("every native package job exercises install and both removal scopes", () => {
+  const unconditionalExercise = /- name: Exercise native installation and removal\n        working-directory: preflight-desktop\n        run: npm run desktop:exercise-install/;
+  assert.match(workflow, unconditionalExercise);
+  assert.match(desktopCi, unconditionalExercise);
+  const exercise = readFileSync(
+    resolve(repository, "preflight-desktop/scripts/exercise-native-install.mjs"),
+    "utf8",
+  );
+  assert.match(exercise, /exercisePackagedAllDataRemoval/);
+  assert.match(exercise, /gameModAndSaveDataRetained: true/);
 });

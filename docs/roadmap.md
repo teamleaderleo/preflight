@@ -48,8 +48,10 @@ An interrupted all-data removal blocks other mutations until it is explicitly re
 signature-verified update client and fail-closed three-platform feed pipeline are now implemented;
 the free updater key is provisioned and recoverable. The isolated macOS lifecycle now covers a
 signed 0.1.0 to 0.1.1 update, a fully downloaded rejected-signature case that preserves 0.1.1, a
-checked-package rollback to 0.1.0, and app-only removal with separate data retained. Windows,
-Linux, the hosted candidate, and unattended desktop smoke automation follow. A manual
+checked-package rollback to 0.1.0, app-only removal with separate data retained, and packaged-engine
+full-data removal with game, mod, and save sentinels retained. The same disposable-home removal
+exercise is wired into Debian and Windows package jobs. Their completed hosted evidence, update and
+rollback lifecycles, the hosted candidate, and unattended desktop smoke automation follow. A manual
 private-candidate path now uses the real key across the three-platform matrix, assembles an inert
 signed feed, encrypts and authenticates every file before workflow-artifact upload, and retains
 the complete result without publication authority. Paid Apple and Windows publisher identities are

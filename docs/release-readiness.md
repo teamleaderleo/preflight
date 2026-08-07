@@ -31,9 +31,11 @@ first public beta.
   data removal on each published platform. Development CI now copies the macOS app and performs
   real `.deb` and NSIS install/verify/remove cycles on Ubuntu and Windows. The isolated macOS
   package completed signed forward update, rejected-signature recovery with a byte-identical app,
-  checked-package rollback, and app-only removal with separate data retained. Windows and Linux
-  update/rollback, hosted-candidate completion, OS-warning instructions, and full-data removal
-  checks remain. A manual private
+  checked-package rollback, app-only removal with separate data retained, and full-data removal
+  with game, mod, and save sentinels retained. Every native install exercise now runs the packaged
+  engine's preview and confirmed all-data paths inside a disposable home. Windows and Linux still
+  need a completed hosted run of that check, along with update/rollback, hosted-candidate
+  completion, and OS-warning instructions. A manual private
   candidate path now exercises the real signing credentials and complete three-platform artifact
   assembly without granting its job release-publication permission. Candidate files are
   authenticated and encrypted before every upload because public-repository workflow artifacts are
