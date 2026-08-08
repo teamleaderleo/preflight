@@ -57,6 +57,7 @@ file while preserving a separately owned data sentinel. The packaged engine then
 confirmed full-data removal in a disposable home. It removed the synthetic Preflight data root and
 launch integration while byte-identical Starsector settings, mod metadata, and save sentinels
 remained. The embedded engine's no-launch desktop-smoke probe also returned a well-formed unavailable
-result naming the exact bundled Java executable that still needs macOS Accessibility permission.
+result. The later native-host boundary supersedes its bundled-Java permission attribution; see
+[the native macOS automation boundary](2026-08-09-native-macos-automation-boundary.md).
 The native exercise now applies both checks on Debian and Windows. This replay used the expected
 unsigned development package and didn't launch Starsector.

@@ -146,7 +146,9 @@ first public beta.
   rejects game/save/archive/crash paths, unexpected binary files, screenshots, and unreviewed large
   blobs. CI now extracts the DMG, NSIS, Debian, and AppImage payloads and re-verifies the embedded
   engine and reviewed resources, then exercises ordinary native installation and removal where the
-  package has an installer. The exact evidence is recorded in
+  package has an installer. The macOS exercise also starts the real native host for a no-game
+  automation probe, pins its System Events disclosure, and rejects bundled-Java permission
+  attribution. The exact evidence is recorded in
   [the native-package boundary](evidence/2026-08-07-native-package-boundary.md). A final tagged-candidate
   run remains.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,

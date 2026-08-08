@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -91,6 +92,40 @@ final class MacDesktopSmokeDriverTest {
         step.put("key", "command-q");
         assertThrows(IllegalArgumentException.class,
                 () -> driver.execute(step, temporaryDirectory));
+    }
+
+    @Test
+    void nativeBridgeContractIsLoopbackAuthorizedAndClosed() {
+        String token = "a".repeat(64);
+        Map<String, Object> payload = MacDesktopSmokeDriver.bridgePayload(
+                token, "click", 4_242L, "main-menu.continue");
+
+        assertEquals(
+                Set.of("protocol", "token", "operation", "pid", "argument"),
+                payload.keySet());
+        assertEquals(1, payload.get("protocol"));
+        assertEquals(token, payload.get("token"));
+        assertEquals(4_242L, payload.get("pid"));
+        assertThrows(UnsupportedOperationException.class,
+                () -> payload.put("operation", "arbitrary-script"));
+        assertThrows(IllegalArgumentException.class, () -> new MacDesktopSmokeDriver(
+                new FakeCommands(), Path.of("/usr/bin/osascript"),
+                Path.of("/usr/sbin/screencapture"), "0.0.0.0:1234", token));
+        assertThrows(IllegalArgumentException.class, () -> new MacDesktopSmokeDriver(
+                new FakeCommands(), Path.of("/usr/bin/osascript"),
+                Path.of("/usr/sbin/screencapture"), "127.0.0.1:1234", "short"));
+    }
+
+    @Test
+    void nativeBridgeCredentialsNeverReachTheGameChild() {
+        Map<String, String> environment = new java.util.HashMap<>();
+        environment.put("PREFLIGHT_MAC_AUTOMATION_ENDPOINT", "127.0.0.1:4242");
+        environment.put("PREFLIGHT_MAC_AUTOMATION_TOKEN", "secret");
+        environment.put("PREFLIGHT_RUN_DIR", "/kept");
+
+        MacDesktopSmokeDriver.removeBridgeCredentials(environment);
+
+        assertEquals(Map.of("PREFLIGHT_RUN_DIR", "/kept"), environment);
     }
 
     @Test

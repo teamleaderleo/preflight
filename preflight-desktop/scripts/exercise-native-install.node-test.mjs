@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertPackagedScenarioValidation,
   assertPackagedSkippedEvidence,
+  validatePackagedDesktopSmokeProbe,
 } from "./exercise-native-install.mjs";
 
 test("packaged scenario validation requires the shipped campaign contract", () => {
@@ -38,5 +39,45 @@ test("packaged evidence requires a sealed skip instead of a synthetic pass", () 
       { ...evidence, status: "passed" },
     ),
     /evidence is malformed/,
+  );
+});
+
+test("packaged macOS automation probe stays on the native host boundary", () => {
+  const unavailable = {
+    protocol: 1,
+    probe: {
+      ready: false,
+      driver: null,
+      diagnostics: [
+        "macOS Accessibility permission isn't enabled for the automation executable: the Preflight application",
+      ],
+    },
+  };
+  assert.deepEqual(validatePackagedDesktopSmokeProbe(unavailable, true), {
+    ready: false,
+    driver: null,
+    diagnostic: unavailable.probe.diagnostics[0],
+    nativeHost: true,
+  });
+  assert.throws(
+    () => validatePackagedDesktopSmokeProbe({
+      ...unavailable,
+      probe: {
+        ...unavailable.probe,
+        diagnostics: ["permission needed by /Resources/engine/runtime/bin/java"],
+      },
+    }, true),
+    /attributes permission incorrectly/,
+  );
+  assert.throws(
+    () => validatePackagedDesktopSmokeProbe({
+      protocol: 1,
+      probe: {
+        ready: true,
+        driver: { id: "macos-system-events-pid", capabilities: [] },
+        diagnostics: [],
+      },
+    }, true),
+    /bypassed its native bridge/,
   );
 });

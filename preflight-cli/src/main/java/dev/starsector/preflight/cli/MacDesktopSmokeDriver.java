@@ -1,6 +1,10 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.Json;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +26,9 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration QUIT_GRACE = Duration.ofSeconds(8);
     private static final int LOG_TAIL_BYTES = 1024 * 1024;
+    private static final int BRIDGE_RESPONSE_BYTES = 8 * 1024;
+    private static final String BRIDGE_ENDPOINT_ENV = "PREFLIGHT_MAC_AUTOMATION_ENDPOINT";
+    private static final String BRIDGE_TOKEN_ENV = "PREFLIGHT_MAC_AUTOMATION_TOKEN";
     private static final Map<String, TargetPoint> TARGETS = targets();
     private static final Map<String, Integer> KEY_CODES = Map.of(
             "a", 0,
@@ -35,17 +42,35 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private final DesktopCommandExecutor commands;
     private final Path osascript;
     private final Path screenCapture;
+    private final String bridgeEndpoint;
+    private final String bridgeToken;
     private ProcessTarget target;
 
     MacDesktopSmokeDriver() {
         this(new SystemDesktopCommandExecutor(), Path.of("/usr/bin/osascript"),
-                Path.of("/usr/sbin/screencapture"));
+                Path.of("/usr/sbin/screencapture"),
+                System.getenv(BRIDGE_ENDPOINT_ENV), System.getenv(BRIDGE_TOKEN_ENV));
     }
 
     MacDesktopSmokeDriver(DesktopCommandExecutor commands, Path osascript, Path screenCapture) {
+        this(commands, osascript, screenCapture, null, null);
+    }
+
+    MacDesktopSmokeDriver(
+            DesktopCommandExecutor commands,
+            Path osascript,
+            Path screenCapture,
+            String bridgeEndpoint,
+            String bridgeToken) {
         this.commands = commands;
         this.osascript = osascript;
         this.screenCapture = screenCapture;
+        this.bridgeEndpoint = validatedBridgeEndpoint(bridgeEndpoint);
+        this.bridgeToken = validatedBridgeToken(bridgeToken);
+        if ((this.bridgeEndpoint == null) != (this.bridgeToken == null)) {
+            throw new IllegalArgumentException(
+                    "The macOS native automation bridge needs both endpoint and token");
+        }
     }
 
     @Override
@@ -56,10 +81,10 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         if (!Files.isExecutable(osascript)) {
             throw new UnavailableException("osascript is unavailable at " + osascript);
         }
-        DesktopCommandExecutor.Result accessibility = command(List.of(
-                osascript.toString(), "-e",
-                "tell application \"System Events\" to return UI elements enabled"));
-        if (!"true".equals(accessibility.output().trim().toLowerCase(Locale.ROOT))) {
+        String accessibility = automation(
+                "probe", 0, null,
+                "tell application \"System Events\" to return UI elements enabled");
+        if (!"true".equals(accessibility.trim().toLowerCase(Locale.ROOT))) {
             throw new UnavailableException(
                     "macOS Accessibility permission isn't enabled for the automation executable: "
                             + automationExecutable());
@@ -70,10 +95,13 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
         List<String> diagnostics = Files.isExecutable(screenCapture)
                 ? List.of("Accessibility is enabled; Screen Recording is verified on first bounded capture")
                 : List.of("screencapture is unavailable at " + screenCapture);
-        return new Descriptor("macos-system-events-pid", "1", "mac", capabilities, diagnostics);
+        return new Descriptor(
+                nativeBridge() ? "macos-preflight-native-pid" : "macos-system-events-pid",
+                nativeBridge() ? "2" : "1", "mac", capabilities, diagnostics);
     }
 
-    private static String automationExecutable() {
+    private String automationExecutable() {
+        if (nativeBridge()) return "the Preflight application";
         return ProcessHandle.current().info().command()
                 .map(command -> Path.of(command).toAbsolutePath().normalize().toString())
                 .orElse("the bundled Preflight Java runtime");
@@ -109,7 +137,8 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     public Observation observe() throws Exception {
         ProcessTarget attached = attached();
         requireSameLifetime(attached);
-        String output = command(script(observationScript(attached.pid()))).output().trim();
+        String output = automation(
+                "observe", attached.pid(), null, observationScript(attached.pid())).trim();
         return new Observation(output);
     }
 
@@ -121,26 +150,33 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     }
 
     private ActionResult activate(ProcessTarget attached) throws Exception {
-        String output = command(script(activateScript(attached.pid()))).output().trim();
+        String output = automation(
+                "activate", attached.pid(), null, activateScript(attached.pid())).trim();
         return ActionResult.completed(output);
     }
 
     private ActionResult click(ProcessTarget attached, String name) throws Exception {
         TargetPoint point = TARGETS.get(name);
         if (point == null) throw new IllegalArgumentException("Unsupported macOS smoke target: " + name);
-        String output = command(script(clickScript(attached.pid(), point))).output().trim();
+        String output = automation(
+                "click", attached.pid(), name, clickScript(attached.pid(), point)).trim();
         return ActionResult.completed(output);
     }
 
     private ActionResult pressKey(ProcessTarget attached, String key) throws Exception {
         int code = keyCode(key);
-        String output = command(script(keyCodeScript(attached.pid(), code))).output().trim();
+        String normalized = normalizedKey(key);
+        String output = automation(
+                "press-key", attached.pid(), normalized,
+                keyCodeScript(attached.pid(), code)).trim();
         return ActionResult.completed(output);
     }
 
     private ActionResult holdKey(ProcessTarget attached, String key, int durationMillis) throws Exception {
         String normalized = normalizedKey(key);
-        command(script(keyTransitionScript(attached.pid(), normalized, true)));
+        automation(
+                "key-down", attached.pid(), normalized,
+                keyTransitionScript(attached.pid(), normalized, true));
         boolean interrupted = false;
         try {
             Thread.sleep(durationMillis);
@@ -160,7 +196,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     private void releaseKey(long pid, String key) throws Exception {
         // key-up remains safe if the game exits between key-down and release: it cannot create input.
-        command(script(keyReleaseScript(pid, key)));
+        automation("release-key", pid, key, keyReleaseScript(pid, key));
     }
 
     private ActionResult capture(
@@ -187,6 +223,16 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     }
 
     private Artifact screenshot(ProcessTarget attached, Path runDirectory) throws Exception {
+        if (nativeBridge()) {
+            automation("capture", attached.pid(), null, windowBoundsScript(attached.pid()));
+            Path destination = runDirectory.resolve("desktop-smoke.png");
+            if (!Files.isRegularFile(destination, LinkOption.NOFOLLOW_LINKS)
+                    || Files.size(destination) == 0) {
+                throw new UnavailableException(
+                        "The native macOS bridge didn't produce a bounded game-window capture");
+            }
+            return new Artifact("screenshot", destination);
+        }
         WindowBounds bounds = windowBounds(attached.pid());
         Path destination = runDirectory.resolve("desktop-smoke.png");
         DesktopCommandExecutor.Result result = command(List.of(
@@ -237,7 +283,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     private ActionResult quit(ProcessTarget attached) throws Exception {
         if (!sameLifetime(attached)) return ActionResult.completed("process already stopped");
         try {
-            command(script(quitScript(attached.pid())));
+            automation("quit", attached.pid(), null, quitScript(attached.pid()));
         } catch (UnavailableException unavailable) {
             // A vanished window is expected during some crash paths; exact-PID shutdown remains safe.
         }
@@ -268,7 +314,7 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
     }
 
     private WindowBounds windowBounds(long pid) throws Exception {
-        String output = command(script(windowBoundsScript(pid))).output().trim();
+        String output = automation("window-bounds", pid, null, windowBoundsScript(pid)).trim();
         String[] parts = output.split("\\s*,\\s*");
         if (parts.length != 4) throw new IOException("Unexpected macOS window bounds: " + output);
         try {
@@ -335,6 +381,100 @@ final class MacDesktopSmokeDriver implements DesktopSmokeDriver {
 
     private List<String> script(String source) {
         return List.of(osascript.toString(), "-e", source);
+    }
+
+    private boolean nativeBridge() {
+        return bridgeEndpoint != null;
+    }
+
+    private String automation(
+            String operation, long pid, String argument, String fallbackScript) throws Exception {
+        if (!nativeBridge()) return command(script(fallbackScript)).output();
+        Map<String, Object> request = bridgePayload(bridgeToken, operation, pid, argument);
+        InetSocketAddress endpoint = bridgeAddress(bridgeEndpoint);
+        try (Socket socket = new Socket()) {
+            socket.connect(endpoint, (int) COMMAND_TIMEOUT.toMillis());
+            socket.setSoTimeout((int) COMMAND_TIMEOUT.toMillis());
+            socket.getOutputStream().write(
+                    (Json.object(request) + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+            socket.getOutputStream().flush();
+            socket.shutdownOutput();
+            ByteArrayOutputStream response = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            while (response.size() <= BRIDGE_RESPONSE_BYTES) {
+                int read = socket.getInputStream().read(buffer);
+                if (read < 0) break;
+                response.write(buffer, 0, read);
+            }
+            if (response.size() > BRIDGE_RESPONSE_BYTES) {
+                throw new UnavailableException("The native macOS automation response is too large");
+            }
+            Map<String, Object> value = StrictJson.object(response.toString(StandardCharsets.UTF_8));
+            if (!value.keySet().equals(Set.of("protocol", "ok", "output", "error"))
+                    || !Long.valueOf(1).equals(value.get("protocol"))
+                    || !(value.get("ok") instanceof Boolean ok)) {
+                throw new UnavailableException("The native macOS automation response is invalid");
+            }
+            if (!ok) {
+                Object error = value.get("error");
+                throw new UnavailableException(error instanceof String detail
+                        ? bounded(detail) : "The native macOS automation request failed");
+            }
+            Object output = value.get("output");
+            if (!(output instanceof String text) || value.get("error") != null) {
+                throw new UnavailableException("The native macOS automation response is inconsistent");
+            }
+            return text;
+        } catch (UnavailableException unavailable) {
+            throw unavailable;
+        } catch (IOException | IllegalArgumentException error) {
+            throw new UnavailableException(
+                    "Could not use the native macOS automation bridge: " + bounded(error.getMessage()));
+        }
+    }
+
+    static Map<String, Object> bridgePayload(
+            String token, String operation, long pid, String argument) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("protocol", 1);
+        request.put("token", token);
+        request.put("operation", operation);
+        request.put("pid", pid > 0 ? pid : null);
+        request.put("argument", argument);
+        return java.util.Collections.unmodifiableMap(request);
+    }
+
+    private static InetSocketAddress bridgeAddress(String endpoint) {
+        int separator = endpoint == null ? -1 : endpoint.lastIndexOf(':');
+        if (separator <= 0 || !"127.0.0.1".equals(endpoint.substring(0, separator))) {
+            throw new IllegalArgumentException("The native macOS automation endpoint isn't loopback");
+        }
+        int port = Integer.parseInt(endpoint.substring(separator + 1));
+        if (port < 1 || port > 65_535) {
+            throw new IllegalArgumentException("The native macOS automation port is invalid");
+        }
+        return new InetSocketAddress("127.0.0.1", port);
+    }
+
+    private static String validatedBridgeEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) return null;
+        bridgeAddress(endpoint);
+        return endpoint;
+    }
+
+    private static String validatedBridgeToken(String token) {
+        if (token == null || token.isBlank()) return null;
+        if (token.length() != 64 || !token.chars().allMatch(
+                character -> Character.isDigit(character)
+                        || character >= 'a' && character <= 'f')) {
+            throw new IllegalArgumentException("The native macOS automation token is invalid");
+        }
+        return token;
+    }
+
+    static void removeBridgeCredentials(Map<String, String> environment) {
+        environment.remove(BRIDGE_ENDPOINT_ENV);
+        environment.remove(BRIDGE_TOKEN_ENV);
     }
 
     static String windowBoundsScript(long pid) {

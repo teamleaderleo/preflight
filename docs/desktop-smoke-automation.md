@@ -140,13 +140,23 @@ cover pass, skip, and mid-scenario failure without opening the game.
 
 ## Current macOS status
 
-The first checked-in macOS driver uses System Events through `/usr/bin/osascript`. Every window,
+The packaged desktop app owns a short-lived native automation bridge. It binds only an ephemeral
+loopback port, generates a per-process 256-bit capability, and gives both values directly to its
+bundled engine child. The protocol accepts a closed list of reviewed operations: permission probe,
+exact-PID activation and observation, the relative Continue target, seven keys, release, quit, and
+a window-bounded capture into the run directory. It accepts no AppleScript source, arbitrary
+coordinate, arbitrary key, host, or output path. The bridge ends with the engine child and never
+writes its capability into evidence.
+
+The native host runs the reviewed System Events scripts through `/usr/bin/osascript`. Every window,
 click, key, observation, and quit script resolves `application process whose unix id is <pid>` from
 the injected JVM's runtime record. No script contains the game's application name or asks Launch
 Services to open an application. The 2026-08-06 direct-launch probe showed why this matters: the
 live game window belongs to Azul's generic `com.azul.zulu.java` process while Launch Services also
 registers the dormant `Starsector.app` bundle. Display-name attachment launched that dormant bundle
-and briefly created a second instance.
+and briefly created a second instance. A standalone CLI invocation retains the earlier direct-Java
+driver for development, while the supported packaged path attributes the permission request to
+Preflight.
 
 The driver checks the live process start instant in Java before every action and again resolves the
 same numeric PID inside System Events. Its current reviewed coordinate asset covers only
@@ -198,21 +208,26 @@ finished cleanup. Closing Preflight during an ordinary play session still leaves
 App exit also cancels an owned cache-preparation child before leaving.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
-proved by the first bounded capture; a denial becomes `skipped`. The generated scripts, PID-only
-boundary, coordinate math, key release, bounded screenshot, live evidence, and failure cleanup have
-isolated tests that don't open the game. One live isolated action test is still required before
-calling the macOS driver production-ready.
+proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the
+System Events use, and the native package verifier requires that exact disclosure. The generated
+scripts, authorization protocol, PID-only boundary, coordinate math, key release, bounded
+screenshot, live evidence, and failure cleanup have isolated tests that don't open the game. One
+live isolated action test is still required before calling the macOS driver production-ready.
 
 Windows has an exact-PID `MainWindowHandle` adapter backed by PowerShell and User32. Linux has an
 exact-PID X11 adapter backed by `xdotool` and ImageMagick `import`; Wayland and missing helper tools
 produce an explicit unavailable result. Both adapters compile and have offline boundary tests, but
 neither is labelled live-validated until a beta run happens on that platform.
 
-A packaged no-launch probe is available as `desktop smoke probe`. On this development machine it
-reported Accessibility unavailable again on 2026-08-08, so the live gate remains closed even
-though all generated scripts compile with Apple's real script compiler. A failed probe now reports
-the exact automation executable that macOS needs to trust. Granting permission to a different
-terminal, editor, application bundle, or Java binary isn't treated as sufficient.
+A packaged no-launch probe is available as `desktop smoke probe`. The native install exercise now
+starts the actual packaged host, crosses its authorized loopback bridge, and requires either the
+native driver ID or an unavailable result naming the Preflight application. A result naming the
+bundled Java runtime fails package verification. That exercise also moves the app before probing;
+the native host resolves its engine from a canonical path confined to the moved bundle's own
+`Contents/Resources` tree. Granting permission to a different terminal, editor, application bundle,
+or Java binary isn't treated as sufficient. macOS tracks protected access through code identity, so
+an unsigned or differently signed development build may still need permission granted again after
+replacement.
 
 Every native install exercise also validates the packaged `campaign-roam` scenario and seals an
 intentional no-game driver result through `desktop evidence collect`. That evidence must say

@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 mod automation;
+mod desktop_automation_bridge;
 mod engine;
 mod operations;
 mod preparation;
@@ -238,6 +239,24 @@ pub fn run() {
         .manage(OperationCoordinator::default())
         .manage(UpdateTracker(Mutex::new(None)))
         .setup(|app| {
+            if std::env::var_os("PREFLIGHT_DESKTOP_AUTOMATION_PROBE_SMOKE").as_deref()
+                == Some(std::ffi::OsStr::new("1"))
+            {
+                match get_desktop_smoke_probe(app.handle().clone()) {
+                    Ok(probe) => println!(
+                        "PREFLIGHT_DESKTOP_AUTOMATION_PROBE={}",
+                        serde_json::to_string(&probe)
+                            .expect("desktop automation probe should serialize")
+                    ),
+                    Err(error) => {
+                        eprintln!("PREFLIGHT_DESKTOP_AUTOMATION_PROBE_ERROR={error}");
+                        app.handle().exit(1);
+                        return Ok(());
+                    }
+                }
+                app.handle().exit(0);
+                return Ok(());
+            }
             if std::env::var_os("PREFLIGHT_DESKTOP_BOOT_SMOKE").as_deref()
                 == Some(std::ffi::OsStr::new("1"))
             {

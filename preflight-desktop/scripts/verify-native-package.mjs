@@ -262,6 +262,8 @@ function verifyMacApp(appDirectory, signatureRequired) {
     CFBundleIdentifier: "io.github.teamleaderleo.preflight",
     CFBundleName: "Preflight",
     CFBundlePackageType: "APPL",
+    NSAppleEventsUsageDescription:
+      "Preflight uses System Events only during an automated game test that you review and start.",
   };
   for (const [key, value] of Object.entries(expectedPlist)) {
     if (plist[key] !== value) throw new Error(`Unexpected macOS app ${key}: ${plist[key]}`);

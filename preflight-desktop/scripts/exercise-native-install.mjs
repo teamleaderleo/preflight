@@ -242,6 +242,32 @@ export function assertPackagedSkippedEvidence(response, stored) {
 }
 
 export function exercisePackagedDesktopSmokeProbe(packageRoot) {
+  if (process.platform === "darwin" && basename(packageRoot) === "Preflight.app") {
+    const executable = join(packageRoot, "Contents", "MacOS", "starsector-preflight-desktop");
+    const result = spawnSync(executable, [], {
+      encoding: "utf8",
+      env: { ...process.env, PREFLIGHT_DESKTOP_AUTOMATION_PROBE_SMOKE: "1" },
+      stdio: "pipe",
+      timeout: 20_000,
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(
+        `Packaged native desktop smoke probe failed with ${result.status}: ` +
+        `${(result.stderr ?? "").trim() || "probe marker missing"}`,
+      );
+    }
+    const marker = "PREFLIGHT_DESKTOP_AUTOMATION_PROBE=";
+    const line = (result.stdout ?? "").split(/\r?\n/).find((value) => value.startsWith(marker));
+    if (!line) {
+      throw new Error(
+        "Packaged native desktop smoke probe returned no result marker: " +
+        `${(result.stderr ?? "").trim() || "no diagnostic"}`,
+      );
+    }
+    const probe = JSON.parse(line.slice(marker.length));
+    return validatePackagedDesktopSmokeProbe(probe, true);
+  }
   const engineDirectory = onlyPackagedEngine(packageRoot);
   const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
   const probe = JSON.parse(capture(
@@ -249,6 +275,10 @@ export function exercisePackagedDesktopSmokeProbe(packageRoot) {
     ["-jar", join(engineDirectory, "preflight.jar"), "desktop", "smoke", "probe"],
     { cwd: engineDirectory },
   ));
+  return validatePackagedDesktopSmokeProbe(probe, false);
+}
+
+export function validatePackagedDesktopSmokeProbe(probe, nativeMacHost) {
   if (probe.protocol !== 1 || typeof probe.probe?.ready !== "boolean"
       || !Array.isArray(probe.probe?.diagnostics)) {
     throw new Error(`Packaged desktop smoke probe is malformed: ${JSON.stringify(probe)}`);
@@ -261,10 +291,22 @@ export function exercisePackagedDesktopSmokeProbe(packageRoot) {
   } else if (probe.probe.driver !== null || probe.probe.diagnostics.length === 0) {
     throw new Error(`Unavailable packaged desktop smoke probe has no reason: ${JSON.stringify(probe)}`);
   }
+  if (nativeMacHost) {
+    if (probe.probe.ready && probe.probe.driver?.id !== "macos-preflight-native-pid") {
+      throw new Error(`Packaged macOS smoke probe bypassed its native bridge: ${JSON.stringify(probe)}`);
+    }
+    if (!probe.probe.ready) {
+      const diagnostics = probe.probe.diagnostics.join("\n");
+      if (!diagnostics.includes("the Preflight application") || diagnostics.includes("/runtime/bin/java")) {
+        throw new Error(`Packaged macOS smoke probe attributes permission incorrectly: ${JSON.stringify(probe)}`);
+      }
+    }
+  }
   return {
     ready: probe.probe.ready,
     driver: probe.probe.driver?.id ?? null,
     diagnostic: probe.probe.diagnostics[0] ?? null,
+    nativeHost: nativeMacHost,
   };
 }
 

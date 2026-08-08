@@ -16,12 +16,7 @@ pub(crate) struct EnginePaths {
 
 impl EnginePaths {
     pub(crate) fn resolve(app: &AppHandle) -> Result<Self, String> {
-        let bundled_jar = || {
-            app.path()
-                .resolve("engine/preflight.jar", BaseDirectory::Resource)
-                .ok()
-                .filter(|path| path.is_file())
-        };
+        let bundled_jar = || bundled_resource(app, Path::new("engine/preflight.jar"));
         #[cfg(debug_assertions)]
         let jar = env::var_os("PREFLIGHT_DESKTOP_JAR")
             .map(PathBuf::from)
@@ -67,13 +62,42 @@ fn development_jar() -> Option<PathBuf> {
 
 fn bundled_java(app: &AppHandle) -> Option<PathBuf> {
     let executable = if cfg!(windows) { "javaw.exe" } else { "java" };
+    bundled_resource(
+        app,
+        Path::new("engine/runtime/bin").join(executable).as_path(),
+    )
+}
+
+fn bundled_resource(app: &AppHandle, relative: &Path) -> Option<PathBuf> {
     app.path()
-        .resolve(
-            format!("engine/runtime/bin/{executable}"),
-            BaseDirectory::Resource,
-        )
+        .resolve(relative, BaseDirectory::Resource)
         .ok()
         .filter(|path| path.is_file())
+        .or_else(|| macos_bundle_resource(relative))
+}
+
+#[cfg(target_os = "macos")]
+fn macos_bundle_resource(relative: &Path) -> Option<PathBuf> {
+    let executable = std::env::current_exe().ok()?.canonicalize().ok()?;
+    let macos = executable.parent()?;
+    if macos.file_name()? != "MacOS" {
+        return None;
+    }
+    let contents = macos.parent()?;
+    if contents.file_name()? != "Contents" {
+        return None;
+    }
+    let resources = contents.join("Resources").canonicalize().ok()?;
+    let candidate = resources.join(relative).canonicalize().ok()?;
+    candidate
+        .starts_with(&resources)
+        .then_some(candidate)
+        .filter(|path| path.is_file())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn macos_bundle_resource(_relative: &Path) -> Option<PathBuf> {
+    None
 }
 
 #[cfg(debug_assertions)]

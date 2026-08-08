@@ -1,3 +1,4 @@
+use crate::desktop_automation_bridge::DesktopAutomationBridge;
 use crate::operations::{DesktopSmokeProcess, OperationCoordinator, refuse_update_install};
 use crate::{
     EnginePaths, RunStarted, canonical_game_directory, child_error, read_tail, take_deferred_exit,
@@ -31,6 +32,8 @@ struct DesktopSmokeStateEvent {
 pub(crate) fn get_desktop_smoke_probe(app: AppHandle) -> Result<Value, String> {
     let paths = EnginePaths::resolve(&app)?;
     let mut command = paths.command();
+    let automation = DesktopAutomationBridge::start(None)?;
+    automation.configure(&mut command);
     command.arg("desktop").arg("smoke").arg("probe");
     let output = command
         .output()
@@ -130,6 +133,8 @@ pub(crate) fn start_desktop_smoke(
     }
 
     let mut command = paths.command();
+    let automation = DesktopAutomationBridge::start(Some(&run_directory))?;
+    automation.configure(&mut command);
     command
         .arg("desktop")
         .arg("smoke")
@@ -161,7 +166,7 @@ pub(crate) fn start_desktop_smoke(
             run_directory: run_directory.to_string_lossy().into_owned(),
         },
     );
-    watch_desktop_smoke(app, child, run_directory);
+    watch_desktop_smoke(app, child, run_directory, automation);
     Ok(RunStarted { pid })
 }
 
@@ -232,9 +237,15 @@ pub(crate) fn cancel_desktop_smoke(
     Ok(true)
 }
 
-fn watch_desktop_smoke(app: AppHandle, mut child: Child, run_directory: PathBuf) {
+fn watch_desktop_smoke(
+    app: AppHandle,
+    mut child: Child,
+    run_directory: PathBuf,
+    automation: DesktopAutomationBridge,
+) {
     let pid = child.id();
     std::thread::spawn(move || {
+        let _automation = automation;
         let stdout = child
             .stdout
             .take()

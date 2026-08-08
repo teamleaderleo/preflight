@@ -115,8 +115,9 @@ The same exercise now generates a license-free installation under a spaces-and-U
 explicit discovery, cold preparation and warm reuse, constructs a launch without executing its
 sentinel launcher, verifies the installation stayed byte-identical, and opens the diagnostics ZIP
 to prove a private console sentinel wasn't exported.
-The macOS no-launch probe still lacks Accessibility permission for the exact bundled Java runtime;
-one isolated live action test remains there, followed by native Windows and Linux beta validation.
+The macOS packaged host now owns the Accessibility boundary through a capability-authorized native
+bridge; its no-launch install exercise rejects any permission diagnostic attributed to bundled
+Java. One isolated live action test remains, followed by native Windows and Linux beta validation.
 
 ## Measured result (2026-08-01, third campaign)
 

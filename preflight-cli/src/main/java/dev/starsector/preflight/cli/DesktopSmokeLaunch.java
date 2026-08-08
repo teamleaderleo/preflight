@@ -52,10 +52,13 @@ final class DesktopSmokeLaunch {
 
         List<String> command = command(
                 javaExecutable(), SelfJar.locate(), scenario, run, game, launcher);
-        Process process = new ProcessBuilder(command)
+        ProcessBuilder launcherBuilder = new ProcessBuilder(command)
                 .redirectErrorStream(true)
-                .redirectOutput(launcherOutput.toFile())
-                .start();
+                .redirectOutput(launcherOutput.toFile());
+        // The native bridge belongs only to this controller. Mods run in the game child and must
+        // never inherit the per-launch capability that authorizes desktop operations.
+        MacDesktopSmokeDriver.removeBridgeCredentials(launcherBuilder.environment());
+        Process process = launcherBuilder.start();
         AtomicBoolean cancellationObserved = new AtomicBoolean(false);
         AtomicBoolean launchFinished = new AtomicBoolean(false);
         Thread cancellationMonitor = cancellationMonitor(

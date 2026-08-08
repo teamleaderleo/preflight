@@ -67,10 +67,12 @@ evidence storage, rejects another tracked runtime, waits for the new process ide
 exact-process cleanup plus launcher postprocessing. The remaining macOS gate is one isolated live
 action run.
 
-The packaged `desktop smoke probe` currently reports that this bridge process lacks Accessibility
-trust, so don't attempt the game run until that exact permission is fixed. Exact-PID Windows/User32
-and Linux/X11 adapters are implemented and offline-tested; both still need live platform beta runs,
-and Linux deliberately skips Wayland.
+The packaged desktop now owns macOS automation through a loopback-only, per-child capability bridge
+whose protocol contains only reviewed exact-PID operations. The native install exercise runs that
+real path without launching the game and rejects a probe attributed to bundled Java. A new or
+unsigned development app may still need Accessibility permission granted to Preflight before the
+isolated game run. Exact-PID Windows/User32 and Linux/X11 adapters are implemented and
+offline-tested; both still need live platform beta runs, and Linux deliberately skips Wayland.
 The desktop app packages the checked scenario and exposes a no-launch readiness check followed by a
 separate review and confirmation. It tracks the smoke launcher as the active game, reads the sealed
 receipt rather than trusting process exit alone, and leaves the evidence path visible afterward.
