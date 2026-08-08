@@ -11,8 +11,8 @@ same time.
 
 | Area | Current size | What is mixed together | Direction |
 | --- | ---: | --- | --- |
-| Tauri `lib.rs` | 3,221 lines | process ownership, updates, reports, settings, profiles, removal, preparation and automation | Split by command family after introducing one shared operation coordinator |
-| React `App.tsx` | 1,084 lines after five extractions | installation, launch settings, cleanup, removal and page rendering | Extract the remaining behavior into feature hooks as each page moves |
+| Tauri `lib.rs` | 2,862 lines after the first native extraction | updates, reports, settings, profiles, removal and preparation | Continue splitting command families through the shared operation coordinator |
+| React `App.tsx` | 285 lines after the workflow and page extractions | installation selection, launch orchestration and page composition | Keep it as the application composition boundary |
 | `AdapterTargetRegistry` | 2,028 lines | reviewed class fingerprints and method requirements | Keep explicit; size alone isn't a defect |
 | `RunCommand` | 1,310 lines | launch orchestration, cache-context selection, metadata and reporting | Extract profile/context selection behind one typed result |
 | `AdapterTransformationRegistry` | 1,024 lines | reviewed transformation registrations | Keep explicit until a generated form proves byte-for-byte equivalent output |
@@ -35,23 +35,24 @@ Move each stateful workflow out of `App.tsx` in this order:
 5. desktop automation;
 6. cache cleanup and removal.
 
-The diagnostics/report, signed-update, preparation/storage, named-profile and desktop-automation
-hooks are complete. Together they removed thirty-five state variables, eleven effects and
-seventeen actions from the root component while retaining the existing browser and native
-transport tests. The next hooks should keep the same rule: state, bridge calls and event
-subscriptions move together. Presentational page components can now move against narrow
-interfaces instead of carrying process events and cache mutations in their props.
+The diagnostics/report, signed-update, preparation/storage, named-profile, desktop-automation,
+launcher-settings, cache-cleanup and removal hooks are complete. Page components are separate, and
+`App.tsx` is now a 285-line composition boundary. State, bridge calls and event subscriptions moved
+together, preserving the browser and native transport tests. Further React extraction needs a
+concrete ownership problem rather than a line-count target.
 
 ### 2. One native operation coordinator
 
-The native host currently keeps game, preparation, report-upload and update state in one private
-structure. That shared state is valuable: it prevents an update, deletion or second game launch
-from racing an owned operation. Module extraction should begin by naming that boundary rather than
-duplicating locks in separate modules.
+The native host now keeps game, automated-smoke, preparation, report-upload and update-installation
+state in `OperationCoordinator`. That shared state prevents an update, deletion or second game
+launch from racing an owned operation. The first extraction moved the coordinator and its update
+guard into `operations.rs`; desktop automation now lives in `automation.rs` and receives that same
+coordinator rather than creating another lock.
 
-After the coordinator has focused transition tests, move command families into `report.rs`,
-`updates.rs`, `automation.rs` and `engine.rs`. Each module should receive the coordinator and an
-`AppHandle`; none should create another global process tracker. Exit cleanup remains centralized.
+The coordinator's update exclusion, guard release and shutdown cleanup transitions have focused
+tests. Move the remaining command families into `report.rs`, `updates.rs` and `engine.rs`. Each
+module receives the coordinator and an `AppHandle`; none creates another global process tracker.
+Exit cleanup remains centralized.
 
 ### 3. Launch context selection
 
@@ -70,9 +71,9 @@ then the same synthetic and real-install gates used for an optimization.
 
 ## Design dependency
 
-The first three desktop hooks now exist, so the visual redesign can begin without moving its main
-asynchronous behavior in the same patch. It can focus on information order, typography, density
-and progressive disclosure while the feature hooks remain stable.
+The desktop hooks, page split and responsive visual foundation are complete. Further interface work
+can focus on state coverage, accessibility, information order, typography and density while the
+feature hooks remain stable.
 
 ## Verification rule
 

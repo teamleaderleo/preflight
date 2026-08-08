@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::env;
-use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Read, Write};
+use std::fs;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
@@ -18,59 +18,27 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::watch;
 use url::Url;
 
+mod automation;
+mod operations;
+
+use automation::{
+    cancel_desktop_smoke, get_desktop_smoke_probe, open_desktop_accessibility_settings,
+    request_desktop_smoke_cancellation, start_desktop_smoke,
+};
+use operations::{
+    OperationCoordinator, OperationState, PreparationProcess, ReportUploadProcess,
+    begin_update_install, refuse_update_install,
+};
+
 const DEFAULT_UPDATE_ENDPOINT: &str =
     "https://github.com/teamleaderleo/preflight/releases/latest/download/latest.json";
-#[cfg(target_os = "macos")]
-const MACOS_ACCESSIBILITY_SETTINGS: &str =
-    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
-const DESKTOP_SMOKE_CANCELLATION_FILE: &str = "cancel.requested";
 const REPORT_INTAKE_ORIGIN: Option<&str> = option_env!("PREFLIGHT_REPORT_INTAKE_ORIGIN");
 const REPORT_PROTOCOL_VERSION: u32 = 1;
 const REPORT_RESPONSE_LIMIT: usize = 64 * 1024;
 const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;
 static NEXT_REPORT_UPLOAD_ID: AtomicU64 = AtomicU64::new(1);
 
-#[derive(Default)]
-struct ProcessState {
-    game: Option<u32>,
-    desktop_smoke: Option<DesktopSmokeProcess>,
-    preparation: Option<PreparationProcess>,
-    report_upload: Option<ReportUploadProcess>,
-    update_installing: bool,
-    exit_after_cleanup: bool,
-}
-
-struct DesktopSmokeProcess {
-    pid: u32,
-    run_directory: PathBuf,
-}
-
-struct PreparationProcess {
-    pid: u32,
-    cancel: mpsc::Sender<()>,
-}
-
-struct ReportUploadProcess {
-    id: u64,
-    total_bytes: u64,
-    cancel: watch::Sender<bool>,
-}
-
-struct ProcessTracker(Mutex<ProcessState>);
-
 struct UpdateTracker(Mutex<Option<Update>>);
-
-struct UpdateInstallGuard<'a> {
-    processes: &'a Mutex<ProcessState>,
-}
-
-impl Drop for UpdateInstallGuard<'_> {
-    fn drop(&mut self) {
-        if let Ok(mut running) = self.processes.lock() {
-            running.update_installing = false;
-        }
-    }
-}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -95,16 +63,6 @@ struct PreparationStateEvent {
     success: Option<bool>,
     detail: Option<String>,
     report: Option<String>,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DesktopSmokeStateEvent {
-    state: &'static str,
-    pid: u32,
-    success: Option<bool>,
-    detail: Option<String>,
-    run_directory: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -387,209 +345,6 @@ fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value, String> {
 }
 
 #[tauri::command]
-fn get_desktop_smoke_probe(app: AppHandle) -> Result<Value, String> {
-    let paths = EnginePaths::resolve(&app)?;
-    let mut command = paths.command();
-    command.arg("desktop").arg("smoke").arg("probe");
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
-    if !output.status.success() {
-        return Err(child_error(
-            "Preflight could not inspect desktop-test readiness",
-            &output.stderr,
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable desktop-test probe: {error}"))
-}
-
-#[tauri::command]
-fn open_desktop_accessibility_settings() -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        let status = Command::new("/usr/bin/open")
-            .arg(MACOS_ACCESSIBILITY_SETTINGS)
-            .status()
-            .map_err(|error| format!("Could not open macOS Accessibility settings: {error}"))?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(format!(
-                "macOS could not open Accessibility settings (exit {}).",
-                status.code().unwrap_or(-1)
-            ))
-        }
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        Err("Accessibility settings are available only on macOS.".to_string())
-    }
-}
-
-fn desktop_smoke_scenario(app: &AppHandle) -> Result<PathBuf, String> {
-    let scenario = app
-        .path()
-        .resolve(
-            "engine/scenarios/campaign-roam.json",
-            BaseDirectory::Resource,
-        )
-        .map_err(|error| format!("Could not resolve the automated-test scenario: {error}"))?;
-    if !scenario.is_file() {
-        return Err(
-            "The packaged automated-test scenario is missing. Reinstall Preflight.".to_string(),
-        );
-    }
-    Ok(scenario)
-}
-
-fn desktop_smoke_run_directory(app: &AppHandle) -> Result<PathBuf, String> {
-    let home = app
-        .path()
-        .home_dir()
-        .map_err(|error| format!("Could not locate the home directory: {error}"))?;
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|_| "The system clock is before 1970.".to_string())?
-        .as_millis();
-    Ok(home
-        .join(".starsector-preflight")
-        .join("runs")
-        .join(format!("desktop-smoke-{timestamp}-{}", std::process::id())))
-}
-
-#[tauri::command]
-fn start_desktop_smoke(
-    app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
-    game: String,
-) -> Result<RunStarted, String> {
-    let directory = canonical_game_directory(&game)?;
-    let scenario = desktop_smoke_scenario(&app)?;
-    let run_directory = desktop_smoke_run_directory(&app)?;
-    fs::create_dir_all(&run_directory)
-        .map_err(|error| format!("Could not create the automated-test run folder: {error}"))?;
-    let run_directory = run_directory
-        .canonicalize()
-        .map_err(|error| format!("Could not open the automated-test run folder: {error}"))?;
-    let paths = EnginePaths::resolve(&app)?;
-
-    let mut running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The launch tracker is unavailable.".to_string())?;
-    refuse_update_install(&running)?;
-    if running.game.is_some() {
-        return Err("Starsector is already running through Preflight.".to_string());
-    }
-    if running.preparation.is_some() {
-        return Err(
-            "Wait for profile preparation to finish before running the automated test.".to_string(),
-        );
-    }
-
-    let mut command = paths.command();
-    command
-        .arg("desktop")
-        .arg("smoke")
-        .arg("launch")
-        .arg(scenario)
-        .arg(&run_directory)
-        .arg("--game")
-        .arg(directory)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let child = command
-        .spawn()
-        .map_err(|error| format!("Could not start the automated game test: {error}"))?;
-    let pid = child.id();
-    running.game = Some(pid);
-    running.desktop_smoke = Some(DesktopSmokeProcess {
-        pid,
-        run_directory: run_directory.clone(),
-    });
-    drop(running);
-
-    let _ = app.emit(
-        "desktop-smoke-state",
-        DesktopSmokeStateEvent {
-            state: "started",
-            pid,
-            success: None,
-            detail: None,
-            run_directory: run_directory.to_string_lossy().into_owned(),
-        },
-    );
-    watch_desktop_smoke(app, child, run_directory);
-    Ok(RunStarted { pid })
-}
-
-fn request_desktop_smoke_cancellation(process: &DesktopSmokeProcess) -> Result<bool, String> {
-    let marker = process.run_directory.join(DESKTOP_SMOKE_CANCELLATION_FILE);
-    match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&marker)
-    {
-        Ok(mut file) => {
-            file.write_all(b"cancel\n").map_err(|error| {
-                format!("Could not write the automated-test stop request: {error}")
-            })?;
-            Ok(true)
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            let metadata = marker.symlink_metadata().map_err(|problem| {
-                format!("Could not inspect the automated-test stop request: {problem}")
-            })?;
-            if metadata.file_type().is_symlink() || !metadata.is_file() {
-                Err("The automated-test stop request isn't a regular file.".to_string())
-            } else {
-                Ok(false)
-            }
-        }
-        Err(error) => Err(format!(
-            "Could not request a safe stop for the automated game test: {error}"
-        )),
-    }
-}
-
-fn desktop_smoke_cancellation_requested(run_directory: &Path) -> bool {
-    let marker = run_directory.join(DESKTOP_SMOKE_CANCELLATION_FILE);
-    marker
-        .symlink_metadata()
-        .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
-}
-
-#[tauri::command]
-fn cancel_desktop_smoke(
-    app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
-) -> Result<bool, String> {
-    let running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The launch tracker is unavailable.".to_string())?;
-    let Some(process) = running.desktop_smoke.as_ref() else {
-        return Ok(false);
-    };
-    request_desktop_smoke_cancellation(process)?;
-    let pid = process.pid;
-    let run_directory = process.run_directory.to_string_lossy().into_owned();
-    drop(running);
-    let _ = app.emit(
-        "desktop-smoke-state",
-        DesktopSmokeStateEvent {
-            state: "cancelling",
-            pid,
-            success: None,
-            detail: Some("Stopping the exact game process and sealing its evidence…".to_string()),
-            run_directory,
-        },
-    );
-    Ok(true)
-}
-
-#[tauri::command]
 fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;
@@ -620,7 +375,7 @@ fn get_cache_cleanup(app: AppHandle, game: String) -> Result<Value, String> {
 #[tauri::command]
 fn apply_cache_cleanup(
     app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
+    tracker: State<'_, OperationCoordinator>,
     game: String,
 ) -> Result<Value, String> {
     let running = tracker
@@ -683,7 +438,7 @@ fn get_removal_plan(app: AppHandle, scope: String) -> Result<Value, String> {
 #[tauri::command]
 fn apply_removal(
     app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
+    tracker: State<'_, OperationCoordinator>,
     scope: String,
 ) -> Result<Value, String> {
     let running = tracker
@@ -786,7 +541,7 @@ fn updater_disabled(app: &AppHandle, reason: impl Into<String>) -> UpdateStatus 
 #[tauri::command]
 async fn check_for_update(
     app: AppHandle,
-    processes: State<'_, ProcessTracker>,
+    processes: State<'_, OperationCoordinator>,
     updates: State<'_, UpdateTracker>,
 ) -> Result<UpdateStatus, String> {
     {
@@ -876,7 +631,7 @@ fn same_update_offer(left: &Update, right: &Update) -> bool {
 #[tauri::command]
 async fn install_update(
     app: AppHandle,
-    processes: State<'_, ProcessTracker>,
+    processes: State<'_, OperationCoordinator>,
     updates: State<'_, UpdateTracker>,
     requested_version: String,
 ) -> Result<(), String> {
@@ -960,34 +715,6 @@ async fn install_update(
     app.restart();
 }
 
-fn begin_update_install(processes: &Mutex<ProcessState>) -> Result<UpdateInstallGuard<'_>, String> {
-    let mut running = processes
-        .lock()
-        .map_err(|_| "The process tracker is unavailable.".to_string())?;
-    if running.game.is_some() {
-        return Err("Close Starsector before installing a Preflight update.".to_string());
-    }
-    if running.preparation.is_some() {
-        return Err(
-            "Wait for profile preparation to finish before installing an update.".to_string(),
-        );
-    }
-    if running.update_installing {
-        return Err("A Preflight update is already being installed.".to_string());
-    }
-    running.update_installing = true;
-    drop(running);
-    Ok(UpdateInstallGuard { processes })
-}
-
-fn refuse_update_install(running: &ProcessState) -> Result<(), String> {
-    if running.update_installing {
-        Err("Wait for the Preflight update to finish installing.".to_string())
-    } else {
-        Ok(())
-    }
-}
-
 fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
     let requested = PathBuf::from(output);
     if !requested.is_absolute() {
@@ -1068,7 +795,7 @@ fn get_report_intake_status() -> ReportIntakeStatus {
 #[tauri::command]
 async fn send_run_report(
     app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
+    tracker: State<'_, OperationCoordinator>,
     report: ReportUploadInput,
 ) -> Result<ReportReceipt, String> {
     let origin = configured_report_origin()?;
@@ -1147,7 +874,10 @@ async fn send_run_report(
 }
 
 #[tauri::command]
-fn cancel_run_report(app: AppHandle, tracker: State<'_, ProcessTracker>) -> Result<bool, String> {
+fn cancel_run_report(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+) -> Result<bool, String> {
     let running = tracker
         .0
         .lock()
@@ -1749,7 +1479,7 @@ fn get_launch_settings(app: AppHandle, game: String) -> Result<Value, String> {
 #[tauri::command]
 fn update_launch_settings(
     app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
+    tracker: State<'_, OperationCoordinator>,
     game: String,
     settings: LaunchSettingsInput,
 ) -> Result<Value, String> {
@@ -1860,7 +1590,7 @@ fn save_profile(app: AppHandle, game: String, name: String) -> Result<Value, Str
 #[tauri::command]
 fn activate_profile(
     app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
+    tracker: State<'_, OperationCoordinator>,
     game: String,
     name: String,
     confirmed: bool,
@@ -1921,7 +1651,7 @@ fn profile_json(
 #[tauri::command]
 fn start_game(
     app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
+    tracker: State<'_, OperationCoordinator>,
     game: String,
     optimization_preset: String,
 ) -> Result<RunStarted, String> {
@@ -1982,7 +1712,7 @@ fn validate_optimization_preset(value: &str) -> Result<&str, String> {
 #[tauri::command]
 fn start_preparation(
     app: AppHandle,
-    tracker: State<'_, ProcessTracker>,
+    tracker: State<'_, OperationCoordinator>,
     game: String,
     texture_storage: String,
     workers: u8,
@@ -2047,7 +1777,10 @@ fn start_preparation(
 }
 
 #[tauri::command]
-fn cancel_preparation(app: AppHandle, tracker: State<'_, ProcessTracker>) -> Result<bool, String> {
+fn cancel_preparation(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+) -> Result<bool, String> {
     let running = tracker
         .0
         .lock()
@@ -2127,7 +1860,7 @@ fn watch_child(app: AppHandle, mut child: Child) {
         } else {
             Some(child_error("Starsector exited with an error", &stderr))
         };
-        if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
+        if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock() {
             running.game = None;
         }
         let _ = app.emit(
@@ -2142,89 +1875,7 @@ fn watch_child(app: AppHandle, mut child: Child) {
     });
 }
 
-fn watch_desktop_smoke(app: AppHandle, mut child: Child, run_directory: PathBuf) {
-    let pid = child.id();
-    std::thread::spawn(move || {
-        let stdout = child
-            .stdout
-            .take()
-            .map(|mut stdout| std::thread::spawn(move || read_tail(&mut stdout, 256 * 1024)));
-        let stderr = child
-            .stderr
-            .take()
-            .map(|mut stderr| std::thread::spawn(move || read_tail(&mut stderr, 16 * 1024)));
-        let status = child.wait();
-        let stdout = stdout
-            .and_then(|reader| reader.join().ok())
-            .unwrap_or_default();
-        let stderr = stderr
-            .and_then(|reader| reader.join().ok())
-            .unwrap_or_default();
-        let cancellation_requested = desktop_smoke_cancellation_requested(&run_directory);
-        let (success, detail) = if cancellation_requested {
-            desktop_smoke_cancellation_outcome(&status, &stdout, &stderr)
-        } else {
-            desktop_smoke_outcome(&status, &stdout, &stderr)
-        };
-        let should_exit = if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
-            if running.game == Some(pid) {
-                running.game = None;
-            }
-            if running
-                .desktop_smoke
-                .as_ref()
-                .is_some_and(|process| process.pid == pid)
-            {
-                running.desktop_smoke = None;
-            }
-            if cancellation_requested && !success {
-                running.exit_after_cleanup = false;
-                false
-            } else {
-                take_deferred_exit(&mut running)
-            }
-        } else {
-            false
-        };
-        let _ = app.emit(
-            "desktop-smoke-state",
-            DesktopSmokeStateEvent {
-                state: if cancellation_requested && success {
-                    "cancelled"
-                } else {
-                    "finished"
-                },
-                pid,
-                success: Some(success),
-                detail,
-                run_directory: run_directory.to_string_lossy().into_owned(),
-            },
-        );
-        if should_exit {
-            app.exit(0);
-        }
-    });
-}
-
-fn desktop_smoke_cancellation_outcome(
-    process_status: &std::io::Result<std::process::ExitStatus>,
-    stdout: &[u8],
-    stderr: &[u8],
-) -> (bool, Option<String>) {
-    let receipt: Value = match serde_json::from_slice(stdout) {
-        Ok(receipt) => receipt,
-        Err(_) => return desktop_smoke_outcome(process_status, stdout, stderr),
-    };
-    if receipt.pointer("/launch/status").and_then(Value::as_str) == Some("cancelled") {
-        return (
-            true,
-            Some("Automated game test stopped safely after exact-process cleanup.".to_string()),
-        );
-    }
-    desktop_smoke_outcome(process_status, stdout, stderr)
-}
-
-fn take_deferred_exit(running: &mut ProcessState) -> bool {
+fn take_deferred_exit(running: &mut OperationState) -> bool {
     if running.exit_after_cleanup
         && running.desktop_smoke.is_none()
         && running.preparation.is_none()
@@ -2237,7 +1888,7 @@ fn take_deferred_exit(running: &mut ProcessState) -> bool {
     }
 }
 
-fn begin_exit_cleanup(running: &mut ProcessState) -> Result<bool, String> {
+fn begin_exit_cleanup(running: &mut OperationState) -> Result<bool, String> {
     let mut pending = false;
     if let Some(process) = running.desktop_smoke.as_ref() {
         request_desktop_smoke_cancellation(process)?;
@@ -2261,44 +1912,6 @@ fn begin_exit_cleanup(running: &mut ProcessState) -> Result<bool, String> {
         running.exit_after_cleanup = true;
     }
     Ok(pending)
-}
-
-fn desktop_smoke_outcome(
-    process_status: &std::io::Result<std::process::ExitStatus>,
-    stdout: &[u8],
-    stderr: &[u8],
-) -> (bool, Option<String>) {
-    let receipt: Value = match serde_json::from_slice(stdout) {
-        Ok(receipt) => receipt,
-        Err(error) => {
-            let detail = match process_status {
-                Ok(_) => child_error(
-                    &format!("Preflight returned an unreadable automated-test result: {error}"),
-                    stderr,
-                ),
-                Err(wait) => format!("Could not wait for the automated game test: {wait}"),
-            };
-            return (false, Some(detail));
-        }
-    };
-    let status = receipt
-        .pointer("/launch/status")
-        .and_then(Value::as_str)
-        .unwrap_or("failed");
-    let process_success = process_status
-        .as_ref()
-        .is_ok_and(|process_status| process_status.success());
-    if process_success && status == "passed" {
-        return (true, None);
-    }
-    let diagnostic = receipt
-        .pointer("/launch/diagnostics/0")
-        .or_else(|| receipt.pointer("/launch/evidence/diagnostics/0"))
-        .and_then(Value::as_str);
-    let detail = diagnostic
-        .map(str::to_string)
-        .unwrap_or_else(|| child_error(&format!("Automated game test {status}"), stderr));
-    (false, Some(detail))
 }
 
 fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()>) {
@@ -2350,7 +1963,7 @@ fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()
                 Err(error) => Some(format!("Could not wait for profile preparation: {error}")),
             }
         };
-        let should_exit = if let Ok(mut running) = app.state::<ProcessTracker>().0.lock() {
+        let should_exit = if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock() {
             if running
                 .preparation
                 .as_ref()
@@ -2464,7 +2077,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(ProcessTracker(Mutex::new(ProcessState::default())))
+        .manage(OperationCoordinator::default())
         .manage(UpdateTracker(Mutex::new(None)))
         .setup(|app| {
             if std::env::var_os("PREFLIGHT_DESKTOP_BOOT_SMOKE").as_deref()
@@ -2513,7 +2126,7 @@ pub fn run() {
             return;
         }
         let cleanup = app
-            .state::<ProcessTracker>()
+            .state::<OperationCoordinator>()
             .0
             .lock()
             .map_err(|_| "The process tracker is unavailable during shutdown.".to_string())
@@ -2532,16 +2145,20 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_UPDATE_ENDPOINT, DESKTOP_SMOKE_CANCELLATION_FILE, DesktopSmokeProcess,
-        LaunchSettingsInput, PreparationProcess, ProcessState, ReportDeletion, ReportReceipt,
-        ReportUploadError, ReportUploadInput, ReportUploadProcess, begin_exit_cleanup,
-        begin_update_install, compiled_updater_endpoint, desktop_smoke_cancellation_outcome,
-        desktop_smoke_cancellation_requested, desktop_smoke_outcome, diagnostic_output_path,
-        parse_preparation_progress, perform_report_deletion, perform_report_upload, read_tail,
-        refuse_update_install, report_client, take_deferred_exit, validate_launch_settings,
-        validate_optimization_preset, validate_removal_scope, validate_report_origin,
-        validate_report_receipt, validated_case_url, validated_report_archive,
-        validated_updater_endpoint,
+        DEFAULT_UPDATE_ENDPOINT, LaunchSettingsInput, ReportDeletion, ReportReceipt,
+        ReportUploadError, ReportUploadInput, begin_exit_cleanup, begin_update_install,
+        compiled_updater_endpoint, diagnostic_output_path, parse_preparation_progress,
+        perform_report_deletion, perform_report_upload, read_tail, refuse_update_install,
+        report_client, take_deferred_exit, validate_launch_settings, validate_optimization_preset,
+        validate_removal_scope, validate_report_origin, validate_report_receipt,
+        validated_case_url, validated_report_archive, validated_updater_endpoint,
+    };
+    use crate::automation::{
+        DESKTOP_SMOKE_CANCELLATION_FILE, desktop_smoke_cancellation_outcome,
+        desktop_smoke_cancellation_requested, desktop_smoke_outcome,
+    };
+    use crate::operations::{
+        DesktopSmokeProcess, OperationState, PreparationProcess, ReportUploadProcess,
     };
     use sha2::{Digest, Sha256};
     use std::fs;
@@ -2555,7 +2172,7 @@ mod tests {
     use url::Url;
 
     #[cfg(target_os = "macos")]
-    use super::MACOS_ACCESSIBILITY_SETTINGS;
+    use crate::automation::MACOS_ACCESSIBILITY_SETTINGS;
 
     // Each case owns a blocking loopback server. Serialize those cases and handshake with the
     // accept thread below so rapid parallel suites never race a freshly opened listener.
@@ -2627,7 +2244,7 @@ mod tests {
         fs::create_dir(&run_directory).unwrap();
         let (cancel, cancelled) = mpsc::channel();
         let (report_cancel, report_cancelled) = watch::channel(false);
-        let mut running = ProcessState {
+        let mut running = OperationState {
             game: Some(41),
             desktop_smoke: Some(DesktopSmokeProcess {
                 pid: 41,
@@ -3225,7 +2842,7 @@ mod tests {
 
     #[test]
     fn mutable_operations_stop_during_update_installation() {
-        let mut running = ProcessState::default();
+        let mut running = OperationState::default();
         assert!(refuse_update_install(&running).is_ok());
         running.update_installing = true;
         assert!(refuse_update_install(&running).is_err());
@@ -3233,7 +2850,7 @@ mod tests {
 
     #[test]
     fn update_install_guard_releases_every_error_path() {
-        let processes = Mutex::new(ProcessState::default());
+        let processes = Mutex::new(OperationState::default());
         {
             let _install = begin_update_install(&processes).unwrap();
             assert!(processes.lock().unwrap().update_installing);
