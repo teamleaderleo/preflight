@@ -195,12 +195,12 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByRole("button", { name: "Settings" }));
 
   expect(await screen.findByRole("heading", { name: "Settings", level: 1 })).toBeInTheDocument();
-  await user.click(screen.getByText("What diagnostics include"));
+  await user.click(screen.getByText("Diagnostic contents"));
   expect(screen.getByText("Useful metadata only")).toBeInTheDocument();
   expect(screen.getByText("Game and personal data")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Save diagnostics bundle" }));
+  await user.click(screen.getByRole("button", { name: "Save diagnostics" }));
 
-  expect(await screen.findByText("Diagnostics are ready")).toBeInTheDocument();
+  expect(await screen.findByText("Diagnostics ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
   await user.click(await screen.findByRole("button", { name: "Review send" }));
 
@@ -283,7 +283,7 @@ test("an unconfigured build keeps local export available and refuses report send
 
   await screen.findByText("Ready to launch");
   await user.click(screen.getByRole("button", { name: "Settings" }));
-  await user.click(await screen.findByRole("button", { name: "Save diagnostics bundle" }));
+  await user.click(await screen.findByRole("button", { name: "Save diagnostics" }));
 
   expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review send" })).toBeDisabled();
@@ -406,7 +406,7 @@ test("a verified available update still waits for install confirmation", async (
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(await screen.findByRole("button", { name: "Check for updates" }));
 
-  expect(await screen.findByRole("heading", { name: "Preflight 0.2.0 is available" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Preflight 0.2.0" })).toBeInTheDocument();
   expect(screen.getByText("A signed test release.")).toBeInTheDocument();
   expect(screen.getByText(/previous copy is kept for rollback/)).toBeInTheDocument();
   expect(screen.getByText("Update")).toBeInTheDocument();

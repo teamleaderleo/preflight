@@ -26,6 +26,7 @@ import {
   SparklesIcon,
 } from "./icons";
 import Logo from "./Logo";
+import preflightMark from "./assets/preflight-mark.png";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { resourcePresets, usePreparation } from "./usePreparation";
@@ -428,7 +429,17 @@ export default function App() {
   const startActive = page === "home" || page === "launch" || page === "prepare";
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      onPointerMove={(event) => {
+        event.currentTarget.style.setProperty("--grid-x", `${event.clientX}px`);
+        event.currentTarget.style.setProperty("--grid-y", `${event.clientY}px`);
+      }}
+      onPointerLeave={(event) => {
+        event.currentTarget.style.setProperty("--grid-x", "-1000px");
+        event.currentTarget.style.setProperty("--grid-y", "-1000px");
+      }}
+    >
       <aside className="sidebar">
         <Logo />
         <nav className="nav" aria-label="Main navigation">
@@ -504,16 +515,7 @@ export default function App() {
             )}
           </div>
           <div className="hero__art" aria-hidden="true">
-            <div className="orbit orbit--outer" />
-            <div className="orbit orbit--inner" />
-            <div className="moon" />
-            <div className="ship">
-              <span className="ship__window" />
-              <span className="ship__flame" />
-            </div>
-            <span className="star star--one">✦</span>
-            <span className="star star--two">✦</span>
-            <span className="star star--three">·</span>
+            <img src={preflightMark} alt="" />
           </div>
         </section>
 
@@ -872,25 +874,46 @@ export default function App() {
               <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
             )}
 
-            <section className="card update-card">
-              <div className="card__heading">
-                <div><p className="eyebrow">Verified updates</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version} is available` : "Keep Preflight current"}</h2></div>
-                <ShieldIcon className="settings-check" />
-              </div>
-              <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
-                ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
-                : updateStatus?.configured
-                  ? `Version ${updateStatus.currentVersion} is current.`
-                  : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
-              {updateError && <p className="activation-warning">{updateError}</p>}
-              {updateInstalling && <div className="update-progress" role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={updateProgress?.contentLength ?? undefined} aria-valuenow={updateProgress?.downloadedBytes ?? 0}><span>{updateProgress?.contentLength ? `${formatBytes(updateProgress.downloadedBytes)} of ${formatBytes(updateProgress.contentLength)}` : `${formatBytes(updateProgress?.downloadedBytes ?? 0)} downloaded`}</span></div>}
-              <div className="update-actions">
-                <button className="button button--quiet button--compact" type="button" onClick={() => void checkUpdates(true)} disabled={updateChecking || updateInstalling}>{updateChecking ? "Checking…" : updateStatus ? "Check again" : "Check for updates"}</button>
-                {updateStatus?.available && <button className="button button--primary" type="button" onClick={() => void installSignedUpdate()} disabled={updateInstalling || preparing || status === "running"}>{updateInstalling ? "Installing…" : "Install and restart"}</button>}
-              </div>
-              {updateStatus?.available && <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small>}
-              <small>Downloads are verified with the release key embedded in this build. A failed download or signature check leaves the installed version unchanged.</small>
-            </section>
+            <div className="settings-overview">
+              <section className="card update-card">
+                <div className="card__heading">
+                  <div><p className="eyebrow">Application</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version}` : "Updates"}</h2></div>
+                  <ShieldIcon className="settings-check" />
+                </div>
+                <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
+                  ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
+                  : updateStatus?.configured
+                    ? `Version ${updateStatus.currentVersion} is current.`
+                    : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
+                {updateError && <p className="activation-warning">{updateError}</p>}
+                {updateInstalling && <div className="update-progress" role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={updateProgress?.contentLength ?? undefined} aria-valuenow={updateProgress?.downloadedBytes ?? 0}><span>{updateProgress?.contentLength ? `${formatBytes(updateProgress.downloadedBytes)} of ${formatBytes(updateProgress.contentLength)}` : `${formatBytes(updateProgress?.downloadedBytes ?? 0)} downloaded`}</span></div>}
+                <div className="update-actions">
+                  <button className="button button--quiet button--compact" type="button" onClick={() => void checkUpdates(true)} disabled={updateChecking || updateInstalling}>{updateChecking ? "Checking…" : updateStatus ? "Check again" : "Check for updates"}</button>
+                  {updateStatus?.available && <button className="button button--primary" type="button" onClick={() => void installSignedUpdate()} disabled={updateInstalling || preparing || status === "running"}>{updateInstalling ? "Installing…" : "Install and restart"}</button>}
+                </div>
+                {updateStatus?.available && <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small>}
+                <small>Release signatures are checked before installation. A failed check leaves the current version untouched.</small>
+              </section>
+
+              <section className="card diagnostics-action">
+                <div>
+                  <strong>{diagnosticsExport ? "Diagnostics ready" : "Diagnostics"}</strong>
+                  <span>{diagnosticsExport
+                    ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
+                    : "Paths are redacted. Review contents before saving or sending."}</span>
+                </div>
+                <div className="report-actions">
+                  <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
+                    <FolderIcon />{diagnosticsBusy ? "Saving…" : diagnosticsExport ? "Save another ZIP" : "Save diagnostics"}
+                  </button>
+                  {diagnosticsExport && (
+                    <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>
+                      {reportReceipt ? "Receipt below" : "Review send"}
+                    </button>
+                  )}
+                </div>
+              </section>
+            </div>
 
             {desktopSmokeReview && (
               <section className="card automation-review" aria-label="Automated game test review">
@@ -909,28 +932,9 @@ export default function App() {
               </section>
             )}
 
-            <section className="card diagnostics-action">
-              <div>
-                <strong>{diagnosticsExport ? "Diagnostics are ready" : "Ready to collect support evidence"}</strong>
-                <span>{diagnosticsExport
-                  ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-                  : "Home-directory paths are redacted. Other visible metadata is disclosed in the ZIP."}</span>
-              </div>
-              <div className="report-actions">
-                <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
-                  <FolderIcon />{diagnosticsBusy ? "Saving…" : diagnosticsExport ? "Save another ZIP" : "Save diagnostics bundle"}
-                </button>
-                {diagnosticsExport && (
-                  <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>
-                    {reportReceipt ? "Receipt below" : "Review send"}
-                  </button>
-                )}
-              </div>
-            </section>
-
             <details className="card settings-disclosure">
               <summary>
-                <span><strong>What diagnostics include</strong><small>Review the export boundary</small></span>
+                <span><strong>Diagnostic contents</strong><small>Included and excluded data</small></span>
               </summary>
               <div className="settings-grid settings-disclosure__body">
                 <section className="diagnostics-card">
