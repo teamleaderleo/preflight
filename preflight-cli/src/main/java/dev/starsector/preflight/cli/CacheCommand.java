@@ -303,7 +303,7 @@ final class CacheCommand {
             try (ProfileIdentityContext context =
                          ProfileIdentityContext.open(target.installRoot(), index)) {
                 var archives = JaninoProfileIdentityBuilder.discoverOrderedArchives(context);
-                String launchContract = RunCommand.janinoLaunchContract(context, target);
+                String launchContract = LaunchCacheContexts.janinoLaunchContract(context, target);
                 return Set.of(JaninoProfileIdentityBuilder.build(
                         context, archives, launchContract).context().keySha256());
             }
