@@ -2455,6 +2455,15 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(ProcessTracker(Mutex::new(ProcessState::default())))
         .manage(UpdateTracker(Mutex::new(None)))
+        .setup(|app| {
+            if std::env::var_os("PREFLIGHT_DESKTOP_BOOT_SMOKE").as_deref()
+                == Some(std::ffi::OsStr::new("1"))
+            {
+                println!("PREFLIGHT_DESKTOP_BOOT_SMOKE_OK");
+                app.handle().exit(0);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_desktop_smoke_probe,

@@ -69,10 +69,14 @@ export function verifyMacPackage(directory = bundleDirectory) {
     const installedDirectory = mkdtempSync(join(tmpdir(), "preflight-installed-app-"));
     const installedApp = join(installedDirectory, "Preflight.app");
     let installedEngine;
+    let nativeHostBoot;
     try {
       run("ditto", [appDirectory, installedApp]);
       assertTreesEqual(appDirectory, installedApp);
       installedEngine = verifyPackagedEngine(join(installedApp, "Contents", "Resources", "engine"));
+      nativeHostBoot = verifyNativeHostBoot(
+        join(installedApp, "Contents", "MacOS", "starsector-preflight-desktop"),
+      );
     } finally {
       rmSync(installedDirectory, { recursive: true, force: true });
     }
@@ -81,6 +85,7 @@ export function verifyMacPackage(directory = bundleDirectory) {
       updaterArchive: updateRelease,
       platformSignature,
       installedCopy: true,
+      nativeHostBoot,
       engine: installedEngine,
     };
   } finally {
@@ -305,6 +310,23 @@ function verifyPackagedEngine(engineDirectory, options = {}) {
     throw new Error(`Extracted engine smoke test failed: ${(result.stderr ?? "").trim()}`);
   }
   return { ...boundary, smoke: "passed" };
+}
+
+export function verifyNativeHostBoot(executable) {
+  const result = spawnSync(executable, [], {
+    encoding: "utf8",
+    env: { ...process.env, PREFLIGHT_DESKTOP_BOOT_SMOKE: "1" },
+    stdio: "pipe",
+    timeout: 15_000,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0 || !(result.stdout ?? "").includes("PREFLIGHT_DESKTOP_BOOT_SMOKE_OK")) {
+    throw new Error(
+      `Native desktop host smoke test failed with ${result.status}: ` +
+      `${(result.stderr ?? "").trim() || "success marker missing"}`,
+    );
+  }
+  return "passed";
 }
 
 function filesWithSuffix(directory, suffix) {
