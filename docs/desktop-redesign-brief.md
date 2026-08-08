@@ -1,6 +1,7 @@
 # Desktop redesign brief
 
-**Status:** direction for the post-hardening redesign  
+**Status:** implementation started
+
 **Updated:** 2026-08-08
 
 Preflight's desktop app has the right capabilities and too much explanation in the primary path.
@@ -97,3 +98,7 @@ cleanup and removal never appear as equal-weight cards on this screen.
 
 The redesign doesn't change the engine, cache formats or adapter plans. It can ship independently
 once both versions pass the same behavior tests.
+
+The first extraction pass is complete. Primary navigation now contains Start, Profiles and
+Settings. Game settings and storage remain full-size drilldowns from Start while its final compact
+layout is built against the existing behavior fixtures.

@@ -103,7 +103,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   render(<App />);
 
   await screen.findByText("Ready to launch");
-  await user.click(screen.getByRole("button", { name: "Prepare" }));
+  await user.click(screen.getByRole("button", { name: "Storage" }));
 
   expect(await screen.findByRole("heading", { name: "Prepare", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
@@ -121,7 +121,7 @@ test("storage totals disclose data outside the active cache categories", async (
 
   render(<App />);
   await screen.findByText("Ready to launch");
-  await user.click(screen.getByRole("button", { name: "Prepare" }));
+  await user.click(screen.getByRole("button", { name: "Storage" }));
 
   expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
   expect(screen.getByText("512 B")).toBeInTheDocument();
@@ -134,7 +134,7 @@ test("cache cleanup is previewed before unused artifacts are removed", async () 
   render(<App />);
 
   await screen.findByText("Ready to launch");
-  await user.click(screen.getByRole("button", { name: "Prepare" }));
+  await user.click(screen.getByRole("button", { name: "Storage" }));
   await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
 
   expect(await screen.findByRole("heading", { name: "Free 1.72 GB?" })).toBeInTheDocument();
@@ -150,7 +150,7 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   render(<App />);
 
   await screen.findByText("Ready to launch");
-  await user.click(screen.getByRole("button", { name: "Launch" }));
+  await user.click(screen.getByRole("button", { name: "Game settings" }));
 
   expect(await screen.findByText("Launch settings")).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: "Recommended optimizations" })).toBeChecked();
@@ -413,7 +413,7 @@ test("a verified available update still waits for install confirmation", async (
   expect(screen.getByRole("button", { name: "Install and restart" })).toBeEnabled();
   expect(install).not.toHaveBeenCalled();
 
-  await user.click(screen.getByRole("button", { name: "Home" }));
+  await user.click(screen.getByRole("button", { name: "Start" }));
   expect(screen.getByRole("region", { name: "Preflight update available" })).toHaveTextContent("Preflight 0.2.0 is available");
   await user.click(screen.getByRole("button", { name: "Review update" }));
   expect(await screen.findByRole("heading", { name: "Settings", level: 1 })).toBeInTheDocument();

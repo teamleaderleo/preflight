@@ -552,23 +552,16 @@ export default function App() {
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
   const title = pageTitle(page, status, preparing, isReady);
+  const startActive = page === "home" || page === "launch" || page === "prepare";
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <Logo />
         <nav className="nav" aria-label="Main navigation">
-          <button className={`nav__item ${page === "home" ? "nav__item--active" : ""}`} type="button" aria-current={page === "home" ? "page" : undefined} onClick={() => setPage("home")}>
+          <button className={`nav__item ${startActive ? "nav__item--active" : ""}`} type="button" aria-current={startActive ? "page" : undefined} onClick={() => setPage("home")}>
             <HomeIcon />
-            <span>Home</span>
-          </button>
-          <button className={`nav__item ${page === "launch" ? "nav__item--active" : ""}`} type="button" aria-current={page === "launch" ? "page" : undefined} onClick={() => setPage("launch")} disabled={!isReady}>
-            <PlayIcon />
-            <span>Launch</span>
-          </button>
-          <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" aria-current={page === "prepare" ? "page" : undefined} onClick={() => setPage("prepare")} disabled={!isReady}>
-            <SparklesIcon />
-            <span>Prepare</span>
+            <span>Start</span>
           </button>
           <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" aria-current={page === "profiles" ? "page" : undefined} onClick={() => setPage("profiles")} disabled={!isReady}>
             <LayersIcon />
@@ -678,16 +671,22 @@ export default function App() {
               </div>
             </div>
             {isReady && snapshot?.selected ? (
-              <div className="install-detail">
-                <div className="install-icon"><FolderIcon /></div>
-                <div>
-                  <strong>{shortPath(snapshot.selected.installRoot)}</strong>
-                  <span>{friendlyPlatform(snapshot.platform)} · {snapshot.selected.kind.replace("-", " ")}</span>
+              <>
+                <div className="install-detail">
+                  <div className="install-icon"><FolderIcon /></div>
+                  <div>
+                    <strong>{shortPath(snapshot.selected.installRoot)}</strong>
+                    <span>{friendlyPlatform(snapshot.platform)} · {snapshot.selected.kind.replace("-", " ")}</span>
+                  </div>
+                  <button type="button" className="text-button" onClick={() => void chooseInstall()} aria-label="Change Starsector installation">
+                    Change <ArrowIcon />
+                  </button>
                 </div>
-                <button type="button" className="text-button" onClick={() => void chooseInstall()} aria-label="Change Starsector installation">
-                  Change <ArrowIcon />
-                </button>
-              </div>
+                <div className="start-tools" aria-label="Start options">
+                  <button className="button button--quiet" type="button" onClick={() => setPage("launch")}><PlayIcon />Game settings</button>
+                  <button className="button button--quiet" type="button" onClick={() => setPage("prepare")}><SparklesIcon />Storage</button>
+                </div>
+              </>
             ) : (
               <div className="empty-detail">
                 <div className="install-icon"><FolderIcon /></div>

@@ -635,6 +635,17 @@ h2 {
   font-size: 12px;
 }
 
+.start-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.start-tools .button svg {
+  width: 17px;
+}
+
 .text-button {
   display: flex;
   flex: 0 0 auto;
