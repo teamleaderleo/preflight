@@ -7,9 +7,10 @@ type ProfilesState = ReturnType<typeof useProfiles>;
 interface ProfilesPageProps {
   message: string;
   profilesState: ProfilesState;
+  operationBlocked: boolean;
 }
 
-export function ProfilesPage({ message, profilesState }: ProfilesPageProps) {
+export function ProfilesPage({ message, profilesState, operationBlocked }: ProfilesPageProps) {
   const {
     activationPlan,
     profileBusy,
@@ -79,7 +80,7 @@ export function ProfilesPage({ message, profilesState }: ProfilesPageProps) {
           </div>
           <div className="activation-review__footer">
             <span><ShieldIcon /> Preflight rechecks the file, writes a backup, then replaces it safely.</span>
-            <button className="button button--primary" type="button" onClick={() => void applyProfile()} disabled={!activationPlan.canActivate || activationPlan.active || profileBusy}>{profileBusy ? "Switching…" : "Apply switch"}</button>
+            <button className="button button--primary" type="button" onClick={() => void applyProfile()} disabled={!activationPlan.canActivate || activationPlan.active || profileBusy || operationBlocked}>{profileBusy ? "Switching…" : "Apply switch"}</button>
           </div>
         </section>
       ) : null}

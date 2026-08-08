@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  applyCacheCleanup,
   applyRemoval,
-  getCacheCleanup,
-  getLaunchSettings,
   getRemovalPlan,
   getSnapshot,
   isDesktopHost,
   startGame,
-  updateLaunchSettings,
 } from "./bridge";
 import { DesktopShell, type Page } from "./components/DesktopShell";
 import { GameSettingsPage } from "./components/GameSettingsPage";
@@ -19,18 +15,17 @@ import { ProfilesPage } from "./components/ProfilesPage";
 import { ReportsPage } from "./components/ReportsPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { useDesktopAutomation } from "./useDesktopAutomation";
+import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
+import { useLauncherSettings } from "./useLauncherSettings";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useSignedUpdates } from "./useSignedUpdates";
 import { listenWhileMounted } from "./tauriEvents";
-import { formatBytes, shortPath } from "./uiFormat";
+import { shortPath } from "./uiFormat";
 import type {
   AppStatus,
-  CacheCleanupPlan,
   DesktopSnapshot,
-  LaunchSettings,
-  LaunchSettingsUpdate,
   OptimizationPreset,
   RemovalPlan,
   RemovalScope,
@@ -68,8 +63,6 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [page, setPage] = useState<Page>("home");
   const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
-  const [cleanupPlan, setCleanupPlan] = useState<CacheCleanupPlan | null>(null);
-  const [cleanupBusy, setCleanupBusy] = useState(false);
   const refreshRequest = useRef(0);
   const refresh = useCallback(async (game?: string) => {
     const request = ++refreshRequest.current;
@@ -125,6 +118,12 @@ export default function App() {
     clearProfiles,
     reviewProfile,
   } = profilesState;
+  const cleanup = useCacheCleanup(
+    snapshot?.selected?.installRoot,
+    setMessage,
+    refreshCache,
+    invalidatePreparationPlan,
+  );
   const isReady = Boolean(snapshot?.ready && snapshot.selected);
   const automation = useDesktopAutomation({
     game: snapshot?.selected?.installRoot,
@@ -135,11 +134,11 @@ export default function App() {
     setStatus,
   });
   const diagnostics = useDiagnosticsReport(page === "reports", setMessage);
-  const [launcherSettings, setLauncherSettings] = useState<LaunchSettings | null>(null);
-  const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
-  const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
-  const [launcherSettingsSaving, setLauncherSettingsSaving] = useState(false);
-  const launcherSettingsRequest = useRef(0);
+  const launcher = useLauncherSettings(
+    snapshot?.selected?.installRoot,
+    page === "home" || page === "launch",
+    setMessage,
+  );
   const [removalPlan, setRemovalPlan] = useState<RemovalPlan | null>(null);
   const [removalBusy, setRemovalBusy] = useState(false);
   const updates = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
@@ -168,41 +167,6 @@ export default function App() {
     }, (error) => setMessage(`Could not observe the game process: ${error}`));
   }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
-  const refreshLauncherSettings = useCallback(async () => {
-    const request = ++launcherSettingsRequest.current;
-    const game = snapshot?.selected?.installRoot;
-    if (!game) {
-      setLauncherSettings(null);
-      setLauncherDraft(null);
-      setLauncherSettingsLoading(false);
-      return;
-    }
-    setLauncherSettingsLoading(true);
-    try {
-      const result = await getLaunchSettings(game);
-      if (request !== launcherSettingsRequest.current) return;
-      setLauncherSettings(result);
-      setLauncherDraft({
-        resolution: result.preferences.resolution ?? result.settings?.resolution ?? "1280x720",
-        fullscreen: result.preferences.fullscreen,
-        sound: result.preferences.sound,
-        antialiasingSamples: result.preferences.antialiasingSamples ?? 0,
-        uiScale: result.preferences.uiScale ?? 1,
-        battleSize: result.preferences.battleSize ?? result.limits.battleSizeDefault ?? 400,
-        memoryMiB: result.memory.editable ? result.memory.maxHeapMiB : null,
-      });
-    } catch (error) {
-      if (request !== launcherSettingsRequest.current) return;
-      setMessage(String(error));
-    } finally {
-      if (request === launcherSettingsRequest.current) setLauncherSettingsLoading(false);
-    }
-  }, [snapshot?.selected?.installRoot]);
-
-  useEffect(() => {
-    if (page === "home" || page === "launch") void refreshLauncherSettings();
-  }, [page, refreshLauncherSettings]);
-
   const chooseInstall = async () => {
     if (!isDesktopHost()) {
       await refresh("/Applications/Starsector");
@@ -217,62 +181,6 @@ export default function App() {
       await refresh(selected);
     }
   };
-
-  const reviewCleanup = async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game || cleanupBusy) return;
-    setCleanupBusy(true);
-    try {
-      const plan = await getCacheCleanup(game);
-      setCleanupPlan(plan);
-      setMessage(plan.safe
-        ? plan.files === 0
-          ? "There’s no unused acceleration data to clean up."
-          : "Cleanup is ready to review. Nothing has been removed."
-        : plan.refusals[0] ?? "Preflight couldn’t prove that cleanup was safe.");
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setCleanupBusy(false);
-    }
-  };
-
-  const cleanCache = async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game || !cleanupPlan?.safe || cleanupPlan.files === 0 || cleanupBusy) return;
-    setCleanupBusy(true);
-    try {
-      const result = await applyCacheCleanup(game);
-      setCleanupPlan(null);
-      setMessage(`Freed ${formatBytes(result.bytes)} across ${result.files.toLocaleString()} unused files. The current and named profiles stay warm.`);
-      await refreshCache();
-      invalidatePreparationPlan();
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setCleanupBusy(false);
-    }
-  };
-
-  const saveLauncherSettings = async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game || !launcherDraft) return;
-    setLauncherSettingsSaving(true);
-    setMessage("Saving game settings…");
-    try {
-      const result = await updateLaunchSettings(game, launcherDraft);
-      setLauncherSettings(result);
-      setMessage("Game settings saved. Vanilla and Preflight launches will use the same values.");
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setLauncherSettingsSaving(false);
-    }
-  };
-
-  const changeLauncherDraft = useCallback((change: Partial<LaunchSettingsUpdate>) => {
-    setLauncherDraft((current) => current ? { ...current, ...change } : current);
-  }, []);
 
   const reviewRemoval = async (scope: RemovalScope) => {
     if (removalBusy) return;
@@ -316,15 +224,13 @@ export default function App() {
   };
 
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
-  const launchSettingsDirty = Boolean(launcherDraft && launcherSettings && (
-    launcherDraft.resolution !== (launcherSettings.preferences.resolution ?? launcherSettings.settings?.resolution ?? "1280x720")
-    || launcherDraft.fullscreen !== launcherSettings.preferences.fullscreen
-    || launcherDraft.sound !== launcherSettings.preferences.sound
-    || launcherDraft.antialiasingSamples !== (launcherSettings.preferences.antialiasingSamples ?? 0)
-    || launcherDraft.uiScale !== (launcherSettings.preferences.uiScale ?? 1)
-    || launcherDraft.battleSize !== (launcherSettings.preferences.battleSize ?? launcherSettings.limits.battleSizeDefault ?? 400)
-    || (launcherDraft.memoryMiB !== null && launcherDraft.memoryMiB !== launcherSettings.memory.maxHeapMiB)
-  ));
+  const operationBlocked = preparing
+    || status === "running"
+    || cleanup.busy
+    || launcher.saving
+    || profilesState.profileBusy
+    || removalBusy
+    || updates.updateInstalling;
   const title = pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
     <DesktopShell
@@ -334,6 +240,7 @@ export default function App() {
       isReady={isReady}
       updateAvailable={Boolean(updateStatus?.available)}
       engineVersion={snapshot?.engineVersion ?? "…"}
+      refreshDisabled={operationBlocked}
       onPageChange={setPage}
       onRefresh={() => void refresh(snapshot?.selected?.installRoot)}
     >
@@ -348,15 +255,16 @@ export default function App() {
             preparation={preparation}
             profilesState={profilesState}
             updateStatus={updateStatus}
-            launcherSettings={launcherSettings}
-            launcherDraft={launcherDraft}
-            launcherSettingsLoading={launcherSettingsLoading}
-            launcherSettingsSaving={launcherSettingsSaving}
-            launchSettingsDirty={launchSettingsDirty}
-            onLauncherChange={changeLauncherDraft}
+            launcherSettings={launcher.settings}
+            launcherDraft={launcher.draft}
+            launcherSettingsLoading={launcher.loading}
+            launcherSettingsSaving={launcher.saving}
+            launchSettingsDirty={launcher.dirty}
+            operationBlocked={operationBlocked}
+            onLauncherChange={launcher.changeDraft}
             onChooseInstall={() => void chooseInstall()}
             onPrimaryLaunch={() => void (needsPreparation ? prepare(true) : launch())}
-            onSaveLauncherSettings={() => void saveLauncherSettings()}
+            onSaveLauncherSettings={() => void launcher.save()}
             onRetry={() => void refresh()}
             onNavigate={setPage}
             onSelectProfile={(name) => {
@@ -368,15 +276,15 @@ export default function App() {
           <>
             {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
             <GameSettingsPage
-              settings={launcherSettings}
-              draft={launcherDraft}
-              loading={launcherSettingsLoading}
-              saving={launcherSettingsSaving}
-              dirty={launchSettingsDirty}
-              disabled={status === "running" || preparing}
-              onChange={changeLauncherDraft}
-              onRefresh={() => void refreshLauncherSettings()}
-              onSave={() => void saveLauncherSettings()}
+              settings={launcher.settings}
+              draft={launcher.draft}
+              loading={launcher.loading}
+              saving={launcher.saving}
+              dirty={launcher.dirty}
+              disabled={operationBlocked}
+              onChange={launcher.changeDraft}
+              onRefresh={() => void launcher.refresh()}
+              onSave={() => void launcher.save()}
             />
           </>
         ) : page === "prepare" ? (
@@ -386,15 +294,15 @@ export default function App() {
             isReady={isReady}
             optimizationPreset={optimizationPreset}
             preparation={preparation}
-            cleanupPlan={cleanupPlan}
-            cleanupBusy={cleanupBusy}
+            cleanupPlan={cleanup.plan}
+            cleanupBusy={cleanup.busy}
             onOptimizationPresetChange={setOptimizationPreset}
-            onReviewCleanup={() => void reviewCleanup()}
-            onCleanCache={() => void cleanCache()}
-            onDismissCleanup={() => setCleanupPlan(null)}
+            onReviewCleanup={() => void cleanup.review()}
+            onCleanCache={() => void cleanup.clean()}
+            onDismissCleanup={cleanup.dismiss}
           />
         ) : page === "profiles" ? (
-          <ProfilesPage message={message} profilesState={profilesState} />
+          <ProfilesPage message={message} profilesState={profilesState} operationBlocked={operationBlocked} />
         ) : page === "reports" ? (
           <ReportsPage
             message={message}

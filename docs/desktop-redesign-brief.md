@@ -2,7 +2,7 @@
 
 **Status:** implementation in progress; launch console and primary navigation landed
 
-**Updated:** 2026-08-08
+**Updated:** 2026-08-09
 
 Preflight's desktop app has the right capabilities and too much explanation in the primary path.
 The redesign should make the ordinary job obvious: find the game, prepare what is useful, launch it
@@ -44,6 +44,10 @@ wrapping, while short desktop windows regain bounded vertical scrolling instead 
 Preparation, profiles, run reports, updates, and removal now render through independent workflow
 components while discovery, process state, and destructive actions remain coordinated by the app root.
 Installation-scoped reads are request-fenced so an older result cannot replace a newer selection.
+The home and complete game-settings views share one installation-scoped settings request, preserve
+edits made during a save and don't reread the same files when moving between those views. Cache
+cleanup previews are bound to the installation that produced them. Installation changes, profile
+activation and preparation-policy changes stay disabled while preparation or the game is running.
 Native event streams share one lifecycle helper that also unregisters subscriptions resolved after a
 component has already closed.
 

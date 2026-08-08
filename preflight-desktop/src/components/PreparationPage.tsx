@@ -77,6 +77,7 @@ export function PreparationPage({
   } = preparation;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
+  const operationBlocked = preparing || status === "running";
 
   return (
     <div className="prepare-page">
@@ -90,7 +91,7 @@ export function PreparationPage({
         <div className="optimization-choices" role="radiogroup" aria-label="Optimization preset">
           {optimizationPresets.map((preset) => (
             <label className={`choice-card ${optimizationPreset === preset.id ? "choice-card--selected" : ""}`} key={preset.id}>
-              <input type="radio" name="optimization-preset" aria-label={`${preset.label} optimizations`} checked={optimizationPreset === preset.id} onChange={() => onOptimizationPresetChange(preset.id)} />
+              <input type="radio" name="optimization-preset" aria-label={`${preset.label} optimizations`} checked={optimizationPreset === preset.id} onChange={() => onOptimizationPresetChange(preset.id)} disabled={operationBlocked} />
               <span><strong>{preset.label}</strong><small>{preset.description}</small></span>
               <b>{preset.badge}</b>
             </label>
@@ -105,19 +106,19 @@ export function PreparationPage({
             <div className={`tiny-status ${cache?.currentProfileFingerprint ? "tiny-status--good" : ""}`}><span />{cacheLoading ? "Checking" : cache?.currentProfileFingerprint ? "Profile detected" : "Not prepared"}</div>
           </div>
           <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
-            <input type="radio" name="texture-storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} />
+            <input type="radio" name="texture-storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} disabled={operationBlocked} />
             <span><strong>Balanced</strong><small>Lossless LZ4; raw only when compression doesn’t help</small></span>
             <b>Default</b>
           </label>
           <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
-            <input type="radio" name="texture-storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} />
+            <input type="radio" name="texture-storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
             <span><strong>Fastest</strong><small>Raw upload-ready pixels; several GB more for a small startup gain</small></span>
           </label>
 
           <div className="resource-heading"><strong>Preparation resources</strong><span>Only affects the one-time build</span></div>
           <div className="preset-row">
             {Object.entries(resourcePresets).map(([id, preset]) => (
-              <button key={id} type="button" className={resourcePreset === id ? "preset preset--selected" : "preset"} onClick={() => setResourcePreset(id as keyof typeof resourcePresets)}>
+              <button key={id} type="button" className={resourcePreset === id ? "preset preset--selected" : "preset"} onClick={() => setResourcePreset(id as keyof typeof resourcePresets)} disabled={operationBlocked}>
                 <strong>{preset.label}</strong><span>{preset.workers} workers · {preset.memoryMib} MiB</span>
               </button>
             ))}
@@ -127,7 +128,7 @@ export function PreparationPage({
         <section className="card storage-card">
           <div className="card__heading">
             <div><p className="eyebrow">On this computer</p><h2>Preflight storage</h2></div>
-            <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
+            <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading || operationBlocked}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
           </div>
           <strong className="storage-total">{cache ? formatBytes(cache.total.bytes) : "—"}</strong>
           <span className="storage-files">{cache ? `${cache.total.files.toLocaleString()} files` : "Reading cache…"}</span>
@@ -155,7 +156,7 @@ export function PreparationPage({
         </div>
         <div className="prepare-actions">
           {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
-          <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={preparing || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}</button>
+          <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={operationBlocked || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}</button>
         </div>
       </section>
 

@@ -41,7 +41,7 @@ export function GameSettingsPage({
         <section className="card launch-settings-card">
           <div className="card__heading">
             <div><p className="eyebrow">Display</p><h2>Window and rendering</h2></div>
-            <button className="icon-button icon-button--small" type="button" onClick={onRefresh} aria-label="Refresh launch settings" disabled={loading}>
+            <button className="icon-button icon-button--small" type="button" onClick={onRefresh} aria-label="Refresh launch settings" disabled={loading || saving}>
               <RefreshIcon className={loading ? "spin" : ""} />
             </button>
           </div>
@@ -91,7 +91,7 @@ export function GameSettingsPage({
 
       <section className="card launch-save">
         <div><span>{settings.backup ? `Previous values: ${shortPath(settings.backup)}` : "The original launcher values are backed up before a change."}</span></div>
-        <button className={`button ${dirty ? "button--primary" : "button--quiet"}`} type="button" onClick={onSave} disabled={!dirty || saving || disabled}>
+        <button className={`button ${dirty ? "button--primary" : "button--quiet"}`} type="button" onClick={onSave} disabled={!dirty || loading || saving || disabled}>
           <CheckIcon />{saving ? "Saving…" : dirty ? "Save changes" : "Settings applied"}
         </button>
       </section>

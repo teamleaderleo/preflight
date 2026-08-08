@@ -19,6 +19,7 @@ interface DesktopShellProps {
   isReady: boolean;
   updateAvailable: boolean;
   engineVersion: string;
+  refreshDisabled: boolean;
   children: ReactNode;
   onPageChange: (page: Page) => void;
   onRefresh: () => void;
@@ -31,6 +32,7 @@ export function DesktopShell({
   isReady,
   updateAvailable,
   engineVersion,
+  refreshDisabled,
   children,
   onPageChange,
   onRefresh,
@@ -82,7 +84,7 @@ export function DesktopShell({
       <main className="main">
         <header className="topbar">
           <h1>{title}</h1>
-          <button className="icon-button" type="button" onClick={onRefresh} aria-label="Refresh installation status" disabled={status === "loading"}>
+          <button className="icon-button" type="button" onClick={onRefresh} aria-label="Refresh installation status" disabled={status === "loading" || refreshDisabled}>
             <RefreshIcon className={status === "loading" ? "spin" : ""} />
           </button>
         </header>

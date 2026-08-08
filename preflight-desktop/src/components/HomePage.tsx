@@ -32,6 +32,7 @@ interface HomePageProps {
   launcherSettingsLoading: boolean;
   launcherSettingsSaving: boolean;
   launchSettingsDirty: boolean;
+  operationBlocked: boolean;
   onLauncherChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onChooseInstall: () => void;
   onPrimaryLaunch: () => void;
@@ -56,6 +57,7 @@ export function HomePage({
   launcherSettingsLoading,
   launcherSettingsSaving,
   launchSettingsDirty,
+  operationBlocked,
   onLauncherChange,
   onChooseInstall,
   onPrimaryLaunch,
@@ -95,7 +97,7 @@ export function HomePage({
                 {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
               </button>
             ) : (
-              <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading"}><FolderIcon />Choose game folder</button>
+              <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
             )}
           </div>
           {isReady ? (
@@ -119,7 +121,7 @@ export function HomePage({
             draft={launcherDraft}
             dirty={launchSettingsDirty}
             saving={launcherSettingsSaving}
-            disabled={status === "running" || preparing}
+            disabled={status === "running" || preparing || launcherSettingsLoading}
             onChange={onLauncherChange}
             onOpenAll={() => onNavigate("launch")}
             onSave={onSaveLauncherSettings}
@@ -146,7 +148,7 @@ export function HomePage({
         <div className="home-fact">
           <span>Profile</span>
           {profiles && profiles.profiles.length > 0 ? (
-            <select className="home-profile-select" aria-label="Active profile" value={activeProfile?.name ?? ""} onChange={(event) => {
+            <select className="home-profile-select" aria-label="Active profile" value={activeProfile?.name ?? ""} disabled={operationBlocked} onChange={(event) => {
               const name = event.target.value;
               if (name && name !== activeProfile?.name) onSelectProfile(name);
             }}>
@@ -165,7 +167,7 @@ export function HomePage({
           <span>Installation</span>
           <strong>{isReady && snapshot?.selected ? shortPath(snapshot.selected.installRoot) : "Not selected"}</strong>
           <small>{isReady && snapshot ? `${friendlyPlatform(snapshot.platform)} · ${snapshot.selected?.kind.replace("-", " ")}` : "Choose the game folder to begin."}</small>
-          <button type="button" className="text-button" onClick={onChooseInstall} aria-label="Change Starsector installation">Change <ArrowIcon /></button>
+          <button type="button" className="text-button" onClick={onChooseInstall} aria-label="Change Starsector installation" disabled={operationBlocked}>Change <ArrowIcon /></button>
         </div>
       </section>
     </>
