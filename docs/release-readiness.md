@@ -35,9 +35,13 @@ first public beta.
   with game, mod, and save sentinels retained. Every native install exercise now runs the packaged
   engine's preview and confirmed all-data paths inside a disposable home. It also validates the
   shipped campaign scenario, seals an intentional no-game result as `skipped`, and runs a no-launch
-  platform-adapter probe that must return a valid driver or a specific unavailable reason. Windows
-  and Linux still need a completed hosted run of those checks, along with update/rollback and
-  hosted-candidate completion. The first-beta checksum, warning, install, and removal instructions
+  platform-adapter probe that must return a valid driver or a specific unavailable reason.
+  Native package exercises also use the checked [license-free Fusion contract](fusion-acceptance.md)
+  for spaces-and-Unicode discovery, cold preparation, warm reuse, dry-run launch non-execution,
+  diagnostics filtering, and installation byte identity. Ubuntu ARM64 can run its portable source
+  half, but can't validate the published x86-64 Linux package. Windows and Linux still need a
+  completed hosted run of those checks, along with update/rollback and hosted-candidate completion.
+  The first-beta checksum, warning, install, and removal instructions
   are now documented for every package. A manual private
   candidate path now exercises the real signing credentials and complete three-platform artifact
   assembly without granting its job release-publication permission. Candidate files are

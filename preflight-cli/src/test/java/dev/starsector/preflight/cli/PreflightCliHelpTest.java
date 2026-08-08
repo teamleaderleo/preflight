@@ -64,6 +64,8 @@ class PreflightCliHelpTest {
         assertTrue(output.contains("--optimization-preset recommended"), output);
         assertTrue(output.contains("--fast is its backwards-compatible alias"), output);
         assertTrue(output.contains("--optimization-preset conservative"), output);
+        assertTrue(output.contains("--disable-optimization-domain"), output);
+        assertTrue(output.contains("Other adapters and correctness repairs are unchanged"), output);
         assertTrue(output.contains("--file-only-logs"), output);
         assertTrue(output.contains("--quiet-logs"), output);
         assertTrue(output.contains("about 0.40s"), output);

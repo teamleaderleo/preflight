@@ -8,6 +8,7 @@ import type {
   LaunchSettings,
   LaunchSettingsUpdate,
   NamedProfile,
+  OptimizationDomain,
   OptimizationPreset,
   ProfileActivationPlan,
   ProfileList,
@@ -123,12 +124,16 @@ export async function openDesktopAccessibilitySettings(): Promise<void> {
   return invoke<void>("open_desktop_accessibility_settings");
 }
 
-export async function startGame(game: string, optimizationPreset: OptimizationPreset): Promise<RunStarted> {
+export async function startGame(
+  game: string,
+  optimizationPreset: OptimizationPreset,
+  disabledOptimizationDomains: OptimizationDomain[],
+): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));
     return { pid: 4242 };
   }
-  return invoke<RunStarted>("start_game", { game, optimizationPreset });
+  return invoke<RunStarted>("start_game", { game, optimizationPreset, disabledOptimizationDomains });
 }
 
 export async function getCache(game: string): Promise<CacheSnapshot> {

@@ -24,6 +24,8 @@ archive. They answer different questions. This page is the shortest route to the
   limits.
 - [Cross-platform evidence plan](cross-platform-evidence-plan.md) — what hosted, emulated, and native
   checks can establish before a platform is accepted.
+- [VMware Fusion acceptance](fusion-acceptance.md) — deterministic Windows package and Ubuntu ARM64
+  portable checks that use no licensed game content.
 - [Versioning and updates](versioning-and-updates.md) — application releases, game/mod compatibility,
   profiles, cache evolution, and the signed update channel.
 

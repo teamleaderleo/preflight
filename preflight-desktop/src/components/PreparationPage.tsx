@@ -1,7 +1,7 @@
 import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { resourcePresets, type usePreparation } from "../usePreparation";
 import { formatBytes } from "../uiFormat";
-import type { CacheCleanupPlan, OptimizationPreset } from "../types";
+import type { CacheCleanupPlan, OptimizationDomain, OptimizationPreset } from "../types";
 
 export const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -35,11 +35,13 @@ interface PreparationPageProps {
   message: string;
   isReady: boolean;
   optimizationPreset: OptimizationPreset;
+  disabledOptimizationDomains: OptimizationDomain[];
   preparation: PreparationState;
   cleanupPlan: CacheCleanupPlan | null;
   cleanupBusy: boolean;
   operationBlocked: boolean;
   onOptimizationPresetChange: (preset: OptimizationPreset) => void;
+  onOptimizationDomainChange: (domain: OptimizationDomain, enabled: boolean) => void;
   onReviewCleanup: () => void;
   onCleanCache: () => void;
   onDismissCleanup: () => void;
@@ -49,11 +51,13 @@ export function PreparationPage({
   message,
   isReady,
   optimizationPreset,
+  disabledOptimizationDomains,
   preparation,
   cleanupPlan,
   cleanupBusy,
   operationBlocked,
   onOptimizationPresetChange,
+  onOptimizationDomainChange,
   onReviewCleanup,
   onCleanCache,
   onDismissCleanup,
@@ -95,6 +99,34 @@ export function PreparationPage({
             </label>
           ))}
         </div>
+      </section>
+
+      <section className="card optimization-domain-card">
+        <div className="card__heading">
+          <div><p className="eyebrow">Advanced</p><h2>Prepared caches</h2></div>
+          <span className="field-note">Applied at next launch</span>
+        </div>
+        <div className="optimization-domain-list">
+          <label className="optimization-domain">
+            <input
+              type="checkbox"
+              checked={!disabledOptimizationDomains.includes("prepared-textures")}
+              onChange={(event) => onOptimizationDomainChange("prepared-textures", event.target.checked)}
+              disabled={operationBlocked || optimizationPreset === "off"}
+            />
+            <span><strong>Prepared textures</strong><small>Use the validated texture pack and live GPU capability gate.</small></span>
+          </label>
+          <label className="optimization-domain">
+            <input
+              type="checkbox"
+              checked={!disabledOptimizationDomains.includes("prepared-audio")}
+              onChange={(event) => onOptimizationDomainChange("prepared-audio", event.target.checked)}
+              disabled={operationBlocked || optimizationPreset === "off"}
+            />
+            <span><strong>Prepared audio</strong><small>Use decoded audio only when the cache and decoder identities match.</small></span>
+          </label>
+        </div>
+        <p className="storage-note">Turn one off to isolate a problem. Off disables every optimization regardless of these selections.</p>
       </section>
 
       <div className="prepare-grid">
@@ -161,7 +193,7 @@ export function PreparationPage({
       {cleanupPlan ? (
         <section className="card cleanup-review" aria-label="Cache cleanup review">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Nothing removed yet</p><h2>{cleanupPlan.files === 0 ? "Everything here is still useful" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
+            <div><p className="eyebrow">Cleanup review</p><h2>{cleanupPlan.files === 0 ? "Everything here is still useful" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
             <button className="text-button" type="button" onClick={onDismissCleanup} disabled={cleanupBusy}>Close</button>
           </div>
           {!cleanupPlan.safe ? <p className="activation-warning">{cleanupPlan.refusals.join(" ")}</p> : null}

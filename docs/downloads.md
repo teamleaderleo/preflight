@@ -75,6 +75,12 @@ file can show **Windows protected your PC**, and managed systems can forbid bypa
 The exact behavior and reputation model are documented in
 [SmartScreen reputation for Windows app developers](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation).
 
+After the first public release, the project can apply to
+[SignPath Foundation's free open-source signing program](https://signpath.org/terms.html). Its
+current eligibility rules require an already released, maintained OSI-licensed project, reviewed
+repository-to-binary provenance, and manual approval for each signing request. Acceptance isn't
+assumed, and this optional follow-up doesn't change the unsigned first-beta boundary.
+
 Linux CI builds both `.deb` and AppImage artifacts on Ubuntu 22.04. `.deb` is the Debian-family
 package format used by Ubuntu and Debian; it doesn't mean Debian is the only supported target.
 AppImage is the portable fallback for other compatible x86-64 distributions. Real installation and

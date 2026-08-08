@@ -628,9 +628,12 @@ fn start_game(
     tracker: State<'_, OperationCoordinator>,
     game: String,
     optimization_preset: String,
+    disabled_optimization_domains: Vec<String>,
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
     let optimization_preset = validate_optimization_preset(&optimization_preset)?;
+    let disabled_optimization_domains =
+        validate_optimization_domains(&disabled_optimization_domains)?;
     let paths = EnginePaths::resolve(&app)?;
 
     let mut running = tracker
@@ -654,6 +657,9 @@ fn start_game(
         .arg(optimization_preset)
         .arg("--game")
         .arg(directory);
+    for domain in disabled_optimization_domains {
+        command.arg("--disable-optimization-domain").arg(domain);
+    }
     command.stderr(Stdio::piped());
     let child = command
         .spawn()
@@ -681,6 +687,27 @@ fn validate_optimization_preset(value: &str) -> Result<&str, String> {
         "recommended" | "conservative" | "off" => Ok(value),
         _ => Err("Optimization preset must be recommended, conservative, or off.".to_string()),
     }
+}
+
+fn validate_optimization_domains(values: &[String]) -> Result<Vec<&str>, String> {
+    let mut validated = Vec::with_capacity(values.len());
+    for value in values {
+        let value = match value.as_str() {
+            "prepared-textures" | "prepared-audio" => value.as_str(),
+            _ => {
+                return Err(
+                    "Optimization domains must be prepared-textures or prepared-audio.".to_string(),
+                );
+            }
+        };
+        if validated.contains(&value) {
+            return Err(format!(
+                "Optimization domain {value} was supplied more than once."
+            ));
+        }
+        validated.push(value);
+    }
+    Ok(validated)
 }
 
 fn watch_child(app: AppHandle, mut child: Child) {
@@ -859,8 +886,9 @@ mod tests {
     use super::{
         ReportDeletion, ReportReceipt, ReportUploadError, ReportUploadInput, begin_exit_cleanup,
         perform_report_deletion, perform_report_upload, read_tail, report_client,
-        take_deferred_exit, validate_optimization_preset, validate_report_origin,
-        validate_report_receipt, validated_case_url, validated_report_archive,
+        take_deferred_exit, validate_optimization_domains, validate_optimization_preset,
+        validate_report_origin, validate_report_receipt, validated_case_url,
+        validated_report_archive,
     };
     use crate::automation::{
         DESKTOP_SMOKE_CANCELLATION_FILE, desktop_smoke_cancellation_outcome,
@@ -1506,6 +1534,26 @@ mod tests {
         assert_eq!("off", validate_optimization_preset("off").unwrap());
         assert!(validate_optimization_preset("custom").is_err());
         assert!(validate_optimization_preset("recommended --no-adapter").is_err());
+    }
+
+    #[test]
+    fn optimization_domains_are_a_closed_duplicate_free_product_contract() {
+        let values = vec![
+            "prepared-textures".to_string(),
+            "prepared-audio".to_string(),
+        ];
+        assert_eq!(
+            vec!["prepared-textures", "prepared-audio"],
+            validate_optimization_domains(&values).unwrap()
+        );
+        assert!(validate_optimization_domains(&["campaign".to_string()]).is_err());
+        assert!(
+            validate_optimization_domains(&[
+                "prepared-audio".to_string(),
+                "prepared-audio".to_string(),
+            ])
+            .is_err()
+        );
     }
 
     #[test]

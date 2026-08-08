@@ -67,7 +67,6 @@ export function SettingsPage({
       <details className="card settings-disclosure removal-card">
         <summary><span><strong>Remove Preflight</strong><small>Launcher only or all local data</small></span></summary>
         <div className="settings-disclosure__body">
-          <p>Every removal is previewed first. Starsector, mods, saves, and game settings stay untouched.</p>
           <div className="removal-choices">
             <div><strong>Launch integration</strong><span>Remove Preflight’s installed command engine and OS launch shortcuts. Keep prepared data and diagnostics.</span><button className="button button--quiet button--compact" type="button" onClick={() => onReviewRemoval("launcher")} disabled={removalBusy || operationBlocked}>Review launcher removal</button></div>
             <div><strong>All Preflight data</strong><span>Remove launch integrations, caches, profiles, evidence, and backups. The packaged desktop app remains for the operating system to uninstall.</span><button className="button button--quiet button--compact" type="button" onClick={() => onReviewRemoval("all-data")} disabled={removalBusy || operationBlocked}>Review all data removal</button></div>
@@ -78,7 +77,7 @@ export function SettingsPage({
       {removalPlan ? (
         <section className="card removal-review" aria-label="Removal review">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Nothing removed yet</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
+            <div><p className="eyebrow">Removal review</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
             <button className="text-button" type="button" onClick={onDismissRemoval} disabled={removalBusy}>Cancel</button>
           </div>
           <p className="cleanup-summary">{formatBytes(removalPlan.bytes)} across {removalPlan.files.toLocaleString()} files. The plan was measured from the paths below.</p>

@@ -86,6 +86,7 @@ export interface PreparationStoragePlan {
 }
 
 export type OptimizationPreset = "recommended" | "conservative" | "off";
+export type OptimizationDomain = "prepared-textures" | "prepared-audio";
 
 export interface DiagnosticsExport {
   format: "starsector-preflight-diagnostics-export-v1";

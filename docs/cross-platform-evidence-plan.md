@@ -10,7 +10,8 @@ plans. The release evidence should match those boundaries.
 | Level | Environment | What it can establish | What it can't establish |
 | --- | --- | --- | --- |
 | Hosted package checks | GitHub-hosted Windows, Ubuntu, and macOS runners | Reproducible builds, portable cache contracts, JAR startup, package contents, install/remove behavior, no-launch platform-adapter probes, checksums, and update metadata | Integration with the licensed game, live desktop actions, GPU/audio behavior, or performance |
-| Emulated game checks | A Windows or Linux guest on Apple silicon | Discovery, first-run preparation, launch, cache acceptance, fallback behavior, settings writes, and basic gameplay compatibility | Native x86-64 performance or representative driver behavior |
+| Emulated game checks | Windows 11 ARM on Apple silicon | Discovery, first-run preparation, launch, cache acceptance, fallback behavior, settings writes, and basic gameplay compatibility through Windows' x64 application emulator | Native x86-64 performance or representative driver behavior |
+| ARM64 portable checks | Ubuntu ARM64 on Apple silicon | Portable JVM/source contracts with native ARM64 toolchains | The published x86-64 Debian/AppImage package, licensed-game integration, or performance |
 | Native beta checks | A user's Windows or Linux machine with its own game installation | Package UX, real-game correctness, graphics/audio behavior, startup time, and frame-time distributions | Another machine's hardware or mod profile |
 
 Public repositories can use GitHub's standard hosted runners without Actions charges. The current
@@ -20,8 +21,10 @@ so private candidates stay encrypted before upload.
 
 The Apple-silicon fallback is useful for compatibility. Microsoft publishes a Windows 11 Arm64 ISO,
 and Windows on Arm can emulate x64 applications. A successful run there is labelled **emulated
-compatibility**. Linux guests can cover the same product flow. Neither result becomes a performance
-claim.
+compatibility**. Fusion's Ubuntu guest is ARM64 and therefore can't validate the published x86-64
+Linux package; it runs the portable source contracts instead. Neither result becomes a performance
+claim. The deterministic no-license-content flow and evidence schema are documented in
+[the Fusion acceptance harness](fusion-acceptance.md).
 
 Native evidence comes from a small private beta. A tester downloads an authenticated candidate,
 installs it normally, selects an existing legitimate Starsector installation, runs the automated
@@ -34,8 +37,9 @@ evidence. No game binaries or assets are uploaded.
 1. Complete the hosted candidate matrix and retain package checksums and lifecycle results.
 2. Run the packaged first-run, report upload, cancellation, retry, deletion, update, rollback, and
    full-removal flows on each available operating system.
-3. Exercise a licensed installation in an emulated Windows or Linux guest when that guest is
-   available. Record it as compatibility evidence.
+3. Exercise a licensed installation in an emulated Windows guest when that guest is available.
+   Record it as compatibility evidence. Use Ubuntu ARM64 only for portable source contracts; use
+   x86-64 Linux or native beta hardware for the published Linux packages.
 4. Give the same exact candidate to at least one native Windows tester and one native Linux tester.
    Ask for a clean install, first preparation, two launches, a campaign roam, a combat simulation,
    and removal. The automated smoke path should cover this once its platform adapter is live-tested.

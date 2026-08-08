@@ -461,6 +461,11 @@ final class RunCommand {
                 + (ownership.evidence().isEmpty() ? "" : " " + ownership.evidence()));
         System.out.println("  run data: " + runDirectory);
         System.out.println("  optimization preset: " + options.optimizationPreset().optionValue());
+        System.out.println("  disabled optimization domains: "
+                + options.disabledOptimizationDomains().stream()
+                        .map(OptimizationDomain::optionValue)
+                        .sorted()
+                        .toList());
         System.out.println("  adapter:  " + options.adapterMode());
         System.out.println("  adapter plan scope: " + options.adapterPlanScope().optionValue());
         System.out.println("  recording: " + options.recordingMode()
@@ -674,6 +679,10 @@ final class RunCommand {
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
         values.put("optimizationPreset", options.optimizationPreset().optionValue());
+        values.put("disabledOptimizationDomains", options.disabledOptimizationDomains().stream()
+                .map(OptimizationDomain::optionValue)
+                .sorted()
+                .toList());
         values.put("adapterMode", options.adapterMode());
         values.put("adapterPlanScope", options.adapterPlanScope().optionValue());
         values.put("adapterReport", adapterReport);

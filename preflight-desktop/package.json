@@ -23,6 +23,7 @@
     "desktop:collect": "node scripts/collect-bundles.mjs",
     "desktop:clean": "node scripts/clean-bundle-output.mjs",
     "desktop:exercise-install": "node scripts/exercise-native-install.mjs",
+    "desktop:fusion-acceptance": "node scripts/fusion-acceptance.mjs",
     "desktop:verify-package": "node scripts/verify-native-package.mjs",
     "desktop:verify-installed": "node scripts/verify-installed-engine.mjs",
     "desktop:test-package": "npm run desktop:build && npm run desktop:verify-package && npm run desktop:exercise-install",

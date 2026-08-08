@@ -8,6 +8,7 @@ import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class CommandLineAdapterTest {
@@ -46,6 +47,57 @@ class CommandLineAdapterTest {
                 IllegalArgumentException.class,
                 () -> CommandLine.parse(
                         new String[] {"run", "--optimization-preset", "experimental"}, 1));
+    }
+
+    @Test
+    void productDomainsDisableTheirCompletePreparedCacheContextsRegardlessOfOrder() {
+        CommandLine domainsFirst = CommandLine.parse(new String[] {
+                "run",
+                "--disable-optimization-domain", "prepared_audio",
+                "--disable-optimization-domain", "prepared-textures",
+                "--optimization-preset", "recommended"
+        }, 1);
+        CommandLine presetFirst = CommandLine.parse(new String[] {
+                "run",
+                "--optimization-preset", "recommended",
+                "--disable-optimization-domain", "prepared-textures",
+                "--disable-optimization-domain", "prepared-audio"
+        }, 1);
+
+        assertEquals(domainsFirst, presetFirst);
+        assertEquals(Set.of(
+                OptimizationDomain.PREPARED_TEXTURES,
+                OptimizationDomain.PREPARED_AUDIO), presetFirst.disabledOptimizationDomains());
+        assertEquals(false, presetFirst.textureAuto());
+        assertEquals(TextureAdapterMode.COMPATIBILITY, presetFirst.textureAdapterMode());
+        assertEquals(false, presetFirst.npotDirect());
+        assertEquals(false, presetFirst.unpadded());
+        assertEquals(false, presetFirst.preparedAudio());
+        assertEquals(true, presetFirst.loadJsonMemo());
+        assertEquals(true, presetFirst.campaignEntityIndex());
+    }
+
+    @Test
+    void productDomainsRejectUnknownNamesCustomLaunchesAndConflictingArtifacts() {
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "recommended",
+                "--disable-optimization-domain", "everything"
+        }, 1));
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--disable-optimization-domain", "prepared-audio"
+        }, 1));
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "recommended",
+                "--disable-optimization-domain", "prepared-audio",
+                "--disable-optimization-domain", "prepared-audio"
+        }, 1));
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "recommended",
+                "--texture-cache-dir", "cache",
+                "--texture-manifest", "manifest.json",
+                "--texture-index", "index.json",
+                "--disable-optimization-domain", "prepared-textures"
+        }, 1));
     }
 
     @Test

@@ -69,7 +69,7 @@ export function ProfilesPage({ message, profilesState, operationBlocked }: Profi
       {activationPlan ? (
         <section className="card activation-review" aria-label="Profile switch review">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Nothing changed yet</p><h2>Switch to {activationPlan.name}?</h2></div>
+            <div><p className="eyebrow">Switch review</p><h2>Switch to {activationPlan.name}?</h2></div>
             <button className="text-button" type="button" onClick={dismissActivationPlan} disabled={profileBusy}>Cancel</button>
           </div>
           {!activationPlan.sameInstall ? <p className="activation-warning">This profile belongs to {shortPath(activationPlan.savedInstallRoot)} and cannot be applied here.</p> : null}

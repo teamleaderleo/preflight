@@ -25,6 +25,7 @@ import { shortPath } from "./uiFormat";
 import type {
   AppStatus,
   DesktopSnapshot,
+  OptimizationDomain,
   OptimizationPreset,
   RunStateEvent,
 } from "./types";
@@ -39,6 +40,21 @@ function savedOptimizationPreset(): OptimizationPreset {
     // A locked-down webview may deny storage; the safe product default still applies.
   }
   return "recommended";
+}
+
+function savedDisabledOptimizationDomains(): OptimizationDomain[] {
+  try {
+    const saved: unknown = JSON.parse(
+      window.localStorage.getItem("preflight.disabledOptimizationDomains") ?? "[]",
+    );
+    if (!Array.isArray(saved)) return [];
+    const domains = saved.filter(
+      (value): value is OptimizationDomain => value === "prepared-textures" || value === "prepared-audio",
+    );
+    return [...new Set(domains)];
+  } catch {
+    return [];
+  }
 }
 
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
@@ -60,6 +76,9 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [page, setPage] = useState<Page>("home");
   const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
+  const [disabledOptimizationDomains, setDisabledOptimizationDomains] = useState<OptimizationDomain[]>(
+    savedDisabledOptimizationDomains,
+  );
   const refreshRequest = useRef(0);
   const refresh = useCallback(async (game?: string) => {
     const request = ++refreshRequest.current;
@@ -82,13 +101,13 @@ export default function App() {
     setStatus("running");
     setMessage("Preflight is opening the hangar…");
     try {
-      await startGame(game, optimizationPreset);
+      await startGame(game, optimizationPreset, disabledOptimizationDomains);
       setMessage("Starsector is running. Preflight will keep the porch light on.");
     } catch (error) {
       setStatus("error");
       setMessage(String(error));
     }
-  }, [optimizationPreset, snapshot?.selected?.installRoot]);
+  }, [disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
     page === "prepare",
@@ -158,6 +177,23 @@ export default function App() {
   }, [optimizationPreset]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "preflight.disabledOptimizationDomains",
+        JSON.stringify(disabledOptimizationDomains),
+      );
+    } catch {
+      // The validated selection remains active for this session.
+    }
+  }, [disabledOptimizationDomains]);
+
+  const setOptimizationDomainEnabled = (domain: OptimizationDomain, enabled: boolean) => {
+    setDisabledOptimizationDomains((current) => enabled
+      ? current.filter((candidate) => candidate !== domain)
+      : current.includes(domain) ? current : [...current, domain]);
+  };
+
+  useEffect(() => {
     if (!isDesktopHost()) return;
     return listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "finished") {
@@ -211,6 +247,7 @@ export default function App() {
             isReady={isReady}
             needsPreparation={needsPreparation}
             optimizationPreset={optimizationPreset}
+            disabledOptimizationDomains={disabledOptimizationDomains}
             preparation={preparation}
             profilesState={profilesState}
             updateStatus={updateStatus}
@@ -251,11 +288,13 @@ export default function App() {
             message={message}
             isReady={isReady}
             optimizationPreset={optimizationPreset}
+            disabledOptimizationDomains={disabledOptimizationDomains}
             preparation={preparation}
             cleanupPlan={cleanup.plan}
             cleanupBusy={cleanup.busy}
             operationBlocked={operationBlocked}
             onOptimizationPresetChange={setOptimizationPreset}
+            onOptimizationDomainChange={setOptimizationDomainEnabled}
             onReviewCleanup={() => void cleanup.review()}
             onCleanCache={() => void cleanup.clean()}
             onDismissCleanup={cleanup.dismiss}

@@ -82,11 +82,10 @@ export function ReportsPage({
       {desktopSmokeReview ? (
         <section className="card automation-review" aria-label="Automated game test review">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Nothing started yet</p><h2>Run the checked campaign test?</h2></div>
+            <div><p className="eyebrow">Test review</p><h2>Run the checked campaign test?</h2></div>
             <button className="text-button" type="button" onClick={() => setDesktopSmokeReview(false)} disabled={desktopSmokeRunning}>Cancel</button>
           </div>
-          <p>Preflight will open the current installation with recommended optimizations, continue the latest save, move forward for three seconds, collect a window screenshot and bounded timing evidence, then close only that exact game process.</p>
-          <p>Leave the game window unobstructed while it runs. The interaction sequence has a four-minute deadline; startup and cleanup have separate bounds.</p>
+          <p>Preflight will open the current installation, continue the latest save, move forward for three seconds, collect a screenshot and timing evidence, then close that game process. Leave the game window unobstructed; the interaction sequence stops after four minutes.</p>
           <div className="activation-review__footer">
             <span><ShieldIcon /> The driver doesn’t edit game, mod, or save files; it only sends the actions listed here.</span>
             <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeProbeBusy || desktopSmokeRunning || operationBlocked}>{desktopSmokeRunning ? "Test running…" : "Start automated test"}</button>
@@ -123,7 +122,7 @@ export function ReportsPage({
       {reportReview && diagnosticsExport ? (
         <section className="card report-review" aria-label="Run report consent">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Nothing sent yet</p><h2>Send this exact ZIP?</h2></div>
+            <div><p className="eyebrow">Send review</p><h2>Send this exact ZIP?</h2></div>
             <button className="text-button" type="button" onClick={() => setReportReview(false)} disabled={reportUploading}>Cancel</button>
           </div>
           <p>Preflight will send the ZIP shown below to {reportIntake?.origin}. The service also receives ordinary network metadata such as your IP address for delivery and rate limiting. There are no automatic or background uploads.</p>

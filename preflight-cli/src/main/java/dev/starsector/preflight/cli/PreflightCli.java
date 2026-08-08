@@ -180,7 +180,7 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--direct] [--optimization-preset recommended|conservative|off | --fast] [--file-only-logs | --quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index | --no-campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--direct] [--optimization-preset recommended|conservative|off | --fast] [--disable-optimization-domain prepared-textures|prepared-audio] [--file-only-logs | --quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index | --no-campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
                 "    --direct starts Starsector through its own launchDirect path without showing the"
                         + " launcher. Resolution, fullscreen and sound come from the launcher's saved"
                         + " preferences; the run fails closed if those settings are unavailable or unsafe.",
@@ -192,6 +192,10 @@ public final class PreflightCli {
                         + " padded texture allocation, but omits gameplay and mod-specific plans."
                         + " off retains the wrapper and process report without transforms, scanning,"
                         + " summaries, or profiling. Later explicit raw options are for diagnostics.",
+                "    --disable-optimization-domain is a preset-only troubleshooting control."
+                        + " prepared-textures removes the complete prepared texture context;"
+                        + " prepared-audio removes the decoder-bound prepared audio context."
+                        + " Other adapters and correctness repairs are unchanged.",
                 "    --suppress-asset-progress-logs removes only the reviewed vanilla per-file"
                         + " weapon, projectile, hull, and variant INFO messages. Errors, warnings,"
                         + " and phase summaries remain; it is included by --fast and can be"

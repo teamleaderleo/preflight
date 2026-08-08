@@ -47,6 +47,7 @@ export function useRemoval(
       if (currentRequest !== request.current) return;
       if (scope === "all-data") {
         try { window.localStorage.removeItem("preflight.optimizationPreset"); } catch { /* already removed on disk */ }
+        try { window.localStorage.removeItem("preflight.disabledOptimizationDomains"); } catch { /* already removed on disk */ }
         clearCache();
         clearProfiles();
       }

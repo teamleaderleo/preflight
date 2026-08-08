@@ -28,8 +28,10 @@ Release work now has priority over another narrow startup experiment:
 5. update-signed, checksum-qualified packages with a tested rollback and support path.
 
 The [cross-platform evidence plan](cross-platform-evidence-plan.md) defines the free hosted matrix,
-the narrower role of emulated Windows/Linux runs, and the native beta evidence needed for real-game
-performance and driver claims.
+the narrower role of emulated Windows and Ubuntu ARM64 source-contract runs, and the native beta
+evidence needed for real-game performance and driver claims. The checked
+[VMware Fusion harness](fusion-acceptance.md) records Windows x64 package behavior under ARM64
+emulation without treating Ubuntu ARM64 as evidence for the published x86-64 Linux packages.
 
 The first-beta install guide now covers exact checksum manifests, the bounded Gatekeeper and
 SmartScreen overrides, `.deb` installation through APT, AppImage execution, native-package removal,
@@ -109,6 +111,10 @@ Every installed-package exercise now validates the shipped campaign scenario and
 engine to seal an intentional no-game driver result. The result must remain `skipped`; a missing
 driver or permission can't be promoted to a package pass. The existing platform probe still has to
 return either a valid PID-addressed driver or a specific unavailable reason.
+The same exercise now generates a license-free installation under a spaces-and-Unicode path, proves
+explicit discovery, cold preparation and warm reuse, constructs a launch without executing its
+sentinel launcher, verifies the installation stayed byte-identical, and opens the diagnostics ZIP
+to prove a private console sentinel wasn't exported.
 The macOS no-launch probe still lacks Accessibility permission for the exact bundled Java runtime;
 one isolated live action test remains there, followed by native Windows and Linux beta validation.
 

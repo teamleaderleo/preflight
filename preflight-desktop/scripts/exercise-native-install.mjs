@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyInstalledEngine } from "./verify-installed-engine.mjs";
+import { exerciseSyntheticPackageContract } from "./synthetic-package-contract.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
@@ -44,6 +45,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
     const installedApp = join(installDirectory, "Preflight.app");
     run("ditto", [packagedApp, installedApp]);
     const report = verifyInstalledEngine(installedApp);
+    const syntheticContract = exerciseSyntheticPackageContract(installedApp);
     const desktopSmokeContract = exercisePackagedDesktopSmokeContract(installedApp);
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(installedApp);
     const allDataRemoval = exercisePackagedAllDataRemoval(installedApp);
@@ -62,6 +64,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
       installedCopy: true,
       removed: true,
       separateDataRetained: true,
+      syntheticContract,
       desktopSmokeContract,
       desktopSmokeProbe,
       allDataRemoval,
@@ -97,6 +100,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
     });
     if (installedFiles.length === 0) throw new Error("Installed Debian package owns no files");
     const report = verifyInstalledEngine(dirname(engineRoot));
+    const syntheticContract = exerciseSyntheticPackageContract(dirname(engineRoot));
     const desktopSmokeContract = exercisePackagedDesktopSmokeContract(dirname(engineRoot));
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(dirname(engineRoot));
     const allDataRemoval = exercisePackagedAllDataRemoval(dirname(engineRoot));
@@ -117,6 +121,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
       package: basename(packagePath),
       packageName,
       removed: true,
+      syntheticContract,
       desktopSmokeContract,
       desktopSmokeProbe,
       allDataRemoval,
@@ -135,6 +140,7 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
   try {
     run(packagePath, ["/S", `/D=${installDirectory}`]);
     const report = verifyInstalledEngine(installDirectory);
+    const syntheticContract = exerciseSyntheticPackageContract(installDirectory);
     const desktopSmokeContract = exercisePackagedDesktopSmokeContract(installDirectory);
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(installDirectory);
     const allDataRemoval = exercisePackagedAllDataRemoval(installDirectory);
@@ -156,6 +162,7 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
     return {
       package: basename(packagePath),
       removed: true,
+      syntheticContract,
       desktopSmokeContract,
       desktopSmokeProbe,
       allDataRemoval,

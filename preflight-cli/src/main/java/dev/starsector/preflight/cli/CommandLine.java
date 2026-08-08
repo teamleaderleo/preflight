@@ -6,7 +6,9 @@ import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 record CommandLine(
         Path game,
@@ -16,6 +18,7 @@ record CommandLine(
         boolean summarize,
         boolean scan,
         OptimizationPreset optimizationPreset,
+        Set<OptimizationDomain> disabledOptimizationDomains,
         AdapterPlanScope adapterPlanScope,
         AdapterMode adapterMode,
         Path adapterTargets,
@@ -54,6 +57,7 @@ record CommandLine(
         boolean summarize = true;
         boolean scan = true;
         OptimizationPreset optimizationPreset = OptimizationPreset.CUSTOM;
+        Set<OptimizationDomain> disabledOptimizationDomains = new LinkedHashSet<>();
         AdapterPlanScope adapterPlanScope = AdapterPlanScope.FULL;
         boolean exhaustiveFileReads = false;
         RecordingMode recordingMode = RecordingMode.FULL;
@@ -125,6 +129,13 @@ record CommandLine(
                 case "--game" -> game = Path.of(requireValue(args, ++i, arg));
                 case "--launcher" -> launcher = Path.of(requireValue(args, ++i, arg));
                 case "--trace-dir" -> traceDirectory = Path.of(requireValue(args, ++i, arg));
+                case "--disable-optimization-domain" -> {
+                    OptimizationDomain domain = OptimizationDomain.parse(requireValue(args, ++i, arg));
+                    if (!disabledOptimizationDomains.add(domain)) {
+                        throw new IllegalArgumentException(
+                                "Optimization domain " + domain.optionValue() + " was supplied more than once");
+                    }
+                }
                 case "--dry-run" -> dryRun = true;
                 case "--no-summary" -> summarize = false;
                 case "--no-scan" -> scan = false;
@@ -186,6 +197,25 @@ record CommandLine(
                 }
                 default -> throw new IllegalArgumentException("Unknown option: " + arg);
             }
+        }
+        if (!disabledOptimizationDomains.isEmpty()
+                && optimizationPreset == OptimizationPreset.CUSTOM) {
+            throw new IllegalArgumentException(
+                    "--disable-optimization-domain requires a product optimization preset");
+        }
+        if (disabledOptimizationDomains.contains(OptimizationDomain.PREPARED_TEXTURES)) {
+            if (textureCacheDirectory != null || textureManifest != null || textureIndex != null) {
+                throw new IllegalArgumentException(
+                        "The prepared-textures domain cannot be disabled with explicit texture artifacts");
+            }
+            textureAuto = false;
+            textureAdapterMode = TextureAdapterMode.COMPATIBILITY;
+            textureModeSpecified = false;
+            npotDirect = false;
+            unpadded = false;
+        }
+        if (disabledOptimizationDomains.contains(OptimizationDomain.PREPARED_AUDIO)) {
+            preparedAudio = false;
         }
         if (adapterTargets != null && adapterMode == AdapterMode.OFF) {
             throw new IllegalArgumentException("--adapter-targets requires --adapter-probe or --adapter");
@@ -280,6 +310,7 @@ record CommandLine(
                 summarize,
                 scan,
                 optimizationPreset,
+                Set.copyOf(disabledOptimizationDomains),
                 adapterPlanScope,
                 adapterMode,
                 adapterTargets,

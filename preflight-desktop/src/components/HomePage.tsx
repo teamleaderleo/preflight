@@ -10,6 +10,7 @@ import type {
   DesktopSnapshot,
   LaunchSettings,
   LaunchSettingsUpdate,
+  OptimizationDomain,
   OptimizationPreset,
   UpdateStatus,
 } from "../types";
@@ -24,6 +25,7 @@ interface HomePageProps {
   isReady: boolean;
   needsPreparation: boolean;
   optimizationPreset: OptimizationPreset;
+  disabledOptimizationDomains: OptimizationDomain[];
   preparation: PreparationState;
   profilesState: ProfilesState;
   updateStatus: UpdateStatus | null;
@@ -49,6 +51,7 @@ export function HomePage({
   isReady,
   needsPreparation,
   optimizationPreset,
+  disabledOptimizationDomains,
   preparation,
   profilesState,
   updateStatus,
@@ -84,12 +87,14 @@ export function HomePage({
     <>
       <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"}`}>
         <div className="launch-console__primary">
-          <div className={`status-chip ${isReady ? "status-chip--ready" : ""}`}>
-            {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
-            {status === "running" ? "Game running" : preparing ? "Preparing profile" : needsPreparation ? "Profile changed" : isReady ? "Prepared" : "Installation required"}
-          </div>
+          {status === "running" || preparing || needsPreparation || !isReady ? (
+            <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
+              {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
+              {status === "running" ? "Game running" : preparing ? "Preparing profile" : needsPreparation ? "Profile changed" : "Installation required"}
+            </div>
+          ) : null}
           {!isReady ? <h2>Choose the game folder</h2> : null}
-          {!isReady || needsPreparation ? <p>{needsPreparation ? "Build reusable data for this mod profile first." : "Select the folder that contains the Starsector launcher."}</p> : null}
+          {!isReady ? <p>Select the folder that contains the Starsector launcher.</p> : null}
           <div className="launch-console__actions">
             {isReady ? (
               <button className="button button--primary button--launch" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked || status === "loading" || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
@@ -110,7 +115,7 @@ export function HomePage({
                     ? `${textureStorage === "balanced" ? "Balanced" : "Fastest"} predicts ${formatBytes(preparationPlan.predictedAdditionalBytes)} additional; ${formatBytes(preparationPlan.usableBytes)} is available.`
                     : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
                 : profilePrepared
-                  ? `Prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}`
+                  ? `Prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}${disabledOptimizationDomains.length > 0 ? ` · ${disabledOptimizationDomains.length} prepared cache${disabledOptimizationDomains.length === 1 ? "" : "s"} off` : ""}`
                   : "Preparation is disabled for this troubleshooting launch."}</span>
             </div>
           ) : null}

@@ -78,6 +78,7 @@ test("every native package job exercises install, automation contracts and both 
     resolve(repository, "preflight-desktop/scripts/exercise-native-install.mjs"),
     "utf8",
   );
+  assert.match(exercise, /exerciseSyntheticPackageContract/);
   assert.match(exercise, /exercisePackagedDesktopSmokeContract/);
   assert.match(exercise, /exercisePackagedAllDataRemoval/);
   assert.match(exercise, /gameModAndSaveDataRetained: true/);

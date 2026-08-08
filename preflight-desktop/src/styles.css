@@ -7,6 +7,7 @@
   text-rendering: optimizeLegibility;
   --font-body: "Inter Variable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-display: "Orbitron Variable", Orbitron, var(--font-body);
+  --text-support: 14px;
   --ink: #10283b;
   --ink-soft: #536a7c;
   --ink-faint: #718697;
@@ -233,6 +234,7 @@ button {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(1120px, 100%);
+  min-width: 0;
   height: 100dvh;
   min-height: 0;
   margin: 0 auto;
@@ -357,7 +359,7 @@ h2 {
   gap: 4px;
   margin-top: 15px;
   color: #afc1cc;
-  font-size: 13px;
+  font-size: var(--text-support);
   line-height: 1.45;
 }
 
@@ -527,7 +529,7 @@ h2 {
 
 .home-fact > small {
   color: var(--ink-soft);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .home-fact .text-button {
@@ -657,7 +659,7 @@ h2 {
   border-radius: 4px;
   color: #4f6c61;
   background: rgba(220, 241, 232, 0.75);
-  font-size: 13px;
+  font-size: var(--text-support);
 }
 
 .notice p {
@@ -839,12 +841,12 @@ h2 {
 
 .settings-disclosure > summary strong {
   color: var(--ink);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .settings-disclosure > summary small {
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
 }
 
 .settings-disclosure__body {
@@ -873,7 +875,7 @@ h2 {
   margin: 0;
   padding-left: 18px;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
   line-height: 1.55;
 }
 
@@ -926,7 +928,7 @@ h2 {
 .automation-card > small {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
   line-height: 1.6;
 }
 
@@ -941,7 +943,7 @@ h2 {
 .automation-review > p {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
   line-height: 1.65;
 }
 
@@ -949,7 +951,7 @@ h2 {
 .update-card > small {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
   line-height: 1.6;
 }
 
@@ -995,7 +997,7 @@ h2 {
 .diagnostics-action span {
   overflow: hidden;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1013,7 +1015,7 @@ h2 {
   gap: 9px;
   margin: -4px 4px 0;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
   line-height: 1.55;
 }
 
@@ -1037,7 +1039,7 @@ h2 {
 .report-contents > p {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: var(--text-support);
   line-height: 1.65;
 }
 
@@ -1364,14 +1366,19 @@ h2 {
 .profile-card__copy span,
 .profile-card__copy small,
 .profile-empty span,
-.profile-save-card > p,
-.profile-cache-note,
 .activation-columns span,
-.activation-columns li,
-.activation-review__footer > span {
+.activation-columns li {
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.profile-save-card > p,
+.profile-cache-note,
+.activation-review__footer > span {
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+  line-height: 1.5;
 }
 
 .profile-card__copy small {
@@ -1541,6 +1548,77 @@ h2 {
 
 .optimization-choices .choice-card {
   margin-top: 0;
+}
+
+.optimization-domain-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+}
+
+.optimization-domain-card .card__heading,
+.optimization-domain-card > .storage-note {
+  margin-bottom: 0;
+}
+
+.field-note {
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+  line-height: 1.5;
+}
+
+.optimization-domain-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.optimization-domain {
+  min-height: 58px;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.optimization-domain input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.optimization-domain span {
+  display: grid;
+  gap: 4px;
+}
+
+.optimization-domain strong {
+  color: var(--ink);
+  font-size: var(--text-support);
+}
+
+.optimization-domain small {
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+  line-height: 1.45;
+}
+
+.optimization-domain-card > .storage-note {
+  font-size: var(--text-support);
+}
+
+.optimization-domain:has(input:focus-visible) {
+  outline: 3px solid rgba(59, 132, 147, 0.34);
+  outline-offset: 2px;
+}
+
+.optimization-domain:has(input:disabled) {
+  opacity: 0.58;
 }
 
 .choice-card {
@@ -1769,7 +1847,7 @@ h2 {
 }
 
 .removal-choices strong { font-size: 14px; }
-.removal-choices span { color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
+.removal-choices span { color: var(--ink-soft); font-size: var(--text-support); line-height: 1.55; }
 .removal-choices .button { margin-top: auto; }
 
 .prepare-action {
@@ -1978,6 +2056,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .optimization-domain-list {
+    grid-template-columns: 1fr;
+  }
+
   .profile-card {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -2010,6 +2092,12 @@ footer {
   .sidebar {
     gap: 4px;
     padding-inline: 12px;
+  }
+
+  .brand,
+  .nav,
+  .sidebar__footer {
+    flex-shrink: 0;
   }
 
   .nav__item {
@@ -2055,6 +2143,7 @@ footer {
   .prepare-options,
   .storage-card,
   .optimization-card,
+  .optimization-domain-card,
   .cleanup-review,
   .removal-card,
   .removal-review {
@@ -2195,6 +2284,7 @@ footer {
   .icon-button,
   .button--quiet,
   .choice-card,
+  .optimization-domain,
   .preset,
   .profile-card,
   .profile-save-card input,

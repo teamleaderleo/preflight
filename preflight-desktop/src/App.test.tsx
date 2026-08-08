@@ -65,7 +65,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   await waitFor(() => expect(action).toBeEnabled());
   await user.click(action);
   expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256);
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
 
   cache.mockRestore();
   preparation.mockRestore();
@@ -195,7 +195,7 @@ test("the primary action saves edited game settings before launching", async () 
     ...baseline,
     preferences: { ...baseline.preferences, battleSize: 300 },
   });
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended"));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
   update.mockRestore();
   game.mockRestore();
 });
@@ -244,9 +244,37 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
   expect(screen.getByRole("radio", { name: "Conservative optimizations" })).toBeChecked();
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: /Prepared textures/ })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: /Prepared audio/ })).toBeChecked();
+  await user.click(screen.getByRole("checkbox", { name: /Prepared audio/ }));
+  expect(screen.getByRole("checkbox", { name: /Prepared audio/ })).not.toBeChecked();
+  expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
+    .toBe('["prepared-audio"]');
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Balanced4 workers/ })).toBeEnabled();
   expect(await screen.findByRole("button", { name: "Prepare current profile" })).toBeEnabled();
+});
+
+test("advanced domain selections are validated on restore and reach the typed launch bridge", async () => {
+  window.localStorage.setItem(
+    "preflight.disabledOptimizationDomains",
+    '["prepared-textures","unknown","prepared-textures"]',
+  );
+  const user = userEvent.setup();
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+  await waitFor(() => expect(game).toHaveBeenCalledWith(
+    "/Applications/Starsector",
+    "recommended",
+    ["prepared-textures"],
+  ));
+  expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
+    .toBe('["prepared-textures"]');
+
+  game.mockRestore();
 });
 
 test("storage totals disclose data outside the active cache categories", async () => {
@@ -275,7 +303,7 @@ test("cache cleanup is previewed before unused artifacts are removed", async () 
   await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
 
   expect(await screen.findByRole("heading", { name: "Free 1.72 GB?" })).toBeInTheDocument();
-  expect(screen.getByText(/Nothing removed yet/)).toBeInTheDocument();
+  expect(screen.getByText("Cleanup review")).toBeInTheDocument();
   const apply = screen.getByRole("button", { name: "Remove 8,914 files" });
   expect(apply).toBeEnabled();
   await user.click(apply);
@@ -456,7 +484,7 @@ test("the automated game test requires a review before it starts", async () => {
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
   await user.click(await screen.findByRole("button", { name: "Review test" }));
 
-  expect(screen.getByText("Nothing started yet")).toBeInTheDocument();
+  expect(screen.getByText("Test review")).toBeInTheDocument();
   expect(smoke).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Start automated test" }));
 
