@@ -1,6 +1,6 @@
 # Refactoring audit
 
-**Updated:** 2026-08-08
+**Updated:** 2026-08-09
 
 The current structure reflects the order in which performance probes became production features.
 Several files now own too many unrelated lifecycles. Refactoring should make release behavior easier
@@ -11,7 +11,7 @@ same time.
 
 | Area | Current size | What is mixed together | Direction |
 | --- | ---: | --- | --- |
-| Tauri `lib.rs` | 2,610 lines after the native lifecycle extractions | reports, settings, profiles, removal and preparation | Continue splitting command families through the shared operation coordinator |
+| Tauri `lib.rs` | 2,363 lines after the native lifecycle extractions | report protocol helpers, settings, profiles, removal and preparation | Continue splitting command families through the shared operation coordinator |
 | React `App.tsx` | 285 lines after the workflow and page extractions | installation selection, launch orchestration and page composition | Keep it as the application composition boundary |
 | `AdapterTargetRegistry` | 2,028 lines | reviewed class fingerprints and method requirements | Keep explicit; size alone isn't a defect |
 | `RunCommand` | 1,310 lines | launch orchestration, cache-context selection, metadata and reporting | Extract profile/context selection behind one typed result |
@@ -46,13 +46,14 @@ concrete ownership problem rather than a line-count target.
 The native host now keeps game, automated-smoke, preparation, report-upload and update-installation
 state in `OperationCoordinator`. That shared state prevents an update, deletion or second game
 launch from racing an owned operation. The coordinator and its update guard live in
-`operations.rs`; desktop automation and signed updates now live in `automation.rs` and `updates.rs`.
-Both receive that same coordinator rather than creating another lock.
+`operations.rs`; desktop automation, signed updates and report-upload ownership now live in
+`automation.rs`, `updates.rs` and `reports.rs`. All three receive that same coordinator rather than
+creating another lock. The hostile-input HTTP protocol helpers remain beside their focused tests in
+`lib.rs` until they can move without obscuring that coverage.
 
 The coordinator's update exclusion, guard release and shutdown cleanup transitions have focused
-tests. Move the remaining command families into `report.rs` and `engine.rs`. Each module receives
-the coordinator and an `AppHandle`; neither creates another global process tracker. Exit cleanup
-remains centralized.
+tests. Move the remaining engine command family into `engine.rs`. It receives the coordinator and
+an `AppHandle` without creating another global process tracker. Exit cleanup remains centralized.
 
 ### 3. Launch context selection
 

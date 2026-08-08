@@ -8,7 +8,6 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, mpsc};
 use std::time::Duration;
 use tauri::path::BaseDirectory;
@@ -19,15 +18,18 @@ use url::Url;
 
 mod automation;
 mod operations;
+mod reports;
 mod updates;
 
 use automation::{
     cancel_desktop_smoke, get_desktop_smoke_probe, open_desktop_accessibility_settings,
     request_desktop_smoke_cancellation, start_desktop_smoke,
 };
-use operations::{
-    OperationCoordinator, OperationState, PreparationProcess, ReportUploadProcess,
-    refuse_update_install,
+use operations::{OperationCoordinator, OperationState, PreparationProcess, refuse_update_install};
+use reports::{
+    CreateReportCaseRequest, CreateReportCaseResponse, ReportDeletion, ReportGrantEndpoint,
+    ReportReceipt, ReportUploadError, ReportUploadInput, ReportUploadStateEvent, cancel_run_report,
+    delete_run_report, get_report_intake_status, send_run_report,
 };
 use updates::{UpdateTracker, check_for_update, install_update};
 
@@ -35,8 +37,6 @@ const REPORT_INTAKE_ORIGIN: Option<&str> = option_env!("PREFLIGHT_REPORT_INTAKE_
 const REPORT_PROTOCOL_VERSION: u32 = 1;
 const REPORT_RESPONSE_LIMIT: usize = 64 * 1024;
 const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;
-static NEXT_REPORT_UPLOAD_ID: AtomicU64 = AtomicU64::new(1);
-
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RunStarted {
@@ -75,123 +75,6 @@ struct PreparationProgressEvent {
     duration_ms: Option<f64>,
     #[serde(default)]
     metrics: Value,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReportIntakeStatus {
-    configured: bool,
-    origin: Option<String>,
-    reason: Option<String>,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ReportUploadStateEvent {
-    state: &'static str,
-    upload_id: u64,
-    uploaded_bytes: u64,
-    total_bytes: u64,
-    case_id: Option<String>,
-    receipt: Option<ReportReceipt>,
-    detail: Option<String>,
-}
-
-impl ReportUploadStateEvent {
-    fn new(state: &'static str, upload_id: u64, uploaded_bytes: u64, total_bytes: u64) -> Self {
-        Self {
-            state,
-            upload_id,
-            uploaded_bytes,
-            total_bytes,
-            case_id: None,
-            receipt: None,
-            detail: None,
-        }
-    }
-
-    fn with_case(mut self, case_id: String) -> Self {
-        self.case_id = Some(case_id);
-        self
-    }
-
-    fn with_receipt(mut self, receipt: ReportReceipt) -> Self {
-        self.receipt = Some(receipt);
-        self
-    }
-
-    fn with_detail(mut self, detail: String) -> Self {
-        self.detail = Some(detail);
-        self
-    }
-}
-
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ReportUploadInput {
-    output: String,
-    bytes: u64,
-    sha256: String,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ReportDeletion {
-    method: String,
-    url: String,
-    token: String,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ReportReceipt {
-    protocol_version: u32,
-    case_id: String,
-    object_key: String,
-    bytes: u64,
-    sha256: String,
-    product_version: String,
-    received_at: String,
-    retention_deadline: String,
-    deletion: ReportDeletion,
-    signature: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CreateReportCaseRequest<'a> {
-    protocol_version: u32,
-    product_version: &'a str,
-    bytes: u64,
-    sha256: &'a str,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ReportGrantEndpoint {
-    method: String,
-    url: String,
-    #[serde(default)]
-    content_type: Option<String>,
-    #[serde(default)]
-    expires_at: Option<String>,
-    token: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct CreateReportCaseResponse {
-    protocol_version: u32,
-    case_id: String,
-    upload: ReportGrantEndpoint,
-    finalize: ReportGrantEndpoint,
-    deletion: ReportGrantEndpoint,
-}
-
-#[derive(Debug)]
-enum ReportUploadError {
-    Cancelled,
-    Failed(String),
 }
 
 struct EnginePaths {
@@ -521,137 +404,7 @@ fn export_diagnostics(app: AppHandle, output: String) -> Result<Value, String> {
         .map_err(|error| format!("Preflight returned an unreadable diagnostics receipt: {error}"))
 }
 
-#[tauri::command]
-fn get_report_intake_status() -> ReportIntakeStatus {
-    match configured_report_origin() {
-        Ok(origin) => ReportIntakeStatus {
-            configured: true,
-            origin: Some(origin.origin().ascii_serialization()),
-            reason: None,
-        },
-        Err(reason) => ReportIntakeStatus {
-            configured: false,
-            origin: None,
-            reason: Some(reason),
-        },
-    }
-}
-
-#[tauri::command]
-async fn send_run_report(
-    app: AppHandle,
-    tracker: State<'_, OperationCoordinator>,
-    report: ReportUploadInput,
-) -> Result<ReportReceipt, String> {
-    let origin = configured_report_origin()?;
-    let archive = validated_report_archive(&report)?;
-    let client = report_client()?;
-    let id = NEXT_REPORT_UPLOAD_ID.fetch_add(1, Ordering::Relaxed);
-    let (cancel, cancel_receiver) = watch::channel(false);
-    {
-        let mut running = tracker
-            .0
-            .lock()
-            .map_err(|_| "The report upload tracker is unavailable.".to_string())?;
-        refuse_update_install(&running)?;
-        if running.report_upload.is_some() {
-            return Err("A run report is already being sent.".to_string());
-        }
-        running.report_upload = Some(ReportUploadProcess {
-            id,
-            total_bytes: report.bytes,
-            cancel,
-        });
-    }
-    emit_report_state(
-        &app,
-        ReportUploadStateEvent::new("starting", id, 0, report.bytes),
-    );
-
-    let upload_app = app.clone();
-    let outcome = perform_report_upload(
-        client,
-        origin,
-        archive,
-        report.clone(),
-        id,
-        cancel_receiver,
-        move |event| emit_report_state(&upload_app, event),
-    )
-    .await;
-    let should_exit = if let Ok(mut running) = tracker.0.lock() {
-        if running
-            .report_upload
-            .as_ref()
-            .is_some_and(|upload| upload.id == id)
-        {
-            running.report_upload = None;
-        }
-        take_deferred_exit(&mut running)
-    } else {
-        false
-    };
-
-    match &outcome {
-        Ok(receipt) => emit_report_state(
-            &app,
-            ReportUploadStateEvent::new("finished", id, report.bytes, report.bytes)
-                .with_case(receipt.case_id.clone())
-                .with_receipt(receipt.clone()),
-        ),
-        Err(ReportUploadError::Cancelled) => emit_report_state(
-            &app,
-            ReportUploadStateEvent::new("cancelled", id, 0, report.bytes)
-                .with_detail("Run report upload stopped. The local ZIP is unchanged.".to_string()),
-        ),
-        Err(ReportUploadError::Failed(detail)) => emit_report_state(
-            &app,
-            ReportUploadStateEvent::new("failed", id, 0, report.bytes).with_detail(detail.clone()),
-        ),
-    }
-    if should_exit {
-        app.exit(0);
-    }
-    outcome.map_err(|error| match error {
-        ReportUploadError::Cancelled => "Run report upload was cancelled.".to_string(),
-        ReportUploadError::Failed(detail) => detail,
-    })
-}
-
-#[tauri::command]
-fn cancel_run_report(
-    app: AppHandle,
-    tracker: State<'_, OperationCoordinator>,
-) -> Result<bool, String> {
-    let running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The report upload tracker is unavailable.".to_string())?;
-    let Some(upload) = running.report_upload.as_ref() else {
-        return Ok(false);
-    };
-    let id = upload.id;
-    let total_bytes = upload.total_bytes;
-    upload
-        .cancel
-        .send(true)
-        .map_err(|_| "The report upload has already stopped.".to_string())?;
-    drop(running);
-    emit_report_state(
-        &app,
-        ReportUploadStateEvent::new("cancelling", id, 0, total_bytes)
-            .with_detail("Stopping the report upload…".to_string()),
-    );
-    Ok(true)
-}
-
-#[tauri::command]
-async fn delete_run_report(deletion: ReportDeletion) -> Result<bool, String> {
-    let origin = configured_report_origin()?;
-    perform_report_deletion(report_client()?, origin, deletion).await
-}
-
-async fn perform_report_deletion(
+pub(crate) async fn perform_report_deletion(
     client: Client,
     origin: Url,
     deletion: ReportDeletion,
@@ -673,7 +426,7 @@ async fn perform_report_deletion(
     Ok(true)
 }
 
-async fn perform_report_upload(
+pub(crate) async fn perform_report_upload(
     client: Client,
     origin: Url,
     archive: PathBuf,
@@ -897,7 +650,7 @@ async fn delete_granted_case(
     Ok(())
 }
 
-fn configured_report_origin() -> Result<Url, String> {
+pub(crate) fn configured_report_origin() -> Result<Url, String> {
     validate_report_origin(REPORT_INTAKE_ORIGIN)
 }
 
@@ -926,7 +679,7 @@ fn validate_report_origin(configured: Option<&str>) -> Result<Url, String> {
     Ok(origin)
 }
 
-fn report_client() -> Result<Client, String> {
+pub(crate) fn report_client() -> Result<Client, String> {
     Client::builder()
         .redirect(Policy::none())
         .connect_timeout(Duration::from_secs(10))
@@ -936,7 +689,7 @@ fn report_client() -> Result<Client, String> {
         .map_err(|error| format!("Could not configure the report client: {error}"))
 }
 
-fn validated_report_archive(report: &ReportUploadInput) -> Result<PathBuf, String> {
+pub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<PathBuf, String> {
     if report.bytes == 0 || report.bytes > REPORT_UPLOAD_LIMIT {
         return Err("The diagnostics ZIP is outside the 6 MiB upload limit.".to_string());
     }
@@ -1211,7 +964,7 @@ async fn bounded_response_body(response: Response) -> Result<Vec<u8>, String> {
     Ok(body)
 }
 
-fn emit_report_state(app: &AppHandle, event: ReportUploadStateEvent) {
+pub(crate) fn emit_report_state(app: &AppHandle, event: ReportUploadStateEvent) {
     let _ = app.emit("report-upload-state", event);
 }
 
@@ -1620,7 +1373,7 @@ fn watch_child(app: AppHandle, mut child: Child) {
     });
 }
 
-fn take_deferred_exit(running: &mut OperationState) -> bool {
+pub(crate) fn take_deferred_exit(running: &mut OperationState) -> bool {
     if running.exit_after_cleanup
         && running.desktop_smoke.is_none()
         && running.preparation.is_none()
