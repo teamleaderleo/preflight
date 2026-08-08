@@ -1,5 +1,6 @@
 use crate::child_error;
 use crate::operations::{OperationCoordinator, refuse_update_install};
+use serde::Deserialize;
 use serde_json::Value;
 #[cfg(debug_assertions)]
 use std::env;
@@ -96,6 +97,197 @@ pub(crate) fn canonical_game_directory(game: &str) -> Result<PathBuf, String> {
         return Err("The selected Starsector location is not a folder.".to_string());
     }
     Ok(canonical)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LaunchSettingsInput {
+    pub(crate) resolution: String,
+    pub(crate) fullscreen: bool,
+    pub(crate) sound: bool,
+    pub(crate) antialiasing_samples: u8,
+    pub(crate) ui_scale: f64,
+    pub(crate) battle_size: u32,
+    #[serde(rename = "memoryMiB")]
+    pub(crate) memory_mib: Option<u32>,
+}
+
+#[tauri::command]
+pub(crate) fn get_launch_settings(app: AppHandle, game: String) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    launch_settings_json(&app, &directory, None)
+}
+
+#[tauri::command]
+pub(crate) fn update_launch_settings(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    settings: LaunchSettingsInput,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    validate_launch_settings(&settings)?;
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
+    if running.game.is_some() {
+        return Err("Close Starsector before changing its launch settings.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before changing launch settings.".to_string(),
+        );
+    }
+    let result = launch_settings_json(&app, &directory, Some(&settings));
+    drop(running);
+    result
+}
+
+fn launch_settings_json(
+    app: &AppHandle,
+    directory: &Path,
+    settings: Option<&LaunchSettingsInput>,
+) -> Result<Value, String> {
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command.arg("launch-settings");
+    if let Some(settings) = settings {
+        command
+            .arg("set")
+            .arg("--resolution")
+            .arg(&settings.resolution)
+            .arg("--fullscreen")
+            .arg(settings.fullscreen.to_string())
+            .arg("--sound")
+            .arg(settings.sound.to_string())
+            .arg("--antialiasing")
+            .arg(settings.antialiasing_samples.to_string())
+            .arg("--ui-scale")
+            .arg(settings.ui_scale.to_string())
+            .arg("--battle-size")
+            .arg(settings.battle_size.to_string());
+        if let Some(memory_mib) = settings.memory_mib {
+            command.arg("--memory-mb").arg(memory_mib.to_string());
+        }
+    }
+    command.arg("--game").arg(directory).arg("--json");
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not update Starsector's launch settings",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable launch settings: {error}"))
+}
+
+pub(crate) fn validate_launch_settings(settings: &LaunchSettingsInput) -> Result<(), String> {
+    let axes: Vec<&str> = settings.resolution.split('x').collect();
+    if axes.len() != 2
+        || axes.iter().any(|axis| {
+            axis.parse::<u16>()
+                .map(|value| value == 0 || value.to_string() != *axis)
+                .unwrap_or(true)
+        })
+    {
+        return Err("Resolution must be WIDTHxHEIGHT using positive whole numbers.".to_string());
+    }
+    if ![0, 2, 4, 8, 12, 16, 24, 32].contains(&settings.antialiasing_samples) {
+        return Err("Choose one of Starsector's supported antialiasing sample counts.".to_string());
+    }
+    let scaled = settings.ui_scale * 20.0;
+    if !settings.ui_scale.is_finite()
+        || !(1.0..=3.0).contains(&settings.ui_scale)
+        || (scaled - scaled.round()).abs() > 0.000_001
+    {
+        return Err("UI scale must be from 1.00 to 3.00 in 0.05 steps.".to_string());
+    }
+    if settings.battle_size == 0 {
+        return Err("Battle size must be positive.".to_string());
+    }
+    if settings
+        .memory_mib
+        .is_some_and(|memory| !(512..=32768).contains(&memory) || memory % 256 != 0)
+    {
+        return Err("Memory must be 512-32768 MiB in 256 MiB steps.".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn get_profiles(app: AppHandle, game: String) -> Result<Value, String> {
+    profile_json(&app, &game, &["profile", "list"], false)
+}
+
+#[tauri::command]
+pub(crate) fn save_profile(app: AppHandle, game: String, name: String) -> Result<Value, String> {
+    profile_json(&app, &game, &["profile", "save", name.as_str()], false)
+}
+
+#[tauri::command]
+pub(crate) fn activate_profile(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+    confirmed: bool,
+) -> Result<Value, String> {
+    if !confirmed {
+        return profile_json(&app, &game, &["profile", "activate", name.as_str()], true);
+    }
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
+    if running.game.is_some() {
+        return Err("Close Starsector before switching mod profiles.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before switching profiles.".to_string(),
+        );
+    }
+    let result = profile_json(
+        &app,
+        &game,
+        &["profile", "activate", name.as_str(), "--yes"],
+        true,
+    );
+    drop(running);
+    result
+}
+
+fn profile_json(
+    app: &AppHandle,
+    game: &str,
+    arguments: &[&str],
+    accepts_refusal: bool,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(game)?;
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    command
+        .args(arguments)
+        .arg("--game")
+        .arg(directory)
+        .arg("--json");
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() && !(accepts_refusal && output.status.code() == Some(2)) {
+        return Err(child_error(
+            "Preflight could not manage named profiles",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable profile data: {error}"))
 }
 
 #[tauri::command]
