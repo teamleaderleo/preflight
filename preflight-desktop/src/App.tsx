@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { open, save as saveFile } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
   activateProfile,
@@ -7,10 +7,7 @@ import {
   applyRemoval,
   cancelDesktopSmoke,
   cancelPreparation,
-  cancelRunReport,
   checkForUpdate,
-  deleteRunReport,
-  exportDiagnostics,
   getCache,
   getCacheCleanup,
   getDesktopSmokeProbe,
@@ -18,13 +15,11 @@ import {
   getPreparationPlan,
   getRemovalPlan,
   getProfiles,
-  getReportIntakeStatus,
   getSnapshot,
   isDesktopHost,
   installUpdate,
   openDesktopAccessibilitySettings,
   saveProfile,
-  sendRunReport,
   startGame,
   startDesktopSmoke,
   startPreparation,
@@ -43,12 +38,12 @@ import {
   SparklesIcon,
 } from "./icons";
 import Logo from "./Logo";
+import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import type {
   AppStatus,
   CacheSnapshot,
   CacheCleanupPlan,
   DesktopSnapshot,
-  DiagnosticsExport,
   DesktopSmokeProbe,
   DesktopSmokeStateEvent,
   LaunchSettings,
@@ -61,9 +56,6 @@ import type {
   ProfileList,
   RemovalPlan,
   RemovalScope,
-  ReportIntakeStatus,
-  ReportReceipt,
-  ReportUploadStateEvent,
   RunStateEvent,
   UpdateProgressEvent,
   UpdateStatus,
@@ -97,44 +89,6 @@ const optimizationPresets: Array<{
     badge: "Troubleshoot",
   },
 ];
-
-const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
-
-function savedRunReportReceipt(): ReportReceipt | null {
-  try {
-    const raw = window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY);
-    if (!raw) return null;
-    const receipt = JSON.parse(raw) as Partial<ReportReceipt>;
-    const deadline = typeof receipt.retentionDeadline === "string"
-      ? Date.parse(receipt.retentionDeadline)
-      : Number.NaN;
-    const valid = receipt.protocolVersion === 1
-      && typeof receipt.caseId === "string"
-      && receipt.caseId.length > 0
-      && receipt.objectKey === `accepted/${receipt.caseId}.zip`
-      && typeof receipt.bytes === "number"
-      && Number.isSafeInteger(receipt.bytes)
-      && receipt.bytes > 0
-      && typeof receipt.sha256 === "string"
-      && /^[0-9a-f]{64}$/.test(receipt.sha256)
-      && typeof receipt.productVersion === "string"
-      && typeof receipt.receivedAt === "string"
-      && Number.isFinite(Date.parse(receipt.receivedAt))
-      && Number.isFinite(deadline)
-      && deadline > Date.now()
-      && receipt.deletion?.method === "DELETE"
-      && typeof receipt.deletion.url === "string"
-      && typeof receipt.deletion.token === "string"
-      && receipt.deletion.token.length > 0
-      && typeof receipt.signature === "string"
-      && receipt.signature.length > 0;
-    if (valid) return receipt as ReportReceipt;
-    window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
-  } catch {
-    // A malformed or inaccessible local receipt never becomes a deletion request.
-  }
-  return null;
-}
 
 function savedOptimizationPreset(): OptimizationPreset {
   try {
@@ -229,17 +183,26 @@ export default function App() {
   const [profileName, setProfileName] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
   const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
-  const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
-  const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
-  const [reportIntake, setReportIntake] = useState<ReportIntakeStatus | null>(null);
-  const [reportReview, setReportReview] = useState(false);
-  const [reportUploading, setReportUploading] = useState(false);
-  const [reportFinalizing, setReportFinalizing] = useState(false);
-  const [reportCancelling, setReportCancelling] = useState(false);
-  const [reportUploadedBytes, setReportUploadedBytes] = useState(0);
-  const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(savedRunReportReceipt);
-  const [reportError, setReportError] = useState("");
-  const [reportDeleting, setReportDeleting] = useState(false);
+  const {
+    diagnosticsBusy,
+    diagnosticsExport,
+    reportCancelling,
+    reportDeleting,
+    reportError,
+    reportFinalizing,
+    reportIntake,
+    reportReceipt,
+    reportReview,
+    reportUploadedBytes,
+    reportUploading,
+    copyRunReportReceipt,
+    dismissRunReportReceipt,
+    removeRunReport,
+    saveDiagnostics,
+    setReportReview,
+    stopRunReport,
+    submitRunReport,
+  } = useDiagnosticsReport(page === "settings", setMessage);
   const [desktopSmokeProbe, setDesktopSmokeProbe] = useState<DesktopSmokeProbe | null>(null);
   const [desktopSmokeProbeBusy, setDesktopSmokeProbeBusy] = useState(false);
   const [desktopSmokeReview, setDesktopSmokeReview] = useState(false);
@@ -274,18 +237,6 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    try {
-      if (reportReceipt) {
-        window.localStorage.setItem(REPORT_RECEIPT_STORAGE_KEY, JSON.stringify(reportReceipt));
-      } else {
-        window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
-      }
-    } catch {
-      // Receipt copying remains available if a locked-down webview denies local storage.
-    }
-  }, [reportReceipt]);
 
   const checkUpdates = useCallback(async (announce = false) => {
     if (updateChecking || updateInstalling) return;
@@ -338,63 +289,6 @@ export default function App() {
     });
     return () => stopListening?.();
   }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
-
-  useEffect(() => {
-    if (page !== "settings" || reportIntake !== null) return;
-    let cancelled = false;
-    void getReportIntakeStatus()
-      .then((status) => {
-        if (!cancelled) setReportIntake(status);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setReportIntake({ configured: false, origin: null, reason: String(error) });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [page, reportIntake]);
-
-  useEffect(() => {
-    if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<ReportUploadStateEvent>("report-upload-state", ({ payload }) => {
-      setReportUploadedBytes(payload.uploadedBytes);
-      if (payload.state === "starting" || payload.state === "uploading") {
-        setReportFinalizing(false);
-      }
-      if (payload.state === "finalizing") {
-        setReportFinalizing(true);
-        setReportCancelling(false);
-        setMessage("The archive was accepted. Finishing its signed receipt…");
-        return;
-      }
-      if (payload.state === "cancelling") {
-        setReportCancelling(true);
-        setMessage(payload.detail ?? "Stopping the report upload…");
-        return;
-      }
-      if (payload.state === "cancelled" || payload.state === "failed") {
-        setReportUploading(false);
-        setReportFinalizing(false);
-        setReportCancelling(false);
-        if (payload.state === "failed") setReportError(payload.detail ?? "The report could not be sent.");
-        setMessage(payload.detail ?? "The local diagnostics ZIP is unchanged.");
-        return;
-      }
-      if (payload.state === "finished" && payload.receipt) {
-        setReportUploading(false);
-        setReportFinalizing(false);
-        setReportCancelling(false);
-        setReportReview(false);
-        setReportReceipt(payload.receipt);
-      }
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
-  }, []);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -803,99 +697,6 @@ export default function App() {
       }
     } catch (error) {
       setMessage(String(error));
-    }
-  };
-
-  const saveDiagnostics = async () => {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const destination = isDesktopHost()
-      ? await saveFile({
-          title: "Save Preflight diagnostics",
-          defaultPath: `preflight-diagnostics-${stamp}.zip`,
-          filters: [{ name: "ZIP archive", extensions: ["zip"] }],
-        })
-      : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
-    if (!destination) return;
-    setDiagnosticsBusy(true);
-    setMessage("Collecting a small, disclosed support bundle…");
-    try {
-      const result = await exportDiagnostics(destination);
-      setDiagnosticsExport(result);
-      setReportReview(false);
-      setReportError("");
-      setReportUploadedBytes(0);
-      setMessage(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`);
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setDiagnosticsBusy(false);
-    }
-  };
-
-  const submitRunReport = async () => {
-    if (!diagnosticsExport || !reportIntake?.configured || reportUploading) return;
-    setReportUploading(true);
-    setReportFinalizing(false);
-    setReportCancelling(false);
-    setReportUploadedBytes(0);
-    setReportError("");
-    setMessage("Creating a short-lived case for this exact diagnostics ZIP…");
-    try {
-      const receipt = await sendRunReport(diagnosticsExport);
-      setReportReceipt(receipt);
-      setReportReview(false);
-      setReportUploadedBytes(diagnosticsExport.bytes);
-      setMessage(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`);
-    } catch (error) {
-      const detail = String(error);
-      if (!detail.toLowerCase().includes("cancel")) setReportError(detail);
-      setMessage(detail);
-    } finally {
-      setReportUploading(false);
-      setReportFinalizing(false);
-      setReportCancelling(false);
-    }
-  };
-
-  const stopRunReport = async () => {
-    if (!reportUploading || reportCancelling) return;
-    setReportCancelling(true);
-    setMessage("Stopping the report upload…");
-    try {
-      const requested = await cancelRunReport();
-      if (!requested) {
-        setReportUploading(false);
-        setReportCancelling(false);
-        setMessage("The report upload had already stopped.");
-      }
-    } catch (error) {
-      setReportCancelling(false);
-      setMessage(String(error));
-    }
-  };
-
-  const copyRunReportReceipt = async () => {
-    if (!reportReceipt) return;
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(reportReceipt, null, 2));
-      setMessage("Run-report receipt copied. It includes the deletion authorization.");
-    } catch (error) {
-      setMessage(`Could not copy the receipt: ${error}`);
-    }
-  };
-
-  const removeRunReport = async () => {
-    if (!reportReceipt || reportDeleting) return;
-    setReportDeleting(true);
-    try {
-      await deleteRunReport(reportReceipt.deletion);
-      const caseId = reportReceipt.caseId;
-      setReportReceipt(null);
-      setMessage(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`);
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setReportDeleting(false);
     }
   };
 
@@ -1570,7 +1371,7 @@ export default function App() {
                 </div>
                 <div className="update-actions">
                   <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt()}>Copy receipt</button>
-                  <button className="button button--quiet button--compact" type="button" onClick={() => { setReportReceipt(null); setMessage("Receipt dismissed. Its local deletion authorization was removed."); }}>I saved this receipt</button>
+                  <button className="button button--quiet button--compact" type="button" onClick={dismissRunReportReceipt}>I saved this receipt</button>
                   <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded report"}</button>
                 </div>
               </section>
