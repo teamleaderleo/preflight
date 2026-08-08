@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import {
   cancelPreparation,
   getCache,
@@ -14,6 +13,7 @@ import type {
   PreparationStateEvent,
   PreparationStoragePlan,
 } from "./types";
+import { listenWhileMounted } from "./tauriEvents";
 
 export type TextureStorage = "balanced" | "fastest";
 
@@ -42,6 +42,8 @@ export function usePreparation(
   const [cache, setCache] = useState<CacheSnapshot | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
   const [cacheInstallRoot, setCacheInstallRoot] = useState<string | null>(null);
+  const cacheRequest = useRef(0);
+  const cacheRequestRoot = useRef<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [preparationCancelling, setPreparationCancelling] = useState(false);
   const [preparationProgress, setPreparationProgress] = useState<PreparationProgressEvent | null>(null);
@@ -54,19 +56,33 @@ export function usePreparation(
 
   const refreshCache = useCallback(async () => {
     if (!game) return;
+    const request = ++cacheRequest.current;
+    cacheRequestRoot.current = game;
     setCacheLoading(true);
     try {
-      setCache(await getCache(game));
+      const next = await getCache(game);
+      if (request === cacheRequest.current) setCache(next);
     } catch (error) {
-      announce(String(error));
+      if (request === cacheRequest.current) announce(String(error));
     } finally {
-      setCacheInstallRoot(game);
-      setCacheLoading(false);
+      if (request === cacheRequest.current) {
+        cacheRequestRoot.current = null;
+        setCacheInstallRoot(game);
+        setCacheLoading(false);
+      }
     }
   }, [announce, game]);
 
   useEffect(() => {
-    if (game && cacheInstallRoot !== game && !cacheLoading) void refreshCache();
+    if (!game) {
+      cacheRequest.current += 1;
+      cacheRequestRoot.current = null;
+      setCache(null);
+      setCacheInstallRoot(null);
+      setCacheLoading(false);
+      return;
+    }
+    if (cacheInstallRoot !== game && cacheRequestRoot.current !== game) void refreshCache();
   }, [cacheInstallRoot, cacheLoading, game, refreshCache]);
 
   useEffect(() => {
@@ -142,8 +158,7 @@ export function usePreparation(
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<PreparationStateEvent>("prepare-state", ({ payload }) => {
+    return listenWhileMounted<PreparationStateEvent>("prepare-state", ({ payload }) => {
       if (payload.state === "cancelling") {
         setPreparationCancelling(true);
         announce("Stopping preparation safely…");
@@ -166,23 +181,16 @@ export function usePreparation(
         await refreshCache();
         if (shouldLaunch) await launch();
       })();
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
+    }, (error) => announce(`Could not observe preparation state: ${error}`));
   }, [announce, launch, refreshCache]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<PreparationProgressEvent>("prepare-progress", ({ payload }) => {
+    return listenWhileMounted<PreparationProgressEvent>("prepare-progress", ({ payload }) => {
       if (payload.state === "completed") completedPreparationPhases.current.add(payload.phase);
       setPreparationProgress({ ...payload });
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
-  }, []);
+    }, (error) => announce(`Could not observe preparation progress: ${error}`));
+  }, [announce]);
 
   const stopPreparation = async () => {
     if (!preparing || preparationCancelling) return;
@@ -202,9 +210,16 @@ export function usePreparation(
     }
   };
 
-  const clearCache = () => setCache(null);
+  const clearCache = () => {
+    cacheRequest.current += 1;
+    cacheRequestRoot.current = null;
+    setCache(null);
+    setCacheInstallRoot(null);
+    setCacheLoading(false);
+  };
   const invalidatePreparationPlan = () => setPreparationPlan(null);
-  const profilePrepared = isCurrentProfilePrepared(cache);
+  const currentCache = cacheInstallRoot === game ? cache : null;
+  const profilePrepared = isCurrentProfilePrepared(currentCache);
   const preparationPhaseLabel = preparationProgress?.phase
     ?.replaceAll("-", " ")
     .replace(/^./, (letter) => letter.toUpperCase());
@@ -213,7 +228,7 @@ export function usePreparation(
     : 0;
 
   return {
-    cache,
+    cache: currentCache,
     cacheLoading,
     preparationCancelling,
     preparationPercent,

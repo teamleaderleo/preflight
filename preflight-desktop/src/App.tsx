@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { listen } from "@tauri-apps/api/event";
 import {
   applyCacheCleanup,
   applyRemoval,
@@ -12,18 +11,11 @@ import {
   startGame,
   updateLaunchSettings,
 } from "./bridge";
-import {
-  ArrowIcon,
-  CheckIcon,
-  FolderIcon,
-  PlayIcon,
-  SparklesIcon,
-} from "./icons";
 import { DesktopShell, type Page } from "./components/DesktopShell";
 import { GameSettingsPage } from "./components/GameSettingsPage";
-import { PreparationPage, optimizationPresets } from "./components/PreparationPage";
+import { HomePage } from "./components/HomePage";
+import { PreparationPage } from "./components/PreparationPage";
 import { ProfilesPage } from "./components/ProfilesPage";
-import { QuickGameSettings } from "./components/QuickGameSettings";
 import { ReportsPage } from "./components/ReportsPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { useDesktopAutomation } from "./useDesktopAutomation";
@@ -31,7 +23,8 @@ import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useSignedUpdates } from "./useSignedUpdates";
-import { formatBytes, friendlyPlatform, shortPath } from "./uiFormat";
+import { listenWhileMounted } from "./tauriEvents";
+import { formatBytes, shortPath } from "./uiFormat";
 import type {
   AppStatus,
   CacheCleanupPlan,
@@ -77,14 +70,18 @@ export default function App() {
   const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
   const [cleanupPlan, setCleanupPlan] = useState<CacheCleanupPlan | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
+  const refreshRequest = useRef(0);
   const refresh = useCallback(async (game?: string) => {
+    const request = ++refreshRequest.current;
     setStatus("loading");
     setMessage("");
     try {
       const next = await getSnapshot(game);
+      if (request !== refreshRequest.current) return;
       setSnapshot(next);
       setStatus(next.ready ? "ready" : "setup");
     } catch (error) {
+      if (request !== refreshRequest.current) return;
       setStatus("error");
       setMessage(String(error));
     }
@@ -110,13 +107,8 @@ export default function App() {
     setMessage,
   );
   const {
-    cache,
-    cacheLoading,
-    preparationPlan,
-    preparationPlanLoading,
     preparing,
     profilePrepared,
-    textureStorage,
     clearCache,
     invalidatePreparationPlan,
     prepare,
@@ -130,8 +122,6 @@ export default function App() {
     setMessage,
   );
   const {
-    profiles,
-    profilesLoading,
     clearProfiles,
     reviewProfile,
   } = profilesState;
@@ -149,6 +139,7 @@ export default function App() {
   const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
   const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
   const [launcherSettingsSaving, setLauncherSettingsSaving] = useState(false);
+  const launcherSettingsRequest = useRef(0);
   const [removalPlan, setRemovalPlan] = useState<RemovalPlan | null>(null);
   const [removalBusy, setRemovalBusy] = useState(false);
   const updates = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
@@ -168,25 +159,28 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<RunStateEvent>("run-state", ({ payload }) => {
+    return listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "finished") {
         setStatus(snapshot?.ready ? "ready" : "setup");
         const outcome = payload.success ? "Welcome back. Your run was tucked away safely." : "The game closed with an error. Your run notes are still safe.";
         void refresh(snapshot?.selected?.installRoot).then(() => setMessage(outcome));
       }
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
+    }, (error) => setMessage(`Could not observe the game process: ${error}`));
   }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const refreshLauncherSettings = useCallback(async () => {
+    const request = ++launcherSettingsRequest.current;
     const game = snapshot?.selected?.installRoot;
-    if (!game) return;
+    if (!game) {
+      setLauncherSettings(null);
+      setLauncherDraft(null);
+      setLauncherSettingsLoading(false);
+      return;
+    }
     setLauncherSettingsLoading(true);
     try {
       const result = await getLaunchSettings(game);
+      if (request !== launcherSettingsRequest.current) return;
       setLauncherSettings(result);
       setLauncherDraft({
         resolution: result.preferences.resolution ?? result.settings?.resolution ?? "1280x720",
@@ -198,9 +192,10 @@ export default function App() {
         memoryMiB: result.memory.editable ? result.memory.maxHeapMiB : null,
       });
     } catch (error) {
+      if (request !== launcherSettingsRequest.current) return;
       setMessage(String(error));
     } finally {
-      setLauncherSettingsLoading(false);
+      if (request === launcherSettingsRequest.current) setLauncherSettingsLoading(false);
     }
   }, [snapshot?.selected?.installRoot]);
 
@@ -321,9 +316,6 @@ export default function App() {
   };
 
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
-  const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
-    ?? optimizationPresets[0];
-  const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
   const launchSettingsDirty = Boolean(launcherDraft && launcherSettings && (
     launcherDraft.resolution !== (launcherSettings.preferences.resolution ?? launcherSettings.settings?.resolution ?? "1280x720")
     || launcherDraft.fullscreen !== launcherSettings.preferences.fullscreen
@@ -345,103 +337,34 @@ export default function App() {
       onPageChange={setPage}
       onRefresh={() => void refresh(snapshot?.selected?.installRoot)}
     >
-        {page === "home" ? <>
-        <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"}`}>
-          <div className="launch-console__primary">
-            <div className={`status-chip ${isReady ? "status-chip--ready" : ""}`}>
-              {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
-              {status === "running" ? "Game running" : preparing ? "Preparing profile" : needsPreparation ? "Profile changed" : isReady ? "Prepared" : "Installation required"}
-            </div>
-            {!isReady && <h2>Choose the game folder</h2>}
-            {!isReady || needsPreparation ? <p>{needsPreparation
-              ? "Build reusable data for this mod profile first."
-              : "Select the folder that contains the Starsector launcher."}</p> : null}
-            <div className="launch-console__actions">
-              {isReady ? (
-                <button className="button button--primary button--launch" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
-                  {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
-                </button>
-              ) : (
-                <button className="button button--primary" type="button" onClick={() => void chooseInstall()} disabled={status === "loading"}>
-                  <FolderIcon />
-                  Choose game folder
-                </button>
-              )}
-            </div>
-            {isReady && (
-              <div className="launch-console__note">
-                <strong>{selectedOptimization.label}</strong>
-                <span>{needsPreparation
-                  ? preparationPlanLoading
-                    ? "Reading the winning textures and calculating a safe disk requirement…"
-                    : preparationPlan?.safeToPrepare
-                      ? `${textureStorage === "balanced" ? "Balanced" : "Fastest"} predicts ${formatBytes(preparationPlan.predictedAdditionalBytes)} additional; ${formatBytes(preparationPlan.usableBytes)} is available.`
-                      : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
-                  : profilePrepared
-                    ? `Prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}`
-                    : "Preparation is disabled for this troubleshooting launch."}</span>
-              </div>
-            )}
-          </div>
-          {isReady && launcherDraft && launcherSettings ? (
-            <QuickGameSettings
-              settings={launcherSettings}
-              draft={launcherDraft}
-              dirty={launchSettingsDirty}
-              saving={launcherSettingsSaving}
-              disabled={status === "running" || preparing}
-              onChange={changeLauncherDraft}
-              onOpenAll={() => setPage("launch")}
-              onSave={() => void saveLauncherSettings()}
-            />
-          ) : isReady ? <div className="quick-settings quick-settings--loading">{launcherSettingsLoading ? "Reading game settings…" : "Game settings unavailable"}</div> : null}
-        </section>
-
-        {updateStatus?.available && (
-          <section className="update-notice" aria-label="Preflight update available">
-            <strong>Preflight {updateStatus.version} is available</strong>
-            <button type="button" className="text-button" onClick={() => setPage("settings")}>Review update <ArrowIcon /></button>
-          </section>
-        )}
-
-        {message && (
-          <div className={`notice ${status === "error" ? "notice--error" : ""}`} role="status">
-            <span>{status === "error" ? "!" : "✦"}</span>
-            <p>{message}</p>
-            {status === "error" && <button type="button" onClick={() => void refresh()}>Try again</button>}
-          </div>
-        )}
-
-        <section className="card home-overview" aria-label="Current Preflight setup">
-          <div className="home-fact">
-            <span>Profile</span>
-            {profiles && profiles.profiles.length > 0 ? (
-              <select className="home-profile-select" aria-label="Active profile" value={activeProfile?.name ?? ""} onChange={(event) => {
-                const name = event.target.value;
-                if (!name || name === activeProfile?.name) return;
-                setPage("profiles");
-                void reviewProfile(name);
-              }}>
-                {!activeProfile && <option value="">Current mod list</option>}
-                {profiles.profiles.map((profile) => <option value={profile.name} key={profile.name}>{profile.name}</option>)}
-              </select>
-            ) : <strong>{profilesLoading ? "Reading…" : `${profiles?.enabledMods.length ?? 0} enabled mods`}</strong>}
-            <button className="text-button" type="button" onClick={() => setPage("profiles")} disabled={!isReady}>Manage <ArrowIcon /></button>
-          </div>
-          <div className="home-fact">
-            <span>Preflight data</span>
-            <strong>{cacheLoading ? "Reading…" : formatBytes(cache?.total.bytes ?? 0)}</strong>
-            <button className="text-button" type="button" onClick={() => setPage("prepare")} disabled={!isReady}>Storage <ArrowIcon /></button>
-          </div>
-          <div className="home-fact home-fact--installation">
-            <span>Installation</span>
-            <strong>{isReady && snapshot?.selected ? shortPath(snapshot.selected.installRoot) : "Not selected"}</strong>
-            <small>{isReady && snapshot ? `${friendlyPlatform(snapshot.platform)} · ${snapshot.selected?.kind.replace("-", " ")}` : "Choose the game folder to begin."}</small>
-            <button type="button" className="text-button" onClick={() => void chooseInstall()} aria-label="Change Starsector installation">Change <ArrowIcon /></button>
-          </div>
-        </section>
-        </> : page === "launch" ? (
+        {page === "home" ? (
+          <HomePage
+            snapshot={snapshot}
+            status={status}
+            message={message}
+            isReady={isReady}
+            needsPreparation={needsPreparation}
+            optimizationPreset={optimizationPreset}
+            preparation={preparation}
+            profilesState={profilesState}
+            updateStatus={updateStatus}
+            launcherSettings={launcherSettings}
+            launcherDraft={launcherDraft}
+            launcherSettingsLoading={launcherSettingsLoading}
+            launcherSettingsSaving={launcherSettingsSaving}
+            launchSettingsDirty={launchSettingsDirty}
+            onLauncherChange={changeLauncherDraft}
+            onChooseInstall={() => void chooseInstall()}
+            onPrimaryLaunch={() => void (needsPreparation ? prepare(true) : launch())}
+            onSaveLauncherSettings={() => void saveLauncherSettings()}
+            onRetry={() => void refresh()}
+            onNavigate={setPage}
+            onSelectProfile={(name) => {
+              setPage("profiles");
+              void reviewProfile(name);
+            }}
+          />
+        ) : page === "launch" ? (
           <>
             {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
             <GameSettingsPage

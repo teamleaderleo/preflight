@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { save as saveFile } from "@tauri-apps/plugin-dialog";
 import {
   cancelRunReport,
@@ -15,6 +14,7 @@ import type {
   ReportReceipt,
   ReportUploadStateEvent,
 } from "./types";
+import { listenWhileMounted } from "./tauriEvents";
 
 const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 
@@ -98,8 +98,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<ReportUploadStateEvent>("report-upload-state", ({ payload }) => {
+    return listenWhileMounted<ReportUploadStateEvent>("report-upload-state", ({ payload }) => {
       setReportUploadedBytes(payload.uploadedBytes);
       if (payload.state === "starting" || payload.state === "uploading") {
         setReportFinalizing(false);
@@ -132,10 +131,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
         setReportReview(false);
         setReportReceipt(payload.receipt);
       }
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
+    }, (error) => announce(`Could not observe report upload state: ${error}`));
   }, [announce]);
 
   const saveDiagnostics = async () => {

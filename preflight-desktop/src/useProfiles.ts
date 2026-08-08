@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { activateProfile, getProfiles, saveProfile } from "./bridge";
 import type { ProfileActivationPlan, ProfileList } from "./types";
 
@@ -14,21 +14,34 @@ export function useProfiles(
   const [profileName, setProfileName] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
   const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
+  const profilesRequest = useRef(0);
 
   const refreshProfiles = useCallback(async () => {
-    if (!game) return;
+    const request = ++profilesRequest.current;
+    if (!game) {
+      setProfiles(null);
+      setProfilesLoading(false);
+      return;
+    }
     setProfilesLoading(true);
     try {
-      setProfiles(await getProfiles(game));
+      const next = await getProfiles(game);
+      if (request === profilesRequest.current) setProfiles(next);
     } catch (error) {
-      announce(String(error));
+      if (request === profilesRequest.current) announce(String(error));
     } finally {
-      setProfilesLoading(false);
+      if (request === profilesRequest.current) setProfilesLoading(false);
     }
   }, [announce, game]);
 
   useEffect(() => {
-    if (visible) void refreshProfiles();
+    if (visible) {
+      void refreshProfiles();
+    } else if (!game) {
+      profilesRequest.current += 1;
+      setProfiles(null);
+      setProfilesLoading(false);
+    }
   }, [refreshProfiles, visible]);
 
   const saveCurrentProfile = async () => {
@@ -83,13 +96,18 @@ export function useProfiles(
     }
   };
 
-  const clearProfiles = () => setProfiles(null);
+  const clearProfiles = () => {
+    profilesRequest.current += 1;
+    setProfiles(null);
+    setProfilesLoading(false);
+  };
+  const currentProfiles = profiles?.installRoot === game ? profiles : null;
 
   return {
     activationPlan,
     profileBusy,
     profileName,
-    profiles,
+    profiles: currentProfiles,
     profilesLoading,
     applyProfile,
     clearProfiles,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { checkForUpdate, installUpdate, isDesktopHost } from "./bridge";
 import type { UpdateProgressEvent, UpdateStatus } from "./types";
+import { listenWhileMounted } from "./tauriEvents";
 
 export function useSignedUpdates(
   readyForBackgroundCheck: boolean,
@@ -46,16 +46,12 @@ export function useSignedUpdates(
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<UpdateProgressEvent>("update-progress", ({ payload }) => {
+    return listenWhileMounted<UpdateProgressEvent>("update-progress", ({ payload }) => {
       setUpdateProgress(payload);
       if (payload.state === "installed") {
         announce("The verified update is installed. Restarting Preflight…");
       }
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
+    }, (error) => announce(`Could not observe update progress: ${error}`));
   }, [announce]);
 
   const installSignedUpdate = async () => {

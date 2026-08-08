@@ -43,6 +43,9 @@ chrome separately from workflow state; narrow layouts switch to accessible icon 
 wrapping, while short desktop windows regain bounded vertical scrolling instead of clipping content.
 Preparation, profiles, run reports, updates, and removal now render through independent workflow
 components while discovery, process state, and destructive actions remain coordinated by the app root.
+Installation-scoped reads are request-fenced so an older result cannot replace a newer selection.
+Native event streams share one lifecycle helper that also unregisters subscriptions resolved after a
+component has already closed.
 
 ## Visual direction
 

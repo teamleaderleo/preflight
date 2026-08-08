@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
 import {
   cancelDesktopSmoke,
   getDesktopSmokeProbe,
@@ -7,6 +6,7 @@ import {
   startDesktopSmoke,
 } from "./bridge";
 import type { AppStatus, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
+import { listenWhileMounted } from "./tauriEvents";
 
 interface DesktopAutomationOptions {
   game: string | undefined;
@@ -33,8 +33,7 @@ export function useDesktopAutomation({
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
+    return listenWhileMounted<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
       setDesktopSmokeRunDirectory(payload.runDirectory);
       if (payload.state === "cancelling") {
         announce(payload.detail ?? "Stopping the exact game process and sealing its evidence…");
@@ -49,10 +48,7 @@ export function useDesktopAutomation({
         ? `Automated game test passed. Evidence is in ${displayPath(payload.runDirectory)}.`
         : payload.detail ?? `Automated game test stopped. Evidence is in ${displayPath(payload.runDirectory)}.`;
       void refreshInstallation(game).then(() => announce(outcome));
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
+    }, (error) => announce(`Could not observe automated test state: ${error}`));
   }, [announce, displayPath, game, installationReady, refreshInstallation, setStatus]);
 
   const checkDesktopAutomation = async () => {

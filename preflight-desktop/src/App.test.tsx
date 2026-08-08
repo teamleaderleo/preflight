@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App, { isCurrentProfilePrepared } from "./App";
 import * as bridge from "./bridge";
-import type { CacheSnapshot } from "./types";
+import type { CacheSnapshot, LaunchSettings } from "./types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
@@ -30,6 +30,14 @@ function cacheSnapshot(overrides: Partial<CacheSnapshot> = {}): CacheSnapshot {
     }],
     ...overrides,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((finish) => {
+    resolve = finish;
+  });
+  return { promise, resolve };
 }
 
 test("requires both the exact current index and texture manifest before calling a profile prepared", () => {
@@ -131,6 +139,36 @@ test("common game settings are editable beside launch", async () => {
   await user.click(screen.getByRole("button", { name: "Apply changes" }));
 
   expect(await screen.findByText(/Game settings saved/)).toBeInTheDocument();
+});
+
+test("an older launcher-settings read cannot overwrite the latest page request", async () => {
+  const user = userEvent.setup();
+  const baseline = await bridge.getLaunchSettings("/Applications/Starsector");
+  render(<App />);
+  await screen.findByLabelText("Home resolution");
+
+  const first = deferred<LaunchSettings>();
+  const second = deferred<LaunchSettings>();
+  const settings = vi.spyOn(bridge, "getLaunchSettings")
+    .mockImplementationOnce(() => first.promise)
+    .mockImplementationOnce(() => second.promise);
+  await user.click(screen.getByRole("button", { name: "All settings" }));
+  await waitFor(() => expect(settings).toHaveBeenCalledTimes(1));
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  await waitFor(() => expect(settings).toHaveBeenCalledTimes(2));
+
+  await act(async () => second.resolve({
+    ...baseline,
+    preferences: { ...baseline.preferences, resolution: "1920x1080" },
+  }));
+  await waitFor(() => expect(screen.getByLabelText("Home resolution")).toHaveValue("1920x1080"));
+  await act(async () => first.resolve({
+    ...baseline,
+    preferences: { ...baseline.preferences, resolution: "800x600" },
+  }));
+
+  expect(screen.getByLabelText("Home resolution")).toHaveValue("1920x1080");
+  settings.mockRestore();
 });
 
 test("navigation resets the previous workflow scroll position", async () => {
