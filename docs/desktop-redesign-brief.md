@@ -23,16 +23,19 @@ They shouldn't compete with the main action on the first screen.
 
 ## Information architecture
 
-Reduce the five current destinations to three:
+The sidebar keeps each power-user workspace visible instead of nesting it inside a general menu:
 
-- **Start** — installation, current profile, preparation state, storage choice and launch;
+- **Home** — launch, common game controls, active profile, cache footprint and installation;
+- **Preflight** — optimization policy, preparation resources, texture storage and cache cleanup;
+- **Run reports** — bounded diagnostic export, explicit sending and the automated compatibility
+  test;
 - **Profiles** — save, switch and inspect exact mod profiles;
-- **Settings** — game preferences, updates, storage cleanup, support reports, removal and advanced
-  troubleshooting.
+- **Settings** — application updates and removal.
 
-Preparation becomes a state of Start rather than a separate destination. Launch settings sit in a
-compact disclosure beside the launch action. Activity details can expand in place while work is
-running.
+Resolution, fullscreen, sound and battle size sit beside the launch action. Antialiasing and UI
+scaling remain one direct click away in the complete game-settings view. RAM belongs in the same
+launch console once the engine can read and update the effective per-platform JVM contract without
+pretending an environment override won when a launcher argument actually took precedence.
 
 ## Visual direction
 
@@ -70,14 +73,15 @@ decision.
 
 ## Core screen
 
-The Start screen should contain:
+The Home screen should contain:
 
 - one status line;
 - the current installation and mod-profile name;
 - one dominant action;
 - a compact preset/storage summary;
 - progress or the last completed result;
-- one secondary route to details.
+- common game controls and one direct route to the remaining controls;
+- an active-profile selector, measured Preflight footprint and installation location.
 
 Update notices and recoverable warnings appear between the status and main action. Support,
 cleanup and removal never appear as equal-weight cards on this screen.
@@ -87,12 +91,13 @@ cleanup and removal never appear as equal-weight cards on this screen.
 - Keep Recommended and Balanced selected by default.
 - Show predicted disk growth before preparation and actual storage afterward.
 - Preserve preview-before-apply for profile changes, cleanup, report sending and removal.
-- Keep Conservative and Off available from an Advanced disclosure and from targeted error states.
+- Keep Conservative and Off visible in the Preflight workspace and in targeted error states.
 - Never hide a declined optimization or vanilla fallback; summarize it first and expose exact
   adapter evidence on demand.
 - Don't add automatic telemetry, automatic report sending or surprise updates.
 - Don't open a workflow with a card that restates the page title.
-- Reset scroll position when moving between destinations.
+- Keep the desktop shell fixed to its window. Advanced workspaces may scroll inside their bounded
+  content region; Home shouldn't scroll at the standard desktop size.
 - Keep labels readable before trying to fit another card above the fold.
 
 ## Implementation sequence
@@ -107,7 +112,8 @@ cleanup and removal never appear as equal-weight cards on this screen.
 The redesign doesn't change the engine, cache formats or adapter plans. It can ship independently
 once both versions pass the same behavior tests.
 
-The first extraction and visual-foundation passes are complete. Primary navigation now contains
-Start, Profiles and Settings. Game settings and storage remain full-size drilldowns from Start.
-Their repeated intro cards are gone, useful status sits with the first control, and responsive
-layouts use a compact header rather than an icon-only rail.
+The first extraction, visual-foundation and information-architecture passes are complete. Home is a
+compact launch console rather than an illustrated landing page. Primary navigation exposes
+Preflight and Run reports as real workspaces, while Profiles remains directly reachable and Settings
+contains only application maintenance. The whole desktop window stays fixed; longer work happens
+inside the active workspace.

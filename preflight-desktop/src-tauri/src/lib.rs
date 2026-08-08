@@ -2540,11 +2540,15 @@ mod tests {
     use std::sync::{Arc, Mutex, mpsc};
     use std::thread;
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-    use tokio::sync::watch;
+    use tokio::sync::{Mutex as AsyncMutex, watch};
     use url::Url;
 
     #[cfg(target_os = "macos")]
     use super::MACOS_ACCESSIBILITY_SETTINGS;
+
+    // Each case owns a blocking loopback server. Serialize those cases and handshake with the
+    // accept thread below so rapid parallel suites never race a freshly opened listener.
+    static REPORT_SERVER_TEST_LOCK: AsyncMutex<()> = AsyncMutex::const_new(());
 
     #[test]
     fn keeps_only_the_bounded_end_of_child_stderr() {
@@ -2732,6 +2736,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn cancelled_report_upload_deletes_its_incomplete_server_case() {
+        let _server_test = REPORT_SERVER_TEST_LOCK.lock().await;
         let (origin, requests, server) = local_report_server();
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -2789,6 +2794,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn successful_report_upload_streams_and_finalizes_the_disclosed_archive() {
+        let _server_test = REPORT_SERVER_TEST_LOCK.lock().await;
         let (origin, requests, server) = local_report_server();
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -2850,6 +2856,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn report_receipt_deletion_uses_its_bearer_grant() {
+        let _server_test = REPORT_SERVER_TEST_LOCK.lock().await;
         let (origin, requests, server) = local_report_server();
         let case_id = "3961d5f3-cd4c-4b62-b915-e9cc5a68d5db";
         let deletion = ReportDeletion {
@@ -2897,9 +2904,11 @@ mod tests {
         let server_origin = origin.clone();
         let requests = Arc::new(Mutex::new(Vec::new()));
         let server_requests = requests.clone();
+        let (ready, server_started) = mpsc::sync_channel(1);
         let server = thread::spawn(move || {
             let mut report_identity = None;
             let deadline = Instant::now() + Duration::from_secs(10);
+            ready.send(()).unwrap();
             while Instant::now() < deadline {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
@@ -2943,6 +2952,9 @@ mod tests {
             }
             panic!("local report server timed out before deletion");
         });
+        server_started
+            .recv_timeout(Duration::from_secs(2))
+            .expect("local report server did not start");
         (origin, requests, server)
     }
 

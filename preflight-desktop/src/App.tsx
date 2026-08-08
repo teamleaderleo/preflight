@@ -26,7 +26,6 @@ import {
   SparklesIcon,
 } from "./icons";
 import Logo from "./Logo";
-import preflightMark from "./assets/preflight-mark-v2.png";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { resourcePresets, usePreparation } from "./usePreparation";
@@ -46,7 +45,7 @@ import type {
 
 export { isCurrentProfilePrepared } from "./usePreparation";
 
-type Page = "home" | "launch" | "prepare" | "profiles" | "settings";
+type Page = "home" | "launch" | "prepare" | "reports" | "profiles" | "settings";
 
 const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -86,7 +85,8 @@ function savedOptimizationPreset(): OptimizationPreset {
 
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
   if (page === "launch") return "Game settings";
-  if (page === "prepare") return preparing ? "Preparing…" : "Prepare";
+  if (page === "prepare") return preparing ? "Preparing…" : "Preflight";
+  if (page === "reports") return "Run reports";
   if (page === "profiles") return "Profiles";
   if (page === "settings") return "Settings";
   if (preparing) return "Preparing…";
@@ -202,7 +202,7 @@ export default function App() {
     setProfileName,
   } = useProfiles(
     snapshot?.selected?.installRoot,
-    page === "profiles",
+    page === "home" || page === "profiles",
     refresh,
     refreshCache,
     setMessage,
@@ -245,7 +245,7 @@ export default function App() {
     setReportReview,
     stopRunReport,
     submitRunReport,
-  } = useDiagnosticsReport(page === "settings", setMessage);
+  } = useDiagnosticsReport(page === "reports", setMessage);
   const [launcherSettings, setLauncherSettings] = useState<LaunchSettings | null>(null);
   const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
   const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
@@ -312,7 +312,7 @@ export default function App() {
   }, [snapshot?.selected?.installRoot]);
 
   useEffect(() => {
-    if (page === "launch") void refreshLauncherSettings();
+    if (page === "home" || page === "launch") void refreshLauncherSettings();
   }, [page, refreshLauncherSettings]);
 
   const chooseInstall = async () => {
@@ -426,8 +426,17 @@ export default function App() {
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
+  const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
+  const launchSettingsDirty = Boolean(launcherDraft && launcherSettings && (
+    launcherDraft.resolution !== (launcherSettings.preferences.resolution ?? launcherSettings.settings?.resolution ?? "1280x720")
+    || launcherDraft.fullscreen !== launcherSettings.preferences.fullscreen
+    || launcherDraft.sound !== launcherSettings.preferences.sound
+    || launcherDraft.antialiasingSamples !== (launcherSettings.preferences.antialiasingSamples ?? 0)
+    || launcherDraft.uiScale !== (launcherSettings.preferences.uiScale ?? 1)
+    || launcherDraft.battleSize !== (launcherSettings.preferences.battleSize ?? launcherSettings.limits.battleSizeDefault ?? 400)
+  ));
   const title = pageTitle(page, status, preparing, isReady, needsPreparation);
-  const startActive = page === "home" || page === "launch" || page === "prepare";
+  const startActive = page === "home" || page === "launch";
 
   useEffect(() => {
     document.documentElement.scrollTop = 0;
@@ -451,7 +460,15 @@ export default function App() {
         <nav className="nav" aria-label="Main navigation">
           <button className={`nav__item ${startActive ? "nav__item--active" : ""}`} type="button" aria-current={startActive ? "page" : undefined} onClick={() => setPage("home")}>
             <HomeIcon />
-            <span>Start</span>
+            <span>Home</span>
+          </button>
+          <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" aria-current={page === "prepare" ? "page" : undefined} onClick={() => setPage("prepare")} disabled={!isReady}>
+            <SparklesIcon />
+            <span>Preflight</span>
+          </button>
+          <button className={`nav__item ${page === "reports" ? "nav__item--active" : ""}`} type="button" aria-current={page === "reports" ? "page" : undefined} onClick={() => setPage("reports")}>
+            <ShieldIcon />
+            <span>Run reports</span>
           </button>
           <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" aria-current={page === "profiles" ? "page" : undefined} onClick={() => setPage("profiles")} disabled={!isReady}>
             <LayersIcon />
@@ -476,9 +493,10 @@ export default function App() {
           </button>
         </header>
 
+        <div className={`page-viewport page-viewport--${page}`}>
         {page === "home" ? <>
-        <section className={`hero card ${isReady ? "hero--ready" : "hero--setup"}`}>
-          <div className="hero__copy">
+        <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"}`}>
+          <div className="launch-console__primary">
             <div className={`status-chip ${isReady ? "status-chip--ready" : ""}`}>
               {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
               {status === "running" ? "Game running" : preparing ? "Preparing profile" : needsPreparation ? "Profile changed" : isReady ? "Prepared" : "Installation required"}
@@ -487,7 +505,7 @@ export default function App() {
             {!isReady || needsPreparation ? <p>{needsPreparation
               ? "Build reusable data for this mod profile first."
               : "Select the folder that contains the Starsector launcher."}</p> : null}
-            <div className="hero__actions">
+            <div className="launch-console__actions">
               {isReady ? (
                 <button className="button button--primary button--launch" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
@@ -501,7 +519,7 @@ export default function App() {
               )}
             </div>
             {isReady && (
-              <div className="hero__launch-note">
+              <div className="launch-console__note">
                 <strong>{selectedOptimization.label}</strong>
                 <span>{needsPreparation
                   ? preparationPlanLoading
@@ -515,9 +533,31 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="hero__art" aria-hidden="true">
-            <img src={preflightMark} alt="" />
-          </div>
+          {isReady && launcherDraft && launcherSettings ? (
+            <div className="quick-settings" aria-label="Common game settings">
+              <div className="quick-settings__heading">
+                <strong>Game setup</strong>
+                <button className="text-button" type="button" onClick={() => setPage("launch")}>All settings <ArrowIcon /></button>
+              </div>
+              <div className="quick-settings__grid">
+                <label className="quick-control" htmlFor="home-resolution">
+                  <span>Resolution</span>
+                  <input id="home-resolution" aria-label="Home resolution" value={launcherDraft.resolution} onChange={(event) => setLauncherDraft({ ...launcherDraft, resolution: event.target.value })} inputMode="text" spellCheck={false} />
+                </label>
+                <label className="quick-control" htmlFor="home-battle-size">
+                  <span>Battle size</span>
+                  <input id="home-battle-size" aria-label="Home battle size" type="number" min={launcherSettings.limits.battleSizeMin ?? 1} max={launcherSettings.limits.battleSizeMax ?? Math.max(launcherDraft.battleSize, 400)} step="10" value={launcherDraft.battleSize} onChange={(event) => setLauncherDraft({ ...launcherDraft, battleSize: Number(event.target.value) })} />
+                </label>
+              </div>
+              <div className="quick-settings__toggles">
+                <label><input type="checkbox" aria-label="Home fullscreen" checked={launcherDraft.fullscreen} onChange={(event) => setLauncherDraft({ ...launcherDraft, fullscreen: event.target.checked })} /><span>Fullscreen</span></label>
+                <label><input type="checkbox" aria-label="Home sound" checked={launcherDraft.sound} onChange={(event) => setLauncherDraft({ ...launcherDraft, sound: event.target.checked })} /><span>Sound</span></label>
+              </div>
+              <button className={`button ${launchSettingsDirty ? "button--primary" : "button--quiet"} quick-settings__save`} type="button" onClick={() => void saveLauncherSettings()} disabled={!launchSettingsDirty || launcherSettingsSaving || status === "running" || preparing}>
+                <CheckIcon />{launcherSettingsSaving ? "Saving…" : launchSettingsDirty ? "Apply changes" : "Settings applied"}
+              </button>
+            </div>
+          ) : isReady ? <div className="quick-settings quick-settings--loading">{launcherSettingsLoading ? "Reading game settings…" : "Game settings unavailable"}</div> : null}
         </section>
 
         {updateStatus?.available && (
@@ -535,43 +575,34 @@ export default function App() {
           </div>
         )}
 
-        <div className="content-grid content-grid--single">
-          <section className="card installation-card">
-            <div className="card__heading">
-              <div>
-                <h2>Installation</h2>
-              </div>
-              <div className={`tiny-status ${isReady ? "tiny-status--good" : ""}`}>
-                <span />
-                {isReady ? "Found" : "Not found"}
-              </div>
-            </div>
-            {isReady && snapshot?.selected ? (
-              <>
-                <div className="install-detail">
-                  <div className="install-icon"><FolderIcon /></div>
-                  <div>
-                    <strong>{shortPath(snapshot.selected.installRoot)}</strong>
-                    <span>{friendlyPlatform(snapshot.platform)} · {snapshot.selected.kind.replace("-", " ")}</span>
-                  </div>
-                  <button type="button" className="text-button" onClick={() => void chooseInstall()} aria-label="Change Starsector installation">
-                    Change <ArrowIcon />
-                  </button>
-                </div>
-                <div className="start-tools" aria-label="Start options">
-                  <button className="button button--quiet" type="button" onClick={() => setPage("launch")}><PlayIcon />Game settings</button>
-                  <button className="button button--quiet" type="button" onClick={() => setPage("prepare")}><SparklesIcon />Storage</button>
-                </div>
-              </>
-            ) : (
-              <div className="empty-detail">
-                <div className="install-icon"><FolderIcon /></div>
-                <div><strong>No folder chosen yet</strong><span>Automatic discovery didn’t find a launcher.</span></div>
-              </div>
-            )}
-          </section>
-
-        </div>
+        <section className="card home-overview" aria-label="Current Preflight setup">
+          <div className="home-fact">
+            <span>Profile</span>
+            {profiles && profiles.profiles.length > 0 ? (
+              <select className="home-profile-select" aria-label="Active profile" value={activeProfile?.name ?? ""} onChange={(event) => {
+                const name = event.target.value;
+                if (!name || name === activeProfile?.name) return;
+                setPage("profiles");
+                void reviewProfile(name);
+              }}>
+                {!activeProfile && <option value="">Current mod list</option>}
+                {profiles.profiles.map((profile) => <option value={profile.name} key={profile.name}>{profile.name}</option>)}
+              </select>
+            ) : <strong>{profilesLoading ? "Reading…" : `${profiles?.enabledMods.length ?? 0} enabled mods`}</strong>}
+            <button className="text-button" type="button" onClick={() => setPage("profiles")} disabled={!isReady}>Manage <ArrowIcon /></button>
+          </div>
+          <div className="home-fact">
+            <span>Preflight data</span>
+            <strong>{cacheLoading ? "Reading…" : formatBytes(cache?.total.bytes ?? 0)}</strong>
+            <button className="text-button" type="button" onClick={() => setPage("prepare")} disabled={!isReady}>Storage <ArrowIcon /></button>
+          </div>
+          <div className="home-fact home-fact--installation">
+            <span>Installation</span>
+            <strong>{isReady && snapshot?.selected ? shortPath(snapshot.selected.installRoot) : "Not selected"}</strong>
+            <small>{isReady && snapshot ? `${friendlyPlatform(snapshot.platform)} · ${snapshot.selected?.kind.replace("-", " ")}` : "Choose the game folder to begin."}</small>
+            <button type="button" className="text-button" onClick={() => void chooseInstall()} aria-label="Change Starsector installation">Change <ArrowIcon /></button>
+          </div>
+        </section>
         </> : page === "launch" ? (
           <div className="launch-page">
             {message && (
@@ -580,33 +611,6 @@ export default function App() {
 
             {launcherDraft && launcherSettings ? (
               <>
-                <section className="card optimization-card">
-                  <div className="card__heading">
-                    <div>
-                      <p className="eyebrow">Launch behavior</p>
-                      <h2>Optimizations</h2>
-                    </div>
-                    <div className={`tiny-status ${launcherSettings.directLaunchAvailable ? "tiny-status--good" : ""}`}>
-                      <span />
-                      {launcherSettingsLoading ? "Reading" : launcherSettings.directLaunchAvailable ? "Direct launch" : "Vanilla launcher"}
-                    </div>
-                  </div>
-                  <div className="optimization-choices" role="radiogroup" aria-label="Optimization preset">
-                    {optimizationPresets.map((preset) => (
-                      <label className={`choice-card ${optimizationPreset === preset.id ? "choice-card--selected" : ""}`} key={preset.id}>
-                        <input
-                          type="radio"
-                          name="optimization-preset"
-                          aria-label={`${preset.label} optimizations`}
-                          checked={optimizationPreset === preset.id}
-                          onChange={() => setOptimizationPreset(preset.id)}
-                        />
-                        <span><strong>{preset.label}</strong><small>{preset.description}</small></span>
-                        <b>{preset.badge}</b>
-                      </label>
-                    ))}
-                  </div>
-                </section>
                 <div className="launch-settings-grid">
                   <section className="card launch-settings-card">
                     <div className="card__heading">
@@ -676,6 +680,34 @@ export default function App() {
             {message && (
               <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
             )}
+
+            <section className="card optimization-card">
+              <div className="card__heading">
+                <div>
+                  <p className="eyebrow">Runtime policy</p>
+                  <h2>Optimizations</h2>
+                </div>
+                <div className={`tiny-status ${optimizationPreset !== "off" ? "tiny-status--good" : ""}`}>
+                  <span />
+                  {selectedOptimization.label}
+                </div>
+              </div>
+              <div className="optimization-choices" role="radiogroup" aria-label="Optimization preset">
+                {optimizationPresets.map((preset) => (
+                  <label className={`choice-card ${optimizationPreset === preset.id ? "choice-card--selected" : ""}`} key={preset.id}>
+                    <input
+                      type="radio"
+                      name="optimization-preset"
+                      aria-label={`${preset.label} optimizations`}
+                      checked={optimizationPreset === preset.id}
+                      onChange={() => setOptimizationPreset(preset.id)}
+                    />
+                    <span><strong>{preset.label}</strong><small>{preset.description}</small></span>
+                    <b>{preset.badge}</b>
+                  </label>
+                ))}
+              </div>
+            </section>
 
             <div className="prepare-grid">
               <section className="card prepare-options">
@@ -854,7 +886,7 @@ export default function App() {
             )}
 
             <div className="settings-overview">
-              <section className="card update-card">
+              {page === "settings" && <section className="card update-card">
                 <div className="card__heading">
                   <div><p className="eyebrow">Application</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version}` : "Updates"}</h2></div>
                   <ShieldIcon className="settings-check" />
@@ -872,9 +904,9 @@ export default function App() {
                 </div>
                 {updateStatus?.available && <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small>}
                 <small>Release signatures are checked before installation. A failed check leaves the current version untouched.</small>
-              </section>
+              </section>}
 
-              <section className="card diagnostics-action">
+              {page === "reports" && <section className="card diagnostics-action">
                 <div>
                   <strong>{diagnosticsExport ? "Diagnostics ready" : "Diagnostics"}</strong>
                   <span>{diagnosticsExport
@@ -891,10 +923,10 @@ export default function App() {
                     </button>
                   )}
                 </div>
-              </section>
+              </section>}
             </div>
 
-            {desktopSmokeReview && (
+            {page === "reports" && desktopSmokeReview && (
               <section className="card automation-review" aria-label="Automated game test review">
                 <div className="activation-review__heading">
                   <div><p className="eyebrow">Nothing started yet</p><h2>Run the checked campaign test?</h2></div>
@@ -911,7 +943,7 @@ export default function App() {
               </section>
             )}
 
-            <details className="card settings-disclosure">
+            {page === "reports" && <details className="card settings-disclosure">
               <summary>
                 <span><strong>Diagnostic contents</strong><small>Included and excluded data</small></span>
               </summary>
@@ -941,13 +973,13 @@ export default function App() {
                   </ul>
                 </section>
               </div>
-            </details>
+            </details>}
 
-            {diagnosticsExport && reportIntake && !reportIntake.configured && (
+            {page === "reports" && diagnosticsExport && reportIntake && !reportIntake.configured && (
               <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "Run-report sending isn't configured in this build."} The ZIP remains available to inspect and share manually.</p>
             )}
 
-            {reportReview && diagnosticsExport && (
+            {page === "reports" && reportReview && diagnosticsExport && (
               <section className="card report-review" aria-label="Run report consent">
                 <div className="activation-review__heading">
                   <div><p className="eyebrow">Nothing sent yet</p><h2>Send this exact ZIP?</h2></div>
@@ -984,7 +1016,7 @@ export default function App() {
               </section>
             )}
 
-            {reportReceipt && (
+            {page === "reports" && reportReceipt && (
               <section className="card report-receipt" aria-label="Run report receipt">
                 <div className="card__heading">
                   <div><p className="eyebrow">Accepted</p><h2>Run report {reportReceipt.caseId}</h2></div>
@@ -1004,7 +1036,7 @@ export default function App() {
               </section>
             )}
 
-            <details className="card settings-disclosure automation-card">
+            {page === "reports" && <details className="card settings-disclosure automation-card">
               <summary>
                 <span><strong>Automated game test</strong><small>{desktopSmokeProbe?.probe.ready ? "Ready" : "Optional compatibility check"}</small></span>
               </summary>
@@ -1025,9 +1057,9 @@ export default function App() {
                 </div>
                 {desktopSmokeRunDirectory && <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small>}
               </div>
-            </details>
+            </details>}
 
-            <details className="card settings-disclosure removal-card">
+            {page === "settings" && <details className="card settings-disclosure removal-card">
               <summary>
                 <span><strong>Remove Preflight</strong><small>Launcher only or all local data</small></span>
               </summary>
@@ -1038,9 +1070,9 @@ export default function App() {
                   <div><strong>All Preflight data</strong><span>Remove launch integrations, caches, profiles, evidence, and backups. The packaged desktop app remains for the operating system to uninstall.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("all-data")} disabled={removalBusy || preparing || status === "running"}>Review all data removal</button></div>
                 </div>
               </div>
-            </details>
+            </details>}
 
-            {removalPlan && (
+            {page === "settings" && removalPlan && (
               <section className="card removal-review" aria-label="Removal review">
                 <div className="activation-review__heading">
                   <div><p className="eyebrow">Nothing removed yet</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
@@ -1056,6 +1088,7 @@ export default function App() {
             )}
           </div>
         )}
+        </div>
 
         <footer>
           <span>Preflight {snapshot?.engineVersion ?? "…"}</span>
