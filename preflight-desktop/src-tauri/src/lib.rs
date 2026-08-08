@@ -1,13 +1,13 @@
 use futures_util::StreamExt;
 use reqwest::{Client, Response, StatusCode, redirect::Policy};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Child, Stdio};
-use std::sync::{Mutex, mpsc};
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::AsyncReadExt;
@@ -17,6 +17,7 @@ use url::Url;
 mod automation;
 mod engine;
 mod operations;
+mod preparation;
 mod reports;
 mod updates;
 
@@ -29,7 +30,8 @@ use engine::{
     export_diagnostics, get_cache, get_cache_cleanup, get_launch_settings, get_profiles,
     get_removal_plan, get_snapshot, save_profile, update_launch_settings,
 };
-use operations::{OperationCoordinator, OperationState, PreparationProcess, refuse_update_install};
+use operations::{OperationCoordinator, OperationState, refuse_update_install};
+use preparation::{cancel_preparation, get_preparation_plan, start_preparation};
 use reports::{
     CreateReportCaseRequest, CreateReportCaseResponse, ReportDeletion, ReportGrantEndpoint,
     ReportReceipt, ReportUploadError, ReportUploadInput, ReportUploadStateEvent, cancel_run_report,
@@ -54,31 +56,6 @@ struct RunStateEvent {
     pid: u32,
     success: Option<bool>,
     detail: Option<String>,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PreparationStateEvent {
-    state: &'static str,
-    pid: u32,
-    success: Option<bool>,
-    detail: Option<String>,
-    report: Option<String>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PreparationProgressEvent {
-    #[serde(default)]
-    pid: u32,
-    format: String,
-    phase: String,
-    state: String,
-    total_phases: u32,
-    status: Option<String>,
-    duration_ms: Option<f64>,
-    #[serde(default)]
-    metrics: Value,
 }
 
 pub(crate) async fn perform_report_deletion(
@@ -706,142 +683,6 @@ fn validate_optimization_preset(value: &str) -> Result<&str, String> {
     }
 }
 
-#[tauri::command]
-fn start_preparation(
-    app: AppHandle,
-    tracker: State<'_, OperationCoordinator>,
-    game: String,
-    texture_storage: String,
-    workers: u8,
-    memory_mib: u32,
-) -> Result<RunStarted, String> {
-    let directory = canonical_game_directory(&game)?;
-    if texture_storage != "balanced" && texture_storage != "fastest" {
-        return Err("Texture storage must be balanced or fastest.".to_string());
-    }
-    if !(1..=64).contains(&workers) {
-        return Err("Preparation workers must be between 1 and 64.".to_string());
-    }
-    if !(16..=65_536).contains(&memory_mib) {
-        return Err("Preparation memory must be between 16 and 65536 MiB.".to_string());
-    }
-    let paths = EnginePaths::resolve(&app)?;
-    let mut running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The preparation tracker is unavailable.".to_string())?;
-    refuse_update_install(&running)?;
-    if running.preparation.is_some() {
-        return Err("This profile is already being prepared.".to_string());
-    }
-    if running.game.is_some() {
-        return Err("Close Starsector before preparing its current profile.".to_string());
-    }
-
-    let mut command = paths.command();
-    command
-        .arg("prepare")
-        .arg("--game")
-        .arg(directory)
-        .arg("--texture-storage")
-        .arg(texture_storage)
-        .arg("--workers")
-        .arg(workers.to_string())
-        .arg("--memory-mb")
-        .arg(memory_mib.to_string())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let child = command
-        .spawn()
-        .map_err(|error| format!("Could not start profile preparation: {error}"))?;
-    let pid = child.id();
-    let (cancel, cancel_receiver) = mpsc::channel();
-    running.preparation = Some(PreparationProcess { pid, cancel });
-    drop(running);
-
-    let _ = app.emit(
-        "prepare-state",
-        PreparationStateEvent {
-            state: "started",
-            pid,
-            success: None,
-            detail: None,
-            report: None,
-        },
-    );
-    watch_preparation(app, child, cancel_receiver);
-    Ok(RunStarted { pid })
-}
-
-#[tauri::command]
-fn cancel_preparation(
-    app: AppHandle,
-    tracker: State<'_, OperationCoordinator>,
-) -> Result<bool, String> {
-    let running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The preparation tracker is unavailable.".to_string())?;
-    let Some(preparation) = running.preparation.as_ref() else {
-        return Ok(false);
-    };
-    let pid = preparation.pid;
-    preparation
-        .cancel
-        .send(())
-        .map_err(|_| "Preparation has already stopped.".to_string())?;
-    drop(running);
-    let _ = app.emit(
-        "prepare-state",
-        PreparationStateEvent {
-            state: "cancelling",
-            pid,
-            success: None,
-            detail: None,
-            report: None,
-        },
-    );
-    Ok(true)
-}
-
-#[tauri::command]
-fn get_preparation_plan(
-    app: AppHandle,
-    game: String,
-    texture_storage: String,
-    workers: u8,
-) -> Result<Value, String> {
-    let directory = canonical_game_directory(&game)?;
-    if texture_storage != "balanced" && texture_storage != "fastest" {
-        return Err("Texture storage must be balanced or fastest.".to_string());
-    }
-    if !(1..=64).contains(&workers) {
-        return Err("Preparation workers must be between 1 and 64.".to_string());
-    }
-    let paths = EnginePaths::resolve(&app)?;
-    let output = paths
-        .command()
-        .arg("prepare")
-        .arg("--plan")
-        .arg("--json")
-        .arg("--game")
-        .arg(directory)
-        .arg("--texture-storage")
-        .arg(texture_storage)
-        .arg("--workers")
-        .arg(workers.to_string())
-        .output()
-        .map_err(|error| format!("Could not calculate preparation storage: {error}"))?;
-    if !output.status.success() {
-        return Err(child_error(
-            "Preflight could not calculate preparation storage",
-            &output.stderr,
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable storage plan: {error}"))
-}
-
 fn watch_child(app: AppHandle, mut child: Child) {
     let pid = child.id();
     std::thread::spawn(move || {
@@ -909,122 +750,6 @@ fn begin_exit_cleanup(running: &mut OperationState) -> Result<bool, String> {
         running.exit_after_cleanup = true;
     }
     Ok(pending)
-}
-
-fn watch_preparation(app: AppHandle, mut child: Child, cancel: mpsc::Receiver<()>) {
-    let pid = child.id();
-    std::thread::spawn(move || {
-        let stdout = child
-            .stdout
-            .take()
-            .map(|mut stdout| std::thread::spawn(move || read_tail(&mut stdout, 16 * 1024)));
-        let stderr_app = app.clone();
-        let stderr = child.stderr.take().map(|stderr| {
-            std::thread::spawn(move || read_preparation_stderr(stderr_app, pid, stderr))
-        });
-
-        let mut cancelled = false;
-        let status = loop {
-            if cancel.try_recv().is_ok() {
-                cancelled = true;
-                let _ = child.kill();
-                break child.wait();
-            }
-            match child.try_wait() {
-                Ok(Some(status)) => break Ok(status),
-                Ok(None) => std::thread::sleep(Duration::from_millis(50)),
-                Err(error) => break Err(error),
-            }
-        };
-        let stdout = stdout
-            .and_then(|reader| reader.join().ok())
-            .unwrap_or_default();
-        let stderr = stderr
-            .and_then(|reader| reader.join().ok())
-            .unwrap_or_default();
-        let success = !cancelled && status.as_ref().is_ok_and(|status| status.success());
-        let report = if success {
-            let value = String::from_utf8_lossy(&stdout).trim().to_string();
-            (!value.is_empty()).then_some(value)
-        } else {
-            None
-        };
-        let detail = if cancelled {
-            Some(
-                "Preparation stopped safely. Finished cache artifacts remain reusable.".to_string(),
-            )
-        } else {
-            match &status {
-                Ok(status) if status.success() => None,
-                Ok(_) => Some(child_error("Profile preparation failed", &stderr)),
-                Err(error) => Some(format!("Could not wait for profile preparation: {error}")),
-            }
-        };
-        let should_exit = if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock() {
-            if running
-                .preparation
-                .as_ref()
-                .is_some_and(|process| process.pid == pid)
-            {
-                running.preparation = None;
-            }
-            take_deferred_exit(&mut running)
-        } else {
-            false
-        };
-        let _ = app.emit(
-            "prepare-state",
-            PreparationStateEvent {
-                state: if cancelled { "cancelled" } else { "finished" },
-                pid,
-                success: Some(success),
-                detail,
-                report,
-            },
-        );
-        if should_exit {
-            app.exit(0);
-        }
-    });
-}
-
-const PREPARATION_PROGRESS_PREFIX: &str = "PREFLIGHT_PROGRESS ";
-const PREPARATION_PROGRESS_FORMAT: &str = "preflight-preparation-progress-v1";
-
-fn parse_preparation_progress(line: &str, pid: u32) -> Option<PreparationProgressEvent> {
-    let json = line.strip_prefix(PREPARATION_PROGRESS_PREFIX)?;
-    let mut event: PreparationProgressEvent = serde_json::from_str(json).ok()?;
-    if event.format != PREPARATION_PROGRESS_FORMAT || event.phase.is_empty() {
-        return None;
-    }
-    event.pid = pid;
-    Some(event)
-}
-
-fn read_preparation_stderr(app: AppHandle, pid: u32, stderr: impl Read) -> Vec<u8> {
-    let mut tail = Vec::with_capacity(8 * 1024);
-    for line in BufReader::new(stderr).lines() {
-        let Ok(line) = line else { break };
-        if let Some(progress) = parse_preparation_progress(&line, pid) {
-            let _ = app.emit("prepare-progress", progress);
-        }
-        append_tail(&mut tail, line.as_bytes(), 8 * 1024);
-        append_tail(&mut tail, b"\n", 8 * 1024);
-    }
-    tail
-}
-
-fn append_tail(tail: &mut Vec<u8>, bytes: &[u8], limit: usize) {
-    if bytes.len() >= limit {
-        tail.clear();
-        tail.extend_from_slice(&bytes[bytes.len() - limit..]);
-        return;
-    }
-    let overflow = tail.len().saturating_add(bytes.len()).saturating_sub(limit);
-    if overflow > 0 {
-        tail.drain(..overflow);
-    }
-    tail.extend_from_slice(bytes);
 }
 
 fn read_tail(reader: &mut dyn Read, limit: usize) -> Vec<u8> {
@@ -1133,8 +858,8 @@ pub fn run() {
 mod tests {
     use super::{
         ReportDeletion, ReportReceipt, ReportUploadError, ReportUploadInput, begin_exit_cleanup,
-        parse_preparation_progress, perform_report_deletion, perform_report_upload, read_tail,
-        report_client, take_deferred_exit, validate_optimization_preset, validate_report_origin,
+        perform_report_deletion, perform_report_upload, read_tail, report_client,
+        take_deferred_exit, validate_optimization_preset, validate_report_origin,
         validate_report_receipt, validated_case_url, validated_report_archive,
     };
     use crate::automation::{
@@ -1736,19 +1461,6 @@ mod tests {
         assert!(validate_removal_scope("all-data").is_ok());
         assert!(validate_removal_scope("cache").is_err());
         assert!(validate_removal_scope("../game").is_err());
-    }
-
-    #[test]
-    fn parses_only_versioned_preparation_progress() {
-        let parsed = parse_preparation_progress(
-            "PREFLIGHT_PROGRESS {\"format\":\"preflight-preparation-progress-v1\",\"phase\":\"textures\",\"state\":\"completed\",\"totalPhases\":7,\"status\":\"SUCCESS\",\"durationMs\":12.5,\"metrics\":{\"builtBlobs\":3}}",
-            42,
-        )
-        .unwrap();
-        assert_eq!(42, parsed.pid);
-        assert_eq!("textures", parsed.phase);
-        assert_eq!(Some("SUCCESS".to_string()), parsed.status);
-        assert!(parse_preparation_progress("prepare: textures started", 42).is_none());
     }
 
     #[test]
