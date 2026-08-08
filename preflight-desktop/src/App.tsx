@@ -84,15 +84,16 @@ function savedOptimizationPreset(): OptimizationPreset {
   return "recommended";
 }
 
-function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean): string {
-  if (page === "launch") return "Launch settings";
+function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
+  if (page === "launch") return "Game settings";
   if (page === "prepare") return preparing ? "Preparing…" : "Prepare";
   if (page === "profiles") return "Profiles";
   if (page === "settings") return "Settings";
   if (preparing) return "Preparing…";
-  if (status === "loading") return "Checking installation…";
-  if (status === "running") return "Starsector is running";
-  return isReady ? "Ready to launch" : "Choose your Starsector installation";
+  if (status === "loading") return "Checking…";
+  if (status === "running") return "Running";
+  if (!isReady) return "Setup";
+  return needsPreparation ? "Preparation needed" : "Ready";
 }
 
 function formatBytes(bytes: number): string {
@@ -373,7 +374,7 @@ export default function App() {
     try {
       const result = await updateLaunchSettings(game, launcherDraft);
       setLauncherSettings(result);
-      setMessage("Launch settings saved. Vanilla and Preflight launches will use the same values.");
+      setMessage("Game settings saved. Vanilla and Preflight launches will use the same values.");
     } catch (error) {
       setMessage(String(error));
     } finally {
@@ -425,7 +426,7 @@ export default function App() {
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
-  const title = pageTitle(page, status, preparing, isReady);
+  const title = pageTitle(page, status, preparing, isReady, needsPreparation);
   const startActive = page === "home" || page === "launch" || page === "prepare";
 
   useEffect(() => {
@@ -479,16 +480,16 @@ export default function App() {
         <section className={`hero card ${isReady ? "hero--ready" : "hero--setup"}`}>
           <div className="hero__copy">
             <div className={`status-chip ${isReady ? "status-chip--ready" : ""}`}>
-              {isReady ? <CheckIcon /> : <SparklesIcon />}
-              {status === "running" ? "Game running" : preparing ? "Preparing profile" : isReady ? "Ready" : "Setup required"}
+              {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
+              {status === "running" ? "Game running" : preparing ? "Preparing profile" : needsPreparation ? "Profile changed" : isReady ? "Prepared" : "Installation required"}
             </div>
-            <h2>{isReady ? needsPreparation ? "Prepare this profile" : "Launch Starsector" : "Choose the game folder"}</h2>
-            {!isReady || needsPreparation ? <p>{isReady
-              ? "Build the caches for the current mod profile, then launch."
+            {!isReady && <h2>Choose the game folder</h2>}
+            {!isReady || needsPreparation ? <p>{needsPreparation
+              ? "Build reusable data for this mod profile first."
               : "Select the folder that contains the Starsector launcher."}</p> : null}
             <div className="hero__actions">
               {isReady ? (
-                <button className="button button--primary" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
+                <button className="button button--primary button--launch" type="button" onClick={() => void (needsPreparation ? prepare(true) : launch())} disabled={status === "running" || status === "loading" || preparing || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
                   {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
                 </button>
@@ -496,11 +497,6 @@ export default function App() {
                 <button className="button button--primary" type="button" onClick={() => void chooseInstall()} disabled={status === "loading"}>
                   <FolderIcon />
                   Choose game folder
-                </button>
-              )}
-              {isReady && (
-                <button className="button button--quiet" type="button" onClick={() => void chooseInstall()}>
-                  Choose another
                 </button>
               )}
             </div>

@@ -92,8 +92,10 @@ test("a cold profile cannot prepare when the conservative disk bound does not fi
 test("shows a useful ready-state home screen in browser preview", async () => {
   render(<App />);
 
-  expect(await screen.findByText("Ready to launch")).toBeInTheDocument();
+  expect(await screen.findByText("Ready")).toBeInTheDocument();
   expect(await screen.findByRole("button", { name: "Launch Starsector" })).toBeEnabled();
+  expect(screen.getAllByText("Launch Starsector")).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
   expect(screen.getByText("Recommended")).toBeInTheDocument();
   expect(screen.getByText(/Prepared ·/)).toBeInTheDocument();
 });
@@ -102,7 +104,7 @@ test("navigation resets the previous workflow scroll position", async () => {
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   document.documentElement.scrollTop = 240;
   document.body.scrollTop = 240;
   await user.click(screen.getByRole("button", { name: "Profiles" }));
@@ -117,7 +119,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Storage" }));
 
   expect(await screen.findByRole("heading", { name: "Prepare", level: 1 })).toBeInTheDocument();
@@ -135,7 +137,7 @@ test("storage totals disclose data outside the active cache categories", async (
   }));
 
   render(<App />);
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Storage" }));
 
   expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
@@ -148,7 +150,7 @@ test("cache cleanup is previewed before unused artifacts are removed", async () 
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Storage" }));
   await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
 
@@ -164,10 +166,10 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Game settings" }));
 
-  expect(await screen.findByText("Launch settings")).toBeInTheDocument();
+  expect(await screen.findByText("Game settings")).toBeInTheDocument();
   expect(screen.getByRole("radio", { name: "Recommended optimizations" })).toBeChecked();
   await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
   expect(screen.getByRole("radio", { name: "Conservative optimizations" })).toBeChecked();
@@ -178,14 +180,14 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByLabelText("UI scaling")).toHaveValue("1");
   expect(screen.getByLabelText("Deployment-point budget")).toHaveValue("400");
   await user.click(screen.getByRole("button", { name: "Save launch settings" }));
-  expect(await screen.findByText(/Launch settings saved/)).toBeInTheDocument();
+  expect(await screen.findByText(/Game settings saved/)).toBeInTheDocument();
 });
 
 test("profiles are preview-first and show the exact switch before applying", async () => {
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Profiles" }));
 
   expect(await screen.findByRole("heading", { name: "Profiles", level: 1 })).toBeInTheDocument();
@@ -206,7 +208,7 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
 
   expect(await screen.findByRole("heading", { name: "Settings", level: 1 })).toBeInTheDocument();
@@ -254,7 +256,7 @@ test("restores an unexpired report deletion receipt after restart", async () => 
   }));
 
   render(<App />);
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
 
   expect(await screen.findByRole("heading", { name: `Run report ${caseId}` })).toBeInTheDocument();
@@ -282,7 +284,7 @@ test("discards an expired local report deletion receipt", async () => {
 
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   expect(window.localStorage.getItem("preflight.reportReceipt")).toBeNull();
   expect(screen.queryByRole("heading", { name: `Run report ${caseId}` })).not.toBeInTheDocument();
 });
@@ -296,7 +298,7 @@ test("an unconfigured build keeps local export available and refuses report send
   });
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(await screen.findByRole("button", { name: "Save diagnostics" }));
 
@@ -312,7 +314,7 @@ test("the automated game test checks readiness without launching", async () => {
   const game = vi.spyOn(bridge, "startGame");
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
@@ -330,7 +332,7 @@ test("the automated game test requires a review before it starts", async () => {
   const smoke = vi.spyOn(bridge, "startDesktopSmoke").mockResolvedValue({ pid: 4244 });
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
@@ -351,7 +353,7 @@ test("a running automated game test exposes cooperative cancellation", async () 
   const cancel = vi.spyOn(bridge, "cancelDesktopSmoke").mockResolvedValue(true);
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
@@ -378,7 +380,7 @@ test("a blocked macOS automation probe links to the manual permission pane", asy
   const settings = vi.spyOn(bridge, "openDesktopAccessibilitySettings").mockResolvedValue();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Automated game test"));
   await user.click(await screen.findByRole("button", { name: "Check readiness" }));
@@ -394,7 +396,7 @@ test("verified updates are explicit and explain when a build has no update chann
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(await screen.findByRole("button", { name: "Check for updates" }));
 
@@ -417,7 +419,7 @@ test("a verified available update still waits for install confirmation", async (
   });
 
   render(<App />);
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(await screen.findByRole("button", { name: "Check for updates" }));
 
@@ -444,7 +446,7 @@ test("removal keeps launcher files and all data as separate previewed scopes", a
   const user = userEvent.setup();
   render(<App />);
 
-  await screen.findByText("Ready to launch");
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Remove Preflight"));
 
