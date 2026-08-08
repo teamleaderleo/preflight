@@ -70,7 +70,7 @@ test("signed candidates require updater credentials and compile the reviewed int
   assert.doesNotMatch(workflow, /PREFLIGHT_UPDATER_ENDPOINT/);
 });
 
-test("every native package job exercises install and both removal scopes", () => {
+test("every native package job exercises install, automation contracts and both removal scopes", () => {
   const unconditionalExercise = /- name: Exercise native installation and removal\n        working-directory: preflight-desktop\n        run: npm run desktop:exercise-install/;
   assert.match(workflow, unconditionalExercise);
   assert.match(desktopCi, unconditionalExercise);
@@ -78,6 +78,7 @@ test("every native package job exercises install and both removal scopes", () =>
     resolve(repository, "preflight-desktop/scripts/exercise-native-install.mjs"),
     "utf8",
   );
+  assert.match(exercise, /exercisePackagedDesktopSmokeContract/);
   assert.match(exercise, /exercisePackagedAllDataRemoval/);
   assert.match(exercise, /gameModAndSaveDataRetained: true/);
 });

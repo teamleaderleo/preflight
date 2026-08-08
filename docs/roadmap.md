@@ -8,7 +8,7 @@ Preflight follows a measurement-first sequence. Each optimization keeps the orig
 > with [Release readiness](release-readiness.md), [Optimization history](optimization-history.md),
 > and the [product contract](product-contract.md).
 
-## Current release program (2026-08-08)
+## Current release program (2026-08-09)
 
 Startup reached roughly 101 seconds at the observed high end and centered on an 88.13-second
 five-run controlled median. The current development profile has reached a 15.88-second warm record
@@ -100,6 +100,10 @@ instant. Exact resource-init, campaign-loop, and combat-loop seams publish only 
 ordinary frames pay one volatile comparison. The runner validates that identity and owns the wait,
 so OS adapters don't infer gameplay state from a screenshot or window title.
 PID-addressed macOS, Windows, and Linux X11 adapters are checked in with offline boundary tests.
+Every installed-package exercise now validates the shipped campaign scenario and asks the packaged
+engine to seal an intentional no-game driver result. The result must remain `skipped`; a missing
+driver or permission can't be promoted to a package pass. The existing platform probe still has to
+return either a valid PID-addressed driver or a specific unavailable reason.
 The macOS no-launch probe still lacks Accessibility permission for the exact bundled Java runtime;
 one isolated live action test remains there, followed by native Windows and Linux beta validation.
 

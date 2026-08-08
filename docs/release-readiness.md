@@ -1,7 +1,7 @@
 # Release readiness
 
 **Status:** private development preview; Fractal Softworks guidance requested, awaiting response
-**Updated:** 2026-08-08
+**Updated:** 2026-08-09
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
 not ready to publish merely because it is fast. This checklist is the release boundary for the
@@ -33,7 +33,8 @@ first public beta.
   package completed signed forward update, rejected-signature recovery with a byte-identical app,
   checked-package rollback, app-only removal with separate data retained, and full-data removal
   with game, mod, and save sentinels retained. Every native install exercise now runs the packaged
-  engine's preview and confirmed all-data paths inside a disposable home, followed by a no-launch
+  engine's preview and confirmed all-data paths inside a disposable home. It also validates the
+  shipped campaign scenario, seals an intentional no-game result as `skipped`, and runs a no-launch
   platform-adapter probe that must return a valid driver or a specific unavailable reason. Windows
   and Linux still need a completed hosted run of those checks, along with update/rollback,
   hosted-candidate completion, and OS-warning instructions. A manual private

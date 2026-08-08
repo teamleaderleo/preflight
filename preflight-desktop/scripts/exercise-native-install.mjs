@@ -44,6 +44,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
     const installedApp = join(installDirectory, "Preflight.app");
     run("ditto", [packagedApp, installedApp]);
     const report = verifyInstalledEngine(installedApp);
+    const desktopSmokeContract = exercisePackagedDesktopSmokeContract(installedApp);
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(installedApp);
     const allDataRemoval = exercisePackagedAllDataRemoval(installedApp);
     const installedFiles = regularFiles(installedApp);
@@ -61,6 +62,7 @@ export function exerciseMacInstall(directory = bundleDirectory) {
       installedCopy: true,
       removed: true,
       separateDataRetained: true,
+      desktopSmokeContract,
       desktopSmokeProbe,
       allDataRemoval,
       engine: report.engine,
@@ -95,6 +97,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
     });
     if (installedFiles.length === 0) throw new Error("Installed Debian package owns no files");
     const report = verifyInstalledEngine(dirname(engineRoot));
+    const desktopSmokeContract = exercisePackagedDesktopSmokeContract(dirname(engineRoot));
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(dirname(engineRoot));
     const allDataRemoval = exercisePackagedAllDataRemoval(dirname(engineRoot));
     run("sudo", ["dpkg", "--remove", packageName]);
@@ -114,6 +117,7 @@ export function exerciseDebianInstall(directory = bundleDirectory) {
       package: basename(packagePath),
       packageName,
       removed: true,
+      desktopSmokeContract,
       desktopSmokeProbe,
       allDataRemoval,
       engine: report.engine,
@@ -131,6 +135,7 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
   try {
     run(packagePath, ["/S", `/D=${installDirectory}`]);
     const report = verifyInstalledEngine(installDirectory);
+    const desktopSmokeContract = exercisePackagedDesktopSmokeContract(installDirectory);
     const desktopSmokeProbe = exercisePackagedDesktopSmokeProbe(installDirectory);
     const allDataRemoval = exercisePackagedAllDataRemoval(installDirectory);
     const installedFiles = regularFiles(installDirectory);
@@ -148,9 +153,84 @@ export function exerciseNsisInstall(directory = bundleDirectory) {
     if (remainingFiles.length) {
       throw new Error(`NSIS removal left ${remainingFiles.length} owned file(s): ${remainingFiles.slice(0, 5).join(", ")}`);
     }
-    return { package: basename(packagePath), removed: true, desktopSmokeProbe, allDataRemoval, engine: report.engine };
+    return {
+      package: basename(packagePath),
+      removed: true,
+      desktopSmokeContract,
+      desktopSmokeProbe,
+      allDataRemoval,
+      engine: report.engine,
+    };
   } finally {
     if (existsSync(installDirectory)) rmSync(installDirectory, { recursive: true, force: true });
+  }
+}
+
+export function exercisePackagedDesktopSmokeContract(packageRoot) {
+  const engineDirectory = onlyPackagedEngine(packageRoot);
+  const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
+  const jar = join(engineDirectory, "preflight.jar");
+  const scenario = join(engineDirectory, "scenarios", "campaign-roam.json");
+  const validation = JSON.parse(capture(
+    java,
+    ["-jar", jar, "desktop", "scenario", "validate", scenario],
+    { cwd: engineDirectory },
+  ));
+  assertPackagedScenarioValidation(validation);
+
+  const runDirectory = mkdtempSync(join(tmpdir(), "preflight-smoke-contract-"));
+  const driverResult = join(runDirectory, "driver-result.json");
+  const evidencePath = join(runDirectory, "smoke-evidence.json");
+  try {
+    writeFileSync(driverResult, `${JSON.stringify({
+      format: "starsector-preflight-smoke-driver-result-v1",
+      status: "skipped",
+      startedAt: "2026-08-09T00:00:00Z",
+      completedAt: "2026-08-09T00:00:01Z",
+      driver: {
+        id: "package-contract",
+        version: "1",
+        platform: { darwin: "mac", linux: "linux", win32: "windows" }[process.platform] ?? "other",
+        capabilities: [],
+      },
+      runDirectory,
+      steps: [],
+      diagnostics: ["Package verification intentionally didn't launch the licensed game."],
+    })}\n`, { mode: 0o600 });
+    const response = JSON.parse(capture(
+      java,
+      ["-jar", jar, "desktop", "evidence", "collect", scenario, driverResult, evidencePath],
+      { cwd: engineDirectory },
+    ));
+    const stored = JSON.parse(readFileSync(evidencePath, "utf8"));
+    assertPackagedSkippedEvidence(response, stored);
+  } finally {
+    rmSync(runDirectory, { recursive: true, force: true });
+  }
+  return {
+    scenario: "campaign-roam",
+    scenarioValidated: true,
+    skippedEvidenceSealed: true,
+  };
+}
+
+export function assertPackagedScenarioValidation(result) {
+  if (result.protocol !== 1 || result.valid !== true
+      || result.scenario?.format !== "starsector-preflight-smoke-v1"
+      || result.scenario?.name !== "campaign-roam"
+      || !Array.isArray(result.scenario?.steps) || result.scenario.steps.length === 0) {
+    throw new Error(`Packaged desktop smoke scenario validation is malformed: ${JSON.stringify(result)}`);
+  }
+}
+
+export function assertPackagedSkippedEvidence(response, stored) {
+  const evidence = response?.evidence;
+  if (response?.protocol !== 1 || evidence?.format !== "starsector-preflight-smoke-evidence-v1"
+      || evidence?.scenario !== "campaign-roam" || evidence?.status !== "skipped"
+      || evidence?.driver?.id !== "package-contract" || evidence?.steps?.length !== 0
+      || evidence?.artifacts?.length !== 0 || evidence?.diagnostics?.length !== 1
+      || JSON.stringify(evidence) !== JSON.stringify(stored)) {
+    throw new Error(`Packaged desktop smoke evidence is malformed: ${JSON.stringify(response)}`);
   }
 }
 

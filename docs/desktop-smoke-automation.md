@@ -213,3 +213,9 @@ reported Accessibility unavailable again on 2026-08-08, so the live gate remains
 though all generated scripts compile with Apple's real script compiler. A failed probe now reports
 the exact automation executable that macOS needs to trust. Granting permission to a different
 terminal, editor, application bundle, or Java binary isn't treated as sufficient.
+
+Every native install exercise also validates the packaged `campaign-roam` scenario and seals an
+intentional no-game driver result through `desktop evidence collect`. That evidence must say
+`skipped`, contain no fabricated steps or artifacts, and match the atomically written document.
+This proves the packaged parser and sealer while leaving live input, visuals, audio, and gameplay
+claims for the licensed-installation gate.
