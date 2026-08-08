@@ -292,8 +292,9 @@ macOS arm64 DMG, Windows x64 NSIS installer, and Linux x64 `.deb` and AppImage p
 currently private development artifacts. The first beta will use OS-unsigned packages with
 published SHA-256 manifests and a separately signed Tauri update channel. The Linux packages are
 built on Ubuntu 22.04; `.deb` names the Debian-family package format, while AppImage is the broader
-portable option. Public distribution authorization, platform install guidance, release-candidate
-update/rollback testing, and a PID-safe automated game smoke remain release work. See
+portable option. The exact checksum, OS-warning, installation, and removal steps are documented.
+Public distribution authorization, release-candidate update/rollback testing, and a PID-safe
+automated game smoke remain release work. See
 [Downloads and installation](docs/downloads.md) and the
 [exact distribution matrix](docs/evidence/2026-08-06-desktop-distribution-matrix.md).
 
@@ -316,9 +317,9 @@ Preflight is fast enough for a beta; the remaining work is product trust and com
 
 1. Obtain written authorization for distribution and the integration approach, plus guidance on
    descriptive use of the Starsector name and the disclaimer.
-2. Document the expected OS warnings and checksum verification, then run packaged updater,
-   rollback, report-intake, removal, and recovery canaries. The free updater key and private report
-   intake are already provisioned.
+2. Run the remaining packaged updater, rollback, report-intake, removal, and recovery canaries. The
+   expected OS warnings, checksum verification, and installation/removal steps are documented; the
+   free updater key and private report intake are already provisioned.
 3. Exercise clean licensed-game installs on Windows and Linux. CI verifies the portable engine and
    native packages. Licensed-game execution requires user installations.
 4. Run a fresh controlled before/after cohort against the release candidate, then publish only the

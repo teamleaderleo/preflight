@@ -5,9 +5,8 @@ same Java engine provides the CLI, launch wrapper, profile census, cache prepara
 and startup profiler.
 
 > **No public download yet.** The packaging pipeline below is verified, but public distribution is
-> blocked on written Fractal Softworks authorization and disclaimer guidance, unsigned-package
-> installation guidance, release-candidate compatibility testing, and the remaining
-> product-lifecycle work in
+> blocked on written Fractal Softworks authorization and disclaimer guidance, release-candidate
+> compatibility testing, and the remaining product-lifecycle work in
 > [Release readiness](release-readiness.md).
 
 ## Planned release downloads
@@ -81,6 +80,93 @@ package format used by Ubuntu and Debian; it doesn't mean Debian is the only sup
 AppImage is the portable fallback for other compatible x86-64 distributions. Real installation and
 licensed-game testing still determine the initial supported distribution list.
 
+## Install the desktop app
+
+Download the package and the matching `SHA256SUMS-<platform>-<architecture>.txt` from the same
+GitHub release. Verify both came from `teamleaderleo/preflight` before overriding an operating
+system warning. Preflight never asks users to disable Gatekeeper, SmartScreen, antivirus, or another
+system-wide protection.
+
+### macOS (Apple silicon)
+
+From the download directory, verify the DMG:
+
+```bash
+grep '  Preflight-macOS-arm64.dmg$' SHA256SUMS-darwin-arm64.txt | shasum -a 256 -c -
+```
+
+Open `Preflight-macOS-arm64.dmg` and drag **Preflight** to **Applications**. Try to open the copied
+app once. If Gatekeeper blocks it, open **System Settings → Privacy & Security**, find the blocked
+Preflight message under **Security**, choose **Open Anyway**, and authenticate. Apple makes that
+override available for about an hour after the blocked attempt and warns that it should be used
+only when the app's source has been checked. See
+[Apple's current unknown-developer instructions](https://support.apple.com/guide/mac-help/mh40616/mac).
+
+To remove only the desktop package, quit Preflight and move `/Applications/Preflight.app` to the
+Trash. To remove its caches and other owned data too, first use **Settings → Remove Preflight → All
+Preflight data** inside the app, review the paths, and confirm; then remove the app.
+
+### Windows 11 (x86-64)
+
+PowerShell compares the package digest with its line in the manifest. The final command must print
+`True`:
+
+```powershell
+$actual = (Get-FileHash .\Preflight-Windows-x86_64.exe -Algorithm SHA256).Hash.ToLower()
+$line = (Get-Content .\SHA256SUMS-win32-x64.txt | Select-String '  Preflight-Windows-x86_64.exe$').Line
+$expected = ($line -split '\s+')[0]
+$actual -eq $expected
+```
+
+Run the installer only after that comparison succeeds. An unsigned new build can show
+**Windows protected your PC**. If the source and digest are correct and local policy permits it,
+choose **More info → Run anyway**. Microsoft documents that unsigned files start without publisher
+reputation and that managed policy can remove the bypass entirely; Preflight doesn't ask users to
+weaken that policy. See
+[Microsoft's SmartScreen reputation guidance](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation).
+Windows in S mode can't install this package without the separate, one-way decision to leave S
+mode.
+
+Remove the desktop package through **Settings → Apps → Installed apps → Preflight → Uninstall**.
+Use Preflight's reviewed **All Preflight data** removal first when caches, profiles, evidence, and
+backups should also be removed.
+
+### Ubuntu or Debian family (x86-64)
+
+Verify the downloaded `.deb` from the download directory:
+
+```bash
+grep '  Preflight-Linux-x86_64.deb$' SHA256SUMS-linux-x64.txt | sha256sum -c -
+```
+
+For a normal system installation, use the `.deb`; APT can resolve dependencies from the configured
+distribution repositories:
+
+```bash
+sudo apt install ./Preflight-Linux-x86_64.deb
+```
+
+Ubuntu documents this local-package form in its
+[software-management guide](https://ubuntu.com/server/docs/tutorial/managing-software/). Remove the
+package with `sudo apt remove preflight`. As on the other platforms, use the app's reviewed all-data
+removal first if its separate data shouldn't remain.
+
+### Other compatible Linux systems (x86-64)
+
+The AppImage is a portable fallback and doesn't install system files. Make the verified file
+executable and run it:
+
+```bash
+grep '  Preflight-Linux-x86_64.AppImage$' SHA256SUMS-linux-x64.txt | sha256sum -c -
+chmod +x Preflight-Linux-x86_64.AppImage
+./Preflight-Linux-x86_64.AppImage
+```
+
+Those are the steps in the [AppImage quick start](https://docs.appimage.org/introduction/quickstart.html).
+Delete the AppImage to remove the application itself. Use **All Preflight data** inside Preflight
+before deleting it when its caches and other owned data should also be removed. Initial support for
+a particular distribution still depends on the native beta evidence described below.
+
 ## Requirements
 
 Java 17 or newer is required only for the standalone JAR. The native desktop package includes its
@@ -117,7 +203,7 @@ This copies the JAR into the user's Preflight directory and creates:
 
 The original Starsector installation remains untouched.
 
-## Verify downloads
+## Verify the standalone JAR
 
 macOS or Linux:
 

@@ -36,8 +36,9 @@ first public beta.
   engine's preview and confirmed all-data paths inside a disposable home. It also validates the
   shipped campaign scenario, seals an intentional no-game result as `skipped`, and runs a no-launch
   platform-adapter probe that must return a valid driver or a specific unavailable reason. Windows
-  and Linux still need a completed hosted run of those checks, along with update/rollback,
-  hosted-candidate completion, and OS-warning instructions. A manual private
+  and Linux still need a completed hosted run of those checks, along with update/rollback and
+  hosted-candidate completion. The first-beta checksum, warning, install, and removal instructions
+  are now documented for every package. A manual private
   candidate path now exercises the real signing credentials and complete three-platform artifact
   assembly without granting its job release-publication permission. Candidate files are
   authenticated and encrypted before every upload because public-repository workflow artifacts are

@@ -20,8 +20,8 @@ Release work now has priority over another narrow startup experiment:
 
 1. written Fractal Softworks authorization for distribution, integration approach, name, and
    disclaimer;
-2. finish the private signed candidate, packaged report intake, cross-platform update/rollback
-   path, and unsigned-package install guidance;
+2. finish the private signed candidate, packaged report intake, and cross-platform update/rollback
+   path;
 3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
 4. a controlled before/after release-candidate campaign plus frame-time/FPS evidence for gameplay
    claims; and
@@ -30,6 +30,11 @@ Release work now has priority over another narrow startup experiment:
 The [cross-platform evidence plan](cross-platform-evidence-plan.md) defines the free hosted matrix,
 the narrower role of emulated Windows/Linux runs, and the native beta evidence needed for real-game
 performance and driver claims.
+
+The first-beta install guide now covers exact checksum manifests, the bounded Gatekeeper and
+SmartScreen overrides, `.deb` installation through APT, AppImage execution, native-package removal,
+and the separate reviewed all-data cleanup. It never recommends disabling an operating system
+security feature globally.
 
 Further startup or gameplay work remains welcome only when it keeps exact identity gates, bounded
 diagnostics, an independently disableable plan, and the original behavior on uncertainty.
