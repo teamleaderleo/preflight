@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -6,12 +6,9 @@ import {
   applyCacheCleanup,
   applyRemoval,
   cancelDesktopSmoke,
-  cancelPreparation,
-  getCache,
   getCacheCleanup,
   getDesktopSmokeProbe,
   getLaunchSettings,
-  getPreparationPlan,
   getRemovalPlan,
   getProfiles,
   getSnapshot,
@@ -20,7 +17,6 @@ import {
   saveProfile,
   startGame,
   startDesktopSmoke,
-  startPreparation,
   updateLaunchSettings,
 } from "./bridge";
 import {
@@ -37,10 +33,10 @@ import {
 } from "./icons";
 import Logo from "./Logo";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
+import { resourcePresets, usePreparation } from "./usePreparation";
 import { useSignedUpdates } from "./useSignedUpdates";
 import type {
   AppStatus,
-  CacheSnapshot,
   CacheCleanupPlan,
   DesktopSnapshot,
   DesktopSmokeProbe,
@@ -48,9 +44,6 @@ import type {
   LaunchSettings,
   LaunchSettingsUpdate,
   OptimizationPreset,
-  PreparationStoragePlan,
-  PreparationStateEvent,
-  PreparationProgressEvent,
   ProfileActivationPlan,
   ProfileList,
   RemovalPlan,
@@ -58,8 +51,9 @@ import type {
   RunStateEvent,
 } from "./types";
 
+export { isCurrentProfilePrepared } from "./usePreparation";
+
 type Page = "home" | "launch" | "prepare" | "profiles" | "settings";
-type TextureStorage = "balanced" | "fastest";
 
 const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -96,12 +90,6 @@ function savedOptimizationPreset(): OptimizationPreset {
   }
   return "recommended";
 }
-
-const resourcePresets = {
-  gentle: { workers: 2, memoryMib: 128, label: "Low" },
-  balanced: { workers: 4, memoryMib: 256, label: "Balanced" },
-  eager: { workers: 8, memoryMib: 512, label: "High" },
-} as const;
 
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean): string {
   if (page === "launch") return "Launch settings";
@@ -146,35 +134,53 @@ function maximumUiScale(resolution: string): number | null {
   return Math.max(1, Math.floor(Math.min(height / 768, width / 1280) * 20) / 20);
 }
 
-export function isCurrentProfilePrepared(cache: CacheSnapshot | null): boolean {
-  if (!cache?.currentProfileFingerprint) return false;
-  return cache.profiles.some((profile) =>
-    profile.current
-    && profile.fingerprint === cache.currentProfileFingerprint
-    && profile.indexBytes > 0
-    && profile.manifestBytes > 0);
-}
-
 export default function App() {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
   const [message, setMessage] = useState("");
   const [page, setPage] = useState<Page>("home");
-  const [cache, setCache] = useState<CacheSnapshot | null>(null);
-  const [cacheLoading, setCacheLoading] = useState(false);
+  const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
   const [cleanupPlan, setCleanupPlan] = useState<CacheCleanupPlan | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
-  const [cacheInstallRoot, setCacheInstallRoot] = useState<string | null>(null);
-  const [preparing, setPreparing] = useState(false);
-  const [preparationCancelling, setPreparationCancelling] = useState(false);
-  const [preparationProgress, setPreparationProgress] = useState<PreparationProgressEvent | null>(null);
-  const completedPreparationPhases = useRef(new Set<string>());
-  const [preparationPlan, setPreparationPlan] = useState<PreparationStoragePlan | null>(null);
-  const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
-  const launchAfterPreparation = useRef(false);
-  const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
-  const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
-  const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
+  const launch = useCallback(async () => {
+    const game = snapshot?.selected?.installRoot;
+    if (!game) return;
+    setStatus("running");
+    setMessage("Preflight is opening the hangar…");
+    try {
+      await startGame(game, optimizationPreset);
+      setMessage("Starsector is running. Preflight will keep the porch light on.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(String(error));
+    }
+  }, [optimizationPreset, snapshot?.selected?.installRoot]);
+  const {
+    cache,
+    cacheLoading,
+    preparationCancelling,
+    preparationPercent,
+    preparationPhaseLabel,
+    preparationPlan,
+    preparationPlanLoading,
+    preparing,
+    profilePrepared,
+    resourcePreset,
+    textureStorage,
+    clearCache,
+    invalidatePreparationPlan,
+    prepare,
+    refreshCache,
+    setResourcePreset,
+    setTextureStorage,
+    stopPreparation,
+  } = usePreparation(
+    snapshot?.selected?.installRoot,
+    page === "prepare",
+    optimizationPreset,
+    launch,
+    setMessage,
+  );
   const [profiles, setProfiles] = useState<ProfileList | null>(null);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profileName, setProfileName] = useState("");
@@ -285,56 +291,6 @@ export default function App() {
     return () => stopListening?.();
   }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
-  const refreshCache = useCallback(async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game) return;
-    setCacheLoading(true);
-    try {
-      setCache(await getCache(game));
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setCacheInstallRoot(game);
-      setCacheLoading(false);
-    }
-  }, [snapshot?.selected?.installRoot]);
-
-  useEffect(() => {
-    const game = snapshot?.selected?.installRoot;
-    if (game && cacheInstallRoot !== game && !cacheLoading) void refreshCache();
-  }, [cacheInstallRoot, cacheLoading, refreshCache, snapshot?.selected?.installRoot]);
-
-  useEffect(() => {
-    const game = snapshot?.selected?.installRoot;
-    const cacheReady = game && cacheInstallRoot === game && !cacheLoading;
-    const shouldPlan = cacheReady
-      && optimizationPreset !== "off"
-      && (page === "prepare" || !isCurrentProfilePrepared(cache));
-    if (!game || !shouldPlan) {
-      setPreparationPlan(null);
-      setPreparationPlanLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setPreparationPlanLoading(true);
-    void getPreparationPlan(game, textureStorage, resourcePresets.balanced.workers)
-      .then((plan) => {
-        if (!cancelled) setPreparationPlan(plan);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setPreparationPlan(null);
-          setMessage(String(error));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setPreparationPlanLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [cache, cacheInstallRoot, cacheLoading, optimizationPreset, page, snapshot?.selected?.installRoot, textureStorage]);
-
   const refreshProfiles = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
@@ -393,124 +349,6 @@ export default function App() {
     }
   };
 
-  const launch = useCallback(async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game) return;
-    setStatus("running");
-    setMessage("Preflight is opening the hangar…");
-    try {
-      await startGame(game, optimizationPreset);
-      setMessage("Starsector is running. Preflight will keep the porch light on.");
-    } catch (error) {
-      setStatus("error");
-      setMessage(String(error));
-    }
-  }, [optimizationPreset, snapshot?.selected?.installRoot]);
-
-  const prepare = async (launchWhenReady = false) => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game) return;
-    const resources = resourcePresets[resourcePreset];
-    try {
-      let plan = preparationPlan;
-      if (!plan || plan.textureStorage !== textureStorage) {
-        setPreparationPlanLoading(true);
-        plan = await getPreparationPlan(game, textureStorage, resources.workers);
-        setPreparationPlan(plan);
-      }
-      if (!plan.safeToPrepare) {
-        setMessage(plan.refusalReason ?? "Preparation was refused because its storage requirement could not be bounded safely.");
-        return;
-      }
-      launchAfterPreparation.current = launchWhenReady;
-      completedPreparationPhases.current.clear();
-      setPreparationProgress(null);
-      setPreparationCancelling(false);
-      setPreparing(true);
-      setMessage(launchWhenReady
-        ? "Preparing the exact current profile. Starsector will open when it’s ready."
-        : "Preparing the exact current profile… You can leave this window open.");
-      await startPreparation(game, textureStorage, resources.workers, resources.memoryMib);
-      if (!isDesktopHost()) {
-        setPreparing(false);
-        setMessage("Preview preparation complete.");
-        await refreshCache();
-        if (launchWhenReady) {
-          launchAfterPreparation.current = false;
-          await launch();
-        }
-      }
-    } catch (error) {
-      launchAfterPreparation.current = false;
-      setPreparing(false);
-      setMessage(String(error));
-    } finally {
-      setPreparationPlanLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<PreparationStateEvent>("prepare-state", ({ payload }) => {
-      if (payload.state === "cancelling") {
-        setPreparationCancelling(true);
-        setMessage("Stopping preparation safely…");
-        return;
-      }
-      if (payload.state !== "finished" && payload.state !== "cancelled") return;
-      const shouldLaunch = launchAfterPreparation.current;
-      launchAfterPreparation.current = false;
-      setPreparing(false);
-      setPreparationCancelling(false);
-      if (!payload.success) {
-        setMessage(payload.detail ?? "Preparation stopped before it completed.");
-        void refreshCache();
-        return;
-      }
-      setMessage(shouldLaunch
-        ? "Preparation is complete. Opening Starsector…"
-        : "Preparation is complete. The current profile is warm and ready.");
-      void (async () => {
-        await refreshCache();
-        if (shouldLaunch) await launch();
-      })();
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
-  }, [launch, refreshCache]);
-
-  useEffect(() => {
-    if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<PreparationProgressEvent>("prepare-progress", ({ payload }) => {
-      if (payload.state === "completed") completedPreparationPhases.current.add(payload.phase);
-      setPreparationProgress({ ...payload });
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
-  }, []);
-
-  const stopPreparation = async () => {
-    if (!preparing || preparationCancelling) return;
-    setPreparationCancelling(true);
-    launchAfterPreparation.current = false;
-    setMessage("Stopping preparation safely…");
-    try {
-      const requested = await cancelPreparation();
-      if (!requested) {
-        setPreparing(false);
-        setPreparationCancelling(false);
-        setMessage("Preparation had already finished.");
-      }
-    } catch (error) {
-      setPreparationCancelling(false);
-      setMessage(String(error));
-    }
-  };
-
   const reviewCleanup = async () => {
     const game = snapshot?.selected?.installRoot;
     if (!game || cleanupBusy) return;
@@ -539,20 +377,13 @@ export default function App() {
       setCleanupPlan(null);
       setMessage(`Freed ${formatBytes(result.bytes)} across ${result.files.toLocaleString()} unused files. The current and named profiles stay warm.`);
       await refreshCache();
-      setPreparationPlan(null);
+      invalidatePreparationPlan();
     } catch (error) {
       setMessage(String(error));
     } finally {
       setCleanupBusy(false);
     }
   };
-
-  const preparationPhaseLabel = preparationProgress?.phase
-    ?.replaceAll("-", " ")
-    .replace(/^./, (letter) => letter.toUpperCase());
-  const preparationPercent = preparationProgress
-    ? Math.min(100, Math.round((completedPreparationPhases.current.size / preparationProgress.totalPhases) * 100))
-    : 0;
 
   const saveCurrentProfile = async () => {
     const game = snapshot?.selected?.installRoot;
@@ -699,7 +530,7 @@ export default function App() {
       const result = await applyRemoval(scope);
       if (scope === "all-data") {
         try { window.localStorage.removeItem("preflight.optimizationPreset"); } catch { /* already removed on disk */ }
-        setCache(null);
+        clearCache();
         setProfiles(null);
       }
       setRemovalPlan(null);
@@ -717,7 +548,6 @@ export default function App() {
   };
 
   const isReady = Boolean(snapshot?.ready && snapshot.selected);
-  const profilePrepared = isCurrentProfilePrepared(cache);
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
