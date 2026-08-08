@@ -1,14 +1,13 @@
 import { ShieldIcon } from "../icons";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { AppStatus, RemovalPlan, RemovalScope } from "../types";
+import type { RemovalPlan, RemovalScope } from "../types";
 
 type UpdateState = ReturnType<typeof useSignedUpdates>;
 
 interface SettingsPageProps {
   message: string;
-  status: AppStatus;
-  preparing: boolean;
+  operationBlocked: boolean;
   updates: UpdateState;
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
@@ -19,8 +18,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({
   message,
-  status,
-  preparing,
+  operationBlocked,
   updates,
   removalPlan,
   removalBusy,
@@ -37,8 +35,6 @@ export function SettingsPage({
     checkUpdates,
     installSignedUpdate,
   } = updates;
-  const operationBlocked = preparing || status === "running";
-
   return (
     <div className="settings-page">
       {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
@@ -89,7 +85,7 @@ export function SettingsPage({
           <div className="cleanup-groups">{removalPlan.targets.map((target) => <div key={`${target.kind}:${target.path}`}><span>{target.label}</span><strong>{formatBytes(target.bytes)} · {shortPath(target.path)}</strong></div>)}</div>
           <div className="activation-review__footer">
             <span><ShieldIcon /> Starsector, mods, saves, and game settings aren’t removal targets.</span>
-            <button className="button button--danger" type="button" onClick={onRemove} disabled={!removalPlan.safe || removalPlan.targets.length === 0 || removalBusy}>{removalBusy ? "Removing…" : removalPlan.targets.length === 0 ? "Nothing to remove" : removalPlan.scope === "all-data" ? "Remove all Preflight data" : "Remove launch integration"}</button>
+            <button className="button button--danger" type="button" onClick={onRemove} disabled={!removalPlan.safe || removalPlan.targets.length === 0 || removalBusy || operationBlocked}>{removalBusy ? "Removing…" : removalPlan.targets.length === 0 ? "Nothing to remove" : removalPlan.scope === "all-data" ? "Remove all Preflight data" : "Remove launch integration"}</button>
           </div>
         </section>
       ) : null}

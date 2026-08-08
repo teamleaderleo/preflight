@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  applyRemoval,
-  getRemovalPlan,
   getSnapshot,
   isDesktopHost,
   startGame,
@@ -20,6 +18,7 @@ import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
+import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
 import { listenWhileMounted } from "./tauriEvents";
 import { shortPath } from "./uiFormat";
@@ -27,8 +26,6 @@ import type {
   AppStatus,
   DesktopSnapshot,
   OptimizationPreset,
-  RemovalPlan,
-  RemovalScope,
   RunStateEvent,
 } from "./types";
 
@@ -139,8 +136,7 @@ export default function App() {
     page === "home" || page === "launch",
     setMessage,
   );
-  const [removalPlan, setRemovalPlan] = useState<RemovalPlan | null>(null);
-  const [removalBusy, setRemovalBusy] = useState(false);
+  const removal = useRemoval(snapshot?.platform, setMessage, clearCache, clearProfiles);
   const updates = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
   const { updateStatus } = updates;
 
@@ -182,54 +178,13 @@ export default function App() {
     }
   };
 
-  const reviewRemoval = async (scope: RemovalScope) => {
-    if (removalBusy) return;
-    setRemovalBusy(true);
-    try {
-      const plan = await getRemovalPlan(scope);
-      setRemovalPlan(plan);
-      setMessage(plan.targets.length === 0
-        ? "There’s nothing in that removal scope."
-        : "Removal is ready to review. Nothing has been removed.");
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setRemovalBusy(false);
-    }
-  };
-
-  const removePreflight = async () => {
-    if (!removalPlan?.safe || removalPlan.targets.length === 0 || removalBusy) return;
-    const scope = removalPlan.scope;
-    setRemovalBusy(true);
-    try {
-      const result = await applyRemoval(scope);
-      if (scope === "all-data") {
-        try { window.localStorage.removeItem("preflight.optimizationPreset"); } catch { /* already removed on disk */ }
-        clearCache();
-        clearProfiles();
-      }
-      setRemovalPlan(null);
-      const platformStep = snapshot?.platform === "windows"
-        ? "Use Windows Installed apps to remove this desktop app."
-        : snapshot?.platform === "linux"
-          ? "Remove this desktop package with the package manager that installed it."
-          : "Move this desktop app to the Trash when you’re ready.";
-      setMessage(`${result.files.toLocaleString()} Preflight-owned files removed. ${platformStep}`);
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setRemovalBusy(false);
-    }
-  };
-
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const operationBlocked = preparing
     || status === "running"
     || cleanup.busy
     || launcher.saving
     || profilesState.profileBusy
-    || removalBusy
+    || removal.busy
     || updates.updateInstalling;
   const title = pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
@@ -316,14 +271,13 @@ export default function App() {
         ) : (
           <SettingsPage
             message={message}
-            status={status}
-            preparing={preparing}
+            operationBlocked={operationBlocked}
             updates={updates}
-            removalPlan={removalPlan}
-            removalBusy={removalBusy}
-            onReviewRemoval={(scope) => void reviewRemoval(scope)}
-            onDismissRemoval={() => setRemovalPlan(null)}
-            onRemove={() => void removePreflight()}
+            removalPlan={removal.plan}
+            removalBusy={removal.busy}
+            onReviewRemoval={(scope) => void removal.review(scope)}
+            onDismissRemoval={removal.dismiss}
+            onRemove={() => void removal.remove()}
           />
         )}
     </DesktopShell>

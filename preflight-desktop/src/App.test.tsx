@@ -518,3 +518,22 @@ test("removal keeps launcher files and all data as separate previewed scopes", a
   expect(await screen.findByRole("heading", { name: "Remove all Preflight data?" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Remove all Preflight data" })).toBeEnabled();
 });
+
+test("a reviewed removal cannot be applied while the game is running", async () => {
+  const user = userEvent.setup();
+  const game = vi.spyOn(bridge, "startGame").mockImplementation(() => new Promise(() => undefined));
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(screen.getByText("Remove Preflight"));
+  await user.click(await screen.findByRole("button", { name: "Review all data removal" }));
+  expect(await screen.findByRole("button", { name: "Remove all Preflight data" })).toBeEnabled();
+
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+  await waitFor(() => expect(game).toHaveBeenCalled());
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  expect(await screen.findByRole("button", { name: "Remove all Preflight data" })).toBeDisabled();
+  game.mockRestore();
+});

@@ -50,6 +50,8 @@ cleanup previews are bound to the installation that produced them. Installation 
 activation and preparation-policy changes stay disabled while preparation or the game is running.
 Profile reviews, saves and activation responses are likewise bound to their installation, run
 single-flight and preserve a newer name typed while an earlier save completes.
+Removal review and application are single-flight, and the final destructive action inherits the
+same global operation lock as its preview controls.
 Native event streams share one lifecycle helper that also unregisters subscriptions resolved after a
 component has already closed.
 

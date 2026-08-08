@@ -4,6 +4,7 @@ import { useCacheCleanup } from "./useCacheCleanup";
 import { useLauncherSettings } from "./useLauncherSettings";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
+import { useRemoval } from "./useRemoval";
 import type {
   CacheCleanupPlan,
   CacheSnapshot,
@@ -11,6 +12,7 @@ import type {
   NamedProfile,
   ProfileActivationPlan,
   ProfileList,
+  RemovalPlan,
 } from "./types";
 
 function deferred<T>() {
@@ -301,4 +303,25 @@ test("a cleanup preview belongs only to the installation that produced it", asyn
   await waitFor(() => expect(result.current.plan?.bytes).toBe(42));
   expect(announce).toHaveBeenCalledWith("Cleanup is ready to review. Nothing has been removed.");
   cleanup.mockRestore();
+});
+
+test("removal review is single-flight and dismissal cancels a late plan", async () => {
+  const baseline = await bridge.getRemovalPlan("all-data");
+  const pending = deferred<RemovalPlan>();
+  const removal = vi.spyOn(bridge, "getRemovalPlan").mockImplementation(() => pending.promise);
+  const announce = vi.fn();
+  const { result } = renderHook(() => useRemoval("mac", announce, vi.fn(), vi.fn()));
+
+  act(() => {
+    void result.current.review("all-data");
+    void result.current.review("launcher");
+  });
+  await waitFor(() => expect(removal).toHaveBeenCalledTimes(1));
+  act(() => result.current.dismiss());
+  await act(async () => pending.resolve(baseline));
+
+  expect(result.current.plan).toBeNull();
+  expect(result.current.busy).toBe(false);
+  expect(announce).not.toHaveBeenCalled();
+  removal.mockRestore();
 });
