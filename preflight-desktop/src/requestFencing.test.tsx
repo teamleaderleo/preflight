@@ -4,7 +4,14 @@ import { useCacheCleanup } from "./useCacheCleanup";
 import { useLauncherSettings } from "./useLauncherSettings";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
-import type { CacheCleanupPlan, CacheSnapshot, LaunchSettings, ProfileList } from "./types";
+import type {
+  CacheCleanupPlan,
+  CacheSnapshot,
+  LaunchSettings,
+  NamedProfile,
+  ProfileActivationPlan,
+  ProfileList,
+} from "./types";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -94,6 +101,98 @@ test("an older profile read cannot flash into the newly selected installation", 
   expect(result.current.profiles?.installRoot).toBe("/game-b");
   expect(announce).not.toHaveBeenCalled();
   profiles.mockRestore();
+});
+
+test("profile actions are single-flight and ignore a review from an older installation", async () => {
+  const baseline = await bridge.activateProfile("/game-a", "Vanilla plus", false);
+  const first = deferred<ProfileActivationPlan>();
+  const second = deferred<ProfileActivationPlan>();
+  const activation = vi.spyOn(bridge, "activateProfile")
+    .mockImplementationOnce(() => first.promise)
+    .mockImplementationOnce(() => second.promise);
+  const refreshInstallation = vi.fn(async () => undefined);
+  const refreshCache = vi.fn(async () => undefined);
+  const announce = vi.fn();
+  const { result, rerender } = renderHook(
+    ({ game }) => useProfiles(game, true, refreshInstallation, refreshCache, announce),
+    { initialProps: { game: "/game-a" } },
+  );
+
+  act(() => {
+    void result.current.reviewProfile("Vanilla plus");
+    void result.current.reviewProfile("Vanilla plus");
+  });
+  await waitFor(() => expect(activation).toHaveBeenCalledTimes(1));
+  rerender({ game: "/game-b" });
+  await waitFor(() => expect(result.current.profileBusy).toBe(false));
+  await act(async () => first.resolve(baseline));
+  expect(result.current.activationPlan).toBeNull();
+  expect(announce).not.toHaveBeenCalled();
+
+  act(() => {
+    void result.current.reviewProfile("Vanilla plus");
+  });
+  await waitFor(() => expect(activation).toHaveBeenCalledTimes(2));
+  await act(async () => second.resolve({ ...baseline, installRoot: "/game-b" }));
+  await waitFor(() => expect(result.current.activationPlan?.installRoot).toBe("/game-b"));
+  activation.mockRestore();
+});
+
+test("dismissing a profile review cancels its late response", async () => {
+  const baseline = await bridge.activateProfile("/game-a", "Vanilla plus", false);
+  const pending = deferred<ProfileActivationPlan>();
+  const activation = vi.spyOn(bridge, "activateProfile").mockImplementation(() => pending.promise);
+  const refreshInstallation = vi.fn(async () => undefined);
+  const refreshCache = vi.fn(async () => undefined);
+  const announce = vi.fn();
+  const { result } = renderHook(() => useProfiles(
+    "/game-a",
+    true,
+    refreshInstallation,
+    refreshCache,
+    announce,
+  ));
+  await waitFor(() => expect(result.current.profiles?.installRoot).toBe("/game-a"));
+
+  act(() => {
+    void result.current.reviewProfile("Vanilla plus");
+  });
+  await waitFor(() => expect(activation).toHaveBeenCalled());
+  act(() => result.current.dismissActivationPlan());
+  await act(async () => pending.resolve(baseline));
+
+  expect(result.current.activationPlan).toBeNull();
+  expect(result.current.profileBusy).toBe(false);
+  activation.mockRestore();
+});
+
+test("saving a profile preserves a newer name typed while the save completes", async () => {
+  const baseline = await bridge.saveProfile("/game-a", "First");
+  const saved = deferred<NamedProfile>();
+  const save = vi.spyOn(bridge, "saveProfile").mockImplementation(() => saved.promise);
+  const refreshInstallation = vi.fn(async () => undefined);
+  const refreshCache = vi.fn(async () => undefined);
+  const announce = vi.fn();
+  const { result } = renderHook(() => useProfiles(
+    "/game-a",
+    true,
+    refreshInstallation,
+    refreshCache,
+    announce,
+  ));
+
+  act(() => result.current.setProfileName("First"));
+  act(() => {
+    void result.current.saveCurrentProfile();
+  });
+  await waitFor(() => expect(save).toHaveBeenCalledWith("/game-a", "First"));
+  act(() => result.current.setProfileName("Second"));
+  await act(async () => saved.resolve(baseline));
+
+  await waitFor(() => expect(result.current.profileBusy).toBe(false));
+  expect(result.current.profileName).toBe("Second");
+  expect(announce).toHaveBeenCalledWith("Saved the exact current mod order as “First”.");
+  save.mockRestore();
 });
 
 test("launcher settings load once across home and detail views and fence an older installation", async () => {

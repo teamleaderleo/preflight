@@ -48,6 +48,8 @@ The home and complete game-settings views share one installation-scoped settings
 edits made during a save and don't reread the same files when moving between those views. Cache
 cleanup previews are bound to the installation that produced them. Installation changes, profile
 activation and preparation-policy changes stay disabled while preparation or the game is running.
+Profile reviews, saves and activation responses are likewise bound to their installation, run
+single-flight and preserve a newer name typed while an earlier save completes.
 Native event streams share one lifecycle helper that also unregisters subscriptions resolved after a
 component has already closed.
 
