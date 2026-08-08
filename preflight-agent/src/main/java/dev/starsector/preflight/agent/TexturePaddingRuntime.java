@@ -1,5 +1,6 @@
 package dev.starsector.preflight.agent;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -12,9 +13,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * <b>1.86 GiB allocated and never sampled</b>, and unlike every other lever in the footprint program
  * removing it costs no fidelity at all — the pixels are identical, there are simply fewer of them.
  *
- * <p>It is only safe where the driver supports {@code GL_ARB_texture_non_power_of_two}. That is a
- * property of the machine, not of the build, so this is a runtime gate and its default is off. A
- * host that never sets the property gets exactly today's behaviour.
+ * <p>It is only safe where the live desktop OpenGL context supports OpenGL 2.0 or
+ * {@code GL_ARB_texture_non_power_of_two}. That is a property of the context, not of the build, so
+ * this is a runtime gate and its default is off. A host that never sets the property gets exactly
+ * today's behaviour, and a property cannot override a missing capability.
  *
  * <p><b>This gate governs one half of an invariant.</b> The installed loader computes padded
  * dimensions in two places: the extracted fold this bypasses, which sizes the {@code glTexImage2D}
@@ -36,12 +38,16 @@ public final class TexturePaddingRuntime {
     static final String PLAN_ID = "texture-padding-v1";
 
     /**
-     * Set only by a host that has observed non-power-of-two support on the live context. Absent or
-     * false means the fold behaves exactly as shipped.
+     * Requests true-size uploads. The live LWJGL capability probe still has final authority; absent
+     * or false means the fold behaves exactly as shipped.
      */
     public static final String UNPADDED_PROPERTY = "preflight.padding.unpadded";
 
     private static volatile boolean FOLD_BYPASS_INSTALLED;
+    private static volatile NpotCapability NPOT_CAPABILITY = NpotCapability.UNCHECKED;
+    private static volatile String NPOT_CAPABILITY_REASON = "not checked";
+    private static volatile boolean OPENGL_20;
+    private static volatile boolean ARB_NPOT;
 
     private static final AtomicLong BYPASSED = new AtomicLong();
     private static final AtomicLong FOLDED = new AtomicLong();
@@ -60,7 +66,9 @@ public final class TexturePaddingRuntime {
      * same texture, so that {@link #unpadded()}'s counters keep meaning "dimension folds".
      */
     public static boolean enabled() {
-        return FOLD_BYPASS_INSTALLED && Boolean.getBoolean(UNPADDED_PROPERTY);
+        return FOLD_BYPASS_INSTALLED
+                && Boolean.getBoolean(UNPADDED_PROPERTY)
+                && npotSupported();
     }
 
     /**
@@ -84,6 +92,10 @@ public final class TexturePaddingRuntime {
      */
     static void beginSession() {
         FOLD_BYPASS_INSTALLED = false;
+        NPOT_CAPABILITY = NpotCapability.UNCHECKED;
+        NPOT_CAPABILITY_REASON = "not checked";
+        OPENGL_20 = false;
+        ARB_NPOT = false;
     }
 
     /** Whether the half of the invariant this class does not control is in place. */
@@ -117,12 +129,17 @@ public final class TexturePaddingRuntime {
     }
 
     static Map<String, Object> report() {
+        boolean effective = enabled();
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("planId", PLAN_ID);
         values.put("unpaddedProperty", UNPADDED_PROPERTY);
         values.put("unpaddedEnabled", Boolean.getBoolean(UNPADDED_PROPERTY));
         values.put("foldBypassInstalled", FOLD_BYPASS_INSTALLED);
-        values.put("unpaddedEffective", enabled());
+        values.put("npotCapability", NPOT_CAPABILITY.name().toLowerCase());
+        values.put("npotCapabilityReason", NPOT_CAPABILITY_REASON);
+        values.put("openGl20", OPENGL_20);
+        values.put("arbTextureNonPowerOfTwo", ARB_NPOT);
+        values.put("unpaddedEffective", effective);
         values.put("dimensionsBypassed", BYPASSED.get());
         values.put("dimensionsFolded", FOLDED.get());
         values.put("texturesServedUnpadded", TEXTURES.get());
@@ -135,5 +152,71 @@ public final class TexturePaddingRuntime {
         FOLDED.set(0);
         TEXTURES.set(0);
         BYTES_AVOIDED.set(0);
+    }
+
+    /**
+     * Reads LWJGL 2's capabilities from the context that is current on the texture-loading thread.
+     * OpenGL 2.0 made full NPOT textures core; the ARB flag covers older contexts that expose the
+     * same contract as an extension. Reflection keeps the agent independent of any redistributed
+     * LWJGL binary and resolves against the copy owned by the installation.
+     *
+     * <p>A missing current context is transient and leaves the state unchecked so a later texture
+     * can try again. Missing classes, fields, or an affirmative context without either capability
+     * are permanent declines for this session. The original power-of-two fold remains reachable in
+     * every decline case.
+     */
+    private static boolean npotSupported() {
+        NpotCapability observed = NPOT_CAPABILITY;
+        if (observed != NpotCapability.UNCHECKED) {
+            return observed == NpotCapability.SUPPORTED;
+        }
+        synchronized (TexturePaddingRuntime.class) {
+            observed = NPOT_CAPABILITY;
+            if (observed != NpotCapability.UNCHECKED) {
+                return observed == NpotCapability.SUPPORTED;
+            }
+            try {
+                Class<?> glContext = Class.forName("org.lwjgl.opengl.GLContext");
+                Object capabilities = glContext.getMethod("getCapabilities").invoke(null);
+                if (capabilities == null) {
+                    NPOT_CAPABILITY_REASON = "LWJGL returned no current OpenGL context";
+                    return false;
+                }
+                Class<?> type = capabilities.getClass();
+                OPENGL_20 = type.getField("OpenGL20").getBoolean(capabilities);
+                ARB_NPOT = type.getField("GL_ARB_texture_non_power_of_two").getBoolean(capabilities);
+                if (OPENGL_20 || ARB_NPOT) {
+                    NPOT_CAPABILITY = NpotCapability.SUPPORTED;
+                    NPOT_CAPABILITY_REASON = OPENGL_20
+                            ? "OpenGL 2.0 core capability"
+                            : "GL_ARB_texture_non_power_of_two extension";
+                    return true;
+                }
+                NPOT_CAPABILITY = NpotCapability.UNSUPPORTED;
+                NPOT_CAPABILITY_REASON = "live context exposes neither OpenGL 2.0 nor the ARB extension";
+                return false;
+            } catch (InvocationTargetException failure) {
+                Throwable cause = failure.getCause();
+                if (cause instanceof IllegalStateException) {
+                    NPOT_CAPABILITY_REASON = "no OpenGL context is current on this thread yet";
+                    return false;
+                }
+                return capabilityFailure(cause == null ? failure : cause);
+            } catch (ReflectiveOperationException | LinkageError failure) {
+                return capabilityFailure(failure);
+            }
+        }
+    }
+
+    private static boolean capabilityFailure(Throwable failure) {
+        NPOT_CAPABILITY = NpotCapability.UNSUPPORTED;
+        NPOT_CAPABILITY_REASON = "capability probe failed: " + failure.getClass().getSimpleName();
+        return false;
+    }
+
+    private enum NpotCapability {
+        UNCHECKED,
+        SUPPORTED,
+        UNSUPPORTED
     }
 }

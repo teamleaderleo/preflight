@@ -1,7 +1,10 @@
 package dev.starsector.preflight.agent;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.lwjgl.opengl.GLContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,11 +24,13 @@ class TexturePaddingRuntimeGateTest {
         // the rest of the JVM. That is correct in production -- one process, one installed loader
         // -- and it means a test asserting the shut state has to open a session of its own.
         TexturePaddingRuntime.beginSession();
+        GLContext.reset();
     }
 
     @AfterEach
     void clearProperty() {
         TexturePaddingRuntime.beginSession();
+        GLContext.reset();
         System.clearProperty(TexturePaddingRuntime.UNPADDED_PROPERTY);
     }
 
@@ -44,5 +49,60 @@ class TexturePaddingRuntimeGateTest {
     void anUninstalledFoldLeavesTheGateShutEvenWithoutTheProperty() {
         assertFalse(TexturePaddingRuntime.enabled());
         assertFalse(TexturePaddingRuntime.unpadded());
+    }
+
+    @Test
+    void aContextWithoutNpotSupportCannotBeForcedOpen() {
+        GLContext.setCapabilities(false, false);
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
+
+        assertFalse(TexturePaddingRuntime.enabled());
+        assertFalse(TexturePaddingRuntime.unpadded());
+        assertEquals("unsupported", TexturePaddingRuntime.report().get("npotCapability"));
+    }
+
+    @Test
+    void openGl20MakesNpotAContextGuarantee() {
+        GLContext.setCapabilities(true, false);
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
+
+        assertTrue(TexturePaddingRuntime.enabled());
+        assertEquals("supported", TexturePaddingRuntime.report().get("npotCapability"));
+        assertEquals(true, TexturePaddingRuntime.report().get("openGl20"));
+    }
+
+    @Test
+    void theArbExtensionCoversAnOlderContext() {
+        GLContext.setCapabilities(false, true);
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
+
+        assertTrue(TexturePaddingRuntime.enabled());
+        assertEquals(true, TexturePaddingRuntime.report().get("arbTextureNonPowerOfTwo"));
+    }
+
+    @Test
+    void aTransientMissingContextCanRecoverLater() {
+        GLContext.setCurrent(false);
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
+
+        assertFalse(TexturePaddingRuntime.enabled());
+        assertEquals("unchecked", TexturePaddingRuntime.report().get("npotCapability"));
+
+        GLContext.setCapabilities(true, false);
+        assertTrue(TexturePaddingRuntime.enabled());
+    }
+
+    @Test
+    void theReportPerformsTheProbeBeforeRecordingItsResult() {
+        GLContext.setCapabilities(false, true);
+        System.setProperty(TexturePaddingRuntime.UNPADDED_PROPERTY, "true");
+        TexturePaddingRuntime.foldBypassInstalled();
+
+        assertEquals("supported", TexturePaddingRuntime.report().get("npotCapability"));
+        assertEquals(true, TexturePaddingRuntime.report().get("unpaddedEffective"));
     }
 }

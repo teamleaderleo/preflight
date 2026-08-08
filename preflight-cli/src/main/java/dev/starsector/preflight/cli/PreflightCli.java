@@ -232,7 +232,8 @@ public final class PreflightCli {
                 "    --prepared-unpadded serves textures at their true size instead of padded up to a"
                         + " power of two, which both lets the bridge carry them and drops the padding"
                         + " entirely -- 1.86 GiB allocated and never sampled on the reviewed profile."
-                        + " Needs a driver that accepts non-power-of-two uploads.",
+                        + " It activates only when the live LWJGL context exposes OpenGL 2.0 core or"
+                        + " GL_ARB_texture_non_power_of_two; otherwise the original padded path stays active.",
                 "    --prepared-npot is the conservative alternative: it carries the same textures while"
                         + " keeping the power-of-two padding, so it needs nothing of the driver. Use it"
                         + " to separate a broken conversion bypass from broken padding removal. Without"
