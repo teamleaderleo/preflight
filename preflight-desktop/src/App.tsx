@@ -7,7 +7,6 @@ import {
   applyRemoval,
   cancelDesktopSmoke,
   cancelPreparation,
-  checkForUpdate,
   getCache,
   getCacheCleanup,
   getDesktopSmokeProbe,
@@ -17,7 +16,6 @@ import {
   getProfiles,
   getSnapshot,
   isDesktopHost,
-  installUpdate,
   openDesktopAccessibilitySettings,
   saveProfile,
   startGame,
@@ -39,6 +37,7 @@ import {
 } from "./icons";
 import Logo from "./Logo";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
+import { useSignedUpdates } from "./useSignedUpdates";
 import type {
   AppStatus,
   CacheSnapshot,
@@ -57,8 +56,6 @@ import type {
   RemovalPlan,
   RemovalScope,
   RunStateEvent,
-  UpdateProgressEvent,
-  UpdateStatus,
 } from "./types";
 
 type Page = "home" | "launch" | "prepare" | "profiles" | "settings";
@@ -214,12 +211,15 @@ export default function App() {
   const [launcherSettingsSaving, setLauncherSettingsSaving] = useState(false);
   const [removalPlan, setRemovalPlan] = useState<RemovalPlan | null>(null);
   const [removalBusy, setRemovalBusy] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
-  const [updateChecking, setUpdateChecking] = useState(false);
-  const [updateInstalling, setUpdateInstalling] = useState(false);
-  const [updateProgress, setUpdateProgress] = useState<UpdateProgressEvent | null>(null);
-  const [updateError, setUpdateError] = useState("");
-  const updateChecked = useRef(false);
+  const {
+    updateChecking,
+    updateError,
+    updateInstalling,
+    updateProgress,
+    updateStatus,
+    checkUpdates,
+    installSignedUpdate,
+  } = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
 
   const refresh = useCallback(async (game?: string) => {
     setStatus("loading");
@@ -237,35 +237,6 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const checkUpdates = useCallback(async (announce = false) => {
-    if (updateChecking || updateInstalling) return;
-    setUpdateChecking(true);
-    setUpdateError("");
-    try {
-      const result = await checkForUpdate();
-      setUpdateStatus(result);
-      if (announce) {
-        setMessage(result.available
-          ? `Preflight ${result.version} is available. Review it before installing.`
-          : result.configured
-            ? "Preflight is up to date."
-            : result.reason ?? "Verified updates aren’t configured in this build.");
-      }
-    } catch (error) {
-      const detail = String(error);
-      setUpdateError(detail);
-      if (announce) setMessage(detail);
-    } finally {
-      setUpdateChecking(false);
-    }
-  }, [updateChecking, updateInstalling]);
-
-  useEffect(() => {
-    if (!isDesktopHost() || status !== "ready" || updateChecked.current) return;
-    updateChecked.current = true;
-    void checkUpdates(false);
-  }, [checkUpdates, status]);
 
   useEffect(() => {
     try {
@@ -522,18 +493,6 @@ export default function App() {
     return () => stopListening?.();
   }, []);
 
-  useEffect(() => {
-    if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<UpdateProgressEvent>("update-progress", ({ payload }) => {
-      setUpdateProgress(payload);
-      if (payload.state === "installed") setMessage("The verified update is installed. Restarting Preflight…");
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
-  }, []);
-
   const stopPreparation = async () => {
     if (!preparing || preparationCancelling) return;
     setPreparationCancelling(true);
@@ -754,23 +713,6 @@ export default function App() {
       setMessage(String(error));
     } finally {
       setRemovalBusy(false);
-    }
-  };
-
-  const installSignedUpdate = async () => {
-    if (!updateStatus?.available || !updateStatus.version || updateInstalling || preparing || status === "running") return;
-    setUpdateInstalling(true);
-    setUpdateProgress(null);
-    setUpdateError("");
-    setMessage(`Downloading and verifying Preflight ${updateStatus.version}…`);
-    try {
-      await installUpdate(updateStatus.version);
-    } catch (error) {
-      const detail = String(error);
-      setUpdateStatus(null);
-      setUpdateError(detail);
-      setMessage(detail);
-      setUpdateInstalling(false);
     }
   };
 

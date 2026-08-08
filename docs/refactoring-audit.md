@@ -12,7 +12,7 @@ same time.
 | Area | Current size | What is mixed together | Direction |
 | --- | ---: | --- | --- |
 | Tauri `lib.rs` | 3,221 lines | process ownership, updates, reports, settings, profiles, removal, preparation and automation | Split by command family after introducing one shared operation coordinator |
-| React `App.tsx` | 1,440 lines after the first extraction | installation, cache, preparation, profiles, settings, updates, removal and page rendering | Extract behavior into feature hooks before splitting page components |
+| React `App.tsx` | 1,382 lines after two extractions | installation, cache, preparation, profiles, settings, removal and page rendering | Extract behavior into feature hooks before splitting page components |
 | `AdapterTargetRegistry` | 2,028 lines | reviewed class fingerprints and method requirements | Keep explicit; size alone isn't a defect |
 | `RunCommand` | 1,310 lines | launch orchestration, cache-context selection, metadata and reporting | Extract profile/context selection behind one typed result |
 | `AdapterTransformationRegistry` | 1,024 lines | reviewed transformation registrations | Keep explicit until a generated form proves byte-for-byte equivalent output |
@@ -35,11 +35,12 @@ Move each stateful workflow out of `App.tsx` in this order:
 5. desktop automation;
 6. cache cleanup and removal.
 
-The diagnostics/report hook is complete. It removed ten state variables, three effects and five
-actions from the root component while retaining the existing browser and native transport tests.
-The next hooks should keep the same rule: state, bridge calls and event subscriptions move together.
-Presentational page components follow once their behavior has a narrow interface. Splitting JSX
-first would create large prop lists and make the later redesign harder.
+The diagnostics/report and signed-update hooks are complete. Together they removed fifteen state
+variables, five effects and seven actions from the root component while retaining the existing
+browser and native transport tests. The next hooks should keep the same rule: state, bridge calls
+and event subscriptions move together. Presentational page components follow once their behavior
+has a narrow interface. Splitting JSX first would create large prop lists and make the later
+redesign harder.
 
 ### 2. One native operation coordinator
 
