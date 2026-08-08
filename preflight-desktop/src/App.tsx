@@ -9,7 +9,6 @@ import {
   getRemovalPlan,
   getSnapshot,
   isDesktopHost,
-  openDesktopAccessibilitySettings,
   startGame,
   updateLaunchSettings,
 } from "./bridge";
@@ -17,18 +16,19 @@ import {
   ArrowIcon,
   CheckIcon,
   FolderIcon,
-  LayersIcon,
   PlayIcon,
-  RefreshIcon,
-  ShieldIcon,
   SparklesIcon,
 } from "./icons";
 import { DesktopShell, type Page } from "./components/DesktopShell";
 import { GameSettingsPage } from "./components/GameSettingsPage";
+import { PreparationPage, optimizationPresets } from "./components/PreparationPage";
+import { ProfilesPage } from "./components/ProfilesPage";
 import { QuickGameSettings } from "./components/QuickGameSettings";
+import { ReportsPage } from "./components/ReportsPage";
+import { SettingsPage } from "./components/SettingsPage";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
-import { resourcePresets, usePreparation } from "./usePreparation";
+import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useSignedUpdates } from "./useSignedUpdates";
 import { formatBytes, friendlyPlatform, shortPath } from "./uiFormat";
@@ -45,32 +45,6 @@ import type {
 } from "./types";
 
 export { isCurrentProfilePrepared } from "./usePreparation";
-
-const optimizationPresets: Array<{
-  id: OptimizationPreset;
-  label: string;
-  description: string;
-  badge: string;
-}> = [
-  {
-    id: "recommended",
-    label: "Recommended",
-    description: "All reviewed startup and gameplay optimizations. True-size textures.",
-    badge: "Default",
-  },
-  {
-    id: "conservative",
-    label: "Conservative",
-    description: "Portable startup caches and padded textures. Gameplay adapters stay off.",
-    badge: "Fallback",
-  },
-  {
-    id: "off",
-    label: "Off",
-    description: "Wrapper and bounded process report only.",
-    badge: "Troubleshoot",
-  },
-];
 
 function savedOptimizationPreset(): OptimizationPreset {
   try {
@@ -128,26 +102,7 @@ export default function App() {
       setMessage(String(error));
     }
   }, [optimizationPreset, snapshot?.selected?.installRoot]);
-  const {
-    cache,
-    cacheLoading,
-    preparationCancelling,
-    preparationPercent,
-    preparationPhaseLabel,
-    preparationPlan,
-    preparationPlanLoading,
-    preparing,
-    profilePrepared,
-    resourcePreset,
-    textureStorage,
-    clearCache,
-    invalidatePreparationPlan,
-    prepare,
-    refreshCache,
-    setResourcePreset,
-    setTextureStorage,
-    stopPreparation,
-  } = usePreparation(
+  const preparation = usePreparation(
     snapshot?.selected?.installRoot,
     page === "prepare",
     optimizationPreset,
@@ -155,37 +110,33 @@ export default function App() {
     setMessage,
   );
   const {
-    activationPlan,
-    profileBusy,
-    profileName,
-    profiles,
-    profilesLoading,
-    applyProfile,
-    clearProfiles,
-    refreshProfiles,
-    reviewProfile,
-    saveCurrentProfile,
-    setActivationPlan,
-    setProfileName,
-  } = useProfiles(
+    cache,
+    cacheLoading,
+    preparationPlan,
+    preparationPlanLoading,
+    preparing,
+    profilePrepared,
+    textureStorage,
+    clearCache,
+    invalidatePreparationPlan,
+    prepare,
+    refreshCache,
+  } = preparation;
+  const profilesState = useProfiles(
     snapshot?.selected?.installRoot,
     page === "home" || page === "profiles",
     refresh,
     refreshCache,
     setMessage,
   );
-  const isReady = Boolean(snapshot?.ready && snapshot.selected);
   const {
-    desktopSmokeProbe,
-    desktopSmokeProbeBusy,
-    desktopSmokeReview,
-    desktopSmokeRunDirectory,
-    desktopSmokeRunning,
-    checkDesktopAutomation,
-    runDesktopAutomation,
-    setDesktopSmokeReview,
-    stopDesktopAutomation,
-  } = useDesktopAutomation({
+    profiles,
+    profilesLoading,
+    clearProfiles,
+    reviewProfile,
+  } = profilesState;
+  const isReady = Boolean(snapshot?.ready && snapshot.selected);
+  const automation = useDesktopAutomation({
     game: snapshot?.selected?.installRoot,
     installationReady: isReady,
     announce: setMessage,
@@ -193,41 +144,15 @@ export default function App() {
     refreshInstallation: refresh,
     setStatus,
   });
-  const {
-    diagnosticsBusy,
-    diagnosticsExport,
-    reportCancelling,
-    reportDeleting,
-    reportError,
-    reportFinalizing,
-    reportIntake,
-    reportReceipt,
-    reportReview,
-    reportUploadedBytes,
-    reportUploading,
-    copyRunReportReceipt,
-    dismissRunReportReceipt,
-    removeRunReport,
-    saveDiagnostics,
-    setReportReview,
-    stopRunReport,
-    submitRunReport,
-  } = useDiagnosticsReport(page === "reports", setMessage);
+  const diagnostics = useDiagnosticsReport(page === "reports", setMessage);
   const [launcherSettings, setLauncherSettings] = useState<LaunchSettings | null>(null);
   const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
   const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
   const [launcherSettingsSaving, setLauncherSettingsSaving] = useState(false);
   const [removalPlan, setRemovalPlan] = useState<RemovalPlan | null>(null);
   const [removalBusy, setRemovalBusy] = useState(false);
-  const {
-    updateChecking,
-    updateError,
-    updateInstalling,
-    updateProgress,
-    updateStatus,
-    checkUpdates,
-    installSignedUpdate,
-  } = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
+  const updates = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
+  const { updateStatus } = updates;
 
   useEffect(() => {
     void refresh();
@@ -532,417 +457,43 @@ export default function App() {
             />
           </>
         ) : page === "prepare" ? (
-          <div className="prepare-page">
-            {message && (
-              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
-            )}
-
-            <section className="card optimization-card">
-              <div className="card__heading">
-                <div>
-                  <p className="eyebrow">Runtime policy</p>
-                  <h2>Optimizations</h2>
-                </div>
-                <div className={`tiny-status ${optimizationPreset !== "off" ? "tiny-status--good" : ""}`}>
-                  <span />
-                  {selectedOptimization.label}
-                </div>
-              </div>
-              <div className="optimization-choices" role="radiogroup" aria-label="Optimization preset">
-                {optimizationPresets.map((preset) => (
-                  <label className={`choice-card ${optimizationPreset === preset.id ? "choice-card--selected" : ""}`} key={preset.id}>
-                    <input
-                      type="radio"
-                      name="optimization-preset"
-                      aria-label={`${preset.label} optimizations`}
-                      checked={optimizationPreset === preset.id}
-                      onChange={() => setOptimizationPreset(preset.id)}
-                    />
-                    <span><strong>{preset.label}</strong><small>{preset.description}</small></span>
-                    <b>{preset.badge}</b>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <div className="prepare-grid">
-              <section className="card prepare-options">
-                <div className="card__heading">
-                  <div><p className="eyebrow">Space and speed</p><h2>Texture storage</h2></div>
-                  <div className={`tiny-status ${cache?.currentProfileFingerprint ? "tiny-status--good" : ""}`}>
-                    <span />
-                    {cacheLoading ? "Checking" : cache?.currentProfileFingerprint ? "Profile detected" : "Not prepared"}
-                  </div>
-                </div>
-                <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
-                  <input type="radio" name="texture-storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} />
-                  <span><strong>Balanced</strong><small>Lossless LZ4; raw only when compression doesn’t help</small></span>
-                  <b>Default</b>
-                </label>
-                <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
-                  <input type="radio" name="texture-storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} />
-                  <span><strong>Fastest</strong><small>Raw upload-ready pixels; several GB more for a small startup gain</small></span>
-                </label>
-
-                <div className="resource-heading"><strong>Preparation resources</strong><span>Only affects the one-time build</span></div>
-                <div className="preset-row">
-                  {Object.entries(resourcePresets).map(([id, preset]) => (
-                    <button key={id} type="button" className={resourcePreset === id ? "preset preset--selected" : "preset"} onClick={() => setResourcePreset(id as keyof typeof resourcePresets)}>
-                      <strong>{preset.label}</strong><span>{preset.workers} workers · {preset.memoryMib} MiB</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="card storage-card">
-                <div className="card__heading">
-                  <div><p className="eyebrow">On this computer</p><h2>Preflight storage</h2></div>
-                  <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
-                </div>
-                <strong className="storage-total">{cache ? formatBytes(cache.total.bytes) : "—"}</strong>
-                <span className="storage-files">{cache ? `${cache.total.files.toLocaleString()} files` : "Reading cache…"}</span>
-                <div className="storage-groups">
-                  {(cache?.groups ?? []).map((group) => (
-                    <div key={group.id}><span>{group.id}</span><strong>{formatBytes(group.bytes)}</strong></div>
-                  ))}
-                  {(cache?.uncategorizedBytes ?? 0) > 0 && (
-                    <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong></div>
-                  )}
-                </div>
-                <div className="storage-groups storage-plan" aria-label="Preparation storage plan">
-                  <div><span>Predicted additional</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong></div>
-                  <div><span>Conservative bound</span><strong>{preparationPlan ? formatBytes(preparationPlan.upperBoundAdditionalBytes) : "—"}</strong></div>
-                  <div><span>Safety reserve</span><strong>{preparationPlan ? formatBytes(preparationPlan.safetyReserveBytes) : "—"}</strong></div>
-                  <div><span>Available now</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong></div>
-                </div>
-                {preparationPlan && !preparationPlan.safeToPrepare && <p className="activation-warning">{preparationPlan.refusalReason}</p>}
-                <p className="storage-note">Cleanup is always previewed before deletion.{(cache?.uncategorizedBytes ?? 0) > 0 ? " Other includes retained cache formats and files outside the active categories." : ""}</p>
-                <button className="button button--quiet button--compact" type="button" onClick={() => void reviewCleanup()} disabled={cleanupBusy || preparing || status === "running"}>
-                  {cleanupBusy ? "Checking…" : "Review cleanup"}
-                </button>
-              </section>
-            </div>
-
-            <section className="card prepare-action">
-              <div>
-                <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : preparationPlan?.safeToPrepare ? "There’s room to prepare this profile" : "Preparation needs attention"}</strong>
-                <span>{preparing ? `${preparationPercent}% complete · finished artifacts stay reusable` : `${textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
-                {preparing && <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div>}
-              </div>
-              <div className="prepare-actions">
-                {preparing && <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button>}
-                <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={preparing || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}>
-                  <SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}
-                </button>
-              </div>
-            </section>
-
-            {cleanupPlan && (
-              <section className="card cleanup-review" aria-label="Cache cleanup review">
-                <div className="activation-review__heading">
-                  <div><p className="eyebrow">Nothing removed yet</p><h2>{cleanupPlan.files === 0 ? "Everything here is still useful" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
-                  <button className="text-button" type="button" onClick={() => setCleanupPlan(null)} disabled={cleanupBusy}>Close</button>
-                </div>
-                {!cleanupPlan.safe && <p className="activation-warning">{cleanupPlan.refusals.join(" ")}</p>}
-                <p className="cleanup-summary">Preflight will keep the current profile and {Math.max(0, cleanupPlan.survivingProfileFingerprints.length - 1).toLocaleString()} named profile{cleanupPlan.survivingProfileFingerprints.length === 2 ? "" : "s"}. Game files, mods, saves, settings, and diagnostic evidence aren’t part of this cleanup.</p>
-                {cleanupPlan.groups.length > 0 && <div className="cleanup-groups">
-                  {cleanupPlan.groups.map((group) => <div key={group.reason}><span>{group.reason.replaceAll("-", " ")}</span><strong>{formatBytes(group.bytes)} · {group.files.toLocaleString()} files</strong></div>)}
-                </div>}
-                <div className="activation-review__footer">
-                  <span><ShieldIcon /> The plan is recalculated under the shared operation lock before deletion.</span>
-                  <button className="button button--danger" type="button" onClick={() => void cleanCache()} disabled={!cleanupPlan.safe || cleanupPlan.files === 0 || cleanupBusy}>
-                    {cleanupBusy ? "Cleaning…" : cleanupPlan.files === 0 ? "Nothing to remove" : `Remove ${cleanupPlan.files.toLocaleString()} files`}
-                  </button>
-                </div>
-              </section>
-            )}
-          </div>
+          <PreparationPage
+            message={message}
+            status={status}
+            isReady={isReady}
+            optimizationPreset={optimizationPreset}
+            preparation={preparation}
+            cleanupPlan={cleanupPlan}
+            cleanupBusy={cleanupBusy}
+            onOptimizationPresetChange={setOptimizationPreset}
+            onReviewCleanup={() => void reviewCleanup()}
+            onCleanCache={() => void cleanCache()}
+            onDismissCleanup={() => setCleanupPlan(null)}
+          />
         ) : page === "profiles" ? (
-          <div className="profiles-page">
-            {message && (
-              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
-            )}
-
-            <div className="profiles-grid">
-              <section className="card profile-list-card">
-                <div className="card__heading">
-                  <div><p className="eyebrow">This installation</p><h2>Saved profiles</h2></div>
-                  <div className="card__heading-actions">
-                    <div className={`tiny-status ${profiles?.profiles.some((profile) => profile.active) ? "tiny-status--good" : ""}`}>
-                      <span />
-                      {profilesLoading ? "Checking" : `${profiles?.profiles.length ?? 0} saved`}
-                    </div>
-                    <button className="icon-button icon-button--small" type="button" onClick={() => void refreshProfiles()} aria-label="Refresh saved profiles" disabled={profilesLoading}>
-                      <RefreshIcon className={profilesLoading ? "spin" : ""} />
-                    </button>
-                  </div>
-                </div>
-                <div className="profile-list">
-                  {!profilesLoading && profiles?.profiles.length === 0 && (
-                    <div className="profile-empty"><strong>No profiles saved yet</strong><span>Give the current mod set a name to make your first one.</span></div>
-                  )}
-                  {(profiles?.profiles ?? []).map((profile) => (
-                    <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
-                      <div className="profile-card__mark"><LayersIcon /></div>
-                      <div className="profile-card__copy">
-                        <div><strong>{profile.name}</strong>{profile.active && <b>Active</b>}</div>
-                        <span>{profile.modCount.toLocaleString()} mods · saved {new Date(profile.savedAt).toLocaleDateString()}</span>
-                        {!profile.sameInstall && <small>Saved for a different installation</small>}
-                        {profile.missingMods.length > 0 && <small>Missing: {profile.missingMods.join(", ")}</small>}
-                      </div>
-                      <button className="button button--quiet button--compact" type="button" onClick={() => void reviewProfile(profile.name)} disabled={profile.active || !profile.canActivate || profileBusy}>
-                        {profile.active ? "Current" : "Review switch"}
-                      </button>
-                    </article>
-                  ))}
-                </div>
-                {(profiles?.diagnostics.length ?? 0) > 0 && (
-                  <div className="profile-diagnostics">{profiles?.diagnostics.map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}</div>
-                )}
-              </section>
-
-              <section className="card profile-save-card">
-                <p className="eyebrow">Remember this setup</p>
-                <h2>Save current profile</h2>
-                <p>Names and load order only. Mod files stay where they are.</p>
-                <label htmlFor="profile-name">Profile name</label>
-                <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Heavy campaign" maxLength={96} />
-                <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>
-                  Save current profile
-                </button>
-                <div className="profile-cache-note"><SparklesIcon /><span>Matching profiles reuse prepared caches automatically.</span></div>
-              </section>
-            </div>
-
-            {activationPlan && (
-              <section className="card activation-review" aria-label="Profile switch review">
-                <div className="activation-review__heading">
-                  <div><p className="eyebrow">Nothing changed yet</p><h2>Switch to {activationPlan.name}?</h2></div>
-                  <button className="text-button" type="button" onClick={() => setActivationPlan(null)} disabled={profileBusy}>Cancel</button>
-                </div>
-                {!activationPlan.sameInstall && <p className="activation-warning">This profile belongs to {shortPath(activationPlan.savedInstallRoot)} and cannot be applied here.</p>}
-                {activationPlan.missingMods.length > 0 && <p className="activation-warning">Install these mods first: {activationPlan.missingMods.join(", ")}</p>}
-                <div className="activation-columns">
-                  <div><strong>Enable ({activationPlan.enable.length})</strong>{activationPlan.enable.length ? <ul>{activationPlan.enable.map((mod) => <li key={mod}>{mod}</li>)}</ul> : <span>Nothing</span>}</div>
-                  <div><strong>Disable ({activationPlan.disable.length})</strong>{activationPlan.disable.length ? <ul>{activationPlan.disable.map((mod) => <li key={mod}>{mod}</li>)}</ul> : <span>Nothing</span>}</div>
-                </div>
-                <div className="activation-review__footer">
-                  <span><ShieldIcon /> Preflight rechecks the file, writes a backup, then replaces it safely.</span>
-                  <button className="button button--primary" type="button" onClick={() => void applyProfile()} disabled={!activationPlan.canActivate || activationPlan.active || profileBusy}>
-                    {profileBusy ? "Switching…" : "Apply switch"}
-                  </button>
-                </div>
-              </section>
-            )}
-          </div>
+          <ProfilesPage message={message} profilesState={profilesState} />
+        ) : page === "reports" ? (
+          <ReportsPage
+            message={message}
+            status={status}
+            platform={snapshot?.platform ?? null}
+            preparing={preparing}
+            automation={automation}
+            diagnostics={diagnostics}
+            onMessage={setMessage}
+          />
         ) : (
-          <div className="settings-page">
-            {message && (
-              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
-            )}
-
-            <div className="settings-overview">
-              {page === "settings" && <section className="card update-card">
-                <div className="card__heading">
-                  <div><p className="eyebrow">Application</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version}` : "Updates"}</h2></div>
-                  <ShieldIcon className="settings-check" />
-                </div>
-                <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
-                  ? updateStatus.notes || "A newer verified release is ready. Installation starts only after confirmation."
-                  : updateStatus?.configured
-                    ? `Version ${updateStatus.currentVersion} is current.`
-                    : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
-                {updateError && <p className="activation-warning">{updateError}</p>}
-                {updateInstalling && <div className="update-progress" role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={updateProgress?.contentLength ?? undefined} aria-valuenow={updateProgress?.downloadedBytes ?? 0}><span>{updateProgress?.contentLength ? `${formatBytes(updateProgress.downloadedBytes)} of ${formatBytes(updateProgress.contentLength)}` : `${formatBytes(updateProgress?.downloadedBytes ?? 0)} downloaded`}</span></div>}
-                <div className="update-actions">
-                  <button className="button button--quiet button--compact" type="button" onClick={() => void checkUpdates(true)} disabled={updateChecking || updateInstalling}>{updateChecking ? "Checking…" : updateStatus ? "Check again" : "Check for updates"}</button>
-                  {updateStatus?.available && <button className="button button--primary" type="button" onClick={() => void installSignedUpdate()} disabled={updateInstalling || preparing || status === "running"}>{updateInstalling ? "Installing…" : "Install and restart"}</button>}
-                </div>
-                {updateStatus?.available && <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small>}
-                <small>Release signatures are checked before installation. A failed check leaves the current version untouched.</small>
-              </section>}
-
-              {page === "reports" && <section className="card diagnostics-action">
-                <div>
-                  <strong>{diagnosticsExport ? "Diagnostics ready" : "Diagnostics"}</strong>
-                  <span>{diagnosticsExport
-                    ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-                    : "Paths are redacted. Review contents before saving or sending."}</span>
-                </div>
-                <div className="report-actions">
-                  <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
-                    <FolderIcon />{diagnosticsBusy ? "Saving…" : diagnosticsExport ? "Save another ZIP" : "Save diagnostics"}
-                  </button>
-                  {diagnosticsExport && (
-                    <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>
-                      {reportReceipt ? "Receipt below" : "Review send"}
-                    </button>
-                  )}
-                </div>
-              </section>}
-            </div>
-
-            {page === "reports" && desktopSmokeReview && (
-              <section className="card automation-review" aria-label="Automated game test review">
-                <div className="activation-review__heading">
-                  <div><p className="eyebrow">Nothing started yet</p><h2>Run the checked campaign test?</h2></div>
-                  <button className="text-button" type="button" onClick={() => setDesktopSmokeReview(false)} disabled={desktopSmokeRunning}>Cancel</button>
-                </div>
-                <p>Preflight will open the current installation with recommended optimizations, continue the latest save, move forward for three seconds, collect a window screenshot and bounded timing evidence, then close only that exact game process.</p>
-                <p>Leave the game window unobstructed while it runs. The interaction sequence has a four-minute deadline; startup and cleanup have separate bounds.</p>
-                <div className="activation-review__footer">
-                  <span><ShieldIcon /> The driver doesn’t edit game, mod, or save files; it only sends the actions listed here.</span>
-                  <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeRunning}>
-                    {desktopSmokeRunning ? "Test running…" : "Start automated test"}
-                  </button>
-                </div>
-              </section>
-            )}
-
-            {page === "reports" && <details className="card settings-disclosure">
-              <summary>
-                <span><strong>Diagnostic contents</strong><small>Included and excluded data</small></span>
-              </summary>
-              <div className="settings-grid settings-disclosure__body">
-                <section className="diagnostics-card">
-                  <div className="card__heading">
-                    <div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div>
-                    <CheckIcon className="settings-check" />
-                  </div>
-                  <ul>
-                    <li>Run outcome, runtime, adapter health and timing summaries</li>
-                    <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
-                    <li>Benchmark identity, settings and result metadata</li>
-                    <li>A manifest with every included or skipped file</li>
-                  </ul>
-                </section>
-                <section className="diagnostics-card diagnostics-card--excluded">
-                  <div className="card__heading">
-                    <div><p className="eyebrow">Excluded</p><h2>Game and personal data</h2></div>
-                    <ShieldIcon className="settings-check" />
-                  </div>
-                  <ul>
-                    <li>Game, mod, save, texture, audio or bytecode contents</li>
-                    <li>Acceleration caches, console logs and crash dumps</li>
-                    <li>JFR recordings, screenshots, audio or unknown files</li>
-                    <li>Symlinks or any source file larger than 512 KiB</li>
-                  </ul>
-                </section>
-              </div>
-            </details>}
-
-            {page === "reports" && diagnosticsExport && reportIntake && !reportIntake.configured && (
-              <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "Run-report sending isn't configured in this build."} The ZIP remains available to inspect and share manually.</p>
-            )}
-
-            {page === "reports" && reportReview && diagnosticsExport && (
-              <section className="card report-review" aria-label="Run report consent">
-                <div className="activation-review__heading">
-                  <div><p className="eyebrow">Nothing sent yet</p><h2>Send this exact ZIP?</h2></div>
-                  <button className="text-button" type="button" onClick={() => setReportReview(false)} disabled={reportUploading}>Cancel</button>
-                </div>
-                <p>Preflight will send the ZIP shown below to {reportIntake?.origin}. The service also receives ordinary network metadata such as your IP address for delivery and rate limiting. There are no automatic or background uploads.</p>
-                <div className="report-facts">
-                  <div><span>File</span><strong>{shortPath(diagnosticsExport.output)}</strong></div>
-                  <div><span>Size</span><strong>{formatBytes(diagnosticsExport.bytes)} ({diagnosticsExport.bytes.toLocaleString()} bytes)</strong></div>
-                  <div className="report-facts__digest"><span>SHA-256</span><code>{diagnosticsExport.sha256}</code></div>
-                  <div><span>Retention</span><strong>Automatic deletion starts after 14 days; receipt deadline is 15 days</strong></div>
-                </div>
-                <div className="report-contents">
-                  <strong>Included entries ({diagnosticsExport.included.length})</strong>
-                  {diagnosticsExport.included.length > 0
-                    ? <ul>{diagnosticsExport.included.map((entry) => <li key={entry.entry}><span>{entry.entry}</span><small>{formatBytes(entry.bytes)}</small></li>)}</ul>
-                    : <p>No run or benchmark evidence is present; the ZIP contains only its disclosure and manifest.</p>}
-                </div>
-                <p>Game and mod files, saves, logs and crash dumps, caches, JFR, screenshots, audio, unknown files, binary content, and symlinks stay excluded. Home-directory paths are replaced with <code>&lt;home&gt;</code>.</p>
-                {diagnosticsExport.skipped.length > 0 && <p>{diagnosticsExport.skipped.length} present source file{diagnosticsExport.skipped.length === 1 ? " was" : "s were"} skipped under the disclosed limits.</p>}
-                {reportError && <p className="activation-warning">{reportError}</p>}
-                {reportUploading && (
-                  <div className="report-progress" role="progressbar" aria-label="Run report upload" aria-valuemin={0} aria-valuemax={diagnosticsExport.bytes} aria-valuenow={reportUploadedBytes}>
-                    <span style={{ width: `${Math.min(100, diagnosticsExport.bytes > 0 ? reportUploadedBytes / diagnosticsExport.bytes * 100 : 0)}%` }} />
-                    <strong>{reportFinalizing ? "Archive accepted · finishing receipt…" : reportCancelling ? "Stopping…" : `${formatBytes(reportUploadedBytes)} of ${formatBytes(diagnosticsExport.bytes)}`}</strong>
-                  </div>
-                )}
-                <div className="activation-review__footer">
-                  <span><ShieldIcon /> The native host rechecks the file, size, and SHA-256 immediately before upload.</span>
-                  {reportUploading
-                    ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
-                    : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured}>Send this exact ZIP</button>}
-                </div>
-              </section>
-            )}
-
-            {page === "reports" && reportReceipt && (
-              <section className="card report-receipt" aria-label="Run report receipt">
-                <div className="card__heading">
-                  <div><p className="eyebrow">Accepted</p><h2>Run report {reportReceipt.caseId}</h2></div>
-                  <CheckIcon className="settings-check" />
-                </div>
-                <p>The intake accepted {formatBytes(reportReceipt.bytes)} with the same SHA-256. Preflight keeps this deletion receipt on this computer until you delete the report, dismiss the receipt, or its deadline passes.</p>
-                <div className="report-facts">
-                  <div><span>Received</span><strong>{new Date(reportReceipt.receivedAt).toLocaleString()}</strong></div>
-                  <div><span>Retention deadline</span><strong>{new Date(reportReceipt.retentionDeadline).toLocaleString()}</strong></div>
-                  <div className="report-facts__digest"><span>SHA-256</span><code>{reportReceipt.sha256}</code></div>
-                </div>
-                <div className="update-actions">
-                  <button className="button button--quiet button--compact" type="button" onClick={() => void copyRunReportReceipt()}>Copy receipt</button>
-                  <button className="button button--quiet button--compact" type="button" onClick={dismissRunReportReceipt}>I saved this receipt</button>
-                  <button className="button button--danger button--compact" type="button" onClick={() => void removeRunReport()} disabled={reportDeleting}>{reportDeleting ? "Deleting…" : "Delete uploaded report"}</button>
-                </div>
-              </section>
-            )}
-
-            {page === "reports" && <details className="card settings-disclosure automation-card">
-              <summary>
-                <span><strong>Automated game test</strong><small>{desktopSmokeProbe?.probe.ready ? "Ready" : "Optional compatibility check"}</small></span>
-              </summary>
-              <div className="settings-disclosure__body">
-                <p>{desktopSmokeProbe === null
-                  ? "Check whether Preflight can control one exact game process, collect bounded evidence, and close it after the test. Nothing launches during this check."
-                  : desktopSmokeProbe.probe.ready
-                    ? `Ready through ${desktopSmokeProbe.probe.driver?.id ?? "the platform driver"}. The test remains opt-in and hasn’t started a game.`
-                    : desktopSmokeProbe.probe.diagnostics[0] ?? "Automated testing isn’t available on this system yet."}</p>
-                {desktopSmokeProbe?.probe.ready && <small>{desktopSmokeProbe.probe.driver?.capabilities.join(" · ")}</small>}
-                <div className="update-actions">
-                  <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || preparing || status === "running"}>
-                    {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}
-                  </button>
-                  {desktopSmokeProbe?.probe.ready && !desktopSmokeRunning && <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeRunning || preparing || status === "running"}>Review test</button>}
-                  {desktopSmokeRunning && <button className="button button--quiet button--compact" type="button" onClick={() => void stopDesktopAutomation()}>Stop test safely</button>}
-                  {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && snapshot?.platform === "mac" && <button className="button button--quiet button--compact" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => setMessage(String(error)))}>Open Accessibility settings</button>}
-                </div>
-                {desktopSmokeRunDirectory && <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small>}
-              </div>
-            </details>}
-
-            {page === "settings" && <details className="card settings-disclosure removal-card">
-              <summary>
-                <span><strong>Remove Preflight</strong><small>Launcher only or all local data</small></span>
-              </summary>
-              <div className="settings-disclosure__body">
-                <p>Every removal is previewed first. Starsector, mods, saves, and game settings stay untouched.</p>
-                <div className="removal-choices">
-                  <div><strong>Launch integration</strong><span>Remove Preflight’s installed command engine and OS launch shortcuts. Keep prepared data and diagnostics.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("launcher")} disabled={removalBusy || preparing || status === "running"}>Review launcher removal</button></div>
-                  <div><strong>All Preflight data</strong><span>Remove launch integrations, caches, profiles, evidence, and backups. The packaged desktop app remains for the operating system to uninstall.</span><button className="button button--quiet button--compact" type="button" onClick={() => void reviewRemoval("all-data")} disabled={removalBusy || preparing || status === "running"}>Review all data removal</button></div>
-                </div>
-              </div>
-            </details>}
-
-            {page === "settings" && removalPlan && (
-              <section className="card removal-review" aria-label="Removal review">
-                <div className="activation-review__heading">
-                  <div><p className="eyebrow">Nothing removed yet</p><h2>{removalPlan.scope === "all-data" ? "Remove all Preflight data?" : "Remove launch integration?"}</h2></div>
-                  <button className="text-button" type="button" onClick={() => setRemovalPlan(null)} disabled={removalBusy}>Cancel</button>
-                </div>
-                <p className="cleanup-summary">{formatBytes(removalPlan.bytes)} across {removalPlan.files.toLocaleString()} files. The plan was measured from the paths below.</p>
-                <div className="cleanup-groups">{removalPlan.targets.map((target) => <div key={`${target.kind}:${target.path}`}><span>{target.label}</span><strong>{formatBytes(target.bytes)} · {shortPath(target.path)}</strong></div>)}</div>
-                <div className="activation-review__footer">
-                  <span><ShieldIcon /> Starsector, mods, saves, and game settings aren’t removal targets.</span>
-                  <button className="button button--danger" type="button" onClick={() => void removePreflight()} disabled={!removalPlan.safe || removalPlan.targets.length === 0 || removalBusy}>{removalBusy ? "Removing…" : removalPlan.targets.length === 0 ? "Nothing to remove" : removalPlan.scope === "all-data" ? "Remove all Preflight data" : "Remove launch integration"}</button>
-                </div>
-              </section>
-            )}
-          </div>
+          <SettingsPage
+            message={message}
+            status={status}
+            preparing={preparing}
+            updates={updates}
+            removalPlan={removalPlan}
+            removalBusy={removalBusy}
+            onReviewRemoval={(scope) => void reviewRemoval(scope)}
+            onDismissRemoval={() => setRemovalPlan(null)}
+            onRemove={() => void removePreflight()}
+          />
         )}
     </DesktopShell>
   );

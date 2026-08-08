@@ -41,6 +41,8 @@ The home console and full game-settings page share one typed control model, incl
 launcher-owned heap setting. The desktop shell now owns navigation, viewport reset and responsive
 chrome separately from workflow state; narrow layouts switch to accessible icon navigation without
 wrapping, while short desktop windows regain bounded vertical scrolling instead of clipping content.
+Preparation, profiles, run reports, updates, and removal now render through independent workflow
+components while discovery, process state, and destructive actions remain coordinated by the app root.
 
 ## Visual direction
 
