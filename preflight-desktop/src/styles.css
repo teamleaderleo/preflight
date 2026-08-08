@@ -21,8 +21,8 @@
   --line: rgba(17, 59, 82, 0.17);
   --line-strong: rgba(17, 59, 82, 0.28);
   --cyan-strong: #167b91;
-  --grid-line: rgba(31, 102, 129, 0.07);
-  --grid-major: rgba(31, 102, 129, 0.105);
+  --grid-line: rgba(31, 102, 129, 0.035);
+  --grid-major: rgba(31, 102, 129, 0.065);
   --shadow: 0 14px 34px rgba(16, 39, 57, 0.08), 0 2px 6px rgba(16, 39, 57, 0.05);
 }
 
@@ -513,34 +513,6 @@ h2 {
   margin-top: 8px;
 }
 
-.hero {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 0.9fr);
-  min-height: 290px;
-  overflow: hidden;
-  border-color: rgba(101, 159, 169, 0.18);
-  background: linear-gradient(125deg, #081621 0%, #0a2230 62%, #0d2a37 100%);
-}
-
-.hero::before {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(110, 168, 178, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(110, 168, 178, 0.07) 1px, transparent 1px);
-  background-size: 24px 24px;
-  mask-image: linear-gradient(to right, transparent 34%, black 76%);
-  content: "";
-}
-
-.hero__copy {
-  position: relative;
-  z-index: 1;
-  align-self: center;
-  padding: 38px 14px 38px 40px;
-}
-
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -562,44 +534,6 @@ h2 {
 .status-chip--ready {
   color: #34745c;
   background: #ddf2e8;
-}
-
-.hero h2 {
-  margin-bottom: 12px;
-  font-family: var(--font-display);
-  font-size: clamp(28px, 3vw, 37px);
-  letter-spacing: 0.01em;
-  color: #eef6f8;
-}
-
-.hero__copy > p {
-  max-width: 610px;
-  margin-bottom: 24px;
-  color: #afc1cc;
-  font-size: 15px;
-  line-height: 1.6;
-}
-
-.hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.hero__launch-note {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-width: 610px;
-  margin-top: 16px;
-  color: #afc1cc;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.hero__launch-note strong {
-  color: #eef6f8;
-  font-size: 13px;
 }
 
 .button {
@@ -693,21 +627,6 @@ h2 {
   box-shadow: 0 9px 22px rgba(128, 54, 48, 0.18);
 }
 
-.hero__art {
-  display: grid;
-  min-height: 290px;
-  place-items: center;
-}
-
-.hero__art img {
-  width: min(250px, 88%);
-  aspect-ratio: 1;
-  object-fit: cover;
-  opacity: 0.94;
-  border-radius: 6px;
-  box-shadow: 0 24px 50px rgba(0, 8, 18, 0.32);
-}
-
 .notice {
   display: flex;
   align-items: center;
@@ -736,22 +655,6 @@ h2 {
 .notice--error {
   color: #9e4d44;
   background: rgba(255, 222, 215, 0.78);
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.content-grid--single {
-  grid-template-columns: 1fr;
-}
-
-.installation-card {
-  min-height: 208px;
-  padding: 24px;
 }
 
 .card__heading {
@@ -794,63 +697,6 @@ h2 {
 
 .tiny-status--good span {
   background: var(--success);
-}
-
-.install-detail,
-.empty-detail {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  min-width: 0;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.42);
-}
-
-.install-icon {
-  display: grid;
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 4px;
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-}
-
-.install-detail > div:nth-child(2),
-.empty-detail > div:nth-child(2) {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.install-detail strong,
-.empty-detail strong {
-  overflow: hidden;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.install-detail span,
-.empty-detail span {
-  color: var(--ink-soft);
-  font-size: 13px;
-}
-
-.start-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.start-tools .button svg {
-  width: 17px;
 }
 
 .text-button {
@@ -1285,14 +1131,6 @@ h2 {
 .launch-settings-card h2 {
   margin: 3px 0 8px;
   font-size: 20px;
-}
-
-.setting-explainer {
-  max-width: 710px;
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 13px;
-  line-height: 1.7;
 }
 
 .launch-settings-grid {
@@ -2058,10 +1896,6 @@ footer {
     padding: 24px 16px;
   }
 
-  .hero {
-    grid-template-columns: 1fr;
-  }
-
   .launch-console {
     grid-template-columns: 1fr;
   }
@@ -2069,6 +1903,10 @@ footer {
   .launch-console__primary {
     border-right: 0;
     border-bottom: 1px solid rgba(128, 180, 189, 0.13);
+  }
+
+  .button--launch {
+    width: 100%;
   }
 
   .home-overview {
@@ -2082,18 +1920,6 @@ footer {
 
   .home-fact:last-child {
     border-bottom: 0;
-  }
-
-  .hero__copy {
-    padding: 30px clamp(22px, 6vw, 34px);
-  }
-
-  .hero__art {
-    display: none;
-  }
-
-  .content-grid {
-    grid-template-columns: 1fr;
   }
 
   .settings-grid {
@@ -2140,19 +1966,16 @@ footer {
     width: 100%;
   }
 
-  .safety__check {
-    display: none;
-  }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 780px) {
   .brand__type {
     display: none;
   }
 
   .sidebar {
     gap: 4px;
-    padding-inline: 10px;
+    padding-inline: 12px;
   }
 
   .nav__item {
@@ -2177,13 +2000,14 @@ footer {
   .nav__badge {
     display: none;
   }
+}
 
+@media (max-width: 600px) {
   .topbar {
     gap: 14px;
     margin-bottom: 20px;
   }
 
-  .installation-card,
   .diagnostics-card,
   .diagnostics-action,
   .update-card,
@@ -2253,22 +2077,21 @@ footer {
     width: 34px;
   }
 
-  .hero__actions,
-  .start-tools,
+  .launch-console__primary,
+  .quick-settings {
+    padding: 24px 20px;
+  }
+
+  .button--launch {
+    padding-inline: 20px;
+  }
+
   .prepare-actions {
     flex-direction: column;
   }
 
-  .hero__actions .button,
-  .start-tools .button,
   .prepare-actions .button {
     width: 100%;
-  }
-
-  .install-detail,
-  .empty-detail {
-    align-items: flex-start;
-    flex-wrap: wrap;
   }
 
   footer {
@@ -2335,14 +2158,8 @@ footer {
     background: rgba(62, 129, 144, 0.16);
   }
 
-  .hero {
-    background: linear-gradient(125deg, #050f18 0%, #081e2a 62%, #0a2631 100%);
-  }
-
   .icon-button,
   .button--quiet,
-  .install-detail,
-  .empty-detail,
   .choice-card,
   .preset,
   .profile-card,

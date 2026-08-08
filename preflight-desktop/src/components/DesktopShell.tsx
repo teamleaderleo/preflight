@@ -59,21 +59,21 @@ export function DesktopShell({
       <aside className="sidebar">
         <Logo />
         <nav className="nav" aria-label="Main navigation">
-          <button className={`nav__item ${homeActive ? "nav__item--active" : ""}`} type="button" aria-current={homeActive ? "page" : undefined} onClick={() => onPageChange("home")}>
+          <button className={`nav__item ${homeActive ? "nav__item--active" : ""}`} type="button" title="Home" aria-current={homeActive ? "page" : undefined} onClick={() => onPageChange("home")}>
             <HomeIcon /><span>Home</span>
           </button>
-          <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" aria-current={page === "prepare" ? "page" : undefined} onClick={() => onPageChange("prepare")} disabled={!isReady}>
+          <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" title="Preflight" aria-current={page === "prepare" ? "page" : undefined} onClick={() => onPageChange("prepare")} disabled={!isReady}>
             <SparklesIcon /><span>Preflight</span>
           </button>
-          <button className={`nav__item ${page === "reports" ? "nav__item--active" : ""}`} type="button" aria-current={page === "reports" ? "page" : undefined} onClick={() => onPageChange("reports")}>
+          <button className={`nav__item ${page === "reports" ? "nav__item--active" : ""}`} type="button" title="Run reports" aria-current={page === "reports" ? "page" : undefined} onClick={() => onPageChange("reports")}>
             <ShieldIcon /><span>Run reports</span>
           </button>
-          <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" aria-current={page === "profiles" ? "page" : undefined} onClick={() => onPageChange("profiles")} disabled={!isReady}>
+          <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" title="Profiles" aria-current={page === "profiles" ? "page" : undefined} onClick={() => onPageChange("profiles")} disabled={!isReady}>
             <LayersIcon /><span>Profiles</span>
           </button>
         </nav>
         <div className="sidebar__footer">
-          <button className={`nav__item ${page === "settings" ? "nav__item--active" : ""}`} type="button" aria-current={page === "settings" ? "page" : undefined} onClick={() => onPageChange("settings")}>
+          <button className={`nav__item ${page === "settings" ? "nav__item--active" : ""}`} type="button" title="Settings" aria-current={page === "settings" ? "page" : undefined} onClick={() => onPageChange("settings")}>
             <SettingsIcon /><span>Settings</span>
             {updateAvailable ? <span className="nav__badge">Update</span> : null}
           </button>

@@ -40,7 +40,12 @@ exact backup before changing it.
 The home console and full game-settings page share one typed control model, including the effective
 launcher-owned heap setting. The desktop shell now owns navigation, viewport reset and responsive
 chrome separately from workflow state; narrow layouts switch to accessible icon navigation without
-wrapping, while short desktop windows regain bounded vertical scrolling instead of clipping content.
+wrapping before labels collide, while short desktop windows regain bounded vertical scrolling instead
+of clipping content. Stacked launch layouts keep the primary action full-width down to the supported
+320 px minimum. The previous landing page's unused hero and installation-card styles have been removed
+so responsive and dark-mode changes apply only to interfaces that can still render.
+Vite ignores generated Tauri engine and distribution output, allowing HMR to remain open while the
+engine is rebuilt or the full verification gate runs.
 Preparation, profiles, run reports, updates, and removal now render through independent workflow
 components while discovery, process state, and destructive actions remain coordinated by the app root.
 Installation-scoped reads are request-fenced so an older result cannot replace a newer selection.
