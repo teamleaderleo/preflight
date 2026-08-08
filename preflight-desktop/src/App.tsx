@@ -4,16 +4,13 @@ import { listen } from "@tauri-apps/api/event";
 import {
   applyCacheCleanup,
   applyRemoval,
-  cancelDesktopSmoke,
   getCacheCleanup,
-  getDesktopSmokeProbe,
   getLaunchSettings,
   getRemovalPlan,
   getSnapshot,
   isDesktopHost,
   openDesktopAccessibilitySettings,
   startGame,
-  startDesktopSmoke,
   updateLaunchSettings,
 } from "./bridge";
 import {
@@ -29,6 +26,7 @@ import {
   SparklesIcon,
 } from "./icons";
 import Logo from "./Logo";
+import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { resourcePresets, usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
@@ -37,8 +35,6 @@ import type {
   AppStatus,
   CacheCleanupPlan,
   DesktopSnapshot,
-  DesktopSmokeProbe,
-  DesktopSmokeStateEvent,
   LaunchSettings,
   LaunchSettingsUpdate,
   OptimizationPreset,
@@ -209,6 +205,25 @@ export default function App() {
     refreshCache,
     setMessage,
   );
+  const isReady = Boolean(snapshot?.ready && snapshot.selected);
+  const {
+    desktopSmokeProbe,
+    desktopSmokeProbeBusy,
+    desktopSmokeReview,
+    desktopSmokeRunDirectory,
+    desktopSmokeRunning,
+    checkDesktopAutomation,
+    runDesktopAutomation,
+    setDesktopSmokeReview,
+    stopDesktopAutomation,
+  } = useDesktopAutomation({
+    game: snapshot?.selected?.installRoot,
+    installationReady: isReady,
+    announce: setMessage,
+    displayPath: shortPath,
+    refreshInstallation: refresh,
+    setStatus,
+  });
   const {
     diagnosticsBusy,
     diagnosticsExport,
@@ -229,11 +244,6 @@ export default function App() {
     stopRunReport,
     submitRunReport,
   } = useDiagnosticsReport(page === "settings", setMessage);
-  const [desktopSmokeProbe, setDesktopSmokeProbe] = useState<DesktopSmokeProbe | null>(null);
-  const [desktopSmokeProbeBusy, setDesktopSmokeProbeBusy] = useState(false);
-  const [desktopSmokeReview, setDesktopSmokeReview] = useState(false);
-  const [desktopSmokeRunning, setDesktopSmokeRunning] = useState(false);
-  const [desktopSmokeRunDirectory, setDesktopSmokeRunDirectory] = useState<string | null>(null);
   const [launcherSettings, setLauncherSettings] = useState<LaunchSettings | null>(null);
   const [launcherDraft, setLauncherDraft] = useState<LaunchSettingsUpdate | null>(null);
   const [launcherSettingsLoading, setLauncherSettingsLoading] = useState(false);
@@ -271,30 +281,6 @@ export default function App() {
         const outcome = payload.success ? "Welcome back. Your run was tucked away safely." : "The game closed with an error. Your run notes are still safe.";
         void refresh(snapshot?.selected?.installRoot).then(() => setMessage(outcome));
       }
-    }).then((unlisten) => {
-      stopListening = unlisten;
-    });
-    return () => stopListening?.();
-  }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
-
-  useEffect(() => {
-    if (!isDesktopHost()) return;
-    let stopListening: (() => void) | undefined;
-    void listen<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
-      setDesktopSmokeRunDirectory(payload.runDirectory);
-      if (payload.state === "cancelling") {
-        setMessage(payload.detail ?? "Stopping the exact game process and sealing its evidence…");
-        return;
-      }
-      if (payload.state !== "finished" && payload.state !== "cancelled") return;
-      setDesktopSmokeRunning(false);
-      setStatus(snapshot?.ready ? "ready" : "setup");
-      const outcome = payload.state === "cancelled"
-        ? payload.detail ?? `Automated game test stopped safely. Evidence is in ${shortPath(payload.runDirectory)}.`
-        : payload.success
-        ? `Automated game test passed. Evidence is in ${shortPath(payload.runDirectory)}.`
-        : payload.detail ?? `Automated game test stopped. Evidence is in ${shortPath(payload.runDirectory)}.`;
-      void refresh(snapshot?.selected?.installRoot).then(() => setMessage(outcome));
     }).then((unlisten) => {
       stopListening = unlisten;
     });
@@ -378,56 +364,6 @@ export default function App() {
     }
   };
 
-  const checkDesktopAutomation = async () => {
-    setDesktopSmokeProbeBusy(true);
-    try {
-      setDesktopSmokeProbe(await getDesktopSmokeProbe());
-    } catch (error) {
-      setDesktopSmokeProbe(null);
-      setMessage(String(error));
-    } finally {
-      setDesktopSmokeProbeBusy(false);
-    }
-  };
-
-  const runDesktopAutomation = async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game || !desktopSmokeProbe?.probe.ready || desktopSmokeRunning) return;
-    setDesktopSmokeReview(false);
-    setDesktopSmokeRunning(true);
-    setDesktopSmokeRunDirectory(null);
-    setStatus("running");
-    setMessage("Running the checked launch, campaign movement, evidence, and shutdown sequence…");
-    try {
-      await startDesktopSmoke(game);
-      if (!isDesktopHost()) {
-        setDesktopSmokeRunning(false);
-        setStatus("ready");
-        setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
-        setMessage("Automated game test passed in browser preview.");
-      }
-    } catch (error) {
-      setDesktopSmokeRunning(false);
-      setStatus(snapshot.ready ? "ready" : "setup");
-      setMessage(String(error));
-    }
-  };
-
-  const stopDesktopAutomation = async () => {
-    if (!desktopSmokeRunning) return;
-    setMessage("Stopping the exact game process and sealing its evidence…");
-    try {
-      const requested = await cancelDesktopSmoke();
-      if (!requested) {
-        setDesktopSmokeRunning(false);
-        setStatus(snapshot?.ready ? "ready" : "setup");
-        setMessage("The automated game test had already stopped.");
-      }
-    } catch (error) {
-      setMessage(String(error));
-    }
-  };
-
   const saveLauncherSettings = async () => {
     const game = snapshot?.selected?.installRoot;
     if (!game || !launcherDraft) return;
@@ -485,7 +421,6 @@ export default function App() {
     }
   };
 
-  const isReady = Boolean(snapshot?.ready && snapshot.selected);
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
