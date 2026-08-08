@@ -1561,6 +1561,12 @@ h2 {
   margin-top: 0;
 }
 
+@media (max-width: 1200px) {
+  .optimization-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
 .optimization-domain-card {
   display: flex;
   flex-direction: column;

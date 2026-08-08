@@ -12,19 +12,19 @@ export const optimizationPresets: Array<{
   {
     id: "recommended",
     label: "Recommended",
-    description: "All reviewed startup and gameplay optimizations. True-size textures.",
+    description: "Every reviewed optimization. True-size textures.",
     badge: "Default",
   },
   {
     id: "conservative",
     label: "Conservative",
-    description: "Portable startup caches and padded textures. Gameplay adapters stay off.",
+    description: "Portable caches and padded textures. Gameplay adapters off.",
     badge: "Fallback",
   },
   {
     id: "off",
     label: "Off",
-    description: "Wrapper and bounded process report only.",
+    description: "Launch and diagnostics only.",
     badge: "Troubleshoot",
   },
 ];
@@ -79,8 +79,6 @@ export function PreparationPage({
     setTextureStorage,
     stopPreparation,
   } = preparation;
-  const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
-    ?? optimizationPresets[0];
   return (
     <div className="prepare-page">
       {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
@@ -88,7 +86,7 @@ export function PreparationPage({
       <section className="card optimization-card">
         <div className="card__heading">
           <div><p className="eyebrow">Runtime policy</p><h2>Optimizations</h2></div>
-          <div className={`tiny-status ${optimizationPreset !== "off" ? "tiny-status--good" : ""}`}><span />{selectedOptimization.label}</div>
+          <span className="field-note">Applied at next launch</span>
         </div>
         <div className="optimization-choices" role="radiogroup" aria-label="Optimization preset">
           {optimizationPresets.map((preset) => (

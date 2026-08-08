@@ -20,6 +20,10 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 901px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
 });
 
+test("optimization presets stay readable at the default desktop width", () => {
+  expect(styles).toMatch(/@media \(max-width: 1200px\)[\s\S]*?\.optimization-choices\s*\{[^}]*grid-template-columns:\s*1fr;/);
+});
+
 test("supporting copy stays legible while dense evidence remains compact", () => {
   expect(styles).toContain("--text-support: 14px");
   expect(styles).toMatch(/\.notice\s*\{[^}]*font-size:\s*var\(--text-support\);/s);
