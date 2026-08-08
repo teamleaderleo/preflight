@@ -48,6 +48,7 @@ class CampaignEntityTelemetryReportTest {
         adapter.transformerInstalled(AdapterTargetRegistry.empty().withHullJsonCacheTarget());
         adapter.write();
         String report = Files.readString(output);
+        assertTrue(report.contains("\"jvmMaxHeapBytes\":" + Runtime.getRuntime().maxMemory()), report);
         assertTrue(report.contains("\"registeredPlanTargets\":{"
                 + "\"vanilla-hull-merged-json-cache-v1\":1}"), report);
         assertTrue(report.contains("\"planInventory\":{"), report);

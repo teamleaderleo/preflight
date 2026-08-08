@@ -274,6 +274,8 @@ struct LaunchSettingsInput {
     antialiasing_samples: u8,
     ui_scale: f64,
     battle_size: u32,
+    #[serde(rename = "memoryMiB")]
+    memory_mib: Option<u32>,
 }
 
 impl EnginePaths {
@@ -1794,6 +1796,9 @@ fn launch_settings_json(
             .arg(settings.ui_scale.to_string())
             .arg("--battle-size")
             .arg(settings.battle_size.to_string());
+        if let Some(memory_mib) = settings.memory_mib {
+            command.arg("--memory-mb").arg(memory_mib.to_string());
+        }
     }
     command.arg("--game").arg(directory).arg("--json");
     let output = command
@@ -1832,6 +1837,12 @@ fn validate_launch_settings(settings: &LaunchSettingsInput) -> Result<(), String
     }
     if settings.battle_size == 0 {
         return Err("Battle size must be positive.".to_string());
+    }
+    if settings
+        .memory_mib
+        .is_some_and(|memory| !(512..=32768).contains(&memory) || memory % 256 != 0)
+    {
+        return Err("Memory must be 512-32768 MiB in 256 MiB steps.".to_string());
     }
     Ok(())
 }
@@ -3150,6 +3161,7 @@ mod tests {
             antialiasing_samples: 12,
             ui_scale: 1.25,
             battle_size: 400,
+            memory_mib: Some(6144),
         };
         assert!(validate_launch_settings(&valid).is_ok());
 

@@ -20,7 +20,9 @@ import java.util.Map;
  * activation, which stages and replaces {@code mods/enabled_mods.json} after saving the original
  * under {@link #profileBackups()}. The launch-settings command also updates Starsector's own small
  * cross-platform preference store after writing the selected old values under
- * {@link #launcherPreferenceBackups()}. Uninstall does not restore either explicit user choice.
+ * {@link #launcherPreferenceBackups()}. An explicit heap-size change similarly backs up the exact
+ * launcher file under {@link #launcherFileBackups()}. Uninstall does not restore these explicit
+ * user choices.
  *
  * <p><b>On directory choice.</b> One dot-directory under the user's home is used on all three
  * platforms rather than the platform-idiomatic split (macOS {@code ~/Library/Caches} plus
@@ -201,5 +203,10 @@ record PreflightHome(Path root, List<Integration> integrations) {
     /** Snapshots of the small preference set changed through the launch-settings UI. */
     Path launcherPreferenceBackups() {
         return root.resolve("launcher-preference-backups");
+    }
+
+    /** Exact original bytes of a launcher or VM-parameter file changed through the settings UI. */
+    Path launcherFileBackups() {
+        return root.resolve("launcher-file-backups");
     }
 }

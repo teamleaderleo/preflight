@@ -376,7 +376,7 @@ h2 {
 
 .quick-settings__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.72fr) minmax(0, 0.72fr);
   gap: 10px;
 }
 
@@ -392,7 +392,9 @@ h2 {
   font-weight: 650;
 }
 
-.quick-control input {
+.quick-control input,
+.quick-control select,
+.quick-control--read-only > strong {
   width: 100%;
   height: 46px;
   padding: 0 13px;
@@ -405,7 +407,18 @@ h2 {
   font-weight: 650;
 }
 
-.quick-control input:focus {
+.quick-control select {
+  appearance: none;
+}
+
+.quick-control--read-only > strong {
+  display: flex;
+  align-items: center;
+  color: #b7c7ce;
+}
+
+.quick-control input:focus,
+.quick-control select:focus {
   border-color: rgba(113, 186, 198, 0.72);
   outline: 2px solid rgba(67, 147, 161, 0.2);
 }

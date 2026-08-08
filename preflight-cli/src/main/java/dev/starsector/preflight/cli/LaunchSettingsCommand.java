@@ -39,6 +39,7 @@ final class LaunchSettingsCommand {
         Integer antialiasing = null;
         Double uiScale = null;
         Integer battleSize = null;
+        Integer memoryMiB = null;
         while (index < args.length) {
             String argument = args[index++];
             switch (argument) {
@@ -50,11 +51,12 @@ final class LaunchSettingsCommand {
                 case "--antialiasing" -> antialiasing = integer(requireValue(args, index++, argument), argument);
                 case "--ui-scale" -> uiScale = decimal(requireValue(args, index++, argument), argument);
                 case "--battle-size" -> battleSize = integer(requireValue(args, index++, argument), argument);
+                case "--memory-mb" -> memoryMiB = integer(requireValue(args, index++, argument), argument);
                 default -> throw new IllegalArgumentException("Unknown option: " + argument);
             }
         }
         if (!set && (resolution != null || fullscreen != null || sound != null
-                || antialiasing != null || uiScale != null || battleSize != null)) {
+                || antialiasing != null || uiScale != null || battleSize != null || memoryMiB != null)) {
             throw new IllegalArgumentException("Use `launch-settings set` to change settings");
         }
         Path installRoot = game == null ? null : InstallRoot.resolve(game);
@@ -62,47 +64,70 @@ final class LaunchSettingsCommand {
         GameLaunchPreferences.Store store = GameLaunchPreferences.installed();
         GameLaunchPreferences.Snapshot existing = GameLaunchPreferences.read(store);
         Path backup = null;
+        JvmMemorySettings.UpdateResult memoryUpdate = null;
         if (set) {
             GameLaunchPreferences.Update update = new GameLaunchPreferences.Update(
                     resolution, fullscreen, sound, antialiasing, uiScale, battleSize);
-            GameLaunchPreferences.validate(update);
-            limits.validate(update, existing);
+            boolean preferenceChange = resolution != null || fullscreen != null || sound != null
+                    || antialiasing != null || uiScale != null || battleSize != null;
+            if (!preferenceChange && memoryMiB == null) {
+                throw new IllegalArgumentException("Name at least one launch setting to change");
+            }
+            if (preferenceChange) {
+                GameLaunchPreferences.validate(update);
+                limits.validate(update, existing);
+            }
             OperationLease.Acquisition ownership = OperationLease.acquire(
                     PreflightHome.current(), "changing-launch-settings", installRoot);
             try (OperationLease ignored = ownership.lease()) {
-                backup = applyUpdate(store, update);
+                UpdateOutcome outcome = applyUpdate(
+                        store, update, preferenceChange, installRoot, memoryMiB);
+                backup = outcome.preferenceBackup();
+                memoryUpdate = outcome.memoryUpdate();
             }
         }
 
         DirectLaunchSettings.Availability availability = directAvailability();
+        JvmMemorySettings.Snapshot memory = memoryUpdate == null
+                ? JvmMemorySettings.inspect(installRoot)
+                : memoryUpdate.snapshot();
         Map<String, Object> report = describe(
                 availability,
                 GameLaunchPreferences.read(store),
                 limits,
+                memory,
                 set,
-                backup);
+                backup,
+                memoryUpdate == null ? null : memoryUpdate.backup());
         // This command has historically emitted JSON even without --json. Keep that stable while
         // accepting the flag explicitly for desktop callers and shell consistency.
         if (json || !report.isEmpty()) System.out.println(Json.object(report));
         return 0;
     }
 
-    private static Path applyUpdate(
+    private static UpdateOutcome applyUpdate(
             GameLaunchPreferences.Store store,
-            GameLaunchPreferences.Update update) throws Exception {
-        GameLaunchPreferences.Backup before = GameLaunchPreferences.backup(store);
-        Path backup = writeBackup(before);
+            GameLaunchPreferences.Update update,
+            boolean preferenceChange,
+            Path installRoot,
+            Integer memoryMiB) throws Exception {
+        GameLaunchPreferences.Backup before = preferenceChange ? GameLaunchPreferences.backup(store) : null;
+        Path backup = before == null ? null : writeBackup(before);
         try {
-            GameLaunchPreferences.apply(store, update);
+            if (preferenceChange) GameLaunchPreferences.apply(store, update);
+            JvmMemorySettings.UpdateResult memoryUpdate = memoryMiB == null
+                    ? null : JvmMemorySettings.update(installRoot, memoryMiB);
+            return new UpdateOutcome(backup, memoryUpdate);
         } catch (Exception failed) {
-            try {
-                GameLaunchPreferences.restore(store, before);
-            } catch (Exception rollbackFailed) {
-                failed.addSuppressed(rollbackFailed);
+            if (before != null) {
+                try {
+                    GameLaunchPreferences.restore(store, before);
+                } catch (Exception rollbackFailed) {
+                    failed.addSuppressed(rollbackFailed);
+                }
             }
             throw failed;
         }
-        return backup;
     }
 
     static Map<String, Object> describe(DirectLaunchSettings.Availability availability) {
@@ -110,7 +135,9 @@ final class LaunchSettingsCommand {
                 availability,
                 GameLaunchPreferences.read(key -> null),
                 Limits.unknown(),
+                JvmMemorySettings.Snapshot.unavailable("No installation was selected"),
                 false,
+                null,
                 null);
     }
 
@@ -118,8 +145,10 @@ final class LaunchSettingsCommand {
             DirectLaunchSettings.Availability availability,
             GameLaunchPreferences.Snapshot preferences,
             Limits limits,
+            JvmMemorySettings.Snapshot memory,
             boolean changed,
-            Path backup) {
+            Path backup,
+            Path memoryBackup) {
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("format", FORMAT);
         document.put("directLaunchAvailable", availability.available());
@@ -130,9 +159,17 @@ final class LaunchSettingsCommand {
                 ? null : availability.settings().toReportValues());
         document.put("preferences", preferences.toMap());
         document.put("limits", limits.toMap());
+        Map<String, Object> memoryValues = memory.toMap();
+        memoryValues.put("backup", memoryBackup);
+        document.put("memory", memoryValues);
         document.put("changed", changed);
         document.put("backup", backup);
         return document;
+    }
+
+    private record UpdateOutcome(
+            Path preferenceBackup,
+            JvmMemorySettings.UpdateResult memoryUpdate) {
     }
 
     private static DirectLaunchSettings.Availability directAvailability() {

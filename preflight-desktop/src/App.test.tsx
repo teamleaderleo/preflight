@@ -197,6 +197,7 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByLabelText("Antialiasing")).toHaveValue("0");
   expect(screen.getByLabelText("UI scaling")).toHaveValue("1");
   expect(screen.getByLabelText("Deployment-point budget")).toHaveValue("400");
+  expect(screen.getByLabelText("Game memory")).toHaveValue("6144");
   await user.click(screen.getByRole("button", { name: "Save launch settings" }));
   expect(await screen.findByText(/Game settings saved/)).toBeInTheDocument();
 });

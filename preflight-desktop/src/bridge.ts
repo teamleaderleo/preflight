@@ -256,6 +256,17 @@ export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
         battleSizeMax: 400,
         diagnostics: [],
       },
+      memory: {
+        available: true,
+        editable: true,
+        maxHeapMiB: 6144,
+        initialHeapMiB: 6144,
+        source: "/Applications/Starsector.app/Contents/MacOS/starsector_mac.sh",
+        sourceKind: "launcher",
+        reason: null,
+        diagnostics: [],
+        backup: null,
+      },
       changed: false,
       backup: null,
     };
@@ -272,6 +283,14 @@ export async function updateLaunchSettings(
     return {
       ...current,
       preferences: { ...current.preferences, ...settings },
+      memory: {
+        ...current.memory,
+        maxHeapMiB: settings.memoryMiB ?? current.memory.maxHeapMiB,
+        initialHeapMiB: settings.memoryMiB ?? current.memory.initialHeapMiB,
+        backup: settings.memoryMiB === current.memory.maxHeapMiB
+          ? null
+          : "~/.starsector-preflight/launcher-file-backups/preview-starsector_mac.sh",
+      },
       changed: true,
       backup: "~/.starsector-preflight/launcher-preference-backups/preview.json",
     };

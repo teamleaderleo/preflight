@@ -303,6 +303,7 @@ export default function App() {
         antialiasingSamples: result.preferences.antialiasingSamples ?? 0,
         uiScale: result.preferences.uiScale ?? 1,
         battleSize: result.preferences.battleSize ?? result.limits.battleSizeDefault ?? 400,
+        memoryMiB: result.memory.editable ? result.memory.maxHeapMiB : null,
       });
     } catch (error) {
       setMessage(String(error));
@@ -370,7 +371,7 @@ export default function App() {
     const game = snapshot?.selected?.installRoot;
     if (!game || !launcherDraft) return;
     setLauncherSettingsSaving(true);
-    setMessage("Saving Starsector’s own launch preferences…");
+    setMessage("Saving game settings…");
     try {
       const result = await updateLaunchSettings(game, launcherDraft);
       setLauncherSettings(result);
@@ -434,6 +435,7 @@ export default function App() {
     || launcherDraft.antialiasingSamples !== (launcherSettings.preferences.antialiasingSamples ?? 0)
     || launcherDraft.uiScale !== (launcherSettings.preferences.uiScale ?? 1)
     || launcherDraft.battleSize !== (launcherSettings.preferences.battleSize ?? launcherSettings.limits.battleSizeDefault ?? 400)
+    || (launcherDraft.memoryMiB !== null && launcherDraft.memoryMiB !== launcherSettings.memory.maxHeapMiB)
   ));
   const title = pageTitle(page, status, preparing, isReady, needsPreparation);
   const startActive = page === "home" || page === "launch";
@@ -548,6 +550,18 @@ export default function App() {
                   <span>Battle size</span>
                   <input id="home-battle-size" aria-label="Home battle size" type="number" min={launcherSettings.limits.battleSizeMin ?? 1} max={launcherSettings.limits.battleSizeMax ?? Math.max(launcherDraft.battleSize, 400)} step="10" value={launcherDraft.battleSize} onChange={(event) => setLauncherDraft({ ...launcherDraft, battleSize: Number(event.target.value) })} />
                 </label>
+                {launcherSettings.memory.editable && launcherDraft.memoryMiB !== null ? (
+                  <label className="quick-control" htmlFor="home-memory">
+                    <span>RAM</span>
+                    <select id="home-memory" aria-label="Home game memory" value={launcherDraft.memoryMiB} onChange={(event) => setLauncherDraft({ ...launcherDraft, memoryMiB: Number(event.target.value) })}>
+                      {Array.from(new Set([2048, 4096, 6144, 8192, 12288, 16384, launcherDraft.memoryMiB])).sort((a, b) => a - b).map((memory) => <option value={memory} key={memory}>{memory / 1024} GB</option>)}
+                    </select>
+                  </label>
+                ) : (
+                  <div className="quick-control quick-control--read-only" title={launcherSettings.memory.reason ?? undefined}>
+                    <span>RAM</span><strong>{launcherSettings.memory.maxHeapMiB ? `${launcherSettings.memory.maxHeapMiB / 1024} GB` : "External"}</strong>
+                  </div>
+                )}
               </div>
               <div className="quick-settings__toggles">
                 <label><input type="checkbox" aria-label="Home fullscreen" checked={launcherDraft.fullscreen} onChange={(event) => setLauncherDraft({ ...launcherDraft, fullscreen: event.target.checked })} /><span>Fullscreen</span></label>
@@ -655,12 +669,20 @@ export default function App() {
                       <span>Game default {launcherSettings.limits.battleSizeDefault ?? "unknown"}</span>
                       <span>Maximum {launcherSettings.limits.battleSizeMax ?? "unknown"}</span>
                     </div>
+                    <label className="setting-field" htmlFor="launch-memory">
+                      <span><strong>Game memory</strong><small>{launcherSettings.memory.source ? `Owned by ${shortPath(launcherSettings.memory.source)}` : launcherSettings.memory.reason ?? "Managed by the selected launcher"}</small></span>
+                      {launcherSettings.memory.editable && launcherDraft.memoryMiB !== null ? (
+                        <select id="launch-memory" aria-label="Game memory" value={launcherDraft.memoryMiB} onChange={(event) => setLauncherDraft({ ...launcherDraft, memoryMiB: Number(event.target.value) })}>
+                          {Array.from(new Set([2048, 4096, 6144, 8192, 12288, 16384, launcherDraft.memoryMiB])).sort((a, b) => a - b).map((memory) => <option value={memory} key={memory}>{memory / 1024} GB</option>)}
+                        </select>
+                      ) : <strong>{launcherSettings.memory.maxHeapMiB ? `${launcherSettings.memory.maxHeapMiB / 1024} GB` : "Unavailable"}</strong>}
+                    </label>
                   </section>
                 </div>
 
-                {(launcherSettings.preferences.diagnostics.length > 0 || launcherSettings.limits.diagnostics.length > 0) && (
+                {(launcherSettings.preferences.diagnostics.length > 0 || launcherSettings.limits.diagnostics.length > 0 || launcherSettings.memory.diagnostics.length > 0) && (
                   <section className="card launch-diagnostics">
-                    {[...launcherSettings.preferences.diagnostics, ...launcherSettings.limits.diagnostics].map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}
+                    {[...launcherSettings.preferences.diagnostics, ...launcherSettings.limits.diagnostics, ...launcherSettings.memory.diagnostics].map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}
                   </section>
                 )}
 

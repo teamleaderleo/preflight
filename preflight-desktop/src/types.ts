@@ -163,6 +163,17 @@ export interface LaunchSettings {
     battleSizeMax: number | null;
     diagnostics: string[];
   };
+  memory: {
+    available: boolean;
+    editable: boolean;
+    maxHeapMiB: number | null;
+    initialHeapMiB: number | null;
+    source: string | null;
+    sourceKind: string | null;
+    reason: string | null;
+    diagnostics: string[];
+    backup: string | null;
+  };
   changed: boolean;
   backup: string | null;
 }
@@ -174,6 +185,7 @@ export interface LaunchSettingsUpdate {
   antialiasingSamples: number;
   uiScale: number;
   battleSize: number;
+  memoryMiB: number | null;
 }
 
 export interface RunStateEvent {

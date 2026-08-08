@@ -269,6 +269,7 @@ final class AdapterReport {
         field(output, "mode", mode.name());
         field(output, "destination", destination.toString());
         nullableField(output, "targetFile", targetFile == null ? null : targetFile.toString());
+        numberField(output, "jvmMaxHeapBytes", Runtime.getRuntime().maxMemory());
         arrayField(output, "candidatePrefixes", prefixes);
         booleanField(output, "transformerInstalled", transformerInstalled);
         booleanField(output, "killSwitchActive", killSwitchActive);
