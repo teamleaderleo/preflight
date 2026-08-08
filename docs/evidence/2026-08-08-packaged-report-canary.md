@@ -12,11 +12,19 @@ then uploaded the file after the explicit send action. The intake accepted case
 grant returned HTTP 204 and removed the object. The local deletion receipt was removed after the
 remote cleanup.
 
-The archive was small enough to finish before the packaged UI accepted a cancellation click. This
-run therefore establishes packaged disclosure, consent, upload, finalization, receipt persistence
-and scoped remote deletion. It doesn't claim packaged cancellation. The native transport test
-covers cancellation during upload, authorized cleanup of the incomplete case and preservation of
-the local ZIP; a larger packaged cancellation canary remains in the release checklist.
+The first archive was small enough to finish before the packaged UI accepted a cancellation click.
+A second canary added one clearly marked synthetic run session made from allowed JSON metadata,
+producing a 3,762,549-byte ZIP with SHA-256
+`97a814b5a234487463052a31db863181ed115426b5e108d15f355b7e9c7de36c`. Preflight cancelled after
+256 KiB had streamed and reported success only after the native host confirmed deletion of the
+incomplete server case. The same local ZIP remained available for retry. The retry completed as
+case `cefc8e15-8abe-4613-9b39-8bf7b3fd5682`, returned the same size and digest, and was removed with
+its exact scoped grant (HTTP 204).
+
+Together the two runs establish packaged disclosure, consent, upload cancellation with confirmed
+server cleanup, local-archive preservation, retry, finalization, receipt persistence and scoped
+remote deletion. After the app closed, the exact synthetic evidence session and its exported ZIP
+were moved to Trash. No existing run or benchmark session was removed.
 
 The first launch of this package also found a pre-window crash in ordinary builds. The updater
 plugin was registered while the base Tauri configuration supplied no `plugins.updater` object, so

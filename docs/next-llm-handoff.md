@@ -1323,9 +1323,9 @@ and atomic/staged replacement path. Matching content-addressed caches are reused
 switching does not pretend every profile is already prepared. Browser tests cover the active state
 and preview-before-apply contract.
 
-Next release implementation order: finish the larger packaged report-cancellation canary and the
-private hosted candidate, then exercise candidate packages on real licensed Windows/Linux
-installations. Core CI and native packaging are green on all three desktop platforms, but safe
+Next release implementation order: finish the private hosted candidate, then exercise candidate
+packages on real licensed Windows/Linux installations. Core CI and native packaging are green on
+all three desktop platforms, but safe
 fallback outside the reviewed macOS game bytecode is not the same claim as equal activation or
 speed. Run the controlled release-candidate cohort only after the candidate's behavior and
 packaging are frozen.
@@ -1346,10 +1346,10 @@ streams bounded progress, coordinates cancellation and app exit, validates the s
 supports its case-specific deletion grant. The UI keeps local export usable without a service,
 prevents a new send from silently replacing an unsaved receipt, and offers copy, explicit dismissal,
 and early deletion. The private R2 bucket, expiration, abuse limits and synthetic production canary
-are complete. A production-origin release-mode DMG also completed disclosure, consent, byte-exact
-upload, receipt persistence and scoped deletion. Its 197,379-byte ZIP finished before the UI could
-accept a cancel click, so packaged cancellation and the complete hosted candidate matrix still
-block enabling the origin in distributed builds. That run first exposed a pre-window crash caused
+are complete. A production-origin release-mode DMG also completed disclosure, consent, mid-stream
+cancellation with confirmed server cleanup, local-ZIP preservation, retry, receipt persistence and
+scoped deletion. The complete hosted candidate matrix still blocks enabling the origin in
+distributed builds. That run first exposed a pre-window crash caused
 by a missing base updater configuration. Ordinary packages now carry an inert updater object,
 signed overlays supply the real key, and macOS package verification starts the copied native host
 as well as the engine. See `docs/evidence/2026-08-08-packaged-report-canary.md`.

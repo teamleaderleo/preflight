@@ -65,7 +65,8 @@ Ordinary development and source builds don't contain an intake origin, so the ac
 disabled and local export continues to work. The private Worker and hostile-ZIP checks live under
 [`report-intake`](../report-intake/README.md). Production provisioning, rate limiting and the live
 synthetic canary are complete. A production-origin macOS package has also completed disclosure,
-consent, upload, receipt persistence and scoped deletion; packaged cancellation and the complete
-hosted candidate matrix still block enabling the origin in a distributed package.
+consent, mid-stream cancellation with confirmed server cleanup, retry, receipt persistence and
+scoped deletion. The complete hosted candidate matrix still blocks enabling the origin in a
+distributed package.
 This isn't a general telemetry channel. Automatic crash upload—if ever added—will be a separate,
 default-off choice. See the [product contract](product-contract.md) and [Privacy](privacy.md).
