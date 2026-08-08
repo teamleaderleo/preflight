@@ -7,7 +7,10 @@ test("responsive layouts keep document scrolling locked to bounded workspaces", 
 });
 
 test("system theme and motion preferences remain first-class", () => {
+  expect(styles).toMatch(/:root\s*\{[^}]*color-scheme:\s*light;/s);
   expect(styles).toContain("@media (prefers-color-scheme: dark)");
+  expect(styles).toMatch(/prefers-color-scheme: dark[\s\S]*?:root\s*\{[^}]*color-scheme:\s*dark;/);
+  expect(styles).toMatch(/\.quick-control select\s*\{[^}]*color-scheme:\s*dark;/s);
   expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
   expect(styles).toMatch(/prefers-reduced-motion:[\s\S]*?transition-duration:\s*0\.01ms !important;/);
 });
@@ -25,6 +28,8 @@ test("optimization presets stay readable at the default desktop width", () => {
 });
 
 test("supporting copy stays legible while dense evidence remains compact", () => {
+  expect(styles).toContain("--font-body: B612");
+  expect(styles).toContain('--font-data: "B612 Mono"');
   expect(styles).toContain("--text-support: 14px");
   expect(styles).toMatch(/\.notice\s*\{[^}]*font-size:\s*var\(--text-support\);/s);
   expect(styles).toMatch(/\.report-review > p,[\s\S]*?font-size:\s*var\(--text-support\);/);

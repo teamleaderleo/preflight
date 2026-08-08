@@ -68,8 +68,9 @@ independent utility made for the game, not an unofficial replacement launcher pr
 game.
 
 Orbitron stays limited to the Preflight wordmark, major numeric readouts and occasional short
-labels. Inter handles every control, paragraph, status and table. Body copy starts at 16 px, small
-metadata at 13–14 px, and controls keep a 44 px minimum target. Dense evidence uses aligned rows
+labels. B612 handles controls, paragraphs, status and tables, with B612 Mono reserved for compact
+operational labels. Body copy starts at 16 px, small metadata at 13–14 px, and controls keep a 44 px
+minimum target. Dense evidence uses aligned rows
 instead of smaller type.
 
 The working palette uses near-black, desaturated navy surfaces with muted steel-blue borders. Cyan
