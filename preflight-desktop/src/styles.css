@@ -262,6 +262,17 @@ button {
   margin-bottom: 28px;
 }
 
+.page-title:focus {
+  outline: 0;
+}
+
+.page-title:focus-visible {
+  text-decoration-line: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 8px;
+}
+
 .eyebrow {
   margin: 0 0 7px;
   color: var(--accent-strong);
@@ -2102,7 +2113,7 @@ footer {
 
   .nav__item {
     gap: 0;
-    width: 42px;
+    width: 44px;
     padding-inline: 0;
   }
 

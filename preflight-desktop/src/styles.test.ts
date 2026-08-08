@@ -34,4 +34,6 @@ test("focus and pointer targets cover every native desktop control", () => {
   expect(styles).toMatch(/button\s*\{[^}]*min-height:\s*44px;/s);
   expect(styles).toMatch(/\.icon-button\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/s);
   expect(styles).toMatch(/\.text-button\s*\{[^}]*min-height:\s*44px;/s);
+  expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.nav__item\s*\{[^}]*width:\s*44px;/);
+  expect(styles).toMatch(/\.page-title:focus-visible\s*\{[^}]*text-decoration-color:\s*var\(--accent\);/s);
 });

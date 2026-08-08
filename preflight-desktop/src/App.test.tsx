@@ -146,6 +146,7 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
 
 test("keyboard users can skip navigation and receive the new workspace heading", async () => {
   const user = userEvent.setup();
+  const focus = vi.spyOn(HTMLElement.prototype, "focus");
   render(<App />);
 
   await screen.findByText("Ready");
@@ -155,7 +156,9 @@ test("keyboard users can skip navigation and receive the new workspace heading",
   await user.click(screen.getByRole("button", { name: "Run reports" }));
   const heading = await screen.findByRole("heading", { name: "Run reports", level: 1 });
   expect(heading).toHaveFocus();
+  expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
+  focus.mockRestore();
 });
 
 test("common game settings are editable beside launch", async () => {

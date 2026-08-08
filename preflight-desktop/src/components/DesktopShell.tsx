@@ -45,7 +45,7 @@ export function DesktopShell({
     if (pageViewport.current) pageViewport.current.scrollTop = 0;
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    if (previousPage.current !== page) pageTitle.current?.focus();
+    if (previousPage.current !== page) pageTitle.current?.focus({ preventScroll: true });
     previousPage.current = page;
   }, [page]);
   return (

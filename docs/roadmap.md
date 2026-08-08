@@ -20,8 +20,8 @@ Release work now has priority over another narrow startup experiment:
 
 1. written Fractal Softworks authorization for distribution, integration approach, name, and
    disclaimer;
-2. finish the private signed candidate, packaged report intake, and cross-platform update/rollback
-   path;
+2. complete the hosted three-platform candidate and its Windows/Linux install, update, rollback,
+   and removal evidence;
 3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
 4. a controlled before/after release-candidate campaign plus frame-time/FPS evidence for gameplay
    claims; and

@@ -8,8 +8,8 @@ more smoothly without permanently patching the game, its mods, or your saves.**
 
 > **Development preview.** Public binaries aren't available yet. Distribution, descriptive use of
 > the Starsector name, and final disclaimer wording are pending written guidance from Fractal
-> Softworks. The remaining release gates include unsigned-package installation guidance, packaged
-> update/report lifecycle testing, and real Windows/Linux game testing. See
+> Softworks. The remaining release gates are the complete hosted candidate, real Windows/Linux game
+> testing, and a fresh controlled before/after cohort on the exact release candidate. See
 > [Release readiness](docs/release-readiness.md).
 
 **Measured development record: roughly 101 seconds at the observed worst case → 15.88 seconds for
