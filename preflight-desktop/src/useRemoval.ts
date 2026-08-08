@@ -1,6 +1,10 @@
 import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
 import type { DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
+import {
+  DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
+  OPTIMIZATION_PRESET_STORAGE_KEY,
+} from "./useOptimizationPolicy";
 
 export function useRemoval(
   platform: DesktopSnapshot["platform"] | undefined,
@@ -46,8 +50,8 @@ export function useRemoval(
       const result = await applyRemoval(scope);
       if (currentRequest !== request.current) return;
       if (scope === "all-data") {
-        try { window.localStorage.removeItem("preflight.optimizationPreset"); } catch { /* already removed on disk */ }
-        try { window.localStorage.removeItem("preflight.disabledOptimizationDomains"); } catch { /* already removed on disk */ }
+        try { window.localStorage.removeItem(OPTIMIZATION_PRESET_STORAGE_KEY); } catch { /* already removed on disk */ }
+        try { window.localStorage.removeItem(DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY); } catch { /* already removed on disk */ }
         clearCache();
         clearProfiles();
       }

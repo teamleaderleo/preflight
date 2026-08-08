@@ -133,7 +133,10 @@ first public beta.
 - [ ] Publish checksums, an SBOM/dependency inventory, MIT license, third-party notices, privacy
   statement, installation/removal instructions, known limitations, and release notes. The private
   release pipeline now assembles the legal/privacy files, path-correct checksums, and five validated
-  target-specific SBOMs; publication and final release notes remain gated.
+  target-specific SBOMs. The final verifier also pins every updater URL to either the exact GitHub
+  release tag matching the manifest version or the inert private-candidate origin; arbitrary HTTPS
+  hosts, another tag, and mixed modes fail. Publication and final release notes remain gated. See
+  [the updater release origin boundary](evidence/2026-08-09-updater-release-origin-boundary.md).
 - [ ] Verify that no Starsector, mod, save, activation, or other third-party proprietary content is
   present in packages, diagnostics fixtures, screenshots, or source history. Core release archives
   now fail closed against an exact file manifest, compare every archived byte with its staged file,

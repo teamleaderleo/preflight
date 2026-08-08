@@ -1,8 +1,9 @@
 use crate::operations::{OperationCoordinator, ReportUploadProcess, refuse_update_install};
-use crate::{
+use crate::report_transport::{
     configured_report_origin, emit_report_state, perform_report_deletion, perform_report_upload,
-    report_client, take_deferred_exit, validated_report_archive,
+    report_client, validated_report_archive,
 };
+use crate::take_deferred_exit;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{AppHandle, State};

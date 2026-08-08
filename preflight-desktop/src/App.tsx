@@ -16,6 +16,7 @@ import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
+import { useOptimizationPolicy } from "./useOptimizationPolicy";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
@@ -25,37 +26,10 @@ import { shortPath } from "./uiFormat";
 import type {
   AppStatus,
   DesktopSnapshot,
-  OptimizationDomain,
-  OptimizationPreset,
   RunStateEvent,
 } from "./types";
 
 export { isCurrentProfilePrepared } from "./usePreparation";
-
-function savedOptimizationPreset(): OptimizationPreset {
-  try {
-    const saved = window.localStorage.getItem("preflight.optimizationPreset");
-    if (saved === "recommended" || saved === "conservative" || saved === "off") return saved;
-  } catch {
-    // A locked-down webview may deny storage; the safe product default still applies.
-  }
-  return "recommended";
-}
-
-function savedDisabledOptimizationDomains(): OptimizationDomain[] {
-  try {
-    const saved: unknown = JSON.parse(
-      window.localStorage.getItem("preflight.disabledOptimizationDomains") ?? "[]",
-    );
-    if (!Array.isArray(saved)) return [];
-    const domains = saved.filter(
-      (value): value is OptimizationDomain => value === "prepared-textures" || value === "prepared-audio",
-    );
-    return [...new Set(domains)];
-  } catch {
-    return [];
-  }
-}
 
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
   if (page === "launch") return "Game settings";
@@ -75,10 +49,12 @@ export default function App() {
   const [status, setStatus] = useState<AppStatus>("loading");
   const [message, setMessage] = useState("");
   const [page, setPage] = useState<Page>("home");
-  const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
-  const [disabledOptimizationDomains, setDisabledOptimizationDomains] = useState<OptimizationDomain[]>(
-    savedDisabledOptimizationDomains,
-  );
+  const {
+    optimizationPreset,
+    disabledOptimizationDomains,
+    setOptimizationPreset,
+    setOptimizationDomainEnabled,
+  } = useOptimizationPolicy();
   const refreshRequest = useRef(0);
   const refresh = useCallback(async (game?: string) => {
     const request = ++refreshRequest.current;
@@ -167,31 +143,6 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("preflight.optimizationPreset", optimizationPreset);
-    } catch {
-      // Selection remains valid for this session when persistent storage is unavailable.
-    }
-  }, [optimizationPreset]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        "preflight.disabledOptimizationDomains",
-        JSON.stringify(disabledOptimizationDomains),
-      );
-    } catch {
-      // The validated selection remains active for this session.
-    }
-  }, [disabledOptimizationDomains]);
-
-  const setOptimizationDomainEnabled = (domain: OptimizationDomain, enabled: boolean) => {
-    setDisabledOptimizationDomains((current) => enabled
-      ? current.filter((candidate) => candidate !== domain)
-      : current.includes(domain) ? current : [...current, domain]);
-  };
 
   useEffect(() => {
     if (!isDesktopHost()) return;

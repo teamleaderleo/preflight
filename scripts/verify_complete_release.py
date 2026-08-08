@@ -56,6 +56,10 @@ UPDATER_PACKAGES = {
     "linux-x86_64": "Preflight-Linux-x86_64.AppImage",
     "windows-x86_64": "Preflight-Windows-x86_64.exe",
 }
+PUBLIC_UPDATER_HOST = "github.com"
+PUBLIC_UPDATER_PREFIX = "/teamleaderleo/preflight/releases/download"
+PRIVATE_CANDIDATE_HOST = "private-candidate.invalid"
+PRIVATE_CANDIDATE_PATH = re.compile(r"^/run-[1-9][0-9]*/([^/]+)$")
 
 COMPLETE_FILES = (
     core_boundary.DIST_FILES
@@ -78,7 +82,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_complete_release(directory: Path) -> dict[str, int]:
+def validate_complete_release(directory: Path) -> dict[str, int | str]:
     if not directory.is_dir():
         raise CompleteReleaseError(f"release directory doesn't exist: {directory}")
     entries = list(directory.iterdir())
@@ -100,12 +104,13 @@ def validate_complete_release(directory: Path) -> dict[str, int]:
                     f"{manifest_name} checksum doesn't match: {package_name}"
                 )
 
-    updater_platforms = validate_updater_manifest(directory)
+    updater_platforms, updater_url_mode = validate_updater_manifest(directory)
     return {
         "releaseFiles": len(COMPLETE_FILES),
         "desktopPackages": len(DESKTOP_PACKAGES),
         "platformChecksumManifests": len(PLATFORM_CHECKSUMS),
         "updaterPlatforms": updater_platforms,
+        "updaterUrlMode": updater_url_mode,
         "coreArchivePayloadFiles": core["archivePayloadFiles"],
     }
 
@@ -121,7 +126,7 @@ def validate_core_subset(directory: Path) -> dict[str, int]:
             raise CompleteReleaseError(f"core release boundary failed: {exc}") from exc
 
 
-def validate_updater_manifest(directory: Path) -> int:
+def validate_updater_manifest(directory: Path) -> tuple[int, str]:
     checksum = core_boundary.parse_checksums(
         directory / "latest.json.sha256", {"latest.json"}
     )
@@ -140,6 +145,7 @@ def validate_updater_manifest(directory: Path) -> int:
     platforms = manifest["platforms"]
     if not isinstance(platforms, dict) or set(platforms) != set(UPDATER_PACKAGES):
         raise CompleteReleaseError("latest.json updater platforms differ from the supported set")
+    url_mode: str | None = None
     for platform, package_name in UPDATER_PACKAGES.items():
         entry = platforms[platform]
         if not isinstance(entry, dict) or set(entry) != {"signature", "url"}:
@@ -164,6 +170,7 @@ def validate_updater_manifest(directory: Path) -> int:
             parsed = urlparse(url) if isinstance(url, str) else None
             username = parsed.username if parsed is not None else None
             password = parsed.password if parsed is not None else None
+            port = parsed.port if parsed is not None else None
         except ValueError as exc:
             raise CompleteReleaseError(
                 f"latest.json has unsafe package URL for {platform}"
@@ -172,6 +179,7 @@ def validate_updater_manifest(directory: Path) -> int:
             parsed is None
             or parsed.scheme != "https"
             or not parsed.netloc
+            or port is not None
             or username
             or password
             or parsed.query
@@ -179,7 +187,33 @@ def validate_updater_manifest(directory: Path) -> int:
             or Path(parsed.path).name != package_name
         ):
             raise CompleteReleaseError(f"latest.json has unsafe package URL for {platform}")
-    return len(platforms)
+        mode = reviewed_updater_url_mode(parsed, manifest["version"], package_name)
+        if mode is None:
+            raise CompleteReleaseError(
+                f"latest.json package URL is outside the reviewed release origins for {platform}"
+            )
+        if url_mode is None:
+            url_mode = mode
+        elif url_mode != mode:
+            raise CompleteReleaseError("latest.json mixes public and private-candidate package URLs")
+    if url_mode is None:
+        raise CompleteReleaseError("latest.json has no reviewed updater URL mode")
+    return len(platforms), url_mode
+
+
+def reviewed_updater_url_mode(parsed, version: str, package_name: str) -> str | None:
+    hostname = parsed.hostname.lower() if parsed.hostname is not None else ""
+    public_path = f"{PUBLIC_UPDATER_PREFIX}/v{version}/{package_name}"
+    if hostname == PUBLIC_UPDATER_HOST and parsed.path == public_path:
+        return "public-release"
+    private_match = (
+        PRIVATE_CANDIDATE_PATH.fullmatch(parsed.path)
+        if hostname == PRIVATE_CANDIDATE_HOST
+        else None
+    )
+    if private_match is not None and private_match.group(1) == package_name:
+        return "private-candidate"
+    return None
 
 
 def main() -> int:

@@ -40,7 +40,7 @@ def populate(directory: Path) -> None:
     for platform, package_name in module.UPDATER_PACKAGES.items():
         platforms[platform] = {
             "signature": (directory / f"{package_name}.sig").read_text(encoding="utf-8").strip(),
-            "url": f"https://example.invalid/v0.1.0/{package_name}",
+            "url": f"https://private-candidate.invalid/run-123/{package_name}",
         }
     latest = json.dumps(
         {"version": "0.1.0", "notes": "Fixture release", "platforms": platforms},
@@ -48,6 +48,15 @@ def populate(directory: Path) -> None:
         sort_keys=True,
     ) + "\n"
     (directory / "latest.json").write_text(latest, encoding="utf-8")
+    (directory / "latest.json.sha256").write_text(
+        f"{digest(directory / 'latest.json')}  latest.json\n", encoding="utf-8"
+    )
+
+
+def rewrite_manifest(directory: Path, manifest: dict) -> None:
+    (directory / "latest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     (directory / "latest.json.sha256").write_text(
         f"{digest(directory / 'latest.json')}  latest.json\n", encoding="utf-8"
     )
@@ -61,6 +70,7 @@ class CompleteReleaseTest(unittest.TestCase):
             report = module.validate_complete_release(directory)
             self.assertEqual(len(module.COMPLETE_FILES), report["releaseFiles"])
             self.assertEqual(3, report["updaterPlatforms"])
+            self.assertEqual("private-candidate", report["updaterUrlMode"])
 
     def test_rejects_an_extra_file_at_the_final_publish_boundary(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -100,7 +110,7 @@ class CompleteReleaseTest(unittest.TestCase):
             populate(directory)
             manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
             manifest["platforms"]["linux-x86_64"]["url"] = (
-                "https://example.invalid/v0.1.0/another.AppImage"
+                "https://private-candidate.invalid/run-123/another.AppImage"
             )
             (directory / "latest.json").write_text(
                 json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -109,6 +119,67 @@ class CompleteReleaseTest(unittest.TestCase):
                 f"{digest(directory / 'latest.json')}  latest.json\n", encoding="utf-8"
             )
             with self.assertRaisesRegex(module.CompleteReleaseError, "unsafe package URL"):
+                module.validate_complete_release(directory)
+
+    def test_rejects_an_arbitrary_https_updater_origin(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            populate(directory)
+            manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
+            for entry in manifest["platforms"].values():
+                package_name = Path(entry["url"]).name
+                entry["url"] = f"https://downloads.example.com/releases/v0.1.0/{package_name}"
+            rewrite_manifest(directory, manifest)
+            with self.assertRaisesRegex(module.CompleteReleaseError, "reviewed release origins"):
+                module.validate_complete_release(directory)
+
+    def test_rejects_an_explicit_port_on_a_reviewed_updater_origin(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            populate(directory)
+            manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
+            package_name = module.UPDATER_PACKAGES["windows-x86_64"]
+            manifest["platforms"]["windows-x86_64"]["url"] = (
+                "https://private-candidate.invalid:443/run-123/" + package_name
+            )
+            rewrite_manifest(directory, manifest)
+            with self.assertRaisesRegex(module.CompleteReleaseError, "unsafe package URL"):
+                module.validate_complete_release(directory)
+
+    def test_accepts_the_exact_public_release_tag_and_rejects_another_tag(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            populate(directory)
+            manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
+            for entry in manifest["platforms"].values():
+                package_name = Path(entry["url"]).name
+                entry["url"] = (
+                    "https://github.com/teamleaderleo/preflight/releases/download/"
+                    f"v0.1.0/{package_name}"
+                )
+            rewrite_manifest(directory, manifest)
+            report = module.validate_complete_release(directory)
+            self.assertEqual("public-release", report["updaterUrlMode"])
+
+            manifest["platforms"]["windows-x86_64"]["url"] = manifest["platforms"][
+                "windows-x86_64"
+            ]["url"].replace("/v0.1.0/", "/v0.1.1/")
+            rewrite_manifest(directory, manifest)
+            with self.assertRaisesRegex(module.CompleteReleaseError, "reviewed release origins"):
+                module.validate_complete_release(directory)
+
+    def test_rejects_mixed_public_and_private_candidate_urls(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            populate(directory)
+            manifest = json.loads((directory / "latest.json").read_text(encoding="utf-8"))
+            package_name = module.UPDATER_PACKAGES["linux-x86_64"]
+            manifest["platforms"]["linux-x86_64"]["url"] = (
+                "https://github.com/teamleaderleo/preflight/releases/download/"
+                f"v0.1.0/{package_name}"
+            )
+            rewrite_manifest(directory, manifest)
+            with self.assertRaisesRegex(module.CompleteReleaseError, "mixes public and private"):
                 module.validate_complete_release(directory)
 
     def test_cli_reports_the_final_release_summary(self):

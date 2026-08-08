@@ -30,6 +30,11 @@ check instead of installing stale state. The downloaded platform artifact must p
 key signature embedded in the installed app. Download, signature, or installation failure leaves
 the current version runnable.
 
+The final release verifier admits updater assets only from the repository's exact GitHub release
+path whose `v<version>` tag matches the manifest. Private candidates use a separate inert origin and
+can't mix their URLs with public ones. This keeps a checksum-valid `latest.json` from redirecting a
+candidate to an unreviewed HTTPS host or another release tag.
+
 The built-in updater covers macOS, Windows, and Linux AppImage packages. Debian packages stay with
 the package manager that installed them. Old release packages and their checksums remain the
 rollback path; Preflight doesn't maintain several installed application versions side by side.
