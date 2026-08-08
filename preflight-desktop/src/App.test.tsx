@@ -104,6 +104,8 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(await screen.findByRole("button", { name: "Launch Starsector" })).toBeEnabled();
   expect(screen.getAllByText("Launch Starsector")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
+  expect(screen.getByText("83 mods · saved profile")).toBeInTheDocument();
   expect(screen.getByText("Recommended")).toBeInTheDocument();
   expect(screen.getByText(/Prepared ·/)).toBeInTheDocument();
 });
@@ -117,7 +119,6 @@ test("blocks installation and preparation mutations while the game is running", 
   await waitFor(() => expect(game).toHaveBeenCalled());
   expect(screen.getByRole("button", { name: "Refresh installation status" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Change Starsector installation" })).toBeDisabled();
-  expect(screen.getByLabelText("Active profile")).toBeDisabled();
 
   await user.click(screen.getByRole("button", { name: "Preflight" }));
   expect(await screen.findByRole("radio", { name: "Recommended optimizations" })).toBeDisabled();
@@ -141,7 +142,11 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
   viewport.scrollTop = 500;
 
   await user.click(screen.getByRole("button", { name: "Home" }));
-  await waitFor(() => expect(viewport.scrollTop).toBe(0));
+  await waitFor(() => {
+    const homeViewport = container.querySelector<HTMLElement>(".page-viewport");
+    expect(homeViewport).not.toBe(viewport);
+    expect(homeViewport?.scrollTop).toBe(0);
+  });
 });
 
 test("keyboard users can skip navigation and receive the new workspace heading", async () => {
@@ -338,11 +343,15 @@ test("profiles are preview-first and show the exact switch before applying", asy
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.selectOptions(await screen.findByLabelText("Active profile"), "Vanilla plus");
+  expect(await screen.findByText("Heavy campaign")).toBeInTheDocument();
+  expect(screen.getByText("83 mods · saved profile")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Manage profiles" }));
 
   expect(await screen.findByRole("heading", { name: "Profiles", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Heavy campaign")).toBeInTheDocument();
   expect(screen.getByText("Active")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Review switch" }));
 
   expect(await screen.findByRole("heading", { name: "Switch to Vanilla plus?" })).toBeInTheDocument();
   expect(screen.getByText("Enable (1)")).toBeInTheDocument();

@@ -106,10 +106,7 @@ export default function App() {
     refreshCache,
     setMessage,
   );
-  const {
-    clearProfiles,
-    reviewProfile,
-  } = profilesState;
+  const { clearProfiles } = profilesState;
   const cleanup = useCacheCleanup(
     snapshot?.selected?.installRoot,
     setMessage,
@@ -214,10 +211,6 @@ export default function App() {
             onSaveLauncherSettings={() => void launcher.save()}
             onRetry={() => void refresh()}
             onNavigate={setPage}
-            onSelectProfile={(name) => {
-              setPage("profiles");
-              void reviewProfile(name);
-            }}
           />
         ) : page === "launch" ? (
           <>

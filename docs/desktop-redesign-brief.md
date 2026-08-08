@@ -25,7 +25,7 @@ They shouldn't compete with the main action on the first screen.
 
 The sidebar keeps each power-user workspace visible instead of nesting it inside a general menu:
 
-- **Home** — launch, common game controls, active profile, cache footprint and installation;
+- **Home** — launch, common game controls, current mod setup, cache footprint and installation;
 - **Preflight** — optimization policy, preparation resources, texture storage and cache cleanup;
 - **Run reports** — bounded diagnostic export, explicit sending and the automated compatibility
   test;
@@ -63,9 +63,9 @@ component has already closed.
 ## Visual direction
 
 Use a clean flight-instrument feel without copying Starsector's assets or interface. A restrained
-grid, one cyan accent and small orbital/trajectory details are enough. The app should feel like an
-independent utility made for the game, not an unofficial replacement launcher pretending to be the
-game.
+grid, one desaturated blue accent and small orbital/trajectory details are enough. The app should
+feel like an independent utility made for the game, not an unofficial replacement launcher
+pretending to be the game.
 
 Orbitron stays limited to the Preflight wordmark, major numeric readouts and occasional short
 labels. B612 handles controls, paragraphs, status and tables, with B612 Mono reserved for compact
@@ -73,7 +73,7 @@ operational labels. Body copy starts at 16 px, small metadata at 13–14 px, and
 minimum target. Dense evidence uses aligned rows
 instead of smaller type.
 
-The working palette uses near-black, desaturated navy surfaces with muted steel-blue borders. Cyan
+The working palette uses near-black, desaturated navy surfaces with muted steel-blue borders. Blue
 marks focus and movement; amber is reserved for warnings and waypoint details. The paper-plane mark
 sits inside a clipped technical frame with enough texture to read as equipment instead of a glossy
 consumer-app badge. Light mode keeps the same drafting-grid hierarchy on blue-grey paper.
@@ -105,7 +105,7 @@ The Home screen should contain:
 - a compact preset/storage summary;
 - progress or the last completed result;
 - common game controls and one direct route to the remaining controls;
-- an active-profile selector, measured Preflight footprint and installation location.
+- a read-only current mod-setup summary, measured Preflight footprint and installation location.
 
 Update notices and recoverable warnings appear between the status and main action. Support,
 cleanup and removal never appear as equal-weight cards on this screen.
@@ -115,6 +115,8 @@ cleanup and removal never appear as equal-weight cards on this screen.
 - Keep Recommended and Balanced selected by default.
 - Show predicted disk growth before preparation and actual storage afterward.
 - Preserve preview-before-apply for profile changes, cleanup, report sending and removal.
+- Start profile switching on the Profiles screen, where the exact mod-list diff is visible; Home
+  only identifies the current setup.
 - Keep Conservative and Off visible in the Preflight workspace and in targeted error states.
 - Never hide a declined optimization or vanilla fallback; summarize it first and expose exact
   adapter evidence on demand.
@@ -123,6 +125,8 @@ cleanup and removal never appear as equal-weight cards on this screen.
 - Keep the desktop shell fixed to its window. Advanced workspaces may scroll inside their bounded
   content region; Home shouldn't scroll at the standard desktop size.
 - Keep labels readable before trying to fit another card above the fold.
+- Use brief productive motion for navigation and disclosure. Decorative movement remains bounded,
+  never carries meaning alone and follows the system reduced-motion preference.
 
 ## Implementation sequence
 

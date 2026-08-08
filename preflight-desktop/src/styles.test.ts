@@ -15,6 +15,20 @@ test("system theme and motion preferences remain first-class", () => {
   expect(styles).toMatch(/prefers-reduced-motion:[\s\S]*?transition-duration:\s*0\.01ms !important;/);
 });
 
+test("navigation motion stays brief and the home illustration is structural", () => {
+  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 180ms/s);
+  expect(styles).toContain("@keyframes workspace-enter");
+  expect(styles).toContain("@keyframes flight-plot-in");
+  expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
+});
+
+test("the primary palette stays blue rather than blue-green", () => {
+  expect(styles).toContain("--accent: #6079ad");
+  expect(styles).toContain("--accent-strong: #425f98");
+  expect(styles).not.toContain("#3b8493");
+  expect(styles).not.toContain("#246d7a");
+});
+
 test("wide, narrow, and short windows keep content inside the desktop shell", () => {
   expect(styles).toMatch(/\.main\s*\{[^}]*min-width:\s*0;/s);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console\s*\{[^}]*grid-template-columns:\s*1fr;/);

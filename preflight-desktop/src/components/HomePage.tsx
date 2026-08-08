@@ -18,6 +18,19 @@ import type {
 type PreparationState = ReturnType<typeof usePreparation>;
 type ProfilesState = ReturnType<typeof useProfiles>;
 
+const flightPlot = (
+  <div className="flight-plot" aria-hidden="true">
+    <svg viewBox="0 0 480 250" role="presentation">
+      <path className="flight-plot__guide" d="M20 205H458M72 18V232M382 18V232" />
+      <path className="flight-plot__route" d="M28 203C105 31 286 18 449 155" />
+      <circle cx="28" cy="203" r="4" />
+      <circle cx="242" cy="52" r="4" />
+      <circle cx="449" cy="155" r="5" />
+      <path className="flight-plot__craft" d="m431 139 21 16-18 2-8 14 1-19-12-9Z" />
+    </svg>
+  </div>
+);
+
 interface HomePageProps {
   snapshot: DesktopSnapshot | null;
   status: AppStatus;
@@ -41,7 +54,6 @@ interface HomePageProps {
   onSaveLauncherSettings: () => void;
   onRetry: () => void;
   onNavigate: (page: Page) => void;
-  onSelectProfile: (name: string) => void;
 }
 
 export function HomePage({
@@ -67,7 +79,6 @@ export function HomePage({
   onSaveLauncherSettings,
   onRetry,
   onNavigate,
-  onSelectProfile,
 }: HomePageProps) {
   const {
     cache,
@@ -87,6 +98,7 @@ export function HomePage({
     <>
       <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"}`}>
         <div className="launch-console__primary">
+          {flightPlot}
           {status === "running" || preparing || needsPreparation || !isReady ? (
             <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
               {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
@@ -151,17 +163,14 @@ export function HomePage({
 
       <section className="card home-overview" aria-label="Current Preflight setup">
         <div className="home-fact">
-          <span>Profile</span>
-          {profiles && profiles.profiles.length > 0 ? (
-            <select className="home-profile-select" aria-label="Active profile" value={activeProfile?.name ?? ""} disabled={operationBlocked} onChange={(event) => {
-              const name = event.target.value;
-              if (name && name !== activeProfile?.name) onSelectProfile(name);
-            }}>
-              {!activeProfile ? <option value="">Current mod list</option> : null}
-              {profiles.profiles.map((profile) => <option value={profile.name} key={profile.name}>{profile.name}</option>)}
-            </select>
-          ) : <strong>{profilesLoading ? "Reading…" : `${profiles?.enabledMods.length ?? 0} enabled mods`}</strong>}
-          <button className="text-button" type="button" onClick={() => onNavigate("profiles")} disabled={!isReady}>Manage <ArrowIcon /></button>
+          <span>Mod setup</span>
+          <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? `${profiles?.enabledMods.length ?? 0} enabled mods`}</strong>
+          <small>{profilesLoading
+            ? "Checking the current mod list"
+            : activeProfile
+              ? `${activeProfile.modCount.toLocaleString()} mods · saved profile`
+              : "Current list isn't saved as a profile"}</small>
+          <button className="text-button" type="button" onClick={() => onNavigate("profiles")} disabled={!isReady}>Manage profiles <ArrowIcon /></button>
         </div>
         <div className="home-fact">
           <span>Preflight data</span>

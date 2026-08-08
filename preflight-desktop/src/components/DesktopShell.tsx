@@ -93,7 +93,7 @@ export function DesktopShell({
             <RefreshIcon className={status === "loading" ? "spin" : ""} />
           </button>
         </header>
-        <div ref={pageViewport} className={`page-viewport page-viewport--${page}`}>{children}</div>
+        <div key={page} ref={pageViewport} className={`page-viewport page-viewport--${page}`}>{children}</div>
         <footer>
           <span>Preflight {engineVersion}</span>
           <span>Unofficial · Not affiliated with Fractal Softworks</span>
