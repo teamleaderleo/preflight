@@ -1,7 +1,7 @@
 import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { resourcePresets, type usePreparation } from "../usePreparation";
 import { formatBytes } from "../uiFormat";
-import type { AppStatus, CacheCleanupPlan, OptimizationPreset } from "../types";
+import type { CacheCleanupPlan, OptimizationPreset } from "../types";
 
 export const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -33,12 +33,12 @@ type PreparationState = ReturnType<typeof usePreparation>;
 
 interface PreparationPageProps {
   message: string;
-  status: AppStatus;
   isReady: boolean;
   optimizationPreset: OptimizationPreset;
   preparation: PreparationState;
   cleanupPlan: CacheCleanupPlan | null;
   cleanupBusy: boolean;
+  operationBlocked: boolean;
   onOptimizationPresetChange: (preset: OptimizationPreset) => void;
   onReviewCleanup: () => void;
   onCleanCache: () => void;
@@ -47,12 +47,12 @@ interface PreparationPageProps {
 
 export function PreparationPage({
   message,
-  status,
   isReady,
   optimizationPreset,
   preparation,
   cleanupPlan,
   cleanupBusy,
+  operationBlocked,
   onOptimizationPresetChange,
   onReviewCleanup,
   onCleanCache,
@@ -77,8 +77,6 @@ export function PreparationPage({
   } = preparation;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
-  const operationBlocked = preparing || status === "running";
-
   return (
     <div className="prepare-page">
       {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
@@ -144,7 +142,7 @@ export function PreparationPage({
           </div>
           {preparationPlan && !preparationPlan.safeToPrepare ? <p className="activation-warning">{preparationPlan.refusalReason}</p> : null}
           <p className="storage-note">Cleanup is always previewed before deletion.{(cache?.uncategorizedBytes ?? 0) > 0 ? " Other includes retained cache formats and files outside the active categories." : ""}</p>
-          <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || preparing || status === "running"}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
+          <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </section>
       </div>
 
@@ -171,7 +169,7 @@ export function PreparationPage({
           {cleanupPlan.groups.length > 0 ? <div className="cleanup-groups">{cleanupPlan.groups.map((group) => <div key={group.reason}><span>{group.reason.replaceAll("-", " ")}</span><strong>{formatBytes(group.bytes)} · {group.files.toLocaleString()} files</strong></div>)}</div> : null}
           <div className="activation-review__footer">
             <span><ShieldIcon /> The plan is recalculated under the shared operation lock before deletion.</span>
-            <button className="button button--danger" type="button" onClick={onCleanCache} disabled={!cleanupPlan.safe || cleanupPlan.files === 0 || cleanupBusy}>{cleanupBusy ? "Cleaning…" : cleanupPlan.files === 0 ? "Nothing to remove" : `Remove ${cleanupPlan.files.toLocaleString()} files`}</button>
+            <button className="button button--danger" type="button" onClick={onCleanCache} disabled={!cleanupPlan.safe || cleanupPlan.files === 0 || cleanupBusy || operationBlocked}>{cleanupBusy ? "Cleaning…" : cleanupPlan.files === 0 ? "Nothing to remove" : `Remove ${cleanupPlan.files.toLocaleString()} files`}</button>
           </div>
         </section>
       ) : null}

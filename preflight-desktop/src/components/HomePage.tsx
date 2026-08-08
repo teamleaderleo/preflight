@@ -92,7 +92,7 @@ export function HomePage({
           {!isReady || needsPreparation ? <p>{needsPreparation ? "Build reusable data for this mod profile first." : "Select the folder that contains the Starsector launcher."}</p> : null}
           <div className="launch-console__actions">
             {isReady ? (
-              <button className="button button--primary button--launch" type="button" onClick={onPrimaryLaunch} disabled={status === "running" || status === "loading" || preparing || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
+              <button className="button button--primary button--launch" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked || status === "loading" || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
                 {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
                 {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
               </button>
@@ -121,7 +121,7 @@ export function HomePage({
             draft={launcherDraft}
             dirty={launchSettingsDirty}
             saving={launcherSettingsSaving}
-            disabled={status === "running" || preparing || launcherSettingsLoading}
+            disabled={operationBlocked || launcherSettingsLoading}
             onChange={onLauncherChange}
             onOpenAll={() => onNavigate("launch")}
             onSave={onSaveLauncherSettings}

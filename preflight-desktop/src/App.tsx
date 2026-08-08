@@ -136,6 +136,11 @@ export default function App() {
     page === "home" || page === "launch",
     setMessage,
   );
+  const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
+  const primaryLaunch = async () => {
+    if (launcher.dirty && !(await launcher.save())) return;
+    await (needsPreparation ? prepare(true) : launch());
+  };
   const removal = useRemoval(snapshot?.platform, setMessage, clearCache, clearProfiles);
   const updates = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
   const { updateStatus } = updates;
@@ -178,7 +183,6 @@ export default function App() {
     }
   };
 
-  const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const operationBlocked = preparing
     || status === "running"
     || cleanup.busy
@@ -218,7 +222,7 @@ export default function App() {
             operationBlocked={operationBlocked}
             onLauncherChange={launcher.changeDraft}
             onChooseInstall={() => void chooseInstall()}
-            onPrimaryLaunch={() => void (needsPreparation ? prepare(true) : launch())}
+            onPrimaryLaunch={() => void primaryLaunch()}
             onSaveLauncherSettings={() => void launcher.save()}
             onRetry={() => void refresh()}
             onNavigate={setPage}
@@ -245,12 +249,12 @@ export default function App() {
         ) : page === "prepare" ? (
           <PreparationPage
             message={message}
-            status={status}
             isReady={isReady}
             optimizationPreset={optimizationPreset}
             preparation={preparation}
             cleanupPlan={cleanup.plan}
             cleanupBusy={cleanup.busy}
+            operationBlocked={operationBlocked}
             onOptimizationPresetChange={setOptimizationPreset}
             onReviewCleanup={() => void cleanup.review()}
             onCleanCache={() => void cleanup.clean()}

@@ -11,8 +11,8 @@ same time.
 
 | Area | Current size | What is mixed together | Direction |
 | --- | ---: | --- | --- |
-| Tauri `lib.rs` | 1,854 lines after the native lifecycle extractions | report protocol helpers and preparation | Move preparation through the shared operation coordinator; keep hostile-input protocol code beside its tests until that boundary is clearer |
-| React `App.tsx` | 285 lines after the workflow and page extractions | installation selection, launch orchestration and page composition | Keep it as the application composition boundary |
+| Tauri `lib.rs` | 1,566 lines after the native lifecycle extractions | game launch, shared exit cleanup and hostile-input report protocol helpers | Keep the protocol code beside its tests; make another split only when it clarifies ownership |
+| React `App.tsx` | 289 lines after the workflow and page extractions | installation selection, launch orchestration and page composition | Keep it as the application composition boundary |
 | `AdapterTargetRegistry` | 2,028 lines | reviewed class fingerprints and method requirements | Keep explicit; size alone isn't a defect |
 | `RunCommand` | 721 lines after launch-context extraction | launch orchestration, metadata and reporting | Keep it as the launch composition boundary unless another ownership problem appears |
 | `AdapterTransformationRegistry` | 1,024 lines | reviewed transformation registrations | Keep explicit until a generated form proves byte-for-byte equivalent output |
@@ -37,7 +37,7 @@ Move each stateful workflow out of `App.tsx` in this order:
 
 The diagnostics/report, signed-update, preparation/storage, named-profile, desktop-automation,
 launcher-settings, cache-cleanup and removal hooks are complete. Page components are separate, and
-`App.tsx` is now a 285-line composition boundary. State, bridge calls and event subscriptions moved
+`App.tsx` is now a 289-line composition boundary. State, bridge calls and event subscriptions moved
 together, preserving the browser and native transport tests. Further React extraction needs a
 concrete ownership problem rather than a line-count target.
 
@@ -54,10 +54,11 @@ scoped removal, and diagnostics export. The hostile-input HTTP protocol helpers 
 focused tests in `lib.rs` until they can move without obscuring that coverage.
 
 The coordinator's update exclusion, guard release and shutdown cleanup transitions have focused
-tests. Launch settings and named profiles now live in `engine.rs` beside the read-only snapshot,
-storage and removal commands. Preparation is the remaining engine command family in `lib.rs`.
-Mutating commands receive the coordinator and an `AppHandle` without creating another global
-process tracker. Exit cleanup remains centralized.
+tests. Launch settings and named profiles live in `engine.rs` beside the read-only snapshot,
+storage and removal commands. `preparation.rs` owns preparation planning, validation, start/cancel,
+progress events, process monitoring and deferred-exit completion. Mutating commands receive the
+coordinator and an `AppHandle` without creating another global process tracker. Exit cleanup remains
+centralized.
 
 ### 3. Launch context selection
 
@@ -80,6 +81,11 @@ now has a skip route, page-change focus management, uniform visible focus, and 4
 narrow layouts keep document scrolling locked and contain it inside the workspace. Further
 interface work can focus on state coverage, information order, typography and density while the
 feature hooks remain stable.
+
+The first state-coverage pass now fences diagnostics export/report upload and automated-test
+readiness/start/cancellation from same-tick duplicates. Global operation ownership also disables
+launch settings and cleanup controls consistently, and the primary action saves edited launcher
+settings before preparation or launch.
 
 ## Verification rule
 

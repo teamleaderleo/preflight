@@ -32,6 +32,7 @@ export function ReportsPage({
     desktopSmokeProbeBusy,
     desktopSmokeReview,
     desktopSmokeRunDirectory,
+    desktopSmokeCancelling,
     desktopSmokeRunning,
     checkDesktopAutomation,
     runDesktopAutomation,
@@ -88,7 +89,7 @@ export function ReportsPage({
           <p>Leave the game window unobstructed while it runs. The interaction sequence has a four-minute deadline; startup and cleanup have separate bounds.</p>
           <div className="activation-review__footer">
             <span><ShieldIcon /> The driver doesn’t edit game, mod, or save files; it only sends the actions listed here.</span>
-            <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeRunning}>{desktopSmokeRunning ? "Test running…" : "Start automated test"}</button>
+            <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeProbeBusy || desktopSmokeRunning || operationBlocked}>{desktopSmokeRunning ? "Test running…" : "Start automated test"}</button>
           </div>
         </section>
       ) : null}
@@ -149,7 +150,7 @@ export function ReportsPage({
             <span><ShieldIcon /> The native host rechecks the file, size, and SHA-256 immediately before upload.</span>
             {reportUploading
               ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
-              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured}>Send this exact ZIP</button>}
+              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>Send this exact ZIP</button>}
           </div>
         </section>
       ) : null}
@@ -182,8 +183,8 @@ export function ReportsPage({
           {desktopSmokeProbe?.probe.ready ? <small>{desktopSmokeProbe.probe.driver?.capabilities.join(" · ")}</small> : null}
           <div className="update-actions">
             <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || operationBlocked}>{desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}</button>
-            {desktopSmokeProbe?.probe.ready && !desktopSmokeRunning ? <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={operationBlocked}>Review test</button> : null}
-            {desktopSmokeRunning ? <button className="button button--quiet button--compact" type="button" onClick={() => void stopDesktopAutomation()}>Stop test safely</button> : null}
+            {desktopSmokeProbe?.probe.ready && !desktopSmokeRunning ? <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeProbeBusy || operationBlocked}>Review test</button> : null}
+            {desktopSmokeRunning ? <button className="button button--quiet button--compact" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping test…" : "Stop test safely"}</button> : null}
             {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && platform === "mac" ? <button className="button button--quiet button--compact" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => onMessage(String(error)))}>Open Accessibility settings</button> : null}
           </div>
           {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}

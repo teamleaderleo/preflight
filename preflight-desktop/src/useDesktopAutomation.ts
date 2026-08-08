@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   cancelDesktopSmoke,
   getDesktopSmokeProbe,
@@ -29,18 +29,27 @@ export function useDesktopAutomation({
   const [desktopSmokeProbeBusy, setDesktopSmokeProbeBusy] = useState(false);
   const [desktopSmokeReview, setDesktopSmokeReview] = useState(false);
   const [desktopSmokeRunning, setDesktopSmokeRunning] = useState(false);
+  const [desktopSmokeCancelling, setDesktopSmokeCancelling] = useState(false);
   const [desktopSmokeRunDirectory, setDesktopSmokeRunDirectory] = useState<string | null>(null);
+  const probeBusyRef = useRef(false);
+  const runningRef = useRef(false);
+  const cancellingRef = useRef(false);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
     return listenWhileMounted<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
       setDesktopSmokeRunDirectory(payload.runDirectory);
       if (payload.state === "cancelling") {
+        cancellingRef.current = true;
+        setDesktopSmokeCancelling(true);
         announce(payload.detail ?? "Stopping the exact game process and sealing its evidence…");
         return;
       }
       if (payload.state !== "finished" && payload.state !== "cancelled") return;
+      runningRef.current = false;
+      cancellingRef.current = false;
       setDesktopSmokeRunning(false);
+      setDesktopSmokeCancelling(false);
       setStatus(installationReady ? "ready" : "setup");
       const outcome = payload.state === "cancelled"
         ? payload.detail ?? `Automated game test stopped safely. Evidence is in ${displayPath(payload.runDirectory)}.`
@@ -52,6 +61,8 @@ export function useDesktopAutomation({
   }, [announce, displayPath, game, installationReady, refreshInstallation, setStatus]);
 
   const checkDesktopAutomation = async () => {
+    if (probeBusyRef.current || runningRef.current) return;
+    probeBusyRef.current = true;
     setDesktopSmokeProbeBusy(true);
     try {
       setDesktopSmokeProbe(await getDesktopSmokeProbe());
@@ -59,43 +70,58 @@ export function useDesktopAutomation({
       setDesktopSmokeProbe(null);
       announce(String(error));
     } finally {
+      probeBusyRef.current = false;
       setDesktopSmokeProbeBusy(false);
     }
   };
 
   const runDesktopAutomation = async () => {
-    if (!game || !desktopSmokeProbe?.probe.ready || desktopSmokeRunning) return;
+    if (!game || !desktopSmokeProbe?.probe.ready || probeBusyRef.current || runningRef.current) return;
+    runningRef.current = true;
+    cancellingRef.current = false;
     setDesktopSmokeReview(false);
     setDesktopSmokeRunning(true);
+    setDesktopSmokeCancelling(false);
     setDesktopSmokeRunDirectory(null);
     setStatus("running");
     announce("Running the checked launch, campaign movement, evidence, and shutdown sequence…");
     try {
       await startDesktopSmoke(game);
       if (!isDesktopHost()) {
+        runningRef.current = false;
         setDesktopSmokeRunning(false);
         setStatus("ready");
         setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
         announce("Automated game test passed in browser preview.");
       }
     } catch (error) {
+      runningRef.current = false;
+      cancellingRef.current = false;
       setDesktopSmokeRunning(false);
+      setDesktopSmokeCancelling(false);
       setStatus(installationReady ? "ready" : "setup");
       announce(String(error));
     }
   };
 
   const stopDesktopAutomation = async () => {
-    if (!desktopSmokeRunning) return;
+    if (!runningRef.current || cancellingRef.current) return;
+    cancellingRef.current = true;
+    setDesktopSmokeCancelling(true);
     announce("Stopping the exact game process and sealing its evidence…");
     try {
       const requested = await cancelDesktopSmoke();
       if (!requested) {
+        runningRef.current = false;
+        cancellingRef.current = false;
         setDesktopSmokeRunning(false);
+        setDesktopSmokeCancelling(false);
         setStatus(installationReady ? "ready" : "setup");
         announce("The automated game test had already stopped.");
       }
     } catch (error) {
+      cancellingRef.current = false;
+      setDesktopSmokeCancelling(false);
       announce(String(error));
     }
   };
@@ -105,6 +131,7 @@ export function useDesktopAutomation({
     desktopSmokeProbeBusy,
     desktopSmokeReview,
     desktopSmokeRunDirectory,
+    desktopSmokeCancelling,
     desktopSmokeRunning,
     checkDesktopAutomation,
     runDesktopAutomation,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { save as saveFile } from "@tauri-apps/plugin-dialog";
 import {
   cancelRunReport,
@@ -66,6 +66,8 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
   const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(savedRunReportReceipt);
   const [reportError, setReportError] = useState("");
   const [reportDeleting, setReportDeleting] = useState(false);
+  const diagnosticsBusyRef = useRef(false);
+  const reportUploadingRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -115,6 +117,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
         return;
       }
       if (payload.state === "cancelled" || payload.state === "failed") {
+        reportUploadingRef.current = false;
         setReportUploading(false);
         setReportFinalizing(false);
         setReportCancelling(false);
@@ -125,6 +128,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
         return;
       }
       if (payload.state === "finished" && payload.receipt) {
+        reportUploadingRef.current = false;
         setReportUploading(false);
         setReportFinalizing(false);
         setReportCancelling(false);
@@ -135,18 +139,20 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
   }, [announce]);
 
   const saveDiagnostics = async () => {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const destination = isDesktopHost()
-      ? await saveFile({
+    if (diagnosticsBusyRef.current || reportUploadingRef.current) return;
+    diagnosticsBusyRef.current = true;
+    setDiagnosticsBusy(true);
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      const destination = isDesktopHost()
+        ? await saveFile({
           title: "Save Preflight diagnostics",
           defaultPath: `preflight-diagnostics-${stamp}.zip`,
           filters: [{ name: "ZIP archive", extensions: ["zip"] }],
         })
-      : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
-    if (!destination) return;
-    setDiagnosticsBusy(true);
-    announce("Collecting a small, disclosed support bundle…");
-    try {
+        : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
+      if (!destination) return;
+      announce("Collecting a small, disclosed support bundle…");
       const result = await exportDiagnostics(destination);
       setDiagnosticsExport(result);
       setReportReview(false);
@@ -156,12 +162,14 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
     } catch (error) {
       announce(String(error));
     } finally {
+      diagnosticsBusyRef.current = false;
       setDiagnosticsBusy(false);
     }
   };
 
   const submitRunReport = async () => {
-    if (!diagnosticsExport || !reportIntake?.configured || reportUploading) return;
+    if (!diagnosticsExport || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current) return;
+    reportUploadingRef.current = true;
     setReportUploading(true);
     setReportFinalizing(false);
     setReportCancelling(false);
@@ -179,6 +187,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
       if (!detail.toLowerCase().includes("cancel")) setReportError(detail);
       announce(detail);
     } finally {
+      reportUploadingRef.current = false;
       setReportUploading(false);
       setReportFinalizing(false);
       setReportCancelling(false);
@@ -186,12 +195,13 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
   };
 
   const stopRunReport = async () => {
-    if (!reportUploading || reportCancelling) return;
+    if (!reportUploadingRef.current || reportCancelling) return;
     setReportCancelling(true);
     announce("Stopping the report upload…");
     try {
       const requested = await cancelRunReport();
       if (!requested) {
+        reportUploadingRef.current = false;
         setReportUploading(false);
         setReportCancelling(false);
         announce("The report upload had already stopped.");

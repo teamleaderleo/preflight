@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App, { isCurrentProfilePrepared } from "./App";
 import * as bridge from "./bridge";
-import type { CacheSnapshot } from "./types";
+import type { CacheSnapshot, LaunchSettings } from "./types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
@@ -30,6 +30,14 @@ function cacheSnapshot(overrides: Partial<CacheSnapshot> = {}): CacheSnapshot {
     }],
     ...overrides,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((finish) => {
+    resolve = finish;
+  });
+  return { promise, resolve };
 }
 
 test("requires both the exact current index and texture manifest before calling a profile prepared", () => {
@@ -116,6 +124,7 @@ test("blocks installation and preparation mutations while the game is running", 
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: /Balanced4 workers/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: /Calculating|Prepare current profile/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Review cleanup" })).toBeDisabled();
 
   game.mockRestore();
 });
@@ -165,6 +174,47 @@ test("common game settings are editable beside launch", async () => {
   await user.click(screen.getByRole("button", { name: "Apply changes" }));
 
   expect(await screen.findByText(/Game settings saved/)).toBeInTheDocument();
+});
+
+test("the primary action saves edited game settings before launching", async () => {
+  const user = userEvent.setup();
+  const baseline = await bridge.getLaunchSettings("/Applications/Starsector");
+  const pending = deferred<LaunchSettings>();
+  const update = vi.spyOn(bridge, "updateLaunchSettings").mockImplementation(() => pending.promise);
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.clear(await screen.findByLabelText("Home battle size"));
+  await user.type(screen.getByLabelText("Home battle size"), "300");
+  await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
+
+  expect(update).toHaveBeenCalledWith("/Applications/Starsector", expect.objectContaining({ battleSize: 300 }));
+  expect(game).not.toHaveBeenCalled();
+  pending.resolve({
+    ...baseline,
+    preferences: { ...baseline.preferences, battleSize: 300 },
+  });
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended"));
+  update.mockRestore();
+  game.mockRestore();
+});
+
+test("the primary action does not launch when edited game settings fail to save", async () => {
+  const user = userEvent.setup();
+  const update = vi.spyOn(bridge, "updateLaunchSettings").mockRejectedValue(new Error("settings write refused"));
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.clear(await screen.findByLabelText("Home battle size"));
+  await user.type(screen.getByLabelText("Home battle size"), "300");
+  await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
+
+  expect(await screen.findByText("Error: settings write refused")).toBeInTheDocument();
+  expect(game).not.toHaveBeenCalled();
+  update.mockRestore();
+  game.mockRestore();
 });
 
 test("navigation resets the previous workflow scroll position", async () => {
@@ -431,6 +481,7 @@ test("a running automated game test exposes cooperative cancellation", async () 
 
   expect(cancel).toHaveBeenCalledOnce();
   expect(screen.getByText("Stopping the exact game process and sealing its evidence…")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Stopping test…" })).toBeDisabled();
   smoke.mockRestore();
   cancel.mockRestore();
 });

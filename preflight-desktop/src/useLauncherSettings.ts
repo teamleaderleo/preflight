@@ -81,7 +81,7 @@ export function useLauncherSettings(
   const save = async () => {
     const expectedGame = game;
     const submittedDraft = draft;
-    if (!expectedGame || !submittedDraft || savingRef.current) return;
+    if (!expectedGame || !submittedDraft || savingRef.current) return false;
     const currentRequest = ++request.current;
     const submittedRevision = draftRevision.current;
     savingRef.current = true;
@@ -95,8 +95,10 @@ export function useLauncherSettings(
       setLoadedGame(expectedGame);
       if (draftRevision.current === submittedRevision) setDraft(draftFromSettings(result));
       announce("Game settings saved. Vanilla and Preflight launches will use the same values.");
+      return true;
     } catch (error) {
       if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error));
+      return false;
     } finally {
       if (currentRequest === request.current) {
         savingRef.current = false;

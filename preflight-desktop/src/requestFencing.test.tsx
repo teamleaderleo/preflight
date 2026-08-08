@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import * as bridge from "./bridge";
 import { useCacheCleanup } from "./useCacheCleanup";
+import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
@@ -324,4 +325,24 @@ test("removal review is single-flight and dismissal cancels a late plan", async 
   expect(result.current.busy).toBe(false);
   expect(announce).not.toHaveBeenCalled();
   removal.mockRestore();
+});
+
+test("diagnostics export is single-flight from the first save interaction", async () => {
+  const baseline = await bridge.exportDiagnostics("/tmp/baseline.zip");
+  const pending = deferred<typeof baseline>();
+  const exportDiagnostics = vi.spyOn(bridge, "exportDiagnostics").mockImplementation(() => pending.promise);
+  const announce = vi.fn();
+  const { result } = renderHook(() => useDiagnosticsReport(true, announce));
+
+  act(() => {
+    void result.current.saveDiagnostics();
+    void result.current.saveDiagnostics();
+  });
+  await waitFor(() => expect(exportDiagnostics).toHaveBeenCalledTimes(1));
+  expect(result.current.diagnosticsBusy).toBe(true);
+
+  await act(async () => pending.resolve(baseline));
+  await waitFor(() => expect(result.current.diagnosticsBusy).toBe(false));
+  expect(result.current.diagnosticsExport).toEqual(baseline);
+  exportDiagnostics.mockRestore();
 });
