@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import {
-  activateProfile,
   applyCacheCleanup,
   applyRemoval,
   cancelDesktopSmoke,
@@ -10,11 +9,9 @@ import {
   getDesktopSmokeProbe,
   getLaunchSettings,
   getRemovalPlan,
-  getProfiles,
   getSnapshot,
   isDesktopHost,
   openDesktopAccessibilitySettings,
-  saveProfile,
   startGame,
   startDesktopSmoke,
   updateLaunchSettings,
@@ -34,6 +31,7 @@ import {
 import Logo from "./Logo";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { resourcePresets, usePreparation } from "./usePreparation";
+import { useProfiles } from "./useProfiles";
 import { useSignedUpdates } from "./useSignedUpdates";
 import type {
   AppStatus,
@@ -44,8 +42,6 @@ import type {
   LaunchSettings,
   LaunchSettingsUpdate,
   OptimizationPreset,
-  ProfileActivationPlan,
-  ProfileList,
   RemovalPlan,
   RemovalScope,
   RunStateEvent,
@@ -142,6 +138,18 @@ export default function App() {
   const [optimizationPreset, setOptimizationPreset] = useState<OptimizationPreset>(savedOptimizationPreset);
   const [cleanupPlan, setCleanupPlan] = useState<CacheCleanupPlan | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
+  const refresh = useCallback(async (game?: string) => {
+    setStatus("loading");
+    setMessage("");
+    try {
+      const next = await getSnapshot(game);
+      setSnapshot(next);
+      setStatus(next.ready ? "ready" : "setup");
+    } catch (error) {
+      setStatus("error");
+      setMessage(String(error));
+    }
+  }, []);
   const launch = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
@@ -181,11 +189,26 @@ export default function App() {
     launch,
     setMessage,
   );
-  const [profiles, setProfiles] = useState<ProfileList | null>(null);
-  const [profilesLoading, setProfilesLoading] = useState(false);
-  const [profileName, setProfileName] = useState("");
-  const [profileBusy, setProfileBusy] = useState(false);
-  const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
+  const {
+    activationPlan,
+    profileBusy,
+    profileName,
+    profiles,
+    profilesLoading,
+    applyProfile,
+    clearProfiles,
+    refreshProfiles,
+    reviewProfile,
+    saveCurrentProfile,
+    setActivationPlan,
+    setProfileName,
+  } = useProfiles(
+    snapshot?.selected?.installRoot,
+    page === "profiles",
+    refresh,
+    refreshCache,
+    setMessage,
+  );
   const {
     diagnosticsBusy,
     diagnosticsExport,
@@ -226,19 +249,6 @@ export default function App() {
     checkUpdates,
     installSignedUpdate,
   } = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
-
-  const refresh = useCallback(async (game?: string) => {
-    setStatus("loading");
-    setMessage("");
-    try {
-      const next = await getSnapshot(game);
-      setSnapshot(next);
-      setStatus(next.ready ? "ready" : "setup");
-    } catch (error) {
-      setStatus("error");
-      setMessage(String(error));
-    }
-  }, []);
 
   useEffect(() => {
     void refresh();
@@ -290,23 +300,6 @@ export default function App() {
     });
     return () => stopListening?.();
   }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
-
-  const refreshProfiles = useCallback(async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game) return;
-    setProfilesLoading(true);
-    try {
-      setProfiles(await getProfiles(game));
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setProfilesLoading(false);
-    }
-  }, [snapshot?.selected?.installRoot]);
-
-  useEffect(() => {
-    if (page === "profiles") void refreshProfiles();
-  }, [page, refreshProfiles]);
 
   const refreshLauncherSettings = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
@@ -382,61 +375,6 @@ export default function App() {
       setMessage(String(error));
     } finally {
       setCleanupBusy(false);
-    }
-  };
-
-  const saveCurrentProfile = async () => {
-    const game = snapshot?.selected?.installRoot;
-    const name = profileName.trim();
-    if (!game || !name) return;
-    setProfileBusy(true);
-    try {
-      await saveProfile(game, name);
-      setProfileName("");
-      setMessage(`Saved the exact current mod order as “${name}”.`);
-      await refreshProfiles();
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setProfileBusy(false);
-    }
-  };
-
-  const reviewProfile = async (name: string) => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game) return;
-    setProfileBusy(true);
-    try {
-      setActivationPlan(await activateProfile(game, name, false));
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setProfileBusy(false);
-    }
-  };
-
-  const applyProfile = async () => {
-    const game = snapshot?.selected?.installRoot;
-    if (!game || !activationPlan) return;
-    setProfileBusy(true);
-    try {
-      const result = await activateProfile(game, activationPlan.name, true);
-      await Promise.all([refresh(game), refreshProfiles(), refreshCache()]);
-      if (!result.canActivate) {
-        setActivationPlan(result);
-        setMessage(result.missingMods.length
-          ? `The switch was refused because these mods are now missing: ${result.missingMods.join(", ")}.`
-          : "The switch was refused because this profile belongs to a different installation.");
-      } else {
-        setActivationPlan(null);
-        setMessage(result.applied
-          ? `Switched to “${result.name}”. Its exact caches will be reused automatically when available.`
-          : `“${result.name}” was already active; nothing changed.`);
-      }
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setProfileBusy(false);
     }
   };
 
@@ -531,7 +469,7 @@ export default function App() {
       if (scope === "all-data") {
         try { window.localStorage.removeItem("preflight.optimizationPreset"); } catch { /* already removed on disk */ }
         clearCache();
-        setProfiles(null);
+        clearProfiles();
       }
       setRemovalPlan(null);
       const platformStep = snapshot?.platform === "windows"

@@ -12,7 +12,7 @@ same time.
 | Area | Current size | What is mixed together | Direction |
 | --- | ---: | --- | --- |
 | Tauri `lib.rs` | 3,221 lines | process ownership, updates, reports, settings, profiles, removal, preparation and automation | Split by command family after introducing one shared operation coordinator |
-| React `App.tsx` | 1,212 lines after three extractions | installation, profiles, settings, removal and page rendering | Extract the remaining behavior into feature hooks as each page moves |
+| React `App.tsx` | 1,149 lines after four extractions | installation, settings, automation, removal and page rendering | Extract the remaining behavior into feature hooks as each page moves |
 | `AdapterTargetRegistry` | 2,028 lines | reviewed class fingerprints and method requirements | Keep explicit; size alone isn't a defect |
 | `RunCommand` | 1,310 lines | launch orchestration, cache-context selection, metadata and reporting | Extract profile/context selection behind one typed result |
 | `AdapterTransformationRegistry` | 1,024 lines | reviewed transformation registrations | Keep explicit until a generated form proves byte-for-byte equivalent output |
@@ -35,12 +35,12 @@ Move each stateful workflow out of `App.tsx` in this order:
 5. desktop automation;
 6. cache cleanup and removal.
 
-The diagnostics/report, signed-update and preparation/storage hooks are complete. Together they
-removed twenty-five state variables, nine effects and ten actions from the root component while
-retaining the existing browser and native transport tests. The next hooks should keep the same
-rule: state, bridge calls and event subscriptions move together. Presentational page components
-can now move against narrow interfaces instead of carrying process events and cache mutations in
-their props.
+The diagnostics/report, signed-update, preparation/storage and named-profile hooks are complete.
+Together they removed thirty state variables, ten effects and fourteen actions from the root
+component while retaining the existing browser and native transport tests. The next hooks should
+keep the same rule: state, bridge calls and event subscriptions move together. Presentational page
+components can now move against narrow interfaces instead of carrying process events and cache
+mutations in their props.
 
 ### 2. One native operation coordinator
 
