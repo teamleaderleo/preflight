@@ -275,7 +275,7 @@ Measured on the 83-mod profile, macOS, M5 MacBook Air, `--fast`, game log start 
 
 | | seconds |
 | --- | ---: |
-| baseline before this project | 62.6 |
+| first accepted optimized gate (the controlled baseline was 88.13s) | 62.6 |
 | 2026-08-03 morning | 40.52 |
 | 2026-08-03 `main` @ `d29ba17` | 34.66 / 35.54 |
 | **2026-08-04 merged-read cache warm** | **33.42 / 34.15** |

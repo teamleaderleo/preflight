@@ -112,7 +112,7 @@ including each exact host boundary, filter state, and original-bytecode fallback
 discovery change can still require a Preflight update.
 
 Performance claims require comparable game, mod-profile, JVM, launcher, cache, machine-load, and
-measurement identities. The development history runs from an 88.13-second controlled baseline,
-with early accepted launches reaching roughly 101 seconds, to a retained 15.88-second warm record.
+measurement identities. The development history runs from a roughly 101-second observed worst case
+and an 88.13-second controlled median to a retained 15.88-second warm record.
 Those chronological observations come from different measurement identities. A release candidate
 needs its own controlled before/after cohort.

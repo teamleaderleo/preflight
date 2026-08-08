@@ -1,4 +1,4 @@
-# From 88 seconds to 15.88: what changed in Starsector's loading path
+# From 101 seconds to 15.88: what changed in Starsector's loading path
 
 **Status:** publication spine; performance claims link to retained evidence
 
@@ -6,10 +6,10 @@
 
 **Updated:** 2026-08-07
 
-The development installation initially centered around 88 seconds in a controlled five-run
-baseline, while early accepted launches reached roughly 101 seconds at the high end. The fastest
-warm launch recorded so far takes 15.88 seconds on the later 83-mod profile. These numbers describe
-the observed progression across different development stages. The release candidate still needs
+The development installation's observed worst case reached roughly 101 seconds, and its established
+five-run controlled baseline centered on 88.13 seconds. The fastest warm launch recorded so far
+takes 15.88 seconds on the later 83-mod profile. **101 seconds to 15.88 seconds** is the chronological
+headline; 88.13 seconds supplies the repeatable baseline context. The release candidate still needs
 its own controlled before/after measurement.
 
 An intermediate randomized campaign remains in the evidence archive. Its baseline already

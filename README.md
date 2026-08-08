@@ -12,6 +12,9 @@ more smoothly without permanently patching the game, its mods, or your saves.**
 > update/report lifecycle testing, and real Windows/Linux game testing. See
 > [Release readiness](docs/release-readiness.md).
 
+**Measured development record: roughly 101 seconds at the observed worst case → 15.88 seconds for
+the fastest warm launch. The initial five-run controlled median was 88.13 seconds.**
+
 Preflight prepares work that Starsector and its mods would otherwise repeat on every launch, then starts the same game and mod profile using those prepared results.
 
 The intended release experience is simple: install Preflight, choose **Recommended**, prepare the
@@ -37,19 +40,20 @@ java -jar preflight.jar run --direct --optimization-preset recommended
 ## What has been demonstrated
 
 On the development machine — Starsector 0.98a-RC8, M5 MacBook Air, and the game's bundled x86-64
-Java runtime under Rosetta — startup began around **88 seconds** in a controlled five-run baseline,
-with early accepted launches reaching roughly **101 seconds**. The current 83-mod **Recommended**
-path (`--fast` compatibility alias) has reached the main menu in **15.88 seconds**. The two
-preceding clean production gates were **16.66 seconds cold** and **16.28 seconds warm**.
+Java runtime under Rosetta — the observed startup record moved from a roughly **101-second worst
+case to a 15.88-second fastest launch**. The established controlled baseline centered on **88.13
+seconds** across five runs. The current 83-mod **Recommended** path (`--fast` compatibility alias)
+produced the 15.88-second warm record after clean **16.66-second cold** and **16.28-second warm**
+production gates.
 
 The 15.88-second result is the current warm record. It retained 42/42 transformed-class cache hits,
 all 15,469 prepared-texture and
 pixel-conversion hits, active adapter health, and zero adapter decline or failure. The exact run is
 documented in [Codex fleet members are now created only when consumed](docs/evidence/2026-08-06-codex-lazy-fleet-members.md).
 
-The 88-second baseline and 15.88-second record are chronological reference points from different
-stages of development. A fresh release-candidate cohort will provide the same-session effect
-estimate. The original baseline is in the
+The 101-second high, 88.13-second controlled median, and 15.88-second record are chronological
+reference points from different stages of development. A fresh release-candidate cohort will
+provide the same-session effect estimate. The controlled baseline is in the
 [29 percent texture campaign](docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md),
 the early high range is explained in the
 [benchmark-anchor diagnosis](docs/evidence/2026-08-01-the-bimodality-was-the-anchor.md), and the
@@ -75,7 +79,7 @@ pressure, and temperature. The harness lets beta users measure their own install
 The per-change arithmetic, individual multipliers, and source links are in the
 [accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
 The chronological, publication-oriented account is
-[From 88 seconds to 15.88: what changed in Starsector's loading path](docs/optimization-history.md).
+[From 101 seconds to 15.88: what changed in Starsector's loading path](docs/optimization-history.md).
 The [experiment ledger](docs/experiment-ledger.md) includes the unsuccessful and deferred branches.
 The [storage reference](docs/performance-storage-tradeoffs.md) collects the time-space choices.
 
@@ -111,7 +115,7 @@ The final startup tail contained repeated work in mod callbacks. AshLib repeated
 | Merged ship-hull JSON | **3.52× faster loader; ~1.7s net** | [PR #284](https://github.com/teamleaderleo/preflight/pull/284) |
 | Rules CSV, duplicate checks, tokens, command packages | **~1.56s combined** | [#286](https://github.com/teamleaderleo/preflight/pull/286), [#288](https://github.com/teamleaderleo/preflight/pull/288), [#291](https://github.com/teamleaderleo/preflight/pull/291), [#298](https://github.com/teamleaderleo/preflight/pull/298) |
 | Shared cache-profile identity | **1.613s → 0.452s; 3.57× faster** | [PR #300](https://github.com/teamleaderleo/preflight/pull/300) |
-| **Observed startup progression** | **~88s baseline; ~101s early high; 15.88s warm record** | [Optimization history](docs/optimization-history.md) |
+| **Observed startup progression** | **~101s worst case / 88.13s controlled median → 15.88s warm record** | [Optimization history](docs/optimization-history.md) |
 | **Current clean production gates** | **16.66s cold / 16.28s warm / 15.88s warm record** | [2026-08-06 gate](docs/evidence/2026-08-06-codex-lazy-fleet-members.md) |
 
 The texture path also stopped allocating empty power-of-two padding. In a full load, texture uploads

@@ -7,26 +7,31 @@
 **Protocol:** direct (unattended), 45s cooldown before every launch, no settling launch, 5 rounds x 3 conditions, seed 14624
 **Status:** 15 of 15 runs accepted, no exclusions
 
-> **Historical intermediate measurement.** Both comparison arms already included hard-coded AshLib
-> and GraphicsLib fixes installed in the mod JARs. This campaign measures the additional Preflight
-> stack that existed on August 3. Use it as a record of that intermediate state. The project's
-> original before/after story begins before those mod-side fixes.
+> **Superseded intermediate measurement — not the project baseline or headline.** The development
+> installation's observed worst case reached roughly **101 seconds**, its established five-run
+> controlled median was **88.13 seconds**, and the later fastest recorded launch was **15.88
+> seconds**. The chronological headline is **101 seconds to 15.88 seconds**. The 80.09-second and
+> 42.36-second values below belong only to this August 3 partially optimized comparison.
 
-Until now the project's headline was arithmetic: component savings measured one at a time and
-added together, producing a predicted floor rather than a measured one. This is the first campaign
-that turns on everything that has landed and times it.
+Both comparison arms already included hard-coded AshLib and GraphicsLib fixes installed in the mod
+JARs. This campaign measures the additional Preflight stack that existed on August 3. It remains
+checked in as evidence for that intermediate state rather than as the project's before/after result.
 
-## The result
+At this point in the investigation, the running estimate was arithmetic: component savings measured
+one at a time and added together. This was the first campaign to turn on everything that had landed
+by August 3 and time that intermediate stack.
+
+## The August 3 intermediate result
 
 | condition | n | median | min | max | range |
 | --- | --- | ---: | ---: | ---: | ---: |
 | `vanilla` (no Preflight) | 5 | 80.09s | 79.04 | 80.19 | 1.15 |
 | `fast` (compatibility textures, no rule caches) | 5 | 47.08s | 46.02 | 47.81 | 1.79 |
-| **`full`** (everything landed) | 5 | **42.36s** | 41.56 | 42.78 | 1.23 |
+| `full` (everything landed by August 3) | 5 | 42.36s | 41.56 | 42.78 | 1.23 |
 
 | comparison | delta | isolates |
 | --- | ---: | --- |
-| **`full` vs `vanilla`** | **+37.74s (47.1%), 1.89x** | the then-current Preflight stack after the installed mod-side fixes |
+| `full` vs `vanilla` | +37.74s (47.1%), 1.89x | the then-current Preflight stack after the installed mod-side fixes |
 | `fast` vs `vanilla` | +33.01s (41.2%), 1.70x | everything except the pixel path and the rule caches |
 | `full` vs `fast` | +4.72s (10.0%) | the prepared-pixel path plus the two rule caches |
 
@@ -109,7 +114,7 @@ The rule that follows still holds, and now for a concrete reason: **divide by th
 in the same interleaved session.** Anything that changes the installation -- including a mod patch of
 your own -- moves it.
 
-## What the number is and is not
+## What these intermediate numbers establish
 
 **A historical measurement of the August 3 installation state, on one machine and one profile.**
 
@@ -118,9 +123,10 @@ with no settling launch needed because the installation had already stopped chan
 the Preflight stack present that day after the two mod-side patches. Its scope ends at that
 intermediate installation state.
 
-The development installation's earlier lived range reached roughly 101 seconds. That context and
-this intermediate campaign have different installation states, so dividing one by the other would
-produce another invalid comparison.
+The development installation's earlier lived range reached roughly 101 seconds and its controlled
+median was 88.13 seconds. Later accepted work reached 15.88 seconds. Those chronological points and
+this intermediate campaign have different installation states, so the raw August 3 ratio doesn't
+replace either the project headline or a fresh release-candidate comparison.
 
 ## Variance, and how many rounds this needed
 

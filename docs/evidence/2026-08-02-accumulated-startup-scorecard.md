@@ -3,6 +3,11 @@
 **Date:** 2026-08-02, superseded by later campaigns and the 15.88-second warm record
 **Source:** [The whole stack, measured at once](2026-08-03-the-whole-stack-measured-at-once.md)
 
+> **Historical arithmetic, not the project result.** The development chronology runs from a roughly
+> **101-second observed worst case** and an **88.13-second controlled median** to a **15.88-second
+> fastest recorded launch**. The 80.09-second and 42.36-second figures on this page describe one
+> partially optimized intermediate campaign.
+
 This page was the running scorecard while the fully composed campaign was still being assembled. It
 added component results measured one at a time and subtracted the total from an earlier campaign's
 baseline, producing a predicted floor rather than a measured one.
@@ -14,10 +19,10 @@ history. The current project headline follows the chronological record.
 
 | | predicted here | measured |
 | --- | ---: | ---: |
-| baseline | 88.13s | **80.09s** |
-| accelerated | 40.13-40.50s | **42.36s** |
-| removed | 47.63-48.00s | **37.74s** |
-| speedup | 2.18-2.20x | **1.89x** |
+| baseline | 88.13s | 80.09s |
+| accelerated | 40.13-40.50s | 42.36s |
+| removed | 47.63-48.00s | 37.74s |
+| speedup | 2.18-2.20x | 1.89x |
 
 Two separate things went into that gap, and only one of them was a modelling error:
 
@@ -53,9 +58,10 @@ multipliers in it were each measured directly. What it cannot do is add up to an
 
 Subtracting that stack from the 2026-08-01 baseline predicted **40.127–40.496 seconds**. The measured campaign came in at **42.36 seconds** against a **80.09-second** same-session baseline: **37.74s removed, 47.1%, 1.89×**.
 
-The development installation's early accepted launches reached roughly **101 seconds**. The later
-intermediate campaign used a changed installation state, so it can't supply a multiplier against
-that earlier high range.
+The development installation's early accepted launches reached roughly **101 seconds**, its
+established controlled median was **88.13 seconds**, and later accepted work reached a **15.88-second
+warm record**. The intermediate campaign used a changed installation state, so it can't supply a
+multiplier against those chronological endpoints.
 
 ## Individual multipliers
 
