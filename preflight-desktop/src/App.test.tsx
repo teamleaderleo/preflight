@@ -100,6 +100,21 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getByText(/Prepared ·/)).toBeInTheDocument();
 });
 
+test("page navigation resets the viewport that actually owns desktop scrolling", async () => {
+  const user = userEvent.setup();
+  const { container } = render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Run reports" }));
+  const viewport = container.querySelector<HTMLElement>(".page-viewport");
+  expect(viewport).not.toBeNull();
+  if (!viewport) return;
+  viewport.scrollTop = 500;
+
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  await waitFor(() => expect(viewport.scrollTop).toBe(0));
+});
+
 test("common game settings are editable beside launch", async () => {
   const user = userEvent.setup();
   render(<App />);
@@ -190,7 +205,7 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "All settings" }));
 
-  expect(await screen.findByText("Game settings")).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Game settings", level: 1 })).toBeInTheDocument();
   expect(screen.getByLabelText("Resolution")).toHaveValue("1440x932");
   expect(screen.getByLabelText("Fullscreen")).not.toBeChecked();
   expect(screen.getByLabelText("Sound")).toBeChecked();
@@ -198,7 +213,8 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByLabelText("UI scaling")).toHaveValue("1");
   expect(screen.getByLabelText("Deployment-point budget")).toHaveValue("400");
   expect(screen.getByLabelText("Game memory")).toHaveValue("6144");
-  await user.click(screen.getByRole("button", { name: "Save launch settings" }));
+  await user.selectOptions(screen.getByLabelText("Game memory"), "8192");
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
   expect(await screen.findByText(/Game settings saved/)).toBeInTheDocument();
 });
 

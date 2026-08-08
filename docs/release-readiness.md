@@ -93,7 +93,8 @@ first public beta.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
   Advanced disclosure and let the engine enforce dependencies.
 - [x] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,
-  antialiasing, UI scaling, and battle size.
+  antialiasing, UI scaling, battle size, and the effective launcher-owned JVM heap. Heap changes
+  refuse ambiguous launchers and keep an exact backup of the edited file.
 
 ## Compatibility and correctness gate
 

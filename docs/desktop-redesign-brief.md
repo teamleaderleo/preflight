@@ -1,6 +1,6 @@
 # Desktop redesign brief
 
-**Status:** implementation started
+**Status:** implementation in progress; launch console and primary navigation landed
 
 **Updated:** 2026-08-08
 
@@ -36,6 +36,11 @@ Resolution, fullscreen, sound, battle size and game RAM sit beside the launch ac
 and UI scaling remain one direct click away in the complete game-settings view. Preflight follows
 the selected launcher to the file that actually owns `-Xmx`, refuses ambiguous layouts and keeps an
 exact backup before changing it.
+
+The home console and full game-settings page share one typed control model, including the effective
+launcher-owned heap setting. The desktop shell now owns navigation, viewport reset and responsive
+chrome separately from workflow state; narrow layouts switch to accessible icon navigation without
+wrapping, while short desktop windows regain bounded vertical scrolling instead of clipping content.
 
 ## Visual direction
 

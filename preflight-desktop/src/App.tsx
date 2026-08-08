@@ -17,20 +17,21 @@ import {
   ArrowIcon,
   CheckIcon,
   FolderIcon,
-  HomeIcon,
   LayersIcon,
   PlayIcon,
   RefreshIcon,
-  SettingsIcon,
   ShieldIcon,
   SparklesIcon,
 } from "./icons";
-import Logo from "./Logo";
+import { DesktopShell, type Page } from "./components/DesktopShell";
+import { GameSettingsPage } from "./components/GameSettingsPage";
+import { QuickGameSettings } from "./components/QuickGameSettings";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { resourcePresets, usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useSignedUpdates } from "./useSignedUpdates";
+import { formatBytes, friendlyPlatform, shortPath } from "./uiFormat";
 import type {
   AppStatus,
   CacheCleanupPlan,
@@ -44,8 +45,6 @@ import type {
 } from "./types";
 
 export { isCurrentProfilePrepared } from "./usePreparation";
-
-type Page = "home" | "launch" | "prepare" | "reports" | "profiles" | "settings";
 
 const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -94,38 +93,6 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   if (status === "running") return "Running";
   if (!isReady) return "Setup";
   return needsPreparation ? "Preparation needed" : "Ready";
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let unit = -1;
-  do {
-    value /= 1024;
-    unit += 1;
-  } while (value >= 1024 && unit < units.length - 1);
-  return `${value.toFixed(value >= 10 ? 1 : 2)} ${units[unit]}`;
-}
-
-function shortPath(path: string): string {
-  const normalized = path.replaceAll("\\", "/");
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length <= 3) return path;
-  return `…/${parts.slice(-3).join("/")}`;
-}
-
-function friendlyPlatform(platform: DesktopSnapshot["platform"]): string {
-  return { mac: "macOS", windows: "Windows", linux: "Linux", other: "Desktop" }[platform];
-}
-
-function maximumUiScale(resolution: string): number | null {
-  const match = /^(\d+)x(\d+)$/.exec(resolution);
-  if (!match) return null;
-  const width = Number(match[1]);
-  const height = Number(match[2]);
-  if (width <= 0 || height <= 0) return null;
-  return Math.max(1, Math.floor(Math.min(height / 768, width / 1280) * 20) / 20);
 }
 
 export default function App() {
@@ -383,6 +350,10 @@ export default function App() {
     }
   };
 
+  const changeLauncherDraft = useCallback((change: Partial<LaunchSettingsUpdate>) => {
+    setLauncherDraft((current) => current ? { ...current, ...change } : current);
+  }, []);
+
   const reviewRemoval = async (scope: RemovalScope) => {
     if (removalBusy) return;
     setRemovalBusy(true);
@@ -438,64 +409,17 @@ export default function App() {
     || (launcherDraft.memoryMiB !== null && launcherDraft.memoryMiB !== launcherSettings.memory.maxHeapMiB)
   ));
   const title = pageTitle(page, status, preparing, isReady, needsPreparation);
-  const startActive = page === "home" || page === "launch";
-
-  useEffect(() => {
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-  }, [page]);
-
   return (
-    <div
-      className="app-shell"
-      onPointerMove={(event) => {
-        event.currentTarget.style.setProperty("--grid-x", `${event.clientX}px`);
-        event.currentTarget.style.setProperty("--grid-y", `${event.clientY}px`);
-      }}
-      onPointerLeave={(event) => {
-        event.currentTarget.style.setProperty("--grid-x", "-1000px");
-        event.currentTarget.style.setProperty("--grid-y", "-1000px");
-      }}
+    <DesktopShell
+      page={page}
+      title={title}
+      status={status}
+      isReady={isReady}
+      updateAvailable={Boolean(updateStatus?.available)}
+      engineVersion={snapshot?.engineVersion ?? "…"}
+      onPageChange={setPage}
+      onRefresh={() => void refresh(snapshot?.selected?.installRoot)}
     >
-      <aside className="sidebar">
-        <Logo />
-        <nav className="nav" aria-label="Main navigation">
-          <button className={`nav__item ${startActive ? "nav__item--active" : ""}`} type="button" aria-current={startActive ? "page" : undefined} onClick={() => setPage("home")}>
-            <HomeIcon />
-            <span>Home</span>
-          </button>
-          <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" aria-current={page === "prepare" ? "page" : undefined} onClick={() => setPage("prepare")} disabled={!isReady}>
-            <SparklesIcon />
-            <span>Preflight</span>
-          </button>
-          <button className={`nav__item ${page === "reports" ? "nav__item--active" : ""}`} type="button" aria-current={page === "reports" ? "page" : undefined} onClick={() => setPage("reports")}>
-            <ShieldIcon />
-            <span>Run reports</span>
-          </button>
-          <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" aria-current={page === "profiles" ? "page" : undefined} onClick={() => setPage("profiles")} disabled={!isReady}>
-            <LayersIcon />
-            <span>Profiles</span>
-          </button>
-        </nav>
-        <div className="sidebar__footer">
-          <button className={`nav__item ${page === "settings" ? "nav__item--active" : ""}`} type="button" aria-current={page === "settings" ? "page" : undefined} onClick={() => setPage("settings")}>
-            <SettingsIcon />
-            <span>Settings</span>
-            {updateStatus?.available && <span className="nav__badge">Update</span>}
-          </button>
-          <div className="alpha-pill"><span /> Desktop alpha</div>
-        </div>
-      </aside>
-
-      <main className="main">
-        <header className="topbar">
-          <h1>{title}</h1>
-          <button className="icon-button" type="button" onClick={() => void refresh(snapshot?.selected?.installRoot)} aria-label="Refresh installation status" disabled={status === "loading"}>
-            <RefreshIcon className={status === "loading" ? "spin" : ""} />
-          </button>
-        </header>
-
-        <div className={`page-viewport page-viewport--${page}`}>
         {page === "home" ? <>
         <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"}`}>
           <div className="launch-console__primary">
@@ -536,41 +460,16 @@ export default function App() {
             )}
           </div>
           {isReady && launcherDraft && launcherSettings ? (
-            <div className="quick-settings" aria-label="Common game settings">
-              <div className="quick-settings__heading">
-                <strong>Game setup</strong>
-                <button className="text-button" type="button" onClick={() => setPage("launch")}>All settings <ArrowIcon /></button>
-              </div>
-              <div className="quick-settings__grid">
-                <label className="quick-control" htmlFor="home-resolution">
-                  <span>Resolution</span>
-                  <input id="home-resolution" aria-label="Home resolution" value={launcherDraft.resolution} onChange={(event) => setLauncherDraft({ ...launcherDraft, resolution: event.target.value })} inputMode="text" spellCheck={false} />
-                </label>
-                <label className="quick-control" htmlFor="home-battle-size">
-                  <span>Battle size</span>
-                  <input id="home-battle-size" aria-label="Home battle size" type="number" min={launcherSettings.limits.battleSizeMin ?? 1} max={launcherSettings.limits.battleSizeMax ?? Math.max(launcherDraft.battleSize, 400)} step="10" value={launcherDraft.battleSize} onChange={(event) => setLauncherDraft({ ...launcherDraft, battleSize: Number(event.target.value) })} />
-                </label>
-                {launcherSettings.memory.editable && launcherDraft.memoryMiB !== null ? (
-                  <label className="quick-control" htmlFor="home-memory">
-                    <span>RAM</span>
-                    <select id="home-memory" aria-label="Home game memory" value={launcherDraft.memoryMiB} onChange={(event) => setLauncherDraft({ ...launcherDraft, memoryMiB: Number(event.target.value) })}>
-                      {Array.from(new Set([2048, 4096, 6144, 8192, 12288, 16384, launcherDraft.memoryMiB])).sort((a, b) => a - b).map((memory) => <option value={memory} key={memory}>{memory / 1024} GB</option>)}
-                    </select>
-                  </label>
-                ) : (
-                  <div className="quick-control quick-control--read-only" title={launcherSettings.memory.reason ?? undefined}>
-                    <span>RAM</span><strong>{launcherSettings.memory.maxHeapMiB ? `${launcherSettings.memory.maxHeapMiB / 1024} GB` : "External"}</strong>
-                  </div>
-                )}
-              </div>
-              <div className="quick-settings__toggles">
-                <label><input type="checkbox" aria-label="Home fullscreen" checked={launcherDraft.fullscreen} onChange={(event) => setLauncherDraft({ ...launcherDraft, fullscreen: event.target.checked })} /><span>Fullscreen</span></label>
-                <label><input type="checkbox" aria-label="Home sound" checked={launcherDraft.sound} onChange={(event) => setLauncherDraft({ ...launcherDraft, sound: event.target.checked })} /><span>Sound</span></label>
-              </div>
-              <button className={`button ${launchSettingsDirty ? "button--primary" : "button--quiet"} quick-settings__save`} type="button" onClick={() => void saveLauncherSettings()} disabled={!launchSettingsDirty || launcherSettingsSaving || status === "running" || preparing}>
-                <CheckIcon />{launcherSettingsSaving ? "Saving…" : launchSettingsDirty ? "Apply changes" : "Settings applied"}
-              </button>
-            </div>
+            <QuickGameSettings
+              settings={launcherSettings}
+              draft={launcherDraft}
+              dirty={launchSettingsDirty}
+              saving={launcherSettingsSaving}
+              disabled={status === "running" || preparing}
+              onChange={changeLauncherDraft}
+              onOpenAll={() => setPage("launch")}
+              onSave={() => void saveLauncherSettings()}
+            />
           ) : isReady ? <div className="quick-settings quick-settings--loading">{launcherSettingsLoading ? "Reading game settings…" : "Game settings unavailable"}</div> : null}
         </section>
 
@@ -618,85 +517,20 @@ export default function App() {
           </div>
         </section>
         </> : page === "launch" ? (
-          <div className="launch-page">
-            {message && (
-              <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
-            )}
-
-            {launcherDraft && launcherSettings ? (
-              <>
-                <div className="launch-settings-grid">
-                  <section className="card launch-settings-card">
-                    <div className="card__heading">
-                      <div><p className="eyebrow">Display</p><h2>Window and rendering</h2></div>
-                      <button className="icon-button icon-button--small" type="button" onClick={() => void refreshLauncherSettings()} aria-label="Refresh launch settings" disabled={launcherSettingsLoading}>
-                        <RefreshIcon className={launcherSettingsLoading ? "spin" : ""} />
-                      </button>
-                    </div>
-                    <label className="setting-field" htmlFor="launch-resolution">
-                      <span><strong>Resolution</strong></span>
-                      <input id="launch-resolution" aria-label="Resolution" value={launcherDraft.resolution} onChange={(event) => setLauncherDraft({ ...launcherDraft, resolution: event.target.value })} inputMode="text" spellCheck={false} />
-                    </label>
-                    <label className="setting-toggle">
-                      <span><strong>Fullscreen</strong></span>
-                      <input type="checkbox" aria-label="Fullscreen" checked={launcherDraft.fullscreen} onChange={(event) => setLauncherDraft({ ...launcherDraft, fullscreen: event.target.checked })} />
-                    </label>
-                    <label className="setting-toggle">
-                      <span><strong>Sound</strong></span>
-                      <input type="checkbox" aria-label="Sound" checked={launcherDraft.sound} onChange={(event) => setLauncherDraft({ ...launcherDraft, sound: event.target.checked })} />
-                    </label>
-                    <label className="setting-field" htmlFor="launch-aa">
-                      <span><strong>Antialiasing</strong><small>Starsector recommends Off at 100%, 200%, or 300% UI scale</small></span>
-                      <select id="launch-aa" aria-label="Antialiasing" value={launcherDraft.antialiasingSamples} onChange={(event) => setLauncherDraft({ ...launcherDraft, antialiasingSamples: Number(event.target.value) })}>
-                        {launcherSettings.limits.antialiasingSamples.map((samples) => <option value={samples} key={samples}>{samples === 0 ? "Off" : `${samples} samples`}</option>)}
-                      </select>
-                    </label>
-                    <label className="setting-slider" htmlFor="launch-scale">
-                      <span><strong>UI scaling</strong><b>{Math.round(launcherDraft.uiScale * 100)}%</b></span>
-                      <input id="launch-scale" aria-label="UI scaling" type="range" min={launcherSettings.limits.uiScaleMin} max={maximumUiScale(launcherDraft.resolution) ?? launcherSettings.limits.uiScaleMax} step={launcherSettings.limits.uiScaleStep} value={launcherDraft.uiScale} onChange={(event) => setLauncherDraft({ ...launcherDraft, uiScale: Number(event.target.value) })} />
-                    </label>
-                  </section>
-
-                  <section className="card launch-settings-card">
-                    <div className="card__heading"><div><p className="eyebrow">Combat</p><h2>Battle size</h2></div></div>
-                    <p className="setting-explainer">Uses the installed game’s supported range.</p>
-                    <label className="setting-slider" htmlFor="launch-battle-size">
-                      <span><strong>Deployment-point budget</strong><b>{launcherDraft.battleSize}</b></span>
-                      <input id="launch-battle-size" aria-label="Deployment-point budget" type="range" min={launcherSettings.limits.battleSizeMin ?? 1} max={launcherSettings.limits.battleSizeMax ?? Math.max(launcherDraft.battleSize, 400)} step="10" value={launcherDraft.battleSize} onChange={(event) => setLauncherDraft({ ...launcherDraft, battleSize: Number(event.target.value) })} />
-                    </label>
-                    <div className="battle-bounds">
-                      <span>Minimum {launcherSettings.limits.battleSizeMin ?? "unknown"}</span>
-                      <span>Game default {launcherSettings.limits.battleSizeDefault ?? "unknown"}</span>
-                      <span>Maximum {launcherSettings.limits.battleSizeMax ?? "unknown"}</span>
-                    </div>
-                    <label className="setting-field" htmlFor="launch-memory">
-                      <span><strong>Game memory</strong><small>{launcherSettings.memory.source ? `Owned by ${shortPath(launcherSettings.memory.source)}` : launcherSettings.memory.reason ?? "Managed by the selected launcher"}</small></span>
-                      {launcherSettings.memory.editable && launcherDraft.memoryMiB !== null ? (
-                        <select id="launch-memory" aria-label="Game memory" value={launcherDraft.memoryMiB} onChange={(event) => setLauncherDraft({ ...launcherDraft, memoryMiB: Number(event.target.value) })}>
-                          {Array.from(new Set([2048, 4096, 6144, 8192, 12288, 16384, launcherDraft.memoryMiB])).sort((a, b) => a - b).map((memory) => <option value={memory} key={memory}>{memory / 1024} GB</option>)}
-                        </select>
-                      ) : <strong>{launcherSettings.memory.maxHeapMiB ? `${launcherSettings.memory.maxHeapMiB / 1024} GB` : "Unavailable"}</strong>}
-                    </label>
-                  </section>
-                </div>
-
-                {(launcherSettings.preferences.diagnostics.length > 0 || launcherSettings.limits.diagnostics.length > 0 || launcherSettings.memory.diagnostics.length > 0) && (
-                  <section className="card launch-diagnostics">
-                    {[...launcherSettings.preferences.diagnostics, ...launcherSettings.limits.diagnostics, ...launcherSettings.memory.diagnostics].map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}
-                  </section>
-                )}
-
-                <section className="card launch-save">
-                  <div><strong>Save game settings</strong><span>{launcherSettings.backup ? `Previous values: ${shortPath(launcherSettings.backup)}` : "A backup is written before saving."}</span></div>
-                  <button className="button button--primary" type="button" onClick={() => void saveLauncherSettings()} disabled={launcherSettingsSaving || status === "running" || preparing}>
-                    <CheckIcon />{launcherSettingsSaving ? "Saving…" : "Save launch settings"}
-                  </button>
-                </section>
-              </>
-            ) : (
-              <section className="card launch-loading">Reading Starsector’s saved preferences…</section>
-            )}
-          </div>
+          <>
+            {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
+            <GameSettingsPage
+              settings={launcherSettings}
+              draft={launcherDraft}
+              loading={launcherSettingsLoading}
+              saving={launcherSettingsSaving}
+              dirty={launchSettingsDirty}
+              disabled={status === "running" || preparing}
+              onChange={changeLauncherDraft}
+              onRefresh={() => void refreshLauncherSettings()}
+              onSave={() => void saveLauncherSettings()}
+            />
+          </>
         ) : page === "prepare" ? (
           <div className="prepare-page">
             {message && (
@@ -1110,13 +944,6 @@ export default function App() {
             )}
           </div>
         )}
-        </div>
-
-        <footer>
-          <span>Preflight {snapshot?.engineVersion ?? "…"}</span>
-          <span>Unofficial · Not affiliated with Fractal Softworks</span>
-        </footer>
-      </main>
-    </div>
+    </DesktopShell>
   );
 }
