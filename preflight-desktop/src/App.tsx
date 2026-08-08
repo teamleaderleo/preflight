@@ -26,7 +26,7 @@ import {
   SparklesIcon,
 } from "./icons";
 import Logo from "./Logo";
-import preflightMark from "./assets/preflight-mark.png";
+import preflightMark from "./assets/preflight-mark-v2.png";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { resourcePresets, usePreparation } from "./usePreparation";
@@ -57,19 +57,19 @@ const optimizationPresets: Array<{
   {
     id: "recommended",
     label: "Recommended",
-    description: "Every live-gated startup and gameplay improvement, including true-size textures.",
+    description: "All reviewed startup and gameplay optimizations. True-size textures.",
     badge: "Default",
   },
   {
     id: "conservative",
     label: "Conservative",
-    description: "Portable startup caches with padded textures; no gameplay or mod-specific plans.",
+    description: "Portable startup caches and padded textures. Gameplay adapters stay off.",
     badge: "Fallback",
   },
   {
     id: "off",
     label: "Off",
-    description: "No transforms or profiling. Keep only the wrapper and bounded process report.",
+    description: "Wrapper and bounded process report only.",
     badge: "Troubleshoot",
   },
 ];
@@ -428,6 +428,11 @@ export default function App() {
   const title = pageTitle(page, status, preparing, isReady);
   const startActive = page === "home" || page === "launch" || page === "prepare";
 
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [page]);
+
   return (
     <div
       className="app-shell"
@@ -573,17 +578,6 @@ export default function App() {
         </div>
         </> : page === "launch" ? (
           <div className="launch-page">
-            <section className="card launch-intro">
-              <div>
-                <p className="eyebrow">Shared with Starsector</p>
-                <h2>Game settings</h2>
-              </div>
-              <div className={`tiny-status ${launcherSettings?.directLaunchAvailable ? "tiny-status--good" : ""}`}>
-                <span />
-                {launcherSettingsLoading ? "Reading" : launcherSettings?.directLaunchAvailable ? "Direct launch ready" : "Vanilla launcher needed"}
-              </div>
-            </section>
-
             {message && (
               <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
             )}
@@ -596,7 +590,10 @@ export default function App() {
                       <p className="eyebrow">Launch behavior</p>
                       <h2>Optimizations</h2>
                     </div>
-                    <span className="optimization-card__saved">Saved for future launches</span>
+                    <div className={`tiny-status ${launcherSettings.directLaunchAvailable ? "tiny-status--good" : ""}`}>
+                      <span />
+                      {launcherSettingsLoading ? "Reading" : launcherSettings.directLaunchAvailable ? "Direct launch" : "Vanilla launcher"}
+                    </div>
                   </div>
                   <div className="optimization-choices" role="radiogroup" aria-label="Optimization preset">
                     {optimizationPresets.map((preset) => (
@@ -680,18 +677,6 @@ export default function App() {
           </div>
         ) : page === "prepare" ? (
           <div className="prepare-page">
-            <section className="card prepare-intro">
-              <div>
-                <p className="eyebrow">Current mod profile</p>
-                <h2>Build reusable caches</h2>
-                <p>Changed game or mod files automatically use new cache identities.</p>
-              </div>
-              <div className={`tiny-status ${cache?.currentProfileFingerprint ? "tiny-status--good" : ""}`}>
-                <span />
-                {cacheLoading ? "Checking" : cache?.currentProfileFingerprint ? "Profile detected" : "Not prepared"}
-              </div>
-            </section>
-
             {message && (
               <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
             )}
@@ -700,15 +685,19 @@ export default function App() {
               <section className="card prepare-options">
                 <div className="card__heading">
                   <div><p className="eyebrow">Space and speed</p><h2>Texture storage</h2></div>
+                  <div className={`tiny-status ${cache?.currentProfileFingerprint ? "tiny-status--good" : ""}`}>
+                    <span />
+                    {cacheLoading ? "Checking" : cache?.currentProfileFingerprint ? "Profile detected" : "Not prepared"}
+                  </div>
                 </div>
                 <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
                   <input type="radio" name="texture-storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} />
-                  <span><strong>Balanced</strong><small>Recommended · exact lossless LZ4 with raw storage where compression barely helps</small></span>
+                  <span><strong>Balanced</strong><small>Lossless LZ4; raw only when compression doesn’t help</small></span>
                   <b>Default</b>
                 </label>
                 <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
                   <input type="radio" name="texture-storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} />
-                  <span><strong>Fastest</strong><small>Keeps every upload-ready pixel array raw; typically several GB more for a few hundred ms</small></span>
+                  <span><strong>Fastest</strong><small>Raw upload-ready pixels; several GB more for a small startup gain</small></span>
                 </label>
 
                 <div className="resource-heading"><strong>Preparation resources</strong><span>Only affects the one-time build</span></div>
@@ -786,18 +775,6 @@ export default function App() {
           </div>
         ) : page === "profiles" ? (
           <div className="profiles-page">
-            <section className="card profiles-intro">
-              <div>
-                <p className="eyebrow">Mod profiles</p>
-                <h2>Saved mod sets</h2>
-                <p>Switches are previewed and backed up before applying.</p>
-              </div>
-              <div className={`tiny-status ${profiles?.profiles.some((profile) => profile.active) ? "tiny-status--good" : ""}`}>
-                <span />
-                {profilesLoading ? "Checking" : `${profiles?.profiles.length ?? 0} saved`}
-              </div>
-            </section>
-
             {message && (
               <div className="notice" role="status"><span>✦</span><p>{message}</p></div>
             )}
@@ -806,9 +783,15 @@ export default function App() {
               <section className="card profile-list-card">
                 <div className="card__heading">
                   <div><p className="eyebrow">This installation</p><h2>Saved profiles</h2></div>
-                  <button className="icon-button icon-button--small" type="button" onClick={() => void refreshProfiles()} aria-label="Refresh saved profiles" disabled={profilesLoading}>
-                    <RefreshIcon className={profilesLoading ? "spin" : ""} />
-                  </button>
+                  <div className="card__heading-actions">
+                    <div className={`tiny-status ${profiles?.profiles.some((profile) => profile.active) ? "tiny-status--good" : ""}`}>
+                      <span />
+                      {profilesLoading ? "Checking" : `${profiles?.profiles.length ?? 0} saved`}
+                    </div>
+                    <button className="icon-button icon-button--small" type="button" onClick={() => void refreshProfiles()} aria-label="Refresh saved profiles" disabled={profilesLoading}>
+                      <RefreshIcon className={profilesLoading ? "spin" : ""} />
+                    </button>
+                  </div>
                 </div>
                 <div className="profile-list">
                   {!profilesLoading && profiles?.profiles.length === 0 && (
@@ -837,13 +820,13 @@ export default function App() {
               <section className="card profile-save-card">
                 <p className="eyebrow">Remember this setup</p>
                 <h2>Save current profile</h2>
-                <p>This records names and order only. Your mods remain exactly where they are.</p>
+                <p>Names and load order only. Mod files stay where they are.</p>
                 <label htmlFor="profile-name">Profile name</label>
                 <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Heavy campaign" maxLength={96} />
                 <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>
                   Save current profile
                 </button>
-                <div className="profile-cache-note"><SparklesIcon /><span>Prepared caches are content-addressed. Matching profiles reuse them automatically; run Prepare after a switch only when its cache is missing.</span></div>
+                <div className="profile-cache-note"><SparklesIcon /><span>Matching profiles reuse prepared caches automatically.</span></div>
               </section>
             </div>
 

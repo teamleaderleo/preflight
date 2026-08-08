@@ -98,6 +98,21 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getByText(/Prepared ·/)).toBeInTheDocument();
 });
 
+test("navigation resets the previous workflow scroll position", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Ready to launch");
+  document.documentElement.scrollTop = 240;
+  document.body.scrollTop = 240;
+  await user.click(screen.getByRole("button", { name: "Profiles" }));
+
+  await waitFor(() => {
+    expect(document.documentElement.scrollTop).toBe(0);
+    expect(document.body.scrollTop).toBe(0);
+  });
+});
+
 test("preparation exposes balanced defaults, storage, and bounded resource choices", async () => {
   const user = userEvent.setup();
   render(<App />);

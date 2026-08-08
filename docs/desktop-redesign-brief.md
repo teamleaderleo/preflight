@@ -46,6 +46,11 @@ labels. Inter handles every control, paragraph, status and table. Body copy star
 metadata at 13–14 px, and controls keep a 44 px minimum target. Dense evidence uses aligned rows
 instead of smaller type.
 
+The working palette uses near-black, desaturated navy surfaces with muted steel-blue borders. Cyan
+marks focus and movement; amber is reserved for warnings and waypoint details. The paper-plane mark
+sits inside a clipped technical frame with enough texture to read as equipment instead of a glossy
+consumer-app badge. Light mode keeps the same drafting-grid hierarchy on blue-grey paper.
+
 ## Copy and disclosure
 
 The first layer states the result and the action. Safety explanations move into disclosures placed
@@ -86,6 +91,9 @@ cleanup and removal never appear as equal-weight cards on this screen.
 - Never hide a declined optimization or vanilla fallback; summarize it first and expose exact
   adapter evidence on demand.
 - Don't add automatic telemetry, automatic report sending or surprise updates.
+- Don't open a workflow with a card that restates the page title.
+- Reset scroll position when moving between destinations.
+- Keep labels readable before trying to fit another card above the fold.
 
 ## Implementation sequence
 
@@ -99,6 +107,7 @@ cleanup and removal never appear as equal-weight cards on this screen.
 The redesign doesn't change the engine, cache formats or adapter plans. It can ship independently
 once both versions pass the same behavior tests.
 
-The first extraction pass is complete. Primary navigation now contains Start, Profiles and
-Settings. Game settings and storage remain full-size drilldowns from Start while its final compact
-layout is built against the existing behavior fixtures.
+The first extraction and visual-foundation passes are complete. Primary navigation now contains
+Start, Profiles and Settings. Game settings and storage remain full-size drilldowns from Start.
+Their repeated intro cards are gone, useful status sits with the first control, and responsive
+layouts use a compact header rather than an icon-only rail.

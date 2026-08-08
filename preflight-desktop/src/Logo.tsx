@@ -1,4 +1,4 @@
-import preflightMark from "./assets/preflight-mark.png";
+import preflightMark from "./assets/preflight-mark-v2.png";
 
 export default function Logo({ compact = false }: { compact?: boolean }) {
   return (
