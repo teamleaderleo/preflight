@@ -1323,12 +1323,12 @@ and atomic/staged replacement path. Matching content-addressed caches are reused
 switching does not pretend every profile is already prepared. Browser tests cover the active state
 and preview-before-apply contract.
 
-Next release implementation order: obtain written distribution/name guidance; complete update,
-storage/removal, one-action setup, and consent-based run-report UX; then exercise private candidate
-packages on real licensed Windows/Linux installations. Core CI and native packaging are green on
-all three desktop platforms, but safe fallback outside the reviewed macOS game bytecode is not the
-same claim as equal activation or speed. Run the controlled release-candidate cohort only after the
-candidate's behavior and packaging are frozen.
+Next release implementation order: finish the larger packaged report-cancellation canary and the
+private hosted candidate, then exercise candidate packages on real licensed Windows/Linux
+installations. Core CI and native packaging are green on all three desktop platforms, but safe
+fallback outside the reviewed macOS game bytecode is not the same claim as equal activation or
+speed. Run the controlled release-candidate cohort only after the candidate's behavior and
+packaging are frozen.
 
 The bounded diagnostics export is now implemented in both CLI and desktop UI. It selects only an
 explicit text-metadata allowlist from the newest three runs and two benchmarks, caps each file at
@@ -1345,8 +1345,14 @@ SHA-256, pins every returned URL to the compile-time production HTTPS origin, re
 streams bounded progress, coordinates cancellation and app exit, validates the signed receipt, and
 supports its case-specific deletion grant. The UI keeps local export usable without a service,
 prevents a new send from silently replacing an unsaved receipt, and offers copy, explicit dismissal,
-and early deletion. Do not add `PREFLIGHT_REPORT_INTAKE_ORIGIN` to release builds until the private
-R2 bucket, lifecycle, abuse-rate limit, operator disclosure, and live canary are complete.
+and early deletion. The private R2 bucket, expiration, abuse limits and synthetic production canary
+are complete. A production-origin release-mode DMG also completed disclosure, consent, byte-exact
+upload, receipt persistence and scoped deletion. Its 197,379-byte ZIP finished before the UI could
+accept a cancel click, so packaged cancellation and the complete hosted candidate matrix still
+block enabling the origin in distributed builds. That run first exposed a pre-window crash caused
+by a missing base updater configuration. Ordinary packages now carry an inert updater object,
+signed overlays supply the real key, and macOS package verification starts the copied native host
+as well as the engine. See `docs/evidence/2026-08-08-packaged-report-canary.md`.
 
 The macOS desktop smoke driver remains blocked on safe PID/process-identity targeting, not merely on
 permission setup. Do not resolve the direct-launched JVM through the `Starsector` display name: that

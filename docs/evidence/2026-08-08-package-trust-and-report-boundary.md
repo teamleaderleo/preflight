@@ -108,3 +108,8 @@ root. A protected `/Library/Trial` descendant escaped the lazy walk as an unchec
 Implicit filesystem roots are now skipped, unreadable descendants are contained, and a regression
 test covers the packaged working-directory condition. Running the rebuilt engine from `/` selected
 `/Applications/Starsector.app` directly and reported the skipped implicit root as a diagnostic.
+
+A later production-origin release-mode DMG completed the packaged disclosure, consent, upload,
+receipt-persistence and scoped-deletion path. It also found a separate ordinary-package updater
+configuration crash before the first window. The fix and the native-host package smoke are recorded
+in [the packaged report canary](2026-08-08-packaged-report-canary.md).

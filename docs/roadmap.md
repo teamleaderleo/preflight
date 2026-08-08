@@ -62,19 +62,24 @@ strict ZIP/manifest validation, immutable upload, signed receipt, deletion autho
 Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop
 now reviews the exact entry list, size, digest, and exclusions; the native host revalidates and
 streams the file with progress/cancellation; and the accepted receipt can be copied or used for
-early deletion. Production deployment and its direct canary are complete; a packaged
-release-candidate canary still blocks enabling the compile-time origin. A local update-signed
+early deletion. Production deployment and its direct canary are complete; the remaining packaged
+release-candidate lifecycle still blocks enabling the compile-time origin. A local update-signed
 macOS package has now completed disclosure, consent, fail-closed recovery, retry, and receipt. The
 receipt's exact private object matched the disclosed size and SHA-256 through authenticated R2
 access and was then deleted through authenticated operator access. The desktop now retains an
 unexpired deletion receipt across restarts and removes the local authorization after deletion,
-dismissal, or expiry. Packaged cancellation and deletion plus the hosted matrix remain.
+dismissal, or expiry. A production-origin release-mode DMG has since completed disclosure, consent,
+upload, receipt persistence and scoped deletion. Its small archive completed before a packaged
+cancellation action could land, so a larger cancellation canary and the hosted matrix remain. The
+same run found and fixed an ordinary-package updater configuration crash before the first window;
+package verification now starts the copied native host as well as its embedded engine. See
+[the packaged report canary](evidence/2026-08-08-packaged-report-canary.md).
 Production provisioning is now complete: the private bucket has 14-day expiration, the signing key
 lives in Cloudflare's secret store, per-client edge brakes run before mutation work, and a
 day-sharded SQLite counter imposes an exact 500 MiB grant ceiling per UTC day. A live synthetic
-create/upload/finalize/delete canary passed and left the bucket empty. The remaining gate is the
-rest of that packaged lifecycle plus the complete hosted candidate; development and distributed
-builds still omit the compile-time intake origin.
+create/upload/finalize/delete canary passed and left the bucket empty. The remaining gate is
+packaged cancellation plus the complete hosted candidate; development and distributed builds still
+omit the compile-time intake origin.
 The [signed macOS updater rehearsal](evidence/2026-08-08-signed-update-rollback-rehearsal.md)
 records the feed isolation, package checksums, failure behavior, and rollback boundary.
 The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes

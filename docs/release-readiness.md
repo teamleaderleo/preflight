@@ -82,8 +82,11 @@ first public beta.
   The desktop now retains an unexpired deletion receipt across restarts and removes it on deletion,
   dismissal, or expiry. A local intake server now exercises the native host's complete HTTP
   boundary: create, byte-exact streaming, finalize and receipt validation; cancellation followed by
-  authorized cleanup deletion; and explicit receipt deletion. Packaged-UI cancellation and deletion
-  plus the first complete hosted candidate matrix remain.
+  authorized cleanup deletion; and explicit receipt deletion. A production-origin release-mode DMG
+  has now completed packaged disclosure, consent, upload, receipt persistence and deletion through
+  its scoped grant. Its 197,379-byte archive finished before the UI could accept a cancel click, so
+  a larger packaged cancellation run plus the first complete hosted candidate matrix remain. See
+  [the packaged report canary](evidence/2026-08-08-packaged-report-canary.md).
 - [x] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete. No automatic crash-upload path is present.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
