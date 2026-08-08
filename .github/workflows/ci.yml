@@ -48,6 +48,8 @@ jobs:
           python3 scripts/test_starsector_core_resource_guard.py
           python3 -m py_compile scripts/verify_release_boundary.py
           python3 scripts/test_verify_release_boundary.py
+          python3 -m py_compile scripts/verify_complete_release.py
+          python3 scripts/test_verify_complete_release.py
           python3 -m py_compile scripts/test_prepared_comparison_pilot.py
           python3 scripts/test_prepared_comparison_pilot.py
           python3 -m py_compile scripts/starsector_critical_path.py

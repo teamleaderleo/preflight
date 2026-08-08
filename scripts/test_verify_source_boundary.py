@@ -32,6 +32,16 @@ class SourceBoundaryTest(unittest.TestCase):
 
     def test_allows_reviewed_desktop_icons(self):
         module.validate_blob("preflight-desktop/src-tauri/icons/icon.png", b"\x89PNG\r\n\x1a\n\x00")
+        module.validate_blob("preflight-desktop/src/assets/mark.png", b"\x89PNG\r\n\x1a\n\x00")
+
+    def test_allows_only_the_exact_reviewed_oversized_icon(self):
+        repository = MODULE_PATH.parent.parent
+        name = "preflight-desktop/src-tauri/icons/icon.icns"
+        data = (repository / name).read_bytes()
+        self.assertGreater(len(data), module.MAX_REVIEWED_BLOB_BYTES)
+        module.validate_blob(name, data)
+        with self.assertRaisesRegex(module.SourceBoundaryError, "exceeds"):
+            module.validate_blob(name, data[:-1] + bytes([data[-1] ^ 1]))
 
     def test_rejects_oversized_blob_before_content_inspection(self):
         with self.assertRaisesRegex(module.SourceBoundaryError, "exceeds"):

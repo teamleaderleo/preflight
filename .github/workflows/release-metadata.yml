@@ -17,6 +17,8 @@ on:
       - 'scripts/assemble-core-release.sh'
       - 'scripts/verify_release_boundary.py'
       - 'scripts/test_verify_release_boundary.py'
+      - 'scripts/verify_complete_release.py'
+      - 'scripts/test_verify_complete_release.py'
   push:
     branches: [main]
     paths:
@@ -33,6 +35,8 @@ on:
       - 'scripts/assemble-core-release.sh'
       - 'scripts/verify_release_boundary.py'
       - 'scripts/test_verify_release_boundary.py'
+      - 'scripts/verify_complete_release.py'
+      - 'scripts/test_verify_complete_release.py'
   workflow_dispatch:
 
 permissions:

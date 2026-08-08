@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from collections import defaultdict
@@ -11,6 +12,14 @@ from pathlib import Path, PurePosixPath
 
 
 MAX_REVIEWED_BLOB_BYTES = 512 * 1024
+REVIEWED_OVERSIZED_BLOBS = {
+    "preflight-desktop/src-tauri/icons/icon.icns": frozenset(
+        {
+            (1_746_720, "05ca5e3efb0c65533cdb45e944ae3e941651cd0da45a9a8e30e72b8ca76c0a7f"),
+            (1_201_813, "9f600da93bdd51b2e4a94bda5a111fc53559fe478781e29b2e27f44b13ac8e7d"),
+        }
+    )
+}
 FORBIDDEN_SEGMENTS = frozenset({"activation", "mods", "saves", "screenshots"})
 FORBIDDEN_BASENAMES = frozenset(
     {
@@ -42,7 +51,10 @@ FORBIDDEN_SUFFIXES = (
     ".wpn",
     ".zip",
 )
-ALLOWED_BINARY_PREFIX = "preflight-desktop/src-tauri/icons/"
+ALLOWED_BINARY_PREFIXES = (
+    "preflight-desktop/src/assets/",
+    "preflight-desktop/src-tauri/icons/",
+)
 ALLOWED_BINARY_SUFFIXES = frozenset({".icns", ".ico", ".png"})
 LICENSED_FIXTURE_PREFIXES = (
     "preflight-core/src/test/resources/audio/ogg-v1/",
@@ -71,7 +83,7 @@ def validate_path(name: str) -> None:
 
 def validate_blob(name: str, data: bytes) -> None:
     validate_path(name)
-    if len(data) > MAX_REVIEWED_BLOB_BYTES:
+    if len(data) > MAX_REVIEWED_BLOB_BYTES and not reviewed_oversized_blob(name, data):
         raise SourceBoundaryError(
             f"repository blob exceeds {MAX_REVIEWED_BLOB_BYTES} reviewed bytes: {name} ({len(data)})"
         )
@@ -85,9 +97,16 @@ def validate_blob(name: str, data: bytes) -> None:
         raise SourceBoundaryError(f"unexpected binary repository blob: {name}")
 
 
+def reviewed_oversized_blob(name: str, data: bytes) -> bool:
+    fingerprints = REVIEWED_OVERSIZED_BLOBS.get(name, frozenset())
+    if not fingerprints:
+        return False
+    return (len(data), hashlib.sha256(data).hexdigest()) in fingerprints
+
+
 def allowed_binary(name: str) -> bool:
     path = PurePosixPath(name)
-    return name.startswith(ALLOWED_BINARY_PREFIX) and path.suffix.lower() in ALLOWED_BINARY_SUFFIXES
+    return name.startswith(ALLOWED_BINARY_PREFIXES) and path.suffix.lower() in ALLOWED_BINARY_SUFFIXES
 
 
 def git(repository: Path, *args: str, input_data: bytes | None = None) -> bytes:
@@ -207,6 +226,9 @@ def validate_repository(repository: Path) -> dict[str, int]:
         "historicalBlobs": len(history),
         "historicalPaths": historical_paths,
         "maxBlobBytes": MAX_REVIEWED_BLOB_BYTES,
+        "reviewedOversizedBlobFingerprints": sum(
+            len(fingerprints) for fingerprints in REVIEWED_OVERSIZED_BLOBS.values()
+        ),
     }
 
 

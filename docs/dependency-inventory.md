@@ -34,6 +34,13 @@ the bundle. Immediately before native packaging, the workflow verifies the engin
 collection then requires the exact ordinary or update-enabled artifact set for the current platform
 and rejects duplicates and unexpected updater artifacts.
 
+After the platform artifacts are merged, a final release-boundary check requires the exact published
+file set. It revalidates the core archives, every SBOM and checksum, all three platform checksum
+manifests, the updater manifest checksum, the three updater signatures against their published
+signature files, and each updater URL against its intended package. Any extra file at this last
+boundary stops publication, including an accidentally collected log, game file, mod, save, or
+diagnostic artifact.
+
 The desktop CI matrix also builds real development packages on macOS, Windows, and Linux. The
 package verifier mounts the DMG, extracts the NSIS installer with 7-Zip, expands the Debian archive,
 and asks the AppImage to extract its SquashFS payload. Every extracted package must contain exactly
