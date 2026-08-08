@@ -11,7 +11,7 @@ same time.
 
 | Area | Current size | What is mixed together | Direction |
 | --- | ---: | --- | --- |
-| Tauri `lib.rs` | 2,363 lines after the native lifecycle extractions | report protocol helpers, settings, profiles, removal and preparation | Continue splitting command families through the shared operation coordinator |
+| Tauri `lib.rs` | 2,217 lines after the native lifecycle extractions | report protocol helpers, settings, profiles, removal and preparation | Continue splitting command families through the shared operation coordinator |
 | React `App.tsx` | 285 lines after the workflow and page extractions | installation selection, launch orchestration and page composition | Keep it as the application composition boundary |
 | `AdapterTargetRegistry` | 2,028 lines | reviewed class fingerprints and method requirements | Keep explicit; size alone isn't a defect |
 | `RunCommand` | 1,310 lines | launch orchestration, cache-context selection, metadata and reporting | Extract profile/context selection behind one typed result |
@@ -48,12 +48,15 @@ state in `OperationCoordinator`. That shared state prevents an update, deletion 
 launch from racing an owned operation. The coordinator and its update guard live in
 `operations.rs`; desktop automation, signed updates and report-upload ownership now live in
 `automation.rs`, `updates.rs` and `reports.rs`. All three receive that same coordinator rather than
-creating another lock. The hostile-input HTTP protocol helpers remain beside their focused tests in
-`lib.rs` until they can move without obscuring that coverage.
+creating another lock. `engine.rs` now owns packaged/development JVM resolution, platform child
+process setup, installation-path validation, and the read-only snapshot and cache commands. The
+hostile-input HTTP protocol helpers remain beside their focused tests in `lib.rs` until they can
+move without obscuring that coverage.
 
 The coordinator's update exclusion, guard release and shutdown cleanup transitions have focused
-tests. Move the remaining engine command family into `engine.rs`. It receives the coordinator and
-an `AppHandle` without creating another global process tracker. Exit cleanup remains centralized.
+tests. Continue moving settings, profiles, removal and preparation into `engine.rs`. Mutating
+commands receive the coordinator and an `AppHandle` without creating another global process
+tracker. Exit cleanup remains centralized.
 
 ### 3. Launch context selection
 

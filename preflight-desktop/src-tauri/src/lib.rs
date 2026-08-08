@@ -3,20 +3,19 @@ use reqwest::{Client, Response, StatusCode, redirect::Policy};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::env;
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Mutex, mpsc};
 use std::time::Duration;
-use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::AsyncReadExt;
 use tokio::sync::watch;
 use url::Url;
 
 mod automation;
+mod engine;
 mod operations;
 mod reports;
 mod updates;
@@ -25,6 +24,7 @@ use automation::{
     cancel_desktop_smoke, get_desktop_smoke_probe, open_desktop_accessibility_settings,
     request_desktop_smoke_cancellation, start_desktop_smoke,
 };
+use engine::{EnginePaths, canonical_game_directory, get_cache, get_snapshot};
 use operations::{OperationCoordinator, OperationState, PreparationProcess, refuse_update_install};
 use reports::{
     CreateReportCaseRequest, CreateReportCaseResponse, ReportDeletion, ReportGrantEndpoint,
@@ -77,11 +77,6 @@ struct PreparationProgressEvent {
     metrics: Value,
 }
 
-struct EnginePaths {
-    java: PathBuf,
-    jar: PathBuf,
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LaunchSettingsInput {
@@ -93,137 +88,6 @@ struct LaunchSettingsInput {
     battle_size: u32,
     #[serde(rename = "memoryMiB")]
     memory_mib: Option<u32>,
-}
-
-impl EnginePaths {
-    fn resolve(app: &AppHandle) -> Result<Self, String> {
-        let bundled_jar = || {
-            app.path()
-                .resolve("engine/preflight.jar", BaseDirectory::Resource)
-                .ok()
-                .filter(|path| path.is_file())
-        };
-        #[cfg(debug_assertions)]
-        let jar = env::var_os("PREFLIGHT_DESKTOP_JAR")
-            .map(PathBuf::from)
-            .filter(|path| path.is_file())
-            .or_else(bundled_jar)
-            .or_else(development_jar);
-        #[cfg(not(debug_assertions))]
-        let jar = bundled_jar();
-        let jar = jar.ok_or_else(|| {
-            "The bundled Preflight engine is missing. Reinstall Preflight.".to_string()
-        })?;
-
-        #[cfg(debug_assertions)]
-        let java = env::var_os("PREFLIGHT_DESKTOP_JAVA")
-            .map(PathBuf::from)
-            .filter(|path| path.is_file())
-            .or_else(|| bundled_java(app))
-            .unwrap_or_else(system_java);
-        #[cfg(not(debug_assertions))]
-        let java = bundled_java(app).ok_or_else(|| {
-            "The bundled Preflight runtime is missing. Reinstall Preflight.".to_string()
-        })?;
-
-        Ok(Self { java, jar })
-    }
-
-    fn command(&self) -> Command {
-        let mut command = Command::new(&self.java);
-        command.arg("-jar").arg(&self.jar);
-        configure_child_process(&mut command);
-        command
-    }
-}
-
-#[cfg(debug_assertions)]
-fn development_jar() -> Option<PathBuf> {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../preflight-cli/target/preflight.jar")
-        .canonicalize()
-        .ok()
-        .filter(|path| path.is_file())
-}
-
-fn bundled_java(app: &AppHandle) -> Option<PathBuf> {
-    let executable = if cfg!(windows) { "javaw.exe" } else { "java" };
-    app.path()
-        .resolve(
-            format!("engine/runtime/bin/{executable}"),
-            BaseDirectory::Resource,
-        )
-        .ok()
-        .filter(|path| path.is_file())
-}
-
-#[cfg(debug_assertions)]
-fn system_java() -> PathBuf {
-    if let Some(java_home) = env::var_os("JAVA_HOME") {
-        let executable = if cfg!(windows) { "java.exe" } else { "java" };
-        let candidate = PathBuf::from(java_home).join("bin").join(executable);
-        if candidate.is_file() {
-            return candidate;
-        }
-    }
-    PathBuf::from(if cfg!(windows) { "java.exe" } else { "java" })
-}
-
-fn canonical_game_directory(game: &str) -> Result<PathBuf, String> {
-    let path = Path::new(game);
-    let canonical = path
-        .canonicalize()
-        .map_err(|error| format!("Could not open the selected game folder: {error}"))?;
-    if !canonical.is_dir() {
-        return Err("The selected Starsector location is not a folder.".to_string());
-    }
-    Ok(canonical)
-}
-
-#[tauri::command]
-fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value, String> {
-    let paths = EnginePaths::resolve(&app)?;
-    let mut command = paths.command();
-    command.arg("desktop").arg("snapshot");
-    if let Some(game) = game {
-        let directory = canonical_game_directory(&game)?;
-        command.arg("--game").arg(directory);
-    }
-
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
-    if !output.status.success() {
-        return Err(child_error(
-            "Preflight could not inspect the installation",
-            &output.stderr,
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable desktop snapshot: {error}"))
-}
-
-#[tauri::command]
-fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
-    let directory = canonical_game_directory(&game)?;
-    let paths = EnginePaths::resolve(&app)?;
-    let mut command = paths.command();
-    command
-        .arg("cache")
-        .arg("--json")
-        .arg("--game")
-        .arg(directory);
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
-    if !output.status.success() {
-        return Err(child_error(
-            "Preflight could not inspect its cache",
-            &output.stderr,
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable cache snapshot: {error}"))
 }
 
 #[tauri::command]
@@ -1550,7 +1414,7 @@ fn read_tail(reader: &mut dyn Read, limit: usize) -> Vec<u8> {
     tail
 }
 
-fn child_error(context: &str, stderr: &[u8]) -> String {
+pub(crate) fn child_error(context: &str, stderr: &[u8]) -> String {
     let details = String::from_utf8_lossy(stderr);
     let details = details.trim();
     if details.is_empty() {
@@ -1559,16 +1423,6 @@ fn child_error(context: &str, stderr: &[u8]) -> String {
         format!("{context}: {details}")
     }
 }
-
-#[cfg(target_os = "windows")]
-fn configure_child_process(command: &mut Command) {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    command.creation_flags(CREATE_NO_WINDOW);
-}
-
-#[cfg(not(target_os = "windows"))]
-fn configure_child_process(_command: &mut Command) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
