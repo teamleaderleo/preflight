@@ -39,10 +39,14 @@ export function DesktopShell({
 }: DesktopShellProps) {
   const homeActive = page === "home" || page === "launch";
   const pageViewport = useRef<HTMLDivElement>(null);
+  const pageTitle = useRef<HTMLHeadingElement>(null);
+  const previousPage = useRef(page);
   useEffect(() => {
     if (pageViewport.current) pageViewport.current.scrollTop = 0;
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+    if (previousPage.current !== page) pageTitle.current?.focus();
+    previousPage.current = page;
   }, [page]);
   return (
     <div
@@ -56,6 +60,7 @@ export function DesktopShell({
         event.currentTarget.style.setProperty("--grid-y", "-1000px");
       }}
     >
+      <a className="skip-link" href="#main-content">Skip to workspace</a>
       <aside className="sidebar">
         <Logo />
         <nav className="nav" aria-label="Main navigation">
@@ -81,9 +86,9 @@ export function DesktopShell({
         </div>
       </aside>
 
-      <main className="main">
+      <main className="main" id="main-content" tabIndex={-1}>
         <header className="topbar">
-          <h1>{title}</h1>
+          <h1 className="page-title" ref={pageTitle} tabIndex={-1}>{title}</h1>
           <button className="icon-button" type="button" onClick={onRefresh} aria-label="Refresh installation status" disabled={status === "loading" || refreshDisabled}>
             <RefreshIcon className={status === "loading" ? "spin" : ""} />
           </button>

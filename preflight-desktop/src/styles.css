@@ -34,13 +34,14 @@ html,
 body,
 #root {
   min-width: 320px;
+  height: 100%;
   min-height: 100%;
   margin: 0;
 }
 
 body {
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow: hidden;
   font-size: 16px;
   line-height: 1.45;
   background:
@@ -53,12 +54,31 @@ body {
 }
 
 button {
+  min-height: 44px;
   font: inherit;
 }
 
-button:focus-visible {
+:where(button, input, select, summary, a):focus-visible {
   outline: 3px solid rgba(59, 132, 147, 0.34);
   outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 12px;
+  left: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--ink);
+  background: var(--paper-solid);
+  font-weight: 700;
+  transform: translateY(calc(-100% - 20px));
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 .app-shell {
@@ -273,8 +293,8 @@ h2 {
 
 .icon-button {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -432,6 +452,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 44px;
   color: #c3d2d9;
   font-size: 13px;
   font-weight: 650;
@@ -488,7 +509,7 @@ h2 {
 
 .home-profile-select {
   width: 100%;
-  height: 40px;
+  height: 44px;
   padding: 0 11px;
   border: 1px solid var(--line-strong);
   border-radius: 3px;
@@ -704,6 +725,7 @@ h2 {
   flex: 0 0 auto;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   border: 0;
   color: var(--accent-strong);
   background: transparent;
@@ -804,6 +826,10 @@ h2 {
 
 .settings-disclosure > summary:hover {
   background: rgba(31, 166, 181, 0.035);
+}
+
+.settings-disclosure > summary:focus-visible {
+  outline-offset: -3px;
 }
 
 .settings-disclosure > summary span {
@@ -1353,7 +1379,7 @@ h2 {
 }
 
 .button--compact {
-  min-height: 34px;
+  min-height: 44px;
   padding-inline: 12px;
   font-size: 13px;
 }
@@ -1396,7 +1422,7 @@ h2 {
 
 .profile-save-card input {
   width: 100%;
-  height: 42px;
+  height: 44px;
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -1540,6 +1566,11 @@ h2 {
   accent-color: var(--accent-strong);
 }
 
+.choice-card:focus-within {
+  border-color: rgba(59, 132, 147, 0.62);
+  box-shadow: inset 3px 0 var(--accent), 0 0 0 3px rgba(59, 132, 147, 0.13);
+}
+
 .choice-card > span {
   display: flex;
   flex-direction: column;
@@ -1610,8 +1641,8 @@ h2 {
 }
 
 .icon-button--small {
-  width: 33px;
-  height: 33px;
+  width: 44px;
+  height: 44px;
 }
 
 .storage-total {
@@ -1802,9 +1833,9 @@ footer {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     align-content: start;
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .sidebar {
@@ -1859,14 +1890,17 @@ footer {
   }
 
   .main {
-    display: block;
-    height: auto;
+    display: grid;
+    height: 100%;
+    min-height: 0;
     padding: clamp(26px, 5vw, 42px) clamp(20px, 5vw, 38px) 26px;
   }
 
   .page-viewport,
   .page-viewport--home {
-    overflow: visible;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding-right: 0;
   }
 

@@ -11,10 +11,10 @@ same time.
 
 | Area | Current size | What is mixed together | Direction |
 | --- | ---: | --- | --- |
-| Tauri `lib.rs` | 2,042 lines after the native lifecycle extractions | report protocol helpers, settings, profiles and preparation | Continue splitting command families through the shared operation coordinator |
+| Tauri `lib.rs` | 1,854 lines after the native lifecycle extractions | report protocol helpers and preparation | Move preparation through the shared operation coordinator; keep hostile-input protocol code beside its tests until that boundary is clearer |
 | React `App.tsx` | 285 lines after the workflow and page extractions | installation selection, launch orchestration and page composition | Keep it as the application composition boundary |
 | `AdapterTargetRegistry` | 2,028 lines | reviewed class fingerprints and method requirements | Keep explicit; size alone isn't a defect |
-| `RunCommand` | 1,310 lines | launch orchestration, cache-context selection, metadata and reporting | Extract profile/context selection behind one typed result |
+| `RunCommand` | 721 lines after launch-context extraction | launch orchestration, metadata and reporting | Keep it as the launch composition boundary unless another ownership problem appears |
 | `AdapterTransformationRegistry` | 1,024 lines | reviewed transformation registrations | Keep explicit until a generated form proves byte-for-byte equivalent output |
 | prepared-texture and runtime adapter classes | roughly 500–1,000 lines each | hot-path state, safety gates and fallback behavior | Refactor only alongside focused equivalence and allocation evidence |
 
@@ -54,17 +54,17 @@ scoped removal, and diagnostics export. The hostile-input HTTP protocol helpers 
 focused tests in `lib.rs` until they can move without obscuring that coverage.
 
 The coordinator's update exclusion, guard release and shutdown cleanup transitions have focused
-tests. Continue moving settings, profiles and preparation into `engine.rs`. Mutating commands
-receive the coordinator and an `AppHandle` without creating another global process tracker. Exit
-cleanup remains centralized.
+tests. Launch settings and named profiles now live in `engine.rs` beside the read-only snapshot,
+storage and removal commands. Preparation is the remaining engine command family in `lib.rs`.
+Mutating commands receive the coordinator and an `AppHandle` without creating another global
+process tracker. Exit cleanup remains centralized.
 
 ### 3. Launch context selection
 
-`RunCommand` spends roughly its final third selecting the texture, audio, Janino and SpecStore cache
-contexts. Those selectors already produce typed records and use one bounded identity context. Move
-them into a `LaunchCacheContexts` service with serial and parallel implementations behind the same
-method. Existing context-identity, kill-switch and command integration tests become the extraction
-gate.
+`LaunchCacheContexts` now selects texture, audio, Janino and SpecStore cache contexts through one
+typed immutable result. Its serial and bounded parallel paths share the same profile-identity
+context, retain per-cache failure isolation, and finish before `RunCommand` starts the game. The
+existing context-identity, kill-switch and command integration tests remain the extraction gate.
 
 ### 4. Leave hot adapters alone during release polish
 
@@ -75,8 +75,10 @@ then the same synthetic and real-install gates used for an optimization.
 
 ## Design dependency
 
-The desktop hooks, page split and responsive visual foundation are complete. Further interface work
-can focus on state coverage, accessibility, information order, typography and density while the
+The desktop hooks, page split and responsive visual foundation are complete. Keyboard navigation
+now has a skip route, page-change focus management, uniform visible focus, and 44-pixel targets;
+narrow layouts keep document scrolling locked and contain it inside the workspace. Further
+interface work can focus on state coverage, information order, typography and density while the
 feature hooks remain stable.
 
 ## Verification rule

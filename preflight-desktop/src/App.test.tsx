@@ -135,6 +135,20 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
   await waitFor(() => expect(viewport.scrollTop).toBe(0));
 });
 
+test("keyboard users can skip navigation and receive the new workspace heading", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.tab();
+  expect(screen.getByRole("link", { name: "Skip to workspace" })).toHaveFocus();
+
+  await user.click(screen.getByRole("button", { name: "Run reports" }));
+  const heading = await screen.findByRole("heading", { name: "Run reports", level: 1 });
+  expect(heading).toHaveFocus();
+  expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
+});
+
 test("common game settings are editable beside launch", async () => {
   const user = userEvent.setup();
   render(<App />);
