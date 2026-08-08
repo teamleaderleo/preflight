@@ -24,7 +24,10 @@ use automation::{
     cancel_desktop_smoke, get_desktop_smoke_probe, open_desktop_accessibility_settings,
     request_desktop_smoke_cancellation, start_desktop_smoke,
 };
-use engine::{EnginePaths, canonical_game_directory, get_cache, get_snapshot};
+use engine::{
+    EnginePaths, apply_cache_cleanup, apply_removal, canonical_game_directory, export_diagnostics,
+    get_cache, get_cache_cleanup, get_removal_plan, get_snapshot,
+};
 use operations::{OperationCoordinator, OperationState, PreparationProcess, refuse_update_install};
 use reports::{
     CreateReportCaseRequest, CreateReportCaseResponse, ReportDeletion, ReportGrantEndpoint,
@@ -88,184 +91,6 @@ struct LaunchSettingsInput {
     battle_size: u32,
     #[serde(rename = "memoryMiB")]
     memory_mib: Option<u32>,
-}
-
-#[tauri::command]
-fn get_cache_cleanup(app: AppHandle, game: String) -> Result<Value, String> {
-    cache_cleanup_json(&app, &game, false)
-}
-
-#[tauri::command]
-fn apply_cache_cleanup(
-    app: AppHandle,
-    tracker: State<'_, OperationCoordinator>,
-    game: String,
-) -> Result<Value, String> {
-    let running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The process tracker is unavailable.".to_string())?;
-    refuse_update_install(&running)?;
-    if running.game.is_some() {
-        return Err("Close Starsector before cleaning acceleration data.".to_string());
-    }
-    if running.preparation.is_some() {
-        return Err(
-            "Wait for profile preparation to finish before cleaning acceleration data.".to_string(),
-        );
-    }
-    let result = cache_cleanup_json(&app, &game, true);
-    drop(running);
-    result
-}
-
-fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value, String> {
-    let directory = canonical_game_directory(game)?;
-    let paths = EnginePaths::resolve(app)?;
-    let mut command = paths.command();
-    command
-        .arg("cache")
-        .arg("prune")
-        .arg("--json")
-        .arg("--keep-named")
-        .arg("--game")
-        .arg(directory);
-    if apply {
-        command.arg("--yes");
-    }
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
-    if !output.status.success() && output.status.code() != Some(3) {
-        return Err(child_error(
-            "Preflight could not plan cache cleanup",
-            &output.stderr,
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable cleanup plan: {error}"))
-}
-
-fn validate_removal_scope(scope: &str) -> Result<(), String> {
-    match scope {
-        "launcher" | "all-data" => Ok(()),
-        _ => Err("Removal scope must be launcher or all-data.".to_string()),
-    }
-}
-
-#[tauri::command]
-fn get_removal_plan(app: AppHandle, scope: String) -> Result<Value, String> {
-    removal_json(&app, &scope, false)
-}
-
-#[tauri::command]
-fn apply_removal(
-    app: AppHandle,
-    tracker: State<'_, OperationCoordinator>,
-    scope: String,
-) -> Result<Value, String> {
-    let running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The process tracker is unavailable.".to_string())?;
-    refuse_update_install(&running)?;
-    if running.game.is_some() {
-        return Err("Close Starsector before removing Preflight files.".to_string());
-    }
-    if running.preparation.is_some() {
-        return Err(
-            "Wait for profile preparation to finish before removing Preflight files.".to_string(),
-        );
-    }
-    let result = removal_json(&app, &scope, true);
-    drop(running);
-    result
-}
-
-fn removal_json(app: &AppHandle, scope: &str, apply: bool) -> Result<Value, String> {
-    validate_removal_scope(scope)?;
-    let paths = EnginePaths::resolve(app)?;
-    let mut command = paths.command();
-    command
-        .arg("uninstall")
-        .arg("--scope")
-        .arg(scope)
-        .arg("--json");
-    if apply {
-        command.arg("--yes");
-    }
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
-    if !output.status.success() {
-        return Err(child_error(
-            "Preflight could not apply the removal plan",
-            &output.stderr,
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable removal plan: {error}"))
-}
-
-fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
-    let requested = PathBuf::from(output);
-    if !requested.is_absolute() {
-        return Err("Choose an absolute location for the diagnostics ZIP.".to_string());
-    }
-    if !requested
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
-    {
-        return Err("The diagnostics filename must end in .zip.".to_string());
-    }
-    let parent = requested
-        .parent()
-        .ok_or_else(|| "The diagnostics location has no parent folder.".to_string())?
-        .canonicalize()
-        .map_err(|error| format!("Could not open the diagnostics folder: {error}"))?;
-    if !parent.is_dir() {
-        return Err("The diagnostics location is not inside a folder.".to_string());
-    }
-    let name = requested
-        .file_name()
-        .ok_or_else(|| "The diagnostics filename is missing.".to_string())?;
-    let destination = parent.join(name);
-    if destination
-        .symlink_metadata()
-        .is_ok_and(|metadata| metadata.file_type().is_symlink())
-    {
-        return Err("Refusing to replace a symbolic link with diagnostics.".to_string());
-    }
-    if destination.exists() && !destination.is_file() {
-        return Err("The selected diagnostics location is not a file.".to_string());
-    }
-    Ok(destination)
-}
-
-#[tauri::command]
-fn export_diagnostics(app: AppHandle, output: String) -> Result<Value, String> {
-    let destination = diagnostic_output_path(&output)?;
-    let paths = EnginePaths::resolve(&app)?;
-    let mut command = paths.command();
-    command
-        .arg("evidence")
-        .arg("export")
-        .arg("--output")
-        .arg(destination)
-        .arg("--overwrite")
-        .arg("--json");
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
-    if !output.status.success() {
-        return Err(child_error(
-            "Preflight could not export diagnostics",
-            &output.stderr,
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable diagnostics receipt: {error}"))
 }
 
 pub(crate) async fn perform_report_deletion(
@@ -1498,16 +1323,16 @@ pub fn run() {
 mod tests {
     use super::{
         LaunchSettingsInput, ReportDeletion, ReportReceipt, ReportUploadError, ReportUploadInput,
-        begin_exit_cleanup, diagnostic_output_path, parse_preparation_progress,
-        perform_report_deletion, perform_report_upload, read_tail, report_client,
-        take_deferred_exit, validate_launch_settings, validate_optimization_preset,
-        validate_removal_scope, validate_report_origin, validate_report_receipt,
-        validated_case_url, validated_report_archive,
+        begin_exit_cleanup, parse_preparation_progress, perform_report_deletion,
+        perform_report_upload, read_tail, report_client, take_deferred_exit,
+        validate_launch_settings, validate_optimization_preset, validate_report_origin,
+        validate_report_receipt, validated_case_url, validated_report_archive,
     };
     use crate::automation::{
         DESKTOP_SMOKE_CANCELLATION_FILE, desktop_smoke_cancellation_outcome,
         desktop_smoke_cancellation_requested, desktop_smoke_outcome,
     };
+    use crate::engine::{diagnostic_output_path, validate_removal_scope};
     use crate::operations::{
         DesktopSmokeProcess, OperationState, PreparationProcess, ReportUploadProcess,
         begin_update_install, refuse_update_install,
