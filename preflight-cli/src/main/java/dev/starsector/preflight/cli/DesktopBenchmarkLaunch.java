@@ -40,6 +40,7 @@ final class DesktopBenchmarkLaunch {
         List<Map<String, Object>> phases = new ArrayList<>();
         List<String> benchmarkDiagnostics = new ArrayList<>();
         Map<String, Object> measuredIdentity = null;
+        Map<String, Object> selectedSave = null;
 
         Path baselineDirectory = session.resolve("measurement-only");
         Map<String, Object> baselineResult = runPhase(
@@ -52,6 +53,7 @@ final class DesktopBenchmarkLaunch {
         if ("passed".equals(status)) {
             try {
                 measuredIdentity = measuredIdentity(baselineDirectory);
+                selectedSave = selectedSave(baselinePhase);
             } catch (IOException | IllegalArgumentException failure) {
                 status = "failed";
                 benchmarkDiagnostics.add("Measurement identity unavailable: " + failure.getMessage());
@@ -73,6 +75,11 @@ final class DesktopBenchmarkLaunch {
                         benchmarkDiagnostics.add(
                                 "The installation, profile, or launch settings changed between runs");
                     }
+                    Map<String, Object> candidateSave = selectedSave(candidatePhase);
+                    if (!candidateSave.equals(selectedSave)) {
+                        status = "failed";
+                        benchmarkDiagnostics.add("The selected save changed between benchmark runs");
+                    }
                 } catch (IOException | IllegalArgumentException failure) {
                     status = "failed";
                     benchmarkDiagnostics.add(
@@ -88,6 +95,7 @@ final class DesktopBenchmarkLaunch {
         result.put("sessionDirectory", session);
         Map<String, Object> sealedIdentity = new LinkedHashMap<>(identity);
         sealedIdentity.put("measuredRun", measuredIdentity);
+        sealedIdentity.put("selectedSave", selectedSave);
         result.put("identity", sealedIdentity);
         result.put("phases", List.copyOf(phases));
         result.put("complete", phases.size() == 2 && "passed".equals(status));
@@ -320,6 +328,7 @@ final class DesktopBenchmarkLaunch {
         summary.put("processToMainMenuMs", millis(processStart, mainMenu));
         summary.put("processToCampaignReadyMs", millis(processStart, campaign));
         summary.put("routeElapsedMs", millis(routeStart, routeEnd));
+        summary.put("selectedSave", selectedSave(evidence, launch));
         copyNumber(campaignFrames, summary, "frames", "campaignFrames");
         copyNumber(campaignFrames, summary, "averageFps", "averageFps");
         copyNumber(campaignFrames, summary, "medianFps", "medianFps");
@@ -332,21 +341,64 @@ final class DesktopBenchmarkLaunch {
         return summary;
     }
 
+    static Map<String, Object> selectedSave(Map<String, Object> phase) throws IOException {
+        Map<String, Object> summary = object(phase.get("summary"));
+        Map<String, Object> selected = summary == null ? null : object(summary.get("selectedSave"));
+        if (selected == null || selected.isEmpty()) {
+            throw new IOException("Benchmark phase lacks a selected-save identity");
+        }
+        return selected;
+    }
+
+    static Map<String, Object> selectedSave(
+            Map<String, Object> evidence, Map<String, Object> launch) throws IOException {
+        Path logTail = artifact(evidence, "log-tail", "benchmark log tail");
+        if (Files.size(logTail) > 2L * 1024L * 1024L) {
+            throw new IOException("Benchmark log tail exceeds 2 MiB");
+        }
+        String log = Files.readString(logTail, StandardCharsets.UTF_8);
+        String marker = "Reading save data from [";
+        int start = log.lastIndexOf(marker);
+        int end = start < 0 ? -1 : log.indexOf(']', start + marker.length());
+        if (start < 0 || end < 0) {
+            throw new IOException("Benchmark log doesn't identify the loaded save");
+        }
+        String declared = log.substring(start + marker.length(), end).strip();
+        if (declared.isEmpty()) throw new IOException("Benchmark log has an empty save path");
+
+        Object runDirectory = launch.get("runDirectory");
+        if (!(runDirectory instanceof Path run)) {
+            throw new IOException("Passed benchmark phase lacks its run directory");
+        }
+        Map<String, Object> runMetadata = boundedJson(run.resolve("run.json"), "run metadata");
+        Object installValue = runMetadata.get("installRoot");
+        if (!(installValue instanceof String installText) || installText.isBlank()) {
+            throw new IOException("Run metadata lacks the installation root");
+        }
+        Path saves = Path.of(installText).toAbsolutePath().normalize().resolve("saves").toRealPath();
+        Path declaredDescriptor = Path.of(declared).toAbsolutePath().normalize();
+        if (Files.isSymbolicLink(declaredDescriptor)) {
+            throw new IOException("Loaded save descriptor must not be a symbolic link");
+        }
+        Path descriptor = declaredDescriptor.toRealPath();
+        Path saveDirectory = descriptor.getParent();
+        if (!"descriptor.xml".equals(descriptor.getFileName().toString())
+                || saveDirectory == null
+                || saveDirectory.getParent() == null
+                || !saveDirectory.getParent().equals(saves)
+                || !Files.isRegularFile(descriptor, LinkOption.NOFOLLOW_LINKS)
+                || Files.isSymbolicLink(descriptor)) {
+            throw new IOException("Loaded save descriptor isn't a regular file inside this installation");
+        }
+        Map<String, Object> selected = new LinkedHashMap<>();
+        selected.put("directory", saveDirectory.getFileName().toString());
+        selected.put("descriptorSha256", Hashes.sha256(descriptor));
+        return selected;
+    }
+
     private static Map<String, Object> campaignFrames(Map<String, Object> evidence)
             throws IOException {
-        Object artifacts = evidence.get("artifacts");
-        if (!(artifacts instanceof List<?> list)) {
-            throw new IOException("Benchmark evidence lacks its artifact list");
-        }
-        Path frameReport = null;
-        for (Object raw : list) {
-            Map<String, Object> artifact = object(raw);
-            if (artifact != null && "frame-report".equals(artifact.get("kind"))) {
-                Object path = artifact.get("path");
-                if (path instanceof Path candidate) frameReport = candidate;
-            }
-        }
-        if (frameReport == null) throw new IOException("Benchmark evidence lacks a frame report");
+        Path frameReport = artifact(evidence, "frame-report", "frame report");
         Map<String, Object> report = boundedJson(frameReport, "frame report");
         if (!"starsector-preflight-runtime-frame-report-v1".equals(report.get("format"))) {
             throw new IOException("Benchmark frame report format is unsupported");
@@ -357,6 +409,25 @@ final class DesktopBenchmarkLaunch {
                 : object(frameTimes.get("campaignActive"));
         if (campaign == null) throw new IOException("Benchmark frame report lacks campaign frames");
         return campaign;
+    }
+
+    private static Path artifact(Map<String, Object> evidence, String kind, String label)
+            throws IOException {
+        Object artifacts = evidence.get("artifacts");
+        if (artifacts instanceof List<?> list) {
+            for (Object raw : list) {
+                Map<String, Object> artifact = object(raw);
+                if (artifact != null && kind.equals(artifact.get("kind"))) {
+                    Object path = artifact.get("path");
+                    if (path instanceof Path candidate
+                            && Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)
+                            && !Files.isSymbolicLink(candidate)) {
+                        return candidate.toAbsolutePath().normalize();
+                    }
+                }
+            }
+        }
+        throw new IOException("Benchmark evidence lacks its " + label);
     }
 
     private static Instant stepCompleted(Map<String, Object> evidence, String id)

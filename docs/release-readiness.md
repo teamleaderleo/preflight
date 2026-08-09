@@ -115,8 +115,10 @@ first public beta.
 - [x] Seal startup-to-menu, startup-to-campaign, route duration, average/median/1%/0.1%-low FPS,
   p95/p99 frame time, deltas, and improvement percentages into the paired receipt. Show the primary
   startup and FPS results in the desktop app while retaining the raw metrics locally.
-- [ ] Bind and verify the selected save, prove measurement overhead, add cache/fallback and disk-cost
-  context, and keep the more rigorous alternating cohort optional.
+- [x] Bind both phases to the exact save path reported by Starsector, resolve it inside the real
+  installation `saves` directory, hash its descriptor, and refuse a different save in phase two.
+- [ ] Prove measurement overhead, add cache/fallback and disk-cost context, and keep the more rigorous
+  alternating cohort optional.
 
 ## Compatibility and correctness gate
 

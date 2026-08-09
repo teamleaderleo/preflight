@@ -104,7 +104,16 @@ final class DesktopBenchmarkLaunchTest {
     void sealsStartupAndCampaignFrameMetricsFromValidatedPhaseEvidence(@TempDir Path temporary)
             throws Exception {
         Instant processStart = Instant.parse("2026-08-09T00:00:00Z");
-        Path runtime = temporary.resolve("runtime-process.json");
+        Path game = temporary.resolve("game");
+        Path save = game.resolve("saves/save_Test_123");
+        Files.createDirectories(save);
+        Path descriptor = save.resolve("descriptor.xml");
+        Files.writeString(descriptor, "<save><timestamp>123</timestamp></save>");
+        Path run = temporary.resolve("run");
+        Files.createDirectories(run);
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game.toString())));
+        Path runtime = run.resolve("runtime-process.json");
         Map<String, Object> runtimeIdentity = new LinkedHashMap<>();
         runtimeIdentity.put("format", "starsector-preflight-runtime-process-v1");
         runtimeIdentity.put("pid", ProcessHandle.current().pid());
@@ -114,7 +123,7 @@ final class DesktopBenchmarkLaunchTest {
         runtimeIdentity.put("state", "stopped");
         runtimeIdentity.put("stoppedAt", processStart.plusSeconds(30));
         Files.writeString(runtime, Json.object(runtimeIdentity));
-        Path frames = temporary.resolve("desktop-smoke-frame-report.json");
+        Path frames = run.resolve("desktop-smoke-frame-report.json");
         Files.writeString(frames, Json.object(Map.of(
                 "format", "starsector-preflight-runtime-frame-report-v1",
                 "frameTimes", Map.of("campaignActive", Map.of(
@@ -126,17 +135,22 @@ final class DesktopBenchmarkLaunchTest {
                         "p95Micros", 20_000,
                         "p99Micros", 28_571,
                         "framesMeeting60FpsPercent", 88.0)))));
+        Path log = run.resolve("desktop-smoke-log-tail.txt");
+        Files.writeString(log, "123 [main] INFO CampaignGameManager - Reading save data from ["
+                + descriptor + "]\n");
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("startedAt", processStart.plusSeconds(1));
         evidence.put("completedAt", processStart.plusSeconds(25));
         evidence.put("steps", List.of(
                 Map.of("id", "menu", "completedAt", processStart.plusSeconds(10)),
                 Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20))));
-        evidence.put("artifacts", List.of(Map.of("kind", "frame-report", "path", frames)));
+        evidence.put("artifacts", List.of(
+                Map.of("kind", "frame-report", "path", frames),
+                Map.of("kind", "log-tail", "path", log)));
         Map<String, Object> phase = DesktopBenchmarkLaunch.phase("optimized", Map.of(
                 "status", "passed",
                 "runtimeProcess", runtime,
-                "runDirectory", temporary,
+                "runDirectory", run,
                 "evidence", evidence));
 
         assertEquals("passed", phase.get("status"));
@@ -145,6 +159,32 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(20_000L, summary.get("processToCampaignReadyMs"));
         assertEquals(60.0, summary.get("averageFps"));
         assertEquals(28_571L, summary.get("p99FrameMicros"));
+        Map<String, Object> selected = (Map<String, Object>) summary.get("selectedSave");
+        assertEquals("save_Test_123", selected.get("directory"));
+        assertTrue(selected.get("descriptorSha256").toString().matches("[0-9a-f]{64}"));
+    }
+
+    @Test
+    void refusesASaveDescriptorOutsideTheInstallation(@TempDir Path temporary) throws Exception {
+        Path game = temporary.resolve("game");
+        Files.createDirectories(game.resolve("saves"));
+        Path outside = temporary.resolve("outside/descriptor.xml");
+        Files.createDirectories(outside.getParent());
+        Files.writeString(outside, "<save/>");
+        Path run = temporary.resolve("run");
+        Files.createDirectories(run);
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "installRoot", game.toString())));
+        Path log = run.resolve("desktop-smoke-log-tail.txt");
+        Files.writeString(log, "Reading save data from [" + outside + "]\n");
+        Map<String, Object> evidence = Map.of(
+                "artifacts", List.of(Map.of("kind", "log-tail", "path", log)));
+
+        java.io.IOException failure = assertThrows(
+                java.io.IOException.class,
+                () -> DesktopBenchmarkLaunch.selectedSave(
+                        evidence, Map.of("runDirectory", run)));
+        assertTrue(failure.getMessage().contains("inside this installation"));
     }
 
     private static void writeRunIdentity(Path directory, String profile) throws Exception {

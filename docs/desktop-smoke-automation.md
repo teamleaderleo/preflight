@@ -217,8 +217,10 @@ App exit also cancels an owned cache-preparation child before leaving.
 The sealed comparison includes process-to-main-menu, process-to-campaign, route duration,
 average/median/1%/0.1%-low FPS, p95/p99 frame time, deltas, and improvement percentages. The desktop
 shows the primary startup and FPS fields and describes a single pair as directional evidence. The
-exact save identity, measurement-overhead proof, cache/fallback context, and optional alternating
-cohort remain release work.
+coordinator resolves the exact save descriptor named by Starsector's own load log, refuses paths
+outside the installation's real `saves` directory, hashes the descriptor, and requires both phases
+to load the same save. Measurement-overhead proof, cache/fallback context, and an optional
+alternating cohort remain release work.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the
