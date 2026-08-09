@@ -57,4 +57,13 @@ class DesktopBridgeCommandTest {
         assertEquals(1, DesktopBridgeCommand.statusExitCode("failed"));
         assertEquals(1, DesktopBridgeCommand.statusExitCode(null));
     }
+
+    @Test
+    void benchmarkFailuresKeepTheActionableEngineReason() {
+        java.io.IOException failure = DesktopBridgeCommand.launchFailure(
+                "Desktop benchmark launch failed",
+                new IllegalStateException("runtime marker didn't appear"));
+
+        assertTrue(failure.getMessage().contains("runtime marker didn't appear"));
+    }
 }

@@ -39,9 +39,60 @@ final class DesktopSmokeRunner {
             Path runDirectory,
             DesktopSmokeDriver driver,
             Clock clock) throws IOException {
+        if (scenario.usesOnlyRuntimeState()) {
+            return runRuntimeStateOnly(scenario, runtimeProcess, runDirectory, clock);
+        }
         try (DriverCalls calls = new DriverCalls(scenario.timeoutSeconds())) {
             return run(scenario, runtimeProcess, runDirectory, driver, clock, calls);
         }
+    }
+
+    private static Map<String, Object> runRuntimeStateOnly(
+            DesktopSmokeScenario scenario,
+            Path runtimeProcess,
+            Path runDirectory,
+            Clock clock) throws IOException {
+        Path realRun = runDirectory.toRealPath();
+        Instant startedAt = clock.instant();
+        List<Map<String, Object>> completedSteps = new ArrayList<>();
+        List<String> diagnostics = new ArrayList<>();
+        DesktopSmokeDriver.Descriptor descriptor = runtimeStateDescriptor();
+        TargetCheck initial = target(runtimeProcess);
+        if (!initial.attachable()) {
+            diagnostics.add("Runtime process isn't attachable: " + initial.reason());
+            return seal(scenario, realRun, descriptor, "failed", startedAt, clock.instant(),
+                    completedSteps, diagnostics);
+        }
+        Path runtimeState = runtimeProcess.toAbsolutePath().normalize()
+                .resolveSibling("runtime-state.json");
+        Instant deadline = startedAt.plusSeconds(scenario.timeoutSeconds());
+        for (Map<String, Object> step : scenario.stepViews()) {
+            String id = step.get("id").toString();
+            Instant stepStarted = clock.instant();
+            if (stepStarted.isAfter(deadline)) {
+                diagnostics.add("Scenario timeout expired before step " + id);
+                completedSteps.add(step(id, "failed", stepStarted, stepStarted,
+                        "Scenario timeout expired", List.of()));
+                return seal(scenario, realRun, descriptor, "failed", startedAt, stepStarted,
+                        completedSteps, diagnostics);
+            }
+            try {
+                String expected = step.get("state").toString();
+                waitForState(runtimeProcess, runtimeState, initial.target(), expected,
+                        stepTimeoutSeconds(step, scenario));
+                Instant stepCompleted = clock.instant();
+                completedSteps.add(step(id, "passed", stepStarted, stepCompleted,
+                        "observed " + expected, List.of()));
+            } catch (Exception failure) {
+                diagnostics.add("Runtime state failed at " + id + ": " + message(failure));
+                completedSteps.add(step(id, "failed", stepStarted, clock.instant(),
+                        message(failure), List.of()));
+                return seal(scenario, realRun, descriptor, "failed", startedAt, clock.instant(),
+                        completedSteps, diagnostics);
+            }
+        }
+        return seal(scenario, realRun, descriptor, "passed", startedAt, clock.instant(),
+                completedSteps, diagnostics);
     }
 
     private static Map<String, Object> run(
@@ -383,6 +434,18 @@ final class DesktopSmokeRunner {
         };
         return new DesktopSmokeDriver.Descriptor(
                 "unavailable-driver", "unknown", platform, Set.of(), List.of());
+    }
+
+    private static DesktopSmokeDriver.Descriptor runtimeStateDescriptor() {
+        String platform = switch (Platform.current()) {
+            case MAC -> "mac";
+            case WINDOWS -> "windows";
+            case LINUX -> "linux";
+            case OTHER -> "other";
+        };
+        return new DesktopSmokeDriver.Descriptor(
+                "runtime-semantic-state", "1", platform,
+                Set.of("process-control", "semantic-state"), List.of());
     }
 
     private static DesktopSmokeDriver.Descriptor normalize(

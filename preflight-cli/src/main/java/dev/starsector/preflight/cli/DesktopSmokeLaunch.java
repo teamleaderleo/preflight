@@ -44,10 +44,13 @@ final class DesktopSmokeLaunch {
         Path cancellationFile = run.resolve(CANCELLATION_FILE);
         List<String> diagnostics = new ArrayList<>();
 
-        // Permission/capability checks happen before a game exists, so an unavailable desktop
-        // adapter can never strand a newly launched process.
-        DesktopSmokeDriver.Descriptor descriptor = driver.descriptor();
-        diagnostics.addAll(descriptor.diagnostics() == null ? List.of() : descriptor.diagnostics());
+        // Interactive scenarios prove their desktop driver before a game exists. Startup-only
+        // scenarios read Preflight's runtime marker and never touch desktop input permissions.
+        if (!scenario.usesOnlyRuntimeState()) {
+            DesktopSmokeDriver.Descriptor descriptor = driver.descriptor();
+            diagnostics.addAll(
+                    descriptor.diagnostics() == null ? List.of() : descriptor.diagnostics());
+        }
         rejectTrackedRuntime(run);
 
         List<String> command = command(
@@ -78,7 +81,7 @@ final class DesktopSmokeLaunch {
         } catch (Exception failure) {
             diagnostics.add("Unattended smoke launch failed: " + bounded(failure.getMessage()));
         } finally {
-            stopExactRuntime(runtimeProcess, diagnostics);
+            boolean runtimeStoppedByController = stopExactRuntime(runtimeProcess, diagnostics);
             awaitLauncher(process, diagnostics);
             launchFinished.set(true);
             joinCancellationMonitor(cancellationMonitor, diagnostics);
@@ -93,7 +96,8 @@ final class DesktopSmokeLaunch {
             } else if (process.isAlive()) {
                 status = "failed";
                 diagnostics.add("Preflight launch process is still alive after bounded cleanup");
-            } else if (process.exitValue() != 0) {
+            } else if (process.exitValue() != 0
+                    && !acceptsControllerStopExit(scenario, status, runtimeStoppedByController)) {
                 status = "failed";
                 diagnostics.add("Preflight launch exited with code " + process.exitValue()
                         + tailDetail(launcherOutput));
@@ -286,18 +290,18 @@ final class DesktopSmokeLaunch {
         throw new IOException("Timed out waiting for the launched game runtime: " + lastProblem);
     }
 
-    private static void stopExactRuntime(Path runtimeProcess, List<String> diagnostics) {
-        if (!Files.isRegularFile(runtimeProcess, LinkOption.NOFOLLOW_LINKS)) return;
+    private static boolean stopExactRuntime(Path runtimeProcess, List<String> diagnostics) {
+        if (!Files.isRegularFile(runtimeProcess, LinkOption.NOFOLLOW_LINKS)) return false;
         try {
             RuntimeProcessIdentity identity = RuntimeProcessIdentity.read(runtimeProcess);
             Map<String, Object> inspected = identity.inspect();
-            if (!Boolean.TRUE.equals(inspected.get("attachable"))) return;
+            if (!Boolean.TRUE.equals(inspected.get("attachable"))) return false;
             long pid = ((Number) inspected.get("pid")).longValue();
             java.time.Instant startedAt = (java.time.Instant) inspected.get("startedAt");
             DesktopSmokeDriver.ProcessTarget target =
                     new DesktopSmokeDriver.ProcessTarget(pid, startedAt);
             ProcessHandle process = ProcessHandle.of(pid).orElse(null);
-            if (process == null || !sameLifetime(process, target)) return;
+            if (process == null || !sameLifetime(process, target)) return false;
             process.destroy();
             waitForExit(target, Duration.ofSeconds(2));
             if (sameLifetime(process, target)) {
@@ -306,10 +310,20 @@ final class DesktopSmokeLaunch {
             }
             if (sameLifetime(process, target)) {
                 diagnostics.add("Exact runtime cleanup couldn't stop PID " + pid);
+                return false;
             }
+            return true;
         } catch (Exception problem) {
             diagnostics.add("Exact runtime cleanup was unavailable: " + bounded(problem.getMessage()));
+            return false;
         }
+    }
+
+    static boolean acceptsControllerStopExit(
+            DesktopSmokeScenario scenario, String status, boolean runtimeStoppedByController) {
+        return scenario.usesOnlyRuntimeState()
+                && "passed".equals(status)
+                && runtimeStoppedByController;
     }
 
     private static void awaitLauncher(Process launcher, List<String> diagnostics) {

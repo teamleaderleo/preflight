@@ -2,11 +2,15 @@ import type { AppStatus } from "../types";
 import {
   HomeIcon,
   LayersIcon,
+  MoonIcon,
   RefreshIcon,
   SettingsIcon,
   ShieldIcon,
   SparklesIcon,
+  SunIcon,
+  SystemThemeIcon,
 } from "../icons";
+import type { ThemePreference } from "../useTheme";
 import Logo from "../Logo";
 import { useEffect, useRef, type ReactNode } from "react";
 
@@ -20,9 +24,11 @@ interface DesktopShellProps {
   updateAvailable: boolean;
   engineVersion: string;
   refreshDisabled: boolean;
+  theme: ThemePreference;
   children: ReactNode;
   onPageChange: (page: Page) => void;
   onRefresh: () => void;
+  onThemeChange: (theme: ThemePreference) => void;
 }
 
 export function DesktopShell({
@@ -33,9 +39,11 @@ export function DesktopShell({
   updateAvailable,
   engineVersion,
   refreshDisabled,
+  theme,
   children,
   onPageChange,
   onRefresh,
+  onThemeChange,
 }: DesktopShellProps) {
   const homeActive = page === "home" || page === "launch";
   const pageViewport = useRef<HTMLDivElement>(null);
@@ -89,9 +97,16 @@ export function DesktopShell({
       <main className="main" id="main-content" tabIndex={-1}>
         <header className="topbar">
           <h1 className="page-title" ref={pageTitle} tabIndex={-1}>{title}</h1>
-          <button className="icon-button" type="button" onClick={onRefresh} aria-label="Refresh installation status" disabled={status === "loading" || refreshDisabled}>
-            <RefreshIcon className={status === "loading" ? "spin" : ""} />
-          </button>
+          <div className="topbar__actions">
+            <div className="theme-switch" role="group" aria-label="Color theme">
+              <button className={theme === "system" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use system theme" aria-label="Use system theme" aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><SystemThemeIcon /></button>
+              <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>
+              <button className={theme === "dark" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use dark theme" aria-label="Use dark theme" aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><MoonIcon /></button>
+            </div>
+            <button className="icon-button" type="button" onClick={onRefresh} aria-label="Refresh installation status" disabled={status === "loading" || refreshDisabled}>
+              <RefreshIcon className={status === "loading" ? "spin" : ""} />
+            </button>
+          </div>
         </header>
         <div key={page} ref={pageViewport} className={`page-viewport page-viewport--${page}`}>{children}</div>
         <footer>

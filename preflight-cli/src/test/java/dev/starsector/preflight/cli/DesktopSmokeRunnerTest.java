@@ -70,6 +70,24 @@ final class DesktopSmokeRunnerTest {
         assertEquals("failed", steps.get(1).get("status"));
     }
 
+    @Test
+    void startupScenarioUsesRuntimeStateWithoutTouchingTheDesktopDriver() throws Exception {
+        Path run = Files.createDirectory(temporaryDirectory.resolve("runtime-state-only"));
+        Path runtime = runtimeIdentity(run);
+
+        Map<String, Object> result = DesktopSmokeRunner.run(
+                startupScenario(), runtime, run, new FailingIfTouchedDriver(), Clock.systemUTC());
+
+        assertEquals("passed", result.get("status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> descriptor = (Map<String, Object>) result.get("driver");
+        assertEquals("runtime-semantic-state", descriptor.get("id"));
+        assertTrue(Files.isRegularFile(run.resolve("smoke-evidence.json")));
+        assertTrue(DesktopSmokeLaunch.acceptsControllerStopExit(startupScenario(), "passed", true));
+        assertFalse(DesktopSmokeLaunch.acceptsControllerStopExit(startupScenario(), "failed", true));
+        assertFalse(DesktopSmokeLaunch.acceptsControllerStopExit(scenario(), "passed", true));
+    }
+
     private Path runtimeIdentity(Path run) throws Exception {
         ProcessHandle process = ProcessHandle.current();
         Map<String, Object> identity = new LinkedHashMap<>();
@@ -111,6 +129,47 @@ final class DesktopSmokeRunnerTest {
                   ]
                 }
                 """);
+    }
+
+    private static DesktopSmokeScenario startupScenario() {
+        return DesktopSmokeScenario.parse("""
+                {
+                  "format":"starsector-preflight-smoke-v1",
+                  "name":"startup",
+                  "timeoutSeconds":60,
+                  "launch":{"preset":"fast","textureStorage":"balanced","profile":null},
+                  "steps":[
+                    {"id":"menu","kind":"wait-state","state":"main-menu-ready","timeoutSeconds":30}
+                  ]
+                }
+                """);
+    }
+
+    private static final class FailingIfTouchedDriver implements DesktopSmokeDriver {
+        @Override
+        public Descriptor descriptor() {
+            throw new AssertionError("startup benchmark must not probe desktop automation");
+        }
+
+        @Override
+        public void attach(ProcessTarget target) {
+            throw new AssertionError("startup benchmark must not attach desktop automation");
+        }
+
+        @Override
+        public ActionResult execute(Map<String, Object> step, Path runDirectory) {
+            throw new AssertionError("startup benchmark must not send desktop input");
+        }
+
+        @Override
+        public Observation observe() {
+            throw new AssertionError("startup benchmark must not observe the desktop");
+        }
+
+        @Override
+        public void shutdown() {
+            throw new AssertionError("startup benchmark must not ask a desktop driver to quit");
+        }
     }
 
     private static final class FakeDriver implements DesktopSmokeDriver {

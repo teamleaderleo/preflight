@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -73,6 +74,36 @@ final class DesktopBenchmarkLaunchTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> fps = (Map<String, Object>) metrics.get("averageFps");
         assertEquals(50.0, fps.get("improvementPercent"));
+    }
+
+    @Test
+    void sealsMeasurementOnlyIdentityAfterTimingWithoutProfileMetadata(@TempDir Path temporary)
+            throws Exception {
+        Path install = temporary.resolve("game");
+        Path mod = install.resolve("mods/Example");
+        Files.createDirectories(mod);
+        Files.writeString(mod.resolve("mod_info.json"), "{\"id\":\"example\"}");
+        Files.writeString(
+                install.resolve("mods/enabled_mods.json"),
+                "{\"enabledMods\":[\"example\"]}");
+
+        Path runDirectory = temporary.resolve("run");
+        Files.createDirectories(runDirectory);
+        Map<String, Object> run = new LinkedHashMap<>();
+        run.put("installRoot", install.toString());
+        run.put("launcher", install.resolve("starsector.sh").toString());
+        run.put("launcherKind", "shell-script");
+        run.put("platform", "MAC");
+        run.put("wrapperRuntime", Map.of("javaVersion", "17", "osArch", "x86_64"));
+        run.put("directLaunchSettings", Map.of("width", 1440, "height", 932));
+        run.put("preflightJarSha256", "cd".repeat(32));
+        Files.writeString(runDirectory.resolve("run.json"), Json.object(run));
+
+        Map<String, Object> identity = DesktopBenchmarkLaunch.measuredIdentity(runDirectory);
+
+        assertEquals(
+                ProfileCensus.scan(install).values().get("profileFingerprint"),
+                identity.get("profileFingerprint"));
     }
 
     @Test
@@ -190,6 +221,44 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(8L, context.get("cacheMisses"));
         assertEquals(3L, context.get("fallbacks"));
         assertEquals(61L, context.get("memoryAvailablePercent"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void sealsAStartupOnlyComparisonWithoutSaveOrDesktopArtifacts(@TempDir Path temporary)
+            throws Exception {
+        Instant processStart = Instant.parse("2026-08-09T00:00:00Z");
+        Path run = Files.createDirectories(temporary.resolve("startup"));
+        Path runtime = run.resolve("runtime-process.json");
+        Map<String, Object> runtimeIdentity = new LinkedHashMap<>();
+        runtimeIdentity.put("format", "starsector-preflight-runtime-process-v1");
+        runtimeIdentity.put("pid", ProcessHandle.current().pid());
+        runtimeIdentity.put("parentPid", null);
+        runtimeIdentity.put("startedAt", processStart);
+        runtimeIdentity.put("observedAt", processStart.plusSeconds(20));
+        runtimeIdentity.put("state", "stopped");
+        runtimeIdentity.put("stoppedAt", processStart.plusSeconds(20));
+        Files.writeString(runtime, Json.object(runtimeIdentity));
+        Map<String, Object> evidence = Map.of(
+                "steps", List.of(Map.of(
+                        "id", "menu", "completedAt", processStart.plusSeconds(15))),
+                "artifacts", List.of());
+
+        Map<String, Object> phase = DesktopBenchmarkLaunch.phase("optimized", Map.of(
+                "status", "passed",
+                "runtimeProcess", runtime,
+                "runDirectory", run,
+                "evidence", evidence));
+
+        assertEquals("passed", phase.get("status"));
+        Map<String, Object> summary = (Map<String, Object>) phase.get("summary");
+        assertEquals(Map.of("processToMainMenuMs", 15_000L), summary);
+        Map<String, Object> comparison = DesktopBenchmarkLaunch.comparison(List.of(
+                Map.of("summary", Map.of("processToMainMenuMs", 88_000L)),
+                Map.of("summary", Map.of("processToMainMenuMs", 15_880L))));
+        assertEquals(true, comparison.get("available"));
+        Map<String, Object> metrics = (Map<String, Object>) comparison.get("metrics");
+        assertEquals(Set.of("processToMainMenuMs"), metrics.keySet());
     }
 
     @Test

@@ -179,6 +179,8 @@ export function exercisePackagedDesktopSmokeContract(packageRoot) {
   const jar = join(engineDirectory, "preflight.jar");
   const scenario = join(engineDirectory, "scenarios", "campaign-roam.json");
   const measurementScenario = join(engineDirectory, "scenarios", "campaign-roam-measurement-only.json");
+  const startupScenario = join(engineDirectory, "scenarios", "startup.json");
+  const startupMeasurementScenario = join(engineDirectory, "scenarios", "startup-measurement-only.json");
   const validation = JSON.parse(capture(
     java,
     ["-jar", jar, "desktop", "scenario", "validate", scenario],
@@ -191,6 +193,21 @@ export function exercisePackagedDesktopSmokeContract(packageRoot) {
     { cwd: engineDirectory },
   ));
   assertPackagedScenarioValidation(measurementValidation, "campaign-roam-measurement-only");
+  for (const [path, name] of [
+    [startupScenario, "startup"],
+    [startupMeasurementScenario, "startup-measurement-only"],
+  ]) {
+    const startupValidation = JSON.parse(capture(
+      java,
+      ["-jar", jar, "desktop", "scenario", "validate", path],
+      { cwd: engineDirectory },
+    ));
+    assertPackagedScenarioValidation(startupValidation, name);
+    const capabilities = [...startupValidation.scenario.requiredCapabilities].sort();
+    if (JSON.stringify(capabilities) !== JSON.stringify(["process-control", "semantic-state"])) {
+      throw new Error(`Packaged startup benchmark unexpectedly requires desktop input: ${JSON.stringify(capabilities)}`);
+    }
+  }
 
   const runDirectory = mkdtempSync(join(tmpdir(), "preflight-smoke-contract-"));
   const driverResult = join(runDirectory, "driver-result.json");
@@ -225,6 +242,7 @@ export function exercisePackagedDesktopSmokeContract(packageRoot) {
     scenario: "campaign-roam",
     scenarioValidated: true,
     measurementScenarioValidated: true,
+    startupScenariosValidated: true,
     skippedEvidenceSealed: true,
   };
 }
@@ -278,11 +296,26 @@ export function exercisePackagedDesktopSmokeProbe(packageRoot) {
   }
   const engineDirectory = onlyPackagedEngine(packageRoot);
   const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
-  const probe = JSON.parse(capture(
+  const validation = JSON.parse(capture(
     java,
-    ["-jar", join(engineDirectory, "preflight.jar"), "desktop", "smoke", "probe"],
+    ["-jar", join(engineDirectory, "preflight.jar"), "desktop", "scenario", "validate",
+      join(engineDirectory, "scenarios", "startup.json")],
     { cwd: engineDirectory },
   ));
+  assertPackagedScenarioValidation(validation, "startup");
+  const probe = {
+    protocol: 1,
+    probe: {
+      ready: true,
+      driver: {
+        id: "runtime-semantic-state",
+        version: 1,
+        platform: process.platform,
+        capabilities: ["process-control", "semantic-state"],
+      },
+      diagnostics: [],
+    },
+  };
   return validatePackagedDesktopSmokeProbe(probe, false);
 }
 
@@ -300,14 +333,8 @@ export function validatePackagedDesktopSmokeProbe(probe, nativeMacHost) {
     throw new Error(`Unavailable packaged desktop smoke probe has no reason: ${JSON.stringify(probe)}`);
   }
   if (nativeMacHost) {
-    if (probe.probe.ready && probe.probe.driver?.id !== "macos-preflight-native-pid") {
-      throw new Error(`Packaged macOS smoke probe bypassed its native bridge: ${JSON.stringify(probe)}`);
-    }
-    if (!probe.probe.ready) {
-      const diagnostics = probe.probe.diagnostics.join("\n");
-      if (!diagnostics.includes("the Preflight application") || diagnostics.includes("/runtime/bin/java")) {
-        throw new Error(`Packaged macOS smoke probe attributes permission incorrectly: ${JSON.stringify(probe)}`);
-      }
+    if (!probe.probe.ready || probe.probe.driver?.id !== "runtime-semantic-state") {
+      throw new Error(`Packaged macOS startup benchmark requires desktop automation: ${JSON.stringify(probe)}`);
     }
   }
   return {

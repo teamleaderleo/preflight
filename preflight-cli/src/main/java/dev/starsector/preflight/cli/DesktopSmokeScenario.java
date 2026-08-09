@@ -111,6 +111,11 @@ final class DesktopSmokeScenario {
         return requiredCapabilities;
     }
 
+    boolean usesOnlyRuntimeState() {
+        return requiredCapabilities.equals(Set.of("process-control", "semantic-state"))
+                && steps.stream().allMatch(step -> "wait-state".equals(step.kind()));
+    }
+
     List<String> stepIds() {
         return steps.stream().map(Step::id).toList();
     }

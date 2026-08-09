@@ -17,6 +17,8 @@ const legalFiles = new Map([
 const scenarioFiles = new Map([
   ["campaign-roam.json", join(repositoryRoot, "scripts", "scenarios", "campaign-roam.json")],
   ["campaign-roam-measurement-only.json", join(repositoryRoot, "scripts", "scenarios", "campaign-roam-measurement-only.json")],
+  ["startup.json", join(repositoryRoot, "scripts", "scenarios", "startup.json")],
+  ["startup-measurement-only.json", join(repositoryRoot, "scripts", "scenarios", "startup-measurement-only.json")],
 ]);
 const forbiddenSegments = new Set([
   "activation",
@@ -84,6 +86,8 @@ export function verifyEngineBoundary(
     "runtime",
     "smokeScenarioBytes",
     "sourceVersion",
+    "startupMeasurementScenarioBytes",
+    "startupScenarioBytes",
   ];
   if (JSON.stringify(Object.keys(manifest).sort()) !== JSON.stringify(expectedKeys)) {
     throw new Error(`Unexpected desktop engine manifest fields: ${Object.keys(manifest).sort().join(", ")}`);
@@ -105,6 +109,14 @@ export function verifyEngineBoundary(
   const measurementScenario = join(engineDirectory, "scenarios", "campaign-roam-measurement-only.json");
   if (manifest.measurementScenarioBytes !== statSync(measurementScenario).size) {
     throw new Error("Desktop engine manifest measurement scenario size differs from the bundled scenario");
+  }
+  const startupScenario = join(engineDirectory, "scenarios", "startup.json");
+  if (manifest.startupScenarioBytes !== statSync(startupScenario).size) {
+    throw new Error("Desktop engine manifest startup scenario size differs from the bundled scenario");
+  }
+  const startupMeasurementScenario = join(engineDirectory, "scenarios", "startup-measurement-only.json");
+  if (manifest.startupMeasurementScenarioBytes !== statSync(startupMeasurementScenario).size) {
+    throw new Error("Desktop engine manifest startup measurement scenario size differs from the bundled scenario");
   }
   const actualLegal = Object.fromEntries(
     [...legalFiles.keys()].map((name) => [name, statSync(join(engineDirectory, "legal", name)).size]),

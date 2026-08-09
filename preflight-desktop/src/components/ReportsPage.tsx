@@ -1,11 +1,10 @@
-import { openDesktopAccessibilitySettings } from "../bridge";
 import { CheckIcon, FolderIcon, ShieldIcon } from "../icons";
 import type { useDesktopAutomation } from "../useDesktopAutomation";
 import type { useDiagnosticsReport } from "../useDiagnosticsReport";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { Announce, AppStatus, DesktopBenchmarkMeasurementOverhead, DesktopSnapshot, NoticeTone } from "../types";
+import type { AppStatus, DesktopBenchmarkMeasurementOverhead, NoticeTone } from "../types";
 
 type AutomationState = ReturnType<typeof useDesktopAutomation>;
 type DiagnosticsState = ReturnType<typeof useDiagnosticsReport>;
@@ -14,34 +13,28 @@ interface ReportsPageProps {
   message: string;
   messageTone: NoticeTone;
   status: AppStatus;
-  platform: DesktopSnapshot["platform"] | null;
   preparing: boolean;
   automation: AutomationState;
   diagnostics: DiagnosticsState;
-  onMessage: Announce;
 }
 
 export function ReportsPage({
   message,
   messageTone,
   status,
-  platform,
   preparing,
   automation,
   diagnostics,
-  onMessage,
 }: ReportsPageProps) {
   const {
     desktopSmokeProbe,
     desktopSmokeProbeBusy,
-    desktopSmokeReview,
     desktopSmokeRunDirectory,
     desktopBenchmarkComparison,
     desktopSmokeCancelling,
     desktopSmokeRunning,
     checkDesktopAutomation,
     runDesktopAutomation,
-    setDesktopSmokeReview,
     stopDesktopAutomation,
   } = automation;
   const {
@@ -73,22 +66,21 @@ export function ReportsPage({
       <section className="card benchmark-card">
         <div>
           <div className="heading-with-info">
-            <h2>Benchmark Starsector</h2>
-            <InfoTip label="About the benchmark">The benchmark runs the same checked campaign route twice: first with measurement instrumentation only, then with Preflight optimizations. Each game process is closed before the next starts.</InfoTip>
+            <h2>Startup benchmark</h2>
+            <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the exact process it started.</InfoTip>
           </div>
-          <p>{desktopSmokeProbe?.probe.ready ? "Ready for a measurement-only and optimized comparison." : "Preflight checks compatibility before anything launches."}</p>
+          <p>Normal launch versus Preflight, timed at the main menu.</p>
           {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
         </div>
         <div className="benchmark-card__actions">
           {desktopSmokeRunning ? (
             <button className="button button--quiet button--benchmark" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping…" : "Stop benchmark"}</button>
           ) : (
-            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? setDesktopSmokeReview(true) : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || operationBlocked}>
-              {desktopSmokeProbeBusy ? "Checking compatibility…" : "Run benchmark"}
+            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || operationBlocked}>
+              {desktopSmokeProbeBusy ? "Checking…" : "Run benchmark"}
             </button>
           )}
-          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && platform === "mac" ? <button className="text-button" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => onMessage(String(error)))}>Open Accessibility settings</button> : null}
-          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "Benchmark automation isn’t available on this system."}</small> : null}
+          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "The startup benchmark isn’t available in this build."}</small> : null}
         </div>
       </section>
 
@@ -100,9 +92,6 @@ export function ReportsPage({
           </div>
           <div className="benchmark-results__grid">
             <BenchmarkResult label="Main menu" metric={desktopBenchmarkComparison.metrics.processToMainMenuMs} unit="time" />
-            <BenchmarkResult label="Campaign ready" metric={desktopBenchmarkComparison.metrics.processToCampaignReadyMs} unit="time" />
-            <BenchmarkResult label="Average FPS" metric={desktopBenchmarkComparison.metrics.averageFps} unit="fps" />
-            <BenchmarkResult label="1% low FPS" metric={desktopBenchmarkComparison.metrics.onePercentLowFps} unit="fps" />
           </div>
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
           <small>One paired run is directional evidence. The saved receipt keeps exact identities and raw metrics.</small>
@@ -126,20 +115,6 @@ export function ReportsPage({
           </div>
         </section>
       </div>
-
-      {desktopSmokeReview ? (
-        <section className="card automation-review" aria-label="Benchmark review">
-          <div className="activation-review__heading">
-            <div><p className="eyebrow">Benchmark review</p><h2>Run the paired campaign benchmark?</h2></div>
-            <button className="text-button" type="button" onClick={() => setDesktopSmokeReview(false)} disabled={desktopSmokeRunning}>Cancel</button>
-          </div>
-          <p>Preflight will open the current installation twice. Both runs continue the latest save, move forward for three seconds, collect timing evidence and a screenshot, then close the exact game process. The first run measures normal behavior with optimizations off; the second repeats the same route with optimizations on. Leave the game window unobstructed.</p>
-          <div className="activation-review__footer">
-            <span><ShieldIcon /> The driver doesn’t edit game, mod, or save files; it only sends the actions listed here.</span>
-            <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeProbeBusy || desktopSmokeRunning || operationBlocked}>{desktopSmokeRunning ? "Benchmark running…" : "Start benchmark"}</button>
-          </div>
-        </section>
-      ) : null}
 
       <details className="card settings-disclosure">
         <summary><span><strong>Diagnostic contents</strong><small>Included and excluded data</small></span></summary>

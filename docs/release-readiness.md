@@ -108,19 +108,15 @@ first public beta.
 - [x] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,
   antialiasing, UI scaling, battle size, and the effective launcher-owned JVM heap. Heap changes
   refuse ambiguous launchers and keep an exact backup of the edited file.
-- [x] Replace the single checked campaign sequence labelled **Benchmark** with an identity-checked
-  measurement-only then optimized coordinator. It refuses different scenarios before launch,
+- [x] Replace the single checked campaign sequence labelled **Benchmark** with an identity-checked,
+  permission-free startup coordinator. It refuses different scenarios before launch,
   compares the sealed installation/profile/launcher/runtime/settings identity after each run, owns
-  cancellation across both exact-PID lifetimes, and writes one versioned result.
-- [x] Seal startup-to-menu, startup-to-campaign, route duration, average/median/1%/0.1%-low FPS,
-  p95/p99 frame time, deltas, and improvement percentages into the paired receipt. Show the primary
-  startup and FPS results in the desktop app while retaining the raw metrics locally.
-- [x] Bind both phases to the exact save path reported by Starsector, resolve it inside the real
-  installation `saves` directory, hash its descriptor, and refuse a different save in phase two.
-- [x] Add cache hit/miss, fallback, failure, memory-pressure, and measured prepared-data disk context
-  to the sealed result and its compact desktop summary.
-- [ ] Run the packaged pair and retain evidence that the self-measured frame hook stays below its
-  1% route-share and 250-microsecond average budgets. Keep an alternating cohort optional.
+  cancellation across both exact-PID lifetimes, and writes one versioned result without desktop
+  input, save loading, screenshots, or Accessibility permission.
+- [x] Seal startup-to-menu time, deltas, improvement percentage, exact run identity, and measured
+  prepared-data disk context into the paired receipt and compact desktop result.
+- [ ] Run the packaged startup pair and retain its receipt. Keep campaign/FPS automation and an
+  alternating cohort as optional advanced evidence rather than the product benchmark.
 
 ## Compatibility and correctness gate
 

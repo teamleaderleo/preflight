@@ -1,4 +1,3 @@
-use crate::desktop_automation_bridge::DesktopAutomationBridge;
 use crate::operations::{DesktopSmokeProcess, OperationCoordinator, refuse_update_install};
 use crate::{
     EnginePaths, RunStarted, canonical_game_directory, child_error, read_tail, take_deferred_exit,
@@ -8,14 +7,11 @@ use serde_json::Value;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-#[cfg(target_os = "macos")]
-pub(crate) const MACOS_ACCESSIBILITY_SETTINGS: &str =
-    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
 pub(crate) const DESKTOP_SMOKE_CANCELLATION_FILE: &str = "cancel.requested";
 
 #[derive(Clone, Serialize)]
@@ -31,59 +27,69 @@ struct DesktopSmokeStateEvent {
 
 #[tauri::command]
 pub(crate) fn get_desktop_smoke_probe(app: AppHandle) -> Result<Value, String> {
+    let (measurement, optimized) = desktop_benchmark_scenarios(&app)?;
     let paths = EnginePaths::resolve(&app)?;
-    let mut command = paths.command();
-    let automation = DesktopAutomationBridge::start(None)?;
-    automation.configure(&mut command);
-    command.arg("desktop").arg("smoke").arg("probe");
-    let output = command
+    for scenario in [&measurement, &optimized] {
+        validate_benchmark_scenario(&paths, scenario)?;
+    }
+    Ok(serde_json::json!({
+        "protocol": 1,
+        "probe": {
+            "ready": true,
+            "driver": {
+                "id": "runtime-semantic-state",
+                "version": 1,
+                "platform": std::env::consts::OS,
+                "capabilities": ["process-control", "semantic-state"]
+            },
+            "diagnostics": []
+        }
+    }))
+}
+
+fn validate_benchmark_scenario(paths: &EnginePaths, scenario: &Path) -> Result<(), String> {
+    let output = paths
+        .command()
+        .arg("desktop")
+        .arg("scenario")
+        .arg("validate")
+        .arg(scenario)
         .output()
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
-            "Preflight could not inspect desktop-test readiness",
+            "Preflight could not validate its startup benchmark",
             &output.stderr,
         ));
     }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Preflight returned an unreadable desktop-test probe: {error}"))
-}
-
-#[tauri::command]
-pub(crate) fn open_desktop_accessibility_settings() -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        let status = Command::new("/usr/bin/open")
-            .arg(MACOS_ACCESSIBILITY_SETTINGS)
-            .status()
-            .map_err(|error| format!("Could not open macOS Accessibility settings: {error}"))?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(format!(
-                "macOS could not open Accessibility settings (exit {}).",
-                status.code().unwrap_or(-1)
-            ))
-        }
+    let value: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable benchmark check: {error}"))?;
+    let capabilities = value
+        .pointer("/scenario/requiredCapabilities")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "The startup benchmark lacks a capability declaration.".to_string())?;
+    let mut capabilities = capabilities
+        .iter()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    capabilities.sort_unstable();
+    if capabilities != ["process-control", "semantic-state"] {
+        return Err(
+            "The packaged startup benchmark unexpectedly requires desktop input.".to_string(),
+        );
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        Err("Accessibility settings are available only on macOS.".to_string())
-    }
+    Ok(())
 }
 
 fn desktop_benchmark_scenarios(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     let optimized = app
         .path()
-        .resolve(
-            "engine/scenarios/campaign-roam.json",
-            BaseDirectory::Resource,
-        )
+        .resolve("engine/scenarios/startup.json", BaseDirectory::Resource)
         .map_err(|error| format!("Could not resolve the automated-test scenario: {error}"))?;
     let measurement = app
         .path()
         .resolve(
-            "engine/scenarios/campaign-roam-measurement-only.json",
+            "engine/scenarios/startup-measurement-only.json",
             BaseDirectory::Resource,
         )
         .map_err(|error| format!("Could not resolve the benchmark scenario: {error}"))?;
@@ -139,8 +145,6 @@ pub(crate) fn start_desktop_smoke(
     }
 
     let mut command = paths.command();
-    let automation = DesktopAutomationBridge::start(Some(&run_directory))?;
-    automation.configure(&mut command);
     command
         .arg("desktop")
         .arg("benchmark")
@@ -170,14 +174,13 @@ pub(crate) fn start_desktop_smoke(
             pid,
             success: None,
             detail: Some(
-                "Starting measurement-only run 1 of 2; the optimized run follows after cleanup."
-                    .to_string(),
+                "Starting a normal launch; the Preflight launch follows after cleanup.".to_string(),
             ),
             run_directory: run_directory.to_string_lossy().into_owned(),
             comparison: None,
         },
     );
-    watch_desktop_smoke(app, child, run_directory, automation);
+    watch_desktop_smoke(app, child, run_directory);
     Ok(RunStarted { pid })
 }
 
@@ -249,15 +252,9 @@ pub(crate) fn cancel_desktop_smoke(
     Ok(true)
 }
 
-fn watch_desktop_smoke(
-    app: AppHandle,
-    mut child: Child,
-    run_directory: PathBuf,
-    automation: DesktopAutomationBridge,
-) {
+fn watch_desktop_smoke(app: AppHandle, mut child: Child, run_directory: PathBuf) {
     let pid = child.id();
     std::thread::spawn(move || {
-        let _automation = automation;
         let stdout = child
             .stdout
             .take()
@@ -350,7 +347,7 @@ pub(crate) fn desktop_smoke_cancellation_outcome(
     if receipt.pointer("/launch/status").and_then(Value::as_str) == Some("cancelled") {
         return (
             true,
-            Some("Automated game test stopped safely after exact-process cleanup.".to_string()),
+            Some("Startup benchmark stopped safely after exact-process cleanup.".to_string()),
         );
     }
     desktop_smoke_outcome(process_status, stdout, stderr)
@@ -366,10 +363,10 @@ pub(crate) fn desktop_smoke_outcome(
         Err(error) => {
             let detail = match process_status {
                 Ok(_) => child_error(
-                    &format!("Preflight returned an unreadable automated-test result: {error}"),
+                    &format!("Preflight returned an unreadable benchmark result: {error}"),
                     stderr,
                 ),
-                Err(wait) => format!("Could not wait for the automated game test: {wait}"),
+                Err(wait) => format!("Could not wait for the startup benchmark: {wait}"),
             };
             return (false, Some(detail));
         }
@@ -390,6 +387,6 @@ pub(crate) fn desktop_smoke_outcome(
         .and_then(Value::as_str);
     let detail = diagnostic
         .map(str::to_string)
-        .unwrap_or_else(|| child_error(&format!("Automated game test {status}"), stderr));
+        .unwrap_or_else(|| child_error(&format!("Startup benchmark {status}"), stderr));
     (false, Some(detail))
 }

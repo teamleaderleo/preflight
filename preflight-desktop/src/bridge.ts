@@ -113,10 +113,10 @@ export async function getDesktopSmokeProbe(): Promise<DesktopSmokeProbe> {
       probe: {
         ready: true,
         driver: {
-          id: "browser-preview",
+          id: "runtime-semantic-state",
           version: 1,
           platform: "preview",
-          capabilities: ["launch", "observe", "screenshot", "input", "shutdown"],
+          capabilities: ["process-control", "semantic-state"],
         },
         diagnostics: [],
       },
@@ -136,11 +136,6 @@ export async function startDesktopSmoke(game: string): Promise<RunStarted> {
 export async function cancelDesktopSmoke(): Promise<boolean> {
   if (!isDesktopHost()) return true;
   return invoke<boolean>("cancel_desktop_smoke");
-}
-
-export async function openDesktopAccessibilitySettings(): Promise<void> {
-  if (!isDesktopHost()) return;
-  return invoke<void>("open_desktop_accessibility_settings");
 }
 
 export async function startGame(

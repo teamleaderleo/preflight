@@ -53,7 +53,7 @@ final class DesktopBenchmarkLaunch {
         if ("passed".equals(status)) {
             try {
                 measuredIdentity = measuredIdentity(baselineDirectory);
-                selectedSave = selectedSave(baselinePhase);
+                selectedSave = optionalSelectedSave(baselinePhase);
             } catch (IOException | IllegalArgumentException failure) {
                 status = "failed";
                 benchmarkDiagnostics.add("Measurement identity unavailable: " + failure.getMessage());
@@ -75,8 +75,8 @@ final class DesktopBenchmarkLaunch {
                         benchmarkDiagnostics.add(
                                 "The installation, profile, or launch settings changed between runs");
                     }
-                    Map<String, Object> candidateSave = selectedSave(candidatePhase);
-                    if (!candidateSave.equals(selectedSave)) {
+                    Map<String, Object> candidateSave = optionalSelectedSave(candidatePhase);
+                    if (!java.util.Objects.equals(candidateSave, selectedSave)) {
                         status = "failed";
                         benchmarkDiagnostics.add("The selected save changed between benchmark runs");
                     }
@@ -254,9 +254,7 @@ final class DesktopBenchmarkLaunch {
 
     static Map<String, Object> measuredIdentity(Path runDirectory) throws IOException {
         Map<String, Object> run = boundedJson(runDirectory.resolve("run.json"), "run metadata");
-        Map<String, Object> profile = boundedJson(
-                runDirectory.resolve("profile.json"), "profile metadata");
-        Object fingerprint = profile.get("profileFingerprint");
+        Object fingerprint = measuredProfileFingerprint(runDirectory, run);
         if (!(fingerprint instanceof String text) || !text.matches("[0-9a-f]{64}")) {
             throw new IllegalArgumentException("profile fingerprint is missing or invalid");
         }
@@ -275,6 +273,25 @@ final class DesktopBenchmarkLaunch {
         String canonical = Json.object(identity);
         identity.put("sha256", Hashes.sha256(canonical.getBytes(StandardCharsets.UTF_8)));
         return identity;
+    }
+
+    private static Object measuredProfileFingerprint(
+            Path runDirectory, Map<String, Object> run) throws IOException {
+        Path profileFile = runDirectory.resolve("profile.json");
+        if (Files.isRegularFile(profileFile, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isSymbolicLink(profileFile)) {
+            return boundedJson(profileFile, "profile metadata").get("profileFingerprint");
+        }
+
+        // The measurement-only preset deliberately skips the broad diagnostic census so it cannot
+        // contend with the game during startup. Seal that run against the same profile only after
+        // timing has stopped. This keeps the pair exact without putting report work on either
+        // measured launch's critical path.
+        Object installRoot = run.get("installRoot");
+        if (!(installRoot instanceof String text) || text.isBlank()) {
+            throw new IllegalArgumentException("run metadata lacks an install root");
+        }
+        return ProfileCensus.scan(Path.of(text)).values().get("profileFingerprint");
     }
 
     private static Map<String, Object> boundedJson(Path source, String label) throws IOException {
@@ -311,7 +328,7 @@ final class DesktopBenchmarkLaunch {
         metric(metrics, "pointOnePercentLowFps", baseline, optimized, true);
         metric(metrics, "p95FrameMicros", baseline, optimized, false);
         metric(metrics, "p99FrameMicros", baseline, optimized, false);
-        comparison.put("available", metrics.size() >= 3);
+        comparison.put("available", !metrics.isEmpty());
         comparison.put("metrics", metrics);
         return comparison;
     }
@@ -328,6 +345,11 @@ final class DesktopBenchmarkLaunch {
             throw new IOException("Benchmark runtime lacks a process start instant");
         }
         Instant mainMenu = stepCompleted(evidence, "menu");
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("processToMainMenuMs", millis(processStart, mainMenu));
+        if (!hasStep(evidence, "campaign")) {
+            return summary;
+        }
         Instant campaign = stepCompleted(evidence, "campaign");
         Instant routeStart = instant(evidence, "startedAt");
         Instant routeEnd = instant(evidence, "completedAt");
@@ -336,8 +358,6 @@ final class DesktopBenchmarkLaunch {
         if (campaignFrames == null) throw new IOException("Benchmark frame report lacks campaign frames");
         Map<String, Object> measurement = object(frameTimes.get("measurementOverhead"));
 
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("processToMainMenuMs", millis(processStart, mainMenu));
         summary.put("processToCampaignReadyMs", millis(processStart, campaign));
         summary.put("routeElapsedMs", millis(routeStart, routeEnd));
         summary.put("selectedSave", selectedSave(evidence, launch));
@@ -500,6 +520,11 @@ final class DesktopBenchmarkLaunch {
         return selected;
     }
 
+    private static Map<String, Object> optionalSelectedSave(Map<String, Object> phase) {
+        Map<String, Object> summary = object(phase.get("summary"));
+        return summary == null ? null : object(summary.get("selectedSave"));
+    }
+
     static Map<String, Object> selectedSave(
             Map<String, Object> evidence, Map<String, Object> launch) throws IOException {
         Path logTail = artifact(evidence, "log-tail", "benchmark log tail");
@@ -589,6 +614,16 @@ final class DesktopBenchmarkLaunch {
             }
         }
         throw new IOException("Benchmark evidence lacks the " + id + " milestone");
+    }
+
+    private static boolean hasStep(Map<String, Object> evidence, String id) {
+        Object steps = evidence.get("steps");
+        if (!(steps instanceof List<?> list)) return false;
+        for (Object raw : list) {
+            Map<String, Object> step = object(raw);
+            if (step != null && id.equals(step.get("id"))) return true;
+        }
+        return false;
     }
 
     private static Instant instant(Map<String, Object> value, String field) throws IOException {

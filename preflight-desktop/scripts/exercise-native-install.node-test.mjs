@@ -51,42 +51,32 @@ test("packaged evidence requires a sealed skip instead of a synthetic pass", () 
   );
 });
 
-test("packaged macOS automation probe stays on the native host boundary", () => {
-  const unavailable = {
+test("packaged startup benchmark is permission-free on the native host", () => {
+  const ready = {
     protocol: 1,
     probe: {
-      ready: false,
-      driver: null,
-      diagnostics: [
-        "macOS Accessibility permission isn't enabled for the automation executable: the Preflight application",
-      ],
+      ready: true,
+      driver: {
+        id: "runtime-semantic-state",
+        capabilities: ["process-control", "semantic-state"],
+      },
+      diagnostics: [],
     },
   };
-  assert.deepEqual(validatePackagedDesktopSmokeProbe(unavailable, true), {
-    ready: false,
-    driver: null,
-    diagnostic: unavailable.probe.diagnostics[0],
+  assert.deepEqual(validatePackagedDesktopSmokeProbe(ready, true), {
+    ready: true,
+    driver: "runtime-semantic-state",
+    diagnostic: null,
     nativeHost: true,
   });
   assert.throws(
     () => validatePackagedDesktopSmokeProbe({
-      ...unavailable,
+      ...ready,
       probe: {
-        ...unavailable.probe,
-        diagnostics: ["permission needed by /Resources/engine/runtime/bin/java"],
+        ...ready.probe,
+        driver: { id: "macos-preflight-native-pid", capabilities: ["window-control"] },
       },
     }, true),
-    /attributes permission incorrectly/,
-  );
-  assert.throws(
-    () => validatePackagedDesktopSmokeProbe({
-      protocol: 1,
-      probe: {
-        ready: true,
-        driver: { id: "macos-system-events-pid", capabilities: [] },
-        diagnostics: [],
-      },
-    }, true),
-    /bypassed its native bridge/,
+    /requires desktop automation/,
   );
 });

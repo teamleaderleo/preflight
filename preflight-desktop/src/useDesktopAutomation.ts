@@ -28,7 +28,6 @@ export function useDesktopAutomation({
 }: DesktopAutomationOptions) {
   const [desktopSmokeProbe, setDesktopSmokeProbe] = useState<DesktopSmokeProbe | null>(null);
   const [desktopSmokeProbeBusy, setDesktopSmokeProbeBusy] = useState(false);
-  const [desktopSmokeReview, setDesktopSmokeReview] = useState(false);
   const [desktopSmokeRunning, setDesktopSmokeRunning] = useState(false);
   const [desktopSmokeCancelling, setDesktopSmokeCancelling] = useState(false);
   const [desktopSmokeRunDirectory, setDesktopSmokeRunDirectory] = useState<string | null>(null);
@@ -58,7 +57,7 @@ export function useDesktopAutomation({
       const outcome = payload.state === "cancelled"
         ? payload.detail ?? `Benchmark stopped safely. Evidence is in ${displayPath(payload.runDirectory)}.`
         : payload.success
-        ? `Paired benchmark finished. Evidence is in ${displayPath(payload.runDirectory)}.`
+        ? `Startup benchmark finished. Evidence is in ${displayPath(payload.runDirectory)}.`
         : payload.detail ?? `Benchmark stopped. Evidence is in ${displayPath(payload.runDirectory)}.`;
       void refreshInstallation(game).then((refreshed) => {
         if (refreshed) announce(outcome, payload.success ? "success" : "error");
@@ -108,7 +107,7 @@ export function useDesktopAutomation({
     try {
       const probe = await getDesktopSmokeProbe();
       setDesktopSmokeProbe(probe);
-      if (probe.probe.ready && reviewWhenReady) setDesktopSmokeReview(true);
+      if (probe.probe.ready && reviewWhenReady) await runDesktopAutomation(probe);
     } catch (error) {
       setDesktopSmokeProbe(null);
       announce(String(error), "error");
@@ -118,17 +117,16 @@ export function useDesktopAutomation({
     }
   };
 
-  const runDesktopAutomation = async () => {
-    if (!game || !desktopSmokeProbe?.probe.ready || probeBusyRef.current || runningRef.current) return;
+  const runDesktopAutomation = async (readyProbe = desktopSmokeProbe) => {
+    if (!game || !readyProbe?.probe.ready || runningRef.current) return;
     runningRef.current = true;
     cancellingRef.current = false;
-    setDesktopSmokeReview(false);
     setDesktopSmokeRunning(true);
     setDesktopSmokeCancelling(false);
     setDesktopSmokeRunDirectory(null);
     setDesktopBenchmarkComparison(null);
     setStatus("running");
-    announce("Running measurement-only first, then the same campaign route with Preflight optimizations…");
+    announce("Starting a normal launch, then a Preflight launch…");
     try {
       await startDesktopSmoke(game);
       if (!isDesktopHost()) {
@@ -140,26 +138,12 @@ export function useDesktopAutomation({
           available: true,
           metrics: {
             processToMainMenuMs: { measurementOnly: 88_000, optimized: 15_880, delta: -72_120, improvementPercent: 81.95 },
-            averageFps: { measurementOnly: 42.5, optimized: 56.2, delta: 13.7, improvementPercent: 32.24 },
-            onePercentLowFps: { measurementOnly: 19.8, optimized: 28.4, delta: 8.6, improvementPercent: 43.43 },
           },
           context: {
-            measurementOverhead: {
-              measurementOnly: { samples: 4_800, totalNanos: 28_000_000, averageMicros: 5.83, maximumMicros: 91.2, routeSharePercent: 0.03, withinBudget: true },
-              optimized: { samples: 4_800, totalNanos: 31_000_000, averageMicros: 6.46, maximumMicros: 104.8, routeSharePercent: 0.04, withinBudget: true },
-            },
-            optimized: {
-              adapterMode: "enabled",
-              cacheHits: 15_924_611,
-              cacheMisses: 193_428,
-              fallbacks: 14,
-              failures: 0,
-              memoryAvailablePercent: 58,
-            },
             storage: { scope: "all-prepared-data", bytes: 2_426_028_032, files: 15_104 },
           },
         });
-        announce("Paired benchmark finished in browser preview.", "success");
+        announce("Startup benchmark finished in browser preview.", "success");
       }
     } catch (error) {
       runningRef.current = false;
@@ -196,14 +180,12 @@ export function useDesktopAutomation({
   return {
     desktopSmokeProbe,
     desktopSmokeProbeBusy,
-    desktopSmokeReview,
     desktopSmokeRunDirectory,
     desktopBenchmarkComparison,
     desktopSmokeCancelling,
     desktopSmokeRunning,
     checkDesktopAutomation,
     runDesktopAutomation,
-    setDesktopSmokeReview,
     stopDesktopAutomation,
   };
 }

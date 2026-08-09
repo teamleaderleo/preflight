@@ -31,24 +31,18 @@ advanced work stays inside its workspace.
 **Exit:** someone unfamiliar with the project can prepare, launch, change a profile, export support
 data, update, and remove Preflight without reading the manual.
 
-## 2. Replace the campaign check with a real benchmark
+## 2. Ship a permission-free startup benchmark
 
-The desktop now owns an identity-checked measurement-only then optimized pair through one
-coordinator. It rejects different routes before launch, closes only its exact process lifetimes,
-checks the sealed installation/profile/launcher/runtime/settings identity after both runs, and emits
-one versioned result. The result now seals startup and frame/FPS deltas and the desktop shows the
-primary fields. Both phases are also bound to the exact in-installation save descriptor reported by
-Starsector. The result records runtime cache hits, misses, safe fallbacks, contained failures,
-memory availability, and the measured size of all prepared acceleration data after the pair. The
-frame hook now seals its own cumulative, average, maximum, and route-share overhead against an
-explicit budget. The remaining release step is a controlled packaged run that passes that budget;
-an optional alternating cohort can follow later.
+The desktop owns an identity-checked normal then optimized pair through one coordinator. It waits
+for the main-menu marker emitted by Preflight's runtime agent, closes only its exact process
+lifetimes, checks the sealed installation/profile/launcher/runtime/settings identity, and emits one
+versioned result. The benchmark doesn't use desktop input or Accessibility permission. It reports
+startup before and after plus prepared-data disk cost. A controlled packaged run remains the release
+evidence; optional campaign and combat measurement can follow as a separate advanced tool.
 
-The result should show startup before and after, seconds saved, percentage change, FPS, p50/p95/p99
-frame time, cache use and fallbacks, memory pressure, run noise, exact identities, and prepared-data
-disk cost. A rigorous disclosure can add alternating pairs, cooldowns, campaign/combat selection,
-and raw evidence. Measurement-only overhead must be shown negligible before that condition is
-described as equivalent to an ordinary launch.
+The result should show startup before and after, seconds saved, percentage change, exact identities,
+run noise, and prepared-data disk cost. A rigorous disclosure can add alternating pairs, cooldowns,
+campaign/combat selection, frame-time telemetry, and raw evidence.
 
 **Exit:** **Run benchmark** produces an honest, repeatable baseline-versus-Preflight result or a
 specific refusal.

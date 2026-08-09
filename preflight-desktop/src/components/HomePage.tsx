@@ -1,5 +1,6 @@
 import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
 import type { Page } from "./DesktopShell";
+import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import type { usePreparation } from "../usePreparation";
@@ -46,6 +47,7 @@ interface HomePageProps {
   launcherSettingsSaving: boolean;
   launchSettingsDirty: boolean;
   operationBlocked: boolean;
+  theme: Exclude<ThemePreference, "system">;
   onLauncherChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onChooseInstall: () => void;
   onPrimaryLaunch: () => void;
@@ -73,6 +75,7 @@ export function HomePage({
   launcherSettingsSaving,
   launchSettingsDirty,
   operationBlocked,
+  theme,
   onLauncherChange,
   onChooseInstall,
   onPrimaryLaunch,
@@ -141,13 +144,14 @@ export function HomePage({
             {isReady ? (
               <>
                 <button
+                  key={theme}
                   className="button button--primary button--launch"
                   type="button"
                   onClick={storageBlocked || cacheInspectionBlocked ? () => onNavigate("prepare") : onPrimaryLaunch}
                   disabled={preparing || cacheRepairing || (!storageBlocked && (operationBlocked || status === "loading" || status === "error" || cacheLoading || (needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && (preparationPlanLoading || !preparationPlan))))}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  {status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Review storage" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Review storage" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>

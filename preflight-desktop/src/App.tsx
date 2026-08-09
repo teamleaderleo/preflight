@@ -23,6 +23,7 @@ import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
+import { useTheme } from "./useTheme";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { shortPath } from "./uiFormat";
@@ -66,6 +67,7 @@ interface RunFailure {
 }
 
 export default function App() {
+  const theme = useTheme();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
   const [message, setMessage] = useState("");
@@ -290,8 +292,10 @@ export default function App() {
       updateAvailable={Boolean(updateStatus?.available)}
       engineVersion={snapshot?.engineVersion ?? "…"}
       refreshDisabled={operationBlocked}
+      theme={theme.preference}
       onPageChange={setPage}
       onRefresh={() => void refresh(snapshot?.selected?.installRoot)}
+      onThemeChange={theme.setPreference}
     >
         {activeOperation && page !== activeOperation.owner ? (
           <WorkflowLockNotice
@@ -317,6 +321,7 @@ export default function App() {
             launcherSettingsSaving={launcher.saving}
             launchSettingsDirty={launcher.dirty}
             operationBlocked={operationBlocked}
+            theme={theme.resolved}
             onLauncherChange={launcher.changeDraft}
             onChooseInstall={() => void chooseInstall()}
             onPrimaryLaunch={() => void primaryLaunch()}
@@ -366,11 +371,9 @@ export default function App() {
             message={message}
             messageTone={messageTone}
             status={status}
-            platform={snapshot?.platform ?? null}
             preparing={preparing}
             automation={automation}
             diagnostics={diagnostics}
-            onMessage={announce}
           />
         ) : (
           <SettingsPage

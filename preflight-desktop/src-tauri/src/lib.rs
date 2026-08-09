@@ -5,6 +5,9 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 mod automation;
+// Kept for the separate, opt-in campaign automation harness. The product startup benchmark never
+// constructs this bridge or requests desktop input permissions.
+#[allow(dead_code, unused_imports)]
 mod desktop_automation_bridge;
 mod engine;
 mod operations;
@@ -14,8 +17,8 @@ mod reports;
 mod updates;
 
 use automation::{
-    cancel_desktop_smoke, get_desktop_smoke_probe, open_desktop_accessibility_settings,
-    request_desktop_smoke_cancellation, start_desktop_smoke,
+    cancel_desktop_smoke, get_desktop_smoke_probe, request_desktop_smoke_cancellation,
+    start_desktop_smoke,
 };
 use engine::{
     EnginePaths, activate_profile, apply_cache_cleanup, apply_removal, canonical_game_directory,
@@ -284,7 +287,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_desktop_smoke_probe,
-            open_desktop_accessibility_settings,
             start_desktop_smoke,
             cancel_desktop_smoke,
             get_cache,
@@ -376,9 +378,6 @@ mod tests {
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
     use tokio::sync::{Mutex as AsyncMutex, watch};
     use url::Url;
-
-    #[cfg(target_os = "macos")]
-    use crate::automation::MACOS_ACCESSIBILITY_SETTINGS;
 
     // Each case owns a blocking loopback server. Serialize those cases and handshake with the
     // accept thread below so rapid parallel suites never race a freshly opened listener.
@@ -602,7 +601,7 @@ mod tests {
         assert_eq!(
             (
                 true,
-                Some("Automated game test stopped safely after exact-process cleanup.".to_string())
+                Some("Startup benchmark stopped safely after exact-process cleanup.".to_string())
             ),
             desktop_smoke_cancellation_outcome(&Ok(status), cancelled, b"")
         );
@@ -1221,15 +1220,6 @@ mod tests {
             validated_updater_endpoint("https://updates.example.com/latest.json#fragment").is_err()
         );
         assert!(validated_updater_endpoint("https://updates.example.com/latest.json").is_ok());
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn macos_accessibility_link_targets_the_system_privacy_pane() {
-        assert_eq!(
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-            MACOS_ACCESSIBILITY_SETTINGS,
-        );
     }
 
     #[test]

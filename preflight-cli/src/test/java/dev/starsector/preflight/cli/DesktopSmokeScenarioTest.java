@@ -42,6 +42,16 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void startupScenarioRequiresOnlyOwnedProcessAndSemanticState() throws Exception {
+        DesktopSmokeScenario scenario = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "startup.json"));
+
+        assertTrue(scenario.usesOnlyRuntimeState());
+        assertEquals(Set.of("process-control", "semantic-state"), scenario.requiredCapabilities());
+        assertEquals(List.of("menu"), scenario.stepIds());
+    }
+
+    @Test
     void rejectsUnknownTargetsAndDuplicateStepIds() {
         String invalidTarget = scenario("""
                 {"id":"click","kind":"click","target":"main-menu.destroy-save"}

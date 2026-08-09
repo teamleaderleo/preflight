@@ -144,9 +144,7 @@ final class DesktopBridgeCommand {
                         driver,
                         java.time.Clock.systemUTC());
             } catch (Exception failure) {
-                throw failure instanceof IOException io
-                        ? io
-                        : new IOException("Desktop smoke launch failed", failure);
+                throw launchFailure("Desktop smoke launch failed", failure);
             }
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("protocol", PROTOCOL_VERSION);
@@ -195,9 +193,7 @@ final class DesktopBridgeCommand {
                     driver(),
                     java.time.Clock.systemUTC());
         } catch (Exception failure) {
-            throw failure instanceof IOException io
-                    ? io
-                    : new IOException("Desktop benchmark launch failed", failure);
+            throw launchFailure("Desktop benchmark launch failed", failure);
         }
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("protocol", PROTOCOL_VERSION);
@@ -208,6 +204,14 @@ final class DesktopBridgeCommand {
 
     static int statusExitCode(Object status) {
         return "passed".equals(status) ? 0 : "skipped".equals(status) ? 3 : 1;
+    }
+
+    static IOException launchFailure(String context, Exception failure) {
+        if (failure instanceof IOException io) return io;
+        String detail = failure.getMessage();
+        return new IOException(
+                detail == null || detail.isBlank() ? context : context + ": " + detail,
+                failure);
     }
 
     private static DesktopSmokeDriver driver() {

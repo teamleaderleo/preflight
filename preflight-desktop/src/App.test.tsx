@@ -576,25 +576,9 @@ test("an unconfigured build keeps local export available and refuses report send
   intake.mockRestore();
 });
 
-test("the benchmark checks compatibility without launching before review", async () => {
+test("the benchmark checks its packaged startup contract and launches without a review step", async () => {
   const user = userEvent.setup();
   const probe = vi.spyOn(bridge, "getDesktopSmokeProbe");
-  const game = vi.spyOn(bridge, "startGame");
-  render(<App />);
-
-  await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
-  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
-
-  expect(await screen.findByText("Benchmark review")).toBeInTheDocument();
-  expect(probe).toHaveBeenCalledOnce();
-  expect(game).not.toHaveBeenCalled();
-  probe.mockRestore();
-  game.mockRestore();
-});
-
-test("the benchmark requires a review before it starts", async () => {
-  const user = userEvent.setup();
   const smoke = vi.spyOn(bridge, "startDesktopSmoke").mockResolvedValue({ pid: 4244 });
   render(<App />);
 
@@ -602,17 +586,13 @@ test("the benchmark requires a review before it starts", async () => {
   await user.click(screen.getByRole("button", { name: "Benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
-  expect(screen.getByText("Benchmark review")).toBeInTheDocument();
-  expect(smoke).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Start benchmark" }));
-
+  expect(probe).toHaveBeenCalledOnce();
   await waitFor(() => expect(smoke).toHaveBeenCalledWith("/Applications/Starsector"));
-  expect(await screen.findByText("Paired benchmark finished in browser preview.")).toBeInTheDocument();
+  expect(await screen.findByText("Startup benchmark finished in browser preview.")).toBeInTheDocument();
   expect(screen.getByRole("region", { name: "Latest benchmark result" })).toBeInTheDocument();
   expect(screen.getByText("15.88s")).toBeInTheDocument();
-  expect(screen.getByText("56.2")).toBeInTheDocument();
-  expect(screen.getByText("cache hits")).toBeInTheDocument();
   expect(screen.getByText("total prepared data")).toBeInTheDocument();
+  probe.mockRestore();
   smoke.mockRestore();
 });
 
@@ -625,7 +605,6 @@ test("a running benchmark exposes cooperative cancellation", async () => {
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
-  await user.click(screen.getByRole("button", { name: "Start benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Stop benchmark" }));
 
   expect(cancel).toHaveBeenCalledOnce();
@@ -635,28 +614,28 @@ test("a running benchmark exposes cooperative cancellation", async () => {
   cancel.mockRestore();
 });
 
-test("a blocked macOS automation probe links to the manual permission pane", async () => {
+test("an unavailable startup benchmark reports the packaged-contract failure without permissions", async () => {
   const user = userEvent.setup();
+  const smoke = vi.spyOn(bridge, "startDesktopSmoke");
   const probe = vi.spyOn(bridge, "getDesktopSmokeProbe").mockResolvedValue({
     protocol: 1,
     probe: {
       ready: false,
       driver: null,
-      diagnostics: ["macOS Accessibility permission isn't enabled for the automation executable: the Preflight application"],
+      diagnostics: ["A packaged startup benchmark scenario is missing."],
     },
   });
-  const settings = vi.spyOn(bridge, "openDesktopAccessibilitySettings").mockResolvedValue();
   render(<App />);
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
-  await user.click(await screen.findByRole("button", { name: "Open Accessibility settings" }));
 
-  expect(settings).toHaveBeenCalledOnce();
-  expect(screen.queryByRole("button", { name: "Start benchmark" })).not.toBeInTheDocument();
+  expect(await screen.findByText("A packaged startup benchmark scenario is missing.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Accessibility/i })).not.toBeInTheDocument();
+  expect(smoke).not.toHaveBeenCalled();
   probe.mockRestore();
-  settings.mockRestore();
+  smoke.mockRestore();
 });
 
 test("verified updates are explicit and explain when a build has no update channel", async () => {

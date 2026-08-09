@@ -191,7 +191,7 @@ It probes permissions before launching, refuses a nonempty evidence directory or
 tracked runtime, and starts a packaged direct smoke path without a shell. The checked optimized
 scenario uses `run --fast --direct --desktop-smoke`. The paired benchmark's measurement-only
 scenario uses `run --optimization-preset off --direct --desktop-smoke`: the exact semantic and
-frame probes remain, while the optimization adapter and prepared caches stay off. It waits for the
+runtime markers remain, while the optimization adapter and prepared caches stay off. It waits for the
 process record, runs the scenario, and waits for bounded postprocessing. Its
 `finally` path rereads the identity and can terminate only the same PID/start-instant lifetime.
 The launch result and bounded launcher output remain in the run directory even when startup fails.
@@ -200,31 +200,23 @@ stop creates a run-owned `cancel.requested` marker. The launch owner watches tha
 the recorded PID/start-instant lifetime, seals a `cancelled` receipt, and returns a non-success exit
 code so scripts can't mistake a partial run for a pass.
 
-The desktop app bundles matching measurement-only and optimized `campaign-roam` scenarios. Its
-Benchmark page probes readiness without launching, then shows the action sequence and requires a
-separate confirmation before starting. One Java coordinator validates that both scenarios have the
-same settings and interaction steps before either game starts. It runs measurement-only first,
-performs exact-process cleanup, repeats the route with optimizations, compares the sealed
-installation/profile/launcher/runtime/settings identity, and writes
-`benchmark-result.json`. The Tauri host treats that coordinator as the active game owner, reads its
-sealed receipt, and reports the evidence directory when the pair ends. A failed macOS permission probe
-offers a fixed link to the Accessibility privacy pane; Preflight never changes that permission. A
-running test has an explicit safe-stop action. If the app is closed during a test, it requests the
-same cooperative stop and delays its own exit until the smoke launcher and exact game process have
-finished cleanup. Closing Preflight during an ordinary play session still leaves the game running.
-App exit also cancels an owned cache-preparation child before leaving.
+The desktop app's benchmark bundles matching measurement-only and optimized `startup` scenarios.
+Each scenario waits only for Preflight's PID-bound `main-menu-ready` marker. It doesn't probe a
+desktop driver, request Accessibility or screen-capture permission, send input, load a save, or take
+a screenshot. One Java coordinator validates the pair before either game starts, runs the normal
+launch first, closes that exact PID/start-instant lifetime, repeats with optimizations, compares the
+sealed installation/profile/launcher/runtime/settings identity, and writes
+`benchmark-result.json`. The Tauri host treats that coordinator as the active game owner and reports
+the evidence directory when the pair ends. A running benchmark has an explicit safe-stop action. If
+the app closes during a benchmark, it requests the same cooperative stop and waits for both the
+launcher and exact game process to finish cleanup. Closing Preflight during ordinary play still
+leaves the game running. App exit also cancels an owned cache-preparation child before leaving.
 
-The sealed comparison includes process-to-main-menu, process-to-campaign, route duration,
-average/median/1%/0.1%-low FPS, p95/p99 frame time, deltas, and improvement percentages. The desktop
-shows the primary startup and FPS fields and describes a single pair as directional evidence. The
-coordinator resolves the exact save descriptor named by Starsector's own load log, refuses paths
-outside the installation's real `saves` directory, hashes the descriptor, and requires both phases
-to load the same save. It also seals runtime cache hits and misses, safe fallbacks, contained cache
-failures, the session memory-pressure reading, and a post-run measurement of all prepared-data disk
-usage. The lightweight display-boundary hook measures its own call count, cumulative time, average,
-maximum, and share of the scenario route. The sealed result refuses to describe that overhead as
-within budget above either 1% of the route or a 250-microsecond average. A controlled packaged run
-still has to supply the release evidence; an optional alternating cohort remains later work.
+The product comparison contains process-to-main-menu time, its delta and percentage change, exact
+run identities, and post-run prepared-data disk usage. The separate `campaign-roam` scenarios remain
+available for development measurements of campaign readiness, FPS, frame-time tails, runtime cache
+health, and save identity. Those interactive scenarios use a platform driver and may require the
+operating system's automation permissions; they aren't part of the benchmark users run.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the
@@ -238,12 +230,12 @@ exact-PID X11 adapter backed by `xdotool` and ImageMagick `import`; Wayland and 
 produce an explicit unavailable result. Both adapters compile and have offline boundary tests, but
 neither is labelled live-validated until a beta run happens on that platform.
 
-A packaged no-launch probe is available as `desktop smoke probe`. The native install exercise now
-starts the actual packaged host, crosses its authorized loopback bridge, and requires either the
-native driver ID or an unavailable result naming the Preflight application. A result naming the
-bundled Java runtime fails package verification. That exercise also moves the app before probing;
-the native host resolves its engine from a canonical path confined to the moved bundle's own
-`Contents/Resources` tree. Granting permission to a different terminal, editor, application bundle,
+A development-driver probe remains available as `desktop smoke probe`. The product benchmark
+readiness check instead validates both packaged `startup` scenarios and requires their capabilities
+to be exactly `process-control` and `semantic-state`. The native install exercise starts the actual
+packaged host and rejects any benchmark probe that names an input driver. That exercise also moves
+the app before probing; the native host resolves its engine from a canonical path confined to the
+moved bundle's own `Contents/Resources` tree. Granting permission to a different terminal, editor, application bundle,
 or Java binary isn't treated as sufficient. macOS tracks protected access through code identity, so
 an unsigned or differently signed development build may still need permission granted again after
 replacement.
