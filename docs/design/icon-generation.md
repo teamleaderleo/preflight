@@ -1,34 +1,31 @@
 # Application icon source
 
-The current mark restores the illustrated v6 drafting-paper spacecraft without redrawing it. The
-editable source is `preflight-desktop/src/assets/preflight-mark-v8.svg`; it uses the checked-in v6
-PNG as an immutable base and rebuilds only the upper-right celestial layer. The checked-in 512px
-render is `preflight-desktop/src/assets/preflight-mark-v8.png`.
+The current application mark is the versioned 512px bitmap
+`preflight-desktop/src/assets/preflight-mark-v9.png`. It keeps the warm drafting-paper spacecraft
+and replaces the upper-right star and construction circles with a foreshortened wireframe
+wormhole. The spacecraft crosses the darker near rim while lighter cross-sections and guide lines
+recede toward the upper-right corner.
 
-That localized layer contains four drafting circles and a single symmetric, unfilled four-ray star.
-The former hatched, many-ray starburst is retained only in the historical v6 asset. The ship,
-paper, grid, frame, registration marks, construction lines, palette, scale, and composition remain
-the v6 artwork.
+The mark was produced with the built-in image-editing tool from the accepted illustrated
+spacecraft base. The final prompt was:
 
-Quick Look resolves the SVG's relative base-image reference when producing the PNG on macOS:
+> Replace the star and circular construction geometry with an aesthetically distinctive
+> hand-drafted wormhole that the spacecraft is entering. Create a foreshortened wireframe tunnel
+> sweeping from the spacecraft nose toward a vanishing point beyond the upper-right edge. Use
+> three receding elliptical cross-section rings plus a doubled near rim, connected by five or six
+> sparse curved longitudinal guide lines. Let the nose visibly overlap the near rim. Make the near
+> rim slightly darker and the distant geometry lighter. Remove the star, dashed construction
+> circle, and old arcs. Preserve the spacecraft, ivory drafting paper, faint grid, frame,
+> registration ticks, straight construction marks, crop, palette, and technical-sketch style.
+> Avoid flat circles, a bullseye, glow, gradients, color, fill, dense ornament, text, or a ship
+> redesign.
+
+The generated 1024px result was reduced to 512px with:
 
 ```sh
-render_dir=$(mktemp -d)
-qlmanage -t -s 512 -o "$render_dir" \
-  preflight-desktop/src/assets/preflight-mark-v8.svg
-cp "$render_dir/preflight-mark-v8.svg.png" \
-  preflight-desktop/src/assets/preflight-mark-v8.png
+sips -z 512 512 preflight-desktop/src/assets/preflight-mark-v9.png
 ```
 
-Tauri's icon command converts that PNG into the platform icon set. Earlier marks remain checked in
-as design history and aren't consumed by the app or package.
-
-Two built-in image-edit attempts used the following final constraint and were rejected because they
-redrew the spacecraft instead of preserving it:
-
-> Change only the upper-right starburst. Keep every pixel outside it visually identical. Replace the
-> many-ray hatched star with a plain symmetric star; preserve the spacecraft, drafting paper, grid,
-> border, registration marks, construction lines, circle arcs, scale, crop, and palette.
-
-The shipped v8 mark therefore uses the deterministic localized SVG edit above rather than either
-generated result.
+Tauri's icon command converts that PNG into the checked-in macOS and Windows icon set. Earlier
+marks remain in `preflight-desktop/src/assets` as design history and aren't consumed by the app or
+package.
