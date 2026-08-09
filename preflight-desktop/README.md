@@ -18,6 +18,11 @@ npm run desktop:dev
 Tauri. To work only on visual design, use `npm run dev`; it supplies a clearly marked preview
 snapshot and doesn't launch anything.
 
+The browser preview also has read-only failure fixtures for interface review. Append
+`?scenario=setup`, `low-disk`, `cache-repair`, `profile-mismatch`,
+`benchmark-unavailable`, `update-error`, or `report-error`. Unknown values fall back to the normal
+ready preview, and Tauri builds ignore the query entirely.
+
 Tauri development uses the configured Vite dev server: React and CSS changes hot-reload in the
 webview, while Rust host changes rebuild and restart the native process.
 

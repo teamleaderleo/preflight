@@ -121,7 +121,9 @@ export function HomePage({
           ? "Finding Starsector"
           : !isReady
             ? "Installation required"
-            : firstSetup
+            : cacheNeedsRepair
+              ? "Prepared data needs repair"
+              : firstSetup
               ? "First launch setup"
               : needsPreparation
                 ? "This mod setup needs preparation"
@@ -158,6 +160,9 @@ export function HomePage({
                     {preparationCancelling ? "Stopping…" : "Stop safely"}
                   </button>
                 ) : null}
+                {cacheNeedsRepair && !preparing && !cacheRepairing ? (
+                  <button className="button button--quiet launch-console__stop" type="button" onClick={() => onNavigate("prepare")}>Repair details</button>
+                ) : null}
               </>
             ) : (
               <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
@@ -167,6 +172,8 @@ export function HomePage({
             <div className="launch-console__note">
               <span>{preparing
                 ? `${preparationPhaseLabel ?? "Preparing this mod setup"} · Starsector will open automatically. Finished work stays reusable if you stop.`
+                : cacheNeedsRepair
+                  ? "Preflight will remove only the damaged prepared artifacts, rebuild this mod setup, and then open Starsector. Game files, mods, and saves stay unchanged."
                 : needsPreparation
                 ? preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
@@ -199,13 +206,13 @@ export function HomePage({
       ) : null}
 
       <NoticeBanner
-        message={message}
+        message={runFailure?.summary === message ? "" : message}
         tone={status === "error" ? "error" : messageTone}
         actionLabel={status === "error" ? retryLabel : undefined}
         onAction={status === "error" ? onRetry : undefined}
       />
 
-      {cacheNeedsRepair || cacheInspectionBlocked ? (
+      {cacheInspectionBlocked ? (
         <section className="card run-recovery cache-recovery" aria-label="Prepared data needs repair">
           <div>
             <strong>{cacheIdentityUnknown ? "Current mod setup couldn't be inspected" : cacheBoundaryUnsafe ? "Cache location needs attention" : "Prepared data needs repair"}</strong>
@@ -213,7 +220,6 @@ export function HomePage({
             {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
           </div>
           <div className="run-recovery__actions">
-            {!cacheInspectionBlocked ? <button className="button button--primary button--compact" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Repairing…" : "Repair and launch"}</button> : null}
             <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("prepare")} disabled={cacheRepairing}>Details</button>
           </div>
         </section>
@@ -239,7 +245,7 @@ export function HomePage({
         </section>
       ) : null}
 
-      <section className="card home-overview" aria-label="Current Preflight setup">
+      {isReady && !needsPreparation && !cacheInspectionBlocked ? <section className="card home-overview" aria-label="Current Preflight setup">
         <div className="home-fact">
           <span>Mod profile</span>
           <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? (profiles ? `${profiles.enabledMods.length} enabled mods` : "Unavailable")}</strong>
@@ -263,7 +269,7 @@ export function HomePage({
           <small>{isReady && snapshot ? `${friendlyPlatform(snapshot.platform)} · ${snapshot.selected?.kind.replace("-", " ")}${snapshot.candidates.length > 1 ? ` · ${snapshot.candidates.length} detected candidates` : " · found automatically"}` : "Choose the game folder to begin."}</small>
           <button type="button" className="text-button" onClick={onChooseInstall} aria-label="Change Starsector installation" disabled={operationBlocked}>Change <ArrowIcon /></button>
         </div>
-      </section>
+      </section> : null}
       {!isReady && snapshot?.diagnostics.length ? (
         <details className="setup-diagnostics">
           <summary>Why wasn’t Starsector found?</summary>

@@ -31,6 +31,32 @@ declare global {
   }
 }
 
+export type BrowserPreviewScenario =
+  | "ready"
+  | "setup"
+  | "low-disk"
+  | "cache-repair"
+  | "profile-mismatch"
+  | "benchmark-unavailable"
+  | "update-error"
+  | "report-error";
+
+const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
+  "ready",
+  "setup",
+  "low-disk",
+  "cache-repair",
+  "profile-mismatch",
+  "benchmark-unavailable",
+  "update-error",
+  "report-error",
+]);
+
+export function browserPreviewScenario(): BrowserPreviewScenario {
+  const requested = new URLSearchParams(window.location.search).get("scenario") as BrowserPreviewScenario | null;
+  return requested && browserPreviewScenarios.has(requested) ? requested : "ready";
+}
+
 const previewSnapshot: DesktopSnapshot = {
   protocol: 1,
   engineVersion: "preview",
@@ -85,6 +111,14 @@ export function isDesktopHost(): boolean {
 
 export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "setup") {
+      return {
+        ...previewSnapshot,
+        ready: false,
+        selected: null,
+        diagnostics: ["No supported Starsector launcher was found in the usual locations."],
+      };
+    }
     return previewSnapshot;
   }
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
@@ -108,6 +142,16 @@ export async function getOperationState(): Promise<OperationSnapshot> {
 
 export async function getDesktopSmokeProbe(): Promise<DesktopSmokeProbe> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "benchmark-unavailable") {
+      return {
+        protocol: 1,
+        probe: {
+          ready: false,
+          driver: null,
+          diagnostics: ["The packaged startup benchmark contract is unavailable."],
+        },
+      };
+    }
     return {
       protocol: 1,
       probe: {
@@ -152,6 +196,18 @@ export async function startGame(
 
 export async function getCache(game: string): Promise<CacheSnapshot> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "low-disk") {
+      return {
+        format: "starsector-preflight-cache-v1",
+        root: "~/.starsector-preflight",
+        present: true,
+        total: { bytes: 536_870_912, files: 1_204 },
+        groups: [{ id: "acceleration", bytes: 536_870_912, files: 1_204 }],
+        uncategorizedBytes: 0,
+        currentProfileFingerprint: "preview-profile",
+        profiles: [],
+      };
+    }
     return {
       format: "starsector-preflight-cache-v1",
       root: "~/.starsector-preflight",
@@ -178,6 +234,20 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
 
 export async function getCacheHealth(game: string): Promise<CacheHealth> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "cache-repair") {
+      return {
+        format: "starsector-preflight-cache-health-v1",
+        status: "repair-needed",
+        profileFingerprint: "preview-profile",
+        issues: [{
+          artifact: "prepared-textures",
+          summary: "Prepared texture metadata is incomplete.",
+          path: "~/.starsector-preflight/cache/manifests/preview-profile.json",
+        }],
+        repairBytes: 18_874_368,
+        repairFiles: 3,
+      };
+    }
     return {
       format: "starsector-preflight-cache-health-v1",
       status: "ready",
@@ -237,6 +307,9 @@ export async function getReportIntakeStatus(): Promise<ReportIntakeStatus> {
 
 export async function sendRunReport(report: DiagnosticsExport): Promise<ReportReceipt> {
   if (!isDesktopHost()) {
+    if (browserPreviewScenario() === "report-error") {
+      throw new Error("The preview report service is temporarily unavailable.");
+    }
     await new Promise((resolve) => window.setTimeout(resolve, 500));
     const caseId = "ed6ca0c8-0417-45e5-864f-557680b00590";
     return {
@@ -350,11 +423,16 @@ export async function updateLaunchSettings(
 
 export async function getProfiles(game: string): Promise<ProfileList> {
   if (!isDesktopHost()) {
+    const profiles = browserPreviewScenario() === "profile-mismatch"
+      ? previewProfiles.map((profile) => profile.name === "Utilities only"
+        ? { ...profile, canActivate: false, missingMods: ["graphicslib"] }
+        : profile)
+      : previewProfiles;
     return {
       format: "starsector-preflight-profile-list-v1",
       installRoot: game,
       enabledMods: previewProfiles[0].enabledMods,
-      profiles: previewProfiles,
+      profiles,
       diagnostics: [],
     };
   }
@@ -427,6 +505,7 @@ export async function getPreparationPlan(
 ): Promise<PreparationStoragePlan> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 100));
+    const lowDisk = browserPreviewScenario() === "low-disk";
     return {
       format: "preflight-preparation-storage-plan-v1",
       profileFingerprint: "preview-profile",
@@ -452,12 +531,12 @@ export async function getPreparationPlan(
       upperBoundAdditionalBytes: textureStorage === "balanced" ? 11_334_217_728 : 11_065_217_728,
       safetyReserveBytes: 1_133_421_772,
       requiredFreeBytes: 12_467_639_500,
-      usableBytes: 82_000_000_000,
-      remainingAfterUpperBoundBytes: 70_665_782_272,
+      usableBytes: lowDisk ? 2_147_483_648 : 82_000_000_000,
+      remainingAfterUpperBoundBytes: lowDisk ? -9_186_734_080 : 70_665_782_272,
       packHit: false,
       complete: true,
-      safeToPrepare: true,
-      refusalReason: null,
+      safeToPrepare: !lowDisk,
+      refusalReason: lowDisk ? "Preparation needs up to 11.6 GB; only 2.0 GB is available after the safety reserve." : null,
       diagnostics: [],
       durationMs: 740,
     };
@@ -530,6 +609,9 @@ export async function applyRemoval(scope: RemovalScope): Promise<RemovalPlan> {
 export async function checkForUpdate(): Promise<UpdateStatus> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 120));
+    if (browserPreviewScenario() === "update-error") {
+      throw new Error("The preview update service is temporarily unavailable.");
+    }
     return {
       format: "preflight-update-v1",
       configured: false,

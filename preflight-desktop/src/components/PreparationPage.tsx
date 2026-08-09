@@ -143,7 +143,14 @@ export function PreparationPage({
           <div><span>Next preparation</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? `Up to ${formatBytes(preparationPlan.requiredFreeBytes)} free` : "—"}</strong></div>
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
-        {preparationPlan && !preparationPlan.safeToPrepare ? <p className="activation-warning">{preparationPlan.refusalReason}</p> : null}
+        {preparationPlan && !preparationPlan.safeToPrepare ? (
+          <div className="storage-refusal">
+            <p className="activation-warning">{preparationPlan.refusalReason}</p>
+            {textureStorage === "fastest" ? (
+              <button className="button button--quiet button--compact" type="button" onClick={() => setTextureStorage("balanced")} disabled={operationBlocked}>Use Balanced storage</button>
+            ) : null}
+          </div>
+        ) : null}
         <details className="storage-breakdown">
           <summary>Storage details</summary>
           <div className="storage-breakdown__grid">

@@ -61,7 +61,7 @@ export function ReportsPage({
 
   return (
     <div className="settings-page">
-      <NoticeBanner message={message} tone={messageTone} />
+      <NoticeBanner message={reportError && message.includes(reportError) ? "" : message} tone={messageTone} />
 
       <section className="card benchmark-card">
         <div>
@@ -77,7 +77,7 @@ export function ReportsPage({
             <button className="button button--quiet button--benchmark" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping…" : "Stop benchmark"}</button>
           ) : (
             <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || operationBlocked}>
-              {desktopSmokeProbeBusy ? "Checking…" : "Run benchmark"}
+              {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? "Check again" : "Run benchmark"}
             </button>
           )}
           {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "The startup benchmark isn’t available in this build."}</small> : null}

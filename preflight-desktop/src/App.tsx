@@ -24,6 +24,7 @@ import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
 import { useTheme } from "./useTheme";
+import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { shortPath } from "./uiFormat";
@@ -70,15 +71,20 @@ export default function App() {
   const theme = useTheme();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
-  const [message, setMessage] = useState("");
-  const [messageTone, setMessageTone] = useState<NoticeTone>("info");
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
   const [page, setPage] = useState<Page>("home");
-  const announce = useCallback((nextMessage: string, tone: NoticeTone = "info") => {
-    setMessage(nextMessage);
-    setMessageTone(tone);
-  }, []);
+  const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
+  const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
+  const announceGame = useCallback((message: string, tone?: NoticeTone) => announceNotice("game", message, tone), [announceNotice]);
+  const announceGameSettings = useCallback((message: string, tone?: NoticeTone) => announceNotice("game-settings", message, tone), [announceNotice]);
+  const announcePreparation = useCallback((message: string, tone?: NoticeTone) => announceNotice("preparation", message, tone), [announceNotice]);
+  const announceProfiles = useCallback((message: string, tone?: NoticeTone) => announceNotice("profiles", message, tone), [announceNotice]);
+  const announceCache = useCallback((message: string, tone?: NoticeTone) => announceNotice("cache", message, tone), [announceNotice]);
+  const announceBenchmark = useCallback((message: string, tone?: NoticeTone) => announceNotice("benchmark", message, tone), [announceNotice]);
+  const announceSupport = useCallback((message: string, tone?: NoticeTone) => announceNotice("support", message, tone), [announceNotice]);
+  const announceUpdates = useCallback((message: string, tone?: NoticeTone) => announceNotice("updates", message, tone), [announceNotice]);
+  const announceRemoval = useCallback((message: string, tone?: NoticeTone) => announceNotice("removal", message, tone), [announceNotice]);
   const {
     optimizationPreset,
     disabledOptimizationDomains,
@@ -89,8 +95,7 @@ export default function App() {
   const refresh = useCallback(async (game?: string): Promise<boolean> => {
     const request = ++refreshRequest.current;
     setStatus("loading");
-    setMessage("");
-    setMessageTone("info");
+    clearNotice("installation");
     setRetryIntent(null);
     try {
       const next = await getSnapshot(game);
@@ -102,32 +107,32 @@ export default function App() {
       if (request !== refreshRequest.current) return false;
       setStatus("error");
       setRetryIntent(game ? { kind: "installation", game } : { kind: "discovery" });
-      announce(game ? `Couldn’t use ${shortPath(game)}. ${String(error)}` : String(error), "error");
+      announceInstallation(game ? `Couldn’t use ${shortPath(game)}. ${String(error)}` : String(error), "error");
       return false;
     }
-  }, [announce]);
+  }, [announceInstallation, clearNotice]);
   const launch = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
     setStatus("launching");
     setRetryIntent(null);
-    announce("Opening Starsector…");
+    announceGame("Opening Starsector…");
     try {
       await startGame(game, optimizationPreset, disabledOptimizationDomains);
       setStatus("running");
-      announce("Starsector is running. Preflight will return here when it exits.", "success");
+      announceGame("Starsector is running. Preflight will return here when it exits.", "success");
     } catch (error) {
       setStatus("error");
       setRetryIntent({ kind: "launch" });
-      announce(String(error), "error");
+      announceGame(String(error), "error");
     }
-  }, [announce, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
+  }, [announceGame, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
     page === "prepare",
     optimizationPreset,
     launch,
-    announce,
+    announcePreparation,
   );
   const {
     preparing,
@@ -143,12 +148,12 @@ export default function App() {
     page === "home" || page === "profiles",
     refresh,
     refreshCache,
-    announce,
+    announceProfiles,
   );
   const { clearProfiles } = profilesState;
   const cleanup = useCacheCleanup(
     snapshot?.selected?.installRoot,
-    announce,
+    announceCache,
     refreshCache,
     invalidatePreparationPlan,
   );
@@ -156,16 +161,16 @@ export default function App() {
   const automation = useDesktopAutomation({
     game: snapshot?.selected?.installRoot,
     installationReady: isReady,
-    announce,
+    announce: announceBenchmark,
     displayPath: shortPath,
     refreshInstallation: refresh,
     setStatus,
   });
-  const diagnostics = useDiagnosticsReport(page === "reports", announce);
+  const diagnostics = useDiagnosticsReport(page === "reports", announceSupport);
   const launcher = useLauncherSettings(
     snapshot?.selected?.installRoot,
     page === "home" || page === "launch",
-    announce,
+    announceGameSettings,
   );
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const primaryLaunch = async () => {
@@ -174,8 +179,8 @@ export default function App() {
       ? preparation.repairAndPrepare(true)
       : needsPreparation ? prepare(true) : launch());
   };
-  const removal = useRemoval(snapshot?.platform, announce, clearCache, clearProfiles);
-  const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announce);
+  const removal = useRemoval(snapshot?.platform, announceRemoval, clearCache, clearProfiles);
+  const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announceUpdates);
   const { updateStatus } = updates;
 
   useEffect(() => {
@@ -193,11 +198,11 @@ export default function App() {
           : failedRunSummary(payload.detail);
         setRunFailure(payload.success ? null : { summary: outcome, detail: payload.detail });
         void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
-          if (refreshed) announce(outcome, payload.success ? "success" : "error");
+          if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
         });
       }
     }, (error) => {
-      announce(`Live game-process updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      announceGame(`Live game-process updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
       let previousPid: number | null | undefined;
       stopReconciliation();
       stopReconciliation = startOperationReconciliation({
@@ -211,21 +216,21 @@ export default function App() {
             previousPid = null;
             setStatus(snapshot?.ready ? "ready" : "setup");
             void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
-              if (refreshed) announce("Starsector closed. The exact outcome is available in run reports.", "warning");
+              if (refreshed) announceGame("Starsector closed. The exact outcome is available in run reports.", "warning");
             });
           } else {
             previousPid = null;
           }
         },
         isActive: () => true,
-        onError: (pollError) => announce(`Could not refresh native game state: ${pollError}`, "error"),
+        onError: (pollError) => announceGame(`Could not refresh native game state: ${pollError}`, "error"),
       });
     });
     return () => {
       stopListening();
       stopReconciliation();
     };
-  }, [announce, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+  }, [announceGame, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async () => {
     if (!isDesktopHost()) {
@@ -282,6 +287,12 @@ export default function App() {
     : retryIntent?.kind === "installation"
       ? "Try this folder again"
       : "Scan again";
+  const homeNotice = latestNotice(["installation", "game", "game-settings", "preparation", "profiles", "cache"]);
+  const launchNotice = latestNotice(["installation", "game-settings"]);
+  const preparationNotice = latestNotice(["installation", "preparation", "cache"]);
+  const profilesNotice = latestNotice(["installation", "profiles"]);
+  const reportsNotice = latestNotice(["installation", "benchmark", "support"]);
+  const settingsNotice = latestNotice(["installation", "updates", "removal"]);
   const title = pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
     <DesktopShell
@@ -308,8 +319,8 @@ export default function App() {
           <HomePage
             snapshot={snapshot}
             status={status}
-            message={message}
-            messageTone={messageTone}
+            message={homeNotice?.message ?? ""}
+            messageTone={homeNotice?.tone ?? "info"}
             isReady={isReady}
             needsPreparation={needsPreparation}
             preparation={preparation}
@@ -334,7 +345,7 @@ export default function App() {
           />
         ) : page === "launch" ? (
           <>
-            <NoticeBanner message={message} tone={messageTone} />
+            <NoticeBanner message={launchNotice?.message ?? ""} tone={launchNotice?.tone ?? "info"} />
             <GameSettingsPage
               settings={launcher.settings}
               draft={launcher.draft}
@@ -349,8 +360,8 @@ export default function App() {
           </>
         ) : page === "prepare" ? (
           <PreparationPage
-            message={message}
-            messageTone={messageTone}
+            message={preparationNotice?.message ?? ""}
+            messageTone={preparationNotice?.tone ?? "info"}
             isReady={isReady}
             optimizationPreset={optimizationPreset}
             disabledOptimizationDomains={disabledOptimizationDomains}
@@ -365,11 +376,11 @@ export default function App() {
             onDismissCleanup={cleanup.dismiss}
           />
         ) : page === "profiles" ? (
-          <ProfilesPage message={message} messageTone={messageTone} profilesState={profilesState} operationBlocked={operationBlocked} />
+          <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
         ) : page === "reports" ? (
           <ReportsPage
-            message={message}
-            messageTone={messageTone}
+            message={reportsNotice?.message ?? ""}
+            messageTone={reportsNotice?.tone ?? "info"}
             status={status}
             preparing={preparing}
             automation={automation}
@@ -377,8 +388,8 @@ export default function App() {
           />
         ) : (
           <SettingsPage
-            message={message}
-            messageTone={messageTone}
+            message={settingsNotice?.message ?? ""}
+            messageTone={settingsNotice?.tone ?? "info"}
             operationBlocked={operationBlocked}
             updates={updates}
             removalPlan={removal.plan}

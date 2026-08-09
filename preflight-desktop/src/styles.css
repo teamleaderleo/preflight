@@ -1354,6 +1354,22 @@ h2 {
   padding-bottom: 4px;
 }
 
+.storage-refusal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.storage-refusal .activation-warning {
+  flex: 1;
+  margin: 0;
+}
+
+.storage-refusal .button {
+  flex: 0 0 auto;
+}
+
 .storage-breakdown__grid > div {
   display: flex;
   justify-content: space-between;
@@ -3064,6 +3080,11 @@ footer {
 
   .diagnostics-action,
   .update-notice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .storage-refusal {
     align-items: stretch;
     flex-direction: column;
   }

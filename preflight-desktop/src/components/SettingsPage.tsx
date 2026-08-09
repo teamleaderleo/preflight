@@ -40,7 +40,7 @@ export function SettingsPage({
   } = updates;
   return (
     <div className="settings-page">
-      <NoticeBanner message={message} tone={messageTone} />
+      <NoticeBanner message={updateError === message ? "" : message} tone={messageTone} />
       <div className="settings-overview">
         <section className="card update-card">
           <div className="card__heading">
@@ -52,7 +52,7 @@ export function SettingsPage({
             : updateStatus?.configured
               ? `Version ${updateStatus.currentVersion} is current.`
               : updateStatus?.reason || "Update status hasn’t been checked yet."}</p>
-          {updateError ? <p className="activation-warning">{updateError}</p> : null}
+          {updateError ? <p className="activation-warning" role="alert">{updateError}</p> : null}
           {updateInstalling ? (
             <div className="update-progress" role="progressbar" aria-label="Update download" aria-valuemin={0} aria-valuemax={updateProgress?.contentLength ?? undefined} aria-valuenow={updateProgress?.downloadedBytes ?? 0}>
               <span>{updateProgress?.contentLength ? `${formatBytes(updateProgress.downloadedBytes)} of ${formatBytes(updateProgress.contentLength)}` : `${formatBytes(updateProgress?.downloadedBytes ?? 0)} downloaded`}</span>

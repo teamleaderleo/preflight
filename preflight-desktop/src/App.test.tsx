@@ -9,6 +9,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.history.replaceState(null, "", "/");
 });
 
 function cacheSnapshot(overrides: Partial<CacheSnapshot> = {}): CacheSnapshot {
@@ -112,7 +113,10 @@ test("repairs only the reviewed profile before rebuilding and launching", async 
   render(<App />);
 
   expect(await screen.findByText("Prepared data needs repair")).toBeInTheDocument();
-  await user.click(screen.getAllByRole("button", { name: "Repair and launch" })[0]);
+  expect(screen.getAllByRole("button", { name: "Repair and launch" })).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Repair details" })).toBeEnabled();
+  expect(screen.getByText(/remove only the damaged prepared artifacts/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Repair and launch" }));
   await waitFor(() => expect(repair).toHaveBeenCalledWith("/Applications/Starsector", "preview-profile"));
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
@@ -168,9 +172,15 @@ test("a cold profile cannot prepare when the conservative disk bound does not fi
   const action = await screen.findByRole("button", { name: "Review storage" });
   await screen.findByText(reason);
   expect(action).toBeEnabled();
+  expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(preparation).not.toHaveBeenCalled();
   await userEvent.setup().click(action);
   expect(await screen.findByRole("heading", { name: "Preflight", level: 1 })).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByText("Advanced controls"));
+  await userEvent.setup().click(screen.getByRole("radio", { name: /Fastest/ }));
+  const useBalanced = await screen.findByRole("button", { name: "Use Balanced storage" });
+  await userEvent.setup().click(useBalanced);
+  expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
 
   cache.mockRestore();
   plan.mockRestore();
@@ -189,6 +199,23 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
   expect(screen.queryByText(/Prepared ·/)).not.toBeInTheDocument();
   expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
+});
+
+test("setup keeps a single installation action and hides unavailable ready-state panels", async () => {
+  const snapshot = vi.spyOn(bridge, "getSnapshot").mockResolvedValue({
+    ...(await bridge.getSnapshot()),
+    ready: false,
+    selected: null,
+    diagnostics: ["No supported Starsector launcher was found."],
+  });
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "Setup", level: 1 })).toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "Choose game folder" })).toHaveLength(1);
+  expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
+
+  snapshot.mockRestore();
 });
 
 test("a failed launch is an alert and retries the launch operation", async () => {
@@ -327,6 +354,38 @@ test("the primary action does not launch when edited game settings fail to save"
   expect(game).not.toHaveBeenCalled();
   update.mockRestore();
   game.mockRestore();
+});
+
+test("an unrelated update check does not erase a game-settings failure", async () => {
+  const user = userEvent.setup();
+  const update = vi.spyOn(bridge, "updateLaunchSettings").mockRejectedValue(new Error("settings write refused"));
+  const check = vi.spyOn(bridge, "checkForUpdate").mockResolvedValue({
+    format: "preflight-update-v1",
+    configured: true,
+    currentVersion: "0.1.0",
+    available: false,
+    version: null,
+    date: null,
+    notes: null,
+    reason: null,
+  });
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.clear(await screen.findByLabelText("Home battle size"));
+  await user.type(screen.getByLabelText("Home battle size"), "300");
+  await user.click(screen.getByRole("button", { name: "Apply changes" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("settings write refused");
+
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check for updates" }));
+  expect(await screen.findByText("Version 0.1.0 is current.")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("settings write refused");
+
+  update.mockRestore();
+  check.mockRestore();
 });
 
 test("navigation resets the previous workflow scroll position", async () => {
@@ -472,6 +531,17 @@ test("profiles are preview-first and show the exact switch before applying", asy
   expect(screen.queryByRole("heading", { name: "Switch to Utilities only?" })).not.toBeInTheDocument();
 });
 
+test("a profile with missing mods explains the problem without showing a dead switch action", async () => {
+  const user = userEvent.setup();
+  window.history.replaceState(null, "", "/?scenario=profile-mismatch");
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Profiles" }));
+  expect(await screen.findByText("Missing: graphicslib")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Review switch" })).not.toBeInTheDocument();
+});
+
 test("diagnostics disclose their boundary and export a bounded bundle", async () => {
   const user = userEvent.setup();
   render(<App />);
@@ -580,6 +650,26 @@ test("an unconfigured build keeps local export available and refuses report send
   intake.mockRestore();
 });
 
+test("a failed report send keeps one recovery alert and the local ZIP", async () => {
+  const user = userEvent.setup();
+  window.history.replaceState(null, "", "/?scenario=report-error");
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByText("Support"));
+  await user.click(await screen.findByRole("button", { name: "Create support ZIP" }));
+  await user.click(await screen.findByRole("button", { name: "Review send" }));
+  await user.click(screen.getByRole("button", { name: "Send this exact ZIP" }));
+
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Report wasn’t sent");
+  expect(alert).toHaveTextContent("preview report service");
+  expect(alert).toHaveTextContent("still on this computer");
+  expect(screen.getAllByText(/preview report service/)).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Try sending again" })).toBeEnabled();
+});
+
 test("the benchmark checks its packaged startup contract and launches without a review step", async () => {
   const user = userEvent.setup();
   const probe = vi.spyOn(bridge, "getDesktopSmokeProbe");
@@ -636,6 +726,7 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(await screen.findByText("A packaged startup benchmark scenario is missing.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: /Accessibility/i })).not.toBeInTheDocument();
   expect(smoke).not.toHaveBeenCalled();
   probe.mockRestore();
