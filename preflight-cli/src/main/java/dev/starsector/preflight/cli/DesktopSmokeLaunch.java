@@ -210,7 +210,7 @@ final class DesktopSmokeLaunch {
         }
     }
 
-    private static Path freshRunDirectory(Path requested) throws IOException {
+    static Path freshRunDirectory(Path requested) throws IOException {
         Path absolute = requested.toAbsolutePath().normalize();
         if (Files.exists(absolute, LinkOption.NOFOLLOW_LINKS)) {
             if (!Files.isDirectory(absolute, LinkOption.NOFOLLOW_LINKS)) {
@@ -396,7 +396,7 @@ final class DesktopSmokeLaunch {
                 .resolve(Platform.current() == Platform.WINDOWS ? "java.exe" : "java");
     }
 
-    private static void atomicWrite(Path destination, String value) throws IOException {
+    static void atomicWrite(Path destination, String value) throws IOException {
         Path temporary = destination.resolveSibling(destination.getFileName()
                 + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
         boolean moved = false;

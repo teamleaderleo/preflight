@@ -71,20 +71,25 @@ pub(crate) fn open_desktop_accessibility_settings() -> Result<(), String> {
     }
 }
 
-fn desktop_smoke_scenario(app: &AppHandle) -> Result<PathBuf, String> {
-    let scenario = app
+fn desktop_benchmark_scenarios(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
+    let optimized = app
         .path()
         .resolve(
             "engine/scenarios/campaign-roam.json",
             BaseDirectory::Resource,
         )
         .map_err(|error| format!("Could not resolve the automated-test scenario: {error}"))?;
-    if !scenario.is_file() {
-        return Err(
-            "The packaged automated-test scenario is missing. Reinstall Preflight.".to_string(),
-        );
+    let measurement = app
+        .path()
+        .resolve(
+            "engine/scenarios/campaign-roam-measurement-only.json",
+            BaseDirectory::Resource,
+        )
+        .map_err(|error| format!("Could not resolve the benchmark scenario: {error}"))?;
+    if !optimized.is_file() || !measurement.is_file() {
+        return Err("A packaged benchmark scenario is missing. Reinstall Preflight.".to_string());
     }
-    Ok(scenario)
+    Ok((measurement, optimized))
 }
 
 fn desktop_smoke_run_directory(app: &AppHandle) -> Result<PathBuf, String> {
@@ -109,7 +114,7 @@ pub(crate) fn start_desktop_smoke(
     game: String,
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
-    let scenario = desktop_smoke_scenario(&app)?;
+    let (measurement_scenario, optimized_scenario) = desktop_benchmark_scenarios(&app)?;
     let run_directory = desktop_smoke_run_directory(&app)?;
     fs::create_dir_all(&run_directory)
         .map_err(|error| format!("Could not create the automated-test run folder: {error}"))?;
@@ -137,9 +142,10 @@ pub(crate) fn start_desktop_smoke(
     automation.configure(&mut command);
     command
         .arg("desktop")
-        .arg("smoke")
+        .arg("benchmark")
         .arg("launch")
-        .arg(scenario)
+        .arg(measurement_scenario)
+        .arg(optimized_scenario)
         .arg(&run_directory)
         .arg("--game")
         .arg(directory)
@@ -147,7 +153,7 @@ pub(crate) fn start_desktop_smoke(
         .stderr(Stdio::piped());
     let child = command
         .spawn()
-        .map_err(|error| format!("Could not start the automated game test: {error}"))?;
+        .map_err(|error| format!("Could not start the paired benchmark: {error}"))?;
     let pid = child.id();
     running.game = Some(pid);
     running.desktop_smoke = Some(DesktopSmokeProcess {
@@ -162,7 +168,10 @@ pub(crate) fn start_desktop_smoke(
             state: "started",
             pid,
             success: None,
-            detail: None,
+            detail: Some(
+                "Starting measurement-only run 1 of 2; the optimized run follows after cleanup."
+                    .to_string(),
+            ),
             run_directory: run_directory.to_string_lossy().into_owned(),
         },
     );

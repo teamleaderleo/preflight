@@ -39,6 +39,9 @@ final class DesktopBridgeCommand {
         if (offset < args.length && "smoke".equals(args[offset])) {
             return smoke(args, offset + 1);
         }
+        if (offset < args.length && "benchmark".equals(args[offset])) {
+            return benchmark(args, offset + 1);
+        }
         Options options = Options.parse(args, offset);
         Map<String, Object> snapshot = snapshot(
                 Platform.current(),
@@ -168,6 +171,39 @@ final class DesktopBridgeCommand {
         response.put("evidence", evidence);
         System.out.println(Json.object(response));
         return statusExitCode(evidence.get("status"));
+    }
+
+    private static int benchmark(String[] args, int offset) throws IOException {
+        if (args.length < offset + 4 || !"launch".equals(args[offset])) {
+            throw new IllegalArgumentException(
+                    "Expected desktop bridge request: desktop benchmark launch "
+                            + "<measurement-scenario.json> <optimized-scenario.json> "
+                            + "<session-directory> [--game <path>] [--launcher <path>]");
+        }
+        DesktopSmokeScenario baseline = DesktopSmokeScenario.read(Path.of(args[offset + 1]));
+        DesktopSmokeScenario candidate = DesktopSmokeScenario.read(Path.of(args[offset + 2]));
+        Path session = Path.of(args[offset + 3]);
+        SmokeLaunchOptions options = SmokeLaunchOptions.parse(args, offset + 4);
+        Map<String, Object> launched;
+        try {
+            launched = DesktopBenchmarkLaunch.launch(
+                    baseline,
+                    candidate,
+                    session,
+                    options.game(),
+                    options.launcher(),
+                    driver(),
+                    java.time.Clock.systemUTC());
+        } catch (Exception failure) {
+            throw failure instanceof IOException io
+                    ? io
+                    : new IOException("Desktop benchmark launch failed", failure);
+        }
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("protocol", PROTOCOL_VERSION);
+        response.put("launch", launched);
+        System.out.println(Json.object(response));
+        return statusExitCode(launched.get("status"));
     }
 
     static int statusExitCode(Object status) {

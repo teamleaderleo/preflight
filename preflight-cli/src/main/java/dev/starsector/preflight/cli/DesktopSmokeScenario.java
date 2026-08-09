@@ -127,6 +127,20 @@ final class DesktopSmokeScenario {
         return launch.profile();
     }
 
+    String textureStorage() {
+        return launch.textureStorage();
+    }
+
+    Map<String, Object> benchmarkIdentity() {
+        Map<String, Object> identity = new LinkedHashMap<>();
+        identity.put("format", FORMAT);
+        identity.put("timeoutSeconds", timeoutSeconds);
+        identity.put("textureStorage", launch.textureStorage());
+        identity.put("profile", launch.profile());
+        identity.put("steps", stepViews());
+        return identity;
+    }
+
     List<Map<String, Object>> stepViews() {
         return steps.stream().map(Step::view).toList();
     }

@@ -607,7 +607,7 @@ test("the benchmark requires a review before it starts", async () => {
   await user.click(screen.getByRole("button", { name: "Start benchmark" }));
 
   await waitFor(() => expect(smoke).toHaveBeenCalledWith("/Applications/Starsector"));
-  expect(await screen.findByText("Benchmark finished in browser preview.")).toBeInTheDocument();
+  expect(await screen.findByText("Paired benchmark finished in browser preview.")).toBeInTheDocument();
   smoke.mockRestore();
 });
 

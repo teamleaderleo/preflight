@@ -563,6 +563,20 @@ mod tests {
             (false, Some("bounded failure".to_string())),
             desktop_smoke_outcome(&Ok(status), failed, b""),
         );
+
+        let status = successful_status();
+        let paired = br#"{"protocol":1,"launch":{"format":"starsector-preflight-desktop-benchmark-v1","status":"passed","diagnostics":[],"complete":true}}"#;
+        assert_eq!(
+            (true, None),
+            desktop_smoke_outcome(&Ok(status), paired, b"")
+        );
+
+        let status = successful_status();
+        let mismatched = br#"{"protocol":1,"launch":{"format":"starsector-preflight-desktop-benchmark-v1","status":"failed","diagnostics":["The profile changed between runs"],"complete":false}}"#;
+        assert_eq!(
+            (false, Some("The profile changed between runs".to_string())),
+            desktop_smoke_outcome(&Ok(status), mismatched, b"")
+        );
     }
 
     #[test]

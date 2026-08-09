@@ -73,9 +73,9 @@ export function ReportsPage({
         <div>
           <div className="heading-with-info">
             <h2>Benchmark Starsector</h2>
-            <InfoTip label="About the benchmark">The benchmark opens the latest save, moves through the campaign for three seconds, records timings and a screenshot, then closes only the game process it started. It stops after four minutes.</InfoTip>
+            <InfoTip label="About the benchmark">The benchmark runs the same checked campaign route twice: first with measurement instrumentation only, then with Preflight optimizations. Each game process is closed before the next starts.</InfoTip>
           </div>
-          <p>{desktopSmokeProbe?.probe.ready ? "Ready to run the checked campaign sequence." : "Preflight checks compatibility before anything launches."}</p>
+          <p>{desktopSmokeProbe?.probe.ready ? "Ready for a measurement-only and optimized comparison." : "Preflight checks compatibility before anything launches."}</p>
           {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
         </div>
         <div className="benchmark-card__actions">
@@ -112,10 +112,10 @@ export function ReportsPage({
       {desktopSmokeReview ? (
         <section className="card automation-review" aria-label="Benchmark review">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Benchmark review</p><h2>Run the checked campaign benchmark?</h2></div>
+            <div><p className="eyebrow">Benchmark review</p><h2>Run the paired campaign benchmark?</h2></div>
             <button className="text-button" type="button" onClick={() => setDesktopSmokeReview(false)} disabled={desktopSmokeRunning}>Cancel</button>
           </div>
-          <p>Preflight will open the current installation, continue the latest save, move forward for three seconds, collect a screenshot and timing evidence, then close that game process. Leave the game window unobstructed; the interaction sequence stops after four minutes.</p>
+          <p>Preflight will open the current installation twice. Both runs continue the latest save, move forward for three seconds, collect timing evidence and a screenshot, then close the exact game process. The first run measures normal behavior with optimizations off; the second repeats the same route with optimizations on. Leave the game window unobstructed.</p>
           <div className="activation-review__footer">
             <span><ShieldIcon /> The driver doesn’t edit game, mod, or save files; it only sends the actions listed here.</span>
             <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeProbeBusy || desktopSmokeRunning || operationBlocked}>{desktopSmokeRunning ? "Benchmark running…" : "Start benchmark"}</button>

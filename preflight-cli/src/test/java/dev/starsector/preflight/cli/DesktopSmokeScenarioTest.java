@@ -30,6 +30,18 @@ final class DesktopSmokeScenarioTest {
     }
 
     @Test
+    void checkedInBenchmarkScenariosKeepTheSameSemanticIdentity() throws Exception {
+        DesktopSmokeScenario optimized = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-roam.json"));
+        DesktopSmokeScenario measurement = DesktopSmokeScenario.read(
+                Path.of("..", "scripts", "scenarios", "campaign-roam-measurement-only.json"));
+
+        assertEquals(measurement.benchmarkIdentity(), optimized.benchmarkIdentity());
+        assertEquals("measurement-only", measurement.launchPreset());
+        assertEquals("fast", optimized.launchPreset());
+    }
+
+    @Test
     void rejectsUnknownTargetsAndDuplicateStepIds() {
         String invalidTarget = scenario("""
                 {"id":"click","kind":"click","target":"main-menu.destroy-save"}

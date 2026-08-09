@@ -56,7 +56,7 @@ export function useDesktopAutomation({
       const outcome = payload.state === "cancelled"
         ? payload.detail ?? `Benchmark stopped safely. Evidence is in ${displayPath(payload.runDirectory)}.`
         : payload.success
-        ? `Benchmark finished. Evidence is in ${displayPath(payload.runDirectory)}.`
+        ? `Paired benchmark finished. Evidence is in ${displayPath(payload.runDirectory)}.`
         : payload.detail ?? `Benchmark stopped. Evidence is in ${displayPath(payload.runDirectory)}.`;
       void refreshInstallation(game).then((refreshed) => {
         if (refreshed) announce(outcome, payload.success ? "success" : "error");
@@ -125,7 +125,7 @@ export function useDesktopAutomation({
     setDesktopSmokeCancelling(false);
     setDesktopSmokeRunDirectory(null);
     setStatus("running");
-    announce("Running the checked launch, campaign movement, evidence, and shutdown sequence…");
+    announce("Running measurement-only first, then the same campaign route with Preflight optimizations…");
     try {
       await startDesktopSmoke(game);
       if (!isDesktopHost()) {
@@ -133,7 +133,7 @@ export function useDesktopAutomation({
         setDesktopSmokeRunning(false);
         setStatus("ready");
         setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
-        announce("Benchmark finished in browser preview.", "success");
+        announce("Paired benchmark finished in browser preview.", "success");
       }
     } catch (error) {
       runningRef.current = false;

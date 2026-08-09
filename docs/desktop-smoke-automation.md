@@ -200,10 +200,14 @@ stop creates a run-owned `cancel.requested` marker. The launch owner watches tha
 the recorded PID/start-instant lifetime, seals a `cancelled` receipt, and returns a non-success exit
 code so scripts can't mistake a partial run for a pass.
 
-The desktop app bundles the checked `campaign-roam` scenario. Its Settings page probes readiness
-without launching, then shows the full action sequence and requires a separate confirmation before
-starting. The Tauri host treats the smoke launcher as the active game process, reads the sealed
-receipt, and reports the evidence directory when the run ends. A failed macOS permission probe
+The desktop app bundles matching measurement-only and optimized `campaign-roam` scenarios. Its
+Benchmark page probes readiness without launching, then shows the action sequence and requires a
+separate confirmation before starting. One Java coordinator validates that both scenarios have the
+same settings and interaction steps before either game starts. It runs measurement-only first,
+performs exact-process cleanup, repeats the route with optimizations, compares the sealed
+installation/profile/launcher/runtime/settings identity, and writes
+`benchmark-result.json`. The Tauri host treats that coordinator as the active game owner, reads its
+sealed receipt, and reports the evidence directory when the pair ends. A failed macOS permission probe
 offers a fixed link to the Accessibility privacy pane; Preflight never changes that permission. A
 running test has an explicit safe-stop action. If the app is closed during a test, it requests the
 same cooperative stop and delays its own exit until the smoke launcher and exact game process have
