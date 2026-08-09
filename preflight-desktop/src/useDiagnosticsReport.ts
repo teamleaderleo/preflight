@@ -13,6 +13,7 @@ import type {
   ReportIntakeStatus,
   ReportReceipt,
   ReportUploadStateEvent,
+  Announce,
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 
@@ -54,7 +55,7 @@ function savedRunReportReceipt(): ReportReceipt | null {
   return null;
 }
 
-export function useDiagnosticsReport(active: boolean, announce: (message: string) => void) {
+export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
   const [reportIntake, setReportIntake] = useState<ReportIntakeStatus | null>(null);
@@ -122,9 +123,12 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
         setReportFinalizing(false);
         setReportCancelling(false);
         if (payload.state === "failed") {
-          setReportError(payload.detail ?? "The report could not be sent.");
+          const detail = payload.detail ?? "The report could not be sent.";
+          setReportError(detail);
+          announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
+          return;
         }
-        announce(payload.detail ?? "The local diagnostics ZIP is unchanged.");
+        announce(payload.detail ?? "The local diagnostics ZIP is unchanged.", "warning");
         return;
       }
       if (payload.state === "finished" && payload.receipt) {
@@ -135,7 +139,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
         setReportReview(false);
         setReportReceipt(payload.receipt);
       }
-    }, (error) => announce(`Could not observe report upload state: ${error}`));
+    }, (error) => announce(`Could not observe report upload state: ${error}`, "error"));
   }, [announce]);
 
   const saveDiagnostics = async () => {
@@ -158,9 +162,9 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
       setReportReview(false);
       setReportError("");
       setReportUploadedBytes(0);
-      announce(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`);
+      announce(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`, "success");
     } catch (error) {
-      announce(String(error));
+      announce(String(error), "error");
     } finally {
       diagnosticsBusyRef.current = false;
       setDiagnosticsBusy(false);
@@ -181,11 +185,15 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
       setReportReceipt(receipt);
       setReportReview(false);
       setReportUploadedBytes(diagnosticsExport.bytes);
-      announce(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`);
+      announce(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`, "success");
     } catch (error) {
       const detail = String(error);
-      if (!detail.toLowerCase().includes("cancel")) setReportError(detail);
-      announce(detail);
+      if (detail.toLowerCase().includes("cancel")) {
+        announce("Report upload stopped. The diagnostics ZIP is still on this computer.", "warning");
+      } else {
+        setReportError(detail);
+        announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
+      }
     } finally {
       reportUploadingRef.current = false;
       setReportUploading(false);
@@ -208,7 +216,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
       }
     } catch (error) {
       setReportCancelling(false);
-      announce(String(error));
+      announce(String(error), "error");
     }
   };
 
@@ -218,7 +226,7 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
       await navigator.clipboard.writeText(JSON.stringify(reportReceipt, null, 2));
       announce("Run-report receipt copied. It includes the deletion authorization.");
     } catch (error) {
-      announce(`Could not copy the receipt: ${error}`);
+      announce(`Could not copy the receipt: ${error}`, "error");
     }
   };
 
@@ -234,9 +242,9 @@ export function useDiagnosticsReport(active: boolean, announce: (message: string
       await deleteRunReport(reportReceipt.deletion);
       const caseId = reportReceipt.caseId;
       setReportReceipt(null);
-      announce(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`);
+      announce(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`, "success");
     } catch (error) {
-      announce(String(error));
+      announce(String(error), "error");
     } finally {
       setReportDeleting(false);
     }

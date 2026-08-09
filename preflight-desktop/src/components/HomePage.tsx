@@ -57,6 +57,8 @@ interface HomePageProps {
   onSaveLauncherSettings: () => void;
   retryLabel: string;
   onRetry: () => void;
+  runFailure: string | null;
+  onDismissRunFailure: () => void;
   onNavigate: (page: Page) => void;
 }
 
@@ -84,6 +86,8 @@ export function HomePage({
   onSaveLauncherSettings,
   retryLabel,
   onRetry,
+  runFailure,
+  onDismissRunFailure,
   onNavigate,
 }: HomePageProps) {
   const {
@@ -202,6 +206,19 @@ export function HomePage({
         actionLabel={status === "error" ? retryLabel : undefined}
         onAction={status === "error" ? onRetry : undefined}
       />
+
+      {runFailure ? (
+        <section className="card run-recovery" aria-label="Run needs attention">
+          <div>
+            <strong>Run details saved</strong>
+            <p>{runFailure}</p>
+          </div>
+          <div className="run-recovery__actions">
+            <button className="button button--primary button--compact" type="button" onClick={() => onNavigate("reports")}>Open run reports</button>
+            <button className="button button--quiet button--compact" type="button" onClick={onDismissRunFailure}>Dismiss</button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card home-overview" aria-label="Current Preflight setup">
         <div className="home-fact">

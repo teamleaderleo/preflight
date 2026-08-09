@@ -650,6 +650,34 @@ test("a verified available update still waits for install confirmation", async (
   check.mockRestore();
 });
 
+test("a failed update keeps the verified offer available for retry", async () => {
+  const user = userEvent.setup();
+  const install = vi.spyOn(bridge, "installUpdate").mockRejectedValue(new Error("signature service unavailable"));
+  const check = vi.spyOn(bridge, "checkForUpdate").mockResolvedValue({
+    format: "preflight-update-v1",
+    configured: true,
+    currentVersion: "0.1.0",
+    available: true,
+    version: "0.2.0",
+    date: "2026-08-07T00:00:00Z",
+    notes: "A signed test release.",
+    reason: null,
+  });
+
+  render(<App />);
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByRole("button", { name: "Check for updates" }));
+  await user.click(await screen.findByRole("button", { name: "Install and restart" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Update wasn’t installed. Preflight 0.1.0 is unchanged.");
+  expect(screen.getByRole("heading", { name: "Preflight 0.2.0" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Install and restart" })).toBeEnabled();
+
+  install.mockRestore();
+  check.mockRestore();
+});
+
 test("removal keeps launcher files and all data as separate previewed scopes", async () => {
   const user = userEvent.setup();
   render(<App />);

@@ -83,9 +83,10 @@ minimum target. Dense evidence uses aligned rows
 instead of smaller type.
 
 The working palette uses near-black, desaturated navy surfaces with muted steel-blue borders. Blue
-marks focus and movement; amber is reserved for warnings and waypoint details. The paper-plane mark
-sits inside a clipped technical frame with enough texture to read as equipment instead of a glossy
-consumer-app badge. Light mode keeps the same drafting-grid hierarchy on blue-grey paper.
+marks focus and movement; amber is reserved for warnings and waypoint details. The app mark is a
+compact spacecraft design sketch on dark drafting paper. Its bold outer structure survives small
+launcher and Dock sizes while the larger versions retain construction lines, a clipped technical
+frame and one amber waypoint. Light mode keeps the same drafting-grid hierarchy on blue-grey paper.
 
 ## Copy and disclosure
 

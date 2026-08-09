@@ -64,6 +64,7 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<NoticeTone>("info");
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
+  const [runFailure, setRunFailure] = useState<string | null>(null);
   const [page, setPage] = useState<Page>("home");
   const announce = useCallback((nextMessage: string, tone: NoticeTone = "info") => {
     setMessage(nextMessage);
@@ -177,6 +178,7 @@ export default function App() {
         const outcome = payload.success
           ? "Starsector closed normally. The run report is ready."
           : failedRunSummary(payload.detail);
+        setRunFailure(payload.success ? null : outcome);
         void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
           if (refreshed) announce(outcome, payload.success ? "success" : "error");
         });
@@ -257,6 +259,8 @@ export default function App() {
             onSaveLauncherSettings={() => void launcher.save()}
             retryLabel={retryLabel}
             onRetry={retryFailedOperation}
+            runFailure={runFailure}
+            onDismissRunFailure={() => setRunFailure(null)}
             onNavigate={setPage}
           />
         ) : page === "launch" ? (

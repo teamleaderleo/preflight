@@ -141,7 +141,13 @@ export function ReportsPage({
           </div>
           <p>Game and mod files, saves, logs and crash dumps, caches, JFR, screenshots, audio, unknown files, binary content, and symlinks stay excluded. Home-directory paths are replaced with <code>&lt;home&gt;</code>.</p>
           {diagnosticsExport.skipped.length > 0 ? <p>{diagnosticsExport.skipped.length} present source file{diagnosticsExport.skipped.length === 1 ? " was" : "s were"} skipped under the disclosed limits.</p> : null}
-          {reportError ? <p className="activation-warning">{reportError}</p> : null}
+          {reportError ? (
+            <div className="report-recovery" role="alert">
+              <strong>Report wasn’t sent</strong>
+              <p>{reportError}</p>
+              <small>The diagnostics ZIP is still on this computer at {shortPath(diagnosticsExport.output)}.</small>
+            </div>
+          ) : null}
           {reportUploading ? (
             <div className="report-progress" role="progressbar" aria-label="Run report upload" aria-valuemin={0} aria-valuemax={diagnosticsExport.bytes} aria-valuenow={reportUploadedBytes}>
               <span style={{ width: `${Math.min(100, diagnosticsExport.bytes > 0 ? reportUploadedBytes / diagnosticsExport.bytes * 100 : 0)}%` }} />
@@ -152,7 +158,7 @@ export function ReportsPage({
             <span><ShieldIcon /> The native host rechecks the file, size, and SHA-256 immediately before upload.</span>
             {reportUploading
               ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
-              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>Send this exact ZIP</button>}
+              : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>{reportError ? "Try sending again" : "Send this exact ZIP"}</button>}
           </div>
         </section>
       ) : null}

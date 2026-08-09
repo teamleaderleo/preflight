@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { checkForUpdate, installUpdate, isDesktopHost } from "./bridge";
-import type { UpdateProgressEvent, UpdateStatus } from "./types";
+import type { Announce, UpdateProgressEvent, UpdateStatus } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 
 export function useSignedUpdates(
   readyForBackgroundCheck: boolean,
   installBlocked: boolean,
-  announce: (message: string) => void,
+  announce: Announce,
 ) {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
@@ -30,9 +30,9 @@ export function useSignedUpdates(
             : result.reason ?? "Verified updates aren’t configured in this build.");
       }
     } catch (error) {
-      const detail = String(error);
-      setUpdateError(detail);
-      if (showResult) announce(detail);
+      const failure = `Couldn’t check for updates. ${String(error)}`;
+      setUpdateError(failure);
+      if (showResult) announce(failure, "error");
     } finally {
       setUpdateChecking(false);
     }
@@ -51,7 +51,7 @@ export function useSignedUpdates(
       if (payload.state === "installed") {
         announce("The verified update is installed. Restarting Preflight…");
       }
-    }, (error) => announce(`Could not observe update progress: ${error}`));
+    }, (error) => announce(`Could not observe update progress: ${error}`, "error"));
   }, [announce]);
 
   const installSignedUpdate = async () => {
@@ -64,9 +64,9 @@ export function useSignedUpdates(
       await installUpdate(updateStatus.version);
     } catch (error) {
       const detail = String(error);
-      setUpdateStatus(null);
-      setUpdateError(detail);
-      announce(detail);
+      const failure = `Update wasn’t installed. Preflight ${updateStatus.currentVersion} is unchanged. ${detail}`;
+      setUpdateError(failure);
+      announce(failure, "error");
       setUpdateInstalling(false);
     }
   };
