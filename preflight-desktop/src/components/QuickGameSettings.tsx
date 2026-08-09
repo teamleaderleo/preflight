@@ -31,27 +31,27 @@ export function QuickGameSettings({
         <button className="text-button" type="button" onClick={onOpenAll}>All settings <ArrowIcon /></button>
       </div>
       <div className="quick-settings__grid">
-        <label className="quick-control quick-control--wide" htmlFor="home-resolution">
+        <label className="quick-control quick-control--wide quick-control--resolution" htmlFor="home-resolution">
           <span>Resolution</span>
           <ResolutionSelect id="home-resolution" label="Home resolution" value={draft.resolution} onChange={(resolution) => onChange({ resolution, uiScale: Math.min(draft.uiScale, uiScaleMaximum(settings, resolution)) })} />
         </label>
-        <label className="quick-control" htmlFor="home-aa">
+        <label className="quick-control quick-control--battle-size" htmlFor="home-battle-size">
+          <span>Battle size</span>
+          <input id="home-battle-size" aria-label="Home battle size" type="number" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
+        </label>
+        <label className={`quick-control quick-control--memory ${settings.memory.editable ? "" : "quick-control--read-only"}`} htmlFor={settings.memory.editable ? "home-memory" : undefined}>
+          <span>RAM</span>
+          <GameMemorySelect id="home-memory" label="Home game memory" memory={settings.memory} value={draft.memoryMiB} onChange={(memoryMiB) => onChange({ memoryMiB })} />
+        </label>
+        <label className="quick-control quick-control--antialiasing" htmlFor="home-aa">
           <span>Antialiasing</span>
           <select id="home-aa" aria-label="Home antialiasing" value={draft.antialiasingSamples} onChange={(event) => onChange({ antialiasingSamples: Number(event.target.value) })}>
             {settings.limits.antialiasingSamples.map((samples) => <option value={samples} key={samples}>{samples === 0 ? "Off" : `${samples}×`}</option>)}
           </select>
         </label>
-        <label className="quick-control" htmlFor="home-ui-scale">
+        <label className="quick-control quick-control--ui-scale" htmlFor="home-ui-scale">
           <span>UI size</span>
           <UiScaleSelect id="home-ui-scale" label="Home UI size" settings={settings} resolution={draft.resolution} value={draft.uiScale} onChange={(uiScale) => onChange({ uiScale })} />
-        </label>
-        <label className="quick-control" htmlFor="home-battle-size">
-          <span>Battle size</span>
-          <input id="home-battle-size" aria-label="Home battle size" type="number" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
-        </label>
-        <label className={`quick-control ${settings.memory.editable ? "" : "quick-control--read-only"}`} htmlFor={settings.memory.editable ? "home-memory" : undefined}>
-          <span>RAM</span>
-          <GameMemorySelect id="home-memory" label="Home game memory" memory={settings.memory} value={draft.memoryMiB} onChange={(memoryMiB) => onChange({ memoryMiB })} />
         </label>
       </div>
       <div className="quick-settings__toggles">

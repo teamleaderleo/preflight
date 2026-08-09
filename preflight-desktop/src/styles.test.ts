@@ -31,6 +31,8 @@ test("the primary palette stays blue rather than blue-green", () => {
 
 test("wide, narrow, and short windows keep content inside the desktop shell", () => {
   expect(styles).toMatch(/\.main\s*\{[^}]*min-width:\s*0;/s);
+  expect(styles).toMatch(/@media \(min-width: 721px\)[\s\S]*?\.launch-console--configured\s*\{[^}]*grid-template-areas:[^}]*"battle memory antialiasing ui-scale"[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/);
+  expect(styles).toMatch(/@media \(min-width: 721px\)[\s\S]*?\.launch-console--configured \.quick-settings,[\s\S]*?display:\s*contents;/);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.home-overview\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.brand,[\s\S]*?\.nav,[\s\S]*?\.sidebar__footer\s*\{[^}]*flex-shrink:\s*0;/);

@@ -135,7 +135,7 @@ export function HomePage({
 
   return (
     <>
-      <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"}`}>
+      <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""}`}>
         <div className="launch-console__primary">
           {flightPlot}
           {status !== "ready" || preparing || needsPreparation || !isReady ? (
