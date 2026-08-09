@@ -15,6 +15,7 @@ MAX_REVIEWED_BLOB_BYTES = 512 * 1024
 REVIEWED_OVERSIZED_BLOBS = {
     "preflight-desktop/src-tauri/icons/icon.icns": frozenset(
         {
+            (2_171_363, "e013913f5072f38405bb0d664b3837c8c5c483144c2924094355095e06d55a08"),
             (2_306_590, "7e3be710fe97bb6cc566fccd62408db5734c8932282611f46fbe53cbf84b1b53"),
             (2_853_963, "3e6c91921e576fc00a7cb937ff437acc0615099bf29c774d8521c1fe78f08a5e"),
             (1_746_720, "05ca5e3efb0c65533cdb45e944ae3e941651cd0da45a9a8e30e72b8ca76c0a7f"),
