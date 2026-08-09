@@ -21,6 +21,7 @@ const sourceJar = join(repositoryRoot, "preflight-cli", "target", "preflight.jar
 const engineDirectory = join(desktopDirectory, "src-tauri", "target", "engine");
 const runtimeDirectory = join(engineDirectory, "runtime");
 const smokeScenario = join(repositoryRoot, "scripts", "scenarios", "campaign-roam.json");
+const measurementScenario = join(repositoryRoot, "scripts", "scenarios", "campaign-roam-measurement-only.json");
 const legalSources = [
   [join(repositoryRoot, "LICENSE"), "LICENSE"],
   [join(repositoryRoot, "THIRD_PARTY_NOTICES.md"), "THIRD_PARTY_NOTICES.md"],
@@ -58,6 +59,7 @@ mkdirSync(engineDirectory, { recursive: true });
 cpSync(sourceJar, join(engineDirectory, "preflight.jar"));
 mkdirSync(join(engineDirectory, "scenarios"), { recursive: true });
 cpSync(smokeScenario, join(engineDirectory, "scenarios", "campaign-roam.json"));
+cpSync(measurementScenario, join(engineDirectory, "scenarios", "campaign-roam-measurement-only.json"));
 mkdirSync(join(engineDirectory, "legal"), { recursive: true });
 for (const [source, name] of legalSources) {
   if (!statSync(source, { throwIfNoEntry: false })?.isFile()) {
@@ -96,6 +98,7 @@ const manifest = {
   compression,
   jarBytes: statSync(sourceJar).size,
   smokeScenarioBytes: statSync(smokeScenario).size,
+  measurementScenarioBytes: statSync(measurementScenario).size,
   legalFiles: Object.fromEntries(
     legalSources.map(([source, name]) => [name, statSync(source).size]),
   ),

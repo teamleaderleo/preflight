@@ -39,10 +39,18 @@ final class DesktopSmokeLaunchTest {
     }
 
     @Test
-    void unsupportedBaselineAndNamedProfileLaunchesFailBeforeStartingAProcess() {
-        assertThrows(IllegalArgumentException.class, () -> DesktopSmokeLaunch.command(
-                Path.of("java"), Path.of("preflight.jar"), scenario("vanilla", null),
-                Path.of("run"), null, null));
+    void constructsMeasurementOnlyLaunchWithInstrumentationAndNoOptimizations() {
+        List<String> command = DesktopSmokeLaunch.command(
+                Path.of("java"), Path.of("preflight.jar"), scenario("measurement-only", null),
+                Path.of("run"), null, null);
+
+        assertEquals("off", command.get(command.indexOf("--optimization-preset") + 1));
+        assertTrue(command.contains("--desktop-smoke"));
+        assertFalse(command.contains("--fast"));
+    }
+
+    @Test
+    void namedProfileLaunchesFailBeforeStartingAProcess() {
         assertThrows(IllegalArgumentException.class, () -> DesktopSmokeLaunch.command(
                 Path.of("java"), Path.of("preflight.jar"), scenario("fast", "large"),
                 Path.of("run"), null, null));

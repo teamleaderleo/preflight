@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import App, { isCurrentProfilePrepared } from "./App";
+import App, { failedRunSummary, isCurrentProfilePrepared } from "./App";
 import * as bridge from "./bridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
 
@@ -50,6 +50,13 @@ test("requires both the exact current index and texture manifest before calling 
   }))).toBe(false);
   expect(isCurrentProfilePrepared(cacheSnapshot({ currentProfileFingerprint: "changed-profile" }))).toBe(false);
   expect(isCurrentProfilePrepared(null)).toBe(false);
+});
+
+test("a failed game process keeps the first useful native detail bounded", () => {
+  expect(failedRunSummary("\njava.lang.IllegalStateException: retreat failed\n\tat example.Run.run(Run.java:42)"))
+    .toBe("Starsector closed with an error: java.lang.IllegalStateException: retreat failed The support evidence has full details.");
+  expect(failedRunSummary("x".repeat(500))).toContain(`${"x".repeat(357)}…`);
+  expect(failedRunSummary()).toBe("Starsector closed with an error. Support evidence was saved.");
 });
 
 test("the default cold-profile action prepares with balanced settings and then launches", async () => {
@@ -212,6 +219,8 @@ test("blocks installation and preparation mutations while the game is running", 
   expect(screen.getByRole("button", { name: "Change Starsector installation" })).toBeDisabled();
 
   await user.click(screen.getByRole("button", { name: "Preflight" }));
+  expect(await screen.findByText("Opening Starsector. Other changes wait until it finishes.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "View progress" })).toBeEnabled();
   await user.click(await screen.findByText("Advanced controls"));
   expect(await screen.findByRole("radio", { name: "Recommended optimizations" })).toBeDisabled();
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeDisabled();

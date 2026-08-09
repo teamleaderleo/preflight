@@ -16,6 +16,15 @@ test("packaged scenario validation requires the shipped campaign contract", () =
       steps: [{ id: "menu" }],
     },
   }));
+  assert.doesNotThrow(() => assertPackagedScenarioValidation({
+    protocol: 1,
+    valid: true,
+    scenario: {
+      format: "starsector-preflight-smoke-v1",
+      name: "campaign-roam-measurement-only",
+      steps: [{ id: "menu" }],
+    },
+  }, "campaign-roam-measurement-only"));
   assert.throws(
     () => assertPackagedScenarioValidation({ protocol: 1, valid: true, scenario: { steps: [] } }),
     /scenario validation is malformed/,

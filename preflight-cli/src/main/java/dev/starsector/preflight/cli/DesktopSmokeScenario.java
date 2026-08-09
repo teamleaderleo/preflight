@@ -119,6 +119,14 @@ final class DesktopSmokeScenario {
         return timeoutSeconds;
     }
 
+    String launchPreset() {
+        return launch.preset();
+    }
+
+    String launchProfile() {
+        return launch.profile();
+    }
+
     List<Map<String, Object>> stepViews() {
         return steps.stream().map(Step::view).toList();
     }
@@ -126,8 +134,9 @@ final class DesktopSmokeScenario {
     private static Launch launch(Map<String, Object> value) {
         exactFields(value, LAUNCH_FIELDS, "launch");
         String preset = requireString(value, "preset");
-        if (!Set.of("fast", "vanilla").contains(preset)) {
-            throw new IllegalArgumentException("launch.preset must be fast or vanilla");
+        if (!Set.of("fast", "measurement-only").contains(preset)) {
+            throw new IllegalArgumentException(
+                    "launch.preset must be fast or measurement-only");
         }
         String storage = requireString(value, "textureStorage");
         if (!Set.of("balanced", "fastest").contains(storage)) {

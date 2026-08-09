@@ -108,6 +108,10 @@ first public beta.
 - [x] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,
   antialiasing, UI scaling, battle size, and the effective launcher-owned JVM heap. Heap changes
   refuse ambiguous launchers and keep an exact backup of the edited file.
+- [ ] Replace the single checked campaign sequence currently labelled **Benchmark** with a paired
+  measurement-only versus optimized comparison. Prove measurement overhead, bind both runs to the
+  same installation/profile/save/settings, report startup and frame-time/FPS evidence, and keep the
+  more rigorous alternating cohort optional.
 
 ## Compatibility and correctness gate
 

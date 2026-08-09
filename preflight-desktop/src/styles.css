@@ -871,6 +871,31 @@ h2 {
   background: rgba(220, 241, 232, 0.75);
 }
 
+.workflow-lock {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent) 9%, var(--paper));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  min-height: 46px;
+  padding: 8px 14px;
+}
+
+.workflow-lock p {
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.workflow-lock .text-button {
+  flex: 0 0 auto;
+}
+
+.workflow-lock .text-button svg {
+  height: 14px;
+  width: 14px;
+}
+
 .setup-diagnostics {
   margin: 14px 4px 0;
   color: var(--ink-soft);
@@ -914,6 +939,32 @@ h2 {
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
+}
+
+.run-recovery__details {
+  margin-top: 10px;
+  max-width: 760px;
+}
+
+.run-recovery__details summary {
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.run-recovery__details pre {
+  background: color-mix(in srgb, var(--cream) 72%, transparent);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-family: var(--font-data);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 10px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .report-recovery {

@@ -178,12 +178,19 @@ export function exercisePackagedDesktopSmokeContract(packageRoot) {
   const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
   const jar = join(engineDirectory, "preflight.jar");
   const scenario = join(engineDirectory, "scenarios", "campaign-roam.json");
+  const measurementScenario = join(engineDirectory, "scenarios", "campaign-roam-measurement-only.json");
   const validation = JSON.parse(capture(
     java,
     ["-jar", jar, "desktop", "scenario", "validate", scenario],
     { cwd: engineDirectory },
   ));
   assertPackagedScenarioValidation(validation);
+  const measurementValidation = JSON.parse(capture(
+    java,
+    ["-jar", jar, "desktop", "scenario", "validate", measurementScenario],
+    { cwd: engineDirectory },
+  ));
+  assertPackagedScenarioValidation(measurementValidation, "campaign-roam-measurement-only");
 
   const runDirectory = mkdtempSync(join(tmpdir(), "preflight-smoke-contract-"));
   const driverResult = join(runDirectory, "driver-result.json");
@@ -217,14 +224,15 @@ export function exercisePackagedDesktopSmokeContract(packageRoot) {
   return {
     scenario: "campaign-roam",
     scenarioValidated: true,
+    measurementScenarioValidated: true,
     skippedEvidenceSealed: true,
   };
 }
 
-export function assertPackagedScenarioValidation(result) {
+export function assertPackagedScenarioValidation(result, expectedName = "campaign-roam") {
   if (result.protocol !== 1 || result.valid !== true
       || result.scenario?.format !== "starsector-preflight-smoke-v1"
-      || result.scenario?.name !== "campaign-roam"
+      || result.scenario?.name !== expectedName
       || !Array.isArray(result.scenario?.steps) || result.scenario.steps.length === 0) {
     throw new Error(`Packaged desktop smoke scenario validation is malformed: ${JSON.stringify(result)}`);
   }

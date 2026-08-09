@@ -13,6 +13,7 @@ import { PreparationPage } from "./components/PreparationPage";
 import { ProfilesPage } from "./components/ProfilesPage";
 import { ReportsPage } from "./components/ReportsPage";
 import { SettingsPage } from "./components/SettingsPage";
+import { WorkflowLockNotice } from "./components/WorkflowLockNotice";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
@@ -49,14 +50,19 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   return needsPreparation ? "Preparation needed" : "Ready";
 }
 
-function failedRunSummary(detail?: string): string {
+export function failedRunSummary(detail?: string): string {
   const firstLine = detail
     ?.split(/\r?\n/)
     .map((line) => line.trim())
     .find(Boolean);
-  if (!firstLine) return "Starsector closed with an error. The run report is ready.";
+  if (!firstLine) return "Starsector closed with an error. Support evidence was saved.";
   const summary = firstLine.length > 360 ? `${firstLine.slice(0, 357)}…` : firstLine;
-  return `Starsector closed with an error: ${summary} The run report has full details.`;
+  return `Starsector closed with an error: ${summary} The support evidence has full details.`;
+}
+
+interface RunFailure {
+  summary: string;
+  detail?: string;
 }
 
 export default function App() {
@@ -65,7 +71,7 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<NoticeTone>("info");
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
-  const [runFailure, setRunFailure] = useState<string | null>(null);
+  const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
   const [page, setPage] = useState<Page>("home");
   const announce = useCallback((nextMessage: string, tone: NoticeTone = "info") => {
     setMessage(nextMessage);
@@ -183,7 +189,7 @@ export default function App() {
         const outcome = payload.success
           ? "Starsector closed normally. The run report is ready."
           : failedRunSummary(payload.detail);
-        setRunFailure(payload.success ? null : outcome);
+        setRunFailure(payload.success ? null : { summary: outcome, detail: payload.detail });
         void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
           if (refreshed) announce(outcome, payload.success ? "success" : "error");
         });
@@ -243,6 +249,25 @@ export default function App() {
     || profilesState.profileBusy
     || removal.busy
     || updates.updateInstalling;
+  const activeOperation = preparing
+    ? { reason: `Preparing this mod setup · ${preparation.preparationPercent}% complete`, owner: "home" as Page }
+    : cacheRepairing
+      ? { reason: "Repairing prepared data for this mod setup", owner: "prepare" as Page }
+      : status === "launching"
+        ? { reason: "Opening Starsector", owner: "home" as Page }
+        : status === "running"
+          ? { reason: "Starsector is running", owner: "home" as Page }
+          : cleanup.busy
+            ? { reason: "Reviewing or cleaning prepared data", owner: "prepare" as Page }
+            : launcher.saving
+              ? { reason: "Saving game settings", owner: "launch" as Page }
+              : profilesState.profileBusy
+                ? { reason: "Updating the saved mod profile", owner: "profiles" as Page }
+                : removal.busy
+                  ? { reason: "Reviewing or removing Preflight data", owner: "settings" as Page }
+                  : updates.updateInstalling
+                    ? { reason: "Installing the verified Preflight update", owner: "settings" as Page }
+                    : null;
   const retryFailedOperation = () => {
     if (retryIntent?.kind === "launch") {
       void primaryLaunch();
@@ -268,6 +293,13 @@ export default function App() {
       onPageChange={setPage}
       onRefresh={() => void refresh(snapshot?.selected?.installRoot)}
     >
+        {activeOperation && page !== activeOperation.owner ? (
+          <WorkflowLockNotice
+            reason={`${activeOperation.reason}. Other changes wait until it finishes.`}
+            actionLabel={activeOperation.owner === "home" ? "View progress" : `Open ${pageTitle(activeOperation.owner, status, preparing, isReady, needsPreparation)}`}
+            onAction={() => setPage(activeOperation.owner)}
+          />
+        ) : null}
         {page === "home" ? (
           <HomePage
             snapshot={snapshot}

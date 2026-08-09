@@ -52,7 +52,7 @@ interface HomePageProps {
   onSaveLauncherSettings: () => void;
   retryLabel: string;
   onRetry: () => void;
-  runFailure: string | null;
+  runFailure: { summary: string; detail?: string } | null;
   onDismissRunFailure: () => void;
   onNavigate: (page: Page) => void;
 }
@@ -216,13 +216,20 @@ export function HomePage({
       ) : null}
 
       {runFailure ? (
-        <section className="card run-recovery" aria-label="Run needs attention">
+        <section className="card run-recovery" aria-label="Run needs attention" role="alert">
           <div>
-            <strong>Run details saved</strong>
-            <p>{runFailure}</p>
+            <strong>Run needs attention</strong>
+            <p>{runFailure.summary}</p>
+            {runFailure.detail ? (
+              <details className="run-recovery__details">
+                <summary>Technical details</summary>
+                <pre>{runFailure.detail}</pre>
+              </details>
+            ) : null}
           </div>
           <div className="run-recovery__actions">
-            <button className="button button--primary button--compact" type="button" onClick={() => onNavigate("reports")}>Open run reports</button>
+            <button className="button button--primary button--compact" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked}>Relaunch</button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("reports")}>Support tools</button>
             <button className="button button--quiet button--compact" type="button" onClick={onDismissRunFailure}>Dismiss</button>
           </div>
         </section>

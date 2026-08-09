@@ -179,7 +179,15 @@ final class DesktopSmokeLaunch {
         command.add("-jar");
         command.add(selfJar.toAbsolutePath().normalize().toString());
         command.add("run");
-        command.add("--fast");
+        if ("fast".equals(scenario.launchPreset())) {
+            command.add("--fast");
+        } else if ("measurement-only".equals(scenario.launchPreset())) {
+            command.add("--optimization-preset");
+            command.add("off");
+        } else {
+            throw new IllegalArgumentException(
+                    "Unsupported unattended launch preset: " + scenario.launchPreset());
+        }
         command.add("--direct");
         command.add("--desktop-smoke");
         command.add("--trace-dir");
@@ -196,13 +204,7 @@ final class DesktopSmokeLaunch {
     }
 
     private static void requireSupportedLaunch(DesktopSmokeScenario scenario) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> launch = (Map<String, Object>) scenario.view().get("launch");
-        if (!"fast".equals(launch.get("preset"))) {
-            throw new IllegalArgumentException(
-                    "The unattended smoke launcher currently supports only the fast preset");
-        }
-        if (launch.get("profile") != null) {
+        if (scenario.launchProfile() != null) {
             throw new IllegalArgumentException(
                     "Named smoke profiles aren't wired to the launch engine yet");
         }

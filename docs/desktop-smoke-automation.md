@@ -188,8 +188,11 @@ java -jar preflight.jar desktop smoke launch \
 ```
 
 It probes permissions before launching, refuses a nonempty evidence directory or another attachable
-tracked runtime, starts the packaged `run --fast --direct --desktop-smoke` path without a shell,
-waits for its process record, runs the scenario, and waits for bounded postprocessing. Its
+tracked runtime, and starts a packaged direct smoke path without a shell. The checked optimized
+scenario uses `run --fast --direct --desktop-smoke`. The paired benchmark's measurement-only
+scenario uses `run --optimization-preset off --direct --desktop-smoke`: the exact semantic and
+frame probes remain, while the optimization adapter and prepared caches stay off. It waits for the
+process record, runs the scenario, and waits for bounded postprocessing. Its
 `finally` path rereads the identity and can terminate only the same PID/start-instant lifetime.
 The launch result and bounded launcher output remain in the run directory even when startup fails.
 `passed`, `skipped`, and `failed` map to exit codes `0`, `3`, and `1`, respectively. A cooperative

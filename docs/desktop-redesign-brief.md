@@ -27,8 +27,7 @@ The sidebar keeps each power-user workspace visible instead of nesting it inside
 
 - **Home** — launch, common game controls, current mod setup, cache footprint and installation;
 - **Preflight** — optimization policy, preparation resources, texture storage and cache cleanup;
-- **Run reports** — bounded diagnostic export, explicit sending and the automated compatibility
-  test;
+- **Benchmark** — the checked game sequence, bounded support export, and explicit report sending;
 - **Profiles** — save, switch and inspect exact mod profiles;
 - **Settings** — application updates and removal.
 
@@ -46,7 +45,7 @@ of clipping content. Stacked launch layouts keep the primary action full-width d
 so responsive and dark-mode changes apply only to interfaces that can still render.
 Vite ignores generated Tauri engine and distribution output, allowing HMR to remain open while the
 engine is rebuilt or the full verification gate runs.
-Preparation, profiles, run reports, updates, and removal now render through independent workflow
+Preparation, profiles, benchmark/support, updates, and removal now render through independent workflow
 components while discovery, process state, and destructive actions remain coordinated by the app root.
 Installation-scoped reads are request-fenced so an older result cannot replace a newer selection.
 The home and complete game-settings views share one installation-scoped settings request, preserve
@@ -70,8 +69,10 @@ The plan shown there is valid only for the exact installation, profile fingerpri
 and worker count that produced it; changing any of those inputs removes the old plan before another
 preparation can begin. The engine still recalculates the bound before writing. Discovery, explicit
 installation selection and game launch have separate retry actions, and a failed state refresh can't
-be overwritten by a later success notice. Game failures show a bounded first useful line while the
-complete detail remains in the run report.
+be overwritten by a later success notice. Game failures keep a persistent recovery card with a
+bounded first useful line, the native detail behind a disclosure, and direct relaunch and support
+actions. When an operation owns the global mutation lock, another workspace names that operation
+and links back to its progress instead of leaving unrelated controls silently disabled.
 The same screen now distinguishes cold prepared data from damaged metadata. Health inspection
 opens the exact current profile's index, manifest, pack index, and optional audio manifest. Repair
 is bound to the reviewed profile fingerprint, recomputed under the durable lease, and removes only
@@ -104,10 +105,10 @@ beside the feature they qualify.
 
 Examples:
 
-- `Ready · Recommended · 15 MB` beside **Launch**;
-- `Needs 3.1 GB · 18.4 GB available` beside **Prepare and launch**;
-- `Using vanilla fallback for 2 plans` with **Details**;
-- `Report ready · 3.6 MB` with **Review and send**.
+- **Launch Starsector** when the current profile is ready;
+- `Needs up to 3.1 GB free · 18.4 GB available` beside **Prepare and launch**;
+- `Using the built-in fallback for 2 plans` with **Details**;
+- `Support ZIP ready · 3.6 MB` with **Review send**.
 
 Avoid repeating that nothing has happened yet, that a button is safe, or that a section contains
 settings when the surrounding interface already establishes it. Confirmation screens still name
@@ -149,10 +150,10 @@ cleanup and removal never appear as equal-weight cards on this screen.
 
 ## Implementation sequence
 
-1. Extract update and preparation behavior from `App.tsx`.
-2. Build the new Start page against those stable hooks using fixture snapshots only.
-3. Move profile and settings views without changing their bridge contracts.
-4. Run keyboard, contrast, scaling and minimum-size checks.
+1. ~~Extract update and preparation behavior from `App.tsx`.~~
+2. ~~Build the new Home page against stable hooks and fixture snapshots.~~
+3. ~~Move profile and settings views without changing their bridge contracts.~~
+4. ~~Run keyboard, contrast, scaling and minimum-size checks.~~
 5. Exercise the packaged first-run, prepared launch, low-disk refusal, failed preparation, update,
    report and removal states before replacing the current UI.
 
@@ -161,6 +162,6 @@ once both versions pass the same behavior tests.
 
 The first extraction, visual-foundation and information-architecture passes are complete. Home is a
 compact launch console rather than an illustrated landing page. Primary navigation exposes
-Preflight and Run reports as real workspaces, while Profiles remains directly reachable and Settings
+Preflight and Benchmark as real workspaces, while Profiles remains directly reachable and Settings
 contains only application maintenance. The whole desktop window stays fixed; longer work happens
 inside the active workspace.

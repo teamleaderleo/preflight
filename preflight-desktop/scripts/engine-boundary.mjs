@@ -16,6 +16,7 @@ const legalFiles = new Map([
 ]);
 const scenarioFiles = new Map([
   ["campaign-roam.json", join(repositoryRoot, "scripts", "scenarios", "campaign-roam.json")],
+  ["campaign-roam-measurement-only.json", join(repositoryRoot, "scripts", "scenarios", "campaign-roam-measurement-only.json")],
 ]);
 const forbiddenSegments = new Set([
   "activation",
@@ -78,6 +79,7 @@ export function verifyEngineBoundary(
     "compression",
     "jarBytes",
     "legalFiles",
+    "measurementScenarioBytes",
     "modules",
     "runtime",
     "smokeScenarioBytes",
@@ -99,6 +101,10 @@ export function verifyEngineBoundary(
   const scenario = join(engineDirectory, "scenarios", "campaign-roam.json");
   if (manifest.smokeScenarioBytes !== statSync(scenario).size) {
     throw new Error("Desktop engine manifest scenario size differs from the bundled scenario");
+  }
+  const measurementScenario = join(engineDirectory, "scenarios", "campaign-roam-measurement-only.json");
+  if (manifest.measurementScenarioBytes !== statSync(measurementScenario).size) {
+    throw new Error("Desktop engine manifest measurement scenario size differs from the bundled scenario");
   }
   const actualLegal = Object.fromEntries(
     [...legalFiles.keys()].map((name) => [name, statSync(join(engineDirectory, "legal", name)).size]),
