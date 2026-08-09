@@ -5,7 +5,7 @@ import {
   isDesktopHost,
   startDesktopSmoke,
 } from "./bridge";
-import type { Announce, AppStatus, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
+import type { Announce, AppStatus, DesktopBenchmarkComparison, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 
@@ -32,6 +32,7 @@ export function useDesktopAutomation({
   const [desktopSmokeRunning, setDesktopSmokeRunning] = useState(false);
   const [desktopSmokeCancelling, setDesktopSmokeCancelling] = useState(false);
   const [desktopSmokeRunDirectory, setDesktopSmokeRunDirectory] = useState<string | null>(null);
+  const [desktopBenchmarkComparison, setDesktopBenchmarkComparison] = useState<DesktopBenchmarkComparison | null>(null);
   const probeBusyRef = useRef(false);
   const runningRef = useRef(false);
   const cancellingRef = useRef(false);
@@ -52,6 +53,7 @@ export function useDesktopAutomation({
       cancellingRef.current = false;
       setDesktopSmokeRunning(false);
       setDesktopSmokeCancelling(false);
+      setDesktopBenchmarkComparison(payload.comparison ?? null);
       setStatus(installationReady ? "ready" : "setup");
       const outcome = payload.state === "cancelled"
         ? payload.detail ?? `Benchmark stopped safely. Evidence is in ${displayPath(payload.runDirectory)}.`
@@ -124,6 +126,7 @@ export function useDesktopAutomation({
     setDesktopSmokeRunning(true);
     setDesktopSmokeCancelling(false);
     setDesktopSmokeRunDirectory(null);
+    setDesktopBenchmarkComparison(null);
     setStatus("running");
     announce("Running measurement-only first, then the same campaign route with Preflight optimizations…");
     try {
@@ -133,6 +136,14 @@ export function useDesktopAutomation({
         setDesktopSmokeRunning(false);
         setStatus("ready");
         setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
+        setDesktopBenchmarkComparison({
+          available: true,
+          metrics: {
+            processToMainMenuMs: { measurementOnly: 88_000, optimized: 15_880, delta: -72_120, improvementPercent: 81.95 },
+            averageFps: { measurementOnly: 42.5, optimized: 56.2, delta: 13.7, improvementPercent: 32.24 },
+            onePercentLowFps: { measurementOnly: 19.8, optimized: 28.4, delta: 8.6, improvementPercent: 43.43 },
+          },
+        });
         announce("Paired benchmark finished in browser preview.", "success");
       }
     } catch (error) {
@@ -172,6 +183,7 @@ export function useDesktopAutomation({
     desktopSmokeProbeBusy,
     desktopSmokeReview,
     desktopSmokeRunDirectory,
+    desktopBenchmarkComparison,
     desktopSmokeCancelling,
     desktopSmokeRunning,
     checkDesktopAutomation,

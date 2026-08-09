@@ -61,12 +61,18 @@ final class DesktopBenchmarkLaunchTest {
                 DesktopBenchmarkLaunch.measuredIdentity(optimized));
 
         Map<String, Object> comparison = DesktopBenchmarkLaunch.comparison(List.of(
-                phase(Instant.parse("2026-08-09T00:00:00Z"), Instant.parse("2026-08-09T00:01:40Z")),
-                phase(Instant.parse("2026-08-09T00:02:00Z"), Instant.parse("2026-08-09T00:03:00Z"))));
-        assertEquals(100_000L, comparison.get("measurementOnlyElapsedMs"));
-        assertEquals(60_000L, comparison.get("optimizedElapsedMs"));
-        assertEquals(-40_000L, comparison.get("elapsedDeltaMs"));
-        assertEquals(40.0, comparison.get("elapsedImprovementPercent"));
+                phase(100_000L, 30.0), phase(60_000L, 45.0)));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metrics = (Map<String, Object>) comparison.get("metrics");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> elapsed = (Map<String, Object>) metrics.get("routeElapsedMs");
+        assertEquals(100_000L, elapsed.get("measurementOnly"));
+        assertEquals(60_000L, elapsed.get("optimized"));
+        assertEquals(-40_000.0, elapsed.get("delta"));
+        assertEquals(40.0, elapsed.get("improvementPercent"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fps = (Map<String, Object>) metrics.get("averageFps");
+        assertEquals(50.0, fps.get("improvementPercent"));
     }
 
     @Test
@@ -93,6 +99,54 @@ final class DesktopBenchmarkLaunchTest {
         assertTrue(!mirror.isAlive());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void sealsStartupAndCampaignFrameMetricsFromValidatedPhaseEvidence(@TempDir Path temporary)
+            throws Exception {
+        Instant processStart = Instant.parse("2026-08-09T00:00:00Z");
+        Path runtime = temporary.resolve("runtime-process.json");
+        Map<String, Object> runtimeIdentity = new LinkedHashMap<>();
+        runtimeIdentity.put("format", "starsector-preflight-runtime-process-v1");
+        runtimeIdentity.put("pid", ProcessHandle.current().pid());
+        runtimeIdentity.put("parentPid", null);
+        runtimeIdentity.put("startedAt", processStart);
+        runtimeIdentity.put("observedAt", processStart.plusSeconds(30));
+        runtimeIdentity.put("state", "stopped");
+        runtimeIdentity.put("stoppedAt", processStart.plusSeconds(30));
+        Files.writeString(runtime, Json.object(runtimeIdentity));
+        Path frames = temporary.resolve("desktop-smoke-frame-report.json");
+        Files.writeString(frames, Json.object(Map.of(
+                "format", "starsector-preflight-runtime-frame-report-v1",
+                "frameTimes", Map.of("campaignActive", Map.of(
+                        "frames", 180,
+                        "averageFps", 60.0,
+                        "medianFps", 62.0,
+                        "onePercentLowFps", 35.0,
+                        "pointOnePercentLowFps", 22.0,
+                        "p95Micros", 20_000,
+                        "p99Micros", 28_571,
+                        "framesMeeting60FpsPercent", 88.0)))));
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("startedAt", processStart.plusSeconds(1));
+        evidence.put("completedAt", processStart.plusSeconds(25));
+        evidence.put("steps", List.of(
+                Map.of("id", "menu", "completedAt", processStart.plusSeconds(10)),
+                Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20))));
+        evidence.put("artifacts", List.of(Map.of("kind", "frame-report", "path", frames)));
+        Map<String, Object> phase = DesktopBenchmarkLaunch.phase("optimized", Map.of(
+                "status", "passed",
+                "runtimeProcess", runtime,
+                "runDirectory", temporary,
+                "evidence", evidence));
+
+        assertEquals("passed", phase.get("status"));
+        Map<String, Object> summary = (Map<String, Object>) phase.get("summary");
+        assertEquals(10_000L, summary.get("processToMainMenuMs"));
+        assertEquals(20_000L, summary.get("processToCampaignReadyMs"));
+        assertEquals(60.0, summary.get("averageFps"));
+        assertEquals(28_571L, summary.get("p99FrameMicros"));
+    }
+
     private static void writeRunIdentity(Path directory, String profile) throws Exception {
         Files.createDirectories(directory);
         Map<String, Object> run = new LinkedHashMap<>();
@@ -108,10 +162,12 @@ final class DesktopBenchmarkLaunchTest {
                 Json.object(Map.of("profileFingerprint", profile)));
     }
 
-    private static Map<String, Object> phase(Instant start, Instant end) {
-        return Map.of("launch", Map.of("evidence", Map.of(
-                "startedAt", start,
-                "completedAt", end)));
+    private static Map<String, Object> phase(long elapsedMillis, double fps) {
+        return Map.of("summary", Map.of(
+                "processToMainMenuMs", elapsedMillis / 2,
+                "processToCampaignReadyMs", elapsedMillis,
+                "routeElapsedMs", elapsedMillis,
+                "averageFps", fps));
     }
 
     private static DesktopSmokeScenario scenario(String name, String preset, int roamMillis) {

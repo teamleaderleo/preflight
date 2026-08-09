@@ -36,8 +36,9 @@ data, update, and remove Preflight without reading the manual.
 The desktop now owns an identity-checked measurement-only then optimized pair through one
 coordinator. It rejects different routes before launch, closes only its exact process lifetimes,
 checks the sealed installation/profile/launcher/runtime/settings identity after both runs, and emits
-one versioned result. The remaining work is to bind the selected save and turn the collected startup
-and frame evidence into the compact comparison users see.
+one versioned result. The result now seals startup and frame/FPS deltas and the desktop shows the
+primary fields. The remaining work is to bind the selected save, prove measurement overhead, add
+cache/fallback and disk-cost context, and offer an optional alternating cohort.
 
 The result should show startup before and after, seconds saved, percentage change, FPS, p50/p95/p99
 frame time, cache use and fallbacks, memory pressure, run noise, exact identities, and prepared-data

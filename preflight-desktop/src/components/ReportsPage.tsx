@@ -36,6 +36,7 @@ export function ReportsPage({
     desktopSmokeProbeBusy,
     desktopSmokeReview,
     desktopSmokeRunDirectory,
+    desktopBenchmarkComparison,
     desktopSmokeCancelling,
     desktopSmokeRunning,
     checkDesktopAutomation,
@@ -90,6 +91,22 @@ export function ReportsPage({
           {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "Benchmark automation isn’t available on this system."}</small> : null}
         </div>
       </section>
+
+      {desktopBenchmarkComparison?.available ? (
+        <section className="card benchmark-results" aria-label="Latest benchmark result">
+          <div className="card__heading">
+            <div><p className="eyebrow">Latest comparison</p><h2>Measurement-only → optimized</h2></div>
+            <CheckIcon className="settings-check" />
+          </div>
+          <div className="benchmark-results__grid">
+            <BenchmarkResult label="Main menu" metric={desktopBenchmarkComparison.metrics.processToMainMenuMs} unit="time" />
+            <BenchmarkResult label="Campaign ready" metric={desktopBenchmarkComparison.metrics.processToCampaignReadyMs} unit="time" />
+            <BenchmarkResult label="Average FPS" metric={desktopBenchmarkComparison.metrics.averageFps} unit="fps" />
+            <BenchmarkResult label="1% low FPS" metric={desktopBenchmarkComparison.metrics.onePercentLowFps} unit="fps" />
+          </div>
+          <small>One paired run is directional evidence. The saved receipt keeps exact identities and raw metrics.</small>
+        </section>
+      ) : null}
 
       <div className="settings-overview">
         <section className="card diagnostics-action">
@@ -207,6 +224,28 @@ export function ReportsPage({
         </section>
       ) : null}
 
+    </div>
+  );
+}
+
+function BenchmarkResult({
+  label,
+  metric,
+  unit,
+}: {
+  label: string;
+  metric: { measurementOnly: number; optimized: number; improvementPercent: number | null } | undefined;
+  unit: "time" | "fps";
+}) {
+  if (!metric) return null;
+  const format = (value: number) => unit === "time"
+    ? `${(value / 1_000).toFixed(2)}s`
+    : value.toFixed(1);
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{format(metric.optimized)}</strong>
+      <small>{format(metric.measurementOnly)} before{metric.improvementPercent === null ? "" : ` · ${metric.improvementPercent.toFixed(1)}% better`}</small>
     </div>
   );
 }

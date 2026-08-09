@@ -59,6 +59,19 @@ export interface DesktopSmokeStateEvent {
   success?: boolean;
   detail?: string;
   runDirectory: string;
+  comparison?: DesktopBenchmarkComparison | null;
+}
+
+export interface DesktopBenchmarkMetric {
+  measurementOnly: number;
+  optimized: number;
+  delta: number;
+  improvementPercent: number | null;
+}
+
+export interface DesktopBenchmarkComparison {
+  available: boolean;
+  metrics: Record<string, DesktopBenchmarkMetric>;
 }
 
 export interface PreparationStoragePlan {

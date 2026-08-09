@@ -608,6 +608,9 @@ test("the benchmark requires a review before it starts", async () => {
 
   await waitFor(() => expect(smoke).toHaveBeenCalledWith("/Applications/Starsector"));
   expect(await screen.findByText("Paired benchmark finished in browser preview.")).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Latest benchmark result" })).toBeInTheDocument();
+  expect(screen.getByText("15.88s")).toBeInTheDocument();
+  expect(screen.getByText("56.2")).toBeInTheDocument();
   smoke.mockRestore();
 });
 

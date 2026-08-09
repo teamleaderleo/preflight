@@ -26,6 +26,7 @@ struct DesktopSmokeStateEvent {
     success: Option<bool>,
     detail: Option<String>,
     run_directory: String,
+    comparison: Option<Value>,
 }
 
 #[tauri::command]
@@ -173,6 +174,7 @@ pub(crate) fn start_desktop_smoke(
                     .to_string(),
             ),
             run_directory: run_directory.to_string_lossy().into_owned(),
+            comparison: None,
         },
     );
     watch_desktop_smoke(app, child, run_directory, automation);
@@ -241,6 +243,7 @@ pub(crate) fn cancel_desktop_smoke(
             success: None,
             detail: Some("Stopping the exact game process and sealing its evidence…".to_string()),
             run_directory,
+            comparison: None,
         },
     );
     Ok(true)
@@ -276,6 +279,7 @@ fn watch_desktop_smoke(
         } else {
             desktop_smoke_outcome(&status, &stdout, &stderr)
         };
+        let comparison = desktop_benchmark_comparison(&stdout);
         let should_exit = if let Ok(mut running) = app.state::<OperationCoordinator>().0.lock() {
             if running.game == Some(pid) {
                 running.game = None;
@@ -308,12 +312,30 @@ fn watch_desktop_smoke(
                 success: Some(success),
                 detail,
                 run_directory: run_directory.to_string_lossy().into_owned(),
+                comparison,
             },
         );
         if should_exit {
             app.exit(0);
         }
     });
+}
+
+pub(crate) fn desktop_benchmark_comparison(stdout: &[u8]) -> Option<Value> {
+    let receipt: Value = serde_json::from_slice(stdout).ok()?;
+    let launch = receipt.get("launch")?;
+    if launch.get("format").and_then(Value::as_str)
+        != Some("starsector-preflight-desktop-benchmark-v1")
+        || launch.get("status").and_then(Value::as_str) != Some("passed")
+        || launch.get("complete").and_then(Value::as_bool) != Some(true)
+    {
+        return None;
+    }
+    let comparison = launch.get("comparison")?;
+    if comparison.get("available").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    Some(comparison.clone())
 }
 
 pub(crate) fn desktop_smoke_cancellation_outcome(

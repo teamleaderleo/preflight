@@ -345,8 +345,9 @@ mod tests {
         validate_optimization_domains, validate_optimization_preset,
     };
     use crate::automation::{
-        DESKTOP_SMOKE_CANCELLATION_FILE, desktop_smoke_cancellation_outcome,
-        desktop_smoke_cancellation_requested, desktop_smoke_outcome,
+        DESKTOP_SMOKE_CANCELLATION_FILE, desktop_benchmark_comparison,
+        desktop_smoke_cancellation_outcome, desktop_smoke_cancellation_requested,
+        desktop_smoke_outcome,
     };
     use crate::engine::{
         LaunchSettingsInput, configure_cache_health_command, diagnostic_output_path,
@@ -577,6 +578,21 @@ mod tests {
             (false, Some("The profile changed between runs".to_string())),
             desktop_smoke_outcome(&Ok(status), mismatched, b"")
         );
+    }
+
+    #[test]
+    fn paired_benchmark_exposes_only_a_complete_available_comparison() {
+        let passed = br#"{"protocol":1,"launch":{"format":"starsector-preflight-desktop-benchmark-v1","status":"passed","complete":true,"comparison":{"available":true,"metrics":{"averageFps":{"measurementOnly":30.0,"optimized":45.0}}}}}"#;
+        assert_eq!(
+            Some(serde_json::json!({
+                "available": true,
+                "metrics": {"averageFps": {"measurementOnly": 30.0, "optimized": 45.0}}
+            })),
+            desktop_benchmark_comparison(passed)
+        );
+
+        let partial = br#"{"protocol":1,"launch":{"format":"starsector-preflight-desktop-benchmark-v1","status":"failed","complete":false,"comparison":{"available":true}}}"#;
+        assert_eq!(None, desktop_benchmark_comparison(partial));
     }
 
     #[test]

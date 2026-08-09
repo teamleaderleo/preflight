@@ -1177,6 +1177,60 @@ h2 {
   font-size: 12px;
 }
 
+.benchmark-results {
+  padding: 20px 24px;
+}
+
+.benchmark-results .card__heading {
+  margin-bottom: 14px;
+}
+
+.benchmark-results__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+}
+
+.benchmark-results__grid > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.benchmark-results__grid > div:last-child {
+  border-right: 0;
+}
+
+.benchmark-results__grid span,
+.benchmark-results__grid small,
+.benchmark-results > small {
+  color: var(--ink-soft);
+}
+
+.benchmark-results__grid span {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.benchmark-results__grid strong {
+  font: 700 22px/1.15 var(--font-data);
+}
+
+.benchmark-results__grid small,
+.benchmark-results > small {
+  font-size: 12px;
+}
+
+.benchmark-results > small {
+  display: block;
+  margin-top: 10px;
+}
+
 .storage-card--compact {
   padding: 16px 24px;
 }
@@ -2559,6 +2613,18 @@ footer {
     grid-template-columns: minmax(0, 1.2fr) minmax(250px, 0.8fr);
   }
 
+  .benchmark-results__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .benchmark-results__grid > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .benchmark-results__grid > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+
   .home-overview {
     grid-template-columns: minmax(170px, 0.7fr) minmax(170px, 0.6fr) minmax(260px, 1.2fr);
   }
@@ -2701,6 +2767,19 @@ footer {
 }
 
 @media (max-width: 600px) {
+  .benchmark-results__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .benchmark-results__grid > div,
+  .benchmark-results__grid > div:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .benchmark-results__grid > div:last-child {
+    border-bottom: 0;
+  }
   .run-recovery {
     align-items: stretch;
     flex-direction: column;

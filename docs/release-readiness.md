@@ -112,8 +112,11 @@ first public beta.
   measurement-only then optimized coordinator. It refuses different scenarios before launch,
   compares the sealed installation/profile/launcher/runtime/settings identity after each run, owns
   cancellation across both exact-PID lifetimes, and writes one versioned result.
-- [ ] Bind and verify the selected save, add startup and frame-time/FPS deltas to the compact result,
-  prove measurement overhead, and keep the more rigorous alternating cohort optional.
+- [x] Seal startup-to-menu, startup-to-campaign, route duration, average/median/1%/0.1%-low FPS,
+  p95/p99 frame time, deltas, and improvement percentages into the paired receipt. Show the primary
+  startup and FPS results in the desktop app while retaining the raw metrics locally.
+- [ ] Bind and verify the selected save, prove measurement overhead, add cache/fallback and disk-cost
+  context, and keep the more rigorous alternating cohort optional.
 
 ## Compatibility and correctness gate
 

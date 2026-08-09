@@ -45,9 +45,10 @@ final class DesktopBenchmarkLaunch {
         Map<String, Object> baselineResult = runPhase(
                 "measurement-only", baseline, baselineDirectory,
                 cancellation, game, launcher, driver, clock);
-        phases.add(phase("measurement-only", baselineResult));
+        Map<String, Object> baselinePhase = phase("measurement-only", baselineResult);
+        phases.add(baselinePhase);
 
-        String status = status(baselineResult);
+        String status = status(baselinePhase);
         if ("passed".equals(status)) {
             try {
                 measuredIdentity = measuredIdentity(baselineDirectory);
@@ -61,8 +62,9 @@ final class DesktopBenchmarkLaunch {
             Map<String, Object> candidateResult = runPhase(
                     "optimized", candidate, candidateDirectory,
                     cancellation, game, launcher, driver, clock);
-            phases.add(phase("optimized", candidateResult));
-            status = status(candidateResult);
+            Map<String, Object> candidatePhase = phase("optimized", candidateResult);
+            phases.add(candidatePhase);
+            status = status(candidatePhase);
             if ("passed".equals(status)) {
                 try {
                     Map<String, Object> candidateIdentity = measuredIdentity(candidateDirectory);
@@ -187,12 +189,25 @@ final class DesktopBenchmarkLaunch {
                 && !Files.isSymbolicLink(marker);
     }
 
-    private static Map<String, Object> phase(String name, Map<String, Object> launch) {
+    static Map<String, Object> phase(String name, Map<String, Object> launch) {
         Map<String, Object> phase = new LinkedHashMap<>();
         phase.put("name", name);
-        phase.put("status", status(launch));
         phase.put("runDirectory", launch.get("runDirectory"));
         phase.put("launch", launch);
+        String status = status(launch);
+        Map<String, Object> summary = null;
+        String summaryError = null;
+        if ("passed".equals(status)) {
+            try {
+                summary = summary(launch);
+            } catch (IOException | IllegalArgumentException failure) {
+                status = "failed";
+                summaryError = "Could not seal benchmark metrics: " + failure.getMessage();
+            }
+        }
+        phase.put("status", status);
+        phase.put("summary", summary);
+        phase.put("summaryError", summaryError);
         return phase;
     }
 
@@ -203,15 +218,21 @@ final class DesktopBenchmarkLaunch {
 
     private static List<String> diagnostics(List<Map<String, Object>> phases) {
         if (phases.isEmpty()) return List.of();
+        List<String> diagnostics = new ArrayList<>();
+        for (Map<String, Object> phase : phases) {
+            if (phase.get("summaryError") instanceof String error) diagnostics.add(error);
+        }
         Object launch = phases.get(phases.size() - 1).get("launch");
-        if (!(launch instanceof Map<?, ?> launchMap)) return List.of();
+        if (!(launch instanceof Map<?, ?> launchMap)) return List.copyOf(diagnostics);
         Object values = launchMap.get("diagnostics");
-        if (!(values instanceof List<?> list)) return List.of();
-        return list.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .limit(100)
-                .toList();
+        if (values instanceof List<?> list) {
+            list.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .limit(100)
+                    .forEach(diagnostics::add);
+        }
+        return List.copyOf(diagnostics);
     }
 
     static Map<String, Object> measuredIdentity(Path runDirectory) throws IOException {
@@ -257,32 +278,152 @@ final class DesktopBenchmarkLaunch {
             comparison.put("available", false);
             return comparison;
         }
-        Long baselineMillis = elapsedMillis(phases.get(0));
-        Long optimizedMillis = elapsedMillis(phases.get(1));
-        comparison.put("available", baselineMillis != null && optimizedMillis != null);
-        comparison.put("measurementOnlyElapsedMs", baselineMillis);
-        comparison.put("optimizedElapsedMs", optimizedMillis);
-        comparison.put("elapsedDeltaMs", baselineMillis == null || optimizedMillis == null
-                ? null
-                : optimizedMillis - baselineMillis);
-        comparison.put("elapsedImprovementPercent",
-                improvementPercent(baselineMillis, optimizedMillis));
+        Map<String, Object> baseline = object(phases.get(0).get("summary"));
+        Map<String, Object> optimized = object(phases.get(1).get("summary"));
+        if (baseline == null || optimized == null) {
+            comparison.put("available", false);
+            return comparison;
+        }
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        metric(metrics, "processToMainMenuMs", baseline, optimized, false);
+        metric(metrics, "processToCampaignReadyMs", baseline, optimized, false);
+        metric(metrics, "routeElapsedMs", baseline, optimized, false);
+        metric(metrics, "averageFps", baseline, optimized, true);
+        metric(metrics, "medianFps", baseline, optimized, true);
+        metric(metrics, "onePercentLowFps", baseline, optimized, true);
+        metric(metrics, "pointOnePercentLowFps", baseline, optimized, true);
+        metric(metrics, "p95FrameMicros", baseline, optimized, false);
+        metric(metrics, "p99FrameMicros", baseline, optimized, false);
+        comparison.put("available", metrics.size() >= 3);
+        comparison.put("metrics", metrics);
         return comparison;
     }
 
-    private static Long elapsedMillis(Map<String, Object> phase) {
-        Object rawLaunch = phase.get("launch");
-        if (!(rawLaunch instanceof Map<?, ?> launch)) return null;
-        Object rawEvidence = launch.get("evidence");
-        if (!(rawEvidence instanceof Map<?, ?> evidence)) return null;
-        Object startedAt = evidence.get("startedAt");
-        Object completedAt = evidence.get("completedAt");
-        if (!(startedAt instanceof Instant start) || !(completedAt instanceof Instant end)) return null;
-        return Math.max(0L, Duration.between(start, end).toMillis());
+    private static Map<String, Object> summary(Map<String, Object> launch) throws IOException {
+        Map<String, Object> evidence = object(launch.get("evidence"));
+        if (evidence == null) throw new IOException("Passed benchmark phase lacks sealed evidence");
+        Object runtimePath = launch.get("runtimeProcess");
+        if (!(runtimePath instanceof Path path)) {
+            throw new IOException("Passed benchmark phase lacks its runtime identity path");
+        }
+        Object processStarted = RuntimeProcessIdentity.read(path).inspect().get("startedAt");
+        if (!(processStarted instanceof Instant processStart)) {
+            throw new IOException("Benchmark runtime lacks a process start instant");
+        }
+        Instant mainMenu = stepCompleted(evidence, "menu");
+        Instant campaign = stepCompleted(evidence, "campaign");
+        Instant routeStart = instant(evidence, "startedAt");
+        Instant routeEnd = instant(evidence, "completedAt");
+        Map<String, Object> campaignFrames = campaignFrames(evidence);
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("processToMainMenuMs", millis(processStart, mainMenu));
+        summary.put("processToCampaignReadyMs", millis(processStart, campaign));
+        summary.put("routeElapsedMs", millis(routeStart, routeEnd));
+        copyNumber(campaignFrames, summary, "frames", "campaignFrames");
+        copyNumber(campaignFrames, summary, "averageFps", "averageFps");
+        copyNumber(campaignFrames, summary, "medianFps", "medianFps");
+        copyNumber(campaignFrames, summary, "onePercentLowFps", "onePercentLowFps");
+        copyNumber(campaignFrames, summary, "pointOnePercentLowFps", "pointOnePercentLowFps");
+        copyNumber(campaignFrames, summary, "p95Micros", "p95FrameMicros");
+        copyNumber(campaignFrames, summary, "p99Micros", "p99FrameMicros");
+        copyNumber(
+                campaignFrames, summary, "framesMeeting60FpsPercent", "framesMeeting60FpsPercent");
+        return summary;
     }
 
-    private static Double improvementPercent(Long baseline, Long optimized) {
-        if (baseline == null || optimized == null || baseline <= 0L) return null;
-        return Math.round((baseline - optimized) * 10_000.0 / baseline) / 100.0;
+    private static Map<String, Object> campaignFrames(Map<String, Object> evidence)
+            throws IOException {
+        Object artifacts = evidence.get("artifacts");
+        if (!(artifacts instanceof List<?> list)) {
+            throw new IOException("Benchmark evidence lacks its artifact list");
+        }
+        Path frameReport = null;
+        for (Object raw : list) {
+            Map<String, Object> artifact = object(raw);
+            if (artifact != null && "frame-report".equals(artifact.get("kind"))) {
+                Object path = artifact.get("path");
+                if (path instanceof Path candidate) frameReport = candidate;
+            }
+        }
+        if (frameReport == null) throw new IOException("Benchmark evidence lacks a frame report");
+        Map<String, Object> report = boundedJson(frameReport, "frame report");
+        if (!"starsector-preflight-runtime-frame-report-v1".equals(report.get("format"))) {
+            throw new IOException("Benchmark frame report format is unsupported");
+        }
+        Map<String, Object> frameTimes = object(report.get("frameTimes"));
+        Map<String, Object> campaign = frameTimes == null
+                ? null
+                : object(frameTimes.get("campaignActive"));
+        if (campaign == null) throw new IOException("Benchmark frame report lacks campaign frames");
+        return campaign;
+    }
+
+    private static Instant stepCompleted(Map<String, Object> evidence, String id)
+            throws IOException {
+        Object steps = evidence.get("steps");
+        if (steps instanceof List<?> list) {
+            for (Object raw : list) {
+                Map<String, Object> step = object(raw);
+                if (step != null && id.equals(step.get("id"))) {
+                    return instant(step, "completedAt");
+                }
+            }
+        }
+        throw new IOException("Benchmark evidence lacks the " + id + " milestone");
+    }
+
+    private static Instant instant(Map<String, Object> value, String field) throws IOException {
+        Object raw = value.get(field);
+        if (raw instanceof Instant instant) return instant;
+        throw new IOException("Benchmark evidence lacks " + field);
+    }
+
+    private static long millis(Instant start, Instant end) throws IOException {
+        if (end.isBefore(start)) throw new IOException("Benchmark milestone order is invalid");
+        return Duration.between(start, end).toMillis();
+    }
+
+    private static void copyNumber(
+            Map<String, Object> source,
+            Map<String, Object> destination,
+            String sourceName,
+            String destinationName) {
+        Object value = source.get(sourceName);
+        destination.put(destinationName, value instanceof Number ? value : null);
+    }
+
+    private static void metric(
+            Map<String, Object> metrics,
+            String name,
+            Map<String, Object> baseline,
+            Map<String, Object> optimized,
+            boolean higherIsBetter) {
+        Object baselineValue = baseline.get(name);
+        Object optimizedValue = optimized.get(name);
+        if (!(baselineValue instanceof Number before) || !(optimizedValue instanceof Number after)) {
+            return;
+        }
+        double beforeNumber = before.doubleValue();
+        double afterNumber = after.doubleValue();
+        Map<String, Object> metric = new LinkedHashMap<>();
+        metric.put("measurementOnly", before);
+        metric.put("optimized", after);
+        metric.put("delta", round(afterNumber - beforeNumber));
+        metric.put("improvementPercent", beforeNumber <= 0.0
+                ? null
+                : round(100.0 * (higherIsBetter
+                        ? afterNumber - beforeNumber
+                        : beforeNumber - afterNumber) / beforeNumber));
+        metrics.put(name, metric);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> object(Object value) {
+        return value instanceof Map<?, ?> ? (Map<String, Object>) value : null;
+    }
+
+    private static double round(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 }
