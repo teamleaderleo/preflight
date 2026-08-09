@@ -37,7 +37,7 @@ export { isCurrentProfilePrepared } from "./usePreparation";
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
   if (page === "launch") return "Game settings";
   if (page === "prepare") return preparing ? "Preparing…" : "Preflight";
-  if (page === "reports") return "Run reports";
+  if (page === "reports") return "Benchmark";
   if (page === "profiles") return "Profiles";
   if (page === "settings") return "Settings";
   if (preparing) return "Preparing…";

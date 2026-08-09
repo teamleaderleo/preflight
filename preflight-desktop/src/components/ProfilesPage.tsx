@@ -1,4 +1,5 @@
-import { LayersIcon, RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
+import { ShieldIcon } from "../icons";
+import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { shortPath } from "../uiFormat";
 import type { useProfiles } from "../useProfiles";
@@ -21,7 +22,6 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     profiles,
     profilesLoading,
     applyProfile,
-    refreshProfiles,
     reviewProfile,
     saveCurrentProfile,
     dismissActivationPlan,
@@ -34,17 +34,13 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
       <div className="profiles-grid">
         <section className="card profile-list-card">
           <div className="card__heading">
-            <div><p className="eyebrow">This installation</p><h2>Saved profiles</h2></div>
-            <div className="card__heading-actions">
-              <div className={`tiny-status ${profiles?.profiles.some((profile) => profile.active) ? "tiny-status--good" : ""}`}><span />{profilesLoading ? "Checking" : `${profiles?.profiles.length ?? 0} saved`}</div>
-              <button className="icon-button icon-button--small" type="button" onClick={() => void refreshProfiles()} aria-label="Refresh saved profiles" disabled={profilesLoading}><RefreshIcon className={profilesLoading ? "spin" : ""} /></button>
-            </div>
+            <div className="heading-with-info"><h2>Saved profiles</h2><InfoTip label="About mod profiles">A profile remembers enabled mods and their load order. Switching is previewed before Preflight changes the mod list, and matching prepared data is reused automatically.</InfoTip></div>
+            <span className="field-note">{profilesLoading ? "Checking…" : `${profiles?.profiles.length ?? 0} saved`}</span>
           </div>
           <div className="profile-list">
             {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><strong>No saved profiles</strong><span>Name the current mod setup to save it.</span></div> : null}
             {(profiles?.profiles ?? []).map((profile) => (
               <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
-                <div className="profile-card__mark"><LayersIcon /></div>
                 <div className="profile-card__copy">
                   <div><strong>{profile.name}</strong>{profile.active ? <b>Active</b> : null}</div>
                   <span>{profile.modCount.toLocaleString()} mod{profile.modCount === 1 ? "" : "s"} · saved {new Date(profile.savedAt).toLocaleDateString()}</span>
@@ -59,13 +55,10 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
         </section>
 
         <section className="card profile-save-card">
-          <p className="eyebrow">Remember this setup</p>
-          <h2>Save current profile</h2>
-          <p>Choose any name. Preflight remembers the enabled mods and their load order; mod files stay where they are.</p>
+          <div className="heading-with-info"><h2>Save this mod setup</h2><InfoTip label="What saving a profile does">Only the enabled-mod list and load order are saved. Mod files stay where they are.</InfoTip></div>
           <label htmlFor="profile-name">Profile name</label>
           <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Main campaign" maxLength={96} />
-          <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>Save current profile</button>
-          <div className="profile-cache-note"><SparklesIcon /><span>Matching profiles reuse prepared caches automatically.</span></div>
+          <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>Save profile</button>
         </section>
       </div>
 

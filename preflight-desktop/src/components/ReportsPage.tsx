@@ -2,6 +2,7 @@ import { openDesktopAccessibilitySettings } from "../bridge";
 import { CheckIcon, FolderIcon, ShieldIcon } from "../icons";
 import type { useDesktopAutomation } from "../useDesktopAutomation";
 import type { useDiagnosticsReport } from "../useDiagnosticsReport";
+import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { formatBytes, shortPath } from "../uiFormat";
 import type { Announce, AppStatus, DesktopSnapshot, NoticeTone } from "../types";
@@ -67,15 +68,41 @@ export function ReportsPage({
   return (
     <div className="settings-page">
       <NoticeBanner message={message} tone={messageTone} />
+
+      <section className="card benchmark-card">
+        <div>
+          <div className="heading-with-info">
+            <h2>Benchmark Starsector</h2>
+            <InfoTip label="About the benchmark">The benchmark opens the latest save, moves through the campaign for three seconds, records timings and a screenshot, then closes only the game process it started. It stops after four minutes.</InfoTip>
+          </div>
+          <p>{desktopSmokeProbe?.probe.ready ? "Ready to run the checked campaign sequence." : "Preflight checks compatibility before anything launches."}</p>
+          {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
+        </div>
+        <div className="benchmark-card__actions">
+          {desktopSmokeRunning ? (
+            <button className="button button--quiet button--benchmark" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping…" : "Stop benchmark"}</button>
+          ) : (
+            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? setDesktopSmokeReview(true) : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || operationBlocked}>
+              {desktopSmokeProbeBusy ? "Checking compatibility…" : "Run benchmark"}
+            </button>
+          )}
+          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && platform === "mac" ? <button className="text-button" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => onMessage(String(error)))}>Open Accessibility settings</button> : null}
+          {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "Benchmark automation isn’t available on this system."}</small> : null}
+        </div>
+      </section>
+
       <div className="settings-overview">
         <section className="card diagnostics-action">
           <div>
-            <strong>{diagnosticsExport ? "Diagnostics ready" : "Diagnostics"}</strong>
-            <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Paths are redacted. Review contents before saving or sending."}</span>
+            <div className="heading-with-info">
+              <strong>{diagnosticsExport ? "Support ZIP ready" : "Support ZIP"}</strong>
+              <InfoTip label="About the support ZIP">Exports bounded, redacted run and benchmark metadata. Game files, mods, saves, logs, screenshots, audio, caches, and personal paths stay out.</InfoTip>
+            </div>
+            <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Export a redacted bundle to inspect or send with your permission."}</span>
           </div>
           <div className="report-actions">
             <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
-              <FolderIcon />{diagnosticsBusy ? "Saving…" : diagnosticsExport ? "Save another ZIP" : "Save diagnostics"}
+              <FolderIcon />{diagnosticsBusy ? "Exporting…" : diagnosticsExport ? "Export another ZIP" : "Export support ZIP"}
             </button>
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review send"}</button> : null}
           </div>
@@ -83,15 +110,15 @@ export function ReportsPage({
       </div>
 
       {desktopSmokeReview ? (
-        <section className="card automation-review" aria-label="Automated game test review">
+        <section className="card automation-review" aria-label="Benchmark review">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Test review</p><h2>Run the checked campaign test?</h2></div>
+            <div><p className="eyebrow">Benchmark review</p><h2>Run the checked campaign benchmark?</h2></div>
             <button className="text-button" type="button" onClick={() => setDesktopSmokeReview(false)} disabled={desktopSmokeRunning}>Cancel</button>
           </div>
           <p>Preflight will open the current installation, continue the latest save, move forward for three seconds, collect a screenshot and timing evidence, then close that game process. Leave the game window unobstructed; the interaction sequence stops after four minutes.</p>
           <div className="activation-review__footer">
             <span><ShieldIcon /> The driver doesn’t edit game, mod, or save files; it only sends the actions listed here.</span>
-            <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeProbeBusy || desktopSmokeRunning || operationBlocked}>{desktopSmokeRunning ? "Test running…" : "Start automated test"}</button>
+            <button className="button button--primary" type="button" onClick={() => void runDesktopAutomation()} disabled={desktopSmokeProbeBusy || desktopSmokeRunning || operationBlocked}>{desktopSmokeRunning ? "Benchmark running…" : "Start benchmark"}</button>
           </div>
         </section>
       ) : null}
@@ -180,24 +207,6 @@ export function ReportsPage({
         </section>
       ) : null}
 
-      <details className="card settings-disclosure automation-card">
-        <summary><span><strong>Automated game test</strong><small>{desktopSmokeProbe?.probe.ready ? "Ready" : "Optional compatibility check"}</small></span></summary>
-        <div className="settings-disclosure__body">
-          <p>{desktopSmokeProbe === null
-            ? "Check whether Preflight can control the exact game process, collect bounded evidence, and close it after the test. Nothing launches during this check."
-            : desktopSmokeProbe.probe.ready
-              ? `Ready through ${desktopSmokeProbe.probe.driver?.id ?? "the platform driver"}. The test remains opt-in and hasn’t started a game.`
-              : desktopSmokeProbe.probe.diagnostics[0] ?? "Automated testing isn’t available on this system yet."}</p>
-          {desktopSmokeProbe?.probe.ready ? <small>{desktopSmokeProbe.probe.driver?.capabilities.join(" · ")}</small> : null}
-          <div className="update-actions">
-            <button className="button button--quiet button--compact" type="button" onClick={() => void checkDesktopAutomation()} disabled={desktopSmokeProbeBusy || operationBlocked}>{desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe ? "Check again" : "Check readiness"}</button>
-            {desktopSmokeProbe?.probe.ready && !desktopSmokeRunning ? <button className="button button--primary button--compact" type="button" onClick={() => setDesktopSmokeReview(true)} disabled={desktopSmokeProbeBusy || operationBlocked}>Review test</button> : null}
-            {desktopSmokeRunning ? <button className="button button--quiet button--compact" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping test…" : "Stop test safely"}</button> : null}
-            {desktopSmokeProbe && !desktopSmokeProbe.probe.ready && platform === "mac" ? <button className="button button--quiet button--compact" type="button" onClick={() => void openDesktopAccessibilitySettings().catch((error) => onMessage(String(error)))}>Open Accessibility settings</button> : null}
-          </div>
-          {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
-        </div>
-      </details>
     </div>
   );
 }

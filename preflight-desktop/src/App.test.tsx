@@ -212,10 +212,11 @@ test("blocks installation and preparation mutations while the game is running", 
   expect(screen.getByRole("button", { name: "Change Starsector installation" })).toBeDisabled();
 
   await user.click(screen.getByRole("button", { name: "Preflight" }));
+  await user.click(await screen.findByText("Advanced controls"));
   expect(await screen.findByRole("radio", { name: "Recommended optimizations" })).toBeDisabled();
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeDisabled();
-  expect(screen.getByRole("button", { name: /Calculating|Prepare current profile/ })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: /Calculating|Prepare current profile/ })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review cleanup" })).toBeDisabled();
 
   game.mockRestore();
@@ -226,7 +227,7 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
   const { container } = render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
   const viewport = container.querySelector<HTMLElement>(".page-viewport");
   expect(viewport).not.toBeNull();
   if (!viewport) return;
@@ -249,8 +250,8 @@ test("keyboard users can skip navigation and receive the new workspace heading",
   await user.tab();
   expect(screen.getByRole("link", { name: "Skip to workspace" })).toHaveFocus();
 
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
-  const heading = await screen.findByRole("heading", { name: "Run reports", level: 1 });
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  const heading = await screen.findByRole("heading", { name: "Benchmark", level: 1 });
   expect(heading).toHaveFocus();
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
@@ -343,6 +344,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   await user.click(screen.getByRole("button", { name: "Storage" }));
 
   expect(await screen.findByRole("heading", { name: "Preflight", level: 1 })).toBeInTheDocument();
+  await user.click(screen.getByText("Advanced controls"));
   expect(screen.getByRole("radio", { name: "Recommended optimizations" })).toBeChecked();
   await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
   expect(screen.getByRole("radio", { name: "Conservative optimizations" })).toBeChecked();
@@ -355,7 +357,9 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
     .toBe('["prepared-audio"]');
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
-  expect(await screen.findByRole("button", { name: "Prepare current profile" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
+  const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });
+  expect(document.getElementById(storageInfo.getAttribute("aria-describedby") ?? "")).toHaveAttribute("role", "tooltip");
 });
 
 test("advanced domain selections are validated on restore and reach the typed launch bridge", async () => {
@@ -390,10 +394,11 @@ test("storage totals disclose data outside the active cache categories", async (
   render(<App />);
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Storage" }));
+  await user.click(await screen.findByText("Storage details"));
 
   expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
   expect(screen.getByText("512 B")).toBeInTheDocument();
-  expect(screen.getByText(/Other includes retained cache formats/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "About Preflight storage" })).toBeInTheDocument();
   cache.mockRestore();
 });
 
@@ -463,15 +468,15 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
 
-  expect(await screen.findByRole("heading", { name: "Run reports", level: 1 })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Benchmark", level: 1 })).toBeInTheDocument();
   await user.click(screen.getByText("Diagnostic contents"));
   expect(screen.getByText("Useful metadata only")).toBeInTheDocument();
   expect(screen.getByText("Game and personal data")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Save diagnostics" }));
+  await user.click(screen.getByRole("button", { name: "Export support ZIP" }));
 
-  expect(await screen.findByText("Diagnostics ready")).toBeInTheDocument();
+  expect(await screen.findByText("Support ZIP ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
   await user.click(await screen.findByRole("button", { name: "Review send" }));
 
@@ -511,7 +516,7 @@ test("restores an unexpired report deletion receipt after restart", async () => 
 
   render(<App />);
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
 
   expect(await screen.findByRole("heading", { name: `Run report ${caseId}` })).toBeInTheDocument();
   expect(screen.getByText(/keeps this deletion receipt on this computer/)).toBeInTheDocument();
@@ -553,71 +558,65 @@ test("an unconfigured build keeps local export available and refuses report send
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
-  await user.click(await screen.findByRole("button", { name: "Save diagnostics" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(await screen.findByRole("button", { name: "Export support ZIP" }));
 
   expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review send" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Save another ZIP" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Export another ZIP" })).toBeEnabled();
   intake.mockRestore();
 });
 
-test("the automated game test checks readiness without launching", async () => {
+test("the benchmark checks compatibility without launching before review", async () => {
   const user = userEvent.setup();
   const probe = vi.spyOn(bridge, "getDesktopSmokeProbe");
   const game = vi.spyOn(bridge, "startGame");
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
-  await user.click(screen.getByText("Automated game test"));
-  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
-  expect(await screen.findByText(/Ready through browser-preview/)).toBeInTheDocument();
-  expect(screen.getByText("launch · observe · screenshot · input · shutdown")).toBeInTheDocument();
+  expect(await screen.findByText("Benchmark review")).toBeInTheDocument();
   expect(probe).toHaveBeenCalledOnce();
   expect(game).not.toHaveBeenCalled();
   probe.mockRestore();
   game.mockRestore();
 });
 
-test("the automated game test requires a review before it starts", async () => {
+test("the benchmark requires a review before it starts", async () => {
   const user = userEvent.setup();
   const smoke = vi.spyOn(bridge, "startDesktopSmoke").mockResolvedValue({ pid: 4244 });
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
-  await user.click(screen.getByText("Automated game test"));
-  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
-  await user.click(await screen.findByRole("button", { name: "Review test" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
-  expect(screen.getByText("Test review")).toBeInTheDocument();
+  expect(screen.getByText("Benchmark review")).toBeInTheDocument();
   expect(smoke).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Start automated test" }));
+  await user.click(screen.getByRole("button", { name: "Start benchmark" }));
 
   await waitFor(() => expect(smoke).toHaveBeenCalledWith("/Applications/Starsector"));
-  expect(await screen.findByText("Automated game test passed in browser preview.")).toBeInTheDocument();
+  expect(await screen.findByText("Benchmark finished in browser preview.")).toBeInTheDocument();
   smoke.mockRestore();
 });
 
-test("a running automated game test exposes cooperative cancellation", async () => {
+test("a running benchmark exposes cooperative cancellation", async () => {
   const user = userEvent.setup();
   const smoke = vi.spyOn(bridge, "startDesktopSmoke").mockReturnValue(new Promise(() => {}));
   const cancel = vi.spyOn(bridge, "cancelDesktopSmoke").mockResolvedValue(true);
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
-  await user.click(screen.getByText("Automated game test"));
-  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
-  await user.click(await screen.findByRole("button", { name: "Review test" }));
-  await user.click(screen.getByRole("button", { name: "Start automated test" }));
-  await user.click(await screen.findByRole("button", { name: "Stop test safely" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Start benchmark" }));
+  await user.click(await screen.findByRole("button", { name: "Stop benchmark" }));
 
   expect(cancel).toHaveBeenCalledOnce();
   expect(screen.getByText("Stopping the exact game process and sealing its evidence…")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Stopping test…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
   smoke.mockRestore();
   cancel.mockRestore();
 });
@@ -636,13 +635,12 @@ test("a blocked macOS automation probe links to the manual permission pane", asy
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Run reports" }));
-  await user.click(screen.getByText("Automated game test"));
-  await user.click(await screen.findByRole("button", { name: "Check readiness" }));
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Open Accessibility settings" }));
 
   expect(settings).toHaveBeenCalledOnce();
-  expect(screen.queryByRole("button", { name: "Review test" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Start benchmark" })).not.toBeInTheDocument();
   probe.mockRestore();
   settings.mockRestore();
 });

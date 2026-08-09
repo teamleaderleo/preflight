@@ -54,15 +54,15 @@ export function useDesktopAutomation({
       setDesktopSmokeCancelling(false);
       setStatus(installationReady ? "ready" : "setup");
       const outcome = payload.state === "cancelled"
-        ? payload.detail ?? `Automated game test stopped safely. Evidence is in ${displayPath(payload.runDirectory)}.`
+        ? payload.detail ?? `Benchmark stopped safely. Evidence is in ${displayPath(payload.runDirectory)}.`
         : payload.success
-        ? `Automated game test passed. Evidence is in ${displayPath(payload.runDirectory)}.`
-        : payload.detail ?? `Automated game test stopped. Evidence is in ${displayPath(payload.runDirectory)}.`;
+        ? `Benchmark finished. Evidence is in ${displayPath(payload.runDirectory)}.`
+        : payload.detail ?? `Benchmark stopped. Evidence is in ${displayPath(payload.runDirectory)}.`;
       void refreshInstallation(game).then((refreshed) => {
         if (refreshed) announce(outcome, payload.success ? "success" : "error");
       });
     }, (error) => {
-      announce(`Live automated-test updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      announce(`Live benchmark updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
       let previousPid: number | null | undefined;
       stopReconciliation();
       stopReconciliation = startOperationReconciliation({
@@ -83,14 +83,14 @@ export function useDesktopAutomation({
             setDesktopSmokeCancelling(false);
             setStatus(installationReady ? "ready" : "setup");
             void refreshInstallation(game).then((refreshed) => {
-              if (refreshed) announce("The automated test stopped. Its exact outcome is available in the saved run evidence.", "warning");
+              if (refreshed) announce("The benchmark stopped. Its exact outcome is available in the saved run evidence.", "warning");
             });
           } else {
             previousPid = null;
           }
         },
         isActive: () => true,
-        onError: (pollError) => announce(`Could not refresh native automated-test state: ${pollError}`, "error"),
+        onError: (pollError) => announce(`Could not refresh native benchmark state: ${pollError}`, "error"),
       });
     });
     return () => {
@@ -99,12 +99,14 @@ export function useDesktopAutomation({
     };
   }, [announce, displayPath, game, installationReady, refreshInstallation, setStatus]);
 
-  const checkDesktopAutomation = async () => {
+  const checkDesktopAutomation = async (reviewWhenReady = false) => {
     if (probeBusyRef.current || runningRef.current) return;
     probeBusyRef.current = true;
     setDesktopSmokeProbeBusy(true);
     try {
-      setDesktopSmokeProbe(await getDesktopSmokeProbe());
+      const probe = await getDesktopSmokeProbe();
+      setDesktopSmokeProbe(probe);
+      if (probe.probe.ready && reviewWhenReady) setDesktopSmokeReview(true);
     } catch (error) {
       setDesktopSmokeProbe(null);
       announce(String(error), "error");
@@ -131,7 +133,7 @@ export function useDesktopAutomation({
         setDesktopSmokeRunning(false);
         setStatus("ready");
         setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
-        announce("Automated game test passed in browser preview.", "success");
+        announce("Benchmark finished in browser preview.", "success");
       }
     } catch (error) {
       runningRef.current = false;
@@ -156,7 +158,7 @@ export function useDesktopAutomation({
         setDesktopSmokeRunning(false);
         setDesktopSmokeCancelling(false);
         setStatus(installationReady ? "ready" : "setup");
-        announce("The automated game test had already stopped.", "warning");
+        announce("The benchmark had already stopped.", "warning");
       }
     } catch (error) {
       cancellingRef.current = false;
