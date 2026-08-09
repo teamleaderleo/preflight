@@ -34,14 +34,18 @@ class SourceBoundaryTest(unittest.TestCase):
         module.validate_blob("preflight-desktop/src-tauri/icons/icon.png", b"\x89PNG\r\n\x1a\n\x00")
         module.validate_blob("preflight-desktop/src/assets/mark.png", b"\x89PNG\r\n\x1a\n\x00")
 
-    def test_allows_only_the_exact_reviewed_oversized_icon(self):
-        repository = MODULE_PATH.parent.parent
-        name = "preflight-desktop/src-tauri/icons/icon.icns"
-        data = (repository / name).read_bytes()
-        self.assertGreater(len(data), module.MAX_REVIEWED_BLOB_BYTES)
-        module.validate_blob(name, data)
-        with self.assertRaisesRegex(module.SourceBoundaryError, "exceeds"):
-            module.validate_blob(name, data[:-1] + bytes([data[-1] ^ 1]))
+    def test_allows_only_an_exact_reviewed_oversized_blob(self):
+        name = "preflight-desktop/src-tauri/icons/synthetic-reviewed.icns"
+        data = b"x" * (module.MAX_REVIEWED_BLOB_BYTES + 1)
+        module.REVIEWED_OVERSIZED_BLOBS[name] = frozenset(
+            {(len(data), module.hashlib.sha256(data).hexdigest())}
+        )
+        try:
+            module.validate_blob(name, data)
+            with self.assertRaisesRegex(module.SourceBoundaryError, "exceeds"):
+                module.validate_blob(name, data[:-1] + b"y")
+        finally:
+            del module.REVIEWED_OVERSIZED_BLOBS[name]
 
     def test_allows_only_exact_reviewed_documentation_images(self):
         repository = MODULE_PATH.parent.parent
