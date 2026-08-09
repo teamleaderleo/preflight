@@ -219,8 +219,9 @@ average/median/1%/0.1%-low FPS, p95/p99 frame time, deltas, and improvement perc
 shows the primary startup and FPS fields and describes a single pair as directional evidence. The
 coordinator resolves the exact save descriptor named by Starsector's own load log, refuses paths
 outside the installation's real `saves` directory, hashes the descriptor, and requires both phases
-to load the same save. Measurement-overhead proof, cache/fallback context, and an optional
-alternating cohort remain release work.
+to load the same save. It also seals runtime cache hits and misses, safe fallbacks, contained cache
+failures, the session memory-pressure reading, and a post-run measurement of all prepared-data disk
+usage. Measurement-overhead proof and an optional alternating cohort remain release work.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the

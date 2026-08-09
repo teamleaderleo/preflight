@@ -72,6 +72,24 @@ export interface DesktopBenchmarkMetric {
 export interface DesktopBenchmarkComparison {
   available: boolean;
   metrics: Record<string, DesktopBenchmarkMetric>;
+  context?: {
+    measurementOnly?: DesktopBenchmarkRuntimeContext | null;
+    optimized?: DesktopBenchmarkRuntimeContext | null;
+    storage?: {
+      scope: "all-prepared-data";
+      bytes: number;
+      files: number;
+    } | null;
+  };
+}
+
+export interface DesktopBenchmarkRuntimeContext {
+  adapterMode?: string;
+  cacheHits: number;
+  cacheMisses: number;
+  fallbacks: number;
+  failures: number;
+  memoryAvailablePercent: number | null;
 }
 
 export interface PreparationStoragePlan {

@@ -89,6 +89,13 @@ final class DesktopBenchmarkLaunch {
         }
         if (cancellationRequested(cancellation)) status = "cancelled";
 
+        Map<String, Object> storage = null;
+        try {
+            storage = storageContext();
+        } catch (IOException failure) {
+            benchmarkDiagnostics.add("Prepared-data storage context unavailable: " + failure.getMessage());
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("format", FORMAT);
         result.put("status", status);
@@ -102,7 +109,9 @@ final class DesktopBenchmarkLaunch {
         List<String> diagnostics = new ArrayList<>(diagnostics(phases));
         diagnostics.addAll(benchmarkDiagnostics);
         result.put("diagnostics", List.copyOf(diagnostics));
-        result.put("comparison", comparison(phases));
+        Map<String, Object> comparison = comparison(phases);
+        comparison.put("context", comparisonContext(phases, storage));
+        result.put("comparison", comparison);
         DesktopSmokeLaunch.atomicWrite(
                 session.resolve(RESULT_FILE), Json.object(result) + System.lineSeparator());
         return result;
@@ -329,6 +338,7 @@ final class DesktopBenchmarkLaunch {
         summary.put("processToCampaignReadyMs", millis(processStart, campaign));
         summary.put("routeElapsedMs", millis(routeStart, routeEnd));
         summary.put("selectedSave", selectedSave(evidence, launch));
+        summary.put("runtimeContext", healthContext(evidence));
         copyNumber(campaignFrames, summary, "frames", "campaignFrames");
         copyNumber(campaignFrames, summary, "averageFps", "averageFps");
         copyNumber(campaignFrames, summary, "medianFps", "medianFps");
@@ -339,6 +349,104 @@ final class DesktopBenchmarkLaunch {
         copyNumber(
                 campaignFrames, summary, "framesMeeting60FpsPercent", "framesMeeting60FpsPercent");
         return summary;
+    }
+
+    private static Map<String, Object> comparisonContext(
+            List<Map<String, Object>> phases, Map<String, Object> storage) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (!phases.isEmpty()) context.put("measurementOnly", phaseRuntimeContext(phases.get(0)));
+        if (phases.size() > 1) context.put("optimized", phaseRuntimeContext(phases.get(1)));
+        context.put("storage", storage);
+        return context;
+    }
+
+    private static Map<String, Object> phaseRuntimeContext(Map<String, Object> phase) {
+        Map<String, Object> summary = object(phase.get("summary"));
+        return summary == null ? null : object(summary.get("runtimeContext"));
+    }
+
+    private static Map<String, Object> healthContext(Map<String, Object> evidence)
+            throws IOException {
+        Path healthPath = artifact(evidence, "adapter-health", "adapter health report");
+        Map<String, Object> health = boundedJson(healthPath, "adapter health report");
+        if (!"starsector-preflight-runtime-adapter-health-v1".equals(health.get("format"))) {
+            throw new IOException("Benchmark adapter health format is unsupported");
+        }
+        Map<String, Object> transformations = object(health.get("adapterTransformationCache"));
+        Map<String, Object> merged = object(health.get("mergedReadCache"));
+        Map<String, Object> textures = object(health.get("preparedTextures"));
+        Map<String, Object> audio = object(health.get("preparedAudio"));
+        Map<String, Object> memory = object(health.get("memoryPressure"));
+
+        long cacheHits = sum(
+                number(transformations, "hits"),
+                number(merged, "hits"),
+                number(textures, "hits"),
+                number(audio, "servedFromCache"));
+        long cacheMisses = sum(
+                number(transformations, "misses"),
+                number(merged, "misses"),
+                number(textures, "misses"),
+                number(audio, "decodedByTheGame"));
+        long fallbacks = sum(
+                number(textures, "fallbacks"),
+                number(audio, "decodedByTheGame"));
+        long failures = sum(
+                number(transformations, "readFailures"),
+                number(transformations, "writeFailures"),
+                number(textures, "corruptions"),
+                number(textures, "internalErrors"),
+                number(textures, "packFailures"),
+                number(audio, "failures"));
+        Long availablePercent = number(memory, "sessionAvailablePercent");
+
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("adapterMode", health.get("adapterMode"));
+        context.put("cacheHits", cacheHits);
+        context.put("cacheMisses", cacheMisses);
+        context.put("fallbacks", fallbacks);
+        context.put("failures", failures);
+        context.put("memoryAvailablePercent",
+                availablePercent != null && availablePercent >= 0 && availablePercent <= 100
+                        ? availablePercent
+                        : null);
+        return context;
+    }
+
+    private static Map<String, Object> storageContext() throws IOException {
+        CacheFootprint.Report footprint = CacheFootprint.measure(PreflightHome.current());
+        long bytes = 0L;
+        long files = 0L;
+        List<Map<String, Object>> categories = new ArrayList<>();
+        for (CacheFootprint.Entry entry : footprint.entries()) {
+            if (!"acceleration".equals(entry.group())) continue;
+            bytes = Math.addExact(bytes, entry.usage().bytes());
+            files = Math.addExact(files, entry.usage().files());
+            categories.add(Map.of(
+                    "path", entry.path(),
+                    "bytes", entry.usage().bytes(),
+                    "files", entry.usage().files()));
+        }
+        Map<String, Object> storage = new LinkedHashMap<>();
+        storage.put("scope", "all-prepared-data");
+        storage.put("bytes", bytes);
+        storage.put("files", files);
+        storage.put("categories", List.copyOf(categories));
+        return storage;
+    }
+
+    private static Long number(Map<String, Object> source, String field) {
+        if (source == null) return null;
+        Object value = source.get(field);
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
+    private static long sum(Long... values) {
+        long total = 0L;
+        for (Long value : values) {
+            if (value != null && value > 0) total = Math.addExact(total, value);
+        }
+        return total;
     }
 
     static Map<String, Object> selectedSave(Map<String, Object> phase) throws IOException {

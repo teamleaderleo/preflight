@@ -38,8 +38,9 @@ coordinator. It rejects different routes before launch, closes only its exact pr
 checks the sealed installation/profile/launcher/runtime/settings identity after both runs, and emits
 one versioned result. The result now seals startup and frame/FPS deltas and the desktop shows the
 primary fields. Both phases are also bound to the exact in-installation save descriptor reported by
-Starsector. The remaining work is to prove measurement overhead, add cache/fallback and disk-cost
-context, and offer an optional alternating cohort.
+Starsector. The result records runtime cache hits, misses, safe fallbacks, contained failures,
+memory availability, and the measured size of all prepared acceleration data after the pair. The
+remaining work is to prove measurement overhead and offer an optional alternating cohort.
 
 The result should show startup before and after, seconds saved, percentage change, FPS, p50/p95/p99
 frame time, cache use and fallbacks, memory pressure, run noise, exact identities, and prepared-data

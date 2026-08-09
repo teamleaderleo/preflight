@@ -138,6 +138,18 @@ final class DesktopBenchmarkLaunchTest {
         Path log = run.resolve("desktop-smoke-log-tail.txt");
         Files.writeString(log, "123 [main] INFO CampaignGameManager - Reading save data from ["
                 + descriptor + "]\n");
+        Path health = run.resolve("desktop-smoke-adapter-health.json");
+        Files.writeString(health, Json.object(Map.of(
+                "format", "starsector-preflight-runtime-adapter-health-v1",
+                "adapterMode", "enabled",
+                "adapterTransformationCache", Map.of("hits", 4, "misses", 1),
+                "mergedReadCache", Map.of("hits", 11, "misses", 2),
+                "preparedTextures", Map.of(
+                        "hits", 7, "misses", 3, "fallbacks", 1,
+                        "corruptions", 0, "internalErrors", 0, "packFailures", 0),
+                "preparedAudio", Map.of(
+                        "servedFromCache", 5, "decodedByTheGame", 2, "failures", 0),
+                "memoryPressure", Map.of("sessionAvailablePercent", 61))));
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("startedAt", processStart.plusSeconds(1));
         evidence.put("completedAt", processStart.plusSeconds(25));
@@ -146,7 +158,8 @@ final class DesktopBenchmarkLaunchTest {
                 Map.of("id", "campaign", "completedAt", processStart.plusSeconds(20))));
         evidence.put("artifacts", List.of(
                 Map.of("kind", "frame-report", "path", frames),
-                Map.of("kind", "log-tail", "path", log)));
+                Map.of("kind", "log-tail", "path", log),
+                Map.of("kind", "adapter-health", "path", health)));
         Map<String, Object> phase = DesktopBenchmarkLaunch.phase("optimized", Map.of(
                 "status", "passed",
                 "runtimeProcess", runtime,
@@ -162,6 +175,11 @@ final class DesktopBenchmarkLaunchTest {
         Map<String, Object> selected = (Map<String, Object>) summary.get("selectedSave");
         assertEquals("save_Test_123", selected.get("directory"));
         assertTrue(selected.get("descriptorSha256").toString().matches("[0-9a-f]{64}"));
+        Map<String, Object> context = (Map<String, Object>) summary.get("runtimeContext");
+        assertEquals(27L, context.get("cacheHits"));
+        assertEquals(8L, context.get("cacheMisses"));
+        assertEquals(3L, context.get("fallbacks"));
+        assertEquals(61L, context.get("memoryAvailablePercent"));
     }
 
     @Test

@@ -143,6 +143,17 @@ export function useDesktopAutomation({
             averageFps: { measurementOnly: 42.5, optimized: 56.2, delta: 13.7, improvementPercent: 32.24 },
             onePercentLowFps: { measurementOnly: 19.8, optimized: 28.4, delta: 8.6, improvementPercent: 43.43 },
           },
+          context: {
+            optimized: {
+              adapterMode: "enabled",
+              cacheHits: 15_924_611,
+              cacheMisses: 193_428,
+              fallbacks: 14,
+              failures: 0,
+              memoryAvailablePercent: 58,
+            },
+            storage: { scope: "all-prepared-data", bytes: 2_426_028_032, files: 15_104 },
+          },
         });
         announce("Paired benchmark finished in browser preview.", "success");
       }

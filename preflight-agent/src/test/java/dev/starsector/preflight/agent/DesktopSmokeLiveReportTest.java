@@ -42,6 +42,7 @@ final class DesktopSmokeLiveReportTest {
         assertTrue(healthJson.contains(
                 "\"format\":\"" + DesktopSmokeLiveReport.HEALTH_FORMAT + "\""));
         assertTrue(healthJson.contains("\"adapterMode\":\"enabled\""));
+        assertTrue(healthJson.contains("\"memoryPressure\":"));
         assertTrue(report.enabled());
         report.close();
         assertTrue(report.writeProblem() == null);

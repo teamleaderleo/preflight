@@ -1231,6 +1231,31 @@ h2 {
   margin-top: 10px;
 }
 
+.benchmark-results__context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+}
+
+.benchmark-results__context span {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.benchmark-results__context strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.benchmark-results__context .benchmark-results__warning,
+.benchmark-results__context .benchmark-results__warning strong {
+  color: var(--warning);
+}
+
 .storage-card--compact {
   padding: 16px 24px;
 }

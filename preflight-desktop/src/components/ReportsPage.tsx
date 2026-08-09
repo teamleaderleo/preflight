@@ -104,6 +104,7 @@ export function ReportsPage({
             <BenchmarkResult label="Average FPS" metric={desktopBenchmarkComparison.metrics.averageFps} unit="fps" />
             <BenchmarkResult label="1% low FPS" metric={desktopBenchmarkComparison.metrics.onePercentLowFps} unit="fps" />
           </div>
+          <BenchmarkContext comparison={desktopBenchmarkComparison} />
           <small>One paired run is directional evidence. The saved receipt keeps exact identities and raw metrics.</small>
         </section>
       ) : null}
@@ -226,6 +227,30 @@ export function ReportsPage({
 
     </div>
   );
+}
+
+function BenchmarkContext({ comparison }: { comparison: AutomationState["desktopBenchmarkComparison"] }) {
+  const runtime = comparison?.context?.optimized;
+  const storage = comparison?.context?.storage;
+  if (!runtime && !storage) return null;
+  return (
+    <div className="benchmark-results__context" aria-label="Benchmark context">
+      {runtime ? <span><strong>{compactNumber(runtime.cacheHits)}</strong> cache hits</span> : null}
+      {runtime ? <span><strong>{compactNumber(runtime.fallbacks)}</strong> safe fallback{runtime.fallbacks === 1 ? "" : "s"}</span> : null}
+      {runtime && runtime.failures > 0 ? <span className="benchmark-results__warning"><strong>{compactNumber(runtime.failures)}</strong> contained failure{runtime.failures === 1 ? "" : "s"}</span> : null}
+      {storage ? <span><strong>{formatBytes(storage.bytes)}</strong> total prepared data</span> : null}
+      {runtime?.memoryAvailablePercent !== null && runtime?.memoryAvailablePercent !== undefined
+        ? <span className={runtime.memoryAvailablePercent < 10 ? "benchmark-results__warning" : undefined}><strong>{runtime.memoryAvailablePercent}%</strong> memory available</span>
+        : null}
+    </div>
+  );
+}
+
+function compactNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    notation: value >= 10_000 ? "compact" : "standard",
+    maximumFractionDigits: value >= 1_000_000 ? 1 : 0,
+  }).format(value);
 }
 
 function BenchmarkResult({

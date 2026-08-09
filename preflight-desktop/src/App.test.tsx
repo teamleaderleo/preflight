@@ -611,6 +611,8 @@ test("the benchmark requires a review before it starts", async () => {
   expect(screen.getByRole("region", { name: "Latest benchmark result" })).toBeInTheDocument();
   expect(screen.getByText("15.88s")).toBeInTheDocument();
   expect(screen.getByText("56.2")).toBeInTheDocument();
+  expect(screen.getByText("cache hits")).toBeInTheDocument();
+  expect(screen.getByText("total prepared data")).toBeInTheDocument();
   smoke.mockRestore();
 });
 

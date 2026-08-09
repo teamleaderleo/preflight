@@ -117,8 +117,9 @@ first public beta.
   startup and FPS results in the desktop app while retaining the raw metrics locally.
 - [x] Bind both phases to the exact save path reported by Starsector, resolve it inside the real
   installation `saves` directory, hash its descriptor, and refuse a different save in phase two.
-- [ ] Prove measurement overhead, add cache/fallback and disk-cost context, and keep the more rigorous
-  alternating cohort optional.
+- [x] Add cache hit/miss, fallback, failure, memory-pressure, and measured prepared-data disk context
+  to the sealed result and its compact desktop summary.
+- [ ] Prove measurement overhead and keep the more rigorous alternating cohort optional.
 
 ## Compatibility and correctness gate
 

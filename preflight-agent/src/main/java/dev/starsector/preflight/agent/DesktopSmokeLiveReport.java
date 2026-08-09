@@ -111,6 +111,7 @@ final class DesktopSmokeLiveReport implements AutoCloseable {
         health.put("mergedReadCache", MergedReadCacheRuntime.telemetry());
         health.put("preparedTextures", TextureCompatibilityRuntime.telemetry());
         health.put("preparedAudio", PreparedAudioRuntime.report());
+        health.put("memoryPressure", MacMemoryWarningRuntime.telemetry());
         health.put("combatRuntimeIntegrity", CombatRuntimeIntegrityRuntime.telemetry());
         atomicWrite(healthDestination, Json.object(health) + System.lineSeparator());
         writeProblem = null;
