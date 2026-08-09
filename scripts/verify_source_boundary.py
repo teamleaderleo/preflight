@@ -21,6 +21,7 @@ REVIEWED_OVERSIZED_BLOBS = {
             (2_853_963, "3e6c91921e576fc00a7cb937ff437acc0615099bf29c774d8521c1fe78f08a5e"),
             (1_746_720, "05ca5e3efb0c65533cdb45e944ae3e941651cd0da45a9a8e30e72b8ca76c0a7f"),
             (1_201_813, "9f600da93bdd51b2e4a94bda5a111fc53559fe478781e29b2e27f44b13ac8e7d"),
+            (1_638_831, "376cef6ce98eff08e963582ae39657884f3d86ef3de69d4522e77c9c9bef6af7"),
         }
     )
 }
