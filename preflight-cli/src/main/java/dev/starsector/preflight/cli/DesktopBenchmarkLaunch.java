@@ -331,7 +331,10 @@ final class DesktopBenchmarkLaunch {
         Instant campaign = stepCompleted(evidence, "campaign");
         Instant routeStart = instant(evidence, "startedAt");
         Instant routeEnd = instant(evidence, "completedAt");
-        Map<String, Object> campaignFrames = campaignFrames(evidence);
+        Map<String, Object> frameTimes = frameTimes(evidence);
+        Map<String, Object> campaignFrames = object(frameTimes.get("campaignActive"));
+        if (campaignFrames == null) throw new IOException("Benchmark frame report lacks campaign frames");
+        Map<String, Object> measurement = object(frameTimes.get("measurementOverhead"));
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("processToMainMenuMs", millis(processStart, mainMenu));
@@ -348,7 +351,33 @@ final class DesktopBenchmarkLaunch {
         copyNumber(campaignFrames, summary, "p99Micros", "p99FrameMicros");
         copyNumber(
                 campaignFrames, summary, "framesMeeting60FpsPercent", "framesMeeting60FpsPercent");
+        summary.put("measurementOverhead", measurementOverhead(
+                measurement, ((Number) summary.get("routeElapsedMs")).longValue()));
         return summary;
+    }
+
+    private static Map<String, Object> measurementOverhead(
+            Map<String, Object> measurement, long routeElapsedMs) throws IOException {
+        Long samples = number(measurement, "samples");
+        Long totalNanos = number(measurement, "totalNanos");
+        Object averageValue = measurement == null ? null : measurement.get("averageMicros");
+        Object maximumValue = measurement == null ? null : measurement.get("maximumMicros");
+        if (samples == null || samples <= 0L || totalNanos == null || totalNanos < 0L
+                || !(averageValue instanceof Number average)
+                || !(maximumValue instanceof Number maximum)
+                || routeElapsedMs <= 0L) {
+            throw new IOException("Benchmark frame report lacks measurement-overhead evidence");
+        }
+        double routeSharePercent = 100.0 * totalNanos / (routeElapsedMs * 1_000_000.0);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("samples", samples);
+        result.put("totalNanos", totalNanos);
+        result.put("averageMicros", round(average.doubleValue()));
+        result.put("maximumMicros", round(maximum.doubleValue()));
+        result.put("routeSharePercent", round(routeSharePercent));
+        result.put("withinBudget", routeSharePercent <= 1.0 && average.doubleValue() <= 250.0);
+        result.put("budget", Map.of("maximumRouteSharePercent", 1.0, "maximumAverageMicros", 250.0));
+        return result;
     }
 
     private static Map<String, Object> comparisonContext(
@@ -356,6 +385,14 @@ final class DesktopBenchmarkLaunch {
         Map<String, Object> context = new LinkedHashMap<>();
         if (!phases.isEmpty()) context.put("measurementOnly", phaseRuntimeContext(phases.get(0)));
         if (phases.size() > 1) context.put("optimized", phaseRuntimeContext(phases.get(1)));
+        Map<String, Object> overhead = new LinkedHashMap<>();
+        if (!phases.isEmpty()) {
+            overhead.put("measurementOnly", phaseMeasurementOverhead(phases.get(0)));
+        }
+        if (phases.size() > 1) {
+            overhead.put("optimized", phaseMeasurementOverhead(phases.get(1)));
+        }
+        context.put("measurementOverhead", overhead);
         context.put("storage", storage);
         return context;
     }
@@ -363,6 +400,11 @@ final class DesktopBenchmarkLaunch {
     private static Map<String, Object> phaseRuntimeContext(Map<String, Object> phase) {
         Map<String, Object> summary = object(phase.get("summary"));
         return summary == null ? null : object(summary.get("runtimeContext"));
+    }
+
+    private static Map<String, Object> phaseMeasurementOverhead(Map<String, Object> phase) {
+        Map<String, Object> summary = object(phase.get("summary"));
+        return summary == null ? null : object(summary.get("measurementOverhead"));
     }
 
     private static Map<String, Object> healthContext(Map<String, Object> evidence)
@@ -504,7 +546,7 @@ final class DesktopBenchmarkLaunch {
         return selected;
     }
 
-    private static Map<String, Object> campaignFrames(Map<String, Object> evidence)
+    private static Map<String, Object> frameTimes(Map<String, Object> evidence)
             throws IOException {
         Path frameReport = artifact(evidence, "frame-report", "frame report");
         Map<String, Object> report = boundedJson(frameReport, "frame report");
@@ -512,11 +554,8 @@ final class DesktopBenchmarkLaunch {
             throw new IOException("Benchmark frame report format is unsupported");
         }
         Map<String, Object> frameTimes = object(report.get("frameTimes"));
-        Map<String, Object> campaign = frameTimes == null
-                ? null
-                : object(frameTimes.get("campaignActive"));
-        if (campaign == null) throw new IOException("Benchmark frame report lacks campaign frames");
-        return campaign;
+        if (frameTimes == null) throw new IOException("Benchmark frame report lacks frame telemetry");
+        return frameTimes;
     }
 
     private static Path artifact(Map<String, Object> evidence, String kind, String label)

@@ -126,15 +126,21 @@ final class DesktopBenchmarkLaunchTest {
         Path frames = run.resolve("desktop-smoke-frame-report.json");
         Files.writeString(frames, Json.object(Map.of(
                 "format", "starsector-preflight-runtime-frame-report-v1",
-                "frameTimes", Map.of("campaignActive", Map.of(
-                        "frames", 180,
-                        "averageFps", 60.0,
-                        "medianFps", 62.0,
-                        "onePercentLowFps", 35.0,
-                        "pointOnePercentLowFps", 22.0,
-                        "p95Micros", 20_000,
-                        "p99Micros", 28_571,
-                        "framesMeeting60FpsPercent", 88.0)))));
+                "frameTimes", Map.of(
+                        "campaignActive", Map.of(
+                                "frames", 180,
+                                "averageFps", 60.0,
+                                "medianFps", 62.0,
+                                "onePercentLowFps", 35.0,
+                                "pointOnePercentLowFps", 22.0,
+                                "p95Micros", 20_000,
+                                "p99Micros", 28_571,
+                                "framesMeeting60FpsPercent", 88.0),
+                        "measurementOverhead", Map.of(
+                                "samples", 1_200,
+                                "totalNanos", 12_000_000,
+                                "averageMicros", 10.0,
+                                "maximumMicros", 80.0)))));
         Path log = run.resolve("desktop-smoke-log-tail.txt");
         Files.writeString(log, "123 [main] INFO CampaignGameManager - Reading save data from ["
                 + descriptor + "]\n");
@@ -172,6 +178,10 @@ final class DesktopBenchmarkLaunchTest {
         assertEquals(20_000L, summary.get("processToCampaignReadyMs"));
         assertEquals(60.0, summary.get("averageFps"));
         assertEquals(28_571L, summary.get("p99FrameMicros"));
+        Map<String, Object> overhead = (Map<String, Object>) summary.get("measurementOverhead");
+        assertEquals(1_200L, overhead.get("samples"));
+        assertEquals(0.05, overhead.get("routeSharePercent"));
+        assertEquals(true, overhead.get("withinBudget"));
         Map<String, Object> selected = (Map<String, Object>) summary.get("selectedSave");
         assertEquals("save_Test_123", selected.get("directory"));
         assertTrue(selected.get("descriptorSha256").toString().matches("[0-9a-f]{64}"));

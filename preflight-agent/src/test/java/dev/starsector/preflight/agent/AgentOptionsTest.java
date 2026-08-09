@@ -67,6 +67,9 @@ class AgentOptionsTest {
         assertEquals(
                 AdapterPlanScope.PORTABLE_STARTUP,
                 AgentOptions.parse("adapter=enabled,planScope=portable-startup").adapterPlanScope());
+        assertEquals(
+                AdapterPlanScope.MEASUREMENT_ONLY,
+                AgentOptions.parse("adapter=enabled,planScope=measurement-only").adapterPlanScope());
         assertThrows(
                 IllegalArgumentException.class,
                 () -> AgentOptions.parse("adapter=enabled,planScope=probably-safe"));

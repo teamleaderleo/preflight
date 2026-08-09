@@ -30,6 +30,9 @@ public final class FrameTimeRuntime {
     private static long inactiveIntervals;
     private static long invalidIntervals;
     private static long stateTransitionIntervals;
+    private static long measurementSamples;
+    private static long measurementTotalNanos;
+    private static long measurementMaximumNanos;
     private static long firstBoundaryNanos = Long.MIN_VALUE;
     private static long firstBoundaryEpochMillis = -1L;
     private static long firstCampaignBoundaryNanos = Long.MIN_VALUE;
@@ -56,6 +59,9 @@ public final class FrameTimeRuntime {
         inactiveIntervals = 0L;
         invalidIntervals = 0L;
         stateTransitionIntervals = 0L;
+        measurementSamples = 0L;
+        measurementTotalNanos = 0L;
+        measurementMaximumNanos = 0L;
         firstBoundaryNanos = Long.MIN_VALUE;
         firstBoundaryEpochMillis = -1L;
         firstCampaignBoundaryNanos = Long.MIN_VALUE;
@@ -105,13 +111,23 @@ public final class FrameTimeRuntime {
     /** Marks one completed game-loop/display-update boundary. */
     public static void boundary() {
         if (!enabled) return;
+        long started = System.nanoTime();
         try {
-            recordBoundary(System.nanoTime());
+            recordBoundary(started);
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
             // This is woven into the display loop. Diagnostics must never affect the game.
+        } finally {
+            recordMeasurementOverhead(System.nanoTime() - started);
         }
+    }
+
+    static synchronized void recordMeasurementOverhead(long elapsedNanos) {
+        if (elapsedNanos < 0L) return;
+        measurementSamples++;
+        measurementTotalNanos += elapsedNanos;
+        measurementMaximumNanos = Math.max(measurementMaximumNanos, elapsedNanos);
     }
 
     /** Called from an exact transformed game class when resource initialization returns. */
@@ -193,6 +209,16 @@ public final class FrameTimeRuntime {
         result.put("inactiveIntervalsDropped", inactiveIntervals);
         result.put("invalidIntervalsDropped", invalidIntervals);
         result.put("stateTransitionIntervalsDropped", stateTransitionIntervals);
+        Map<String, Object> measurement = new LinkedHashMap<>();
+        measurement.put("samples", measurementSamples);
+        measurement.put("totalNanos", measurementTotalNanos);
+        measurement.put("averageMicros", measurementSamples == 0L
+                ? null
+                : measurementTotalNanos / 1_000.0 / measurementSamples);
+        measurement.put("maximumMicros", measurementSamples == 0L
+                ? null
+                : measurementMaximumNanos / 1_000.0);
+        result.put("measurementOverhead", measurement);
         result.put("firstBoundaryEpochMillis", firstBoundaryEpochMillis);
         result.put("campaignWarmupWindowMillis", CAMPAIGN_WARMUP_NANOS / 1_000_000L);
         result.put("firstCampaignBoundaryOffsetMillis",

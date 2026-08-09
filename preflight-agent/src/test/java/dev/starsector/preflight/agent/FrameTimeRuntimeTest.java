@@ -149,6 +149,20 @@ class FrameTimeRuntimeTest {
     }
 
     @Test
+    void reportsBoundedMeasurementOverheadSeparatelyFromFrameDurations() {
+        FrameTimeRuntime.beginSession(true);
+        FrameTimeRuntime.recordMeasurementOverhead(1_500L);
+        FrameTimeRuntime.recordMeasurementOverhead(2_500L);
+
+        Map<String, Object> overhead = map(
+                FrameTimeRuntime.telemetry().get("measurementOverhead"));
+        assertEquals(2L, overhead.get("samples"));
+        assertEquals(4_000L, overhead.get("totalNanos"));
+        assertEquals(2.0, overhead.get("averageMicros"));
+        assertEquals(2.5, overhead.get("maximumMicros"));
+    }
+
+    @Test
     void retainsOnlyTheWorstBoundedSet() {
         FrameTimeRuntime.beginSession(true);
         long now = 0L;

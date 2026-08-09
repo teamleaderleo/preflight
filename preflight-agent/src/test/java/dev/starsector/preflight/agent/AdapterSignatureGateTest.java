@@ -312,6 +312,30 @@ class AdapterSignatureGateTest {
     }
 
     @Test
+    void measurementOnlyScopeKeepsOnlyLightweightFrameAndStateBoundaries() {
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withFrameTimeTarget()
+                .withFrameTimeStartupCompletionTarget()
+                .withCampaignCallTimeTargets()
+                .withCampaignEngineTimeTarget()
+                .withCampaignLocationEconomyTimeTargets()
+                .withCampaignMarketFleetTimeTargets()
+                .forScope(AdapterPlanScope.MEASUREMENT_ONLY);
+
+        Set<String> plans = registry.targets().stream()
+                .map(AdapterTarget::planId)
+                .collect(java.util.stream.Collectors.toSet());
+        assertEquals(Set.of(
+                FrameTimeRuntime.PLAN_ID,
+                FrameTimeStatePlan.PLAN_ID,
+                FrameTimeStartupCompletionPlan.PLAN_ID), plans);
+        assertFalse(plans.contains(TexturePreparedPixelRuntime.PLAN_ID));
+        assertFalse(plans.contains(CampaignCallTimeRuntime.PLAN_ID));
+        assertFalse(plans.contains(CampaignEngineTimeRuntime.PLAN_ID));
+    }
+
+    @Test
     void everyBuiltInTargetIsBoundToAnExactArchiveClassLoaderAndMethodShape() {
         AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
                 .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)

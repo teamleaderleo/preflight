@@ -221,7 +221,10 @@ coordinator resolves the exact save descriptor named by Starsector's own load lo
 outside the installation's real `saves` directory, hashes the descriptor, and requires both phases
 to load the same save. It also seals runtime cache hits and misses, safe fallbacks, contained cache
 failures, the session memory-pressure reading, and a post-run measurement of all prepared-data disk
-usage. Measurement-overhead proof and an optional alternating cohort remain release work.
+usage. The lightweight display-boundary hook measures its own call count, cumulative time, average,
+maximum, and share of the scenario route. The sealed result refuses to describe that overhead as
+within budget above either 1% of the route or a 250-microsecond average. A controlled packaged run
+still has to supply the release evidence; an optional alternating cohort remains later work.
 
 The macOS command probes current Accessibility permission before attachment. Screen Recording is
 proved by the first bounded capture; a denial becomes `skipped`. Preflight's Info.plist explains the

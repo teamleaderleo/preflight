@@ -1860,7 +1860,6 @@ final class AdapterTargetRegistry {
                 .withTarget(stelnetMarketUpdaterTarget())
                 .withTarget(logisticsNotificationsFuelTarget())
                 .withTarget(macMemoryWarningTarget())
-                .withTarget(campaignFrameTimeStateTarget())
                 .withTarget(combatRuntimeIntegrityTarget());
         if (!AudioStreamSourceErrorRuntime.disabled()) {
             registry = registry.withTarget(audioStreamSourceErrorTarget());

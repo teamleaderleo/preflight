@@ -5,7 +5,7 @@ import type { useDiagnosticsReport } from "../useDiagnosticsReport";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { Announce, AppStatus, DesktopSnapshot, NoticeTone } from "../types";
+import type { Announce, AppStatus, DesktopBenchmarkMeasurementOverhead, DesktopSnapshot, NoticeTone } from "../types";
 
 type AutomationState = ReturnType<typeof useDesktopAutomation>;
 type DiagnosticsState = ReturnType<typeof useDiagnosticsReport>;
@@ -232,13 +232,22 @@ export function ReportsPage({
 function BenchmarkContext({ comparison }: { comparison: AutomationState["desktopBenchmarkComparison"] }) {
   const runtime = comparison?.context?.optimized;
   const storage = comparison?.context?.storage;
-  if (!runtime && !storage) return null;
+  const overheads = [
+    comparison?.context?.measurementOverhead?.measurementOnly,
+    comparison?.context?.measurementOverhead?.optimized,
+  ].filter((value): value is DesktopBenchmarkMeasurementOverhead => value !== null && value !== undefined);
+  const overhead = overheads.reduce(
+    (worst, value) => !worst || value.routeSharePercent > worst.routeSharePercent ? value : worst,
+    undefined as (typeof overheads)[number] | undefined,
+  );
+  if (!runtime && !storage && !overhead) return null;
   return (
     <div className="benchmark-results__context" aria-label="Benchmark context">
       {runtime ? <span><strong>{compactNumber(runtime.cacheHits)}</strong> cache hits</span> : null}
       {runtime ? <span><strong>{compactNumber(runtime.fallbacks)}</strong> safe fallback{runtime.fallbacks === 1 ? "" : "s"}</span> : null}
       {runtime && runtime.failures > 0 ? <span className="benchmark-results__warning"><strong>{compactNumber(runtime.failures)}</strong> contained failure{runtime.failures === 1 ? "" : "s"}</span> : null}
       {storage ? <span><strong>{formatBytes(storage.bytes)}</strong> total prepared data</span> : null}
+      {overhead ? <span className={!overhead.withinBudget ? "benchmark-results__warning" : undefined}><strong>{overhead.routeSharePercent.toFixed(2)}%</strong> probe overhead</span> : null}
       {runtime?.memoryAvailablePercent !== null && runtime?.memoryAvailablePercent !== undefined
         ? <span className={runtime.memoryAvailablePercent < 10 ? "benchmark-results__warning" : undefined}><strong>{runtime.memoryAvailablePercent}%</strong> memory available</span>
         : null}

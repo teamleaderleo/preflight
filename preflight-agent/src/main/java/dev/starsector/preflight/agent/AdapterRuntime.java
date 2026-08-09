@@ -69,10 +69,11 @@ final class AdapterRuntime {
         MacMemoryWarningRuntime.beginSession();
         CombatRuntimeIntegrityRuntime.beginSession();
         FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));
-        CampaignCallTimeRuntime.beginSession(FrameTimeRuntime.enabled());
-        CampaignEngineTimeRuntime.beginSession(FrameTimeRuntime.enabled());
-        CampaignLocationEconomyTimeRuntime.beginSession(FrameTimeRuntime.enabled());
-        CampaignMarketFleetTimeRuntime.beginSession(FrameTimeRuntime.enabled());
+        boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
+        CampaignCallTimeRuntime.beginSession(campaignTimes);
+        CampaignEngineTimeRuntime.beginSession(campaignTimes);
+        CampaignLocationEconomyTimeRuntime.beginSession(campaignTimes);
+        CampaignMarketFleetTimeRuntime.beginSession(campaignTimes);
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -195,13 +196,23 @@ final class AdapterRuntime {
                 report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
                 report.diagnostic("Loaded the exact AshLib callback-scoped variant index targets");
                 if (FrameTimeRuntime.enabled()) {
-                    registry = registry.withFrameTimeTarget()
-                            .withCampaignCallTimeTargets()
-                            .withCampaignEngineTimeTarget()
-                            .withCampaignLocationEconomyTimeTargets()
-                            .withCampaignMarketFleetTimeTargets();
-                    report.diagnostic(
-                            "Loaded the exact opt-in frame-time and campaign call-time probe targets");
+                    registry = registry.withFrameTimeTarget();
+                    report.diagnostic("Loaded the exact lightweight frame-time and campaign-state targets");
+                }
+                if (CampaignCallTimeRuntime.enabled()) {
+                    registry = registry.withCampaignCallTimeTargets();
+                }
+                if (CampaignEngineTimeRuntime.enabled()) {
+                    registry = registry.withCampaignEngineTimeTarget();
+                }
+                if (CampaignLocationEconomyTimeRuntime.enabled()) {
+                    registry = registry.withCampaignLocationEconomyTimeTargets();
+                }
+                if (CampaignMarketFleetTimeRuntime.enabled()) {
+                    registry = registry.withCampaignMarketFleetTimeTargets();
+                }
+                if (campaignTimes) {
+                    report.diagnostic("Loaded the exact opt-in detailed campaign timing targets");
                 }
                 if (!options.startupPhaseProbe()
                         && (FrameTimeRuntime.enabled() || LoadJsonMemoRuntime.ready())) {

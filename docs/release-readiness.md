@@ -119,7 +119,8 @@ first public beta.
   installation `saves` directory, hash its descriptor, and refuse a different save in phase two.
 - [x] Add cache hit/miss, fallback, failure, memory-pressure, and measured prepared-data disk context
   to the sealed result and its compact desktop summary.
-- [ ] Prove measurement overhead and keep the more rigorous alternating cohort optional.
+- [ ] Run the packaged pair and retain evidence that the self-measured frame hook stays below its
+  1% route-share and 250-microsecond average budgets. Keep an alternating cohort optional.
 
 ## Compatibility and correctness gate
 

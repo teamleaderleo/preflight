@@ -75,12 +75,25 @@ export interface DesktopBenchmarkComparison {
   context?: {
     measurementOnly?: DesktopBenchmarkRuntimeContext | null;
     optimized?: DesktopBenchmarkRuntimeContext | null;
+    measurementOverhead?: {
+      measurementOnly?: DesktopBenchmarkMeasurementOverhead | null;
+      optimized?: DesktopBenchmarkMeasurementOverhead | null;
+    };
     storage?: {
       scope: "all-prepared-data";
       bytes: number;
       files: number;
     } | null;
   };
+}
+
+export interface DesktopBenchmarkMeasurementOverhead {
+  samples: number;
+  totalNanos: number;
+  averageMicros: number;
+  maximumMicros: number;
+  routeSharePercent: number;
+  withinBudget: boolean;
 }
 
 export interface DesktopBenchmarkRuntimeContext {

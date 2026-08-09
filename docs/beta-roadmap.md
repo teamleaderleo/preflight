@@ -40,7 +40,9 @@ one versioned result. The result now seals startup and frame/FPS deltas and the 
 primary fields. Both phases are also bound to the exact in-installation save descriptor reported by
 Starsector. The result records runtime cache hits, misses, safe fallbacks, contained failures,
 memory availability, and the measured size of all prepared acceleration data after the pair. The
-remaining work is to prove measurement overhead and offer an optional alternating cohort.
+frame hook now seals its own cumulative, average, maximum, and route-share overhead against an
+explicit budget. The remaining release step is a controlled packaged run that passes that budget;
+an optional alternating cohort can follow later.
 
 The result should show startup before and after, seconds saved, percentage change, FPS, p50/p95/p99
 frame time, cache use and fallbacks, memory pressure, run noise, exact identities, and prepared-data

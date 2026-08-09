@@ -198,6 +198,17 @@ record CommandLine(
                 default -> throw new IllegalArgumentException("Unknown option: " + arg);
             }
         }
+        if (desktopSmoke && optimizationPreset == OptimizationPreset.OFF) {
+            if (adapterModeSpecified) {
+                throw new IllegalArgumentException(
+                        "The measurement-only desktop benchmark owns its adapter mode");
+            }
+            // Off remains a real unoptimized launch everywhere else. The paired benchmark needs
+            // only the exact frame/state hooks required to delimit and measure the same scenario;
+            // its plan scope prevents every optimization and detailed profiler from transforming.
+            adapterMode = AdapterMode.ENABLED;
+            adapterPlanScope = AdapterPlanScope.MEASUREMENT_ONLY;
+        }
         if (!disabledOptimizationDomains.isEmpty()
                 && optimizationPreset == OptimizationPreset.CUSTOM) {
             throw new IllegalArgumentException(

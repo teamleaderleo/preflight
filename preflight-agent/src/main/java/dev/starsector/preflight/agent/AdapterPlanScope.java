@@ -6,7 +6,13 @@ import java.util.Set;
 /** Engine-owned groups of exact adapter plans; callers select a scope, never individual ids. */
 public enum AdapterPlanScope {
     FULL("full"),
-    PORTABLE_STARTUP("portable-startup");
+    PORTABLE_STARTUP("portable-startup"),
+    MEASUREMENT_ONLY("measurement-only");
+
+    private static final Set<String> MEASUREMENT_ONLY_PLANS = Set.of(
+            FrameTimeRuntime.PLAN_ID,
+            FrameTimeStatePlan.PLAN_ID,
+            FrameTimeStartupCompletionPlan.PLAN_ID);
 
     private static final Set<String> PORTABLE_STARTUP_PLANS = Set.of(
             TextureCompatibilityRuntime.PLAN_ID,
@@ -47,7 +53,11 @@ public enum AdapterPlanScope {
     }
 
     boolean allows(String planId) {
-        return this == FULL || PORTABLE_STARTUP_PLANS.contains(planId);
+        return switch (this) {
+            case FULL -> true;
+            case PORTABLE_STARTUP -> PORTABLE_STARTUP_PLANS.contains(planId);
+            case MEASUREMENT_ONLY -> MEASUREMENT_ONLY_PLANS.contains(planId);
+        };
     }
 
     static AdapterPlanScope parse(String raw) {

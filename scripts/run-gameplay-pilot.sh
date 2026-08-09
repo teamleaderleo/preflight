@@ -192,7 +192,7 @@ PILOT_CRASH_REPORT="$OUT/hs_err_pid%p.log"
 # Frame telemetry is independent of JFR and intentionally remains available in --without-profile
 # pilots. That gives Rosetta launches a safe FPS/1%-low path when HotSpot's sampling profiler itself
 # triggers the known sharedRuntime safepoint assertion.
-PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT' -Dpreflight.frameTimes=true"
+PILOT_CRASH_OPTIONS="-XX:-ShowMessageBoxOnError -XX:ErrorFile='$PILOT_CRASH_REPORT' -Dpreflight.frameTimes=true -Dpreflight.campaignTimes=true"
 if [[ "$SAFER_JVM" == true ]]; then
     # Diagnostic only: interpret the exact vanilla method that produced an otherwise impossible
     # ClassCastException. Verification must remain disabled: the shipped obfuscated core contains

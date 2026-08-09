@@ -144,6 +144,10 @@ export function useDesktopAutomation({
             onePercentLowFps: { measurementOnly: 19.8, optimized: 28.4, delta: 8.6, improvementPercent: 43.43 },
           },
           context: {
+            measurementOverhead: {
+              measurementOnly: { samples: 4_800, totalNanos: 28_000_000, averageMicros: 5.83, maximumMicros: 91.2, routeSharePercent: 0.03, withinBudget: true },
+              optimized: { samples: 4_800, totalNanos: 31_000_000, averageMicros: 6.46, maximumMicros: 104.8, routeSharePercent: 0.04, withinBudget: true },
+            },
             optimized: {
               adapterMode: "enabled",
               cacheHits: 15_924_611,

@@ -160,6 +160,21 @@ class CommandLineAdapterTest {
                 new String[] {"run", "--fast", "--direct", "--desktop-smoke"}, 1);
         assertEquals(true, smoke.desktopSmoke());
 
+        CommandLine measurement = CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "off", "--direct", "--desktop-smoke"
+        }, 1);
+        assertEquals(true, measurement.desktopSmoke());
+        assertEquals(OptimizationPreset.OFF, measurement.optimizationPreset());
+        assertEquals(AdapterMode.ENABLED, measurement.adapterMode());
+        assertEquals(AdapterPlanScope.MEASUREMENT_ONLY, measurement.adapterPlanScope());
+        assertEquals(false, measurement.textureAuto());
+        assertEquals(false, measurement.campaignEntityIndex());
+        assertEquals(false, measurement.preparedAudio());
+        assertEquals(false, measurement.loadJsonMemo());
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "off", "--desktop-smoke", "--no-adapter"
+        }, 1));
+
         CommandLine probe = CommandLine.parse(
                 new String[] {"run", "--adapter-probe", "--adapter-targets", "targets.txt"}, 1);
         assertEquals(AdapterMode.PROBE, probe.adapterMode());
