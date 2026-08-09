@@ -8,6 +8,7 @@ import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
 import type {
   CacheCleanupPlan,
+  CacheHealth,
   CacheSnapshot,
   LaunchSettings,
   NamedProfile,
@@ -112,6 +113,47 @@ test("an older cache read cannot replace the newly selected installation", async
   expect(result.current.cache?.root).toBe("/game-b/cache");
   expect(announce).not.toHaveBeenCalled();
   cache.mockRestore();
+});
+
+test("an older cache-health result cannot mark the new installation damaged", async () => {
+  const first = deferred<CacheHealth>();
+  const second = deferred<CacheHealth>();
+  const cache = vi.spyOn(bridge, "getCache").mockImplementation(async (game) => cacheFor(game));
+  const health = vi.spyOn(bridge, "getCacheHealth")
+    .mockImplementationOnce(() => first.promise)
+    .mockImplementationOnce(() => second.promise);
+  const announce = vi.fn();
+  const launch = vi.fn(async () => undefined);
+  const { result, rerender } = renderHook(
+    ({ game }) => usePreparation(game, false, "off", launch, announce),
+    { initialProps: { game: "/game-a" } },
+  );
+
+  await waitFor(() => expect(health).toHaveBeenCalledWith("/game-a"));
+  rerender({ game: "/game-b" });
+  await waitFor(() => expect(health).toHaveBeenCalledWith("/game-b"));
+  await act(async () => second.resolve({
+    format: "starsector-preflight-cache-health-v1",
+    status: "ready",
+    profileFingerprint: "current",
+    issues: [],
+    repairBytes: 0,
+    repairFiles: 0,
+  }));
+  await waitFor(() => expect(result.current.cacheHealth?.status).toBe("ready"));
+  await act(async () => first.resolve({
+    format: "starsector-preflight-cache-health-v1",
+    status: "repair-needed",
+    profileFingerprint: "current",
+    issues: [{ artifact: "prepared-textures", summary: "old", path: "/old" }],
+    repairBytes: 1,
+    repairFiles: 1,
+  }));
+
+  expect(result.current.cacheHealth?.status).toBe("ready");
+  expect(announce).not.toHaveBeenCalled();
+  cache.mockRestore();
+  health.mockRestore();
 });
 
 test("an older profile read cannot flash into the newly selected installation", async () => {

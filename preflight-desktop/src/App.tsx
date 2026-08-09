@@ -23,6 +23,7 @@ import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
 import { listenWhileMounted } from "./tauriEvents";
+import { startOperationReconciliation } from "./operationReconciliation";
 import { shortPath } from "./uiFormat";
 import type {
   AppStatus,
@@ -122,6 +123,7 @@ export default function App() {
   );
   const {
     preparing,
+    cacheRepairing,
     profilePrepared,
     clearCache,
     invalidatePreparationPlan,
@@ -160,7 +162,9 @@ export default function App() {
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const primaryLaunch = async () => {
     if (launcher.dirty && !(await launcher.save())) return;
-    await (needsPreparation ? prepare(true) : launch());
+    await (preparation.cacheHealth?.status === "repair-needed"
+      ? preparation.repairAndPrepare(true)
+      : needsPreparation ? prepare(true) : launch());
   };
   const removal = useRemoval(snapshot?.platform, announce, clearCache, clearProfiles);
   const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announce);
@@ -172,7 +176,8 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    return listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
+    let stopReconciliation: () => void = () => undefined;
+    const stopListening = listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "finished") {
         setStatus(snapshot?.ready ? "ready" : "setup");
         const outcome = payload.success
@@ -183,7 +188,35 @@ export default function App() {
           if (refreshed) announce(outcome, payload.success ? "success" : "error");
         });
       }
-    }, (error) => announce(`Could not observe the game process: ${error}`, "error"));
+    }, (error) => {
+      announce(`Live game-process updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      let previousPid: number | null | undefined;
+      stopReconciliation();
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          if (operation.gamePid !== null) {
+            previousPid = operation.gamePid;
+            setStatus("running");
+            return;
+          }
+          if (previousPid !== null && previousPid !== undefined) {
+            previousPid = null;
+            setStatus(snapshot?.ready ? "ready" : "setup");
+            void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
+              if (refreshed) announce("Starsector closed. The exact outcome is available in run reports.", "warning");
+            });
+          } else {
+            previousPid = null;
+          }
+        },
+        isActive: () => true,
+        onError: (pollError) => announce(`Could not refresh native game state: ${pollError}`, "error"),
+      });
+    });
+    return () => {
+      stopListening();
+      stopReconciliation();
+    };
   }, [announce, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async () => {
@@ -202,6 +235,7 @@ export default function App() {
   };
 
   const operationBlocked = preparing
+    || cacheRepairing
     || status === "launching"
     || status === "running"
     || cleanup.busy

@@ -28,6 +28,17 @@ export interface RunStarted {
   pid: number;
 }
 
+export interface OperationSnapshot {
+  format: "preflight-operation-state-v1";
+  gamePid: number | null;
+  desktopSmokePid: number | null;
+  desktopSmokeRunDirectory: string | null;
+  preparationPid: number | null;
+  reportUploadId: number | null;
+  reportUploadTotalBytes: number | null;
+  updateInstalling: boolean;
+}
+
 export interface DesktopSmokeProbe {
   protocol: number;
   probe: {
@@ -233,6 +244,34 @@ export interface CacheSnapshot {
     indexBytes: number;
     manifestBytes: number;
     lastModifiedMillis: number;
+  }>;
+}
+
+export interface CacheHealth {
+  format: "starsector-preflight-cache-health-v1";
+  status: "unknown" | "unsafe" | "cold" | "ready" | "repair-needed";
+  profileFingerprint: string | null;
+  issues: Array<{
+    artifact: string;
+    summary: string;
+    path: string;
+  }>;
+  repairBytes: number;
+  repairFiles: number;
+}
+
+export interface CacheRepair {
+  format: "starsector-preflight-cache-repair-v1";
+  safe: boolean;
+  applied: boolean;
+  status: "unknown" | "unsafe" | "profile-changed" | "cold" | "ready" | "repair-needed";
+  profileFingerprint: string | null;
+  bytes: number;
+  files: number;
+  targets: Array<{
+    artifact: string;
+    path: string;
+    bytes: number;
   }>;
 }
 

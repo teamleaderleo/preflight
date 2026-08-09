@@ -25,19 +25,26 @@ final class CacheCommand {
 
     static int execute(String[] args, int from) throws Exception {
         boolean prune = false;
+        boolean health = false;
+        boolean repair = false;
         boolean confirmed = false;
         boolean json = false;
         boolean keepNamed = false;
         Path game = null;
         Path launcher = null;
+        String expectedProfile = null;
         for (int index = from; index < args.length; index++) {
             switch (args[index]) {
                 case "prune" -> prune = true;
+                case "health" -> health = true;
+                case "repair" -> repair = true;
                 case "--yes" -> confirmed = true;
                 case "--json" -> json = true;
                 case "--keep-named" -> keepNamed = true;
                 case "--game" -> game = Path.of(requireValue(args, ++index, "--game"));
                 case "--launcher" -> launcher = Path.of(requireValue(args, ++index, "--launcher"));
+                case "--expected-profile" -> expectedProfile =
+                        requireValue(args, ++index, "--expected-profile");
                 case "--help", "-h" -> {
                     PreflightCli.commandUsage("cache", System.out);
                     return 0;
@@ -49,7 +56,20 @@ final class CacheCommand {
             }
         }
         PreflightHome home = PreflightHome.current();
+        int actions = (prune ? 1 : 0) + (health ? 1 : 0) + (repair ? 1 : 0);
+        if (expectedProfile != null && !expectedProfile.matches("[0-9a-f]{64}")) {
+            System.err.println("preflight cache repair: --expected-profile must be a lowercase SHA-256 fingerprint");
+            return 2;
+        }
+        if (actions > 1) {
+            System.err.println("preflight cache: choose only one of prune, health, or repair");
+            return 2;
+        }
         if (prune) {
+            if (expectedProfile != null) {
+                System.err.println("preflight cache prune: --expected-profile isn't valid");
+                return 2;
+            }
             return prune(
                     home,
                     game,
@@ -59,14 +79,97 @@ final class CacheCommand {
                     json,
                     System.out);
         }
-        if (confirmed || keepNamed) {
-            System.err.println("preflight cache: --yes and --keep-named require prune");
+        String current = currentFingerprint(game, launcher);
+        if (health) {
+            if (confirmed || keepNamed || expectedProfile != null) {
+                System.err.println("preflight cache health: --yes, --keep-named, and --expected-profile aren't valid");
+                return 2;
+            }
+            return health(home, current, json, System.out);
+        }
+        if (repair) {
+            if (keepNamed) {
+                System.err.println("preflight cache repair: --keep-named isn't valid");
+                return 2;
+            }
+            return repair(home, game, launcher, current, expectedProfile, confirmed, json, System.out);
+        }
+        if (confirmed || keepNamed || expectedProfile != null) {
+            System.err.println("preflight cache: --yes, --keep-named, and --expected-profile require repair or prune");
             return 2;
         }
         if (json) {
-            return reportJson(home, currentFingerprint(game, launcher), System.out);
+            return reportJson(home, current, System.out);
         }
-        return report(home, currentFingerprint(game, launcher), System.out);
+        return report(home, current, System.out);
+    }
+
+    static int health(
+            PreflightHome home, String currentFingerprint, boolean json, PrintStream out) {
+        CacheHealth.Report report = CacheHealth.inspect(home, currentFingerprint);
+        if (json) {
+            out.println(Json.object(CacheHealth.json(report)));
+        } else if ("ready".equals(report.status())) {
+            out.println("Prepared metadata for the current profile is structurally valid.");
+        } else if ("cold".equals(report.status())) {
+            out.println("The current profile has no prepared data yet.");
+        } else if ("unknown".equals(report.status())) {
+            out.println("The current profile could not be identified; nothing was changed.");
+        } else if ("unsafe".equals(report.status())) {
+            out.println("The cache boundary could not be verified; nothing will be changed.");
+            for (CacheHealth.Issue issue : report.issues()) {
+                out.println("  " + issue.summary());
+            }
+        } else {
+            out.println("Prepared data for the current profile needs repair:");
+            for (CacheHealth.Issue issue : report.issues()) {
+                out.println("  " + issue.summary());
+            }
+        }
+        return "unknown".equals(report.status()) || "unsafe".equals(report.status()) ? 3 : 0;
+    }
+
+    private static int repair(
+            PreflightHome home,
+            Path game,
+            Path launcher,
+            String inspectedFingerprint,
+            String expectedFingerprint,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        CacheHealth.Repair repair;
+        if (confirmed) {
+            OperationLease.Acquisition ownership = OperationLease.acquire(
+                    home, "repairing-current-cache", null);
+            try (OperationLease ignored = ownership.lease()) {
+                String ownedFingerprint = currentFingerprint(game, launcher);
+                if (expectedFingerprint != null
+                        && !expectedFingerprint.equals(ownedFingerprint)) {
+                    repair = new CacheHealth.Repair(false, false, "profile-changed",
+                            ownedFingerprint, 0, 0, List.of());
+                } else {
+                    repair = CacheHealth.repair(home, ownedFingerprint, true);
+                }
+            }
+        } else {
+            repair = CacheHealth.repair(home, inspectedFingerprint, false);
+        }
+        if (json) {
+            out.println(Json.object(CacheHealth.json(repair)));
+        } else if (!repair.safe()) {
+            out.println("The current profile could not be identified; nothing was changed.");
+        } else if (repair.files() == 0) {
+            out.println("Prepared data for the current profile doesn't need repair.");
+        } else {
+            out.printf(Locale.ROOT, "%s %,d profile-scoped artifact%s (%s).%n",
+                    confirmed ? "Removed" : "Would remove",
+                    repair.files(),
+                    repair.files() == 1 ? "" : "s",
+                    CacheFootprint.humanBytes(repair.bytes()));
+            if (!confirmed) out.println("Nothing was removed. Re-run with --yes to repair it.");
+        }
+        return repair.safe() ? 0 : 3;
     }
 
     /**

@@ -64,6 +64,13 @@ first public beta.
   space, prepares a cold profile, and launches from one action.
 - [x] Show preparation progress, cancellation/recovery, current profile identity, cache use, and the
   expected effect of changing storage policy.
+- [x] Detect structurally damaged prepared data and offer an exact-profile repair. Apply rechecks
+  profile identity under the durable lease, refuses path-boundary ambiguity, removes only scoped
+  metadata/packs, retains shared blobs, and then rebuilds through the normal bounded preparation
+  plan.
+- [x] Reconcile launch, preparation, automation, report-upload, and update state with the native
+  coordinator when a live event subscription fails. The cross-process operation lease remains the
+  final authority after desktop restarts.
 - [x] Provide preview-first cleanup that retains the current and readable named profiles, groups
   every proposed removal, bounds path samples, and recalculates under shared ownership before
   deletion.

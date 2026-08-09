@@ -92,7 +92,9 @@ export function HomePage({
 }: HomePageProps) {
   const {
     cache,
+    cacheHealth,
     cacheLoading,
+    cacheRepairing,
     preparationPlan,
     preparationPlanLoading,
     preparationCancelling,
@@ -111,6 +113,10 @@ export function HomePage({
   const storageBlocked = needsPreparation
     && !preparationPlanLoading
     && Boolean(preparationPlan && !preparationPlan.safeToPrepare);
+  const cacheNeedsRepair = cacheHealth?.status === "repair-needed";
+  const cacheBoundaryUnsafe = cacheHealth?.status === "unsafe";
+  const cacheIdentityUnknown = cacheHealth?.status === "unknown";
+  const cacheInspectionBlocked = cacheBoundaryUnsafe || cacheIdentityUnknown;
   const statusLabel = status === "launching"
     ? "Opening Starsector"
     : status === "running"
@@ -146,11 +152,11 @@ export function HomePage({
                 <button
                   className="button button--primary button--launch"
                   type="button"
-                  onClick={storageBlocked ? () => onNavigate("prepare") : onPrimaryLaunch}
-                  disabled={preparing || (!storageBlocked && (operationBlocked || status === "loading" || status === "error" || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan))))}
+                  onClick={storageBlocked || cacheInspectionBlocked ? () => onNavigate("prepare") : onPrimaryLaunch}
+                  disabled={preparing || cacheRepairing || (!storageBlocked && (operationBlocked || status === "loading" || status === "error" || cacheLoading || (needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && (preparationPlanLoading || !preparationPlan))))}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  {status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheLoading ? "Checking this mod setup…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Review storage" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
+                  {status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Review storage" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
                 </button>
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
@@ -206,6 +212,20 @@ export function HomePage({
         actionLabel={status === "error" ? retryLabel : undefined}
         onAction={status === "error" ? onRetry : undefined}
       />
+
+      {cacheNeedsRepair || cacheInspectionBlocked ? (
+        <section className="card run-recovery cache-recovery" aria-label="Prepared data needs repair">
+          <div>
+            <strong>{cacheIdentityUnknown ? "Current mod setup couldn't be inspected" : cacheBoundaryUnsafe ? "Cache location needs attention" : "Prepared data needs repair"}</strong>
+            <p>{cacheHealth.issues[0]?.summary ?? "Some prepared data for this mod setup couldn't be validated."} Starsector and your mods are unchanged.</p>
+            {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
+          </div>
+          <div className="run-recovery__actions">
+            {!cacheInspectionBlocked ? <button className="button button--primary button--compact" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Repairing…" : "Repair and launch"}</button> : null}
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("prepare")} disabled={cacheRepairing}>Details</button>
+          </div>
+        </section>
+      ) : null}
 
       {runFailure ? (
         <section className="card run-recovery" aria-label="Run needs attention">

@@ -7,6 +7,7 @@ import {
 } from "./bridge";
 import type { Announce, AppStatus, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
+import { startOperationReconciliation } from "./operationReconciliation";
 
 interface DesktopAutomationOptions {
   game: string | undefined;
@@ -37,7 +38,8 @@ export function useDesktopAutomation({
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    return listenWhileMounted<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
+    let stopReconciliation: () => void = () => undefined;
+    const stopListening = listenWhileMounted<DesktopSmokeStateEvent>("desktop-smoke-state", ({ payload }) => {
       setDesktopSmokeRunDirectory(payload.runDirectory);
       if (payload.state === "cancelling") {
         cancellingRef.current = true;
@@ -59,7 +61,42 @@ export function useDesktopAutomation({
       void refreshInstallation(game).then((refreshed) => {
         if (refreshed) announce(outcome, payload.success ? "success" : "error");
       });
-    }, (error) => announce(`Could not observe automated test state: ${error}`, "error"));
+    }, (error) => {
+      announce(`Live automated-test updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      let previousPid: number | null | undefined;
+      stopReconciliation();
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          setDesktopSmokeRunDirectory(operation.desktopSmokeRunDirectory);
+          if (operation.desktopSmokePid !== null) {
+            previousPid = operation.desktopSmokePid;
+            runningRef.current = true;
+            setDesktopSmokeRunning(true);
+            setStatus("running");
+            return;
+          }
+          if (previousPid !== null && previousPid !== undefined) {
+            previousPid = null;
+            runningRef.current = false;
+            cancellingRef.current = false;
+            setDesktopSmokeRunning(false);
+            setDesktopSmokeCancelling(false);
+            setStatus(installationReady ? "ready" : "setup");
+            void refreshInstallation(game).then((refreshed) => {
+              if (refreshed) announce("The automated test stopped. Its exact outcome is available in the saved run evidence.", "warning");
+            });
+          } else {
+            previousPid = null;
+          }
+        },
+        isActive: () => true,
+        onError: (pollError) => announce(`Could not refresh native automated-test state: ${pollError}`, "error"),
+      });
+    });
+    return () => {
+      stopListening();
+      stopReconciliation();
+    };
   }, [announce, displayPath, game, installationReady, refreshInstallation, setStatus]);
 
   const checkDesktopAutomation = async () => {

@@ -58,7 +58,11 @@ single-flight and preserve a newer name typed while an earlier save completes.
 Removal review and application are single-flight, and the final destructive action inherits the
 same global operation lock as its preview controls.
 Native event streams share one lifecycle helper that also unregisters subscriptions resolved after a
-component has already closed.
+component has already closed. If a native subscription fails, the affected workflow polls the
+bounded operation coordinator until the window closes, so launch, preparation, automation, report
+upload, and update controls don't guess that an operation ended. This snapshot describes the
+current desktop process; the engine's durable cross-process lease remains the authority for every
+new mutation.
 
 The ordinary cold-profile path now names itself as first-launch setup, shows both predicted growth
 and the conservative required-free bound, and keeps preparation progress and **Stop safely** on Home.
@@ -68,6 +72,11 @@ preparation can begin. The engine still recalculates the bound before writing. D
 installation selection and game launch have separate retry actions, and a failed state refresh can't
 be overwritten by a later success notice. Game failures show a bounded first useful line while the
 complete detail remains in the run report.
+The same screen now distinguishes cold prepared data from damaged metadata. Health inspection
+opens the exact current profile's index, manifest, pack index, and optional audio manifest. Repair
+is bound to the reviewed profile fingerprint, recomputed under the durable lease, and removes only
+that profile's broken metadata or pack. Shared content-addressed blobs remain reusable. Canonical
+parent checks refuse symlink escapes and unexpected filesystem objects before deletion.
 
 ## Visual direction
 

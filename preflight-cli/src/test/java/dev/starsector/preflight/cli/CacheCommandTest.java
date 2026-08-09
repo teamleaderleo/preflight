@@ -4,7 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.ResourceIndexIO;
+import dev.starsector.preflight.core.TextureManifest;
+import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +25,86 @@ import org.junit.jupiter.api.io.TempDir;
 class CacheCommandTest {
     @TempDir
     Path directory;
+
+    @Test
+    void cacheHealthDistinguishesColdReadyAndProfileScopedRepair() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "a".repeat(64);
+
+        CacheHealth.Report cold = CacheHealth.inspect(home, profile);
+        assertEquals("cold", cold.status());
+        assertEquals(List.of(), cold.issues());
+
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(profile + ".spfi");
+        Path manifest = TextureManifestIO.directory(home.cache()).resolve(profile + ".spfm");
+        Path otherProfile = ResourceIndexIO.directory(home.cache()).resolve("b".repeat(64) + ".spfi");
+        Path sharedBlob = home.cache().resolve("textures").resolve("shared.blob");
+        ResourceIndexIO.write(index, new ResourceIndex(
+                profile,
+                List.of(new ResourceIndex.Root("core", Path.of("core"), true)),
+                Map.of()));
+        TextureManifestIO.write(manifest, new TextureManifest(profile, Map.of()));
+        Files.writeString(otherProfile, "another profile stays intact");
+        Files.createDirectories(sharedBlob.getParent());
+        Files.writeString(sharedBlob, "shared content stays intact");
+        assertEquals("ready", CacheHealth.inspect(home, profile).status());
+
+        Files.writeString(manifest, "corrupt");
+        CacheHealth.Report damaged = CacheHealth.inspect(home, profile);
+        assertEquals("repair-needed", damaged.status());
+        assertEquals(1, damaged.issues().size());
+        assertEquals(Set.of("resource-index", "texture-manifest"), damaged.targets().stream()
+                .map(CacheHealth.Target::artifact)
+                .collect(java.util.stream.Collectors.toSet()));
+
+        CacheHealth.Repair preview = CacheHealth.repair(home, profile, false);
+        assertTrue(preview.safe());
+        assertFalse(preview.applied());
+        assertTrue(Files.exists(index));
+        assertTrue(Files.exists(manifest));
+
+        CacheHealth.Repair applied = CacheHealth.repair(home, profile, true);
+        assertTrue(applied.applied());
+        assertEquals(2, applied.files());
+        assertFalse(Files.exists(index));
+        assertFalse(Files.exists(manifest));
+        assertEquals("another profile stays intact", Files.readString(otherProfile));
+        assertEquals("shared content stays intact", Files.readString(sharedBlob));
+        assertEquals("cold", CacheHealth.inspect(home, profile).status());
+    }
+
+    @Test
+    void cacheRepairRefusesWhenTheCurrentProfileIsUnknown() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        CacheHealth.Repair repair = CacheHealth.repair(home, null, true);
+        assertFalse(repair.safe());
+        assertFalse(repair.applied());
+        assertEquals(0, repair.files());
+    }
+
+    @Test
+    void cacheRepairRefusesASymlinkedNamespaceAndPreservesTheOutsideFile() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "c".repeat(64);
+        Path outside = directory.resolve("outside-manifests");
+        Files.createDirectories(outside);
+        Path externalManifest = outside.resolve(profile + ".spfm");
+        Files.writeString(externalManifest, "outside data must survive");
+        Path manifests = TextureManifestIO.directory(home.cache());
+        Files.createDirectories(manifests.getParent());
+        try {
+            Files.createSymbolicLink(manifests, outside);
+        } catch (UnsupportedOperationException | SecurityException | java.io.IOException error) {
+            assumeTrue(false, "Symbolic links aren't available in this test environment: " + error);
+        }
+
+        CacheHealth.Report report = CacheHealth.inspect(home, profile);
+        assertEquals("unsafe", report.status());
+        CacheHealth.Repair repair = CacheHealth.repair(home, profile, true);
+        assertFalse(repair.safe());
+        assertFalse(repair.applied());
+        assertEquals("outside data must survive", Files.readString(externalManifest));
+    }
 
     @Test
     @SuppressWarnings("unchecked")

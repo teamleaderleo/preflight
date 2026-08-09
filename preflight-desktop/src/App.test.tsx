@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App, { isCurrentProfilePrepared } from "./App";
 import * as bridge from "./bridge";
-import type { CacheSnapshot, LaunchSettings } from "./types";
+import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
@@ -70,6 +70,48 @@ test("the default cold-profile action prepares with balanced settings and then l
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
 
   cache.mockRestore();
+  preparation.mockRestore();
+  game.mockRestore();
+});
+
+test("repairs only the reviewed profile before rebuilding and launching", async () => {
+  const user = userEvent.setup();
+  const damaged: CacheHealth = {
+    format: "starsector-preflight-cache-health-v1",
+    status: "repair-needed",
+    profileFingerprint: "preview-profile",
+    issues: [{
+      artifact: "prepared-textures",
+      summary: "The prepared texture pack needs rebuilding.",
+      path: "~/.starsector-preflight/cache/packs/preview-profile.spfp",
+    }],
+    repairBytes: 4096,
+    repairFiles: 3,
+  };
+  const health = vi.spyOn(bridge, "getCacheHealth").mockResolvedValue(damaged);
+  const repair = vi.spyOn(bridge, "repairCache").mockResolvedValue({
+    format: "starsector-preflight-cache-repair-v1",
+    safe: true,
+    applied: true,
+    status: "cold",
+    profileFingerprint: "preview-profile",
+    bytes: 4096,
+    files: 3,
+    targets: [],
+  });
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+  render(<App />);
+
+  expect(await screen.findByText("Prepared data needs repair")).toBeInTheDocument();
+  await user.click(screen.getAllByRole("button", { name: "Repair and launch" })[0]);
+  await waitFor(() => expect(repair).toHaveBeenCalledWith("/Applications/Starsector", "preview-profile"));
+  await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
+
+  health.mockRestore();
+  repair.mockRestore();
   preparation.mockRestore();
   game.mockRestore();
 });

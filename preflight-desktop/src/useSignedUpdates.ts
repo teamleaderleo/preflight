@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { checkForUpdate, installUpdate, isDesktopHost } from "./bridge";
 import type { Announce, UpdateProgressEvent, UpdateStatus } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
+import { startOperationReconciliation } from "./operationReconciliation";
 
 export function useSignedUpdates(
   readyForBackgroundCheck: boolean,
@@ -46,12 +47,37 @@ export function useSignedUpdates(
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    return listenWhileMounted<UpdateProgressEvent>("update-progress", ({ payload }) => {
+    let stopReconciliation: () => void = () => undefined;
+    const stopListening = listenWhileMounted<UpdateProgressEvent>("update-progress", ({ payload }) => {
       setUpdateProgress(payload);
       if (payload.state === "installed") {
         announce("The verified update is installed. Restarting Preflight…");
       }
-    }, (error) => announce(`Could not observe update progress: ${error}`, "error"));
+    }, (error) => {
+      announce(`Live update progress was interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      let wasInstalling = false;
+      stopReconciliation();
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          if (operation.updateInstalling) {
+            wasInstalling = true;
+            setUpdateInstalling(true);
+            return;
+          }
+          if (wasInstalling) {
+            wasInstalling = false;
+            setUpdateInstalling(false);
+            announce("The update operation stopped. Check the current version before retrying.", "warning");
+          }
+        },
+        isActive: () => true,
+        onError: (pollError) => announce(`Could not refresh native update state: ${pollError}`, "error"),
+      });
+    });
+    return () => {
+      stopListening();
+      stopReconciliation();
+    };
   }, [announce]);
 
   const installSignedUpdate = async () => {

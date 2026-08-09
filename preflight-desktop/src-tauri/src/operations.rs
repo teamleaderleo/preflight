@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Mutex, mpsc};
 use tokio::sync::watch;
@@ -26,6 +27,40 @@ pub(crate) struct ReportUploadProcess {
     pub(crate) id: u64,
     pub(crate) total_bytes: u64,
     pub(crate) cancel: watch::Sender<bool>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OperationSnapshot {
+    pub(crate) format: &'static str,
+    pub(crate) game_pid: Option<u32>,
+    pub(crate) desktop_smoke_pid: Option<u32>,
+    pub(crate) desktop_smoke_run_directory: Option<String>,
+    pub(crate) preparation_pid: Option<u32>,
+    pub(crate) report_upload_id: Option<u64>,
+    pub(crate) report_upload_total_bytes: Option<u64>,
+    pub(crate) update_installing: bool,
+}
+
+impl OperationSnapshot {
+    pub(crate) fn from_state(state: &OperationState) -> Self {
+        Self {
+            format: "preflight-operation-state-v1",
+            game_pid: state.game,
+            desktop_smoke_pid: state.desktop_smoke.as_ref().map(|process| process.pid),
+            desktop_smoke_run_directory: state
+                .desktop_smoke
+                .as_ref()
+                .map(|process| process.run_directory.to_string_lossy().into_owned()),
+            preparation_pid: state.preparation.as_ref().map(|process| process.pid),
+            report_upload_id: state.report_upload.as_ref().map(|process| process.id),
+            report_upload_total_bytes: state
+                .report_upload
+                .as_ref()
+                .map(|process| process.total_bytes),
+            update_installing: state.update_installing,
+        }
+    }
 }
 
 #[derive(Default)]

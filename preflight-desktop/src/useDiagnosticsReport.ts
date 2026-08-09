@@ -16,6 +16,7 @@ import type {
   Announce,
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
+import { startOperationReconciliation } from "./operationReconciliation";
 
 const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 
@@ -101,7 +102,8 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
 
   useEffect(() => {
     if (!isDesktopHost()) return;
-    return listenWhileMounted<ReportUploadStateEvent>("report-upload-state", ({ payload }) => {
+    let stopReconciliation: () => void = () => undefined;
+    const stopListening = listenWhileMounted<ReportUploadStateEvent>("report-upload-state", ({ payload }) => {
       setReportUploadedBytes(payload.uploadedBytes);
       if (payload.state === "starting" || payload.state === "uploading") {
         setReportFinalizing(false);
@@ -139,7 +141,39 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         setReportReview(false);
         setReportReceipt(payload.receipt);
       }
-    }, (error) => announce(`Could not observe report upload state: ${error}`, "error"));
+    }, (error) => {
+      announce(`Live report-upload updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      let previousUpload: number | null | undefined;
+      stopReconciliation();
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          if (operation.reportUploadId !== null) {
+            previousUpload = operation.reportUploadId;
+            reportUploadingRef.current = true;
+            setReportUploading(true);
+            return;
+          }
+          if (previousUpload !== null && previousUpload !== undefined) {
+            previousUpload = null;
+            reportUploadingRef.current = false;
+            setReportUploading(false);
+            setReportFinalizing(false);
+            setReportCancelling(false);
+            const detail = "Live completion details were unavailable. The diagnostics ZIP is still on this computer; check for a receipt before retrying.";
+            setReportError(detail);
+            announce(detail, "warning");
+          } else {
+            previousUpload = null;
+          }
+        },
+        isActive: () => true,
+        onError: (pollError) => announce(`Could not refresh native report-upload state: ${pollError}`, "error"),
+      });
+    });
+    return () => {
+      stopListening();
+      stopReconciliation();
+    };
   }, [announce]);
 
   const saveDiagnostics = async () => {

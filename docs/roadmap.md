@@ -45,6 +45,13 @@ The first lifecycle slice landed on 2026-08-07: preparation, launch, confirmed p
 launch-setting writes, and confirmed cache pruning now share a durable cross-process lease.
 Preparation has structured live phase progress and safe cancellation in the desktop host;
 interrupted PID-tagged temporary writes inside Preflight's home are reclaimed by the next owner.
+Prepared-cache health and repair now follow that same ownership model. Inspection distinguishes a
+cold profile from structurally damaged profile metadata, and confirmed repair is pinned to the
+fingerprint the user reviewed. It re-derives that identity under the lease, refuses symlinked
+namespace escapes, removes only the affected profile's metadata or pack, retains shared blobs, and
+returns through the ordinary disk-bounded preparation path. The desktop also reconciles its local
+operation state directly with the native coordinator if an event subscription fails; durable CLI
+ownership still prevents a restarted desktop from overlapping an existing mutation.
 Preview-first cache cleanup is now wired through the CLI and desktop: the plan preserves the current
 and readable named profiles, groups every removal reason, caps path samples, and is recalculated
 under the lease before applying. A read-only pass over the reviewed install found 5.42 GiB across

@@ -269,14 +269,23 @@ java -jar preflight.jar profile activate "Heavy campaign"       # preview
 java -jar preflight.jar profile activate "Heavy campaign" --yes
 
 java -jar preflight.jar cache --json
+java -jar preflight.jar cache health --json
+java -jar preflight.jar cache repair --json                 # preview
+java -jar preflight.jar cache repair --yes                  # exact current profile
 java -jar preflight.jar evidence --json
 java -jar preflight.jar evidence export --output preflight-diagnostics.zip
 java -jar preflight.jar evidence prune --keep-runs 20 --keep-benchmarks 10
 ```
 
 Both prune commands are preview-only unless `--yes` is present. Evidence retention never touches
-acceleration caches and refuses sessions that change between planning and deletion. Diagnostics
-export includes only bounded, allowlisted text metadata from the newest three runs and two
+acceleration caches and refuses sessions that change between planning and deletion.
+
+Cache repair validates the current profile's structural metadata and pack index. Confirmed repair
+re-derives the profile under the operation lease, refuses cache-boundary ambiguity, and removes only
+that profile's damaged metadata or pack; shared content blobs, game files, mods, saves, and settings
+remain untouched.
+
+Diagnostics export includes only bounded, allowlisted text metadata from the newest three runs and two
 benchmarks by default. Its in-ZIP disclosure and manifest name everything included or skipped;
 logs, crash dumps, JFR, screenshots, caches, game/mod assets, saves, symlinks, and unknown files are
 never copied. See [Diagnostics export](docs/diagnostics.md).

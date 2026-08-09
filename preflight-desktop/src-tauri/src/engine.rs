@@ -1,5 +1,5 @@
 use crate::child_error;
-use crate::operations::{OperationCoordinator, refuse_update_install};
+use crate::operations::{OperationCoordinator, OperationState, refuse_update_install};
 use serde::Deserialize;
 use serde_json::Value;
 #[cfg(debug_assertions)]
@@ -358,6 +358,98 @@ pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("Preflight returned an unreadable cache snapshot: {error}"))
+}
+
+#[tauri::command]
+pub(crate) fn get_cache_health(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+) -> Result<Value, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before inspecting prepared data.".to_string(),
+        );
+    }
+    cache_health_json(&app, &game, None)
+}
+
+#[tauri::command]
+pub(crate) fn repair_cache(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    expected_profile: String,
+) -> Result<Value, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    validate_cache_repair_state(&running)?;
+    let result = cache_health_json(&app, &game, Some(&expected_profile));
+    drop(running);
+    result
+}
+
+pub(crate) fn validate_cache_repair_state(state: &OperationState) -> Result<(), String> {
+    refuse_update_install(state)?;
+    if state.game.is_some() {
+        return Err("Close Starsector before repairing prepared data.".to_string());
+    }
+    if state.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before repairing prepared data.".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn cache_health_json(
+    app: &AppHandle,
+    game: &str,
+    expected_profile: Option<&str>,
+) -> Result<Value, String> {
+    let directory = canonical_game_directory(game)?;
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    configure_cache_health_command(&mut command, &directory, expected_profile);
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() && output.status.code() != Some(3) {
+        return Err(child_error(
+            if expected_profile.is_some() {
+                "Preflight could not repair prepared data"
+            } else {
+                "Preflight could not inspect prepared data"
+            },
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable cache health data: {error}"))
+}
+
+pub(crate) fn configure_cache_health_command(
+    command: &mut Command,
+    directory: &Path,
+    expected_profile: Option<&str>,
+) {
+    command.arg("cache");
+    if let Some(profile) = expected_profile {
+        command
+            .arg("repair")
+            .arg("--yes")
+            .arg("--expected-profile")
+            .arg(profile);
+    } else {
+        command.arg("health");
+    }
+    command.arg("--json").arg("--game").arg(directory);
 }
 
 #[tauri::command]

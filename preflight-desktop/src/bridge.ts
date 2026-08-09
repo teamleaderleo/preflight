@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  CacheHealth,
+  CacheRepair,
   CacheSnapshot,
   CacheCleanupPlan,
   DesktopSnapshot,
@@ -10,6 +12,7 @@ import type {
   NamedProfile,
   OptimizationDomain,
   OptimizationPreset,
+  OperationSnapshot,
   ProfileActivationPlan,
   ProfileList,
   PreparationStoragePlan,
@@ -87,6 +90,22 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
 }
 
+export async function getOperationState(): Promise<OperationSnapshot> {
+  if (!isDesktopHost()) {
+    return {
+      format: "preflight-operation-state-v1",
+      gamePid: null,
+      desktopSmokePid: null,
+      desktopSmokeRunDirectory: null,
+      preparationPid: null,
+      reportUploadId: null,
+      reportUploadTotalBytes: null,
+      updateInstalling: false,
+    };
+  }
+  return invoke<OperationSnapshot>("get_operation_state");
+}
+
 export async function getDesktopSmokeProbe(): Promise<DesktopSmokeProbe> {
   if (!isDesktopHost()) {
     return {
@@ -160,6 +179,36 @@ export async function getCache(game: string): Promise<CacheSnapshot> {
     };
   }
   return invoke<CacheSnapshot>("get_cache", { game });
+}
+
+export async function getCacheHealth(game: string): Promise<CacheHealth> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-cache-health-v1",
+      status: "ready",
+      profileFingerprint: "preview-profile",
+      issues: [],
+      repairBytes: 0,
+      repairFiles: 0,
+    };
+  }
+  return invoke<CacheHealth>("get_cache_health", { game });
+}
+
+export async function repairCache(game: string, expectedProfile: string): Promise<CacheRepair> {
+  if (!isDesktopHost()) {
+    return {
+      format: "starsector-preflight-cache-repair-v1",
+      safe: true,
+      applied: true,
+      status: "cold",
+      profileFingerprint: "preview-profile",
+      bytes: 0,
+      files: 0,
+      targets: [],
+    };
+  }
+  return invoke<CacheRepair>("repair_cache", { game, expectedProfile });
 }
 
 export async function exportDiagnostics(output: string): Promise<DiagnosticsExport> {

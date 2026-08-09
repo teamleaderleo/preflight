@@ -19,10 +19,11 @@ use automation::{
 };
 use engine::{
     EnginePaths, activate_profile, apply_cache_cleanup, apply_removal, canonical_game_directory,
-    export_diagnostics, get_cache, get_cache_cleanup, get_launch_settings, get_profiles,
-    get_removal_plan, get_snapshot, save_profile, update_launch_settings,
+    export_diagnostics, get_cache, get_cache_cleanup, get_cache_health, get_launch_settings,
+    get_profiles, get_removal_plan, get_snapshot, repair_cache, save_profile,
+    update_launch_settings,
 };
-use operations::{OperationCoordinator, OperationState, refuse_update_install};
+use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
 use preparation::{cancel_preparation, get_preparation_plan, start_preparation};
 use reports::{cancel_run_report, delete_run_report, get_report_intake_status, send_run_report};
 use updates::{UpdateTracker, check_for_update, install_update};
@@ -40,6 +41,21 @@ struct RunStateEvent {
     pid: u32,
     success: Option<bool>,
     detail: Option<String>,
+}
+
+#[tauri::command]
+fn get_operation_state(
+    tracker: State<'_, OperationCoordinator>,
+) -> Result<OperationSnapshot, String> {
+    snapshot_operation_state(&tracker)
+}
+
+fn snapshot_operation_state(tracker: &OperationCoordinator) -> Result<OperationSnapshot, String> {
+    let state = tracker
+        .0
+        .lock()
+        .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    Ok(OperationSnapshot::from_state(&state))
 }
 
 #[tauri::command]
@@ -272,6 +288,8 @@ pub fn run() {
             start_desktop_smoke,
             cancel_desktop_smoke,
             get_cache,
+            get_cache_health,
+            repair_cache,
             get_cache_cleanup,
             apply_cache_cleanup,
             get_removal_plan,
@@ -289,6 +307,7 @@ pub fn run() {
             save_profile,
             activate_profile,
             start_game,
+            get_operation_state,
             get_preparation_plan,
             start_preparation,
             cancel_preparation
@@ -322,20 +341,20 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        begin_exit_cleanup, read_tail, take_deferred_exit, validate_optimization_domains,
-        validate_optimization_preset,
+        begin_exit_cleanup, read_tail, snapshot_operation_state, take_deferred_exit,
+        validate_optimization_domains, validate_optimization_preset,
     };
     use crate::automation::{
         DESKTOP_SMOKE_CANCELLATION_FILE, desktop_smoke_cancellation_outcome,
         desktop_smoke_cancellation_requested, desktop_smoke_outcome,
     };
     use crate::engine::{
-        LaunchSettingsInput, diagnostic_output_path, validate_launch_settings,
-        validate_removal_scope,
+        LaunchSettingsInput, configure_cache_health_command, diagnostic_output_path,
+        validate_cache_repair_state, validate_launch_settings, validate_removal_scope,
     };
     use crate::operations::{
-        DesktopSmokeProcess, OperationState, PreparationProcess, ReportUploadProcess,
-        begin_update_install, refuse_update_install,
+        DesktopSmokeProcess, OperationCoordinator, OperationState, PreparationProcess,
+        ReportUploadProcess, begin_update_install, refuse_update_install,
     };
     use crate::report_transport::{
         perform_report_deletion, perform_report_upload, report_client, validate_report_origin,
@@ -349,6 +368,7 @@ mod tests {
     use std::fs;
     use std::io::{Cursor, Read, Write};
     use std::net::{TcpListener, TcpStream};
+    use std::path::PathBuf;
     use std::process::Command;
     use std::sync::{Arc, Mutex, mpsc};
     use std::thread;
@@ -375,6 +395,156 @@ mod tests {
         let mut stderr = Cursor::new(b"useful failure");
 
         assert_eq!(b"useful failure", read_tail(&mut stderr, 1024).as_slice());
+    }
+
+    #[test]
+    fn operation_state_command_serializes_only_the_public_live_operation_contract() {
+        let (preparation_cancel, _preparation_cancelled) = mpsc::channel();
+        let (report_cancel, _report_cancelled) = watch::channel(false);
+        let coordinator = OperationCoordinator(Mutex::new(OperationState {
+            game: Some(41),
+            desktop_smoke: Some(DesktopSmokeProcess {
+                pid: 42,
+                run_directory: PathBuf::from("/tmp/preflight-smoke-42"),
+            }),
+            preparation: Some(PreparationProcess {
+                pid: 43,
+                cancel: preparation_cancel,
+            }),
+            report_upload: Some(ReportUploadProcess {
+                id: 44,
+                total_bytes: 4_096,
+                cancel: report_cancel,
+            }),
+            update_installing: true,
+            exit_after_cleanup: true,
+        }));
+
+        let snapshot = snapshot_operation_state(&coordinator).unwrap();
+        let value = serde_json::to_value(snapshot).unwrap();
+
+        assert_eq!(
+            serde_json::json!({
+                "format": "preflight-operation-state-v1",
+                "gamePid": 41,
+                "desktopSmokePid": 42,
+                "desktopSmokeRunDirectory": "/tmp/preflight-smoke-42",
+                "preparationPid": 43,
+                "reportUploadId": 44,
+                "reportUploadTotalBytes": 4096,
+                "updateInstalling": true
+            }),
+            value
+        );
+        assert!(value.get("exitAfterCleanup").is_none());
+    }
+
+    #[test]
+    fn operation_state_command_reports_a_poisoned_coordinator_without_panicking() {
+        let coordinator = Arc::new(OperationCoordinator(Mutex::new(OperationState::default())));
+        let poison = Arc::clone(&coordinator);
+        assert!(
+            thread::spawn(move || {
+                let _state = poison.0.lock().unwrap();
+                panic!("poison operation coordinator for the command boundary");
+            })
+            .join()
+            .is_err()
+        );
+
+        assert_eq!(
+            "The operation coordinator is unavailable.",
+            snapshot_operation_state(coordinator.as_ref()).unwrap_err()
+        );
+    }
+
+    #[test]
+    fn cache_repair_guard_blocks_mutating_operations_and_allows_read_only_neighbors() {
+        assert!(validate_cache_repair_state(&OperationState::default()).is_ok());
+
+        let update = OperationState {
+            update_installing: true,
+            ..OperationState::default()
+        };
+        assert_eq!(
+            "Wait for the Preflight update to finish installing.",
+            validate_cache_repair_state(&update).unwrap_err()
+        );
+
+        let game = OperationState {
+            game: Some(51),
+            ..OperationState::default()
+        };
+        assert_eq!(
+            "Close Starsector before repairing prepared data.",
+            validate_cache_repair_state(&game).unwrap_err()
+        );
+
+        let (preparation_cancel, _preparation_cancelled) = mpsc::channel();
+        let preparation = OperationState {
+            preparation: Some(PreparationProcess {
+                pid: 52,
+                cancel: preparation_cancel,
+            }),
+            ..OperationState::default()
+        };
+        assert_eq!(
+            "Wait for profile preparation to finish before repairing prepared data.",
+            validate_cache_repair_state(&preparation).unwrap_err()
+        );
+
+        let (report_cancel, _report_cancelled) = watch::channel(false);
+        let read_only_neighbors = OperationState {
+            report_upload: Some(ReportUploadProcess {
+                id: 54,
+                total_bytes: 8_192,
+                cancel: report_cancel,
+            }),
+            exit_after_cleanup: true,
+            ..OperationState::default()
+        };
+        assert!(validate_cache_repair_state(&read_only_neighbors).is_ok());
+    }
+
+    #[test]
+    fn cache_health_command_keeps_inspection_read_only_and_repair_explicit() {
+        let game = PathBuf::from("/tmp/Starsector test");
+
+        let mut health = Command::new("preflight-engine");
+        configure_cache_health_command(&mut health, &game, None);
+        assert_eq!(
+            vec![
+                "cache",
+                "health",
+                "--json",
+                "--game",
+                "/tmp/Starsector test"
+            ],
+            health
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+        );
+
+        let mut repair = Command::new("preflight-engine");
+        let profile = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        configure_cache_health_command(&mut repair, &game, Some(profile));
+        assert_eq!(
+            vec![
+                "cache",
+                "repair",
+                "--yes",
+                "--expected-profile",
+                profile,
+                "--json",
+                "--game",
+                "/tmp/Starsector test"
+            ],
+            repair
+                .get_args()
+                .map(|argument| argument.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]

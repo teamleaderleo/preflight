@@ -67,7 +67,9 @@ export function PreparationPage({
 }: PreparationPageProps) {
   const {
     cache,
+    cacheHealth,
     cacheLoading,
+    cacheRepairing,
     preparationCancelling,
     preparationPercent,
     preparationPhaseLabel,
@@ -77,6 +79,7 @@ export function PreparationPage({
     resourcePreset,
     textureStorage,
     prepare,
+    repairAndPrepare,
     refreshCache,
     setResourcePreset,
     setTextureStorage,
@@ -85,6 +88,20 @@ export function PreparationPage({
   return (
     <div className="prepare-page">
       <NoticeBanner message={message} tone={messageTone} />
+
+      {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
+        <section className="card run-recovery cache-recovery" aria-label="Prepared data repair">
+          <div>
+            <p className="eyebrow">Current profile</p>
+            <h2>{cacheHealth.status === "unknown" ? "Current mod setup couldn't be inspected" : cacheHealth.status === "unsafe" ? "Cache location needs attention" : "Prepared data needs repair"}</h2>
+            <p>{cacheHealth.issues.map((issue) => issue.summary).join(" ")} {cacheHealth.status === "unsafe" || cacheHealth.status === "unknown" ? "Preflight refused to remove anything." : "Only the listed profile metadata and pack will be removed; shared cache blobs, game files, mods, and saves stay in place."}</p>
+            <small>{cacheHealth.repairFiles.toLocaleString()} artifact{cacheHealth.repairFiles === 1 ? "" : "s"} · {formatBytes(cacheHealth.repairBytes)}</small>
+          </div>
+          <div className="run-recovery__actions">
+            {cacheHealth.status === "repair-needed" ? <button className="button button--primary button--compact" type="button" onClick={() => void repairAndPrepare(false)} disabled={operationBlocked || cacheRepairing}>{cacheRepairing ? "Repairing…" : "Repair and rebuild"}</button> : null}
+          </div>
+        </section>
+      ) : null}
 
       <section className="card optimization-card">
         <div className="card__heading">
@@ -187,7 +204,7 @@ export function PreparationPage({
         </div>
         <div className="prepare-actions">
           {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
-          <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={operationBlocked || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}</button>
+          <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}</button>
         </div>
       </section>
 

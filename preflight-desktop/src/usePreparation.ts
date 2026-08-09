@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelPreparation,
   getCache,
+  getCacheHealth,
   getPreparationPlan,
   isDesktopHost,
+  repairCache,
   startPreparation,
 } from "./bridge";
 import type {
   Announce,
+  CacheHealth,
   CacheSnapshot,
   OptimizationPreset,
   PreparationProgressEvent,
@@ -15,6 +18,7 @@ import type {
   PreparationStoragePlan,
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
+import { startOperationReconciliation } from "./operationReconciliation";
 
 export type TextureStorage = "balanced" | "fastest";
 
@@ -49,7 +53,9 @@ export function usePreparation(
   announce: Announce,
 ) {
   const [cache, setCache] = useState<CacheSnapshot | null>(null);
+  const [cacheHealth, setCacheHealth] = useState<CacheHealth | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
+  const [cacheRepairing, setCacheRepairing] = useState(false);
   const [cacheInstallRoot, setCacheInstallRoot] = useState<string | null>(null);
   const cacheRequest = useRef(0);
   const cacheRequestRoot = useRef<string | null>(null);
@@ -62,6 +68,8 @@ export function usePreparation(
   const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
   const [resourcePreset, setResourcePreset] = useState<keyof typeof resourcePresets>("balanced");
+  const gameRef = useRef(game);
+  gameRef.current = game;
 
   const refreshCache = useCallback(async () => {
     if (!game) return;
@@ -69,10 +77,17 @@ export function usePreparation(
     cacheRequestRoot.current = game;
     setCacheLoading(true);
     try {
-      const next = await getCache(game);
-      if (request === cacheRequest.current) setCache(next);
+      const [next, health] = await Promise.all([getCache(game), getCacheHealth(game)]);
+      if (request === cacheRequest.current) {
+        setCache(next);
+        setCacheHealth(health);
+      }
     } catch (error) {
-      if (request === cacheRequest.current) announce(String(error), "error");
+      if (request === cacheRequest.current) {
+        setCache(null);
+        setCacheHealth(null);
+        announce(String(error), "error");
+      }
     } finally {
       if (request === cacheRequest.current) {
         cacheRequestRoot.current = null;
@@ -87,6 +102,7 @@ export function usePreparation(
       cacheRequest.current += 1;
       cacheRequestRoot.current = null;
       setCache(null);
+      setCacheHealth(null);
       setCacheInstallRoot(null);
       setCacheLoading(false);
       return;
@@ -95,6 +111,9 @@ export function usePreparation(
   }, [cacheInstallRoot, cacheLoading, game, refreshCache]);
 
   const currentCache = cacheInstallRoot === game ? cache : null;
+  const currentCacheHealth = cacheInstallRoot === game ? cacheHealth : null;
+  const profilePrepared = isCurrentProfilePrepared(currentCache)
+    && currentCacheHealth?.status === "ready";
   const resources = resourcePresets[resourcePreset];
   const preparationPlan = preparationPlanEnvelope
     && preparationPlanEnvelope.game === game
@@ -108,7 +127,7 @@ export function usePreparation(
     const cacheReady = game && cacheInstallRoot === game && !cacheLoading;
     const shouldPlan = cacheReady
       && optimizationPreset !== "off"
-      && (showStoragePlan || !isCurrentProfilePrepared(cache));
+      && (showStoragePlan || !profilePrepared);
     if (!game || !shouldPlan) {
       setPreparationPlanEnvelope(null);
       setPreparationPlanLoading(false);
@@ -140,12 +159,12 @@ export function usePreparation(
     return () => {
       cancelled = true;
     };
-  }, [announce, cache, cacheInstallRoot, cacheLoading, game, optimizationPreset, resources.workers, showStoragePlan, textureStorage]);
+  }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, profilePrepared, resources.workers, showStoragePlan, textureStorage]);
 
-  const prepare = async (launchWhenReady = false) => {
+  const runPreparation = async (launchWhenReady = false, forcePlan = false) => {
     if (!game) return;
     try {
-      let plan = preparationPlan;
+      let plan = forcePlan ? null : preparationPlan;
       if (!plan) {
         setPreparationPlanLoading(true);
         plan = await getPreparationPlan(game, textureStorage, resources.workers);
@@ -188,9 +207,52 @@ export function usePreparation(
     }
   };
 
+  const prepare = async (launchWhenReady = false) => runPreparation(launchWhenReady, false);
+
+  const repairAndPrepare = async (launchWhenReady = false) => {
+    if (!game || cacheRepairing) return;
+    const repairGame = game;
+    setCacheRepairing(true);
+    try {
+      const expectedProfile = currentCacheHealth?.profileFingerprint;
+      if (!expectedProfile || currentCacheHealth?.status !== "repair-needed") {
+        announce("Prepared data changed before repair could begin. Checking it again…", "warning");
+        await refreshCache();
+        return;
+      }
+      const repair = await repairCache(repairGame, expectedProfile);
+      if (gameRef.current !== repairGame) return;
+      if (!repair.safe) {
+        announce(repair.status === "profile-changed"
+          ? "The mod setup changed before repair began. Nothing was removed; review the refreshed result."
+          : repair.applied
+            ? `Repair stopped after removing ${repair.files.toLocaleString()} profile-scoped artifact${repair.files === 1 ? "" : "s"} because the cache boundary changed. Review the refreshed result.`
+            : "Preflight couldn't verify a safe repair boundary, so nothing was changed.", "error");
+        await refreshCache();
+        return;
+      }
+      setCacheHealth({
+        format: "starsector-preflight-cache-health-v1",
+        status: "cold",
+        profileFingerprint: repair.profileFingerprint,
+        issues: [],
+        repairBytes: 0,
+        repairFiles: 0,
+      });
+      setPreparationPlanEnvelope(null);
+      announce(`Removed ${repair.files.toLocaleString()} damaged profile artifact${repair.files === 1 ? "" : "s"}. Rebuilding prepared data now.`, "warning");
+      await runPreparation(launchWhenReady, true);
+    } catch (error) {
+      if (gameRef.current === repairGame) announce(String(error), "error");
+    } finally {
+      if (gameRef.current === repairGame) setCacheRepairing(false);
+    }
+  };
+
   useEffect(() => {
     if (!isDesktopHost()) return;
-    return listenWhileMounted<PreparationStateEvent>("prepare-state", ({ payload }) => {
+    let stopReconciliation: () => void = () => undefined;
+    const stopListening = listenWhileMounted<PreparationStateEvent>("prepare-state", ({ payload }) => {
       if (payload.state === "cancelling") {
         setPreparationCancelling(true);
         announce("Stopping preparation safely…");
@@ -213,7 +275,37 @@ export function usePreparation(
         await refreshCache();
         if (shouldLaunch) await launch();
       })();
-    }, (error) => announce(`Could not observe preparation state: ${error}`, "error"));
+    }, (error) => {
+      announce(`Live preparation updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
+      let previousPid: number | null | undefined;
+      stopReconciliation();
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          if (operation.preparationPid !== null) {
+            previousPid = operation.preparationPid;
+            setPreparing(true);
+            return;
+          }
+          if (previousPid !== null && previousPid !== undefined) {
+            previousPid = null;
+            launchAfterPreparation.current = false;
+            setPreparing(false);
+            setPreparationCancelling(false);
+            setPreparationProgress(null);
+            announce("Preparation stopped. Live completion details were unavailable, so Preflight refreshed the current cache state.", "warning");
+            void refreshCache();
+          } else {
+            previousPid = null;
+          }
+        },
+        isActive: () => true,
+        onError: (pollError) => announce(`Could not refresh native preparation state: ${pollError}`, "error"),
+      });
+    });
+    return () => {
+      stopListening();
+      stopReconciliation();
+    };
   }, [announce, launch, refreshCache]);
 
   useEffect(() => {
@@ -246,11 +338,11 @@ export function usePreparation(
     cacheRequest.current += 1;
     cacheRequestRoot.current = null;
     setCache(null);
+    setCacheHealth(null);
     setCacheInstallRoot(null);
     setCacheLoading(false);
   };
   const invalidatePreparationPlan = () => setPreparationPlanEnvelope(null);
-  const profilePrepared = isCurrentProfilePrepared(currentCache);
   const preparationPhaseLabel = preparationProgress?.phase
     ?.replaceAll("-", " ")
     .replace(/^./, (letter) => letter.toUpperCase());
@@ -260,7 +352,9 @@ export function usePreparation(
 
   return {
     cache: currentCache,
+    cacheHealth: currentCacheHealth,
     cacheLoading,
+    cacheRepairing,
     preparationCancelling,
     preparationPercent,
     preparationPhaseLabel,
@@ -273,6 +367,7 @@ export function usePreparation(
     clearCache,
     invalidatePreparationPlan,
     prepare,
+    repairAndPrepare,
     refreshCache,
     setResourcePreset,
     setTextureStorage,
