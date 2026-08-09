@@ -19,9 +19,9 @@ function cacheSnapshot(overrides: Partial<CacheSnapshot> = {}): CacheSnapshot {
     total: { bytes: 1024, files: 3 },
     groups: [],
     uncategorizedBytes: 0,
-    currentProfileFingerprint: "current-profile",
+    currentProfileFingerprint: "preview-profile",
     profiles: [{
-      fingerprint: "current-profile",
+      fingerprint: "preview-profile",
       current: true,
       bytes: 1024,
       indexBytes: 128,
@@ -63,12 +63,41 @@ test("the default cold-profile action prepares with balanced settings and then l
 
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
+  expect(screen.getByText("First launch setup")).toBeInTheDocument();
+  expect(screen.getByText(/must be free/)).toBeInTheDocument();
   await user.click(action);
-  expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256);
+  await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
 
   cache.mockRestore();
   preparation.mockRestore();
+  game.mockRestore();
+});
+
+test("preparation started on Home remains visible and can be stopped safely", async () => {
+  const user = userEvent.setup();
+  const pending = deferred<{ pid: number }>();
+  const cold = cacheSnapshot({ profiles: [] });
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cold);
+  const preparation = vi.spyOn(bridge, "startPreparation").mockImplementation(() => pending.promise);
+  const cancel = vi.spyOn(bridge, "cancelPreparation").mockResolvedValue(true);
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+  render(<App />);
+
+  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  await waitFor(() => expect(action).toBeEnabled());
+  await user.click(action);
+  expect(await screen.findByRole("button", { name: "Stop safely" })).toBeEnabled();
+  expect(screen.getByText(/Starsector will open automatically/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Stop safely" }));
+  expect(cancel).toHaveBeenCalledOnce();
+  pending.resolve({ pid: 4243 });
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Stop safely" })).not.toBeInTheDocument());
+  expect(game).not.toHaveBeenCalled();
+
+  cache.mockRestore();
+  preparation.mockRestore();
+  cancel.mockRestore();
   game.mockRestore();
 });
 
@@ -87,10 +116,12 @@ test("a cold profile cannot prepare when the conservative disk bound does not fi
 
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  const action = await screen.findByRole("button", { name: "Review storage" });
   await screen.findByText(reason);
-  expect(action).toBeDisabled();
+  expect(action).toBeEnabled();
   expect(preparation).not.toHaveBeenCalled();
+  await userEvent.setup().click(action);
+  expect(await screen.findByRole("heading", { name: "Preflight", level: 1 })).toBeInTheDocument();
 
   cache.mockRestore();
   plan.mockRestore();
@@ -108,6 +139,23 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getByText("83 mods · saved profile")).toBeInTheDocument();
   expect(screen.getByText("Recommended")).toBeInTheDocument();
   expect(screen.getByText(/Prepared ·/)).toBeInTheDocument();
+});
+
+test("a failed launch is an alert and retries the launch operation", async () => {
+  const user = userEvent.setup();
+  const game = vi.spyOn(bridge, "startGame")
+    .mockRejectedValueOnce(new Error("launcher refused"))
+    .mockResolvedValueOnce({ pid: 4242 });
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+  expect(await screen.findByRole("heading", { name: "Needs attention", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("launcher refused");
+  await user.click(screen.getByRole("button", { name: "Try launch again" }));
+
+  await waitFor(() => expect(game).toHaveBeenCalledTimes(2));
+  expect(await screen.findByRole("heading", { name: "Running", level: 1 })).toBeInTheDocument();
+  game.mockRestore();
 });
 
 test("blocks installation and preparation mutations while the game is running", async () => {
@@ -220,6 +268,7 @@ test("the primary action does not launch when edited game settings fail to save"
   await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
 
   expect(await screen.findByText("Error: settings write refused")).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("settings write refused");
   expect(game).not.toHaveBeenCalled();
   update.mockRestore();
   game.mockRestore();

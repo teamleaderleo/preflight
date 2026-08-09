@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyCacheCleanup, getCacheCleanup } from "./bridge";
-import type { CacheCleanupPlan } from "./types";
+import type { Announce, CacheCleanupPlan } from "./types";
 import { formatBytes } from "./uiFormat";
 
 export function useCacheCleanup(
   game: string | undefined,
-  announce: (message: string) => void,
+  announce: Announce,
   refreshCache: () => Promise<void>,
   invalidatePreparationPlan: () => void,
 ) {
@@ -42,7 +42,7 @@ export function useCacheCleanup(
           : "Cleanup is ready to review. Nothing has been removed."
         : next.refusals[0] ?? "Preflight couldn’t prove that cleanup was safe.");
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error));
+      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;
@@ -63,11 +63,11 @@ export function useCacheCleanup(
       if (currentRequest !== request.current || currentGame.current !== expectedGame) return;
       setPlan(null);
       setPlanGame(null);
-      announce(`Freed ${formatBytes(result.bytes)} across ${result.files.toLocaleString()} unused files. The current and named profiles stay warm.`);
+      announce(`Freed ${formatBytes(result.bytes)} across ${result.files.toLocaleString()} unused files. The current and named profiles stay warm.`, "success");
       await refreshCache();
       if (currentRequest === request.current && currentGame.current === expectedGame) invalidatePreparationPlan();
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error));
+      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;

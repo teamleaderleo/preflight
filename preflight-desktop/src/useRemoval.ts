@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
-import type { DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
+import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import {
   DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
   OPTIMIZATION_PRESET_STORAGE_KEY,
@@ -8,7 +8,7 @@ import {
 
 export function useRemoval(
   platform: DesktopSnapshot["platform"] | undefined,
-  announce: (message: string) => void,
+  announce: Announce,
   clearCache: () => void,
   clearProfiles: () => void,
 ) {
@@ -30,7 +30,7 @@ export function useRemoval(
         ? "There’s nothing in that removal scope."
         : "Removal is ready to review. Nothing has been removed.");
     } catch (error) {
-      if (currentRequest === request.current) announce(String(error));
+      if (currentRequest === request.current) announce(String(error), "error");
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;
@@ -61,9 +61,9 @@ export function useRemoval(
         : platform === "linux"
           ? "Remove this desktop package with the package manager that installed it."
           : "Move this desktop app to the Trash when you’re ready.";
-      announce(`${result.files.toLocaleString()} Preflight-owned files removed. ${platformStep}`);
+      announce(`${result.files.toLocaleString()} Preflight-owned files removed. ${platformStep}`, "success");
     } catch (error) {
-      if (currentRequest === request.current) announce(String(error));
+      if (currentRequest === request.current) announce(String(error), "error");
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;

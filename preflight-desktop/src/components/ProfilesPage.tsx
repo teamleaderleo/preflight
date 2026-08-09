@@ -1,16 +1,19 @@
 import { LayersIcon, RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
+import { NoticeBanner } from "./NoticeBanner";
 import { shortPath } from "../uiFormat";
 import type { useProfiles } from "../useProfiles";
+import type { NoticeTone } from "../types";
 
 type ProfilesState = ReturnType<typeof useProfiles>;
 
 interface ProfilesPageProps {
   message: string;
+  messageTone: NoticeTone;
   profilesState: ProfilesState;
   operationBlocked: boolean;
 }
 
-export function ProfilesPage({ message, profilesState, operationBlocked }: ProfilesPageProps) {
+export function ProfilesPage({ message, messageTone, profilesState, operationBlocked }: ProfilesPageProps) {
   const {
     activationPlan,
     profileBusy,
@@ -27,7 +30,7 @@ export function ProfilesPage({ message, profilesState, operationBlocked }: Profi
 
   return (
     <div className="profiles-page">
-      {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
+      <NoticeBanner message={message} tone={messageTone} />
       <div className="profiles-grid">
         <section className="card profile-list-card">
           <div className="card__heading">

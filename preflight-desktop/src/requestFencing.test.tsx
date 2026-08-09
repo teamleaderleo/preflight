@@ -14,6 +14,7 @@ import type {
   ProfileActivationPlan,
   ProfileList,
   RemovalPlan,
+  PreparationStoragePlan,
 } from "./types";
 
 function deferred<T>() {
@@ -43,6 +44,40 @@ function cacheFor(root: string): CacheSnapshot {
     }],
   };
 }
+
+function coldCacheFor(root: string, fingerprint: string): CacheSnapshot {
+  return {
+    ...cacheFor(root),
+    currentProfileFingerprint: fingerprint,
+    profiles: [],
+  };
+}
+
+test("a preparation estimate is visible only for its exact installation and profile", async () => {
+  const first = deferred<PreparationStoragePlan>();
+  const base = await bridge.getPreparationPlan("/game-a", "balanced", 4);
+  const cache = vi.spyOn(bridge, "getCache").mockImplementation(async (game) =>
+    game === "/game-a" ? coldCacheFor(game, "profile-a") : coldCacheFor(game, "profile-b"));
+  const plans = vi.spyOn(bridge, "getPreparationPlan")
+    .mockImplementationOnce(() => first.promise)
+    .mockResolvedValue({ ...base, profileFingerprint: "profile-b" });
+  const launch = vi.fn(async () => undefined);
+  const announce = vi.fn();
+  const { result, rerender } = renderHook(
+    ({ game }) => usePreparation(game, false, "recommended", launch, announce),
+    { initialProps: { game: "/game-a" } },
+  );
+
+  await waitFor(() => expect(plans).toHaveBeenCalledWith("/game-a", "balanced", 4));
+  rerender({ game: "/game-b" });
+  await waitFor(() => expect(plans).toHaveBeenCalledWith("/game-b", "balanced", 4));
+  await waitFor(() => expect(result.current.preparationPlan?.profileFingerprint).toBe("profile-b"));
+  await act(async () => first.resolve({ ...base, profileFingerprint: "profile-a" }));
+  expect(result.current.preparationPlan?.profileFingerprint).toBe("profile-b");
+
+  cache.mockRestore();
+  plans.mockRestore();
+});
 
 function profilesFor(root: string): ProfileList {
   return {
@@ -85,7 +120,7 @@ test("an older profile read cannot flash into the newly selected installation", 
   const profiles = vi.spyOn(bridge, "getProfiles")
     .mockImplementationOnce(() => first.promise)
     .mockImplementationOnce(() => second.promise);
-  const refreshInstallation = vi.fn(async () => undefined);
+  const refreshInstallation = vi.fn(async () => true);
   const refreshCache = vi.fn(async () => undefined);
   const announce = vi.fn();
   const { result, rerender } = renderHook(
@@ -113,7 +148,7 @@ test("profile actions are single-flight and ignore a review from an older instal
   const activation = vi.spyOn(bridge, "activateProfile")
     .mockImplementationOnce(() => first.promise)
     .mockImplementationOnce(() => second.promise);
-  const refreshInstallation = vi.fn(async () => undefined);
+  const refreshInstallation = vi.fn(async () => true);
   const refreshCache = vi.fn(async () => undefined);
   const announce = vi.fn();
   const { result, rerender } = renderHook(
@@ -145,7 +180,7 @@ test("dismissing a profile review cancels its late response", async () => {
   const baseline = await bridge.activateProfile("/game-a", "Vanilla plus", false);
   const pending = deferred<ProfileActivationPlan>();
   const activation = vi.spyOn(bridge, "activateProfile").mockImplementation(() => pending.promise);
-  const refreshInstallation = vi.fn(async () => undefined);
+  const refreshInstallation = vi.fn(async () => true);
   const refreshCache = vi.fn(async () => undefined);
   const announce = vi.fn();
   const { result } = renderHook(() => useProfiles(
@@ -173,7 +208,7 @@ test("saving a profile preserves a newer name typed while the save completes", a
   const baseline = await bridge.saveProfile("/game-a", "First");
   const saved = deferred<NamedProfile>();
   const save = vi.spyOn(bridge, "saveProfile").mockImplementation(() => saved.promise);
-  const refreshInstallation = vi.fn(async () => undefined);
+  const refreshInstallation = vi.fn(async () => true);
   const refreshCache = vi.fn(async () => undefined);
   const announce = vi.fn();
   const { result } = renderHook(() => useProfiles(
@@ -194,7 +229,7 @@ test("saving a profile preserves a newer name typed while the save completes", a
 
   await waitFor(() => expect(result.current.profileBusy).toBe(false));
   expect(result.current.profileName).toBe("Second");
-  expect(announce).toHaveBeenCalledWith("Saved the exact current mod order as “First”.");
+  expect(announce).toHaveBeenCalledWith("Saved the exact current mod order as “First”.", "success");
   save.mockRestore();
 });
 
@@ -266,7 +301,7 @@ test("a completed settings save preserves edits made while it was in flight", as
   expect(result.current.draft?.resolution).toBe("1920x1080");
   expect(result.current.settings?.preferences.battleSize).toBe(300);
   expect(result.current.dirty).toBe(true);
-  expect(announce).toHaveBeenLastCalledWith("Game settings saved. Vanilla and Preflight launches will use the same values.");
+  expect(announce).toHaveBeenLastCalledWith("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");
   settings.mockRestore();
   update.mockRestore();
 });

@@ -1,12 +1,14 @@
 import { ShieldIcon } from "../icons";
+import { NoticeBanner } from "./NoticeBanner";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { RemovalPlan, RemovalScope } from "../types";
+import type { NoticeTone, RemovalPlan, RemovalScope } from "../types";
 
 type UpdateState = ReturnType<typeof useSignedUpdates>;
 
 interface SettingsPageProps {
   message: string;
+  messageTone: NoticeTone;
   operationBlocked: boolean;
   updates: UpdateState;
   removalPlan: RemovalPlan | null;
@@ -18,6 +20,7 @@ interface SettingsPageProps {
 
 export function SettingsPage({
   message,
+  messageTone,
   operationBlocked,
   updates,
   removalPlan,
@@ -37,7 +40,7 @@ export function SettingsPage({
   } = updates;
   return (
     <div className="settings-page">
-      {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
+      <NoticeBanner message={message} tone={messageTone} />
       <div className="settings-overview">
         <section className="card update-card">
           <div className="card__heading">

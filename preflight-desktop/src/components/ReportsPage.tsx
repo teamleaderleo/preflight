@@ -2,24 +2,27 @@ import { openDesktopAccessibilitySettings } from "../bridge";
 import { CheckIcon, FolderIcon, ShieldIcon } from "../icons";
 import type { useDesktopAutomation } from "../useDesktopAutomation";
 import type { useDiagnosticsReport } from "../useDiagnosticsReport";
+import { NoticeBanner } from "./NoticeBanner";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { AppStatus, DesktopSnapshot } from "../types";
+import type { Announce, AppStatus, DesktopSnapshot, NoticeTone } from "../types";
 
 type AutomationState = ReturnType<typeof useDesktopAutomation>;
 type DiagnosticsState = ReturnType<typeof useDiagnosticsReport>;
 
 interface ReportsPageProps {
   message: string;
+  messageTone: NoticeTone;
   status: AppStatus;
   platform: DesktopSnapshot["platform"] | null;
   preparing: boolean;
   automation: AutomationState;
   diagnostics: DiagnosticsState;
-  onMessage: (message: string) => void;
+  onMessage: Announce;
 }
 
 export function ReportsPage({
   message,
+  messageTone,
   status,
   platform,
   preparing,
@@ -59,11 +62,11 @@ export function ReportsPage({
     stopRunReport,
     submitRunReport,
   } = diagnostics;
-  const operationBlocked = preparing || status === "running";
+  const operationBlocked = preparing || status === "launching" || status === "running";
 
   return (
     <div className="settings-page">
-      {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
+      <NoticeBanner message={message} tone={messageTone} />
       <div className="settings-overview">
         <section className="card diagnostics-action">
           <div>

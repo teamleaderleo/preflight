@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { activateProfile, getProfiles, saveProfile } from "./bridge";
-import type { ProfileActivationPlan, ProfileList } from "./types";
+import type { Announce, ProfileActivationPlan, ProfileList } from "./types";
 
 export function useProfiles(
   game: string | undefined,
   visible: boolean,
-  refreshInstallation: (game?: string) => Promise<void>,
+  refreshInstallation: (game?: string) => Promise<boolean>,
   refreshCache: () => Promise<void>,
-  announce: (message: string) => void,
+  announce: Announce,
 ) {
   const [profiles, setProfiles] = useState<ProfileList | null>(null);
   const [profilesLoading, setProfilesLoading] = useState(false);
@@ -34,7 +34,7 @@ export function useProfiles(
       const next = await getProfiles(game);
       if (request === profilesRequest.current && currentGame.current === game) setProfiles(next);
     } catch (error) {
-      if (request === profilesRequest.current && currentGame.current === game) announce(String(error));
+      if (request === profilesRequest.current && currentGame.current === game) announce(String(error), "error");
     } finally {
       if (request === profilesRequest.current) setProfilesLoading(false);
     }
@@ -75,10 +75,10 @@ export function useProfiles(
       await saveProfile(expectedGame, name);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       if (profileNameRevision.current === submittedRevision) setProfileName("");
-      announce(`Saved the exact current mod order as “${name}”.`);
+      announce(`Saved the exact current mod order as “${name}”.`, "success");
       await refreshProfiles();
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error));
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
@@ -99,7 +99,7 @@ export function useProfiles(
       setActivationPlan(plan);
       setActivationPlanGame(expectedGame);
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error));
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
@@ -125,7 +125,7 @@ export function useProfiles(
         setActivationPlanGame(expectedGame);
         announce(result.missingMods.length
           ? `The switch was refused because these mods are now missing: ${result.missingMods.join(", ")}.`
-          : "The switch was refused because this profile belongs to a different installation.");
+          : "The switch was refused because this profile belongs to a different installation.", "warning");
       } else {
         setActivationPlan(null);
         setActivationPlanGame(null);
@@ -134,7 +134,7 @@ export function useProfiles(
           : `“${result.name}” was already active; nothing changed.`);
       }
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error));
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;

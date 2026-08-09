@@ -8,6 +8,7 @@ import {
 import { DesktopShell, type Page } from "./components/DesktopShell";
 import { GameSettingsPage } from "./components/GameSettingsPage";
 import { HomePage } from "./components/HomePage";
+import { NoticeBanner } from "./components/NoticeBanner";
 import { PreparationPage } from "./components/PreparationPage";
 import { ProfilesPage } from "./components/ProfilesPage";
 import { ReportsPage } from "./components/ReportsPage";
@@ -26,6 +27,7 @@ import { shortPath } from "./uiFormat";
 import type {
   AppStatus,
   DesktopSnapshot,
+  NoticeTone,
   RunStateEvent,
 } from "./types";
 
@@ -38,17 +40,35 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   if (page === "profiles") return "Profiles";
   if (page === "settings") return "Settings";
   if (preparing) return "Preparing…";
-  if (status === "loading") return "Checking…";
+  if (status === "loading") return "Finding Starsector…";
+  if (status === "error") return "Needs attention";
+  if (status === "launching") return "Opening Starsector…";
   if (status === "running") return "Running";
   if (!isReady) return "Setup";
   return needsPreparation ? "Preparation needed" : "Ready";
+}
+
+function failedRunSummary(detail?: string): string {
+  const firstLine = detail
+    ?.split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) return "Starsector closed with an error. The run report is ready.";
+  const summary = firstLine.length > 360 ? `${firstLine.slice(0, 357)}…` : firstLine;
+  return `Starsector closed with an error: ${summary} The run report has full details.`;
 }
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<NoticeTone>("info");
+  const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
   const [page, setPage] = useState<Page>("home");
+  const announce = useCallback((nextMessage: string, tone: NoticeTone = "info") => {
+    setMessage(nextMessage);
+    setMessageTone(tone);
+  }, []);
   const {
     optimizationPreset,
     disabledOptimizationDomains,
@@ -56,40 +76,48 @@ export default function App() {
     setOptimizationDomainEnabled,
   } = useOptimizationPolicy();
   const refreshRequest = useRef(0);
-  const refresh = useCallback(async (game?: string) => {
+  const refresh = useCallback(async (game?: string): Promise<boolean> => {
     const request = ++refreshRequest.current;
     setStatus("loading");
     setMessage("");
+    setMessageTone("info");
+    setRetryIntent(null);
     try {
       const next = await getSnapshot(game);
-      if (request !== refreshRequest.current) return;
+      if (request !== refreshRequest.current) return false;
       setSnapshot(next);
       setStatus(next.ready ? "ready" : "setup");
+      return true;
     } catch (error) {
-      if (request !== refreshRequest.current) return;
+      if (request !== refreshRequest.current) return false;
       setStatus("error");
-      setMessage(String(error));
+      setRetryIntent(game ? { kind: "installation", game } : { kind: "discovery" });
+      announce(game ? `Couldn’t use ${shortPath(game)}. ${String(error)}` : String(error), "error");
+      return false;
     }
-  }, []);
+  }, [announce]);
   const launch = useCallback(async () => {
     const game = snapshot?.selected?.installRoot;
     if (!game) return;
-    setStatus("running");
-    setMessage("Preflight is opening the hangar…");
+    setStatus("launching");
+    setRetryIntent(null);
+    announce("Opening Starsector…");
     try {
       await startGame(game, optimizationPreset, disabledOptimizationDomains);
-      setMessage("Starsector is running. Preflight will keep the porch light on.");
+      setStatus("running");
+      announce("Starsector is running. Preflight will return here when it exits.", "success");
     } catch (error) {
       setStatus("error");
-      setMessage(String(error));
+      setRetryIntent({ kind: "launch" });
+      announce(String(error), "error");
     }
-  }, [disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
+  }, [announce, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
     page === "prepare",
     optimizationPreset,
     launch,
-    setMessage,
+    announce,
   );
   const {
     preparing,
@@ -104,12 +132,12 @@ export default function App() {
     page === "home" || page === "profiles",
     refresh,
     refreshCache,
-    setMessage,
+    announce,
   );
   const { clearProfiles } = profilesState;
   const cleanup = useCacheCleanup(
     snapshot?.selected?.installRoot,
-    setMessage,
+    announce,
     refreshCache,
     invalidatePreparationPlan,
   );
@@ -117,24 +145,24 @@ export default function App() {
   const automation = useDesktopAutomation({
     game: snapshot?.selected?.installRoot,
     installationReady: isReady,
-    announce: setMessage,
+    announce,
     displayPath: shortPath,
     refreshInstallation: refresh,
     setStatus,
   });
-  const diagnostics = useDiagnosticsReport(page === "reports", setMessage);
+  const diagnostics = useDiagnosticsReport(page === "reports", announce);
   const launcher = useLauncherSettings(
     snapshot?.selected?.installRoot,
     page === "home" || page === "launch",
-    setMessage,
+    announce,
   );
   const needsPreparation = optimizationPreset !== "off" && !profilePrepared;
   const primaryLaunch = async () => {
     if (launcher.dirty && !(await launcher.save())) return;
     await (needsPreparation ? prepare(true) : launch());
   };
-  const removal = useRemoval(snapshot?.platform, setMessage, clearCache, clearProfiles);
-  const updates = useSignedUpdates(status === "ready", preparing || status === "running", setMessage);
+  const removal = useRemoval(snapshot?.platform, announce, clearCache, clearProfiles);
+  const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announce);
   const { updateStatus } = updates;
 
   useEffect(() => {
@@ -146,11 +174,15 @@ export default function App() {
     return listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "finished") {
         setStatus(snapshot?.ready ? "ready" : "setup");
-        const outcome = payload.success ? "Welcome back. Your run was tucked away safely." : "The game closed with an error. Your run notes are still safe.";
-        void refresh(snapshot?.selected?.installRoot).then(() => setMessage(outcome));
+        const outcome = payload.success
+          ? "Starsector closed normally. The run report is ready."
+          : failedRunSummary(payload.detail);
+        void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
+          if (refreshed) announce(outcome, payload.success ? "success" : "error");
+        });
       }
-    }, (error) => setMessage(`Could not observe the game process: ${error}`));
-  }, [refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+    }, (error) => announce(`Could not observe the game process: ${error}`, "error"));
+  }, [announce, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async () => {
     if (!isDesktopHost()) {
@@ -168,12 +200,25 @@ export default function App() {
   };
 
   const operationBlocked = preparing
+    || status === "launching"
     || status === "running"
     || cleanup.busy
     || launcher.saving
     || profilesState.profileBusy
     || removal.busy
     || updates.updateInstalling;
+  const retryFailedOperation = () => {
+    if (retryIntent?.kind === "launch") {
+      void primaryLaunch();
+      return;
+    }
+    void refresh(retryIntent?.kind === "installation" ? retryIntent.game : undefined);
+  };
+  const retryLabel = retryIntent?.kind === "launch"
+    ? "Try launch again"
+    : retryIntent?.kind === "installation"
+      ? "Try this folder again"
+      : "Scan again";
   const title = pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
     <DesktopShell
@@ -192,6 +237,7 @@ export default function App() {
             snapshot={snapshot}
             status={status}
             message={message}
+            messageTone={messageTone}
             isReady={isReady}
             needsPreparation={needsPreparation}
             optimizationPreset={optimizationPreset}
@@ -209,12 +255,13 @@ export default function App() {
             onChooseInstall={() => void chooseInstall()}
             onPrimaryLaunch={() => void primaryLaunch()}
             onSaveLauncherSettings={() => void launcher.save()}
-            onRetry={() => void refresh()}
+            retryLabel={retryLabel}
+            onRetry={retryFailedOperation}
             onNavigate={setPage}
           />
         ) : page === "launch" ? (
           <>
-            {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
+            <NoticeBanner message={message} tone={messageTone} />
             <GameSettingsPage
               settings={launcher.settings}
               draft={launcher.draft}
@@ -230,6 +277,7 @@ export default function App() {
         ) : page === "prepare" ? (
           <PreparationPage
             message={message}
+            messageTone={messageTone}
             isReady={isReady}
             optimizationPreset={optimizationPreset}
             disabledOptimizationDomains={disabledOptimizationDomains}
@@ -244,20 +292,22 @@ export default function App() {
             onDismissCleanup={cleanup.dismiss}
           />
         ) : page === "profiles" ? (
-          <ProfilesPage message={message} profilesState={profilesState} operationBlocked={operationBlocked} />
+          <ProfilesPage message={message} messageTone={messageTone} profilesState={profilesState} operationBlocked={operationBlocked} />
         ) : page === "reports" ? (
           <ReportsPage
             message={message}
+            messageTone={messageTone}
             status={status}
             platform={snapshot?.platform ?? null}
             preparing={preparing}
             automation={automation}
             diagnostics={diagnostics}
-            onMessage={setMessage}
+            onMessage={announce}
           />
         ) : (
           <SettingsPage
             message={message}
+            messageTone={messageTone}
             operationBlocked={operationBlocked}
             updates={updates}
             removalPlan={removal.plan}

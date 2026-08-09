@@ -424,7 +424,16 @@ h2 {
 
 .launch-console__actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   width: 100%;
+}
+
+.launch-console__stop {
+  color: #d9e3f5;
+  border-color: rgba(174, 190, 224, 0.3);
+  background: rgba(13, 28, 48, 0.72);
 }
 
 .launch-console__note {
@@ -741,6 +750,39 @@ h2 {
 .notice--error {
   color: #9e4d44;
   background: rgba(255, 222, 215, 0.78);
+}
+
+.notice--warning {
+  color: #805c2c;
+  background: rgba(255, 238, 194, 0.82);
+}
+
+.notice--info {
+  color: #536b89;
+  background: rgba(220, 231, 247, 0.76);
+}
+
+.notice--success {
+  color: #4f6c61;
+  background: rgba(220, 241, 232, 0.75);
+}
+
+.setup-diagnostics {
+  margin: 14px 4px 0;
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+}
+
+.setup-diagnostics summary {
+  min-height: 44px;
+  padding-block: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.setup-diagnostics ul {
+  margin: 0;
+  padding: 0 0 0 20px;
 }
 
 .card__heading {
@@ -2409,6 +2451,21 @@ footer {
   .activation-warning {
     color: #e5a49a;
     background: rgba(165, 79, 71, 0.17);
+  }
+
+  .notice--warning {
+    color: #ddc184;
+    background: rgba(185, 135, 44, 0.16);
+  }
+
+  .notice--info {
+    color: #b5c5e4;
+    background: rgba(86, 110, 166, 0.16);
+  }
+
+  .notice--success {
+    color: #a7d7c8;
+    background: rgba(63, 137, 121, 0.14);
   }
 
   .update-notice,

@@ -60,6 +60,15 @@ same global operation lock as its preview controls.
 Native event streams share one lifecycle helper that also unregisters subscriptions resolved after a
 component has already closed.
 
+The ordinary cold-profile path now names itself as first-launch setup, shows both predicted growth
+and the conservative required-free bound, and keeps preparation progress and **Stop safely** on Home.
+The plan shown there is valid only for the exact installation, profile fingerprint, storage policy
+and worker count that produced it; changing any of those inputs removes the old plan before another
+preparation can begin. The engine still recalculates the bound before writing. Discovery, explicit
+installation selection and game launch have separate retry actions, and a failed state refresh can't
+be overwritten by a later success notice. Game failures show a bounded first useful line while the
+complete detail remains in the run report.
+
 ## Visual direction
 
 Use a clean flight-instrument feel without copying Starsector's assets or interface. A restrained

@@ -5,15 +5,15 @@ import {
   isDesktopHost,
   startDesktopSmoke,
 } from "./bridge";
-import type { AppStatus, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
+import type { Announce, AppStatus, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 
 interface DesktopAutomationOptions {
   game: string | undefined;
   installationReady: boolean;
-  announce: (message: string) => void;
+  announce: Announce;
   displayPath: (path: string) => string;
-  refreshInstallation: (game?: string) => Promise<void>;
+  refreshInstallation: (game?: string) => Promise<boolean>;
   setStatus: (status: AppStatus) => void;
 }
 
@@ -56,8 +56,10 @@ export function useDesktopAutomation({
         : payload.success
         ? `Automated game test passed. Evidence is in ${displayPath(payload.runDirectory)}.`
         : payload.detail ?? `Automated game test stopped. Evidence is in ${displayPath(payload.runDirectory)}.`;
-      void refreshInstallation(game).then(() => announce(outcome));
-    }, (error) => announce(`Could not observe automated test state: ${error}`));
+      void refreshInstallation(game).then((refreshed) => {
+        if (refreshed) announce(outcome, payload.success ? "success" : "error");
+      });
+    }, (error) => announce(`Could not observe automated test state: ${error}`, "error"));
   }, [announce, displayPath, game, installationReady, refreshInstallation, setStatus]);
 
   const checkDesktopAutomation = async () => {
@@ -68,7 +70,7 @@ export function useDesktopAutomation({
       setDesktopSmokeProbe(await getDesktopSmokeProbe());
     } catch (error) {
       setDesktopSmokeProbe(null);
-      announce(String(error));
+      announce(String(error), "error");
     } finally {
       probeBusyRef.current = false;
       setDesktopSmokeProbeBusy(false);
@@ -92,7 +94,7 @@ export function useDesktopAutomation({
         setDesktopSmokeRunning(false);
         setStatus("ready");
         setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
-        announce("Automated game test passed in browser preview.");
+        announce("Automated game test passed in browser preview.", "success");
       }
     } catch (error) {
       runningRef.current = false;
@@ -100,7 +102,7 @@ export function useDesktopAutomation({
       setDesktopSmokeRunning(false);
       setDesktopSmokeCancelling(false);
       setStatus(installationReady ? "ready" : "setup");
-      announce(String(error));
+      announce(String(error), "error");
     }
   };
 
@@ -117,12 +119,12 @@ export function useDesktopAutomation({
         setDesktopSmokeRunning(false);
         setDesktopSmokeCancelling(false);
         setStatus(installationReady ? "ready" : "setup");
-        announce("The automated game test had already stopped.");
+        announce("The automated game test had already stopped.", "warning");
       }
     } catch (error) {
       cancellingRef.current = false;
       setDesktopSmokeCancelling(false);
-      announce(String(error));
+      announce(String(error), "error");
     }
   };
 

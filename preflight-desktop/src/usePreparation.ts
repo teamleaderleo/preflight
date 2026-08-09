@@ -7,6 +7,7 @@ import {
   startPreparation,
 } from "./bridge";
 import type {
+  Announce,
   CacheSnapshot,
   OptimizationPreset,
   PreparationProgressEvent,
@@ -23,6 +24,14 @@ export const resourcePresets = {
   eager: { workers: 8, memoryMib: 512, label: "High" },
 } as const;
 
+interface PreparationPlanEnvelope {
+  game: string;
+  profileFingerprint: string;
+  textureStorage: TextureStorage;
+  workers: number;
+  plan: PreparationStoragePlan;
+}
+
 export function isCurrentProfilePrepared(cache: CacheSnapshot | null): boolean {
   if (!cache?.currentProfileFingerprint) return false;
   return cache.profiles.some((profile) =>
@@ -37,7 +46,7 @@ export function usePreparation(
   showStoragePlan: boolean,
   optimizationPreset: OptimizationPreset,
   launch: () => Promise<void>,
-  announce: (message: string) => void,
+  announce: Announce,
 ) {
   const [cache, setCache] = useState<CacheSnapshot | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
@@ -48,7 +57,7 @@ export function usePreparation(
   const [preparationCancelling, setPreparationCancelling] = useState(false);
   const [preparationProgress, setPreparationProgress] = useState<PreparationProgressEvent | null>(null);
   const completedPreparationPhases = useRef(new Set<string>());
-  const [preparationPlan, setPreparationPlan] = useState<PreparationStoragePlan | null>(null);
+  const [preparationPlanEnvelope, setPreparationPlanEnvelope] = useState<PreparationPlanEnvelope | null>(null);
   const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
   const launchAfterPreparation = useRef(false);
   const [textureStorage, setTextureStorage] = useState<TextureStorage>("balanced");
@@ -63,7 +72,7 @@ export function usePreparation(
       const next = await getCache(game);
       if (request === cacheRequest.current) setCache(next);
     } catch (error) {
-      if (request === cacheRequest.current) announce(String(error));
+      if (request === cacheRequest.current) announce(String(error), "error");
     } finally {
       if (request === cacheRequest.current) {
         cacheRequestRoot.current = null;
@@ -85,26 +94,44 @@ export function usePreparation(
     if (cacheInstallRoot !== game && cacheRequestRoot.current !== game) void refreshCache();
   }, [cacheInstallRoot, cacheLoading, game, refreshCache]);
 
+  const currentCache = cacheInstallRoot === game ? cache : null;
+  const resources = resourcePresets[resourcePreset];
+  const preparationPlan = preparationPlanEnvelope
+    && preparationPlanEnvelope.game === game
+    && preparationPlanEnvelope.textureStorage === textureStorage
+    && preparationPlanEnvelope.workers === resources.workers
+    && preparationPlanEnvelope.profileFingerprint === currentCache?.currentProfileFingerprint
+    ? preparationPlanEnvelope.plan
+    : null;
+
   useEffect(() => {
     const cacheReady = game && cacheInstallRoot === game && !cacheLoading;
     const shouldPlan = cacheReady
       && optimizationPreset !== "off"
       && (showStoragePlan || !isCurrentProfilePrepared(cache));
     if (!game || !shouldPlan) {
-      setPreparationPlan(null);
+      setPreparationPlanEnvelope(null);
       setPreparationPlanLoading(false);
       return;
     }
     let cancelled = false;
     setPreparationPlanLoading(true);
-    void getPreparationPlan(game, textureStorage, resourcePresets.balanced.workers)
+    void getPreparationPlan(game, textureStorage, resources.workers)
       .then((plan) => {
-        if (!cancelled) setPreparationPlan(plan);
+        if (!cancelled) {
+          setPreparationPlanEnvelope({
+            game,
+            profileFingerprint: plan.profileFingerprint,
+            textureStorage,
+            workers: resources.workers,
+            plan,
+          });
+        }
       })
       .catch((error) => {
         if (!cancelled) {
-          setPreparationPlan(null);
-          announce(String(error));
+          setPreparationPlanEnvelope(null);
+          announce(String(error), "error");
         }
       })
       .finally(() => {
@@ -113,20 +140,25 @@ export function usePreparation(
     return () => {
       cancelled = true;
     };
-  }, [announce, cache, cacheInstallRoot, cacheLoading, game, optimizationPreset, showStoragePlan, textureStorage]);
+  }, [announce, cache, cacheInstallRoot, cacheLoading, game, optimizationPreset, resources.workers, showStoragePlan, textureStorage]);
 
   const prepare = async (launchWhenReady = false) => {
     if (!game) return;
-    const resources = resourcePresets[resourcePreset];
     try {
       let plan = preparationPlan;
-      if (!plan || plan.textureStorage !== textureStorage) {
+      if (!plan) {
         setPreparationPlanLoading(true);
         plan = await getPreparationPlan(game, textureStorage, resources.workers);
-        setPreparationPlan(plan);
+        setPreparationPlanEnvelope({
+          game,
+          profileFingerprint: plan.profileFingerprint,
+          textureStorage,
+          workers: resources.workers,
+          plan,
+        });
       }
       if (!plan.safeToPrepare) {
-        announce(plan.refusalReason ?? "Preparation was refused because its storage requirement could not be bounded safely.");
+        announce(plan.refusalReason ?? "Preparation was refused because its storage requirement could not be bounded safely.", "warning");
         return;
       }
       launchAfterPreparation.current = launchWhenReady;
@@ -140,9 +172,9 @@ export function usePreparation(
       await startPreparation(game, textureStorage, resources.workers, resources.memoryMib);
       if (!isDesktopHost()) {
         setPreparing(false);
-        announce("Preview preparation complete.");
+        announce("Preview preparation complete.", "success");
         await refreshCache();
-        if (launchWhenReady) {
+        if (launchAfterPreparation.current) {
           launchAfterPreparation.current = false;
           await launch();
         }
@@ -150,7 +182,7 @@ export function usePreparation(
     } catch (error) {
       launchAfterPreparation.current = false;
       setPreparing(false);
-      announce(String(error));
+      announce(String(error), "error");
     } finally {
       setPreparationPlanLoading(false);
     }
@@ -170,18 +202,18 @@ export function usePreparation(
       setPreparing(false);
       setPreparationCancelling(false);
       if (!payload.success) {
-        announce(payload.detail ?? "Preparation stopped before it completed.");
+        announce(payload.detail ?? "Preparation stopped before it completed.", "warning");
         void refreshCache();
         return;
       }
       announce(shouldLaunch
         ? "Preparation is complete. Opening Starsector…"
-        : "Preparation is complete. The current profile is warm and ready.");
+        : "Preparation is complete. The current profile is ready.", "success");
       void (async () => {
         await refreshCache();
         if (shouldLaunch) await launch();
       })();
-    }, (error) => announce(`Could not observe preparation state: ${error}`));
+    }, (error) => announce(`Could not observe preparation state: ${error}`, "error"));
   }, [announce, launch, refreshCache]);
 
   useEffect(() => {
@@ -189,7 +221,7 @@ export function usePreparation(
     return listenWhileMounted<PreparationProgressEvent>("prepare-progress", ({ payload }) => {
       if (payload.state === "completed") completedPreparationPhases.current.add(payload.phase);
       setPreparationProgress({ ...payload });
-    }, (error) => announce(`Could not observe preparation progress: ${error}`));
+    }, (error) => announce(`Could not observe preparation progress: ${error}`, "error"));
   }, [announce]);
 
   const stopPreparation = async () => {
@@ -206,7 +238,7 @@ export function usePreparation(
       }
     } catch (error) {
       setPreparationCancelling(false);
-      announce(String(error));
+      announce(String(error), "error");
     }
   };
 
@@ -217,8 +249,7 @@ export function usePreparation(
     setCacheInstallRoot(null);
     setCacheLoading(false);
   };
-  const invalidatePreparationPlan = () => setPreparationPlan(null);
-  const currentCache = cacheInstallRoot === game ? cache : null;
+  const invalidatePreparationPlan = () => setPreparationPlanEnvelope(null);
   const profilePrepared = isCurrentProfilePrepared(currentCache);
   const preparationPhaseLabel = preparationProgress?.phase
     ?.replaceAll("-", " ")

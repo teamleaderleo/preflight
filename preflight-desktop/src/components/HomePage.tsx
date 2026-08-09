@@ -1,6 +1,7 @@
 import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
 import type { Page } from "./DesktopShell";
 import { QuickGameSettings } from "./QuickGameSettings";
+import { NoticeBanner } from "./NoticeBanner";
 import { optimizationPresets } from "./PreparationPage";
 import type { usePreparation } from "../usePreparation";
 import type { useProfiles } from "../useProfiles";
@@ -10,6 +11,7 @@ import type {
   DesktopSnapshot,
   LaunchSettings,
   LaunchSettingsUpdate,
+  NoticeTone,
   OptimizationDomain,
   OptimizationPreset,
   UpdateStatus,
@@ -35,6 +37,7 @@ interface HomePageProps {
   snapshot: DesktopSnapshot | null;
   status: AppStatus;
   message: string;
+  messageTone: NoticeTone;
   isReady: boolean;
   needsPreparation: boolean;
   optimizationPreset: OptimizationPreset;
@@ -52,6 +55,7 @@ interface HomePageProps {
   onChooseInstall: () => void;
   onPrimaryLaunch: () => void;
   onSaveLauncherSettings: () => void;
+  retryLabel: string;
   onRetry: () => void;
   onNavigate: (page: Page) => void;
 }
@@ -60,6 +64,7 @@ export function HomePage({
   snapshot,
   status,
   message,
+  messageTone,
   isReady,
   needsPreparation,
   optimizationPreset,
@@ -77,6 +82,7 @@ export function HomePage({
   onChooseInstall,
   onPrimaryLaunch,
   onSaveLauncherSettings,
+  retryLabel,
   onRetry,
   onNavigate,
 }: HomePageProps) {
@@ -85,34 +91,69 @@ export function HomePage({
     cacheLoading,
     preparationPlan,
     preparationPlanLoading,
+    preparationCancelling,
+    preparationPercent,
+    preparationPhaseLabel,
     preparing,
     profilePrepared,
     textureStorage,
+    stopPreparation,
   } = preparation;
   const { profiles, profilesLoading } = profilesState;
   const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
     ?? optimizationPresets[0];
   const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
+  const firstSetup = needsPreparation && (cache?.profiles.length ?? 0) === 0 && !snapshot?.lastRun;
+  const storageBlocked = needsPreparation
+    && !preparationPlanLoading
+    && Boolean(preparationPlan && !preparationPlan.safeToPrepare);
+  const statusLabel = status === "launching"
+    ? "Opening Starsector"
+    : status === "running"
+      ? "Game running"
+      : preparing
+        ? `Preparing ${preparationPercent}%`
+        : status === "loading"
+          ? "Finding Starsector"
+          : !isReady
+            ? "Installation required"
+            : firstSetup
+              ? "First launch setup"
+              : needsPreparation
+                ? "This mod setup needs preparation"
+                : "Ready";
 
   return (
     <>
       <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"}`}>
         <div className="launch-console__primary">
           {flightPlot}
-          {status === "running" || preparing || needsPreparation || !isReady ? (
+          {status !== "ready" || preparing || needsPreparation || !isReady ? (
             <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
               {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
-              {status === "running" ? "Game running" : preparing ? "Preparing profile" : needsPreparation ? "Profile changed" : "Installation required"}
+              {statusLabel}
             </div>
           ) : null}
-          {!isReady ? <h2>Choose the game folder</h2> : null}
-          {!isReady ? <p>Select the folder that contains the Starsector launcher.</p> : null}
+          {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
+          {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
           <div className="launch-console__actions">
             {isReady ? (
-              <button className="button button--primary button--launch" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked || status === "loading" || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan?.safeToPrepare))}>
-                {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                {status === "running" ? "Starsector is running" : preparing ? "Preparing…" : cacheLoading ? "Checking profile…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
-              </button>
+              <>
+                <button
+                  className="button button--primary button--launch"
+                  type="button"
+                  onClick={storageBlocked ? () => onNavigate("prepare") : onPrimaryLaunch}
+                  disabled={preparing || (!storageBlocked && (operationBlocked || status === "loading" || status === "error" || cacheLoading || (needsPreparation && (preparationPlanLoading || !preparationPlan))))}
+                >
+                  {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
+                  {status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheLoading ? "Checking this mod setup…" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Review storage" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}
+                </button>
+                {preparing ? (
+                  <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
+                    {preparationCancelling ? "Stopping…" : "Stop safely"}
+                  </button>
+                ) : null}
+              </>
             ) : (
               <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
             )}
@@ -120,11 +161,13 @@ export function HomePage({
           {isReady ? (
             <div className="launch-console__note">
               <strong>{selectedOptimization.label}</strong>
-              <span>{needsPreparation
+              <span>{preparing
+                ? `${preparationPhaseLabel ?? "Preparing this mod setup"} · Starsector will open automatically. Finished work stays reusable if you stop.`
+                : needsPreparation
                 ? preparationPlanLoading
-                  ? "Reading the winning textures and calculating a safe disk requirement…"
+                  ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare
-                    ? `${textureStorage === "balanced" ? "Balanced" : "Fastest"} predicts ${formatBytes(preparationPlan.predictedAdditionalBytes)} additional; ${formatBytes(preparationPlan.usableBytes)} is available.`
+                    ? `${firstSetup ? "One-time setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}; ${formatBytes(preparationPlan.requiredFreeBytes)} must be free; ${formatBytes(preparationPlan.usableBytes)} is available. Starsector and its mods stay where they are.`
                     : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
                 : profilePrepared
                   ? `Prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}${disabledOptimizationDomains.length > 0 ? ` · ${disabledOptimizationDomains.length} prepared cache${disabledOptimizationDomains.length === 1 ? "" : "s"} off` : ""}`
@@ -153,37 +196,44 @@ export function HomePage({
         </section>
       ) : null}
 
-      {message ? (
-        <div className={`notice ${status === "error" ? "notice--error" : ""}`} role="status">
-          <span>{status === "error" ? "!" : "✦"}</span>
-          <p>{message}</p>
-          {status === "error" ? <button type="button" onClick={onRetry}>Try again</button> : null}
-        </div>
-      ) : null}
+      <NoticeBanner
+        message={message}
+        tone={status === "error" ? "error" : messageTone}
+        actionLabel={status === "error" ? retryLabel : undefined}
+        onAction={status === "error" ? onRetry : undefined}
+      />
 
       <section className="card home-overview" aria-label="Current Preflight setup">
         <div className="home-fact">
           <span>Mod setup</span>
-          <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? `${profiles?.enabledMods.length ?? 0} enabled mods`}</strong>
+          <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? (profiles ? `${profiles.enabledMods.length} enabled mods` : "Unavailable")}</strong>
           <small>{profilesLoading
             ? "Checking the current mod list"
             : activeProfile
               ? `${activeProfile.modCount.toLocaleString()} mods · saved profile`
-              : "Current list isn't saved as a profile"}</small>
+              : profiles
+                ? "Current list isn't saved as a profile"
+                : "The current mod list couldn’t be read"}</small>
           <button className="text-button" type="button" onClick={() => onNavigate("profiles")} disabled={!isReady}>Manage profiles <ArrowIcon /></button>
         </div>
         <div className="home-fact">
           <span>Preflight data</span>
-          <strong>{cacheLoading ? "Reading…" : formatBytes(cache?.total.bytes ?? 0)}</strong>
+          <strong>{cacheLoading ? "Reading…" : cache ? formatBytes(cache.total.bytes) : "Unavailable"}</strong>
           <button className="text-button" type="button" onClick={() => onNavigate("prepare")} disabled={!isReady}>Storage <ArrowIcon /></button>
         </div>
         <div className="home-fact home-fact--installation">
           <span>Installation</span>
           <strong>{isReady && snapshot?.selected ? shortPath(snapshot.selected.installRoot) : "Not selected"}</strong>
-          <small>{isReady && snapshot ? `${friendlyPlatform(snapshot.platform)} · ${snapshot.selected?.kind.replace("-", " ")}` : "Choose the game folder to begin."}</small>
+          <small>{isReady && snapshot ? `${friendlyPlatform(snapshot.platform)} · ${snapshot.selected?.kind.replace("-", " ")}${snapshot.candidates.length > 1 ? ` · ${snapshot.candidates.length} detected candidates` : " · found automatically"}` : "Choose the game folder to begin."}</small>
           <button type="button" className="text-button" onClick={onChooseInstall} aria-label="Change Starsector installation" disabled={operationBlocked}>Change <ArrowIcon /></button>
         </div>
       </section>
+      {!isReady && snapshot?.diagnostics.length ? (
+        <details className="setup-diagnostics">
+          <summary>Why wasn’t Starsector found?</summary>
+          <ul>{snapshot.diagnostics.map((diagnostic) => <li key={diagnostic}>{diagnostic}</li>)}</ul>
+        </details>
+      ) : null}
     </>
   );
 }

@@ -193,6 +193,7 @@ export interface RunStateEvent {
   state: "started" | "cancelling" | "cancelled" | "finished";
   pid: number;
   success?: boolean;
+  detail?: string;
 }
 
 export interface PreparationStateEvent extends RunStateEvent {
@@ -326,4 +327,6 @@ export interface ProfileActivationPlan {
   backup?: string;
 }
 
-export type AppStatus = "loading" | "ready" | "setup" | "running" | "error";
+export type AppStatus = "loading" | "ready" | "setup" | "launching" | "running" | "error";
+export type NoticeTone = "info" | "success" | "warning" | "error";
+export type Announce = (message: string, tone?: NoticeTone) => void;

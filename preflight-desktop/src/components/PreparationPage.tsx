@@ -1,7 +1,8 @@
 import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
+import { NoticeBanner } from "./NoticeBanner";
 import { resourcePresets, type usePreparation } from "../usePreparation";
 import { formatBytes } from "../uiFormat";
-import type { CacheCleanupPlan, OptimizationDomain, OptimizationPreset } from "../types";
+import type { CacheCleanupPlan, NoticeTone, OptimizationDomain, OptimizationPreset } from "../types";
 
 export const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -33,6 +34,7 @@ type PreparationState = ReturnType<typeof usePreparation>;
 
 interface PreparationPageProps {
   message: string;
+  messageTone: NoticeTone;
   isReady: boolean;
   optimizationPreset: OptimizationPreset;
   disabledOptimizationDomains: OptimizationDomain[];
@@ -49,6 +51,7 @@ interface PreparationPageProps {
 
 export function PreparationPage({
   message,
+  messageTone,
   isReady,
   optimizationPreset,
   disabledOptimizationDomains,
@@ -81,7 +84,7 @@ export function PreparationPage({
   } = preparation;
   return (
     <div className="prepare-page">
-      {message ? <div className="notice" role="status"><span>✦</span><p>{message}</p></div> : null}
+      <NoticeBanner message={message} tone={messageTone} />
 
       <section className="card optimization-card">
         <div className="card__heading">

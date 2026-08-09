@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getLaunchSettings, updateLaunchSettings } from "./bridge";
-import type { LaunchSettings, LaunchSettingsUpdate } from "./types";
+import type { Announce, LaunchSettings, LaunchSettingsUpdate } from "./types";
 
 function draftFromSettings(settings: LaunchSettings): LaunchSettingsUpdate {
   return {
@@ -29,7 +29,7 @@ export function launcherSettingsChanged(settings: LaunchSettings | null, draft: 
 export function useLauncherSettings(
   game: string | undefined,
   active: boolean,
-  announce: (message: string) => void,
+  announce: Announce,
 ) {
   const [settings, setSettings] = useState<LaunchSettings | null>(null);
   const [draft, setDraft] = useState<LaunchSettingsUpdate | null>(null);
@@ -63,7 +63,7 @@ export function useLauncherSettings(
       setLoadedGame(expectedGame);
       draftRevision.current += 1;
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error));
+      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
       if (currentRequest === request.current) setLoading(false);
     }
@@ -94,10 +94,10 @@ export function useLauncherSettings(
       setSettings(result);
       setLoadedGame(expectedGame);
       if (draftRevision.current === submittedRevision) setDraft(draftFromSettings(result));
-      announce("Game settings saved. Vanilla and Preflight launches will use the same values.");
+      announce("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");
       return true;
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error));
+      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
       return false;
     } finally {
       if (currentRequest === request.current) {
