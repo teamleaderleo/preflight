@@ -83,6 +83,18 @@ class CacheCommandTest {
     }
 
     @Test
+    void cacheHealthRetainsTheBoundedProfileIdentityFailure() {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String reason = "The selected installation doesn't contain a readable enabled_mods.json.";
+
+        CacheHealth.Report report = CacheHealth.inspect(home, null, reason);
+
+        assertEquals("unknown", report.status());
+        assertEquals("profile-identity", report.issues().get(0).artifact());
+        assertEquals(reason, report.issues().get(0).summary());
+    }
+
+    @Test
     void cacheRepairRefusesASymlinkedNamespaceAndPreservesTheOutsideFile() throws Exception {
         PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
         String profile = "c".repeat(64);

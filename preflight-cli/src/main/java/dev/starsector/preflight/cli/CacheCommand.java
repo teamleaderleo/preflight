@@ -79,13 +79,14 @@ final class CacheCommand {
                     json,
                     System.out);
         }
-        String current = currentFingerprint(game, launcher);
+        CurrentProfile currentProfile = currentProfile(game, launcher);
+        String current = currentProfile.fingerprint();
         if (health) {
             if (confirmed || keepNamed || expectedProfile != null) {
                 System.err.println("preflight cache health: --yes, --keep-named, and --expected-profile aren't valid");
                 return 2;
             }
-            return health(home, current, json, System.out);
+            return health(home, current, currentProfile.diagnostic(), json, System.out);
         }
         if (repair) {
             if (keepNamed) {
@@ -106,7 +107,17 @@ final class CacheCommand {
 
     static int health(
             PreflightHome home, String currentFingerprint, boolean json, PrintStream out) {
-        CacheHealth.Report report = CacheHealth.inspect(home, currentFingerprint);
+        return health(home, currentFingerprint, null, json, out);
+    }
+
+    static int health(
+            PreflightHome home,
+            String currentFingerprint,
+            String identityDiagnostic,
+            boolean json,
+            PrintStream out) {
+        CacheHealth.Report report = CacheHealth.inspect(
+                home, currentFingerprint, identityDiagnostic);
         if (json) {
             out.println(Json.object(CacheHealth.json(report)));
         } else if ("ready".equals(report.status())) {
@@ -611,6 +622,10 @@ final class CacheCommand {
     }
 
     private static String currentFingerprint(Path game, Path launcher) {
+        return currentProfile(game, launcher).fingerprint();
+    }
+
+    static CurrentProfile currentProfile(Path game, Path launcher) {
         try {
             DiscoveryResult discovery = StarsectorDiscovery.discover(
                     Platform.current(),
@@ -618,12 +633,34 @@ final class CacheCommand {
                     Path.of(System.getProperty("user.dir")),
                     System.getenv(), game, launcher);
             LaunchTarget target = discovery.selected();
-            return target == null
-                    ? null
-                    : ResourceIndexBuilder.build(target.installRoot()).index().profileFingerprint();
+            if (target == null) {
+                String detail = discovery.diagnostics().stream()
+                        .limit(4)
+                        .map(CacheCommand::boundedDiagnostic)
+                        .filter(value -> !value.isBlank())
+                        .reduce((left, right) -> left + " " + right)
+                        .orElse("No readable Starsector installation was found.");
+                return new CurrentProfile(null, detail);
+            }
+            String fingerprint = ResourceIndexBuilder.build(
+                    target.installRoot()).index().profileFingerprint();
+            return new CurrentProfile(fingerprint, null);
         } catch (Exception unreadable) {
-            return null;
+            return new CurrentProfile(
+                    null,
+                    "The current mod setup couldn't be identified: "
+                            + boundedDiagnostic(unreadable.getMessage() == null
+                                    ? unreadable.getClass().getSimpleName()
+                                    : unreadable.getMessage()));
         }
+    }
+
+    private static String boundedDiagnostic(String value) {
+        String normalized = value == null ? "" : value.replaceAll("\\s+", " ").strip();
+        return normalized.length() <= 1_000 ? normalized : normalized.substring(0, 997) + "...";
+    }
+
+    record CurrentProfile(String fingerprint, String diagnostic) {
     }
 
     private static String requireValue(String[] args, int index, String option) {

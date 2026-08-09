@@ -25,10 +25,17 @@ final class CacheHealth {
     }
 
     static Report inspect(PreflightHome home, String profile) {
+        return inspect(home, profile, null);
+    }
+
+    static Report inspect(PreflightHome home, String profile, String identityDiagnostic) {
         if (profile == null) {
+            String summary = identityDiagnostic == null || identityDiagnostic.isBlank()
+                    ? "Preflight couldn't derive the current profile from this installation."
+                    : identityDiagnostic;
             return new Report("unknown", null, List.of(new Issue(
                     "profile-identity",
-                    "Preflight couldn't derive the current profile from this installation.",
+                    summary,
                     home.cache())), List.of());
         }
         Path cache;
