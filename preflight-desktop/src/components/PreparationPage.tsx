@@ -108,7 +108,7 @@ export function PreparationPage({
       <section className="card preflight-summary-card">
         <div>
           <div className="heading-with-info">
-            <h2>Preflight optimizations</h2>
+            <h2>Optimizations</h2>
             <InfoTip label="About Preflight optimizations">Preflight applies only transformations reviewed for the exact game and mod build. A fingerprint mismatch keeps the original code.</InfoTip>
           </div>
           <p>{optimizationPreset === "off" ? "Starsector will launch without Preflight’s runtime optimizations." : optimizationPreset === "conservative" ? "Compatibility mode is enabled for the next launch." : "Enabled for the next launch."}</p>

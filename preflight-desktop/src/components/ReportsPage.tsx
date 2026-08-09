@@ -98,45 +98,48 @@ export function ReportsPage({
         </section>
       ) : null}
 
-      <div className="settings-overview">
-        <section className="card diagnostics-action">
+      <details className="card settings-disclosure support-tools">
+        <summary><span><strong>Support</strong><small>Create a redacted ZIP for troubleshooting</small></span></summary>
+        <div className="settings-disclosure__body support-tools__body">
+          <section className="diagnostics-action">
           <div>
             <div className="heading-with-info">
               <strong>{diagnosticsExport ? "Support ZIP ready" : "Support ZIP"}</strong>
               <InfoTip label="About the support ZIP">Exports bounded, redacted run and benchmark metadata. Game files, mods, saves, logs, screenshots, audio, caches, and personal paths stay out.</InfoTip>
             </div>
-            <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Export a redacted bundle to inspect or send with your permission."}</span>
+            <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Create a redacted ZIP you can inspect or send."}</span>
           </div>
           <div className="report-actions">
             <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
-              <FolderIcon />{diagnosticsBusy ? "Exporting…" : diagnosticsExport ? "Export another ZIP" : "Export support ZIP"}
+              <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Create another ZIP" : "Create support ZIP"}
             </button>
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review send"}</button> : null}
           </div>
-        </section>
-      </div>
+          </section>
 
-      <details className="card settings-disclosure">
-        <summary><span><strong>Diagnostic contents</strong><small>Included and excluded data</small></span></summary>
-        <div className="settings-grid settings-disclosure__body">
-          <section className="diagnostics-card">
-            <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div><CheckIcon className="settings-check" /></div>
-            <ul>
-              <li>Run outcome, runtime, adapter health and timing summaries</li>
-              <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
-              <li>Benchmark identity, settings and result metadata</li>
-              <li>A manifest with every included or skipped file</li>
-            </ul>
-          </section>
-          <section className="diagnostics-card diagnostics-card--excluded">
-            <div className="card__heading"><div><p className="eyebrow">Excluded</p><h2>Game and personal data</h2></div><ShieldIcon className="settings-check" /></div>
-            <ul>
-              <li>Game, mod, save, texture, audio or bytecode contents</li>
-              <li>Acceleration caches, console logs and crash dumps</li>
-              <li>JFR recordings, screenshots, audio or unknown files</li>
-              <li>Symlinks or any source file larger than 512 KiB</li>
-            </ul>
-          </section>
+          <details className="settings-disclosure support-contents">
+            <summary><span><strong>What’s in the ZIP?</strong><small>Included and excluded data</small></span></summary>
+            <div className="settings-grid settings-disclosure__body">
+              <section className="diagnostics-card">
+                <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div><CheckIcon className="settings-check" /></div>
+                <ul>
+                  <li>Run outcome, runtime, adapter health and timing summaries</li>
+                  <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
+                  <li>Benchmark identity, settings and result metadata</li>
+                  <li>A manifest with every included or skipped file</li>
+                </ul>
+              </section>
+              <section className="diagnostics-card diagnostics-card--excluded">
+                <div className="card__heading"><div><p className="eyebrow">Excluded</p><h2>Game and personal data</h2></div><ShieldIcon className="settings-check" /></div>
+                <ul>
+                  <li>Game, mod, save, texture, audio or bytecode contents</li>
+                  <li>Acceleration caches, console logs and crash dumps</li>
+                  <li>JFR recordings, screenshots, audio or unknown files</li>
+                  <li>Symlinks or any source file larger than 512 KiB</li>
+                </ul>
+              </section>
+            </div>
+          </details>
         </div>
       </details>
 

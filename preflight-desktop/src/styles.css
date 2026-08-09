@@ -232,24 +232,6 @@ button {
   margin-top: auto;
 }
 
-.alpha-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 16px 13px 0;
-  color: var(--ink-faint);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.alpha-pill span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 4px rgba(110, 169, 143, 0.12);
-}
-
 .main {
   position: relative;
   z-index: 1;
@@ -643,10 +625,18 @@ h2 {
     grid-template-areas:
       "primary primary resolution resolution"
       "battle memory antialiasing ui-scale"
-      "toggles toggles save save"
+      "toggles toggles toggles toggles"
       "hint hint hint hint";
     grid-template-columns: repeat(4, minmax(0, 1fr));
     min-height: 0;
+  }
+
+  .launch-console--configured.launch-console--settings-dirty {
+    grid-template-areas:
+      "primary primary resolution resolution"
+      "battle memory antialiasing ui-scale"
+      "toggles toggles save save"
+      "hint hint hint hint";
   }
 
   .launch-console--configured .launch-console__primary {
@@ -1518,6 +1508,29 @@ h2 {
 
 .settings-disclosure__body > p:first-child {
   margin-top: 0;
+}
+
+.support-tools__body {
+  display: grid;
+  gap: 18px;
+}
+
+.support-tools__body > .diagnostics-action {
+  padding: 0;
+}
+
+.support-contents {
+  border-top: 1px solid var(--line);
+}
+
+.support-contents > summary {
+  min-height: 56px;
+  padding-inline: 0;
+}
+
+.support-contents > .settings-disclosure__body {
+  margin-inline: 0;
+  margin-bottom: 0;
 }
 
 .diagnostics-card,
@@ -2632,10 +2645,6 @@ footer {
     align-self: start;
   }
 
-  .alpha-pill {
-    display: none;
-  }
-
   .brand {
     padding: 0;
   }
@@ -2673,7 +2682,11 @@ footer {
     display: grid;
     height: 100%;
     min-height: 0;
-    padding: clamp(26px, 5vw, 42px) clamp(20px, 5vw, 38px) 26px;
+    padding: 28px clamp(20px, 5vw, 38px) 22px;
+  }
+
+  .topbar {
+    margin-bottom: 20px;
   }
 
   .page-viewport,
@@ -2688,12 +2701,14 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .profiles-grid {
-    grid-template-columns: 1fr;
+  .launch-settings-card:last-child .setting-field {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .launch-settings-grid {
-    grid-template-columns: 1fr;
+  .launch-settings-card:last-child .setting-field select {
+    width: 100%;
   }
 
   .settings-overview {
@@ -2736,6 +2751,11 @@ footer {
   }
 
   .home-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .profiles-grid,
+  .launch-settings-grid {
     grid-template-columns: 1fr;
   }
 

@@ -47,7 +47,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
                   {!profile.sameInstall ? <small>Saved for a different installation</small> : null}
                   {profile.missingMods.length > 0 ? <small>Missing: {profile.missingMods.join(", ")}</small> : null}
                 </div>
-                <button className="button button--quiet button--compact" type="button" onClick={() => void reviewProfile(profile.name)} disabled={profile.active || !profile.canActivate || profileBusy}>{profile.active ? "Current" : "Review switch"}</button>
+                {!profile.active ? <button className="button button--quiet button--compact" type="button" onClick={() => void reviewProfile(profile.name)} disabled={!profile.canActivate || profileBusy}>Review switch</button> : null}
               </article>
             ))}
           </div>

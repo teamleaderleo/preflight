@@ -41,7 +41,7 @@ export function GameSettingsPage({
       <div className="launch-settings-grid">
         <section className="card launch-settings-card">
           <div className="card__heading">
-            <div><p className="eyebrow">Display</p><h2>Window and rendering</h2></div>
+            <div><h2>Window and rendering</h2></div>
             <button className="icon-button icon-button--small" type="button" onClick={onRefresh} aria-label="Refresh launch settings" disabled={loading || saving}>
               <RefreshIcon className={loading ? "spin" : ""} />
             </button>
@@ -71,7 +71,7 @@ export function GameSettingsPage({
         </section>
 
         <section className="card launch-settings-card">
-          <div className="card__heading"><div><p className="eyebrow">Simulation</p><h2>Battle and memory</h2></div></div>
+          <div className="card__heading"><div><h2>Battle and memory</h2></div></div>
           <label className="setting-slider" htmlFor="launch-battle-size">
             <span><strong>Deployment-point budget</strong><b>{draft.battleSize}</b></span>
             <input id="launch-battle-size" aria-label="Deployment-point budget" type="range" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
@@ -92,12 +92,14 @@ export function GameSettingsPage({
 
       {diagnostics.length > 0 ? <section className="card launch-diagnostics">{diagnostics.map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}</section> : null}
 
-      <section className="card launch-save">
-        <div><span>{settings.backup ? `Previous values: ${shortPath(settings.backup)}` : "The original launcher values are backed up before a change."}</span></div>
-        <button className={`button ${dirty ? "button--primary" : "button--quiet"}`} type="button" onClick={onSave} disabled={!dirty || loading || saving || disabled}>
-          <CheckIcon />{saving ? "Saving…" : dirty ? "Save changes" : "Settings applied"}
-        </button>
-      </section>
+      {dirty || saving ? (
+        <section className="card launch-save">
+          <div><span>{settings.backup ? `Previous values: ${shortPath(settings.backup)}` : "The original launcher values are backed up before a change."}</span></div>
+          <button className="button button--primary" type="button" onClick={onSave} disabled={loading || saving || disabled}>
+            <CheckIcon />{saving ? "Saving…" : "Save changes"}
+          </button>
+        </section>
+      ) : null}
     </div>
   );
 }

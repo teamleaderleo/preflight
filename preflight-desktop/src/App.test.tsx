@@ -276,8 +276,7 @@ test("common game settings are editable beside launch", async () => {
   expect(screen.getByLabelText("Home antialiasing")).toHaveValue("0");
   expect(screen.getByLabelText("Home UI size")).toHaveValue("1");
   expect(screen.getByLabelText("Home battle size")).toHaveValue(400);
-  const apply = screen.getByRole("button", { name: "Settings applied" });
-  expect(apply).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Apply changes" })).not.toBeInTheDocument();
 
   await user.clear(screen.getByLabelText("Home battle size"));
   await user.type(screen.getByLabelText("Home battle size"), "1200");
@@ -460,6 +459,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
   expect(await screen.findByRole("heading", { name: "Profiles", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Main campaign")).toBeInTheDocument();
   expect(screen.getByText("Active")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Current" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Review switch" }));
 
@@ -480,10 +480,13 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByRole("button", { name: "Benchmark" }));
 
   expect(await screen.findByRole("heading", { name: "Benchmark", level: 1 })).toBeInTheDocument();
-  await user.click(screen.getByText("Diagnostic contents"));
+  const support = screen.getByText("Support").closest("details");
+  expect(support).not.toHaveAttribute("open");
+  await user.click(screen.getByText("Support"));
+  await user.click(screen.getByText("What’s in the ZIP?"));
   expect(screen.getByText("Useful metadata only")).toBeInTheDocument();
   expect(screen.getByText("Game and personal data")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Export support ZIP" }));
+  await user.click(screen.getByRole("button", { name: "Create support ZIP" }));
 
   expect(await screen.findByText("Support ZIP ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
@@ -568,11 +571,12 @@ test("an unconfigured build keeps local export available and refuses report send
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Benchmark" }));
-  await user.click(await screen.findByRole("button", { name: "Export support ZIP" }));
+  await user.click(screen.getByText("Support"));
+  await user.click(await screen.findByRole("button", { name: "Create support ZIP" }));
 
   expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review send" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Export another ZIP" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Create another ZIP" })).toBeEnabled();
   intake.mockRestore();
 });
 

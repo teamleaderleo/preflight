@@ -25,7 +25,7 @@ export function QuickGameSettings({
   onSave,
 }: QuickGameSettingsProps) {
   return (
-    <div className="quick-settings" aria-label="Common game settings">
+    <div className={`quick-settings ${dirty || saving ? "quick-settings--dirty" : ""}`} aria-label="Common game settings">
       <div className="quick-settings__grid">
         <div className="quick-control quick-control--wide quick-control--resolution">
           <label htmlFor="home-resolution">Resolution</label>
@@ -58,9 +58,11 @@ export function QuickGameSettings({
         <label><input type="checkbox" aria-label="Home sound" checked={draft.sound} onChange={(event) => onChange({ sound: event.target.checked })} /><span>Sound</span></label>
       </div>
       {(settings.limits.battleSizeMax ?? 0) < battleSizeUpperBound(settings, draft.battleSize) && draft.battleSize > (settings.limits.battleSizeMax ?? 0) ? <p className="quick-settings__hint">The vanilla settings slider ends at {settings.limits.battleSizeMax}; opening it can reset this extended value.</p> : null}
-      <button className={`button ${dirty ? "button--primary" : "button--quiet"} quick-settings__save`} type="button" onClick={onSave} disabled={!dirty || saving || disabled}>
-        <CheckIcon />{saving ? "Saving…" : dirty ? "Apply changes" : "Settings applied"}
-      </button>
+      {dirty || saving ? (
+        <button className="button button--primary quick-settings__save" type="button" onClick={onSave} disabled={saving || disabled}>
+          <CheckIcon />{saving ? "Saving…" : "Apply changes"}
+        </button>
+      ) : null}
     </div>
   );
 }

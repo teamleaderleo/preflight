@@ -44,7 +44,7 @@ export function SettingsPage({
       <div className="settings-overview">
         <section className="card update-card">
           <div className="card__heading">
-            <div><p className="eyebrow">Application</p><h2>{updateStatus?.available ? `Preflight ${updateStatus.version}` : "Updates"}</h2></div>
+            <div><h2>{updateStatus?.available ? `Preflight ${updateStatus.version}` : "Updates"}</h2></div>
             <ShieldIcon className="settings-check" />
           </div>
           <p className={updateStatus?.available ? "update-release-notes" : undefined}>{updateStatus?.available
@@ -68,7 +68,7 @@ export function SettingsPage({
       </div>
 
       <details className="card settings-disclosure removal-card">
-        <summary><span><strong>Remove Preflight</strong><small>Choose exactly what leaves this computer</small></span></summary>
+        <summary><span><strong>Remove Preflight</strong><small>Launcher, prepared data, profiles, and reports</small></span></summary>
         <div className="settings-disclosure__body">
           <p className="removal-safety">Neither choice removes Starsector, mods, saves, or game settings.</p>
           <div className="removal-choices">

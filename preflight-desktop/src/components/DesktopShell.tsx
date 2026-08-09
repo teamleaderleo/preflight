@@ -90,7 +90,6 @@ export function DesktopShell({
             <SettingsIcon /><span>Settings</span>
             {updateAvailable ? <span className="nav__badge">Update</span> : null}
           </button>
-          <div className="alpha-pill"><span /> Desktop alpha</div>
         </div>
       </aside>
 
@@ -103,7 +102,7 @@ export function DesktopShell({
               <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>
               <button className={theme === "dark" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use dark theme" aria-label="Use dark theme" aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><MoonIcon /></button>
             </div>
-            <button className="icon-button" type="button" onClick={onRefresh} aria-label="Refresh installation status" disabled={status === "loading" || refreshDisabled}>
+            <button className="icon-button" type="button" onClick={onRefresh} title="Refresh installation and mod status" aria-label="Refresh installation status" disabled={status === "loading" || refreshDisabled}>
               <RefreshIcon className={status === "loading" ? "spin" : ""} />
             </button>
           </div>

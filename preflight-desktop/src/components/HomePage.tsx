@@ -129,7 +129,7 @@ export function HomePage({
 
   return (
     <>
-      <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""}`}>
+      <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {flightPlot}
           {status !== "ready" || preparing || needsPreparation || !isReady ? (
