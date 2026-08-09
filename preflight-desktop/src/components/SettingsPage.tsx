@@ -68,11 +68,12 @@ export function SettingsPage({
       </div>
 
       <details className="card settings-disclosure removal-card">
-        <summary><span><strong>Remove Preflight</strong><small>Launcher only or all local data</small></span></summary>
+        <summary><span><strong>Remove Preflight</strong><small>Choose exactly what leaves this computer</small></span></summary>
         <div className="settings-disclosure__body">
+          <p className="removal-safety">Neither choice removes Starsector, mods, saves, or game settings.</p>
           <div className="removal-choices">
-            <div><strong>Launch integration</strong><span>Remove Preflight’s installed command engine and OS launch shortcuts. Keep prepared data and diagnostics.</span><button className="button button--quiet button--compact" type="button" onClick={() => onReviewRemoval("launcher")} disabled={removalBusy || operationBlocked}>Review launcher removal</button></div>
-            <div><strong>All Preflight data</strong><span>Remove launch integrations, caches, profiles, evidence, and backups. The packaged desktop app remains for the operating system to uninstall.</span><button className="button button--quiet button--compact" type="button" onClick={() => onReviewRemoval("all-data")} disabled={removalBusy || operationBlocked}>Review all data removal</button></div>
+            <div><strong>Stop using Preflight to launch</strong><span>Remove its command engine and shortcuts. Keep prepared caches, profiles, and run reports.</span><button className="button button--quiet button--compact" type="button" onClick={() => onReviewRemoval("launcher")} disabled={removalBusy || operationBlocked}>Review</button></div>
+            <div><strong>Delete all Preflight data</strong><span>Also remove prepared caches, profiles, run reports, and backups. Uninstall the desktop app through your operating system afterward.</span><button className="button button--danger button--compact" type="button" onClick={() => onReviewRemoval("all-data")} disabled={removalBusy || operationBlocked}>Review deletion</button></div>
           </div>
         </div>
       </details>

@@ -178,7 +178,7 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getAllByText("Launch Starsector")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
-  expect(screen.getByText("83 mods · saved profile")).toBeInTheDocument();
+  expect(screen.getByText("Named by you · 83 mods")).toBeInTheDocument();
   expect(screen.getByText("Recommended")).toBeInTheDocument();
   expect(screen.getByText(/Prepared ·/)).toBeInTheDocument();
 });
@@ -213,7 +213,7 @@ test("blocks installation and preparation mutations while the game is running", 
   await user.click(screen.getByRole("button", { name: "Preflight" }));
   expect(await screen.findByRole("radio", { name: "Recommended optimizations" })).toBeDisabled();
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeDisabled();
-  expect(screen.getByRole("button", { name: /Balanced4 workers/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: /Calculating|Prepare current profile/ })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Review cleanup" })).toBeDisabled();
 
@@ -262,12 +262,15 @@ test("common game settings are editable beside launch", async () => {
 
   await screen.findByText("Ready");
   expect(await screen.findByLabelText("Home resolution")).toHaveValue("1440x932");
+  expect(screen.getByLabelText("Home antialiasing")).toHaveValue("0");
+  expect(screen.getByLabelText("Home UI size")).toHaveValue("1");
   expect(screen.getByLabelText("Home battle size")).toHaveValue(400);
   const apply = screen.getByRole("button", { name: "Settings applied" });
   expect(apply).toBeDisabled();
 
   await user.clear(screen.getByLabelText("Home battle size"));
-  await user.type(screen.getByLabelText("Home battle size"), "300");
+  await user.type(screen.getByLabelText("Home battle size"), "1200");
+  expect(screen.getByText(/vanilla settings slider ends at 400/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Apply changes" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Apply changes" }));
 
@@ -350,7 +353,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-audio"]');
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /Balanced4 workers/ })).toBeEnabled();
+  expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(await screen.findByRole("button", { name: "Prepare current profile" })).toBeEnabled();
 });
 
@@ -421,8 +424,9 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByLabelText("Fullscreen")).not.toBeChecked();
   expect(screen.getByLabelText("Sound")).toBeChecked();
   expect(screen.getByLabelText("Antialiasing")).toHaveValue("0");
-  expect(screen.getByLabelText("UI scaling")).toHaveValue("1");
+  expect(screen.getByLabelText("UI size")).toHaveValue("1");
   expect(screen.getByLabelText("Deployment-point budget")).toHaveValue("400");
+  expect(screen.getByLabelText("Deployment-point budget")).toHaveAttribute("max", "2000");
   expect(screen.getByLabelText("Game memory")).toHaveValue("6144");
   await user.selectOptions(screen.getByLabelText("Game memory"), "8192");
   await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -434,23 +438,23 @@ test("profiles are preview-first and show the exact switch before applying", asy
   render(<App />);
 
   await screen.findByText("Ready");
-  expect(await screen.findByText("Heavy campaign")).toBeInTheDocument();
-  expect(screen.getByText("83 mods · saved profile")).toBeInTheDocument();
+  expect(await screen.findByText("Main campaign")).toBeInTheDocument();
+  expect(screen.getByText("Named by you · 83 mods")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Manage profiles" }));
 
   expect(await screen.findByRole("heading", { name: "Profiles", level: 1 })).toBeInTheDocument();
-  expect(screen.getByText("Heavy campaign")).toBeInTheDocument();
+  expect(screen.getByText("Main campaign")).toBeInTheDocument();
   expect(screen.getByText("Active")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Review switch" }));
 
-  expect(await screen.findByRole("heading", { name: "Switch to Vanilla plus?" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Switch to Utilities only?" })).toBeInTheDocument();
   expect(screen.getByText("Enable (1)")).toBeInTheDocument();
   expect(screen.getByText("Disable (2)")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Apply switch" }));
 
-  expect(await screen.findByText(/Switched to “Vanilla plus”/)).toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "Switch to Vanilla plus?" })).not.toBeInTheDocument();
+  expect(await screen.findByText(/Switched to “Utilities only”/)).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Switch to Utilities only?" })).not.toBeInTheDocument();
 });
 
 test("diagnostics disclose their boundary and export a bounded bundle", async () => {
@@ -728,8 +732,8 @@ test("removal keeps launcher files and all data as separate previewed scopes", a
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Remove Preflight"));
 
-  const launcher = await screen.findByRole("button", { name: "Review launcher removal" });
-  const allData = screen.getByRole("button", { name: "Review all data removal" });
+  const launcher = await screen.findByRole("button", { name: "Review" });
+  const allData = screen.getByRole("button", { name: "Review deletion" });
   expect(launcher).toBeEnabled();
   expect(allData).toBeEnabled();
 
@@ -751,7 +755,7 @@ test("a reviewed removal cannot be applied while the game is running", async () 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Remove Preflight"));
-  await user.click(await screen.findByRole("button", { name: "Review all data removal" }));
+  await user.click(await screen.findByRole("button", { name: "Review deletion" }));
   expect(await screen.findByRole("button", { name: "Remove all Preflight data" })).toBeEnabled();
 
   await user.click(screen.getByRole("button", { name: "Home" }));

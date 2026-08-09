@@ -19,6 +19,13 @@ import java.util.regex.Pattern;
 /** Reports and explicitly updates the same settings Starsector's own launcher persists. */
 final class LaunchSettingsCommand {
     private static final String FORMAT = "starsector-preflight-launch-settings-v1";
+    /**
+     * Starsector's maxBattleSize controls its settings slider, while the battleSize preference is
+     * the value consumed by the game. Keep an explicit, bounded extended range without rewriting
+     * the installation's settings.json. Opening the vanilla slider may reset a value above its
+     * own maximum, which the desktop explains next to the control.
+     */
+    static final int EXTENDED_BATTLE_SIZE_MAX = 2000;
     private static final DateTimeFormatter BACKUP_TIME = DateTimeFormatter
             .ofPattern("uuuuMMdd-HHmmss-SSS")
             .withZone(ZoneOffset.UTC);
@@ -291,10 +298,11 @@ final class LaunchSettingsCommand {
                 }
             }
             if (update.battleSize() == null || minBattleSize == null || maxBattleSize == null) return;
-            if (update.battleSize() < minBattleSize || update.battleSize() > maxBattleSize) {
+            int effectiveMaximum = Math.max(maxBattleSize, EXTENDED_BATTLE_SIZE_MAX);
+            if (update.battleSize() < minBattleSize || update.battleSize() > effectiveMaximum) {
                 throw new IllegalArgumentException(
-                        "Battle size must be between the installed game's " + minBattleSize
-                                + " and " + maxBattleSize + " limits");
+                        "Battle size must be between " + minBattleSize + " and " + effectiveMaximum
+                                + "; the installed game's settings slider ends at " + maxBattleSize);
             }
         }
 
@@ -311,6 +319,9 @@ final class LaunchSettingsCommand {
             values.put("battleSizeMin", minBattleSize);
             values.put("battleSizeDefault", defaultBattleSize);
             values.put("battleSizeMax", maxBattleSize);
+            values.put("battleSizeExtendedMax", maxBattleSize == null
+                    ? EXTENDED_BATTLE_SIZE_MAX
+                    : Math.max(maxBattleSize, EXTENDED_BATTLE_SIZE_MAX));
             values.put("diagnostics", diagnostics);
             return values;
         }

@@ -32,8 +32,8 @@ The sidebar keeps each power-user workspace visible instead of nesting it inside
 - **Profiles** — save, switch and inspect exact mod profiles;
 - **Settings** — application updates and removal.
 
-Resolution, fullscreen, sound, battle size and game RAM sit beside the launch action. Antialiasing
-and UI scaling remain one direct click away in the complete game-settings view. Preflight follows
+Resolution, fullscreen, sound, antialiasing, UI size, battle size and game RAM sit beside the launch
+action. The complete game-settings view explains the same controls in more detail. Preflight follows
 the selected launcher to the file that actually owns `-Xmx`, refuses ambiguous layouts and keeps an
 exact backup before changing it.
 

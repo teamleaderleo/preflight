@@ -173,6 +173,7 @@ export interface LaunchSettings {
     battleSizeMin: number | null;
     battleSizeDefault: number | null;
     battleSizeMax: number | null;
+    battleSizeExtendedMax: number | null;
     diagnostics: string[];
   };
   memory: {

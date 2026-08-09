@@ -184,7 +184,7 @@ export function ReportsPage({
         <summary><span><strong>Automated game test</strong><small>{desktopSmokeProbe?.probe.ready ? "Ready" : "Optional compatibility check"}</small></span></summary>
         <div className="settings-disclosure__body">
           <p>{desktopSmokeProbe === null
-            ? "Check whether Preflight can control one exact game process, collect bounded evidence, and close it after the test. Nothing launches during this check."
+            ? "Check whether Preflight can control the exact game process, collect bounded evidence, and close it after the test. Nothing launches during this check."
             : desktopSmokeProbe.probe.ready
               ? `Ready through ${desktopSmokeProbe.probe.driver?.id ?? "the platform driver"}. The test remains opt-in and hasn’t started a game.`
               : desktopSmokeProbe.probe.diagnostics[0] ?? "Automated testing isn’t available on this system yet."}</p>

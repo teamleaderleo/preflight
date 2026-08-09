@@ -177,7 +177,7 @@ export function HomePage({
                 ? preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare
-                    ? `${firstSetup ? "One-time setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}; ${formatBytes(preparationPlan.requiredFreeBytes)} must be free; ${formatBytes(preparationPlan.usableBytes)} is available. Starsector and its mods stay where they are.`
+                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}; ${formatBytes(preparationPlan.requiredFreeBytes)} must be free; ${formatBytes(preparationPlan.usableBytes)} is available. Starsector and its mods stay where they are.`
                     : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
                 : profilePrepared
                   ? `Prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}${disabledOptimizationDomains.length > 0 ? ` · ${disabledOptimizationDomains.length} prepared cache${disabledOptimizationDomains.length === 1 ? "" : "s"} off` : ""}`
@@ -242,12 +242,12 @@ export function HomePage({
 
       <section className="card home-overview" aria-label="Current Preflight setup">
         <div className="home-fact">
-          <span>Mod setup</span>
+          <span>Mod profile</span>
           <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? (profiles ? `${profiles.enabledMods.length} enabled mods` : "Unavailable")}</strong>
           <small>{profilesLoading
             ? "Checking the current mod list"
             : activeProfile
-              ? `${activeProfile.modCount.toLocaleString()} mods · saved profile`
+              ? `Named by you · ${activeProfile.modCount.toLocaleString()} mod${activeProfile.modCount === 1 ? "" : "s"}`
               : profiles
                 ? "Current list isn't saved as a profile"
                 : "The current mod list couldn’t be read"}</small>

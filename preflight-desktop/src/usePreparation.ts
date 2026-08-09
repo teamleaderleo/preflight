@@ -24,7 +24,7 @@ export type TextureStorage = "balanced" | "fastest";
 
 export const resourcePresets = {
   gentle: { workers: 2, memoryMib: 128, label: "Low" },
-  balanced: { workers: 4, memoryMib: 256, label: "Balanced" },
+  balanced: { workers: 4, memoryMib: 256, label: "Medium" },
   eager: { workers: 8, memoryMib: 512, label: "High" },
 } as const;
 

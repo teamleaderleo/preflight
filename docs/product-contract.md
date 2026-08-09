@@ -81,9 +81,10 @@ than duplicating them:
 - antialiasing and UI scaling from the vanilla options panel; and
 - battle size from the same `gameplaySettings` preference as the in-game slider.
 
-Battle size is constrained by the selected installation's merged `minBattleSize` and
-`maxBattleSize` bounds. Raising that maximum by rewriting base `settings.json` is a different,
-advanced feature and isn't silently bundled into the ordinary slider.
+Battle size uses the selected installation's merged minimum and the same `battleSize` preference as
+the game. Preflight offers a bounded extended range up to 2,000 deployment points because
+`maxBattleSize` only defines the vanilla settings slider. It doesn't rewrite base `settings.json`;
+opening the vanilla slider can reset a value above that slider's installed maximum.
 
 ## Cache controls UX
 

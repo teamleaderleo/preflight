@@ -41,13 +41,13 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
             </div>
           </div>
           <div className="profile-list">
-            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><strong>No profiles saved yet</strong><span>Give the current mod set a name to make your first one.</span></div> : null}
+            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><strong>No saved profiles</strong><span>Name the current mod setup to save it.</span></div> : null}
             {(profiles?.profiles ?? []).map((profile) => (
               <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
                 <div className="profile-card__mark"><LayersIcon /></div>
                 <div className="profile-card__copy">
                   <div><strong>{profile.name}</strong>{profile.active ? <b>Active</b> : null}</div>
-                  <span>{profile.modCount.toLocaleString()} mods · saved {new Date(profile.savedAt).toLocaleDateString()}</span>
+                  <span>{profile.modCount.toLocaleString()} mod{profile.modCount === 1 ? "" : "s"} · saved {new Date(profile.savedAt).toLocaleDateString()}</span>
                   {!profile.sameInstall ? <small>Saved for a different installation</small> : null}
                   {profile.missingMods.length > 0 ? <small>Missing: {profile.missingMods.join(", ")}</small> : null}
                 </div>
@@ -61,9 +61,9 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
         <section className="card profile-save-card">
           <p className="eyebrow">Remember this setup</p>
           <h2>Save current profile</h2>
-          <p>Names and load order only. Mod files stay where they are.</p>
+          <p>Choose any name. Preflight remembers the enabled mods and their load order; mod files stay where they are.</p>
           <label htmlFor="profile-name">Profile name</label>
-          <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Heavy campaign" maxLength={96} />
+          <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Main campaign" maxLength={96} />
           <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>Save current profile</button>
           <div className="profile-cache-note"><SparklesIcon /><span>Matching profiles reuse prepared caches automatically.</span></div>
         </section>

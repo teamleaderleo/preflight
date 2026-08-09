@@ -1,7 +1,8 @@
 import { CheckIcon, RefreshIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
-import { maximumUiScale, shortPath } from "../uiFormat";
+import { shortPath } from "../uiFormat";
 import { GameMemorySelect } from "./GameMemorySelect";
+import { ResolutionSelect, UiScaleSelect, battleSizeUpperBound, uiScaleMaximum } from "./GameSettingSelects";
 
 interface GameSettingsPageProps {
   settings: LaunchSettings | null;
@@ -47,7 +48,7 @@ export function GameSettingsPage({
           </div>
           <label className="setting-field" htmlFor="launch-resolution">
             <span><strong>Resolution</strong></span>
-            <input id="launch-resolution" aria-label="Resolution" value={draft.resolution} onChange={(event) => onChange({ resolution: event.target.value })} inputMode="text" spellCheck={false} />
+            <ResolutionSelect id="launch-resolution" label="Resolution" value={draft.resolution} onChange={(resolution) => onChange({ resolution, uiScale: Math.min(draft.uiScale, uiScaleMaximum(settings, resolution)) })} />
           </label>
           <label className="setting-toggle">
             <span><strong>Fullscreen</strong></span>
@@ -63,9 +64,9 @@ export function GameSettingsPage({
               {settings.limits.antialiasingSamples.map((samples) => <option value={samples} key={samples}>{samples === 0 ? "Off" : `${samples} samples`}</option>)}
             </select>
           </label>
-          <label className="setting-slider" htmlFor="launch-scale">
-            <span><strong>UI scaling</strong><b>{Math.round(draft.uiScale * 100)}%</b></span>
-            <input id="launch-scale" aria-label="UI scaling" type="range" min={settings.limits.uiScaleMin} max={maximumUiScale(draft.resolution) ?? settings.limits.uiScaleMax} step={settings.limits.uiScaleStep} value={draft.uiScale} onChange={(event) => onChange({ uiScale: Number(event.target.value) })} />
+          <label className="setting-field" htmlFor="launch-scale">
+            <span><strong>UI size</strong><small>Limited by the selected resolution</small></span>
+            <UiScaleSelect id="launch-scale" label="UI size" settings={settings} resolution={draft.resolution} value={draft.uiScale} onChange={(uiScale) => onChange({ uiScale })} />
           </label>
         </section>
 
@@ -73,13 +74,15 @@ export function GameSettingsPage({
           <div className="card__heading"><div><p className="eyebrow">Simulation</p><h2>Battle and memory</h2></div></div>
           <label className="setting-slider" htmlFor="launch-battle-size">
             <span><strong>Deployment-point budget</strong><b>{draft.battleSize}</b></span>
-            <input id="launch-battle-size" aria-label="Deployment-point budget" type="range" min={settings.limits.battleSizeMin ?? 1} max={settings.limits.battleSizeMax ?? Math.max(draft.battleSize, 400)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
+            <input id="launch-battle-size" aria-label="Deployment-point budget" type="range" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
           </label>
           <div className="battle-bounds">
             <span>Minimum {settings.limits.battleSizeMin ?? "unknown"}</span>
             <span>Default {settings.limits.battleSizeDefault ?? "unknown"}</span>
-            <span>Maximum {settings.limits.battleSizeMax ?? "unknown"}</span>
+            <span>Vanilla slider {settings.limits.battleSizeMax ?? "unknown"}</span>
+            <span>Extended {battleSizeUpperBound(settings, draft.battleSize)}</span>
           </div>
+          {(settings.limits.battleSizeMax ?? 0) < battleSizeUpperBound(settings, draft.battleSize) ? <p className="setting-help">Preflight writes the same gameplay preference without changing game files. Opening the vanilla battle-size slider can reset a value above {settings.limits.battleSizeMax}.</p> : null}
           <label className="setting-field" htmlFor={settings.memory.editable ? "launch-memory" : undefined}>
             <span><strong>Game memory</strong><small>{settings.memory.source ? shortPath(settings.memory.source) : settings.memory.reason ?? "Managed by the selected launcher"}</small></span>
             <GameMemorySelect id="launch-memory" label="Game memory" memory={settings.memory} value={draft.memoryMiB} onChange={(memoryMiB) => onChange({ memoryMiB })} />

@@ -13,14 +13,14 @@ export const optimizationPresets: Array<{
   {
     id: "recommended",
     label: "Recommended",
-    description: "Every reviewed optimization. True-size textures.",
+    description: "All reviewed optimizations for this exact game and mod build.",
     badge: "Default",
   },
   {
     id: "conservative",
     label: "Conservative",
-    description: "Portable caches and padded textures. Gameplay adapters off.",
-    badge: "Fallback",
+    description: "Startup caches only, with compatible padded textures and original gameplay code.",
+    badge: "Compatibility",
   },
   {
     id: "off",
@@ -144,13 +144,13 @@ export function PreparationPage({
             <span><strong>Prepared audio</strong><small>Use decoded audio only when the cache and decoder identities match.</small></span>
           </label>
         </div>
-        <p className="storage-note">Turn one off to isolate a problem. Off disables every optimization regardless of these selections.</p>
+        <p className="storage-note">Disable a cache to isolate a problem. Off disables every optimization regardless of these selections.</p>
       </section>
 
       <div className="prepare-grid">
         <section className="card prepare-options">
           <div className="card__heading">
-            <div><p className="eyebrow">Space and speed</p><h2>Texture storage</h2></div>
+            <div><p className="eyebrow">Disk use and startup speed</p><h2>Texture cache format</h2></div>
             <div className={`tiny-status ${cache?.currentProfileFingerprint ? "tiny-status--good" : ""}`}><span />{cacheLoading ? "Checking" : cache?.currentProfileFingerprint ? "Profile detected" : "Not prepared"}</div>
           </div>
           <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
@@ -163,7 +163,7 @@ export function PreparationPage({
             <span><strong>Fastest</strong><small>Raw upload-ready pixels; several GB more for a small startup gain</small></span>
           </label>
 
-          <div className="resource-heading"><strong>Preparation resources</strong><span>Only affects the one-time build</span></div>
+          <div className="resource-heading"><strong>Build resources</strong><span>Used only while preparing caches</span></div>
           <div className="preset-row">
             {Object.entries(resourcePresets).map(([id, preset]) => (
               <button key={id} type="button" className={resourcePreset === id ? "preset preset--selected" : "preset"} onClick={() => setResourcePreset(id as keyof typeof resourcePresets)} disabled={operationBlocked}>

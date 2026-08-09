@@ -184,7 +184,7 @@ test("an older profile read cannot flash into the newly selected installation", 
 });
 
 test("profile actions are single-flight and ignore a review from an older installation", async () => {
-  const baseline = await bridge.activateProfile("/game-a", "Vanilla plus", false);
+  const baseline = await bridge.activateProfile("/game-a", "Utilities only", false);
   const first = deferred<ProfileActivationPlan>();
   const second = deferred<ProfileActivationPlan>();
   const activation = vi.spyOn(bridge, "activateProfile")
@@ -199,8 +199,8 @@ test("profile actions are single-flight and ignore a review from an older instal
   );
 
   act(() => {
-    void result.current.reviewProfile("Vanilla plus");
-    void result.current.reviewProfile("Vanilla plus");
+    void result.current.reviewProfile("Utilities only");
+    void result.current.reviewProfile("Utilities only");
   });
   await waitFor(() => expect(activation).toHaveBeenCalledTimes(1));
   rerender({ game: "/game-b" });
@@ -210,7 +210,7 @@ test("profile actions are single-flight and ignore a review from an older instal
   expect(announce).not.toHaveBeenCalled();
 
   act(() => {
-    void result.current.reviewProfile("Vanilla plus");
+    void result.current.reviewProfile("Utilities only");
   });
   await waitFor(() => expect(activation).toHaveBeenCalledTimes(2));
   await act(async () => second.resolve({ ...baseline, installRoot: "/game-b" }));
@@ -219,7 +219,7 @@ test("profile actions are single-flight and ignore a review from an older instal
 });
 
 test("dismissing a profile review cancels its late response", async () => {
-  const baseline = await bridge.activateProfile("/game-a", "Vanilla plus", false);
+  const baseline = await bridge.activateProfile("/game-a", "Utilities only", false);
   const pending = deferred<ProfileActivationPlan>();
   const activation = vi.spyOn(bridge, "activateProfile").mockImplementation(() => pending.promise);
   const refreshInstallation = vi.fn(async () => true);
@@ -235,7 +235,7 @@ test("dismissing a profile review cancels its late response", async () => {
   await waitFor(() => expect(result.current.profiles?.installRoot).toBe("/game-a"));
 
   act(() => {
-    void result.current.reviewProfile("Vanilla plus");
+    void result.current.reviewProfile("Utilities only");
   });
   await waitFor(() => expect(activation).toHaveBeenCalled());
   act(() => result.current.dismissActivationPlan());

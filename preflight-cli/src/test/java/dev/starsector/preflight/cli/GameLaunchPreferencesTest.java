@@ -122,9 +122,11 @@ class GameLaunchPreferencesTest {
         assertEquals(400, limits.defaultBattleSize());
         assertEquals(600, limits.maxBattleSize());
         assertEquals(16, limits.maxAntialiasingSamples());
+        assertEquals(2000, limits.toMap().get("battleSizeExtendedMax"));
         limits.validate(new GameLaunchPreferences.Update(null, null, null, null, null, 600));
+        limits.validate(new GameLaunchPreferences.Update(null, null, null, null, null, 2000));
         assertThrows(IllegalArgumentException.class, () -> limits.validate(
-                new GameLaunchPreferences.Update(null, null, null, null, null, 700)));
+                new GameLaunchPreferences.Update(null, null, null, null, null, 2010)));
         assertThrows(IllegalArgumentException.class, () -> limits.validate(
                 new GameLaunchPreferences.Update(null, null, null, 24, null, null)));
         assertThrows(IllegalArgumentException.class, () -> limits.validate(

@@ -52,7 +52,7 @@ const previewSnapshot: DesktopSnapshot = {
 
 const previewProfiles: NamedProfile[] = [
   {
-    name: "Heavy campaign",
+    name: "Main campaign",
     installRoot: "/Applications/Starsector",
     enabledMods: ["nexerelin", "graphicslib", "uaf"],
     modCount: 83,
@@ -62,10 +62,10 @@ const previewProfiles: NamedProfile[] = [
     active: true,
     canActivate: true,
     missingMods: [],
-    file: "~/.starsector-preflight/profiles/heavy-campaign.json",
+    file: "~/.starsector-preflight/profiles/main-campaign.json",
   },
   {
-    name: "Vanilla plus",
+    name: "Utilities only",
     installRoot: "/Applications/Starsector",
     enabledMods: ["graphicslib"],
     modCount: 1,
@@ -75,7 +75,7 @@ const previewProfiles: NamedProfile[] = [
     active: false,
     canActivate: true,
     missingMods: [],
-    file: "~/.starsector-preflight/profiles/vanilla-plus.json",
+    file: "~/.starsector-preflight/profiles/utilities-only.json",
   },
 ];
 
@@ -308,6 +308,7 @@ export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
         battleSizeMin: 200,
         battleSizeDefault: 400,
         battleSizeMax: 400,
+        battleSizeExtendedMax: 2000,
         diagnostics: [],
       },
       memory: {
