@@ -464,19 +464,28 @@ h2 {
   font-size: 14px;
 }
 
-.quick-settings__heading {
-  display: flex;
+.quick-control--resolution > label {
+  color: #91a9b6;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.quick-resolution-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  color: #eef6f8;
+  gap: 14px;
 }
 
-.quick-settings__heading strong {
-  font-size: 14px;
-}
-
-.quick-settings .text-button {
+.quick-resolution-row .text-button {
+  grid-column: 2;
+  grid-row: 1;
   color: #a9b9da;
+}
+
+.quick-resolution-row select {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .quick-settings__grid {
@@ -575,7 +584,6 @@ h2 {
 @media (min-width: 721px) {
   .launch-console--configured {
     grid-template-areas:
-      "primary primary setup setup"
       "primary primary resolution resolution"
       "battle memory antialiasing ui-scale"
       "toggles toggles save save"
@@ -595,15 +603,9 @@ h2 {
     display: contents;
   }
 
-  .launch-console--configured .quick-settings__heading {
-    grid-area: setup;
-    padding: 20px 28px 4px;
-    background: rgba(3, 15, 23, 0.26);
-  }
-
   .launch-console--configured .quick-control--resolution {
     grid-area: resolution;
-    padding: 4px 28px 14px;
+    padding: 14px 28px;
     background: rgba(3, 15, 23, 0.26);
   }
 

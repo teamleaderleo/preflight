@@ -26,15 +26,14 @@ export function QuickGameSettings({
 }: QuickGameSettingsProps) {
   return (
     <div className="quick-settings" aria-label="Common game settings">
-      <div className="quick-settings__heading">
-        <strong>Game setup</strong>
-        <button className="text-button" type="button" onClick={onOpenAll}>All settings <ArrowIcon /></button>
-      </div>
       <div className="quick-settings__grid">
-        <label className="quick-control quick-control--wide quick-control--resolution" htmlFor="home-resolution">
-          <span>Resolution</span>
-          <ResolutionSelect id="home-resolution" label="Home resolution" value={draft.resolution} onChange={(resolution) => onChange({ resolution, uiScale: Math.min(draft.uiScale, uiScaleMaximum(settings, resolution)) })} />
-        </label>
+        <div className="quick-control quick-control--wide quick-control--resolution">
+          <label htmlFor="home-resolution">Resolution</label>
+          <div className="quick-resolution-row">
+            <ResolutionSelect id="home-resolution" label="Home resolution" value={draft.resolution} onChange={(resolution) => onChange({ resolution, uiScale: Math.min(draft.uiScale, uiScaleMaximum(settings, resolution)) })} />
+            <button className="text-button" type="button" onClick={onOpenAll}>All settings <ArrowIcon /></button>
+          </div>
+        </div>
         <label className="quick-control quick-control--battle-size" htmlFor="home-battle-size">
           <span>Battle size</span>
           <input id="home-battle-size" aria-label="Home battle size" type="number" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />

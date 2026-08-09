@@ -276,8 +276,6 @@ export default function App() {
             messageTone={messageTone}
             isReady={isReady}
             needsPreparation={needsPreparation}
-            optimizationPreset={optimizationPreset}
-            disabledOptimizationDomains={disabledOptimizationDomains}
             preparation={preparation}
             profilesState={profilesState}
             updateStatus={updateStatus}

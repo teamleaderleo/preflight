@@ -179,8 +179,9 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
   expect(screen.getByText("Named by you · 83 mods")).toBeInTheDocument();
-  expect(screen.getByText("Recommended")).toBeInTheDocument();
-  expect(screen.getByText(/Prepared ·/)).toBeInTheDocument();
+  expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Prepared ·/)).not.toBeInTheDocument();
+  expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
 });
 
 test("a failed launch is an alert and retries the launch operation", async () => {

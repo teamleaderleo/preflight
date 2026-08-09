@@ -2,7 +2,6 @@ import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../ico
 import type { Page } from "./DesktopShell";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
-import { optimizationPresets } from "./PreparationPage";
 import type { usePreparation } from "../usePreparation";
 import type { useProfiles } from "../useProfiles";
 import { formatBytes, friendlyPlatform, shortPath } from "../uiFormat";
@@ -12,8 +11,6 @@ import type {
   LaunchSettings,
   LaunchSettingsUpdate,
   NoticeTone,
-  OptimizationDomain,
-  OptimizationPreset,
   UpdateStatus,
 } from "../types";
 
@@ -40,8 +37,6 @@ interface HomePageProps {
   messageTone: NoticeTone;
   isReady: boolean;
   needsPreparation: boolean;
-  optimizationPreset: OptimizationPreset;
-  disabledOptimizationDomains: OptimizationDomain[];
   preparation: PreparationState;
   profilesState: ProfilesState;
   updateStatus: UpdateStatus | null;
@@ -69,8 +64,6 @@ export function HomePage({
   messageTone,
   isReady,
   needsPreparation,
-  optimizationPreset,
-  disabledOptimizationDomains,
   preparation,
   profilesState,
   updateStatus,
@@ -106,8 +99,6 @@ export function HomePage({
     stopPreparation,
   } = preparation;
   const { profiles, profilesLoading } = profilesState;
-  const selectedOptimization = optimizationPresets.find((preset) => preset.id === optimizationPreset)
-    ?? optimizationPresets[0];
   const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
   const firstSetup = needsPreparation && (cache?.profiles.length ?? 0) === 0 && !snapshot?.lastRun;
   const storageBlocked = needsPreparation
@@ -168,9 +159,8 @@ export function HomePage({
               <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
             )}
           </div>
-          {isReady ? (
+          {isReady && (preparing || needsPreparation || !profilePrepared) ? (
             <div className="launch-console__note">
-              <strong>{selectedOptimization.label}</strong>
               <span>{preparing
                 ? `${preparationPhaseLabel ?? "Preparing this mod setup"} · Starsector will open automatically. Finished work stays reusable if you stop.`
                 : needsPreparation
@@ -179,9 +169,7 @@ export function HomePage({
                   : preparationPlan?.safeToPrepare
                     ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}; ${formatBytes(preparationPlan.requiredFreeBytes)} must be free; ${formatBytes(preparationPlan.usableBytes)} is available. Starsector and its mods stay where they are.`
                     : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
-                : profilePrepared
-                  ? `Prepared · ${formatBytes(cache?.profiles.find((profile) => profile.current)?.bytes ?? 0)}${disabledOptimizationDomains.length > 0 ? ` · ${disabledOptimizationDomains.length} prepared cache${disabledOptimizationDomains.length === 1 ? "" : "s"} off` : ""}`
-                  : "Preparation is disabled for this troubleshooting launch."}</span>
+                : "Preparation is disabled for this troubleshooting launch."}</span>
             </div>
           ) : null}
         </div>
