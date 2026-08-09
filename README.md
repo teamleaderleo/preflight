@@ -12,6 +12,11 @@ more smoothly without permanently patching the game, its mods, or your saves.**
 > testing, and a fresh controlled before/after cohort on the exact release candidate. See
 > [Release readiness](docs/release-readiness.md).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-home-dark.png">
+  <img alt="Preflight desktop app ready to launch Starsector" src="docs/images/desktop-home-light.png">
+</picture>
+
 **Measured development record: roughly 101 seconds at the observed worst case → 15.88 seconds for
 the fastest warm launch. The initial five-run controlled median was 88.13 seconds.**
 

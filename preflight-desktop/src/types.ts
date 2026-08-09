@@ -411,6 +411,19 @@ export interface ProfileActivationPlan {
   backup?: string;
 }
 
+export interface ProfileMutationPlan {
+  format: "starsector-preflight-profile-mutation-v1";
+  operation: "rename" | "delete";
+  name: string;
+  targetName: string | null;
+  profileFingerprint: string;
+  active: boolean;
+  modCount: number;
+  applied: boolean;
+  preparedDataKept: boolean;
+  backup?: string;
+}
+
 export type AppStatus = "loading" | "ready" | "setup" | "launching" | "running" | "error";
 export type NoticeTone = "info" | "success" | "warning" | "error";
 export type Announce = (message: string, tone?: NoticeTone) => void;

@@ -14,6 +14,7 @@ import type {
   NamedProfile,
   ProfileActivationPlan,
   ProfileList,
+  ProfileMutationPlan,
   RemovalPlan,
   PreparationStoragePlan,
 } from "./types";
@@ -244,6 +245,43 @@ test("dismissing a profile review cancels its late response", async () => {
   expect(result.current.activationPlan).toBeNull();
   expect(result.current.profileBusy).toBe(false);
   activation.mockRestore();
+});
+
+test("dismissing a profile mutation review cancels its late response", async () => {
+  const pending = deferred<ProfileMutationPlan>();
+  const rename = vi.spyOn(bridge, "renameProfile").mockImplementation(() => pending.promise);
+  const refreshInstallation = vi.fn(async () => true);
+  const refreshCache = vi.fn(async () => undefined);
+  const announce = vi.fn();
+  const { result } = renderHook(() => useProfiles(
+    "/game-a",
+    true,
+    refreshInstallation,
+    refreshCache,
+    announce,
+  ));
+  await waitFor(() => expect(result.current.profiles?.installRoot).toBe("/game-a"));
+
+  act(() => {
+    void result.current.reviewRenameProfile("Main campaign", "Long campaign");
+  });
+  await waitFor(() => expect(rename).toHaveBeenCalled());
+  act(() => result.current.dismissMutationPlan());
+  await act(async () => pending.resolve({
+    format: "starsector-preflight-profile-mutation-v1",
+    operation: "rename",
+    name: "Main campaign",
+    targetName: "Long campaign",
+    profileFingerprint: "preview-profile",
+    active: true,
+    modCount: 83,
+    applied: false,
+    preparedDataKept: true,
+  }));
+
+  expect(result.current.mutationPlan).toBeNull();
+  expect(result.current.profileBusy).toBe(false);
+  rename.mockRestore();
 });
 
 test("saving a profile preserves a newer name typed while the save completes", async () => {

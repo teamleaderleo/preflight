@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { activateProfile, getProfiles, saveProfile } from "./bridge";
-import type { Announce, ProfileActivationPlan, ProfileList } from "./types";
+import {
+  activateProfile,
+  deleteProfile,
+  getProfiles,
+  renameProfile,
+  saveProfile,
+} from "./bridge";
+import type {
+  Announce,
+  ProfileActivationPlan,
+  ProfileList,
+  ProfileMutationPlan,
+} from "./types";
 
 export function useProfiles(
   game: string | undefined,
@@ -15,6 +26,8 @@ export function useProfiles(
   const [profileBusy, setProfileBusy] = useState(false);
   const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
   const [activationPlanGame, setActivationPlanGame] = useState<string | null>(null);
+  const [mutationPlan, setMutationPlan] = useState<ProfileMutationPlan | null>(null);
+  const [mutationPlanGame, setMutationPlanGame] = useState<string | null>(null);
   const profilesRequest = useRef(0);
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
@@ -51,6 +64,8 @@ export function useProfiles(
     setProfileName("");
     setActivationPlan(null);
     setActivationPlanGame(null);
+    setMutationPlan(null);
+    setMutationPlanGame(null);
   }, [game]);
 
   useEffect(() => {
@@ -96,8 +111,79 @@ export function useProfiles(
     try {
       const plan = await activateProfile(expectedGame, name, false);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
+      setMutationPlan(null);
+      setMutationPlanGame(null);
       setActivationPlan(plan);
       setActivationPlanGame(expectedGame);
+    } catch (error) {
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
+    } finally {
+      if (request === actionRequest.current) {
+        busyRef.current = false;
+        setProfileBusy(false);
+      }
+    }
+  };
+
+  const reviewProfileMutation = async (
+    operation: "rename" | "delete",
+    name: string,
+    targetName?: string,
+  ) => {
+    const expectedGame = game;
+    if (!expectedGame || busyRef.current) return;
+    const request = ++actionRequest.current;
+    busyRef.current = true;
+    setProfileBusy(true);
+    try {
+      const plan = operation === "rename"
+        ? await renameProfile(expectedGame, name, targetName ?? "", null, false)
+        : await deleteProfile(expectedGame, name, null, false);
+      if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
+      setActivationPlan(null);
+      setActivationPlanGame(null);
+      setMutationPlan(plan);
+      setMutationPlanGame(expectedGame);
+    } catch (error) {
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
+    } finally {
+      if (request === actionRequest.current) {
+        busyRef.current = false;
+        setProfileBusy(false);
+      }
+    }
+  };
+
+  const applyProfileMutation = async () => {
+    const expectedGame = game;
+    const reviewedPlan = mutationPlanGame === game ? mutationPlan : null;
+    if (!expectedGame || !reviewedPlan || busyRef.current) return;
+    const request = ++actionRequest.current;
+    busyRef.current = true;
+    setProfileBusy(true);
+    try {
+      const result = reviewedPlan.operation === "rename"
+        ? await renameProfile(
+          expectedGame,
+          reviewedPlan.name,
+          reviewedPlan.targetName ?? "",
+          reviewedPlan.profileFingerprint,
+          true,
+        )
+        : await deleteProfile(
+          expectedGame,
+          reviewedPlan.name,
+          reviewedPlan.profileFingerprint,
+          true,
+        );
+      if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
+      await refreshProfiles();
+      if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
+      setMutationPlan(null);
+      setMutationPlanGame(null);
+      announce(result.operation === "rename"
+        ? `Renamed “${result.name}” to “${result.targetName}”.`
+        : `Deleted “${result.name}”. Its prepared data was kept.`, "success");
     } catch (error) {
       if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
@@ -152,6 +238,8 @@ export function useProfiles(
     setProfileBusy(false);
     setActivationPlan(null);
     setActivationPlanGame(null);
+    setMutationPlan(null);
+    setMutationPlanGame(null);
   };
   const changeProfileName = (name: string) => {
     profileNameRevision.current += 1;
@@ -164,21 +252,35 @@ export function useProfiles(
     setActivationPlan(null);
     setActivationPlanGame(null);
   };
+  const dismissMutationPlan = () => {
+    actionRequest.current += 1;
+    busyRef.current = false;
+    setProfileBusy(false);
+    setMutationPlan(null);
+    setMutationPlanGame(null);
+  };
   const currentProfiles = profiles?.installRoot === game ? profiles : null;
   const currentActivationPlan = activationPlanGame === game ? activationPlan : null;
+  const currentMutationPlan = mutationPlanGame === game ? mutationPlan : null;
 
   return {
     activationPlan: currentActivationPlan,
+    mutationPlan: currentMutationPlan,
     profileBusy,
     profileName,
     profiles: currentProfiles,
     profilesLoading,
     applyProfile,
+    applyProfileMutation,
     clearProfiles,
     refreshProfiles,
     reviewProfile,
+    reviewDeleteProfile: (name: string) => reviewProfileMutation("delete", name),
+    reviewRenameProfile: (name: string, targetName: string) =>
+      reviewProfileMutation("rename", name, targetName),
     saveCurrentProfile,
     dismissActivationPlan,
+    dismissMutationPlan,
     setProfileName: changeProfileName,
   };
 }

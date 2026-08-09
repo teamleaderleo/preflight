@@ -1,8 +1,8 @@
 # Desktop redesign brief
 
-**Status:** implementation in progress; launch console and primary navigation landed
+**Status:** implementation in progress; primary workflows and responsive shell landed
 
-**Updated:** 2026-08-09
+**Updated:** 2026-08-10
 
 Preflight's desktop app has the right capabilities and too much explanation in the primary path.
 The redesign should make the ordinary job obvious: find the game, prepare what is useful, launch it
@@ -54,6 +54,8 @@ cleanup previews are bound to the installation that produced them. Installation 
 activation and preparation-policy changes stay disabled while preparation or the game is running.
 Profile reviews, saves and activation responses are likewise bound to their installation, run
 single-flight and preserve a newer name typed while an earlier save completes.
+Rename and delete use the same preview-first contract. Confirmation is bound to the reviewed
+profile fingerprint; delete keeps prepared data and writes a recoverable named-profile backup.
 Removal review and application are single-flight, and the final destructive action inherits the
 same global operation lock as its preview controls.
 Native event streams share one lifecycle helper that also unregisters subscriptions resolved after a
@@ -94,9 +96,11 @@ instead of smaller type.
 
 The working palette uses near-black, desaturated navy surfaces with muted steel-blue borders. Blue
 marks focus and movement; amber is reserved for warnings and waypoint details. The app mark is a
-compact spacecraft design sketch on dark drafting paper. Its bold outer structure survives small
+dark navy spacecraft sketch on warm drafting paper. Its bold outer structure survives small
 launcher and Dock sizes while the larger versions retain construction lines, a clipped technical
-frame and one amber waypoint. Light mode keeps the same drafting-grid hierarchy on blue-grey paper.
+frame and one amber waypoint. Both app themes use the same light-paper mark.
+
+![Named profile management in the light drafting-paper theme](images/desktop-profiles-light.png)
 
 ## Copy and disclosure
 

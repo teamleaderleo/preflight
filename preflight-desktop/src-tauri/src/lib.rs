@@ -22,9 +22,9 @@ use automation::{
 };
 use engine::{
     EnginePaths, activate_profile, apply_cache_cleanup, apply_removal, canonical_game_directory,
-    export_diagnostics, get_cache, get_cache_cleanup, get_cache_health, get_launch_settings,
-    get_profiles, get_removal_plan, get_snapshot, repair_cache, save_profile,
-    update_launch_settings,
+    delete_profile, export_diagnostics, get_cache, get_cache_cleanup, get_cache_health,
+    get_launch_settings, get_profiles, get_removal_plan, get_snapshot, rename_profile,
+    repair_cache, save_profile, update_launch_settings,
 };
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
 use preparation::{cancel_preparation, get_preparation_plan, start_preparation};
@@ -308,6 +308,8 @@ pub fn run() {
             get_profiles,
             save_profile,
             activate_profile,
+            rename_profile,
+            delete_profile,
             start_game,
             get_operation_state,
             get_preparation_plan,
@@ -353,7 +355,8 @@ mod tests {
     };
     use crate::engine::{
         LaunchSettingsInput, configure_cache_health_command, diagnostic_output_path,
-        validate_cache_repair_state, validate_launch_settings, validate_removal_scope,
+        validate_cache_repair_state, validate_launch_settings, validate_profile_mutation_state,
+        validate_removal_scope,
     };
     use crate::operations::{
         DesktopSmokeProcess, OperationCoordinator, OperationState, PreparationProcess,
@@ -504,6 +507,42 @@ mod tests {
             ..OperationState::default()
         };
         assert!(validate_cache_repair_state(&read_only_neighbors).is_ok());
+    }
+
+    #[test]
+    fn named_profile_mutations_wait_for_update_game_and_preparation() {
+        assert!(validate_profile_mutation_state(&OperationState::default()).is_ok());
+
+        let update = OperationState {
+            update_installing: true,
+            ..OperationState::default()
+        };
+        assert_eq!(
+            "Wait for the Preflight update to finish installing.",
+            validate_profile_mutation_state(&update).unwrap_err()
+        );
+
+        let game = OperationState {
+            game: Some(61),
+            ..OperationState::default()
+        };
+        assert_eq!(
+            "Close Starsector before changing named profiles.",
+            validate_profile_mutation_state(&game).unwrap_err()
+        );
+
+        let (preparation_cancel, _preparation_cancelled) = mpsc::channel();
+        let preparation = OperationState {
+            preparation: Some(PreparationProcess {
+                pid: 62,
+                cancel: preparation_cancel,
+            }),
+            ..OperationState::default()
+        };
+        assert_eq!(
+            "Wait for profile preparation to finish before changing named profiles.",
+            validate_profile_mutation_state(&preparation).unwrap_err()
+        );
     }
 
     #[test]

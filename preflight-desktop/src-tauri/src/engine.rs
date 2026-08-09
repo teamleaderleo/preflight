@@ -16,7 +16,7 @@ pub(crate) struct EnginePaths {
 
 impl EnginePaths {
     pub(crate) fn resolve(app: &AppHandle) -> Result<Self, String> {
-        let bundled_jar = || bundled_resource(app, Path::new("engine/preflight.jar"));
+        let bundled_jar = || bundled_resource_file(app, Path::new("engine/preflight.jar"));
         #[cfg(debug_assertions)]
         let jar = env::var_os("PREFLIGHT_DESKTOP_JAR")
             .map(PathBuf::from)
@@ -62,13 +62,13 @@ fn development_jar() -> Option<PathBuf> {
 
 fn bundled_java(app: &AppHandle) -> Option<PathBuf> {
     let executable = if cfg!(windows) { "javaw.exe" } else { "java" };
-    bundled_resource(
+    bundled_resource_file(
         app,
         Path::new("engine/runtime/bin").join(executable).as_path(),
     )
 }
 
-fn bundled_resource(app: &AppHandle, relative: &Path) -> Option<PathBuf> {
+pub(crate) fn bundled_resource_file(app: &AppHandle, relative: &Path) -> Option<PathBuf> {
     app.path()
         .resolve(relative, BaseDirectory::Resource)
         .ok()
@@ -285,6 +285,94 @@ pub(crate) fn activate_profile(
     );
     drop(running);
     result
+}
+
+#[tauri::command]
+pub(crate) fn rename_profile(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+    new_name: String,
+    expected_profile: Option<String>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    mutate_profile_json(
+        &app,
+        &tracker,
+        &game,
+        "rename",
+        &name,
+        Some(&new_name),
+        expected_profile.as_deref(),
+        confirmed,
+    )
+}
+
+#[tauri::command]
+pub(crate) fn delete_profile(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    game: String,
+    name: String,
+    expected_profile: Option<String>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    mutate_profile_json(
+        &app,
+        &tracker,
+        &game,
+        "delete",
+        &name,
+        None,
+        expected_profile.as_deref(),
+        confirmed,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn mutate_profile_json(
+    app: &AppHandle,
+    tracker: &OperationCoordinator,
+    game: &str,
+    operation: &str,
+    name: &str,
+    target_name: Option<&str>,
+    expected_profile: Option<&str>,
+    confirmed: bool,
+) -> Result<Value, String> {
+    let mut arguments = vec!["profile", operation, name];
+    if let Some(target_name) = target_name {
+        arguments.push(target_name);
+    }
+    if confirmed {
+        let expected_profile = expected_profile.ok_or_else(|| {
+            "Review this named-profile change again before applying it.".to_string()
+        })?;
+        arguments.extend(["--expected-profile", expected_profile, "--yes"]);
+        let running = tracker
+            .0
+            .lock()
+            .map_err(|_| "The process tracker is unavailable.".to_string())?;
+        validate_profile_mutation_state(&running)?;
+        let result = profile_json(app, game, &arguments, false);
+        drop(running);
+        return result;
+    }
+    profile_json(app, game, &arguments, false)
+}
+
+pub(crate) fn validate_profile_mutation_state(state: &OperationState) -> Result<(), String> {
+    refuse_update_install(state)?;
+    if state.game.is_some() {
+        return Err("Close Starsector before changing named profiles.".to_string());
+    }
+    if state.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before changing named profiles.".to_string(),
+        );
+    }
+    Ok(())
 }
 
 fn profile_json(

@@ -15,6 +15,7 @@ import type {
   OperationSnapshot,
   ProfileActivationPlan,
   ProfileList,
+  ProfileMutationPlan,
   PreparationStoragePlan,
   RemovalPlan,
   RemovalScope,
@@ -473,6 +474,65 @@ export async function activateProfile(
     };
   }
   return invoke<ProfileActivationPlan>("activate_profile", { game, name, confirmed });
+}
+
+export async function renameProfile(
+  game: string,
+  name: string,
+  newName: string,
+  expectedProfile: string | null,
+  confirmed: boolean,
+): Promise<ProfileMutationPlan> {
+  if (!isDesktopHost()) {
+    const profile = previewProfiles.find((candidate) => candidate.name === name) ?? previewProfiles[0];
+    return {
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "rename",
+      name: profile.name,
+      targetName: newName,
+      profileFingerprint: profile.profileFingerprint,
+      active: profile.active,
+      modCount: profile.modCount,
+      applied: confirmed && expectedProfile === profile.profileFingerprint,
+      preparedDataKept: true,
+    };
+  }
+  return invoke<ProfileMutationPlan>("rename_profile", {
+    game,
+    name,
+    newName,
+    expectedProfile,
+    confirmed,
+  });
+}
+
+export async function deleteProfile(
+  game: string,
+  name: string,
+  expectedProfile: string | null,
+  confirmed: boolean,
+): Promise<ProfileMutationPlan> {
+  if (!isDesktopHost()) {
+    const profile = previewProfiles.find((candidate) => candidate.name === name) ?? previewProfiles[0];
+    return {
+      format: "starsector-preflight-profile-mutation-v1",
+      operation: "delete",
+      name: profile.name,
+      targetName: null,
+      profileFingerprint: profile.profileFingerprint,
+      active: profile.active,
+      modCount: profile.modCount,
+      applied: confirmed && expectedProfile === profile.profileFingerprint,
+      preparedDataKept: true,
+      ...(confirmed ? { backup: "~/.starsector-preflight/profile-backups/deleted-profile.json" } : {}),
+    };
+  }
+  return invoke<ProfileMutationPlan>("delete_profile", {
+    game,
+    name,
+    expectedProfile,
+    confirmed,
+  });
 }
 
 export async function startPreparation(

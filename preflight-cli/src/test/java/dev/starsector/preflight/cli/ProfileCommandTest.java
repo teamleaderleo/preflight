@@ -98,6 +98,96 @@ final class ProfileCommandTest {
         assertTrue(retained.diagnostics().get(0).contains("broken.json"));
     }
 
+    @Test
+    void renameIsPreviewedAndFingerprintBoundBeforeItChangesAnything() throws Exception {
+        Fixture fixture = fixture(List.of("alpha", "beta"));
+        ByteArrayOutputStream saved = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Old name", true, stream(saved)));
+        String fingerprint = JsonText.string(saved.toString(StandardCharsets.UTF_8), "profileFingerprint");
+
+        ByteArrayOutputStream preview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.rename(
+                fixture.home(), fixture.game(), "Old name", "New name", null,
+                false, true, stream(preview)));
+        assertTrue(preview.toString(StandardCharsets.UTF_8).contains("\"applied\":false"));
+        assertTrue(list(fixture).contains("\"name\":\"Old name\""));
+
+        ByteArrayOutputStream applied = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.rename(
+                fixture.home(), fixture.game(), "Old name", "New name", fingerprint,
+                true, true, stream(applied)));
+        assertTrue(applied.toString(StandardCharsets.UTF_8).contains("\"applied\":true"));
+        String listed = list(fixture);
+        assertTrue(listed.contains("\"name\":\"New name\""));
+        assertFalse(listed.contains("\"name\":\"Old name\""));
+        assertEquals(
+                java.util.Set.of(fingerprint),
+                ProfileCommand.retainedFingerprints(fixture.home()).fingerprints());
+    }
+
+    @Test
+    void renameRefusesAnExistingNameAndDeleteKeepsARecoverableBackup() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        ByteArrayOutputStream first = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "First", true, stream(first)));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Second", false, stream(new ByteArrayOutputStream())));
+        String fingerprint = JsonText.string(first.toString(StandardCharsets.UTF_8), "profileFingerprint");
+
+        boolean collision = false;
+        try {
+            ProfileCommand.rename(
+                    fixture.home(), fixture.game(), "First", "Second", null,
+                    false, true, stream(new ByteArrayOutputStream()));
+        } catch (java.io.IOException expected) {
+            collision = expected.getMessage().contains("already exists");
+        }
+        assertTrue(collision);
+
+        ByteArrayOutputStream preview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.delete(
+                fixture.home(), fixture.game(), "First", null,
+                false, true, stream(preview)));
+        assertTrue(preview.toString(StandardCharsets.UTF_8).contains("\"preparedDataKept\":true"));
+        assertTrue(list(fixture).contains("\"name\":\"First\""));
+
+        ByteArrayOutputStream deleted = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.delete(
+                fixture.home(), fixture.game(), "First", fingerprint,
+                true, true, stream(deleted)));
+        assertFalse(list(fixture).contains("\"name\":\"First\""));
+        assertTrue(deleted.toString(StandardCharsets.UTF_8).contains("\"backup\":"));
+        try (var backups = Files.list(fixture.home().profileBackups())) {
+            assertTrue(backups.anyMatch(path -> path.getFileName().toString().startsWith("deleted-profile-")));
+        }
+    }
+
+    @Test
+    void mutationRefusesAProfileThatChangedAfterReview() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "Campaign", false, stream(new ByteArrayOutputStream())));
+
+        boolean refused = false;
+        try {
+            ProfileCommand.delete(
+                    fixture.home(), fixture.game(), "Campaign", "0".repeat(64),
+                    true, true, stream(new ByteArrayOutputStream()));
+        } catch (java.io.IOException expected) {
+            refused = expected.getMessage().contains("changed since review");
+        }
+        assertTrue(refused);
+        assertTrue(list(fixture).contains("\"name\":\"Campaign\""));
+    }
+
+    private static String list(Fixture fixture) throws Exception {
+        ByteArrayOutputStream listed = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.list(fixture.home(), fixture.game(), true, stream(listed)));
+        return listed.toString(StandardCharsets.UTF_8);
+    }
+
     private Fixture fixture(List<String> enabled) throws Exception {
         Path game = Files.createDirectories(temporaryDirectory.resolve("game"));
         Path mods = Files.createDirectories(game.resolve("mods"));

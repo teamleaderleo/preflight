@@ -15,11 +15,20 @@ MAX_REVIEWED_BLOB_BYTES = 512 * 1024
 REVIEWED_OVERSIZED_BLOBS = {
     "preflight-desktop/src-tauri/icons/icon.icns": frozenset(
         {
+            (2_306_590, "7e3be710fe97bb6cc566fccd62408db5734c8932282611f46fbe53cbf84b1b53"),
             (2_853_963, "3e6c91921e576fc00a7cb937ff437acc0615099bf29c774d8521c1fe78f08a5e"),
             (1_746_720, "05ca5e3efb0c65533cdb45e944ae3e941651cd0da45a9a8e30e72b8ca76c0a7f"),
             (1_201_813, "9f600da93bdd51b2e4a94bda5a111fc53559fe478781e29b2e27f44b13ac8e7d"),
         }
     )
+}
+REVIEWED_DOCUMENTATION_IMAGES = {
+    "docs/images/desktop-home-dark.png":
+        (61_109, "ac4840d1424bddf7f2ede41ef9f12188d2bf2eb2c77746995fb139798a10f831"),
+    "docs/images/desktop-home-light.png":
+        (64_418, "eb11473f6877972ddde5cf04f594233e9f5c6aec7e5d007c3429fade36a67d7a"),
+    "docs/images/desktop-profiles-light.png":
+        (59_424, "3d132ecb8433b1ac7e2e664939f3f426c2a5520b79a544abd5b073887ac224ce"),
 }
 FORBIDDEN_SEGMENTS = frozenset({"activation", "mods", "saves", "screenshots"})
 FORBIDDEN_BASENAMES = frozenset(
@@ -94,7 +103,7 @@ def validate_blob(name: str, data: bytes) -> None:
             data.decode("utf-8")
         except UnicodeDecodeError:
             binary = True
-    if binary and not allowed_binary(name):
+    if binary and not (allowed_binary(name) or reviewed_documentation_image(name, data)):
         raise SourceBoundaryError(f"unexpected binary repository blob: {name}")
 
 
@@ -108,6 +117,13 @@ def reviewed_oversized_blob(name: str, data: bytes) -> bool:
 def allowed_binary(name: str) -> bool:
     path = PurePosixPath(name)
     return name.startswith(ALLOWED_BINARY_PREFIXES) and path.suffix.lower() in ALLOWED_BINARY_SUFFIXES
+
+
+def reviewed_documentation_image(name: str, data: bytes) -> bool:
+    fingerprint = REVIEWED_DOCUMENTATION_IMAGES.get(name)
+    if fingerprint is None:
+        return False
+    return (len(data), hashlib.sha256(data).hexdigest()) == fingerprint
 
 
 def git(repository: Path, *args: str, input_data: bytes | None = None) -> bytes:
@@ -208,7 +224,7 @@ def validate_repository(repository: Path) -> dict[str, int]:
             raise SourceBoundaryError(f"tracked entry isn't a regular file: {name}")
         data = path.read_bytes()
         validate_blob(name, data)
-        binary_files += int(allowed_binary(name))
+        binary_files += int(allowed_binary(name) or reviewed_documentation_image(name, data))
         licensed_fixtures += int(name.startswith(LICENSED_FIXTURE_PREFIXES))
 
     history = historical_blobs(repository)

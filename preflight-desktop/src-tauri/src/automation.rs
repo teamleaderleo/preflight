@@ -1,3 +1,4 @@
+use crate::engine::bundled_resource_file;
 use crate::operations::{DesktopSmokeProcess, OperationCoordinator, refuse_update_install};
 use crate::{
     EnginePaths, RunStarted, canonical_game_directory, child_error, read_tail, take_deferred_exit,
@@ -9,7 +10,6 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 pub(crate) const DESKTOP_SMOKE_CANCELLATION_FILE: &str = "cancel.requested";
@@ -82,20 +82,15 @@ fn validate_benchmark_scenario(paths: &EnginePaths, scenario: &Path) -> Result<(
 }
 
 fn desktop_benchmark_scenarios(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
-    let optimized = app
-        .path()
-        .resolve("engine/scenarios/startup.json", BaseDirectory::Resource)
-        .map_err(|error| format!("Could not resolve the automated-test scenario: {error}"))?;
-    let measurement = app
-        .path()
-        .resolve(
-            "engine/scenarios/startup-measurement-only.json",
-            BaseDirectory::Resource,
-        )
-        .map_err(|error| format!("Could not resolve the benchmark scenario: {error}"))?;
-    if !optimized.is_file() || !measurement.is_file() {
-        return Err("A packaged benchmark scenario is missing. Reinstall Preflight.".to_string());
-    }
+    let optimized = bundled_resource_file(app, Path::new("engine/scenarios/startup.json"))
+        .ok_or_else(|| {
+            "A packaged benchmark scenario is missing. Reinstall Preflight.".to_string()
+        })?;
+    let measurement = bundled_resource_file(
+        app,
+        Path::new("engine/scenarios/startup-measurement-only.json"),
+    )
+    .ok_or_else(|| "A packaged benchmark scenario is missing. Reinstall Preflight.".to_string())?;
     Ok((measurement, optimized))
 }
 

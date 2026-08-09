@@ -126,7 +126,10 @@ mod platform {
     fn handle_connection(mut stream: TcpStream, token: &str, run_directory: Option<&Path>) {
         let _ = stream.set_read_timeout(Some(COMMAND_TIMEOUT));
         let _ = stream.set_write_timeout(Some(COMMAND_TIMEOUT));
-        let response = read_request(&mut stream)
+        let response = stream
+            .set_nonblocking(false)
+            .map_err(|error| format!("Could not configure the macOS automation request: {error}"))
+            .and_then(|()| read_request(&mut stream))
             .and_then(|request| execute_request(request, token, run_directory));
         let response = match response {
             Ok(output) => Response {
@@ -409,26 +412,28 @@ mod platform {
             let bridge = DesktopAutomationBridge::start(None).unwrap();
             assert!(bridge.endpoint.starts_with("127.0.0.1:"));
             assert_eq!(bridge.token.len(), 64);
-            let mut stream = TcpStream::connect(&bridge.endpoint).unwrap();
-            stream
-                .write_all(
-                    br#"{"protocol":1,"token":"wrong","operation":"probe","pid":null,"argument":null}
+            for _ in 0..8 {
+                let mut stream = TcpStream::connect(&bridge.endpoint).unwrap();
+                stream
+                    .write_all(
+                        br#"{"protocol":1,"token":"wrong","operation":"probe","pid":null,"argument":null}
 "#,
-                )
-                .unwrap();
-            stream.shutdown(std::net::Shutdown::Write).unwrap();
-            let mut response = String::new();
-            stream.read_to_string(&mut response).unwrap();
-            let value: Value = serde_json::from_str(&response).unwrap();
-            assert_eq!(value["protocol"], 1);
-            assert_eq!(value["ok"], false);
-            assert!(
-                value["error"]
-                    .as_str()
-                    .unwrap()
-                    .contains("isn't authorized"),
-                "{value}"
-            );
+                    )
+                    .unwrap();
+                stream.shutdown(std::net::Shutdown::Write).unwrap();
+                let mut response = String::new();
+                stream.read_to_string(&mut response).unwrap();
+                let value: Value = serde_json::from_str(&response).unwrap();
+                assert_eq!(value["protocol"], 1);
+                assert_eq!(value["ok"], false);
+                assert!(
+                    value["error"]
+                        .as_str()
+                        .unwrap()
+                        .contains("isn't authorized"),
+                    "{value}"
+                );
+            }
         }
     }
 }

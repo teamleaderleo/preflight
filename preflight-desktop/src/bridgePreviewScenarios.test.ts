@@ -2,12 +2,14 @@ import { afterEach, expect, test } from "vitest";
 import {
   browserPreviewScenario,
   checkForUpdate,
+  deleteProfile,
   getCache,
   getCacheHealth,
   getDesktopSmokeProbe,
   getPreparationPlan,
   getProfiles,
   getSnapshot,
+  renameProfile,
 } from "./bridge";
 
 afterEach(() => {
@@ -54,4 +56,30 @@ test("profile, benchmark, and update previews remain explicit and bounded", asyn
 
   useScenario("update-error");
   await expect(checkForUpdate()).rejects.toThrow("preview update service");
+});
+
+test("profile mutation previews remain inert until the reviewed fingerprint is confirmed", async () => {
+  const renamed = await renameProfile("preview", "Main campaign", "Long campaign", null, false);
+  expect(renamed).toMatchObject({
+    operation: "rename",
+    targetName: "Long campaign",
+    applied: false,
+    preparedDataKept: true,
+  });
+  expect(await renameProfile(
+    "preview",
+    "Main campaign",
+    "Long campaign",
+    renamed.profileFingerprint,
+    true,
+  )).toMatchObject({ applied: true });
+
+  const deleted = await deleteProfile("preview", "Main campaign", null, false);
+  expect(deleted).toMatchObject({ operation: "delete", applied: false, preparedDataKept: true });
+  expect(await deleteProfile(
+    "preview",
+    "Main campaign",
+    deleted.profileFingerprint,
+    true,
+  )).toMatchObject({ applied: true, backup: expect.stringContaining("profile-backups") });
 });

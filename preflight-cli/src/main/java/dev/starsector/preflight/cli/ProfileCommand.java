@@ -37,19 +37,36 @@ final class ProfileCommand {
         }
         String operation = args[offset];
         String name = null;
+        String targetName = null;
         int optionsAt = offset + 1;
-        if ("save".equals(operation) || "activate".equals(operation)) {
+        if ("save".equals(operation) || "activate".equals(operation) || "delete".equals(operation)) {
             if (optionsAt >= args.length || args[optionsAt].startsWith("--")) {
                 throw new IllegalArgumentException("profile " + operation + " requires a name");
             }
             name = validateName(args[optionsAt++]);
+        } else if ("rename".equals(operation)) {
+            if (optionsAt + 1 >= args.length
+                    || args[optionsAt].startsWith("--")
+                    || args[optionsAt + 1].startsWith("--")) {
+                throw new IllegalArgumentException("profile rename requires the current and new names");
+            }
+            name = validateName(args[optionsAt++]);
+            targetName = validateName(args[optionsAt++]);
         } else if (!"list".equals(operation)) {
-            throw new IllegalArgumentException("Expected: profile <list|save|activate> ...");
+            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|delete> ...");
         }
 
         Options options = Options.parse(args, optionsAt);
-        if (options.confirmed() && !"activate".equals(operation)) {
-            throw new IllegalArgumentException("--yes is only valid for profile activate");
+        boolean mutation = "rename".equals(operation) || "delete".equals(operation);
+        if (options.confirmed() && !("activate".equals(operation) || mutation)) {
+            throw new IllegalArgumentException("--yes is only valid for profile activate, rename, or delete");
+        }
+        if (options.expectedProfile() != null && !mutation) {
+            throw new IllegalArgumentException("--expected-profile is only valid for profile rename or delete");
+        }
+        if (mutation && options.confirmed() && options.expectedProfile() == null) {
+            throw new IllegalArgumentException(
+                    "profile " + operation + " --yes requires --expected-profile from its preview");
         }
         LaunchTarget target = discover(options.game(), options.launcher());
         PreflightHome home = PreflightHome.current();
@@ -58,6 +75,23 @@ final class ProfileCommand {
             case "save" -> save(home, target.installRoot(), name, options.json(), System.out);
             case "activate" -> activate(
                     home, target.installRoot(), name, options.confirmed(), options.json(), System.out);
+            case "rename" -> rename(
+                    home,
+                    target.installRoot(),
+                    name,
+                    targetName,
+                    options.expectedProfile(),
+                    options.confirmed(),
+                    options.json(),
+                    System.out);
+            case "delete" -> delete(
+                    home,
+                    target.installRoot(),
+                    name,
+                    options.expectedProfile(),
+                    options.confirmed(),
+                    options.json(),
+                    System.out);
             default -> throw new IllegalStateException("Unexpected profile operation " + operation);
         };
     }
@@ -143,6 +177,175 @@ final class ProfileCommand {
         OperationLease.Acquisition ownership = OperationLease.acquire(home, "switching-profile", installRoot);
         try (OperationLease ignored = ownership.lease()) {
             return activateOwned(home, installRoot, name, true, json, out);
+        }
+    }
+
+    static int rename(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        name = validateName(name);
+        targetName = validateName(targetName);
+        if (name.equals(targetName)) {
+            throw new IllegalArgumentException("The new profile name must be different");
+        }
+        if (!confirmed) {
+            return renameOwned(home, installRoot, name, targetName, null, false, json, out);
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "renaming-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            return renameOwned(home, installRoot, name, targetName, expectedProfile, true, json, out);
+        }
+    }
+
+    private static int renameOwned(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String targetName,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        GameLayout layout = GameLayout.locate(installRoot);
+        SavedProfile profile = readProfile(profilePath(home, name));
+        requireProfileName(profile, name);
+        Path target = profilePath(home, targetName);
+        if (Files.exists(target)) {
+            throw new IOException("A named profile already exists: " + targetName);
+        }
+        Map<String, Object> plan = mutationPlan("rename", profile, layout, targetName);
+        if (!confirmed) {
+            emitMutation(plan, json, out);
+            return 0;
+        }
+        requireExpectedProfile(profile, expectedProfile);
+        SavedProfile renamed = new SavedProfile(
+                targetName,
+                profile.installRoot(),
+                profile.enabledMods(),
+                profile.profileFingerprint(),
+                profile.savedAt(),
+                target);
+        atomicWrite(target, Json.object(renamed.persisted()) + System.lineSeparator());
+        try {
+            Files.delete(profile.file());
+        } catch (IOException deleteFailure) {
+            Files.deleteIfExists(target);
+            throw deleteFailure;
+        }
+        plan.put("applied", true);
+        emitMutation(plan, json, out);
+        return 0;
+    }
+
+    static int delete(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        name = validateName(name);
+        if (!confirmed) {
+            return deleteOwned(home, installRoot, name, null, false, json, out);
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "deleting-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            return deleteOwned(home, installRoot, name, expectedProfile, true, json, out);
+        }
+    }
+
+    private static int deleteOwned(
+            PreflightHome home,
+            Path installRoot,
+            String name,
+            String expectedProfile,
+            boolean confirmed,
+            boolean json,
+            PrintStream out) throws Exception {
+        GameLayout layout = GameLayout.locate(installRoot);
+        SavedProfile profile = readProfile(profilePath(home, name));
+        requireProfileName(profile, name);
+        Map<String, Object> plan = mutationPlan("delete", profile, layout, null);
+        if (!confirmed) {
+            emitMutation(plan, json, out);
+            return 0;
+        }
+        requireExpectedProfile(profile, expectedProfile);
+        Path backup = backupProfile(home, profile);
+        Files.delete(profile.file());
+        plan.put("applied", true);
+        plan.put("backup", backup);
+        emitMutation(plan, json, out);
+        return 0;
+    }
+
+    private static Map<String, Object> mutationPlan(
+            String operation, SavedProfile profile, GameLayout layout, String targetName) throws IOException {
+        List<String> current = readEnabled(layout.enabledModsFile());
+        Map<String, Object> plan = new LinkedHashMap<>();
+        plan.put("format", "starsector-preflight-profile-mutation-v1");
+        plan.put("operation", operation);
+        plan.put("name", profile.name());
+        plan.put("targetName", targetName);
+        plan.put("profileFingerprint", profile.profileFingerprint());
+        plan.put("active", profile.installRoot().equals(layout.installRoot())
+                && profile.enabledMods().equals(current));
+        plan.put("modCount", profile.enabledMods().size());
+        plan.put("applied", false);
+        plan.put("preparedDataKept", true);
+        return plan;
+    }
+
+    private static void requireProfileName(SavedProfile profile, String requestedName) throws IOException {
+        if (!profile.name().equals(requestedName)) {
+            throw new IOException("Named profile file does not match requested profile: " + requestedName);
+        }
+    }
+
+    private static void requireExpectedProfile(SavedProfile profile, String expectedProfile)
+            throws IOException {
+        if (expectedProfile == null
+                || !profile.profileFingerprint().equals(expectedProfile.toLowerCase(Locale.ROOT))) {
+            throw new IOException("Named profile changed since review; review it again");
+        }
+    }
+
+    private static Path backupProfile(PreflightHome home, SavedProfile profile) throws IOException {
+        Files.createDirectories(home.profileBackups());
+        Path backup = Files.createTempFile(
+                home.profileBackups(),
+                "deleted-profile-" + Instant.now().toEpochMilli() + "-",
+                ".json");
+        Files.copy(profile.file(), backup, StandardCopyOption.REPLACE_EXISTING);
+        return backup.toAbsolutePath().normalize();
+    }
+
+    private static void emitMutation(Map<String, Object> plan, boolean json, PrintStream out) {
+        if (json) {
+            out.println(Json.object(plan));
+            return;
+        }
+        String operation = String.valueOf(plan.get("operation"));
+        if ("rename".equals(operation)) {
+            out.printf(Locale.ROOT, "Rename profile '%s' to '%s': %s%n",
+                    plan.get("name"), plan.get("targetName"),
+                    Boolean.TRUE.equals(plan.get("applied")) ? "applied" : "preview only");
+        } else {
+            out.printf(Locale.ROOT, "Delete profile '%s': %s%n",
+                    plan.get("name"),
+                    Boolean.TRUE.equals(plan.get("applied")) ? "applied" : "preview only");
+        }
+        out.println("  prepared data is kept");
+        if (plan.get("backup") != null) {
+            out.println("  backup: " + plan.get("backup"));
         }
     }
 
@@ -436,22 +639,29 @@ final class ProfileCommand {
         return discovery.selected();
     }
 
-    private record Options(Path game, Path launcher, boolean confirmed, boolean json) {
+    private record Options(
+            Path game, Path launcher, String expectedProfile, boolean confirmed, boolean json) {
         static Options parse(String[] args, int offset) {
             Path game = null;
             Path launcher = null;
+            String expectedProfile = null;
             boolean confirmed = false;
             boolean json = false;
             for (int index = offset; index < args.length; index++) {
                 switch (args[index]) {
                     case "--game" -> game = Path.of(requireValue(args, ++index, "--game"));
                     case "--launcher" -> launcher = Path.of(requireValue(args, ++index, "--launcher"));
+                    case "--expected-profile" -> expectedProfile =
+                            requireValue(args, ++index, "--expected-profile").toLowerCase(Locale.ROOT);
                     case "--yes" -> confirmed = true;
                     case "--json" -> json = true;
                     default -> throw new IllegalArgumentException("Unknown profile option: " + args[index]);
                 }
             }
-            return new Options(game, launcher, confirmed, json);
+            if (expectedProfile != null && !expectedProfile.matches("[0-9a-f]{64}")) {
+                throw new IllegalArgumentException("--expected-profile must be a 64-character SHA-256");
+            }
+            return new Options(game, launcher, expectedProfile, confirmed, json);
         }
 
         private static String requireValue(String[] args, int index, String option) {

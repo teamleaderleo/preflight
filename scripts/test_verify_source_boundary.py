@@ -43,6 +43,15 @@ class SourceBoundaryTest(unittest.TestCase):
         with self.assertRaisesRegex(module.SourceBoundaryError, "exceeds"):
             module.validate_blob(name, data[:-1] + bytes([data[-1] ^ 1]))
 
+    def test_allows_only_exact_reviewed_documentation_images(self):
+        repository = MODULE_PATH.parent.parent
+        for name in module.REVIEWED_DOCUMENTATION_IMAGES:
+            with self.subTest(name=name):
+                data = (repository / name).read_bytes()
+                module.validate_blob(name, data)
+                with self.assertRaisesRegex(module.SourceBoundaryError, "unexpected binary"):
+                    module.validate_blob(name, data[:-1] + bytes([data[-1] ^ 1]))
+
     def test_rejects_oversized_blob_before_content_inspection(self):
         with self.assertRaisesRegex(module.SourceBoundaryError, "exceeds"):
             module.validate_blob("docs/large.txt", b"a" * (module.MAX_REVIEWED_BLOB_BYTES + 1))

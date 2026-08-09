@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App, { failedRunSummary, isCurrentProfilePrepared } from "./App";
 import * as bridge from "./bridge";
@@ -540,6 +540,61 @@ test("a profile with missing mods explains the problem without showing a dead sw
   await user.click(screen.getByRole("button", { name: "Profiles" }));
   expect(await screen.findByText("Missing: graphicslib")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Review switch" })).not.toBeInTheDocument();
+});
+
+test("named profiles can be renamed or deleted only after an exact review", async () => {
+  const user = userEvent.setup();
+  const rename = vi.spyOn(bridge, "renameProfile");
+  const remove = vi.spyOn(bridge, "deleteProfile");
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Profiles" }));
+  const mainCampaign = (await screen.findByText("Main campaign")).closest("article");
+  expect(mainCampaign).not.toBeNull();
+  if (!mainCampaign) return;
+
+  await user.click(within(mainCampaign).getByText("Manage"));
+  await user.click(within(mainCampaign).getByRole("button", { name: "Rename" }));
+  const renameInput = screen.getByRole("textbox", { name: "Rename Main campaign" });
+  await user.clear(renameInput);
+  await user.type(renameInput, "Long campaign");
+  await user.click(screen.getByRole("button", { name: "Review rename" }));
+
+  expect(await screen.findByRole("heading", { name: "Rename Main campaign to Long campaign?" })).toBeInTheDocument();
+  expect(screen.getByText(/mod list and prepared data stay unchanged/)).toBeInTheDocument();
+  expect(rename).toHaveBeenCalledWith(
+    "/Applications/Starsector",
+    "Main campaign",
+    "Long campaign",
+    null,
+    false,
+  );
+  await user.click(screen.getByRole("button", { name: "Rename profile" }));
+  await waitFor(() => expect(rename).toHaveBeenLastCalledWith(
+    "/Applications/Starsector",
+    "Main campaign",
+    "Long campaign",
+    "preview-profile",
+    true,
+  ));
+  expect(await screen.findByText("Renamed “Main campaign” to “Long campaign”.")).toBeInTheDocument();
+
+  await user.click(within(mainCampaign).getByText("Manage"));
+  await user.click(within(mainCampaign).getByRole("button", { name: "Delete" }));
+  expect(await screen.findByRole("heading", { name: "Delete Main campaign?" })).toBeInTheDocument();
+  expect(screen.getByText(/will not disable any mods/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Delete profile" }));
+  await waitFor(() => expect(remove).toHaveBeenLastCalledWith(
+    "/Applications/Starsector",
+    "Main campaign",
+    "preview-profile",
+    true,
+  ));
+  expect(await screen.findByText("Deleted “Main campaign”. Its prepared data was kept.")).toBeInTheDocument();
+
+  rename.mockRestore();
+  remove.mockRestore();
 });
 
 test("diagnostics disclose their boundary and export a bounded bundle", async () => {
