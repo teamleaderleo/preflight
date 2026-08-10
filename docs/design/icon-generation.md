@@ -28,3 +28,11 @@ sips -z 512 512 preflight-desktop/src/assets/preflight-mark-v10.png
 Tauri's icon command converts that PNG into the checked-in macOS and Windows icon set. Earlier
 marks remain in `preflight-desktop/src/assets` as design history and aren't consumed by the app or
 package.
+
+## Black-hole reference
+
+`preflight-desktop/src/assets/preflight-mark-v11-semicircle-reference.png` preserves the accepted
+full composition from the later black-hole exploration: the centered spacecraft and drafting grid,
+with a large circular black body cropped into a right-side semicircle and a thin attached glow. It
+is a design reference only and isn't consumed by the application. Later geometry experiments must
+start from this file or leave it unchanged so the accepted composition remains recoverable.

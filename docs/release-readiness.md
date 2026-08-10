@@ -1,7 +1,7 @@
 # Release readiness
 
 **Status:** private development preview; Fractal Softworks guidance requested, awaiting response
-**Updated:** 2026-08-09
+**Updated:** 2026-08-11
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
 not ready to publish merely because it is fast. This checklist is the release boundary for the
@@ -38,7 +38,10 @@ first public beta.
   platform-adapter probe that must return a valid driver or a specific unavailable reason.
   Native package exercises also use the checked [license-free Fusion contract](fusion-acceptance.md)
   for spaces-and-Unicode discovery, cold preparation, warm reuse, dry-run launch non-execution,
-  diagnostics filtering, and installation byte identity. Ubuntu ARM64 can run its portable source
+  diagnostics filtering, and installation byte identity. The current 2026-08-11 checkout's ordinary
+  unsigned macOS DMG passed package extraction, native-host boot, embedded-engine verification,
+  disposable installation and removal, that synthetic contract, and game/mod/save retention without
+  launching Starsector. Ubuntu ARM64 can run its portable source
   half, but can't validate the published x86-64 Linux package. Windows and Linux still need a
   completed hosted run of those checks, along with update/rollback and hosted-candidate completion.
   The first-beta checksum, warning, install, and removal instructions
@@ -166,7 +169,8 @@ first public beta.
   automation probe, pins its System Events disclosure, and rejects bundled-Java permission
   attribution. The exact evidence is recorded in
   [the native-package boundary](evidence/2026-08-07-native-package-boundary.md). A final tagged-candidate
-  run remains.
+  run remains. The 2026-08-11 full-history audit accepted 1,339 tracked files and 4,792 historical
+  paths, including the preserved unshipped icon reference, with no unreviewed oversized blob.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
 - [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.
