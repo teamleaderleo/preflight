@@ -1,410 +1,244 @@
 # Preflight
 
-**A performance launcher for Starsector. Make heavily modded installations start faster and run
-more smoothly without permanently patching the game, its mods, or your saves.**
+**A performance launcher for Starsector. Preflight prepares repeatable loading work ahead of time,
+then launches the same game and mod profile with those results ready to use.**
 
-> Preflight is an independent, unofficial project and isn't affiliated with or endorsed by Fractal
+> Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
 
-> **Development preview.** Public binaries aren't available yet. Distribution, descriptive use of
-> the Starsector name, and final disclaimer wording are pending written guidance from Fractal
-> Softworks. The remaining release gates are the complete hosted candidate, real Windows/Linux game
-> testing, and a fresh controlled before/after cohort on the exact release candidate. See
-> [Release readiness](docs/release-readiness.md).
+> **Development preview.** Public downloads aren't available yet. The remaining release gates are
+> written guidance from Fractal Softworks, real Windows and Linux game runs, a hosted release
+> candidate, and a fresh controlled before-and-after benchmark on that exact candidate. The current
+> checklist is in [Release readiness](docs/release-readiness.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-home-dark.png">
-  <img alt="Preflight desktop app ready to launch Starsector" src="docs/images/desktop-home-light.png">
+  <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**Measured development record: roughly 101 seconds at the observed worst case → 15.88 seconds for
-the fastest warm launch. The initial five-run controlled median was 88.13 seconds.**
+**Development record: roughly 101 seconds at the observed high end to a 15.88-second fastest warm
+launch. The initial five-run controlled median was 88.13 seconds.**
 
-Preflight prepares work that Starsector and its mods would otherwise repeat on every launch, then starts the same game and mod profile using those prepared results.
+Preflight found much of Starsector's heavily modded startup time in work whose answer was already
+determined by the game build, enabled mod order, and resource files. It prepares those answers once,
+stores them under exact content identities, and reuses them on matching launches. Starsector still
+constructs its live objects, applies mod ordering, registers scripts, uploads textures, and runs mod
+logic.
 
-The intended release experience is simple: install Preflight, choose **Recommended**, prepare the
-current mod profile once, then launch Starsector normally through Preflight. The same engine powers
-the desktop app and CLI. During development, the equivalent CLI setup is:
+## The measured result
 
-```bash
-java -jar preflight.jar install --prepare
-```
-
-Preparation is content-addressed and safe to repeat. A game or mod update selects new identities;
-unchanged artifacts are hits, interrupted work is resumed from completed blobs, and any missing or
-invalid prepared result falls back to the original game path at launch. Constrained machines can
-bound the preparation work explicitly, for example `--workers 2 --memory-mb 128`.
-
-The install command creates a normal local launcher. For unattended launches and benchmark
-automation, Preflight can also use Starsector's saved display and sound settings directly:
-
-```bash
-java -jar preflight.jar run --direct --optimization-preset recommended
-```
-
-## What has been demonstrated
-
-On the development machine — Starsector 0.98a-RC8, M5 MacBook Air, and the game's bundled x86-64
-Java runtime under Rosetta — the observed startup record moved from a roughly **101-second worst
-case to a 15.88-second fastest launch**. The established controlled baseline centered on **88.13
-seconds** across five runs. The current 83-mod **Recommended** path (`--fast` compatibility alias)
-produced the 15.88-second warm record after clean **16.66-second cold** and **16.28-second warm**
-production gates.
-
-The 15.88-second result is the current warm record. It retained 42/42 transformed-class cache hits,
-all 15,469 prepared-texture and
-pixel-conversion hits, active adapter health, and zero adapter decline or failure. The exact run is
-documented in [Codex fleet members are now created only when consumed](docs/evidence/2026-08-06-codex-lazy-fleet-members.md).
-
-The 101-second high, 88.13-second controlled median, and 15.88-second record are chronological
-reference points from different stages of development. A fresh release-candidate cohort will
-provide the same-session effect estimate. The controlled baseline is in the
-[29 percent texture campaign](docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md),
-the early high range is explained in the
-[benchmark-anchor diagnosis](docs/evidence/2026-08-01-the-bimodality-was-the-anchor.md), and the
-later accepted gates are collected in the
-[optimization history](docs/optimization-history.md).
-
-The next public performance claim will be a new controlled before/after cohort on the release
-candidate. Until then, reproduce the existing measurements with:
-
-```bash
-scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast,full --rounds 5
-```
-
-Results depend on the game build, mod set, cache warmth, storage, CPU, translation layer, memory
-pressure, and temperature. The harness lets beta users measure their own installations.
-
-| Repeated work removed | Count |
-| --- | ---: |
-| Cache or memo hits in the measured launch | **64,739** |
-| Counted operations removed or shortcut | **192,089** |
-| Empty texture allocation removed | **1.22 GiB** |
-
-The per-change arithmetic, individual multipliers, and source links are in the
-[accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
-The chronological, publication-oriented account is
-[From 101 seconds to 15.88: what changed in Starsector's loading path](docs/optimization-history.md).
-The [experiment ledger](docs/experiment-ledger.md) includes the unsuccessful and deferred branches.
-The [storage reference](docs/performance-storage-tradeoffs.md) collects the time-space choices.
-
-## Why it is faster
-
-The investigation traced startup, compared the game log with the visible loading screen, recorded
-thread activity, added unattended direct launching, and inserted exact probes around increasingly
-narrow pieces of the loader.
-
-That analysis found three large concentrations of repeat work.
-
-The texture path could leave the loading thread waiting roughly **27 seconds** on Starsector's one-thread prefetch queue. Once the queue returned, the same launch still hashed source files, decoded images, converted pixels, copied buffers, calculated colors, and padded uploads. Removing the wait, moving source validation off the hot path, and serving upload-ready pixels produced the accepted [29% startup campaign](docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md).
-
-The visible 0% pause was another large block of real work. Exact progress and method probes showed
-that vanilla `SpecStore` spent roughly **18–19 seconds** rebuilding variants, weapons, projectiles,
-hulls, campaign rules, and related registries. Further probes found that most of the useful time was
-inside repeated JSON/CSV merge-and-parse operations. Tagged input trees created a narrow reusable
-boundary, and Starsector continues to construct fresh live objects. The complete loader breakdown is
-in [The 20-second 0% plateau is vanilla SpecStore](docs/evidence/2026-08-02-zero-percent-is-spec-store.md).
-
-The final startup tail contained repeated work in mod callbacks. AshLib repeatedly resolved the same hull and variant JSON while constructing ship-render information. GraphicsLib repeated much of its automatic texture-map discovery even when its generated files were already valid. The resulting changes reduced the AshLib callback by **7.07–7.44 seconds** and the measured GraphicsLib sequence by **4.82 seconds**. See the [AshLib](docs/evidence/2026-08-02-ashlib-startup-json-cache.md) and [GraphicsLib](docs/evidence/2026-08-02-graphicslib-compact-autogen-replay.md) reports.
-
-## Where the time went
-
-| Change | Measured result | Evidence |
+| Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
-| Prepared textures and prefetch bypass | **25.53s saved; 1.41× overall** | [Accepted campaign](docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md) |
-| AshLib ship JSON memoization | **3.61–4.17× faster callback** | [Report](docs/evidence/2026-08-02-ashlib-startup-json-cache.md) |
-| GraphicsLib compact replay | **1.56× faster callback** | [Report](docs/evidence/2026-08-02-graphicslib-compact-autogen-replay.md) |
-| Merged variant JSON | **10.15× faster merge/parse; ~2.7s net** | [PR #275](https://github.com/teamleaderleo/preflight/pull/275) |
-| Merged weapon JSON | **3.34× faster loader; ~2.0s net** | [PR #278](https://github.com/teamleaderleo/preflight/pull/278) |
-| Merged projectile JSON | **2.34× faster loader; ~1.1s net** | [PR #281](https://github.com/teamleaderleo/preflight/pull/281) |
-| Merged ship-hull JSON | **3.52× faster loader; ~1.7s net** | [PR #284](https://github.com/teamleaderleo/preflight/pull/284) |
-| Rules CSV, duplicate checks, tokens, command packages | **~1.56s combined** | [#286](https://github.com/teamleaderleo/preflight/pull/286), [#288](https://github.com/teamleaderleo/preflight/pull/288), [#291](https://github.com/teamleaderleo/preflight/pull/291), [#298](https://github.com/teamleaderleo/preflight/pull/298) |
-| Shared cache-profile identity | **1.613s → 0.452s; 3.57× faster** | [PR #300](https://github.com/teamleaderleo/preflight/pull/300) |
-| **Observed startup progression** | **~101s worst case / 88.13s controlled median → 15.88s warm record** | [Optimization history](docs/optimization-history.md) |
-| **Current clean production gates** | **16.66s cold / 16.28s warm / 15.88s warm record** | [2026-08-06 gate](docs/evidence/2026-08-06-codex-lazy-fleet-members.md) |
+| Observed early high | **~101s** | Worst case seen on the development installation |
+| Initial controlled baseline | **88.13s** | Median of five unaccelerated launches |
+| Current warm record | **15.88s** | Fastest accepted launch on the later 83-mod profile |
 
-The texture path also stopped allocating empty power-of-two padding. In a full load, texture uploads
-fell from **3.65 GiB to 2.43 GiB**, removing **1.22 GiB** and serving more textures. See
-[The texture padding is gone](docs/evidence/2026-08-02-the-padding-is-gone.md).
+These are chronological reference points from one M5 MacBook Air running Starsector 0.98a-RC8 and
+the game's bundled x86-64 Java runtime through Rosetta. The latest production gates were 16.66
+seconds cold, 16.28 seconds warm, and 15.88 seconds warm. The record retained all 42 transformed
+class-cache hits, 15,469 prepared texture and pixel-conversion hits, healthy adapters, and no
+adapter decline or failure.
 
-## Repeated work removed
+The release claim will come from a fresh same-session cohort on the final candidate. Hardware, mods,
+storage, cache warmth, memory pressure, translation, and temperature all affect the result. The
+existing measurements and their context are collected in
+[Optimization history](docs/optimization-history.md).
 
-The component runs represent **64,739 direct cache or memo hits**. Counting the queue, decode, conversion, scan, and validation stages that no longer execute brings the stacked total to **192,089 operations removed or shortcut**.
+## What Preflight handles
 
-| Work avoided or replaced | Count |
-| --- | ---: |
-| Texture prefetch enqueues skipped | **50,879** |
-| Image decodes, pixel conversions, and color calculations bypassed | **64,956** |
-| Merged variant, weapon, projectile, hull, and rules values served | **11,690** |
-| Repeated rule tokenizations memoized | **30,726** |
-| Linear duplicate scans replaced by hash checks | **21,059** |
-| Prepared command-package resolutions | **671** |
-| Provider real-path resolutions avoided | **12,103** |
+- **Preparation.** Textures, merged data, generated mod bytecode, and audio are prepared under the
+  exact game and ordered-mod profile that produced them.
+- **Launch.** Recommended mode applies reviewed runtime shortcuts inside the child game JVM and
+  tracks which adapters ran, declined, or failed.
+- **Profiles.** Named mod profiles retain their own identities and prepared data. Switching a
+  profile previews the exact `enabled_mods.json` change and saves a backup.
+- **Storage.** The desktop app calculates a conservative disk requirement before writing, shows
+  current use, and previews cleanup before anything is removed.
+- **Game settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size are
+  available beside the launch button.
+- **Evidence.** The benchmark compares a normal launch with Preflight. A separate support ZIP
+  contains bounded, disclosed metadata and excludes saves, assets, screenshots, recordings, caches,
+  and arbitrary logs.
 
-A particularly clear algorithmic change is the campaign-rule duplicate check. Vanilla performed a
-trigger-local linear scan for each of 21,059 registrations. [PR #286](https://github.com/teamleaderleo/preflight/pull/286) replaces that repeated scan with an exact hash-set membership check—average **O(1)** lookup—and preserves the game's original insertion order and duplicate behavior.
+The desktop path is designed around a single routine: detect Starsector, prepare the current profile,
+and launch. Recommended optimizations and Balanced storage are the defaults.
 
-The other caches use straightforward memoization and precomputation at larger boundaries: exact inputs become a key, the expensive deterministic result is prepared once, and later requests reuse it. A changed game JAR, mod file, or provider order produces a different key.
+## Compatibility and containment
 
-## How the investigation progressed
+Preflight doesn't rewrite game or mod JARs, executables, assets, activation data, or saves. Runtime
+changes exist only in the launched JVM and disappear when the game exits. Two explicit, backed-up
+features can update game-owned preferences: profile activation and the launch-settings editor.
 
-The most useful advances often began with a result that didn't make sense.
+| Situation | Result |
+| --- | --- |
+| A game or mod file changes | A different content identity is selected |
+| A prepared entry is missing or invalid | The original loader handles that request |
+| A reviewed class fingerprint changes | That runtime transformation declines |
+| Preparation is interrupted | Completed immutable blobs remain reusable |
+| The conservative disk bound doesn't fit | Preparation refuses before writing |
+| Cleanup or removal is requested | Preflight shows the exact owned targets first |
 
-The first valid prepared-pixel campaign saved only [1.5%](docs/evidence/2026-08-01-the-first-valid-startup-number.md), despite profiles that made texture work look much larger. That discrepancy led to a critical-path probe and the discovery that the cache sat behind a [27-second prefetch wait](docs/evidence/2026-08-01-the-loading-thread-waits-on-a-one-thread-prefetcher.md). Fixing the placement of the cache turned the same body of work into the 29% campaign.
+Unsupported work continues through the game's original path. A future launcher layout or game
+update can still require a Preflight update, so unknown versions aren't advertised as tested. The
+full boundary is in the [Product contract](docs/product-contract.md), with current limitations in
+[Known limitations](docs/known-limitations.md).
 
-The rule-command package map was expected to remove most of a 641ms phase. It removed about 165ms. The successful class load was expensive; the failed probes were cheap. The same investigation exposed **1.613 seconds of repeated cache-profile construction before the game JVM even started**, which led to [PR #300](https://github.com/teamleaderleo/preflight/pull/300) and a larger saving than the feature that revealed it.
+## Development quick start
 
-The [Fast Rendering prior-art review](docs/prior-art-starsector-render.md) corrected an earlier
-conclusion about its texture prefetcher, documented where the two projects overlap, and highlighted
-the untouched JSON/spec path that became the SpecStore campaign. The pattern throughout the project
-has been the same: inspect the logs and code, ask a narrower question, build the probe that answers
-it, and let the measurement choose the next change.
-
-## Design foundations
-
-The design uses familiar application and compiler techniques.
-
-[React Query / TanStack Query](https://tanstack.com/query/latest/docs/framework/react/guides/query-keys) provides a useful mental model for stable cache keys, reusable answers, and invalidation when inputs change; its [prefetching model](https://tanstack.com/query/latest/docs/framework/react/guides/prefetching) is also close to Preflight's goal of moving known work ahead of demand. [SWC](https://swc.rs/) demonstrates the value of doing expensive transformation work ahead of use and handing the runtime a ready artifact.
-
-Preflight applies those ideas alongside classic computer-science tools: memoization, hash maps,
-precomputation, content-addressed artifacts, bounded concurrency, and replacing repeated linear work
-with direct lookup. The difficult part is locating a reusable boundary inside an opaque, obfuscated,
-mod-heavy Java application and keeping Starsector's original behavior available for every cache
-miss or declined adapter.
-
-## How Preflight works
-
-Preflight prepares deterministic work outside the timed game launch. At startup it identifies the exact game build, enabled mod order, and resource providers that can affect each prepared result.
-
-A matching artifact skips only the work that was already completed. Starsector still constructs its live objects, registers scripts, applies mod ordering, mutates its registries, creates textures, performs OpenGL uploads, and runs the remaining mod logic.
-
-Changed game or mod files select different prepared data. A missing entry, unsupported class, corrupt
-artifact, or runtime validation failure uses the original loader. Runtime acceleration transforms
-exact reviewed classes only in the child JVM's memory; those changes disappear when the game exits.
-
-Preflight writes its own caches and bounded reports. Two explicit features can update game-owned
-preferences: a confirmed named-profile switch changes only `enabled_mods.json`, and the launch
-settings screen changes only Starsector's existing display, sound, UI-scale, antialiasing, and
-battle-size values. Both paths preview or constrain the change and save a backup. Preflight never
-rewrites game or mod JARs, executables, assets, activation data, or saves. The complete boundary is
-in the [product contract](docs/product-contract.md).
-
-## Install and run
-
-Build or download the self-contained `preflight.jar`, then install the local launcher:
-
-```bash
-java -jar preflight.jar install
-```
-
-Run through the ordinary launcher path:
-
-```bash
-java -jar preflight.jar run --optimization-preset recommended
-```
-
-Run unattended through Starsector's saved launcher settings:
-
-```bash
-java -jar preflight.jar run --direct --optimization-preset recommended
-```
-
-Inspect the detected installation and mod profile without launching:
-
-```bash
-java -jar preflight.jar doctor
-```
-
-Inspect or update the same resolution, fullscreen, sound, antialiasing, UI-scale, and battle-size
-preferences used by Starsector's own UI:
-
-```bash
-java -jar preflight.jar launch-settings --game /path/to/Starsector --json
-java -jar preflight.jar launch-settings set --game /path/to/Starsector \
-  --resolution 1920x1080 --fullscreen false --sound true \
-  --antialiasing 0 --ui-scale 1.0 --battle-size 400 --json
-```
-
-Prepare every reusable cache for the current profile:
-
-```bash
-java -jar preflight.jar prepare
-```
-
-Preparation overlaps its three independent opening scans by default. Use `--serial-stages` as a
-diagnostic fallback; game launch and all in-game work remain unaffected.
-
-Prepared textures have two exact, lossless storage policies. `balanced` is the default and
-compresses them with LZ4 to use substantially less disk, except where compression saves under 23.1%
-and raw storage is faster for nearly no space cost. It retains the same runtime pixels and fail-open
-behavior; `fastest` keeps every upload-ready pixel array raw for minimum decode CPU:
-
-```bash
-java -jar preflight.jar prepare --texture-storage fastest
-java -jar preflight.jar prepare --texture-storage balanced
-java -jar preflight.jar prepare --plan --json
-```
-
-Every preparation first calculates decoded texture size, deduplication, reusable checked blobs,
-pack duplication, a conservative upper bound, and current filesystem space. It refuses before
-writing unless that bound fits with at least 1 GiB left in reserve. `--plan` exposes the same result
-without creating a cache directory.
-
-On the 83-mod development profile, `balanced` reduced the texture pack from 5.34 GB to 2.26 GB.
-Ten shuffled fresh-game-JVM replays measured the exact startup access order at 1,137ms balanced
-versus 691ms fastest; fastest buys about 446ms for 3.08GB. A real learned-order fastest gate reached
-the menu in 18.71s with zero cache or transform failure. Existing manifests remain active until
-preparation runs again. After changing policies, `java -jar preflight.jar cache prune --json`
-previews the superseded blobs and profile packs that can be reclaimed; add `--yes` only after
-reviewing that plan. Add `--keep-named` to preserve the caches for every readable named profile.
-
-Preparation also creates an indexed texture pack for each profile. The game opens that pack once and
-falls back to the loose blobs on any problem. After a successful launch, the next preparation can
-use its checksummed access-order hint to tune physical layout automatically; missing or corrupt
-hints are ignored. The packed copy currently retains loose blobs for repair and fail-open safety,
-so profile pruning is the supported way to reclaim obsolete versions.
-
-Save and switch ordered mod sets without losing their exact caches, and manage diagnostic evidence
-independently from acceleration data:
-
-```bash
-java -jar preflight.jar profile save "Heavy campaign"
-java -jar preflight.jar profile list --json
-java -jar preflight.jar profile activate "Heavy campaign"       # preview
-java -jar preflight.jar profile activate "Heavy campaign" --yes
-
-java -jar preflight.jar cache --json
-java -jar preflight.jar cache health --json
-java -jar preflight.jar cache repair --json                 # preview
-java -jar preflight.jar cache repair --yes                  # exact current profile
-java -jar preflight.jar evidence --json
-java -jar preflight.jar evidence export --output preflight-diagnostics.zip
-java -jar preflight.jar evidence prune --keep-runs 20 --keep-benchmarks 10
-```
-
-Both prune commands are preview-only unless `--yes` is present. Evidence retention never touches
-acceleration caches and refuses sessions that change between planning and deletion.
-
-Cache repair validates the current profile's structural metadata and pack index. Confirmed repair
-re-derives the profile under the operation lease, refuses cache-boundary ambiguity, and removes only
-that profile's damaged metadata or pack; shared content blobs, game files, mods, saves, and settings
-remain untouched.
-
-Diagnostics export includes only bounded, allowlisted text metadata from the newest three runs and two
-benchmarks by default. Its in-ZIP disclosure and manifest name everything included or skipped;
-logs, crash dumps, JFR, screenshots, caches, game/mod assets, saves, symlinks, and unknown files are
-never copied. See [Diagnostics export](docs/diagnostics.md).
-
-Development smoke automation uses a platform-neutral semantic scenario. The first campaign-load/roam
-scenario and evidence contract are documented in
-[desktop smoke automation](docs/desktop-smoke-automation.md).
-
-The native desktop host and its build instructions live in
-[preflight-desktop](preflight-desktop/README.md). Launch settings, Prepare, Profiles, Storage, and tracked game launch
-all use the same narrow engine contract as the CLI. The native packaging matrix is green for a
-macOS arm64 DMG, Windows x64 NSIS installer, and Linux x64 `.deb` and AppImage packages. These are
-currently private development artifacts. The first beta will use OS-unsigned packages with
-published SHA-256 manifests and a separately signed Tauri update channel. The Linux packages are
-built on Ubuntu 22.04; `.deb` names the Debian-family package format, while AppImage is the broader
-portable option. The exact checksum, OS-warning, installation, and removal steps are documented.
-Public distribution authorization, release-candidate update/rollback testing, and a PID-safe
-automated game smoke remain release work. See
-[Downloads and installation](docs/downloads.md) and the
-[exact distribution matrix](docs/evidence/2026-08-06-desktop-distribution-matrix.md).
-
-On macOS, `install` creates `~/Applications/Preflight.app`. Linux receives a command and desktop
-entry. Windows receives a local command launcher.
-
-Remove the launcher integrations and installed command engine with a preview before confirmation;
-choose `all-data` to include Preflight's caches, profiles, retained evidence, and backups. The
-desktop app exposes the same two reviews. Its native package remains under the operating system's
-normal app uninstaller. Neither scope removes Starsector, mods, saves, or game-owned settings:
-
-```bash
-java -jar preflight.jar uninstall
-java -jar preflight.jar uninstall --scope all-data
-```
-
-## Before public release
-
-Preflight is fast enough for a beta; the remaining work is product trust and compatibility:
-
-1. Obtain written authorization for distribution and the integration approach, plus guidance on
-   descriptive use of the Starsector name and the disclaimer.
-2. Run the remaining packaged updater, rollback, report-intake, removal, and recovery canaries. The
-   expected OS warnings, checksum verification, and installation/removal steps are documented; the
-   free updater key and private report intake are already provisioned.
-3. Exercise clean licensed-game installs on Windows and Linux. CI verifies the portable engine and
-   native packages. Licensed-game execution requires user installations.
-4. Run a fresh controlled before/after cohort against the release candidate, then publish only the
-   result that cohort supports.
-
-The complete blocker list and publication checklist are in
-[Release readiness](docs/release-readiness.md). The public trust work is also tracked in
-[issue #294](https://github.com/teamleaderleo/preflight/issues/294).
-
-The consent-based support path is specified in [Diagnostics export](docs/diagnostics.md) and
-[Privacy](docs/privacy.md). Its private R2 intake and versioned protocol live in
-[`report-intake`](report-intake/README.md). The desktop consent, upload, cancellation, receipt, and
-deletion path is complete. Production provisioning, abuse controls, public operator details, and a
-packaged release-candidate canary remain release work, so ordinary builds still omit the intake
-origin.
-
-## Analysis and mod tools
-
-The same codebase contains the tools used to find the startup work: JFR recording, exact
-startup-phase probes, loader-level attribution, profile comparison, crash detection, and unattended
-benchmark campaigns. Profiling is optional; normal accelerated launches don't need to pay for a
-recording.
-
-Preflight also includes a read-only mod linter:
-
-```bash
-java -jar preflight.jar lint
-java -jar preflight.jar lint --path ./MyMod
-```
-
-Across real mod profiles it has found progressive JPEGs that decode **8.75× slower** through the game's ImageIO path, gigabytes of avoidable texture and audio allocation, duplicate and shadowed resources, unused files, extension mismatches, and configuration left outside the top-level value where the game never reads it.
-
-See [Asset Lint](docs/asset-lint.md) and the [evidence archive](docs/evidence/) for the individual investigations.
-
-## Build
-
-Preflight requires JDK 17 and Maven 3.9 or newer:
+Public packages aren't available during the preview. Build the self-contained CLI and Java agent
+with JDK 17 and Maven 3.9 or newer:
 
 ```bash
 mvn verify
 ```
 
-The runnable launcher and Java agent are produced together at:
+The resulting launcher is `preflight-cli/target/preflight.jar`. Install the local launcher and
+prepare the detected profile:
 
-```text
-preflight-cli/target/preflight.jar
+```bash
+java -jar preflight-cli/target/preflight.jar install --prepare
 ```
+
+Launch through the ordinary Starsector launcher path:
+
+```bash
+java -jar preflight-cli/target/preflight.jar run --optimization-preset recommended
+```
+
+Inspect discovery without launching the game:
+
+```bash
+java -jar preflight-cli/target/preflight.jar doctor
+```
+
+Unattended launches can use Starsector's saved display and sound settings directly:
+
+```bash
+java -jar preflight-cli/target/preflight.jar run --direct \
+  --optimization-preset recommended
+```
+
+The desktop app uses the same command engine and safety checks. Its development and packaging
+instructions are in [preflight-desktop](preflight-desktop/README.md).
+
+## Where the time went
+
+The largest early finding was a one-thread texture prefetch queue. The loading thread could wait
+roughly 27 seconds for that queue, then repeat source hashing, image decoding, pixel conversion,
+buffer copying, color calculation, and padding. Bypassing the wait and serving validated,
+upload-ready pixels removed 25.53 seconds in the accepted controlled campaign.
+
+Once textures became cheap, the visible 0% pause became clear. Vanilla `SpecStore` spent roughly
+18–19 seconds rebuilding variants, weapons, projectiles, hulls, campaign rules, and related
+registries. Much of that time was repeated JSON and CSV merge-and-parse work. Prepared tagged trees
+now supply the stable input while Starsector creates fresh live objects as usual.
+
+The remaining tail exposed repeated work in mod callbacks. AshLib repeatedly resolved the same hull
+and variant JSON while constructing render information. GraphicsLib repeated automatic texture-map
+discovery even when its generated files were already valid. Exact memoization and compact replay
+reduced those callback sequences without taking ownership of their live state.
+
+| Change | Measured result |
+| --- | ---: |
+| Prepared textures and prefetch bypass | **25.53s saved; 1.41× overall** |
+| AshLib ship JSON memoization | **7.07–7.44s removed from the callback** |
+| GraphicsLib compact replay | **4.82s removed from the measured sequence** |
+| Merged variant JSON | **10.15× faster merge/parse; ~2.7s net** |
+| Merged weapon, projectile, and hull JSON | **~4.8s net combined** |
+| Shared cache-profile identity | **1.613s → 0.452s** |
+
+Texture uploads also fell from 3.65 GiB to 2.43 GiB after empty power-of-two padding was removed.
+The measured component runs contain 64,739 direct cache or memo hits and 192,089 counted operations
+removed or shortcut. The source-linked chronology, unsuccessful branches, and per-change arithmetic
+live in [Optimization history](docs/optimization-history.md), the
+[Experiment ledger](docs/experiment-ledger.md), and the
+[Accumulated scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md).
+
+## Storage choices
+
+Balanced is the default. It keeps upload-ready texture pixels in LZ4 blocks when compression saves
+meaningful space and retains raw storage where compression buys little. Fastest keeps every pixel
+array raw and trades disk space for less decode CPU.
+
+On the 83-mod development profile, Balanced reduced the texture pack from 5.34 GB to 2.26 GB. Ten
+fresh-JVM replays measured the exact startup access order at 1,137ms for Balanced and 691ms for
+Fastest. Fastest bought about 446ms for another 3.08 GB.
+
+Preparation calculates decoded texture size, deduplication, reusable blobs, pack duplication, a
+conservative upper bound, and current filesystem space. It keeps at least 1 GiB in reserve and
+refuses before writing when the bound doesn't fit. Existing manifests stay active until a new
+preparation completes.
+
+```bash
+java -jar preflight-cli/target/preflight.jar prepare --plan --json
+java -jar preflight-cli/target/preflight.jar prepare --texture-storage balanced
+java -jar preflight-cli/target/preflight.jar prepare --texture-storage fastest
+java -jar preflight-cli/target/preflight.jar cache prune --json
+```
+
+The detailed disk model and safe pruning behavior are in
+[Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md).
+
+## Profiles, diagnostics, and removal
+
+<img alt="Preflight saved mod profiles" src="docs/images/desktop-profiles-light.png">
+
+Named profiles preserve ordered mod selections and let prepared data follow the setup it belongs to.
+Diagnostics are managed independently from acceleration data. Export includes only allowlisted text
+metadata from recent runs and benchmarks, with an in-ZIP disclosure that names every included or
+skipped file.
+
+Removal has two scopes. Removing the launcher leaves Starsector and Preflight's reusable data in
+place. Removing all Preflight data includes caches, profiles, retained evidence, and backups after a
+target review. Neither scope includes Starsector, mods, saves, or game-owned settings.
+
+See [Diagnostics export](docs/diagnostics.md), [Privacy](docs/privacy.md), and
+[Downloads and installation](docs/downloads.md) for the exact behavior.
+
+## Before the public beta
+
+The acceleration and desktop workflows are far enough along for a beta. The remaining gates establish
+the release claim and platform boundary:
+
+1. Receive Fractal Softworks' guidance on distribution, integration, naming, and the disclaimer.
+2. Exercise clean licensed-game installations on Windows and Linux. CI, synthetic installs, native
+   package boot, and VMware Fusion acceptance already cover the portable engine and packaging paths.
+3. Publish and rehearse the exact hosted candidate, including signed update, rollback, report,
+   cleanup, removal, and recovery flows.
+4. Run the final controlled before-and-after cohort and publish the distribution it supports.
+
+The complete publication checklist is in [Release readiness](docs/release-readiness.md). The ordered
+product and evidence work is in the [Public beta roadmap](docs/beta-roadmap.md).
+
+## Analysis and mod tools
+
+The repository also contains the measurement tools used during the investigation: JFR recording,
+startup-phase probes, loader attribution, unattended benchmark campaigns, crash detection, and a
+read-only mod linter. Normal accelerated launches don't require profiling.
+
+```bash
+java -jar preflight-cli/target/preflight.jar lint
+java -jar preflight-cli/target/preflight.jar lint --path ./MyMod
+```
+
+Across real profiles, the linter has found progressive JPEGs that decode 8.75× slower through the
+game's ImageIO path, gigabytes of avoidable texture and audio allocation, shadowed resources,
+extension mismatches, unused files, and configuration placed where the game never reads it. See
+[Asset lint](docs/asset-lint.md) for the checks and evidence.
 
 ## Documentation
 
 - [Documentation map](docs/README.md)
-- [Release readiness](docs/release-readiness.md)
 - [Optimization history](docs/optimization-history.md)
+- [Product contract](docs/product-contract.md)
+- [Release readiness](docs/release-readiness.md)
+- [Public beta roadmap](docs/beta-roadmap.md)
 - [Experiment ledger](docs/experiment-ledger.md)
 - [Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md)
-- [Accumulated startup scorecard](docs/evidence/2026-08-02-accumulated-startup-scorecard.md)
-- [Product, compatibility, cache-control, and support-upload contract](docs/product-contract.md)
 - [Automatic launch and discovery](docs/automatic-launch.md)
-- [Vanilla runtime adapter](docs/vanilla-adapter.md)
 - [Repeated startup benchmark](docs/startup-benchmark.md)
-- [Asset lint](docs/asset-lint.md)
 - [Prior-art review](docs/prior-art-starsector-render.md)
-- [Roadmap](docs/roadmap.md)
 - [Evidence archive](docs/evidence/)
-
-## Status
-
-Preflight is under active development. Public distribution awaits the release gates above. Runtime
-acceleration is pinned to reviewed game classes and exact profile inputs, with the original game
-path retained for unsupported or changed inputs. Future launcher and game updates may require a
-Preflight update.
 
 ## License
 

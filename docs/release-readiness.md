@@ -1,11 +1,20 @@
 # Release readiness
 
 **Status:** private development preview; Fractal Softworks guidance requested, awaiting response
+
 **Updated:** 2026-08-11
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
-not ready to publish merely because it is fast. This checklist is the release boundary for the
-first public beta.
+still inside the release boundary below.
+
+| Area | Current state |
+| --- | --- |
+| Distribution guidance | Request sent August 7; response pending |
+| Desktop product | First-run, preparation, profiles, settings, updates, reports, cleanup, and removal implemented |
+| Package lifecycle | Local macOS candidate passes; complete hosted three-platform candidate pending |
+| Licensed-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
+| Performance claim | 15.88-second warm development record; exact-candidate cohort pending |
+| Publication | Blocked until every unchecked release gate below is closed |
 
 ## Blocking before public distribution
 
@@ -169,8 +178,8 @@ first public beta.
   automation probe, pins its System Events disclosure, and rejects bundled-Java permission
   attribution. The exact evidence is recorded in
   [the native-package boundary](evidence/2026-08-07-native-package-boundary.md). A final tagged-candidate
-  run remains. The 2026-08-11 full-history audit accepted 1,339 tracked files and 4,792 historical
-  paths, including the preserved unshipped icon reference, with no unreviewed oversized blob.
+  run remains. The 2026-08-11 full-history audit accepted the current tracked tree, including the
+  preserved unshipped icon candidates, with no unreviewed oversized blob.
 - [x] Prepare a support template that asks for product/game/mod identities, preset, storage policy,
   launch result, and optional run-report case ID without requesting private logs by default.
 - [x] Prepare a rollback/kill-switch notice path for a bad adapter or release.

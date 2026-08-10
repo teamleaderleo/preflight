@@ -4,7 +4,7 @@
 
 **Profile:** Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, bundled x86-64 Zulu 17 under Rosetta
 
-**Updated:** 2026-08-07
+**Updated:** 2026-08-11
 
 The development installation's observed worst case reached roughly 101 seconds, and its established
 five-run controlled baseline centered on 88.13 seconds. The fastest warm launch recorded so far
@@ -170,9 +170,9 @@ and installed `json.jar` fidelity gate are covered by
 ## Once vanilla loading became cheap, mod callbacks became visible
 
 Larger waits had hidden the mod callback tail. AshLib repeatedly resolved hull and variant JSON
-during repository population, accounting for a component reduction of roughly 7.1 to 7.4 seconds after its stable
-inputs were reused. GraphicsLib regenerated or revalidated normal-map state, revisited hot settings,
-and created objects that were uploaded only to be unloaded. Each optimization was pinned to an exact
+during repository population. Reusing its stable inputs removed roughly 7.1 to 7.4 seconds from the
+component. GraphicsLib regenerated or revalidated normal-map state, revisited hot settings, and
+created objects that were uploaded only to be unloaded. Each optimization was pinned to an exact
 reviewed class, source archive, loader, method descriptor, and input identity. A changed mod declines
 the shortcut and continues through its original path. The accepted boundaries are described in
 [the AshLib cache report](evidence/2026-08-02-ashlib-startup-json-cache.md),
