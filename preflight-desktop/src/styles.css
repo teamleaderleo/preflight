@@ -2982,6 +2982,9 @@ footer {
   color-scheme: dark;
   color: #e9edf5;
   background: #030711;
+  --accent: #7f95cc;
+  --accent-strong: #8fa8dd;
+  --accent-soft: rgba(112, 137, 194, 0.18);
   --ink: #e9edf5;
   --ink-soft: #aeb9ca;
   --ink-faint: #96a4b9;

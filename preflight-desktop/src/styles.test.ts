@@ -25,6 +25,7 @@ test("navigation motion stays brief and the home illustration is structural", ()
 test("the primary palette stays blue rather than blue-green", () => {
   expect(styles).toContain("--accent: #6079ad");
   expect(styles).toContain("--accent-strong: #425f98");
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#8fa8dd;/s);
   expect(styles).not.toContain("#3b8493");
   expect(styles).not.toContain("#246d7a");
 });

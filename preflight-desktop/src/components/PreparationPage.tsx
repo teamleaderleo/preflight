@@ -140,7 +140,7 @@ export function PreparationPage({
         </div>
         <div className="storage-summary-row">
           <div><strong className="storage-total">{cache ? formatBytes(cache.total.bytes) : "—"}</strong><span className="storage-files">{cache ? `${cache.total.files.toLocaleString()} files` : "Reading cache…"}</span></div>
-          <div><span>Next preparation</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? `Up to ${formatBytes(preparationPlan.requiredFreeBytes)} free` : "—"}</strong></div>
+          <div><span>Free space needed</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? `Up to ${formatBytes(preparationPlan.requiredFreeBytes)}` : "—"}</strong></div>
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (

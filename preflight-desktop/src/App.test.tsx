@@ -423,6 +423,8 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-audio"]');
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
+  expect(screen.getByText("Free space needed")).toBeInTheDocument();
+  expect(await screen.findByText("Up to 11.6 GB")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
   const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });

@@ -36,3 +36,12 @@ full composition from the later black-hole exploration: the centered spacecraft 
 with a large circular black body cropped into a right-side semicircle and a thin attached glow. It
 is a design reference only and isn't consumed by the application. Later geometry experiments must
 start from this file or leave it unchanged so the accepted composition remains recoverable.
+
+## Diagonal black-hole candidate
+
+`preflight-desktop/src/assets/preflight-mark-v12-diagonal-candidate.png` is the refined diagonal
+composition. It keeps the black body genuinely circular and far larger than the canvas, strengthens
+the spacecraft's structural linework and the graph-paper hierarchy, and gives the attached edge a
+narrow white/cyan/blue/violet/magenta lensing stack. It remains an unshipped candidate: the
+application continues to use `preflight-mark-v10.png` until the mark has been judged at dock,
+launcher, and installer sizes.
