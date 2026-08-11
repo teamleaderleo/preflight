@@ -18,7 +18,7 @@ shape, loopback-only Java endpoint validation, response validation, and the nati
 System Events disclosure. The installed-package exercise starts the real `.app` in a no-game probe
 mode and traverses `.app → native bridge → bundled engine`. A ready result must name
 `macos-preflight-native-pid`; an unavailable result must name the Preflight application and must not
-name `runtime/bin/java`. The licensed game was not launched for this boundary check.
+name `runtime/bin/java`. The game was not launched for this boundary check.
 
 The first installed-copy replay exposed an older native-host path bug: after `Preflight.app` moved
 out of the build directory, Tauri's resource resolver didn't find the bundled engine even though the

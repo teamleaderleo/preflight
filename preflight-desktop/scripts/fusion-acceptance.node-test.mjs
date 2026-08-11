@@ -32,14 +32,14 @@ test("Windows acceptance identifies the host architecture even under an x64 Node
   assert.equal(detectedHostArchitecture("linux", "arm64", {}, () => "x64"), "arm64");
 });
 
-test("Fusion claims never imply licensed-game, GPU, or performance evidence", () => {
+test("Fusion claims never imply real-game, GPU, or performance evidence", () => {
   const claims = claimsForMode("windows-x64-package-under-arm64-emulation");
   assert.deepEqual(claims, {
     packageLifecycle: true,
     portableJvmAndUiContracts: true,
     x64BehaviorUnderWindowsArmEmulation: true,
     nativeX64LinuxPackage: false,
-    licensedGameIntegration: false,
+    realGameIntegration: false,
     nativePerformance: false,
     gpuAudioOrDriverBehavior: false,
   });
@@ -53,7 +53,7 @@ test("Fusion claims never imply licensed-game, GPU, or performance evidence", ()
     for (const [name, value] of Object.entries(claimsForMode(mode))) {
       assert.equal(typeof value, "boolean", `${mode} ${name}`);
     }
-    assert.equal(claimsForMode(mode).licensedGameIntegration, false);
+    assert.equal(claimsForMode(mode).realGameIntegration, false);
     assert.equal(claimsForMode(mode).nativePerformance, false);
     assert.equal(claimsForMode(mode).gpuAudioOrDriverBehavior, false);
   }

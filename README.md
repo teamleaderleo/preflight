@@ -6,18 +6,19 @@ then launches the same game and mod profile with those results ready to use.**
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
 
-> **Development preview.** Public downloads aren't available yet. The remaining release gates are
-> written guidance from Fractal Softworks, real Windows and Linux game runs, a hosted release
-> candidate, and a final benchmark pass on that exact package. The current
-> checklist is in [Release readiness](docs/release-readiness.md).
+> **Release-candidate preparation.** Public downloads aren't available yet. The remaining technical
+> work is a hosted three-platform candidate, its exact-package benchmark, and final install/update/
+> removal checks. Windows and Linux real-game runs determine how broadly the first beta can claim
+> support; Fractal Softworks' requested guidance remains a separate publication decision. The
+> current checklist is in [Release readiness](docs/release-readiness.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-home-dark.png">
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**101 seconds → 15.88 seconds on an 83-mod development installation.** The initial five-run
-controlled median was 88.13 seconds.
+**101 seconds → 15.88 seconds on an 83-mod development installation.** The initial five-run median
+was 88.13 seconds.
 
 Preflight found much of Starsector's heavily modded startup time in work whose answer was already
 determined by the game build, enabled mod order, and resource files. It prepares those answers once,
@@ -30,7 +31,7 @@ logic.
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
 | Observed early high | **~101s** | Worst case seen on the development installation |
-| Initial controlled baseline | **88.13s** | Median of five unaccelerated launches |
+| Initial five-run baseline | **88.13s** | Median of five unaccelerated launches |
 | Current warm record | **15.88s** | Fastest accepted launch on the later 83-mod profile |
 
 These are chronological reference points from one M5 MacBook Air running Starsector 0.98a-RC8 and
@@ -200,8 +201,8 @@ See [Diagnostics export](docs/diagnostics.md), [Privacy](docs/privacy.md), and
 The acceleration and desktop workflows are far enough along for a beta. The remaining gates establish
 the release claim and platform boundary:
 
-1. Receive Fractal Softworks' guidance on distribution, integration, naming, and the disclaimer.
-2. Exercise clean licensed-game installations on Windows and Linux. CI, synthetic installs, native
+1. Resolve the publication policy after the requested Fractal Softworks guidance window.
+2. Exercise clean real-game installations on Windows and Linux. CI, synthetic installs, native
    package boot, and VMware Fusion acceptance already cover the portable engine and packaging paths.
 3. Publish and rehearse the exact hosted candidate, including signed update, rollback, report,
    cleanup, removal, and recovery flows.

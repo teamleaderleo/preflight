@@ -80,7 +80,7 @@ export function claimsForMode(mode) {
     portableJvmAndUiContracts: true,
     x64BehaviorUnderWindowsArmEmulation: mode === "windows-x64-package-under-arm64-emulation",
     nativeX64LinuxPackage: mode === "linux-x64-package-native-architecture",
-    licensedGameIntegration: false,
+    realGameIntegration: false,
     nativePerformance: false,
     gpuAudioOrDriverBehavior: false,
   };
@@ -102,7 +102,7 @@ export function validateAcceptanceEvidence(evidence) {
       || evidence.checks.some((check) => typeof check?.id !== "string" || !allowedStatuses.has(check.status))
       || !Array.isArray(evidence.deferred)
       || evidence.deferred.some((item) => typeof item?.id !== "string" || typeof item?.reason !== "string")
-      || evidence.claims.licensedGameIntegration !== false
+      || evidence.claims.realGameIntegration !== false
       || evidence.claims.nativePerformance !== false
       || evidence.claims.gpuAudioOrDriverBehavior !== false) {
     throw new Error(`Malformed Fusion acceptance evidence: ${JSON.stringify(evidence)}`);
@@ -182,12 +182,12 @@ export function buildEvidence({ mode, startedAt, completedAt, result }) {
         reason: "Requires two differently versioned update-signed candidates and an operator-confirmed UI restart.",
       },
       {
-        id: "licensed-game-launch-ownership",
+        id: "real-game-launch-ownership",
         reason: "Requires the operator's legitimate Starsector installation; synthetic launch planning never starts it.",
       },
       {
         id: "graphics-audio-and-gameplay",
-        reason: "Requires licensed content and representative native hardware or a clearly labelled emulated compatibility run.",
+        reason: "Requires a real installation and representative native hardware or a clearly labelled emulated compatibility run.",
       },
       {
         id: "performance",

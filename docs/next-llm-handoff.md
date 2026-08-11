@@ -1296,7 +1296,7 @@ Core caches and preparation are platform-independent and synthetic/exact-cache t
 on Windows, macOS, and Linux. Exact adapters fail open on byte/source/loader drift, but obfuscated
 game classes can differ by platform, so a macOS-pinned optimization may simply decline elsewhere.
 That is safe compatibility, not equal speed. Real Windows/Linux activation needs platform evidence
-bundles or beta telemetry because CI cannot contain the licensed game installation. Fast Rendering
+bundles or beta telemetry because CI cannot contain a real game installation. Fast Rendering
 is Unlicense prior art, not a normal library: its global classpath/GL ownership and broad class
 redirects should not be imported wholesale. Port bounded ideas behind Preflight's exact adapter and
 fallback boundary, and add explicit shadow/ownership reporting plus pinned compatibility targets.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getLaunchSettings, updateLaunchSettings } from "./bridge";
 import type { Announce, LaunchSettings, LaunchSettingsUpdate } from "./types";
+import { errorMessage } from "./uiFormat";
 
 function draftFromSettings(settings: LaunchSettings): LaunchSettingsUpdate {
   return {
@@ -63,7 +64,7 @@ export function useLauncherSettings(
       setLoadedGame(expectedGame);
       draftRevision.current += 1;
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (currentRequest === request.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
     } finally {
       if (currentRequest === request.current) setLoading(false);
     }
@@ -97,7 +98,7 @@ export function useLauncherSettings(
       announce("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");
       return true;
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (currentRequest === request.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
       return false;
     } finally {
       if (currentRequest === request.current) {

@@ -1,6 +1,6 @@
 # Release readiness
 
-**Status:** private development preview; Fractal Softworks guidance requested, awaiting response
+**Status:** release-candidate preparation; Fractal Softworks guidance requested, awaiting response
 
 **Updated:** 2026-08-11
 
@@ -9,18 +9,18 @@ still inside the release boundary below.
 
 | Area | Current state |
 | --- | --- |
-| Distribution guidance | Request sent August 7; response pending |
+| Publication policy | Guidance requested August 7; maintainer decision pending |
 | Desktop product | First-run, preparation, profiles, settings, updates, reports, cleanup, and removal implemented |
 | Package lifecycle | Local macOS candidate passes; complete hosted three-platform candidate pending |
-| Licensed-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
+| Real-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
 | Performance record | **101s → 15.88s** established; packaged benchmark still to run |
-| Publication | Blocked until every unchecked release gate below is closed |
+| Publication | No public release until the candidate and publication decision are accepted |
 
 ## Blocking before public distribution
 
-- [ ] Receive written Fractal Softworks authorization for distributing the tool and for the
-  runtime-instrumentation/compatibility-analysis approach. The
-  [permission request](fractal-permission-request.md) was sent on 2026-08-07.
+- [ ] Resolve the publication policy after the requested Fractal Softworks guidance window. The
+  [permission request](fractal-permission-request.md) was sent on 2026-08-07; this is an owner/legal
+  decision rather than an unfinished engine feature.
 - [x] Use **Preflight** as the public product, repository, and application name.
 - [ ] Confirm descriptive use of the Starsector name, trademark attribution, and disclaimer with
   Fractal Softworks.
@@ -61,11 +61,6 @@ still inside the release boundary below.
   readable by signed-in GitHub users. A local update-signed macOS build has passed DMG/updater-tree
   equivalence and bundled-runtime smoke verification. See the
   [signed macOS lifecycle evidence](evidence/2026-08-08-signed-update-rollback-rehearsal.md).
-- [ ] Exercise the licensed game on real Windows and Linux installations. CI package builds and
-  synthetic fixtures don't prove game integration. The
-  [cross-platform evidence plan](cross-platform-evidence-plan.md) separates free hosted package
-  checks, emulated compatibility checks, and native beta evidence so each result carries only the
-  claim it supports.
 - [ ] Run the startup benchmark on the exact release candidate and publish those results beside the
   **101 seconds → 15.88 seconds** development progression.
 
@@ -130,7 +125,7 @@ still inside the release boundary below.
 - [ ] Run the packaged startup pair and retain its receipt. Keep campaign/FPS automation and an
   alternating cohort as optional advanced evidence rather than the product benchmark.
 
-## Compatibility and correctness gate
+## Compatibility and correctness
 
 - [x] Every Recommended runtime plan has an exact class/source/loader gate, bounded health report,
   independent kill switch, and vanilla fallback on uncertainty. A checked 58-plan catalog maps
@@ -151,6 +146,15 @@ still inside the release boundary below.
   root. Packaged-process tests forcibly kill preparation and inject `ENOSPC` before atomic
   publication. The next packaged run recovers its lease and PID-tagged temporary; failed publication
   preserves the old artifact, removes the new temporary, and leaves the installation byte-identical.
+
+The remaining items below expand compatibility claims during the beta. They don't weaken the exact
+identity gates or original-code fallback in the candidate:
+
+- [ ] Exercise the real game on Windows and Linux installations. CI package builds and synthetic
+  fixtures don't prove game integration. The
+  [cross-platform evidence plan](cross-platform-evidence-plan.md) separates hosted package checks,
+  emulated compatibility checks, and native beta evidence so each result carries only the claim it
+  supports.
 - [ ] Fast Rendering, GraphicsLib, BoxUtil, and the reviewed large-mod profile complete startup,
   campaign, combat, simulation, retreat, save, reload, and clean exit scenarios.
 - [ ] Audio transitions, title/refit visuals, simulation opponents, campaign notifications, and

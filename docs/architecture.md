@@ -113,6 +113,6 @@ discovery change can still require a Preflight update.
 
 Performance claims require comparable game, mod-profile, JVM, launcher, cache, machine-load, and
 measurement identities. The development history runs from a roughly 101-second observed worst case
-and an 88.13-second controlled median to a retained 15.88-second warm record.
+and an 88.13-second five-run median to a retained 15.88-second warm record.
 The release candidate benchmark adds the packaged result without replacing that development
 history.

@@ -17,6 +17,7 @@ import type {
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
+import { errorMessage } from "./uiFormat";
 
 const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 
@@ -92,7 +93,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       })
       .catch((error) => {
         if (!cancelled) {
-          setReportIntake({ configured: false, origin: null, reason: String(error) });
+          setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
         }
       });
     return () => {
@@ -198,7 +199,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       setReportUploadedBytes(0);
       announce(`Saved ${result.files} disclosed files. Inspect the ZIP before sharing it.`, "success");
     } catch (error) {
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     } finally {
       diagnosticsBusyRef.current = false;
       setDiagnosticsBusy(false);
@@ -221,7 +222,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       setReportUploadedBytes(diagnosticsExport.bytes);
       announce(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`, "success");
     } catch (error) {
-      const detail = String(error);
+      const detail = errorMessage(error);
       if (detail.toLowerCase().includes("cancel")) {
         announce("Report upload stopped. The diagnostics ZIP is still on this computer.", "warning");
       } else {
@@ -250,7 +251,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       }
     } catch (error) {
       setReportCancelling(false);
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     }
   };
 
@@ -260,7 +261,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       await navigator.clipboard.writeText(JSON.stringify(reportReceipt, null, 2));
       announce("Run-report receipt copied. It includes the deletion authorization.");
     } catch (error) {
-      announce(`Could not copy the receipt: ${error}`, "error");
+      announce(`Could not copy the receipt: ${errorMessage(error)}`, "error");
     }
   };
 
@@ -278,7 +279,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       setReportReceipt(null);
       announce(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`, "success");
     } catch (error) {
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     } finally {
       setReportDeleting(false);
     }

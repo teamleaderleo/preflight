@@ -7,7 +7,7 @@
 **Updated:** 2026-08-11
 
 The development installation's observed worst case reached roughly 101 seconds, and its established
-five-run controlled baseline centered on 88.13 seconds. The fastest warm launch recorded so far
+initial five-run baseline centered on 88.13 seconds. The fastest warm launch recorded so far
 takes 15.88 seconds on the later 83-mod profile. **101 seconds to 15.88 seconds** is the chronological
 headline; 88.13 seconds supplies the repeatable baseline context. The final package still needs its
 own benchmark pass.
@@ -318,7 +318,7 @@ across platforms and mod sets remains an empirical question.
 
 Windows and Linux need real beta evidence, especially for installation discovery, desktop
 packaging, path behavior, and GPU-facing options. CI tests the portable formats and synthetic
-adapter contracts. Licensed-game execution requires user installations.
+adapter contracts. Real-game execution requires user installations.
 The public presets keep that distinction visible: Recommended enables live-gated startup and
 gameplay plans, Conservative keeps the portable startup plans and excludes gameplay and mod-specific
 targets, and Off leaves only wrapper and process reporting. The exact update, write,

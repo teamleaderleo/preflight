@@ -356,7 +356,7 @@ test("the primary action does not launch when edited game settings fail to save"
   await user.type(screen.getByLabelText("Home battle size"), "300");
   await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
 
-  expect(await screen.findByText("Error: settings write refused")).toBeInTheDocument();
+  expect(await screen.findByText("settings write refused")).toBeInTheDocument();
   expect(screen.getByRole("alert")).toHaveTextContent("settings write refused");
   expect(game).not.toHaveBeenCalled();
   update.mockRestore();

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { NoticeTone } from "./types";
+import { cleanUserMessage } from "./uiFormat";
 
 export type WorkflowNoticeScope =
   | "installation"
@@ -28,7 +29,7 @@ export function useWorkflowNotices() {
   const announce = useCallback((scope: WorkflowNoticeScope, message: string, tone: NoticeTone = "info") => {
     setNotices((current) => ({
       ...current,
-      [scope]: { message, tone, sequence: ++nextSequence.current },
+      [scope]: { message: cleanUserMessage(message), tone, sequence: ++nextSequence.current },
     }));
   }, []);
 

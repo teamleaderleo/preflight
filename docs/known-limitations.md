@@ -1,8 +1,9 @@
 # Known limitations
 
-Preflight remains a private development preview. The isolated macOS package has completed signed
-update, signature-failure recovery, rollback, and app-only removal. The public-candidate,
-OS-warning, Windows, Linux, and real-game platform matrix required for the first beta is incomplete.
+Preflight is in release-candidate preparation. The isolated macOS package has completed signed
+update, signature-failure recovery, rollback, and app-only removal. A hosted three-platform
+candidate, its exact-package benchmark, and the final Windows/Linux package lifecycle still need to
+be retained before the first beta.
 
 The first beta's macOS and Windows packages will lack paid platform identities. macOS will require
 the user's explicit **Open Anyway** approval, and Windows may show SmartScreen's unrecognized-app
@@ -11,7 +12,7 @@ manifests and use a separate project-key signature for in-app updates.
 
 The current performance evidence comes from Starsector 0.98a-RC8 with a large mod profile on an
 Apple-silicon Mac running the game's x86-64 JVM through Rosetta. Native packages build on macOS,
-Windows, and Linux. Real licensed Windows and Linux game installations haven't completed the same
+Windows, and Linux. Real Windows and Linux game installations haven't completed the same
 startup, campaign, combat, save, reload, and exit scenarios, so equal activation and speed aren't
 claimed there yet.
 

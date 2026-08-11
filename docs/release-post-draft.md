@@ -13,7 +13,7 @@ texture, data, generated-code, and audio work ahead of the game launch, then reu
 for the same game and ordered mod profile.
 
 On the 83-mod development profile, startup progressed from a roughly **101-second worst case to a
-15.88-second fastest warm launch**. The initial controlled median was 88.13 seconds. The final
+15.88-second fastest warm launch**. The initial five-run median was 88.13 seconds. The final
 candidate recorded **[CANDIDATE BENCHMARK RESULT]** on **[GAME VERSION / HARDWARE / RUNTIME]**.
 Your result will depend on your mods, hardware, storage, cache warmth, memory pressure, and
 temperature, so the app includes the same normal-versus-Preflight benchmark.

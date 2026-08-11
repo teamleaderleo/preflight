@@ -1,10 +1,23 @@
 # Public beta roadmap
 
-**Updated:** 2026-08-09
+**Updated:** 2026-08-11
 
 This is the working sequence from the current development build to a public beta. The detailed
 pass/fail ledger remains [Release readiness](release-readiness.md); this page explains the order and
 the product each phase is meant to leave behind.
+
+## Current position
+
+The desktop flow, permission-free startup benchmark, cache recovery, profile safety, bounded support
+export, updater boundary, and local macOS package lifecycle are implemented. The next engineering
+step is an immutable hosted candidate: build the three platform packages from one revision, run the
+complete package verifier, retain a benchmark from that exact candidate, then capture final
+screenshots and publish the matching release material.
+
+Windows and Linux package contracts already run without game content. Real-game runs on those
+platforms expand the beta's support evidence; they aren't evidence that can be manufactured in CI.
+The first beta should say plainly that macOS has the deepest real-game coverage and use early
+Windows/Linux reports to complete that matrix.
 
 ## Product contract
 
@@ -17,7 +30,7 @@ Preflight's main promise is simple: make the installed game faster and leave its
 and settings recoverable. Every runtime change keeps an exact identity gate and the original
 behavior as its fallback.
 
-## 1. Finish the desktop state model
+## 1. Finish the desktop state model — complete
 
 Exercise the complete interface against fixture states for first discovery, a cold profile, a ready
 profile, low disk space, damaged prepared data, an unsupported update, a failed launch, and an
@@ -31,7 +44,7 @@ advanced work stays inside its workspace.
 **Exit:** someone unfamiliar with the project can prepare, launch, change a profile, export support
 data, update, and remove Preflight without reading the manual.
 
-## 2. Ship a permission-free startup benchmark
+## 2. Ship a permission-free startup benchmark — complete
 
 The desktop owns an identity-checked normal then optimized pair through one coordinator. It waits
 for the main-menu marker emitted by Preflight's runtime agent, closes only its exact process
@@ -47,7 +60,7 @@ telemetry, and raw evidence remain optional diagnostic tools.
 **Exit:** **Run benchmark** produces an honest, repeatable baseline-versus-Preflight result or a
 specific refusal.
 
-## 3. Close correctness and lifecycle gaps
+## 3. Close correctness and lifecycle gaps — complete for candidate freeze
 
 Keep testing truncated, stale, missing, and incompatible cache artifacts; symlinked or unusual
 filesystems; `ENOSPC`; killed preparation; restarts; stale PIDs; profile drift between preview and
@@ -60,7 +73,7 @@ or mod versions decline their affected transformations and continue with the ori
 
 **Exit:** failures remain scoped, explainable, and recoverable without touching the game install.
 
-## 4. Freeze an immutable release candidate
+## 4. Freeze an immutable release candidate — next
 
 Freeze one source revision and adapter catalog, then build macOS, Windows, and Linux packages from
 it. Verify the embedded engine, update signature and origin, report origin, checksums, SBOM,
@@ -70,7 +83,7 @@ and full Preflight-data removal. Any code change creates a new candidate.
 
 **Exit:** each published byte maps to a reviewed source revision and a completed lifecycle result.
 
-## 5. Gather platform evidence
+## 5. Gather platform evidence — continues through beta
 
 macOS gets the complete local game and package lifecycle. VMware Fusion can establish Windows x64
 package behavior under ARM emulation, including paths, discovery, preparation, launch construction,
@@ -80,7 +93,7 @@ claims. Linux starts with X11; Wayland limitations remain explicit.
 
 **Exit:** each platform claim says whether its evidence came from hosted, emulated, or native work.
 
-## 6. Benchmark the release candidate
+## 6. Benchmark the release candidate — after candidate freeze
 
 Run the built-in normal-versus-Preflight benchmark on the exact candidate and retain its receipt.
 Publish that result beside the established **101 seconds → 15.88 seconds** development progression.
@@ -90,7 +103,7 @@ isn't required to make the existing progression real.
 **Exit:** the exact distributed package has a retained benchmark result and the development record
 keeps its stated machine and profile context.
 
-## 7. Finish presentation and distribution
+## 7. Finish presentation and distribution — after candidate acceptance
 
 Capture final screenshots after the interface stops moving. Add platform download buttons, release
 download counts, checksum and OS-warning instructions, update/rollback/removal/privacy/support

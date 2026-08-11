@@ -3,6 +3,7 @@ import { checkForUpdate, installUpdate, isDesktopHost } from "./bridge";
 import type { Announce, UpdateProgressEvent, UpdateStatus } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
+import { errorMessage } from "./uiFormat";
 
 export function useSignedUpdates(
   readyForBackgroundCheck: boolean,
@@ -31,7 +32,7 @@ export function useSignedUpdates(
             : result.reason ?? "Verified updates aren’t configured in this build.");
       }
     } catch (error) {
-      const failure = `Couldn’t check for updates. ${String(error)}`;
+      const failure = `Couldn’t check for updates. ${errorMessage(error)}`;
       setUpdateError(failure);
       if (showResult) announce(failure, "error");
     } finally {
@@ -89,7 +90,7 @@ export function useSignedUpdates(
     try {
       await installUpdate(updateStatus.version);
     } catch (error) {
-      const detail = String(error);
+      const detail = errorMessage(error);
       const failure = `Update wasn’t installed. Preflight ${updateStatus.currentVersion} is unchanged. ${detail}`;
       setUpdateError(failure);
       announce(failure, "error");

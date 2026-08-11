@@ -277,7 +277,7 @@ public final class PreflightCli {
                 "  Heap memory follows the launcher that will actually run, including fr.vmparams."
                         + " Preflight refuses ambiguous layouts, keeps an exact file backup, and"
                         + " updates both -Xms and -Xmx when the launcher defines both.",
-                "  The direct-launch availability fields remain the benchmark contract: Starsector"
+                "  The direct-launch availability fields are required by the startup benchmark: Starsector"
                         + " itself supports launchDirect/startRes/startFS/startSound, and Preflight"
                         + " refuses that unattended path when the game's saved inputs are incomplete."));
         usage.put("install", List.of(
@@ -444,10 +444,10 @@ public final class PreflightCli {
 
     private static String commandSummary(String command) {
         return switch (command) {
-            case "run" -> "Launch Starsector with bounded profiling and optional adapters.";
+            case "run" -> "Launch Starsector with reviewed optimizations and a bounded run report.";
             case "prepare" -> "Build reusable artifacts for the current enabled profile.";
             case "doctor" -> "Check installation discovery and launch readiness.";
-            case "launch-settings" -> "Report whether the game can start without showing its launcher.";
+            case "launch-settings" -> "Read or update the game settings used by ordinary and Preflight launches.";
             case "install" -> "Write the local Preflight launcher integration.";
             case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
             case "cache" -> "Report what Preflight is storing and which profiles it holds.";

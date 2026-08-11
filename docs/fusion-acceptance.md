@@ -103,7 +103,7 @@ The structured document always keeps these checks deferred:
 - **Signed update and rollback:** use two differently versioned, update-signed private candidates,
   the isolated rehearsal feed, and an operator-confirmed restart. Static package files can't prove
   the running application accepted, rejected, or rolled back an update.
-- **Licensed-game process ownership:** run the packaged campaign scenario later against the
+- **Real-game process ownership:** run the packaged campaign scenario later against the
   operator's legitimate installation. Synthetic dry-run planning intentionally starts no process.
 - **Graphics, audio, and gameplay:** use the licensed-installation checklist and label a Fusion
   result as emulated compatibility. Native beta evidence is still required.

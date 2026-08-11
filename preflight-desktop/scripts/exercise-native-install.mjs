@@ -226,7 +226,7 @@ export function exercisePackagedDesktopSmokeContract(packageRoot) {
       },
       runDirectory,
       steps: [],
-      diagnostics: ["Package verification intentionally didn't launch the licensed game."],
+      diagnostics: ["Package verification intentionally didn't launch the game."],
     })}\n`, { mode: 0o600 });
     const response = JSON.parse(capture(
       java,

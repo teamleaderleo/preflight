@@ -9,9 +9,9 @@ plans. The release evidence should match those boundaries.
 
 | Level | Environment | What it can establish | What it can't establish |
 | --- | --- | --- | --- |
-| Hosted package checks | GitHub-hosted Windows, Ubuntu, and macOS runners | Reproducible builds, portable cache contracts, JAR startup, package contents, install/remove behavior, no-launch platform-adapter probes, checksums, and update metadata | Integration with the licensed game, live desktop actions, GPU/audio behavior, or performance |
+| Hosted package checks | GitHub-hosted Windows, Ubuntu, and macOS runners | Reproducible builds, portable cache contracts, JAR startup, package contents, install/remove behavior, no-launch platform-adapter probes, checksums, and update metadata | Integration with the real game, live desktop actions, GPU/audio behavior, or performance |
 | Emulated game checks | Windows 11 ARM on Apple silicon | Discovery, first-run preparation, launch, cache acceptance, fallback behavior, settings writes, and basic gameplay compatibility through Windows' x64 application emulator | Native x86-64 performance or representative driver behavior |
-| ARM64 portable checks | Ubuntu ARM64 on Apple silicon | Portable JVM/source contracts with native ARM64 toolchains | The published x86-64 Debian/AppImage package, licensed-game integration, or performance |
+| ARM64 portable checks | Ubuntu ARM64 on Apple silicon | Portable JVM/source contracts with native ARM64 toolchains | The published x86-64 Debian/AppImage package, real-game integration, or performance |
 | Native beta checks | A user's Windows or Linux machine with its own game installation | Package UX, real-game correctness, graphics/audio behavior, startup time, and frame-time distributions | Another machine's hardware or mod profile |
 
 Public repositories can use GitHub's standard hosted runners without Actions charges. The current

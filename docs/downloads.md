@@ -4,9 +4,9 @@ Preflight is designed to ship as a desktop application plus a runnable and agent
 same Java engine provides the CLI, launch wrapper, profile census, cache preparation, diagnostics,
 and startup profiler.
 
-> **No public download yet.** The packaging pipeline below is verified, but public distribution is
-> blocked on written Fractal Softworks authorization and disclaimer guidance, release-candidate
-> compatibility testing, and the remaining product-lifecycle work in
+> **No public download yet.** The packaging pipeline below is verified. Public release waits on an
+> accepted hosted candidate, final package-lifecycle checks, and the maintainer's publication
+> decision after the requested Fractal Softworks guidance window. The exact state is in
 > [Release readiness](release-readiness.md).
 
 ## Planned release downloads
@@ -84,7 +84,7 @@ assumed, and this optional follow-up doesn't change the unsigned first-beta boun
 Linux CI builds both `.deb` and AppImage artifacts on Ubuntu 22.04. `.deb` is the Debian-family
 package format used by Ubuntu and Debian; it doesn't mean Debian is the only supported target.
 AppImage is the portable fallback for other compatible x86-64 distributions. Real installation and
-licensed-game testing still determine the initial supported distribution list.
+real-game testing still determine the initial supported distribution list.
 
 ## Install the desktop app
 

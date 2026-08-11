@@ -89,14 +89,14 @@ export function ReportsPage({
       {desktopBenchmarkComparison?.available ? (
         <section className="card benchmark-results" aria-label="Latest benchmark result">
           <div className="card__heading">
-            <div><p className="eyebrow">Latest comparison</p><h2>Measurement-only → optimized</h2></div>
+            <div><p className="eyebrow">Latest comparison</p><h2>Normal launch → Preflight</h2></div>
             <CheckIcon className="settings-check" />
           </div>
           <div className="benchmark-results__grid">
             <BenchmarkResult label="Main menu" metric={desktopBenchmarkComparison.metrics.processToMainMenuMs} unit="time" />
           </div>
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
-          <small>One paired run is directional evidence. The saved receipt keeps exact identities and raw metrics.</small>
+          <small>A paired run shows the difference on this setup. The saved receipt keeps exact identities and raw measurements.</small>
         </section>
       ) : null}
 
@@ -180,7 +180,7 @@ export function ReportsPage({
             </div>
           ) : null}
           <div className="activation-review__footer">
-            <span><ShieldIcon /> The native host rechecks the file, size, and SHA-256 immediately before upload.</span>
+            <span><ShieldIcon /> Preflight rechecks the file, size, and SHA-256 immediately before upload.</span>
             {reportUploading
               ? <button className="button button--quiet" type="button" onClick={() => void stopRunReport()} disabled={reportCancelling || reportFinalizing}>{reportFinalizing ? "Finishing receipt…" : reportCancelling ? "Stopping…" : "Cancel upload"}</button>
               : <button className="button button--primary" type="button" onClick={() => void submitRunReport()} disabled={!reportIntake?.configured || diagnosticsBusy}>{reportError ? "Try sending again" : "Send this exact ZIP"}</button>}

@@ -24,6 +24,18 @@ export function shortPath(path: string): string {
   return `…/${parts.slice(-3).join("/")}`;
 }
 
+export function errorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/^Error:\s*/i, "").trim() || "Something went wrong.";
+}
+
+export function cleanUserMessage(message: string): string {
+  return message
+    .replace(/\.\s+Error:\s*/gi, ": ")
+    .replace(/(^|[!?]\s+)Error:\s*/gi, "$1")
+    .trim();
+}
+
 export function failedRunSummary(detail?: string): string {
   const firstLine = detail
     ?.split(/\r?\n/)

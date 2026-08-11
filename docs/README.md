@@ -15,7 +15,7 @@ archive. They answer different questions. This page is the shortest route to the
 - [Product contract](product-contract.md) — exact modification, compatibility, preset, storage,
   update, and diagnostics boundaries.
 - [Optimization history](optimization-history.md) — the readable, source-linked account from the
-  roughly 101-second observed worst case and 88.13-second controlled median through the
+  roughly 101-second observed worst case and 88.13-second five-run median through the
   15.88-second warm record.
 - [Experiment ledger](experiment-ledger.md) — every retained optimization family, including rejected,
   corrected, diagnostic, and deferred branches.
@@ -27,7 +27,7 @@ archive. They answer different questions. This page is the shortest route to the
 - [Cross-platform evidence plan](cross-platform-evidence-plan.md) — what hosted, emulated, and native
   checks can establish before a platform is accepted.
 - [VMware Fusion acceptance](fusion-acceptance.md) — deterministic Windows package and Ubuntu ARM64
-  portable checks that use no licensed game content.
+  portable checks that use no game content.
 - [Versioning and updates](versioning-and-updates.md) — application releases, game/mod compatibility,
   profiles, cache evolution, and the signed update channel.
 

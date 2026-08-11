@@ -66,5 +66,5 @@ Developer ID signature; the independent Tauri update signature is the one exerci
 - Rust clippy passed with warnings denied.
 - `mvn verify` passed across the full reactor, with only the existing environment-dependent skips.
 
-Windows and Linux still need their installed update, rollback, OS-warning, and licensed-game checks.
+Windows and Linux still need their installed update, rollback, OS-warning, and real-game checks.
 The hosted three-platform signed candidate also remains a separate release gate.

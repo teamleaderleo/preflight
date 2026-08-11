@@ -149,7 +149,7 @@ export async function getDesktopSmokeProbe(): Promise<DesktopSmokeProbe> {
         probe: {
           ready: false,
           driver: null,
-          diagnostics: ["The packaged startup benchmark contract is unavailable."],
+          diagnostics: ["This build can’t run the startup benchmark. Reinstall Preflight or create a support ZIP below."],
         },
       };
     }

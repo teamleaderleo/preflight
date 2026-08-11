@@ -72,7 +72,7 @@ ALLOWED_BINARY_PREFIXES = (
     "preflight-desktop/src-tauri/icons/",
 )
 ALLOWED_BINARY_SUFFIXES = frozenset({".icns", ".ico", ".png"})
-LICENSED_FIXTURE_PREFIXES = (
+REVIEWED_FIXTURE_PREFIXES = (
     "preflight-core/src/test/resources/audio/ogg-v1/",
     "preflight-agent/src/main/resources/dev/starsector/preflight/agent/graphicslib-texture-data-",
 )
@@ -222,7 +222,7 @@ def validate_repository(repository: Path) -> dict[str, int]:
         raise SourceBoundaryError("source-history audit requires a complete, non-shallow Git checkout")
 
     tracked = current_files(repository)
-    licensed_fixtures = 0
+    reviewed_fixtures = 0
     binary_files = 0
     for name in tracked:
         path = repository / name
@@ -231,7 +231,7 @@ def validate_repository(repository: Path) -> dict[str, int]:
         data = path.read_bytes()
         validate_blob(name, data)
         binary_files += int(allowed_binary(name) or reviewed_documentation_image(name, data))
-        licensed_fixtures += int(name.startswith(LICENSED_FIXTURE_PREFIXES))
+        reviewed_fixtures += int(name.startswith(REVIEWED_FIXTURE_PREFIXES))
 
     history = historical_blobs(repository)
     blobs = read_blobs(repository, sorted(history))
@@ -245,7 +245,7 @@ def validate_repository(repository: Path) -> dict[str, int]:
     return {
         "trackedFiles": len(tracked),
         "reviewedBinaryFiles": binary_files,
-        "licensedFixtureFiles": licensed_fixtures,
+        "reviewedFixtureFiles": reviewed_fixtures,
         "historicalBlobs": len(history),
         "historicalPaths": historical_paths,
         "maxBlobBytes": MAX_REVIEWED_BLOB_BYTES,

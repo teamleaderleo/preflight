@@ -137,7 +137,7 @@ export function useDesktopAutomation({
         setDesktopBenchmarkComparison({
           available: true,
           metrics: {
-            processToMainMenuMs: { measurementOnly: 88_000, optimized: 15_880, delta: -72_120, improvementPercent: 81.95 },
+            processToMainMenuMs: { measurementOnly: 88_130, optimized: 15_880, delta: -72_250, improvementPercent: 81.98 },
           },
           context: {
             storage: { scope: "all-prepared-data", bytes: 2_426_028_032, files: 15_104 },

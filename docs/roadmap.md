@@ -11,15 +11,14 @@ Preflight follows a measurement-first sequence. Each optimization keeps the orig
 ## Current release program (2026-08-09)
 
 Startup reached roughly 101 seconds at the observed high end and centered on an 88.13-second
-five-run controlled median. The current development profile has reached a 15.88-second warm record
+five-run median. The current development profile has reached a 15.88-second warm record
 after clean 16.66-second cold and 16.28-second warm gates. The chronological headline is therefore
 **101 seconds to 15.88 seconds**. The final candidate needs its own packaged benchmark pass; that
 result will sit beside the development record.
 
 Release work now has priority over another narrow startup experiment:
 
-1. written Fractal Softworks authorization for distribution, integration approach, name, and
-   disclaimer;
+1. resolve the publication policy after the requested Fractal Softworks guidance window;
 2. complete the hosted three-platform candidate and its Windows/Linux install, update, rollback,
    and removal evidence;
 3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
