@@ -24,6 +24,16 @@ export function shortPath(path: string): string {
   return `…/${parts.slice(-3).join("/")}`;
 }
 
+export function failedRunSummary(detail?: string): string {
+  const firstLine = detail
+    ?.split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) return "Starsector closed with an error. Support evidence was saved.";
+  const summary = firstLine.length > 360 ? `${firstLine.slice(0, 357)}…` : firstLine;
+  return `Starsector closed with an error: ${summary} The support evidence has full details.`;
+}
+
 export function friendlyPlatform(platform: DesktopSnapshot["platform"]): string {
   return { mac: "macOS", windows: "Windows", linux: "Linux", other: "Desktop" }[platform];
 }

@@ -13,6 +13,7 @@ interface ReportsPageProps {
   message: string;
   messageTone: NoticeTone;
   status: AppStatus;
+  isReady: boolean;
   preparing: boolean;
   automation: AutomationState;
   diagnostics: DiagnosticsState;
@@ -22,6 +23,7 @@ export function ReportsPage({
   message,
   messageTone,
   status,
+  isReady,
   preparing,
   automation,
   diagnostics,
@@ -57,7 +59,7 @@ export function ReportsPage({
     stopRunReport,
     submitRunReport,
   } = diagnostics;
-  const operationBlocked = preparing || status === "launching" || status === "running";
+  const benchmarkBlocked = !isReady || preparing || status === "launching" || status === "running";
 
   return (
     <div className="settings-page">
@@ -69,14 +71,14 @@ export function ReportsPage({
             <h2>Startup benchmark</h2>
             <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the exact process it started.</InfoTip>
           </div>
-          <p>Normal launch versus Preflight, timed at the main menu.</p>
+          <p>{isReady ? "Normal launch versus Preflight, timed at the main menu." : "Choose Starsector on Home before running the benchmark."}</p>
           {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
         </div>
         <div className="benchmark-card__actions">
           {desktopSmokeRunning ? (
             <button className="button button--quiet button--benchmark" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping…" : "Stop benchmark"}</button>
           ) : (
-            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || operationBlocked}>
+            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || benchmarkBlocked}>
               {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? "Check again" : "Run benchmark"}
             </button>
           )}

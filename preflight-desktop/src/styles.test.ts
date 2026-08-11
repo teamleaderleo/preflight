@@ -30,6 +30,14 @@ test("the primary palette stays blue rather than blue-green", () => {
   expect(styles).not.toContain("#246d7a");
 });
 
+test("active controls look active without relying on gradients", () => {
+  expect(styles).toContain("--action: #4f69c5");
+  expect(styles).toMatch(/\.button--primary\s*\{[^}]*background:\s*var\(--action\);/s);
+  expect(styles).not.toMatch(/\.button--primary\s*\{[^}]*linear-gradient/s);
+  expect(styles).toMatch(/\.simple-switch:has\(input:checked\)\s*\{[^}]*background:\s*var\(--accent-soft\);/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\] :is\(\.simple-switch, \.profile-menu > summary\)/);
+});
+
 test("wide, narrow, and short windows keep content inside the desktop shell", () => {
   expect(styles).toMatch(/\.main\s*\{[^}]*min-width:\s*0;/s);
   expect(styles).toMatch(/@media \(min-width: 721px\)[\s\S]*?\.launch-console--configured\s*\{[^}]*grid-template-areas:[^}]*"battle memory antialiasing ui-scale"[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/);

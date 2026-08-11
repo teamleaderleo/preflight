@@ -8,6 +8,17 @@ import type { NoticeTone } from "../types";
 
 type ProfilesState = ReturnType<typeof useProfiles>;
 
+const savedDateFormatter = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+function formatSavedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : savedDateFormatter.format(date);
+}
+
 interface ProfilesPageProps {
   message: string;
   messageTone: NoticeTone;
@@ -64,14 +75,14 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
               <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
                 <div className="profile-card__copy">
                   <div><strong>{profile.name}</strong>{profile.active ? <b>Active</b> : null}</div>
-                  <span>{profile.modCount.toLocaleString()} mod{profile.modCount === 1 ? "" : "s"} · saved {new Date(profile.savedAt).toLocaleDateString()}</span>
+                  <span>{profile.modCount.toLocaleString()} mod{profile.modCount === 1 ? "" : "s"} · saved {formatSavedAt(profile.savedAt)}</span>
                   {!profile.sameInstall ? <small>Saved for a different installation</small> : null}
                   {profile.missingMods.length > 0 ? <small>Missing: {profile.missingMods.join(", ")}</small> : null}
                 </div>
                 <div className="profile-card__actions">
-                  {!profile.active && profile.canActivate ? <button className="button button--quiet button--compact" type="button" onClick={() => void reviewProfile(profile.name)} disabled={profileBusy || operationBlocked}>Review switch</button> : null}
+                  {!profile.active && profile.canActivate ? <button className="button button--quiet button--compact" type="button" onClick={() => void reviewProfile(profile.name)} disabled={profileBusy || operationBlocked}>Switch…</button> : null}
                   <details className="profile-menu">
-                    <summary>Manage</summary>
+                    <summary aria-label={`Manage ${profile.name}`}>Manage</summary>
                     <div>
                       <button type="button" onClick={(event) => {
                         event.currentTarget.closest("details")?.removeAttribute("open");

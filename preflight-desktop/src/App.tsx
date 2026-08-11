@@ -27,15 +27,13 @@ import { useTheme } from "./useTheme";
 import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
-import { shortPath } from "./uiFormat";
+import { failedRunSummary, shortPath } from "./uiFormat";
 import type {
   AppStatus,
   DesktopSnapshot,
   NoticeTone,
   RunStateEvent,
 } from "./types";
-
-export { isCurrentProfilePrepared } from "./usePreparation";
 
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
   if (page === "launch") return "Game settings";
@@ -50,16 +48,6 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   if (status === "running") return "Running";
   if (!isReady) return "Setup";
   return needsPreparation ? "Preparation needed" : "Ready";
-}
-
-export function failedRunSummary(detail?: string): string {
-  const firstLine = detail
-    ?.split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-  if (!firstLine) return "Starsector closed with an error. Support evidence was saved.";
-  const summary = firstLine.length > 360 ? `${firstLine.slice(0, 357)}…` : firstLine;
-  return `Starsector closed with an error: ${summary} The support evidence has full details.`;
 }
 
 interface RunFailure {
@@ -382,6 +370,7 @@ export default function App() {
             message={reportsNotice?.message ?? ""}
             messageTone={reportsNotice?.tone ?? "info"}
             status={status}
+            isReady={isReady}
             preparing={preparing}
             automation={automation}
             diagnostics={diagnostics}

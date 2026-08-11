@@ -1,6 +1,8 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import App, { failedRunSummary, isCurrentProfilePrepared } from "./App";
+import App from "./App";
+import { failedRunSummary } from "./uiFormat";
+import { isCurrentProfilePrepared } from "./usePreparation";
 import * as bridge from "./bridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
 
@@ -202,6 +204,7 @@ test("shows a useful ready-state home screen in browser preview", async () => {
 });
 
 test("setup keeps a single installation action and hides unavailable ready-state panels", async () => {
+  const user = userEvent.setup();
   const snapshot = vi.spyOn(bridge, "getSnapshot").mockResolvedValue({
     ...(await bridge.getSnapshot()),
     ready: false,
@@ -214,6 +217,10 @@ test("setup keeps a single installation action and hides unavailable ready-state
   expect(screen.getAllByRole("button", { name: "Choose game folder" })).toHaveLength(1);
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  expect(screen.getByText("Choose Starsector on Home before running the benchmark.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Run benchmark" })).toBeDisabled();
 
   snapshot.mockRestore();
 });
@@ -522,7 +529,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
   expect(screen.getByText("Active")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Current" })).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Review switch" }));
+  await user.click(screen.getByRole("button", { name: "Switch…" }));
 
   expect(await screen.findByRole("heading", { name: "Switch to Utilities only?" })).toBeInTheDocument();
   expect(screen.getByText("Enable (1)")).toBeInTheDocument();
@@ -541,7 +548,7 @@ test("a profile with missing mods explains the problem without showing a dead sw
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Profiles" }));
   expect(await screen.findByText("Missing: graphicslib")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Review switch" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Switch…" })).not.toBeInTheDocument();
 });
 
 test("named profiles can be renamed or deleted only after an exact review", async () => {

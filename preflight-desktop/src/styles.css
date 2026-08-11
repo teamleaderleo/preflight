@@ -18,6 +18,8 @@
   --accent: #6079ad;
   --accent-strong: #425f98;
   --accent-soft: rgba(86, 110, 166, 0.15);
+  --action: #4f69c5;
+  --action-hover: #5a76d8;
   --warning: #ad8439;
   --success: #4c8378;
   --line: rgba(17, 59, 82, 0.17);
@@ -808,12 +810,13 @@ h2 {
 
 .button--primary {
   color: white;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
-  box-shadow: 0 9px 22px rgba(66, 95, 152, 0.22);
+  background: var(--action);
+  box-shadow: 0 9px 22px rgba(54, 78, 150, 0.24);
 }
 
 .button--primary:not(:disabled):hover {
-  box-shadow: 0 12px 26px rgba(66, 95, 152, 0.31);
+  background: var(--action-hover);
+  box-shadow: 0 12px 26px rgba(54, 78, 150, 0.32);
 }
 
 .button--launch {
@@ -1197,6 +1200,11 @@ h2 {
   width: 20px;
   height: 20px;
   accent-color: var(--accent);
+}
+
+.simple-switch:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent-strong) 55%, transparent);
+  background: var(--accent-soft);
 }
 
 .simple-switch:has(input:focus-visible) {
@@ -2985,6 +2993,8 @@ footer {
   --accent: #7f95cc;
   --accent-strong: #8fa8dd;
   --accent-soft: rgba(112, 137, 194, 0.18);
+  --action: #4968d4;
+  --action-hover: #5678e7;
   --ink: #e9edf5;
   --ink-soft: #aeb9ca;
   --ink-faint: #96a4b9;
@@ -3042,6 +3052,16 @@ footer {
   .activation-columns > div
 ) {
   background: rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme="dark"] :is(.simple-switch, .profile-menu > summary) {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme="dark"] .simple-switch:has(input:checked) {
+  border-color: rgba(127, 149, 204, 0.45);
+  background: rgba(73, 104, 212, 0.22);
 }
 
 :root[data-theme="dark"] .status-chip {
