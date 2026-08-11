@@ -74,7 +74,6 @@ why the work changed direction. This page accounts for each abandoned branch.
 | GraphicsLib | Cache `loadJSON` calls as the primary callback optimization | **Rejected as attribution** | Profiling found the larger costs in generated-normal discovery, validation, settings, and object lifetime. | [GraphicsLib attribution](evidence/2026-08-03-loadjson-is-not-where-graphicslib-spends-its-time.md) |
 | GraphicsLib | Compact generated-normal replay | **Accepted** | Exact compact state avoided repeated normal-map discovery and generation. Identity and live validation boundaries remain. | [Compact replay](evidence/2026-08-02-graphicslib-compact-autogen-replay.md), [live adapter](evidence/2026-08-04-graphicslib-compact-replay-adapter-live.md) |
 | AshLib | Reuse stable startup JSON | **Accepted** | The exact callback path removed roughly 7.1–7.4 seconds of repeated component work on the reviewed profile. | [AshLib diagnostic](evidence/2026-08-02-ashlib-startup-json-cache.md) |
-| Whole stack | Randomized vanilla/texture/complete comparison | **Historical control** | The measurements remain valid for that installation state. Its baseline already included hard-coded AshLib and GraphicsLib fixes, so it compares partially optimized states and isn't the project's original before/after result. | [Whole-stack comparison](evidence/2026-08-03-the-whole-stack-measured-at-once.md) |
 
 ## August 4–5: mod callbacks, generated code, gameplay, and correctness
 

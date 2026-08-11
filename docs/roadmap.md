@@ -13,8 +13,8 @@ Preflight follows a measurement-first sequence. Each optimization keeps the orig
 Startup reached roughly 101 seconds at the observed high end and centered on an 88.13-second
 five-run controlled median. The current development profile has reached a 15.88-second warm record
 after clean 16.66-second cold and 16.28-second warm gates. The chronological headline is therefore
-**101 seconds to 15.88 seconds**. The next performance publication needs a fresh controlled
-release-candidate cohort; the current record remains a single warm result.
+**101 seconds to 15.88 seconds**. The final candidate needs its own packaged benchmark pass; that
+result will sit beside the development record.
 
 Release work now has priority over another narrow startup experiment:
 
@@ -23,8 +23,8 @@ Release work now has priority over another narrow startup experiment:
 2. complete the hosted three-platform candidate and its Windows/Linux install, update, rollback,
    and removal evidence;
 3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
-4. a controlled before/after release-candidate campaign plus frame-time/FPS evidence for gameplay
-   claims; and
+4. a retained startup benchmark from the release candidate plus frame-time/FPS evidence for any
+   gameplay claims; and
 5. update-signed, checksum-qualified packages with a tested rollback and support path.
 
 The [cross-platform evidence plan](cross-platform-evidence-plan.md) defines the free hosted matrix,

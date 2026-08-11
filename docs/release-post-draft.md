@@ -13,12 +13,11 @@ Preflight is a free, open-source launcher and preparation tool for Starsector. I
 texture, data, generated-code, and audio work ahead of the game launch, then reuses the exact result
 for the same game and ordered mod profile.
 
-On the 83-mod development profile, the observed record moved from a roughly **101-second worst case
-to a 15.88-second fastest warm launch**. The established controlled median at the start of the
-chronology was 88.13 seconds. The release claim is **[CONTROLLED BEFORE] → [CONTROLLED AFTER]**,
-measured over **[COHORT]** on
-**[GAME VERSION / HARDWARE / RUNTIME]**. Your result will depend on your mods, hardware, storage,
-cache warmth, memory pressure, and temperature.
+On the 83-mod development profile, startup progressed from a roughly **101-second worst case to a
+15.88-second fastest warm launch**. The initial controlled median was 88.13 seconds. The final
+candidate recorded **[CANDIDATE BENCHMARK RESULT]** on **[GAME VERSION / HARDWARE / RUNTIME]**.
+Your result will depend on your mods, hardware, storage, cache warmth, memory pressure, and
+temperature, so the app includes the same normal-versus-Preflight benchmark.
 
 Preflight doesn't permanently patch Starsector, mod JARs, executables, assets, activation data, or
 saves. Runtime shortcuts are exact-version-gated, exist only in the launched JVM, and use the

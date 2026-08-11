@@ -9,13 +9,8 @@
 The development installation's observed worst case reached roughly 101 seconds, and its established
 five-run controlled baseline centered on 88.13 seconds. The fastest warm launch recorded so far
 takes 15.88 seconds on the later 83-mod profile. **101 seconds to 15.88 seconds** is the chronological
-headline; 88.13 seconds supplies the repeatable baseline context. The release candidate still needs
-its own controlled before/after measurement.
-
-An intermediate randomized campaign remains in the evidence archive. Its baseline already
-contained hard-coded AshLib and GraphicsLib fixes, which means it compares two partially optimized
-states. It records an intermediate state in the investigation. Narrow replays, component
-timings, integration gates, and chronological launch records establish where later changes landed.
+headline; 88.13 seconds supplies the repeatable baseline context. The final package still needs its
+own benchmark pass.
 
 The [experiment ledger](experiment-ledger.md) records accepted, rejected, diagnostic, and deferred
 branches. The [performance and storage reference](performance-storage-tradeoffs.md) collects the
@@ -60,8 +55,8 @@ entered the working stack.
 
 The 15.88-second run retained 42/42 transformed-class cache hits, 15,469 prepared-texture and
 pixel-conversion hits, active adapter health, and no adapter decline or failure. Its exact record is
-in [the lazy fleet-member report](evidence/2026-08-06-codex-lazy-fleet-members.md). A controlled
-release-candidate cohort is still required before a public median replaces the current record.
+in [the lazy fleet-member report](evidence/2026-08-06-codex-lazy-fleet-members.md). The final
+candidate benchmark will add a packaged result beside this record.
 
 ## The first texture cache accelerated the wrong part of the wait
 

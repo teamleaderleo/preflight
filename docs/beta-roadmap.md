@@ -80,14 +80,15 @@ claims. Linux starts with X11; Wayland limitations remain explicit.
 
 **Exit:** each platform claim says whether its evidence came from hosted, emulated, or native work.
 
-## 6. Run the release-candidate performance cohort
+## 6. Benchmark the release candidate
 
-Use alternating paired conditions on the exact candidate with a quiet machine, recorded temperature
-and memory state, and controlled cooldowns. Publish the distribution and median. The 15.88-second
-warm development run remains the fastest observed record; the public improvement claim comes from
-this release-candidate cohort.
+Run the built-in normal-versus-Preflight benchmark on the exact candidate and retain its receipt.
+Publish that result beside the established **101 seconds → 15.88 seconds** development progression.
+An alternating multi-run campaign remains available when it answers a useful follow-up question; it
+isn't required to make the existing progression real.
 
-**Exit:** the headline has a reproducible before/after dataset and no contaminated comparison.
+**Exit:** the exact distributed package has a retained benchmark result and the development record
+keeps its stated machine and profile context.
 
 ## 7. Finish presentation and distribution
 

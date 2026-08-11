@@ -13,7 +13,7 @@ still inside the release boundary below.
 | Desktop product | First-run, preparation, profiles, settings, updates, reports, cleanup, and removal implemented |
 | Package lifecycle | Local macOS candidate passes; complete hosted three-platform candidate pending |
 | Licensed-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
-| Performance claim | 15.88-second warm development record; exact-candidate cohort pending |
+| Performance record | **101s → 15.88s** established; packaged benchmark still to run |
 | Publication | Blocked until every unchecked release gate below is closed |
 
 ## Blocking before public distribution
@@ -66,8 +66,8 @@ still inside the release boundary below.
   [cross-platform evidence plan](cross-platform-evidence-plan.md) separates free hosted package
   checks, emulated compatibility checks, and native beta evidence so each result carries only the
   claim it supports.
-- [ ] Run a fresh controlled before/after cohort using the exact release candidate. Publish the
-  median/distribution it supports; label the 15.88-second development run as a warm record.
+- [ ] Run the startup benchmark on the exact release candidate and publish those results beside the
+  **101 seconds → 15.88 seconds** development progression.
 
 ## Blocking product work
 

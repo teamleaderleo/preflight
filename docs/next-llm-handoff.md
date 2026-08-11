@@ -4,7 +4,7 @@
 > **Preflight**. Distribution, descriptive use of Starsector, and the disclaimer are pending written
 > Fractal Softworks guidance. Product trust now
 > outranks another narrow startup experiment: finish lifecycle/update/report UX, real Windows/Linux
-> game evidence, and a fresh controlled release-candidate cohort. Use
+> game evidence, and the exact candidate's startup benchmark. Use
 > [release-readiness.md](release-readiness.md) as the public-release blocker list and
 > [product-contract.md](product-contract.md) as the current behavioral boundary. The chronological
 > ledger below is retained as engineering evidence and may describe priorities that were later
@@ -1330,8 +1330,7 @@ Next release implementation order: finish the private hosted candidate, then exe
 packages on real licensed Windows/Linux installations. Core CI and native packaging are green on
 all three desktop platforms, but safe
 fallback outside the reviewed macOS game bytecode is not the same claim as equal activation or
-speed. Run the controlled release-candidate cohort only after the candidate's behavior and
-packaging are frozen.
+speed. Run the candidate benchmark after its behavior and packaging are frozen.
 
 The bounded diagnostics export is now implemented in both CLI and desktop UI. It selects only an
 explicit text-metadata allowlist from the newest three runs and two benchmarks, caps each file at

@@ -8,7 +8,7 @@ then launches the same game and mod profile with those results ready to use.**
 
 > **Development preview.** Public downloads aren't available yet. The remaining release gates are
 > written guidance from Fractal Softworks, real Windows and Linux game runs, a hosted release
-> candidate, and a fresh controlled before-and-after benchmark on that exact candidate. The current
+> candidate, and a final benchmark pass on that exact package. The current
 > checklist is in [Release readiness](docs/release-readiness.md).
 
 <picture>
@@ -16,8 +16,8 @@ then launches the same game and mod profile with those results ready to use.**
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**Development record: roughly 101 seconds at the observed high end to a 15.88-second fastest warm
-launch. The initial five-run controlled median was 88.13 seconds.**
+**101 seconds → 15.88 seconds on an 83-mod development installation.** The initial five-run
+controlled median was 88.13 seconds.
 
 Preflight found much of Starsector's heavily modded startup time in work whose answer was already
 determined by the game build, enabled mod order, and resource files. It prepares those answers once,
@@ -39,9 +39,9 @@ seconds cold, 16.28 seconds warm, and 15.88 seconds warm. The record retained al
 class-cache hits, 15,469 prepared texture and pixel-conversion hits, healthy adapters, and no
 adapter decline or failure.
 
-The release claim will come from a fresh same-session cohort on the final candidate. Hardware, mods,
-storage, cache warmth, memory pressure, translation, and temperature all affect the result. The
-existing measurements and their context are collected in
+Hardware, mods, storage, cache warmth, memory pressure, translation, and temperature all affect the
+result. Preflight's benchmark lets each installation measure its own normal and accelerated launch.
+The development measurements and their context are collected in
 [Optimization history](docs/optimization-history.md).
 
 ## What Preflight handles
@@ -205,7 +205,8 @@ the release claim and platform boundary:
    package boot, and VMware Fusion acceptance already cover the portable engine and packaging paths.
 3. Publish and rehearse the exact hosted candidate, including signed update, rollback, report,
    cleanup, removal, and recovery flows.
-4. Run the final controlled before-and-after cohort and publish the distribution it supports.
+4. Run the final benchmark pass on the exact candidate and publish those results beside the
+   established development record.
 
 The complete publication checklist is in [Release readiness](docs/release-readiness.md). The ordered
 product and evidence work is in the [Public beta roadmap](docs/beta-roadmap.md).

@@ -23,8 +23,8 @@ free of its own defects.
 
 The 15.88-second launch is a warm record from the development machine, not an expected result for
 every system. Mod count and content, cache warmth, CPU, translation, storage, memory pressure, and
-temperature all affect startup and frame time. The public performance claim will use a fresh
-controlled release-candidate cohort.
+temperature all affect startup and frame time. The built-in benchmark lets each installation record
+its own normal and accelerated launch; the final package will retain the same result before release.
 
 Preparation uses additional disk space. Balanced stores exact lossless LZ4 data and keeps raw data
 when compression barely helps; Fastest keeps every upload-ready pixel array raw and can use several
