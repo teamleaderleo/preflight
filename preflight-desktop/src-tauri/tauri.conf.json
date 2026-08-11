@@ -43,6 +43,7 @@
     "resources": {
       "target/engine/": "engine/",
       "licenses/B612-OFL.txt": "licenses/B612-OFL.txt",
+      "licenses/IBM-Plex-Sans-OFL.txt": "licenses/IBM-Plex-Sans-OFL.txt",
       "licenses/Orbitron-OFL.txt": "licenses/Orbitron-OFL.txt"
     }
   },

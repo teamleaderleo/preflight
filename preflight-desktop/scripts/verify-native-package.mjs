@@ -174,7 +174,7 @@ export function verifyExtractedPayload(root, engineOptions = {}) {
   if (engineDirectories.length !== 1) {
     throw new Error(`Extracted package must contain exactly one bounded engine; found ${engineDirectories.length}`);
   }
-  const expectedFontLicenses = ["B612-OFL.txt", "Orbitron-OFL.txt"];
+  const expectedFontLicenses = ["B612-OFL.txt", "IBM-Plex-Sans-OFL.txt", "Orbitron-OFL.txt"];
   const fontLicenses = entries.filter(
     (entry) => entry.details.isFile() && expectedFontLicenses.includes(basename(entry.path)),
   );
@@ -241,11 +241,19 @@ function verifyMacApp(appDirectory, signatureRequired) {
   if (extra.length) throw new Error(`Unexpected macOS app content: ${extra.join(", ")}`);
   assertExactEntries(join(contents, "MacOS"), ["starsector-preflight-desktop"]);
   assertExactEntries(join(contents, "Resources"), ["engine", "icon.icns", "licenses"]);
-  assertExactEntries(join(contents, "Resources", "licenses"), ["B612-OFL.txt", "Orbitron-OFL.txt"]);
+  assertExactEntries(join(contents, "Resources", "licenses"), [
+    "B612-OFL.txt",
+    "IBM-Plex-Sans-OFL.txt",
+    "Orbitron-OFL.txt",
+  ]);
   assertSameFile(join(contents, "Resources", "icon.icns"), join(desktopDirectory, "src-tauri", "icons", "icon.icns"));
   assertSameFile(
     join(contents, "Resources", "licenses", "B612-OFL.txt"),
     join(desktopDirectory, "src-tauri", "licenses", "B612-OFL.txt"),
+  );
+  assertSameFile(
+    join(contents, "Resources", "licenses", "IBM-Plex-Sans-OFL.txt"),
+    join(desktopDirectory, "src-tauri", "licenses", "IBM-Plex-Sans-OFL.txt"),
   );
   assertSameFile(
     join(contents, "Resources", "licenses", "Orbitron-OFL.txt"),

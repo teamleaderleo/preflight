@@ -35,11 +35,11 @@ deletion after 14 days; R2 lifecycle processing can take up to another day, whic
 receipt's retention deadline. The receipt also carries a case-specific deletion authorization so the
 user can request earlier deletion. The report isn't used for advertising or sold.
 
-The intake service and desktop consent/upload/delete path are implemented and tested in the
-repository, but the service isn't deployed or enabled in distributed builds yet. Its operational
-contract is in [report-intake/README.md](../report-intake/README.md). This document will be updated
-with the service operator, production origin, contact address, and effective date before public
-submission is enabled.
+The intake service and desktop consent/upload/delete path are implemented and have completed a
+packaged macOS canary against the private production bucket. Public packages remain disabled until
+the final release candidate repeats that path. Its operational contract is in
+[report-intake/README.md](../report-intake/README.md). This document will name the service operator,
+contact address, and effective date before public submission is enabled.
 
 Automatic background diagnostics are off. A future automatic-crash option would require a separate,
 remembered, default-off consent choice; enabling ordinary Worker observability can't turn it on.

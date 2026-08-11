@@ -37,12 +37,12 @@ The desktop owns an identity-checked normal then optimized pair through one coor
 for the main-menu marker emitted by Preflight's runtime agent, closes only its exact process
 lifetimes, checks the sealed installation/profile/launcher/runtime/settings identity, and emits one
 versioned result. The benchmark doesn't use desktop input or Accessibility permission. It reports
-startup before and after plus prepared-data disk cost. A controlled packaged run remains the release
-evidence; optional campaign and combat measurement can follow as a separate advanced tool.
+startup before and after plus prepared-data disk cost. The packaged result accompanies the established
+development record; optional campaign and combat measurement can follow as a separate advanced tool.
 
 The result should show startup before and after, seconds saved, percentage change, exact identities,
-run noise, and prepared-data disk cost. A rigorous disclosure can add alternating pairs, cooldowns,
-campaign/combat selection, frame-time telemetry, and raw evidence.
+and prepared-data disk cost. Alternating pairs, cooldowns, campaign/combat selection, frame-time
+telemetry, and raw evidence remain optional diagnostic tools.
 
 **Exit:** **Run benchmark** produces an honest, repeatable baseline-versus-Preflight result or a
 specific refusal.

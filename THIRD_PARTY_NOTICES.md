@@ -1,11 +1,18 @@
 # Third-party notices
 
-## Inter
+## IBM Plex Sans
 
-The desktop interface bundles the Inter variable font through `@fontsource-variable/inter`. Inter
-is copyright 2016 The Inter Project Authors and is licensed under the SIL Open Font License 1.1. The
-complete license is packaged at `licenses/Inter-OFL.txt` and retained in the source tree as
-[Inter-OFL.txt](preflight-desktop/src-tauri/licenses/Inter-OFL.txt).
+The desktop interface bundles IBM Plex Sans through `@fontsource-variable/ibm-plex-sans`. IBM Plex
+Sans is copyright IBM Corp. and is licensed under the SIL Open Font License 1.1. The complete
+license is packaged at `licenses/IBM-Plex-Sans-OFL.txt` and retained in the source tree as
+[IBM-Plex-Sans-OFL.txt](preflight-desktop/src-tauri/licenses/IBM-Plex-Sans-OFL.txt).
+
+## B612 Mono
+
+The desktop interface bundles B612 Mono through `@fontsource/b612-mono`. B612 is copyright The
+B612 Project Authors and is licensed under the SIL Open Font License 1.1. The complete license is
+packaged at `licenses/B612-OFL.txt` and retained in the source tree as
+[B612-OFL.txt](preflight-desktop/src-tauri/licenses/B612-OFL.txt).
 
 ## Orbitron
 

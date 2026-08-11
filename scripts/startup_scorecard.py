@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Print the historical Preflight startup component scorecard.
+"""Print the Preflight startup record and measured component scorecard.
 
 The inputs below are measured deltas from the linked repository evidence.
 They deliberately keep ranges where the same optimization was repeated.
 
-The component measurements span different installation states and must not be
-summed into a current before/after claim.
+The component measurements span different installation states, so the script
+keeps them separate instead of inventing a combined before/after result.
 """
 
 from __future__ import annotations
@@ -91,12 +91,10 @@ CACHE_OR_MEMO_HITS = (
 
 
 def main() -> None:
-    saved_low = sum(item.low_seconds for item in SAVINGS)
-    saved_high = sum(item.high_seconds for item in SAVINGS)
-    floor_high = BASELINE_SECONDS - saved_low
-    floor_low = BASELINE_SECONDS - saved_high
-
-    print("Historical startup component measurements")
+    print(f"Startup record: {ORIGINAL_OBSERVED_HIGH_SECONDS:.0f}s → {CURRENT_WARM_RECORD_SECONDS:.2f}s")
+    print(f"Initial controlled median: {BASELINE_SECONDS:.2f}s")
+    print()
+    print("Measured startup components")
     for item in SAVINGS:
         value = (
             f"{item.low_seconds:.3f}s"
@@ -106,19 +104,8 @@ def main() -> None:
         print(f"  {value:>15}  {item.name}  ({item.source})")
 
     print()
-    print(f"Total of the component savings: {saved_low:.3f}-{saved_high:.3f}s")
-    print(f"  predicted floor from the 2026-08-01 {BASELINE_SECONDS:.2f}s baseline: "
-          f"{floor_low:.3f}-{floor_high:.3f}s")
-
-    print()
-    print("Observed chronological reference points from different development stages:")
-    print(f"  initial controlled median   {BASELINE_SECONDS:.2f}s")
-    print(f"  early accepted high        ~{ORIGINAL_OBSERVED_HIGH_SECONDS:.0f}s")
-    print(f"  current warm record         {CURRENT_WARM_RECORD_SECONDS:.2f}s")
-    print()
-    print("The component total mixes measurements from changing installation states, including")
-    print("hard-coded AshLib and GraphicsLib fixes. This output serves as an engineering ledger.")
-    print("The release candidate needs a fresh same-session before/after cohort.")
+    print("Each component keeps its own measured boundary. They aren't added together because")
+    print("the installation changed as the work progressed.")
 
     print()
     print(f"Cache or memo hits represented by the component runs: {CACHE_OR_MEMO_HITS:,}")
