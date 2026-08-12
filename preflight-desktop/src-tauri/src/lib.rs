@@ -363,8 +363,9 @@ mod tests {
         ReportUploadProcess, begin_update_install, refuse_update_install,
     };
     use crate::report_transport::{
-        perform_report_deletion, perform_report_upload, report_client, validate_report_origin,
-        validate_report_receipt, validated_case_url, validated_report_archive,
+        perform_report_deletion, perform_report_upload, report_client, transport_detail,
+        validate_report_origin, validate_report_receipt, validated_case_url,
+        validated_report_archive,
     };
     use crate::reports::{ReportDeletion, ReportReceipt, ReportUploadError, ReportUploadInput};
     use crate::updates::{
@@ -947,6 +948,30 @@ mod tests {
         assert_eq!(
             Some("Bearer receipt.signature"),
             requests[0].authorization.as_deref()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_transport_failure_names_the_reason_underneath_it() {
+        // A port that was bound and released, so the connection is refused rather than hanging.
+        let vacated = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = vacated.local_addr().unwrap();
+        drop(vacated);
+
+        let error = report_client()
+            .unwrap()
+            .get(format!("http://{address}/v1/cases"))
+            .send()
+            .await
+            .expect_err("nothing is listening on a port that was just released");
+        let detail = transport_detail(&error);
+
+        // reqwest stops at "error sending request for url (...)", which describes every transport
+        // failure there is. The reason lives in the causes and is what makes one report actionable.
+        assert!(detail.starts_with(&error.to_string()));
+        assert!(
+            detail.len() > error.to_string().len(),
+            "a bare {detail} would name no cause at all"
         );
     }
 

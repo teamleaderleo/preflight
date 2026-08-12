@@ -36,7 +36,12 @@ pub(crate) async fn perform_report_deletion(
         .bearer_auth(deletion.token)
         .send()
         .await
-        .map_err(|error| format!("Could not request report deletion: {error}"))?;
+        .map_err(|error| {
+            format!(
+                "Could not request report deletion: {}",
+                transport_detail(&error)
+            )
+        })?;
     if response.status() != StatusCode::NO_CONTENT {
         return Err(response_failure(response, "The report could not be deleted").await);
     }
@@ -73,7 +78,7 @@ pub(crate) async fn perform_report_upload(
             return Err(ReportUploadError::Cancelled);
         }
         response = create => response.map_err(|error| ReportUploadError::Failed(
-            format!("Could not create a run-report case: {error}")
+            format!("Could not create a run-report case: {}", transport_detail(&error))
         ))?,
     };
     let grant: CreateReportCaseResponse =
@@ -180,7 +185,7 @@ pub(crate) async fn perform_report_upload(
                     &client,
                     &origin,
                     &grant,
-                    format!("Could not upload the run report: {error}"),
+                    format!("Could not upload the run report: {}", transport_detail(&error)),
                 )
                 .await);
             }
@@ -225,7 +230,10 @@ pub(crate) async fn perform_report_upload(
                 &client,
                 &origin,
                 &grant,
-                format!("Could not finalize the run report: {error}"),
+                format!(
+                    "Could not finalize the run report: {}",
+                    transport_detail(&error)
+                ),
             )
             .await);
         }
@@ -271,7 +279,12 @@ async fn delete_granted_case(
         .bearer_auth(&grant.deletion.token)
         .send()
         .await
-        .map_err(|error| format!("could not contact the deletion endpoint: {error}"))?;
+        .map_err(|error| {
+            format!(
+                "could not contact the deletion endpoint: {}",
+                transport_detail(&error)
+            )
+        })?;
     if response.status() != StatusCode::NO_CONTENT {
         return Err(response_failure(response, "the cancellation cleanup was rejected").await);
     }
@@ -305,6 +318,24 @@ pub(crate) fn validate_report_origin(configured: Option<&str>) -> Result<Url, St
         );
     }
     Ok(origin)
+}
+
+/// Renders a transport error together with everything underneath it.
+///
+/// `reqwest::Error` prints only its own layer, so a failure to reach the intake reads as
+/// "error sending request for url (...)" and names neither the reason nor the operating system's
+/// answer. The cause is always one or two `source()` hops down -- a refused connection, a DNS
+/// failure, a closed stream -- and without it a report that will not send is indistinguishable from
+/// one that was refused, both for a player asking why and for a failing test.
+pub(crate) fn transport_detail(error: &reqwest::Error) -> String {
+    let mut detail = error.to_string();
+    let mut cause: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(error);
+    while let Some(source) = cause {
+        detail.push_str(": ");
+        detail.push_str(&source.to_string());
+        cause = source.source();
+    }
+    detail
 }
 
 pub(crate) fn report_client() -> Result<Client, String> {
@@ -582,8 +613,12 @@ async fn bounded_response_body(response: Response) -> Result<Vec<u8>, String> {
     let mut stream = response.bytes_stream();
     let mut body = Vec::new();
     while let Some(chunk) = stream.next().await {
-        let chunk =
-            chunk.map_err(|error| format!("Could not read the report intake response: {error}"))?;
+        let chunk = chunk.map_err(|error| {
+            format!(
+                "Could not read the report intake response: {}",
+                transport_detail(&error)
+            )
+        })?;
         if body.len().saturating_add(chunk.len()) > REPORT_RESPONSE_LIMIT {
             return Err("The report intake response is too large.".to_string());
         }
