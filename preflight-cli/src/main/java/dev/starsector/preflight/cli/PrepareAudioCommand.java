@@ -106,18 +106,25 @@ public final class PrepareAudioCommand {
         command.add(javaExecutable.toString());
         command.addAll(CHILD_JVM_OPTIONS);
         command.add("-cp");
-        List<Path> classpath = new ArrayList<>(gameJars);
-        classpath.add(SelfJar.locate().toAbsolutePath().normalize());
-        command.add(String.join(System.getProperty("path.separator"),
-                classpath.stream().map(Path::toString).toList()));
+        // Preflight's jar alone, staged where the launcher can read it. The game's jars follow as
+        // arguments instead: the launcher consumes -cp itself, before any Preflight code exists to
+        // decode it, and Windows converts that value to the system code page on the way in. A path
+        // outside the page arrives as question marks and the class simply is not found. Arguments
+        // can be carried as Base64; a class path cannot, so nothing that might need it goes there.
+        command.add(AgentJarStaging.readableByTheChildJvm(SelfJar.locate()).toString());
         command.add(PrepareAudioChild.class.getName());
-        command.add(workFile.toString());
-        command.add(cache.toString());
-        command.add(decoderIdentity);
-        command.add(output.toAbsolutePath().normalize().toString());
-        command.add(index.profileFingerprint());
-        command.add(gameBuildIdentity);
-        command.add(manifest.toAbsolutePath().normalize().toString());
+        List<String> childArguments = new ArrayList<>(List.of(
+                workFile.toString(),
+                cache.toString(),
+                decoderIdentity,
+                output.toAbsolutePath().normalize().toString(),
+                index.profileFingerprint(),
+                gameBuildIdentity,
+                manifest.toAbsolutePath().normalize().toString()));
+        for (Path jar : gameJars) {
+            childArguments.add(jar.toAbsolutePath().normalize().toString());
+        }
+        command.addAll(List.of(Utf8Argv.encode(childArguments.toArray(new String[0]))));
 
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         String childOutput;

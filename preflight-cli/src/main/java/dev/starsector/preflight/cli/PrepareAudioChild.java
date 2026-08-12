@@ -11,6 +11,8 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -48,7 +50,34 @@ public final class PrepareAudioChild {
     private PrepareAudioChild() {
     }
 
-    public static void main(String[] args) throws Exception {
+    /** Arguments before the game's own jars begin. */
+    private static final int FIXED_ARGUMENTS = 7;
+
+    /**
+     * Loads the installation's jars from arguments rather than from {@code -cp}.
+     *
+     * <p>The launcher consumes a class path itself, before any Preflight code exists to decode one,
+     * and Windows converts that value to the system code page on the way in — so an installation
+     * whose path falls outside that page arrives as question marks and its classes are simply not
+     * found. Arguments can be carried as Base64 and a class path cannot, so the jars travel as
+     * arguments and are opened here, where the strings have already been decoded.
+     *
+     * <p>Delegation stays parent-first. On the flat class path this replaces, the game's jars came
+     * before Preflight's, so the game won any name they shared; parent-first would reverse that.
+     * It is safe because they share none — verified against the reviewed installation, whose jars
+     * have no class in common with the shipped one — and the decode this exists to perform must be
+     * the game's own.
+     */
+    static ClassLoader gameClassLoader(String[] args, int from) throws java.net.MalformedURLException {
+        URL[] jars = new URL[args.length - from];
+        for (int index = from; index < args.length; index++) {
+            jars[index - from] = Path.of(args[index]).toUri().toURL();
+        }
+        return new URLClassLoader(jars, PrepareAudioChild.class.getClassLoader());
+    }
+
+    public static void main(String[] rawArgs) throws Exception {
+        String[] args = Utf8Argv.decode(rawArgs);
         Path work = Path.of(args[0]);
         Path cache = Path.of(args[1]);
         String decoderIdentity = args[2];
@@ -57,9 +86,11 @@ public final class PrepareAudioChild {
         String starsectorBuildIdentity = args[5];
         Path manifestOutput = Path.of(args[6]);
 
-        Class<?> decoderClass = Class.forName(DECODER_CLASS);
+        ClassLoader game = gameClassLoader(args, FIXED_ARGUMENTS);
+
+        Class<?> decoderClass = Class.forName(DECODER_CLASS, true, game);
         Method decode = decoderClass.getMethod(DECODE_METHOD, InputStream.class);
-        Class<?> resultClass = Class.forName(RESULT_CLASS);
+        Class<?> resultClass = Class.forName(RESULT_CLASS, true, game);
         Field channels = resultClass.getField(CHANNELS_FIELD);
         Field pcm = resultClass.getField(PCM_FIELD);
         Field rate = resultClass.getField(RATE_FIELD);

@@ -229,11 +229,20 @@ narrow-`getenv` path that the command line demonstrates, and `AgentJarStagingTes
 behaviour that makes it matter. The staging is exercised on every platform by posing US-ASCII as the
 encoding, which is what a `C` locale would give a Unix session.
 
-### Still open: the child JVMs Preflight spawns itself
+### The child JVMs Preflight spawns itself
 
-`prepare audio` runs its decode in a child JVM, and the audio verification commands do the same. Only
-`PreflightCli` decodes a Base64 argument vector; those children receive theirs raw, and their game
-jars travel on `-cp`, which the launcher consumes before any Preflight code runs. Staging does not
-reach that — the game cannot be copied. Closing it means launching the child on the staged jar alone
-and handing it the game classpath as encoded arguments to load itself. That is a separate change and
-is not in the current candidate.
+`prepare audio` decodes in a child JVM so the blobs are the game's own decoder's output. That child
+used to receive the installation's jars on `-cp` and its paths as plain arguments, and both cross the
+same boundary: the launcher consumes a class path before any Preflight code exists to decode one, and
+Windows converts the value to the system code page on the way in.
+
+Now only Preflight's own jar goes on `-cp`, staged by `AgentJarStaging` when the encoding would lose
+it, and the installation's jars follow as arguments with everything else, encoded by `Utf8Argv`. The
+child opens them with a `URLClassLoader`; the decode was already reflective, so the only change is
+which loader answers `Class.forName`. Delegation stays parent-first, which is safe only because the
+shipped jar and the installation's jars share no class — checked against the reviewed installation,
+where the overlap is zero. On the flat class path this replaces, the game's jars came first and won
+any name they shared, so a future dependency that did overlap would silently reverse that.
+
+Still open: `InstalledJorbisEquivalenceChild` and the sound-wrapper observation children take the same
+route and have not been converted. They are verification commands rather than anything a player runs.

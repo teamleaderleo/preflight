@@ -37,10 +37,11 @@ Preflight builds and passes its full test suite on JDK 17, 21, and 26, and every
 system cannot represent are carried into the engine as ASCII, and a Linux session running the
 `C`/`POSIX` locale gets a UTF-8 one for the engine. The agent's own jar path is the one thing the
 JVM reads for itself and cannot be encoded, so it is staged at a representable path when the system's
-encoding would lose it. One gap remains: `prepare audio` and the audio verification commands run in
-child JVMs that receive the game's classpath on a command line, which the same encoding can damage,
-so those commands can fail where a launch now succeeds. Code pages cover their own language, so all
-of this affects mixed scripts rather than ordinary localized names.
+encoding would lose it. `prepare audio` spawns a child JVM the same way, and it now carries the
+installation's jars as encoded arguments instead of on a class path the launcher would convert. The
+audio verification commands still take the older route; they are maintainer tools rather than
+anything a player runs. Code pages cover their own language, so all of this affects mixed scripts
+rather than ordinary localized names.
 
 Adapters reproduce the game's own locale sensitivity rather than correcting it. Starsector's
 case-insensitive campaign entity fallback folds ids with the player's locale, so under Turkish and
