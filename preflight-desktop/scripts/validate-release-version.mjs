@@ -16,17 +16,17 @@ export function validateReleaseVersion(tag, sources) {
   return version;
 }
 
-export function validateReleaseNotes(tag, text, source) {
+export function validateReleaseNotes(tag, text, source, { allowDraft = false } = {}) {
   if (!text.trim()) {
     throw new Error(`Release ${tag} is missing reviewed notes: ${source}`);
   }
 
-  // Draft notes are useful while the integration branch is moving, but neither a signed candidate
-  // nor a tag should be able to turn that placeholder into published release copy accidentally.
-  // Keep this deliberately tied to an explicit marker near the top of the document: ordinary prose
-  // may discuss historical drafts without making the release itself a draft.
+  // Draft notes are useful while the private candidate is being rehearsed, but a public tag must
+  // never turn that placeholder into published release copy accidentally. Keep this deliberately
+  // tied to an explicit marker near the top: ordinary prose may discuss historical drafts without
+  // making the release itself a draft.
   const preamble = text.slice(0, 1024);
-  if (/\bdraft release notes\b/i.test(preamble)) {
+  if (!allowDraft && /\bdraft release notes\b/i.test(preamble)) {
     throw new Error(`Release ${tag} still has draft notes: ${source}`);
   }
 }
@@ -79,6 +79,12 @@ if (isMain) {
   if (!statSync(notes, { throwIfNoEntry: false })?.isFile()) {
     throw new Error(`Release ${tag} is missing reviewed notes: ${notesRelative}`);
   }
-  validateReleaseNotes(tag, readFileSync(notes, "utf8"), notesRelative);
+
+  // Distribution invokes this command only for a private signed candidate or a public v* tag.
+  // A workflow_dispatch on a branch is the private rehearsal and may intentionally use draft notes;
+  // a tag ref (including a manually dispatched tag) must use finalized notes.
+  const privateCandidate = process.env.GITHUB_EVENT_NAME === "workflow_dispatch"
+    && process.env.GITHUB_REF_TYPE !== "tag";
+  validateReleaseNotes(tag, readFileSync(notes, "utf8"), notesRelative, { allowDraft: privateCandidate });
   console.log(`Release versions and notes agree on ${version}`);
 }
