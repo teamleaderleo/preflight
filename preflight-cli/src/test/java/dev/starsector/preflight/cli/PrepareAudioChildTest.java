@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.IOException;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +20,11 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>What that has to survive is a path the system code page cannot carry, which is the whole reason
  * they stopped travelling on {@code -cp}. These tests use a directory the code page a Windows runner
  * uses cannot represent, so the jar is only opened if the path made it through intact.
+ *
+ * <p>Every loader is closed. A URLClassLoader holds its jars open, and Windows will not delete a
+ * file something still holds — leaving one open fails the temporary directory's own cleanup, on that
+ * platform only, which is how the first version of this class broke the very build it was written
+ * to protect.
  */
 class PrepareAudioChildTest {
     /** Where the fixed arguments end and the installation's jars begin. */
@@ -33,22 +39,23 @@ class PrepareAudioChildTest {
     void opensAnInstallationJarAtAPathTheCodePageCannotCarry() throws Exception {
         Path jar = jarUnder("Ωμέγα", "sound/marker.txt");
 
-        ClassLoader loader = PrepareAudioChild.gameClassLoader(withJars(jar), FROM);
-
-        assertNotNull(loader.getResource("sound/marker.txt"),
-                "the jar is only readable if its path survived as itself");
+        try (URLClassLoader loader = PrepareAudioChild.gameClassLoader(withJars(jar), FROM)) {
+            assertNotNull(loader.getResource("sound/marker.txt"),
+                    "the jar is only readable if its path survived as itself");
+        }
     }
 
     @Test
     void servesWhatOnlyTheInstallationHas() throws Exception {
         Path jar = jarUnder("Ωμέγα", "sound/marker.txt");
 
-        ClassLoader loader = PrepareAudioChild.gameClassLoader(withJars(jar), FROM);
-
-        // Without this the test above would pass on a loader that found the entry anywhere at all,
-        // which is exactly what the class path used to do and what this replaced.
-        assertNull(PrepareAudioChild.class.getClassLoader().getResource("sound/marker.txt"),
-                "the entry must come from the argument, not from Preflight's own class path");
+        try (URLClassLoader loader = PrepareAudioChild.gameClassLoader(withJars(jar), FROM)) {
+            assertNotNull(loader.getResource("sound/marker.txt"));
+            // Without this the test above would pass on a loader that found the entry anywhere at
+            // all, which is what the class path used to do and what this replaced.
+            assertNull(PrepareAudioChild.class.getClassLoader().getResource("sound/marker.txt"),
+                    "the entry must come from the argument, not from Preflight's own class path");
+        }
     }
 
     @Test
@@ -56,19 +63,19 @@ class PrepareAudioChildTest {
         Path first = jarUnder("one", "sound/first.txt");
         Path second = jarUnder("two", "sound/second.txt");
 
-        ClassLoader loader = PrepareAudioChild.gameClassLoader(withJars(first, second), FROM);
-
-        assertNotNull(loader.getResource("sound/first.txt"));
-        assertNotNull(loader.getResource("sound/second.txt"));
-        assertNull(loader.getResource("sound/third.txt"));
+        try (URLClassLoader loader = PrepareAudioChild.gameClassLoader(withJars(first, second), FROM)) {
+            assertNotNull(loader.getResource("sound/first.txt"));
+            assertNotNull(loader.getResource("sound/second.txt"));
+            assertNull(loader.getResource("sound/third.txt"));
+        }
     }
 
     @Test
     void anInstallationWithNoJarsIsNotAnError() throws Exception {
-        ClassLoader loader = PrepareAudioChild.gameClassLoader(FIXED.clone(), FROM);
-
-        assertNotNull(loader);
-        assertNull(loader.getResource("sound/marker.txt"));
+        try (URLClassLoader loader = PrepareAudioChild.gameClassLoader(FIXED.clone(), FROM)) {
+            assertNotNull(loader);
+            assertNull(loader.getResource("sound/marker.txt"));
+        }
     }
 
     @Test

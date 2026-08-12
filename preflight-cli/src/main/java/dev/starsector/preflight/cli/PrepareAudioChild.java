@@ -67,8 +67,12 @@ public final class PrepareAudioChild {
      * It is safe because they share none — verified against the reviewed installation, whose jars
      * have no class in common with the shipped one — and the decode this exists to perform must be
      * the game's own.
+     *
+     * <p>Returned as the closeable type it is. Nothing closes it here, because the child exits when
+     * the decode does and the handles go with it, but a caller that outlives its loader has to be
+     * able to let the jars go: Windows refuses to delete a file something still holds open.
      */
-    static ClassLoader gameClassLoader(String[] args, int from) throws java.net.MalformedURLException {
+    static URLClassLoader gameClassLoader(String[] args, int from) throws java.net.MalformedURLException {
         URL[] jars = new URL[args.length - from];
         for (int index = from; index < args.length; index++) {
             jars[index - from] = Path.of(args[index]).toUri().toURL();
