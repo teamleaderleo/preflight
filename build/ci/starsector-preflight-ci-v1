@@ -26,6 +26,10 @@ Usage: starsector-preflight-ci-v1 COMMIT_SHA SUITE NETWORK_MODE
 COMMIT_SHA    Exact 40-character lowercase Git commit SHA.
 SUITE         full | focused | analysis | coverage | package
 NETWORK_MODE  online | offline
+
+online warms a disposable per-run Maven cache inside the container, then reruns
+and accepts the exact suite only with container networking disabled. offline skips
+the warm phase and requires an operator-owned read-only dependency seed.
 USAGE
 }
 
@@ -81,11 +85,11 @@ archive="$run_root/source.tar.gz"
 workspace="$run_root/workspace"
 run_cache="$run_root/maven-cache"
 mkdir -m 0700 -- "$workspace" "$run_cache"
-container_name="starsector-preflight-${suite}-$$"
+container_prefix="starsector-preflight-${suite}-$$"
 podman_runtime=(podman --cgroup-manager="$cgroup_manager")
 
 cleanup() {
-  "${podman_runtime[@]}" rm --force "$container_name" >/dev/null 2>&1 || true
+  "${podman_runtime[@]}" rm --force "${container_prefix}-warm" "${container_prefix}-verify" >/dev/null 2>&1 || true
   rm -rf -- "$run_root"
 }
 trap cleanup EXIT INT TERM
@@ -102,28 +106,24 @@ archive_size="$(stat -c '%s' -- "$archive")"
 (( archive_size <= max_archive_bytes )) || fail "downloaded source archive exceeds the ${max_archive_bytes}-byte limit" 69
 archive_sha256="$(sha256sum "$archive" | awk '{print $1}')"
 
-maven_args=(--batch-mode --no-transfer-progress "-Dmaven.repo.local=/maven-cache/repository")
-network_args=()
-if [[ "$network_mode" == "offline" ]]; then
-  network_args+=(--network=none)
-  maven_args+=(--offline)
-fi
+suite_args=()
 case "$suite" in
-  full) maven_args+=(verify) ;;
-  focused) maven_args+=(-pl preflight-agent,preflight-cli -am verify) ;;
-  analysis) maven_args+=(-Panalysis verify) ;;
-  coverage) maven_args+=(-Pcoverage verify) ;;
-  package) maven_args+=(-DskipTests package) ;;
+  full) suite_args+=(verify) ;;
+  focused) suite_args+=(-pl preflight-agent,preflight-cli -am verify) ;;
+  analysis) suite_args+=(-Panalysis verify) ;;
+  coverage) suite_args+=(-Pcoverage verify) ;;
+  package) suite_args+=(-DskipTests package) ;;
 esac
 
 image_id="$(podman image inspect --format '{{.Id}}' "$image")"
 image_digest="$(podman image inspect --format '{{index .RepoDigests 0}}' "$image" 2>/dev/null || true)"
 [[ -n "$image_digest" && "$image_digest" != "<no value>" ]] || image_digest="unavailable"
-printf 'launcherVersion=%s\nsourceSha=%s\nsourceArchiveSha256=%s\nsourceArchiveBytes=%s\nsuite=%s\nnetworkMode=%s\nimage=%s\nimageId=%s\nimageDigest=%s\nlimits=memory:%s cpus:%s pids:%s\n' \
+printf 'launcherVersion=%s\nsourceSha=%s\nsourceArchiveSha256=%s\nsourceArchiveBytes=%s\nsuite=%s\nrequestedNetworkMode=%s\nacceptedNetworkMode=offline\nimage=%s\nimageId=%s\nimageDigest=%s\nlimits=memory:%s cpus:%s pids:%s\n' \
   "$launcher_version" "$sha" "$archive_sha256" "$archive_size" "$suite" "$network_mode" \
   "$image" "$image_id" "$image_digest" "$memory" "$cpus" "$pids"
 
 fixed_entrypoint='set -Eeuo pipefail
+rm -rf /workspace/src
 mkdir -p /workspace/src /tmp/home
 if [[ -d /maven-seed ]]; then
   cp -a /maven-seed/. /maven-cache/
@@ -132,30 +132,44 @@ tar --extract --gzip --file /input/source.tar.gz --strip-components=1 --director
 cd /workspace/src
 exec mvn "$@"'
 
-set +e
-"${podman_runtime[@]}" run --rm \
-  --name "$container_name" \
-  --pull=never \
-  --userns=keep-id \
-  --cap-drop=all \
-  --security-opt=no-new-privileges \
-  --read-only \
-  --memory="$memory" \
-  --cpus="$cpus" \
-  --pids-limit="$pids" \
-  --tmpfs /tmp:rw,nosuid,nodev,size=192m \
-  "${network_args[@]}" \
-  --env "HOME=/tmp/home" \
-  --env "MAVEN_CONFIG=/maven-cache" \
-  --env "MAVEN_OPTS=$maven_opts" \
-  --volume "$archive:/input/source.tar.gz:ro" \
-  --volume "$workspace:/workspace:rw" \
-  --volume "$run_cache:/maven-cache:rw" \
-  "${seed_args[@]}" \
-  --workdir /workspace \
-  "$image" \
-  /bin/bash -c "$fixed_entrypoint" -- "${maven_args[@]}"
-status=$?
-set -e
+run_phase() {
+  local phase="$1"
+  local allow_network="$2"
+  local -a network_args=()
+  local -a maven_args=(--batch-mode --no-transfer-progress "-Dmaven.repo.local=/maven-cache/repository")
+  if [[ "$allow_network" != "yes" ]]; then
+    network_args+=(--network=none)
+    maven_args+=(--offline)
+  fi
+  maven_args+=("${suite_args[@]}")
 
-exit "$status"
+  printf 'phase=%s network=%s\n' "$phase" "$([[ "$allow_network" == "yes" ]] && printf online || printf offline)"
+  "${podman_runtime[@]}" run --rm \
+    --name "${container_prefix}-${phase}" \
+    --pull=never \
+    --userns=keep-id \
+    --cap-drop=all \
+    --security-opt=no-new-privileges \
+    --read-only \
+    --memory="$memory" \
+    --cpus="$cpus" \
+    --pids-limit="$pids" \
+    --tmpfs /tmp:rw,nosuid,nodev,size=192m \
+    "${network_args[@]}" \
+    --env "HOME=/tmp/home" \
+    --env "MAVEN_CONFIG=/maven-cache" \
+    --env "MAVEN_OPTS=$maven_opts" \
+    --volume "$archive:/input/source.tar.gz:ro" \
+    --volume "$workspace:/workspace:rw" \
+    --volume "$run_cache:/maven-cache:rw" \
+    "${seed_args[@]}" \
+    --workdir /workspace \
+    "$image" \
+    /bin/bash -c "$fixed_entrypoint" -- "${maven_args[@]}"
+}
+
+if [[ "$network_mode" == "online" ]]; then
+  run_phase warm yes
+fi
+
+run_phase verify no
