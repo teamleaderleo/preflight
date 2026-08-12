@@ -52,11 +52,12 @@ test("private signed candidates have no publication authority or release command
   assert.doesNotMatch(publish, /--generate-notes/);
 });
 
-test("signed candidates require updater credentials and compile the reviewed intake origin", () => {
+test("signed candidates require updater credentials, release validation and the reviewed intake origin", () => {
   const distribution = job("distribution", "desktop");
   const desktop = job("desktop", "candidate");
 
   assert.match(distribution, /if: startsWith\(github\.ref, 'refs\/tags\/v'\) \|\| inputs\.signed_candidate/);
+  assert.match(distribution, /validate-release-version\.mjs "\$tag"/);
   assert.match(distribution, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD/);
   assert.match(distribution, /PREFLIGHT_REPORT_INTAKE_ORIGIN is required for a private signed candidate/);
   assert.match(distribution, /PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD must contain at least 32 characters/);
