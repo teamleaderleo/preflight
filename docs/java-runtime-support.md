@@ -203,15 +203,37 @@ This is reasoned from documented Windows semantics and the retry logic every maj
 carries for it. It has not been reproduced on Windows, but it costs nothing where the problem does
 not exist.
 
-### Still open: the agent jar's own path
+### The agent jar's own path, staged when the encoding would lose it
 
 The agent reaches the game through `JAVA_TOOL_OPTIONS=-javaagent:<jar>=<options>`. Its options are
-already Base64, but the jar path is read by the JVM itself and cannot be encoded. On Unix the locale
-rescue covers it. On Windows nothing does: Preflight's home sits under `%LOCALAPPDATA%`, so an
-account name outside the system code page gives that jar an unreproducible path, and a `-javaagent`
-path that does not resolve aborts JVM startup. It fails closed — the game would not start through
-Preflight at all.
+already Base64, but the jar path is read by the JVM itself and cannot be encoded: HotSpot reads that
+variable through the narrow `getenv`, so Windows converts the value to the active ANSI code page and
+replaces anything the page cannot represent with `?`. Preflight's home sits under `%LOCALAPPDATA%`,
+so an account name outside the system code page gives that jar an unreproducible path. This one does
+not degrade — a `-javaagent` the JVM cannot open aborts VM initialization, so the game would not
+start through Preflight at all while launching normally without it.
 
-This has not been reproduced on Windows; it follows from the same command-line conversion that the
-contract fixture demonstrates. Staging the agent jar at an ASCII path before launch would close it.
-That is a separate change and is not in the current candidate.
+`AgentJarStaging` asks whether the wrapper's own `sun.jnu.encoding` can carry the jar's path. The
+wrapper and the game share an environment and a system locale, so that is the encoding the child will
+use. When it can, the path is passed through and nothing is copied, which is every ordinary
+installation and every localized account name whose own code page covers it. When it cannot, the jar
+is copied once into `preflight-agent/` under the first candidate root whose path does survive —
+the temporary directory, then `%PUBLIC%`, then `%ProgramData%`, then `/tmp` and `/var/tmp` — and that
+copy's path is what `JAVA_TOOL_OPTIONS` carries. The copy is named for its SHA-256, so a rebuilt jar
+stages under a new name and a stale copy can never be served in place of the current one. Having
+nowhere to stage is reported as a Preflight error rather than left to surface as a JVM that will not
+initialize.
+
+The Windows conversion itself has not been reproduced for this variable; it follows from the same
+narrow-`getenv` path that the command line demonstrates, and `AgentJarStagingTest` pins the cp1252
+behaviour that makes it matter. The staging is exercised on every platform by posing US-ASCII as the
+encoding, which is what a `C` locale would give a Unix session.
+
+### Still open: the child JVMs Preflight spawns itself
+
+`prepare audio` runs its decode in a child JVM, and the audio verification commands do the same. Only
+`PreflightCli` decodes a Base64 argument vector; those children receive theirs raw, and their game
+jars travel on `-cp`, which the launcher consumes before any Preflight code runs. Staging does not
+reach that — the game cannot be copied. Closing it means launching the child on the staged jar alone
+and handing it the game classpath as encoded arguments to load itself. That is a separate change and
+is not in the current candidate.

@@ -102,6 +102,9 @@ final class RunCommand {
                 ? QuietLogConfiguration.path(runDirectory, options.quietLogs())
                 : null;
         Path agentJar = SelfJar.locate();
+        // The identity below is the installed JAR's; only the path the child JVM must read itself
+        // is restated, and only when the system's encoding would otherwise destroy it.
+        Path injectedAgentJar = AgentJarStaging.readableByTheChildJvm(agentJar);
 
         // Prepared audio is served only when the cache the bake wrote is present *and* the decoder
         // that baked it is still the decoder installed. A current, fully content-validated manifest
@@ -111,7 +114,7 @@ final class RunCommand {
         String audioDecoderIdentity = preparedAudio == null ? null : preparedAudio.decoderIdentity();
         String javaToolOptions = AgentInjection.append(
                 System.getenv("JAVA_TOOL_OPTIONS"),
-                agentJar,
+                injectedAgentJar,
                 recording,
                 options.adapterMode(),
                 adapterReport,
