@@ -41,14 +41,9 @@ jobs:
         startsWith(github.event.comment.body, '/vps verify ')))
     runs-on: [self-hosted, linux, starsector-preflight]
     timeout-minutes: 60
-    env:
-      PREFLIGHT_CONTAINER_MEMORY: 768m
-      PREFLIGHT_CONTAINER_CPUS: '0.85'
-      PREFLIGHT_CONTAINER_PIDS: '512'
-      PREFLIGHT_PODMAN_CGROUP_MANAGER: cgroupfs
 
     steps:
-      - name: Resolve trusted ref and suite
+      - name: Resolve trusted SHA and suite
         id: request
         shell: bash
         env:
@@ -84,38 +79,37 @@ jobs:
             test "$(jq -r '.state' <<<"$metadata")" = open
             test "$(jq -r '.head.repo.full_name // empty' <<<"$metadata")" = "$GITHUB_REPOSITORY"
             ref="$(jq -r '.head.sha // empty' <<<"$metadata")"
-            test -n "$ref"
           elif [[ "$DISPATCH_OFFLINE" == true ]]; then
             offline=1
           fi
 
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || { echo "Resolved ref is not an exact commit SHA" >&2; exit 64; }
+          case "$suite" in
+            full|focused|analysis|coverage|package) ;;
+            *) echo "Unsupported verification suite: $suite" >&2; exit 64 ;;
+          esac
+          [[ "$offline" == 0 || "$offline" == 1 ]] || { echo "Invalid offline mode" >&2; exit 64; }
+
           printf 'ref=%s\nsuite=%s\noffline=%s\n' "$ref" "$suite" "$offline" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ steps.request.outputs.ref }}
-          clean: true
-          persist-credentials: false
-
-      - name: Check isolated runner prerequisites
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          test "$(id -u)" -ne 0
-          export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-          export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
-          test -d "$XDG_RUNTIME_DIR"
-          podman_info="$(podman info --format json)"
-          printf 'rootless=%s cgroupVersion=%s defaultCgroupManager=%s selectedCgroupManager=%s\n' \
-            "$(jq -r '.host.security.rootless // "unknown"' <<<"$podman_info")" \
-            "$(jq -r '.host.cgroupVersion // "unknown"' <<<"$podman_info")" \
-            "$(jq -r '.host.cgroupManager // "unknown"' <<<"$podman_info")" \
-            "$PREFLIGHT_PODMAN_CGROUP_MANAGER"
-          podman image exists localhost/starsector-preflight-build:1
-
-      - name: Run disposable verification container
+      - name: Run operator-owned verification launcher
         shell: bash
         env:
-          PREFLIGHT_OFFLINE: ${{ steps.request.outputs.offline }}
+          REQUESTED_SHA: ${{ steps.request.outputs.ref }}
           REQUESTED_SUITE: ${{ steps.request.outputs.suite }}
-        run: bash ./scripts/verify-in-container.sh "$REQUESTED_SUITE"
+          REQUESTED_OFFLINE: ${{ steps.request.outputs.offline }}
+        run: |
+          set -Eeuo pipefail
+          launcher=/usr/local/libexec/starsector-preflight-ci-v1
+          if [[ ! -x "$launcher" ]]; then
+            echo "Required operator-owned launcher is missing: $launcher" >&2
+            echo "Provision it from a reviewed revision before enabling VPS verification." >&2
+            exit 69
+          fi
+
+          network_mode=online
+          if [[ "$REQUESTED_OFFLINE" == 1 ]]; then
+            network_mode=offline
+          fi
+
+          exec "$launcher" "$REQUESTED_SHA" "$REQUESTED_SUITE" "$network_mode"
