@@ -27,6 +27,7 @@ phase "Desktop dependencies"
 (
   cd preflight-desktop
   npm ci
+  npm audit --omit=dev
 )
 
 phase "Desktop packaged-engine contract"
