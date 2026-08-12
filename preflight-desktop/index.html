@@ -3,12 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f7efe2" />
+    <meta name="theme-color" content="#f7efe2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#030711" media="(prefers-color-scheme: dark)" />
     <meta
       name="description"
       content="A performance launcher for Starsector"
     />
     <title>Preflight</title>
+    <!--
+      Settle the theme before the first paint. Every dark rule is written against
+      :root[data-theme="dark"], so until that attribute exists the document is light -- and React
+      can only set it after mounting, which is one full paint too late. That paint is what a dark
+      desktop sees as a white flash on every launch.
+
+      Kept in the page rather than the bundle, and deliberately duplicating the key and the
+      preference names from useTheme.ts: a module import would put this back after first paint,
+      which is the entire problem.
+    -->
+    <script>
+      (function () {
+        try {
+          var saved = window.localStorage.getItem("preflight.theme");
+          var preference =
+            saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+          var dark =
+            preference === "dark" ||
+            (preference === "system" &&
+              typeof window.matchMedia === "function" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (error) {
+          // Storage can be unavailable; a readable window matters more than the right theme.
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
