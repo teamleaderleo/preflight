@@ -43,14 +43,27 @@ export function localDateStamp(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Shortens text to a character budget without cutting a character in half.
+ *
+ * A plain `slice` counts UTF-16 units, so it can land between the two halves of a surrogate pair
+ * and leave a lone surrogate that renders as a replacement box. Anything outside the basic
+ * multilingual plane is a pair — emoji, and the rarer CJK ranges — and engine detail can carry a
+ * path with the player's own name in it.
+ */
+function clampToCharacters(text: string, limit: number): string {
+  const characters = Array.from(text);
+  if (characters.length <= limit) return text;
+  return `${characters.slice(0, limit - 1).join("")}…`;
+}
+
 export function failedRunSummary(detail?: string): string {
   const firstLine = detail
     ?.split(/\r?\n/)
     .map((line) => line.trim())
     .find(Boolean);
   if (!firstLine) return "Starsector closed with an error. Support evidence was saved.";
-  const summary = firstLine.length > 360 ? `${firstLine.slice(0, 357)}…` : firstLine;
-  return `Starsector closed with an error: ${summary} The support evidence has full details.`;
+  return `Starsector closed with an error: ${clampToCharacters(firstLine, 360)} The support evidence has full details.`;
 }
 
 export function friendlyPlatform(platform: DesktopSnapshot["platform"]): string {
