@@ -24,7 +24,7 @@ def main() -> None:
 
     # The persistent runner may execute only the fixed operator-owned launcher.
     require(workflow, "/usr/local/libexec/starsector-preflight-ci-v1", WORKFLOW)
-    require(workflow, "^[[0-9a-f]{40}$", WORKFLOW)
+    require(workflow, "^[0-9a-f]{40}$", WORKFLOW)
     require(workflow, 'exec "$launcher" "$REQUESTED_SHA" "$REQUESTED_SUITE" "$network_mode"', WORKFLOW)
     forbid(workflow, "actions/checkout@", WORKFLOW)
     forbid(workflow, "scripts/verify-in-container.sh", WORKFLOW)
