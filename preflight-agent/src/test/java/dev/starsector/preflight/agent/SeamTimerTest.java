@@ -38,10 +38,18 @@ class SeamTimerTest {
         assertEquals(2L, timer.callCount());
         long inside = timer.insideMillis();
         long span = timer.spanMillis();
-        assertTrue(inside >= 55 && inside <= 110, "inside was " + inside + " ms");
-        assertTrue(span >= 115, "span was " + span + " ms");
         long between = timer.betweenMillis();
-        assertTrue(between >= 40 && between <= 120, "between was " + between + " ms");
+        // Sleeps overrun on a loaded machine and never come back short, so only the lower bounds can
+        // be stated in absolute time. A CI runner charged 208 ms for these 60 ms of serves.
+        assertTrue(inside >= 55, "inside was " + inside + " ms");
+        assertTrue(span >= 115, "span was " + span + " ms");
+        assertTrue(between >= 40, "between was " + between + " ms");
+        // What the seam actually claims is a split, not a duration: inside and between are counted
+        // from separate clocks, and every millisecond of the span has to land in exactly one of them.
+        // Overrun inflates all three together and leaves this untouched, while a seam charging the
+        // caller's own work to itself would show up here however fast the machine is.
+        assertTrue(Math.abs(span - (inside + between)) <= 10,
+                "span " + span + " ms is not inside " + inside + " ms plus between " + between + " ms");
         assertEquals(between, timer.snapshot("serve").get("serveBetweenMillis"));
     }
 

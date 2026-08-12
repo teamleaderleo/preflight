@@ -75,13 +75,20 @@ class AdapterSourceIdentityTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation") // File.toURL is what the game calls; see below.
     void hashesLiveModFileUrlsWhoseSpacesWereNotEscaped() throws Exception {
         Path archive = temporaryDirectory.resolve("game/mods/zz GraphicsLib-1.12.1/jars/Graphics.jar");
         Files.createDirectories(archive.getParent());
         byte[] content = "graphicslib-archive".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Files.write(archive, content);
-        URL rawFileUrl = new URL("file:" + archive.toAbsolutePath());
+        // Built the way ScriptStore builds it: File.toURL, feeding a URLClassLoader. That method is
+        // deprecated precisely because it does not escape, which is what puts a raw space in the URL
+        // this test exists for. Concatenating "file:" with the path instead would agree with it on
+        // Unix and diverge on Windows, where toURL replaces the separators and prepends a slash --
+        // posing a "C:\..." URL the game never emits and failing on a shape it never sees.
+        URL rawFileUrl = archive.toAbsolutePath().toFile().toURL();
         assertTrue(rawFileUrl.toString().contains(" "));
+        assertTrue(rawFileUrl.getPath().startsWith("/"), rawFileUrl.toString());
 
         ProtectionDomain domain = new ProtectionDomain(
                 new CodeSource(rawFileUrl, (Certificate[]) null), null);
