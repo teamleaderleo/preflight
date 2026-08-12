@@ -13,6 +13,7 @@ export const RUN_FILES = new Set([
   "adapter-analysis.json",
   "adapter-health.json",
   "adapter.json",
+  "benchmark-result.json",
   "comparison-result.json",
   "main-menu-ready.json",
   "menu-flushed.json",
