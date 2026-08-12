@@ -47,6 +47,7 @@ archive. They answer different questions. This page is the shortest route to the
 ## Maintainers and contributors
 
 - [Architecture](architecture.md)
+- [Java runtime support](java-runtime-support.md)
 - [Refactoring audit](refactoring-audit.md)
 - [Desktop redesign brief](desktop-redesign-brief.md)
 - [Verification strategy](verification-strategy.md)

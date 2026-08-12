@@ -32,6 +32,13 @@ when compression barely helps; Fastest keeps every upload-ready pixel array raw 
 gigabytes more for a small warm-launch difference. The desktop estimates the selected profile's
 predicted and conservative requirements before writing, and cleanup remains preview-first.
 
+Preflight builds and passes its full test suite on JDK 17, 21, and 26, and everything ships as Java
+17 bytecode, so any runtime from 17 up loads it. On Windows one gap remains: the agent reaches the
+game through a `-javaagent` path that the JVM reads itself and that cannot be encoded, so a Windows
+account name outside the system code page prevents an accelerated launch. Ordinary game folders,
+profile names, and cache paths are unaffected. The detail is in
+[Java runtime support](java-runtime-support.md).
+
 There is no automatic report or crash upload. **Send run report** exists only in a build configured
 for the private intake and still requires review and confirmation for each ZIP. Ordinary builds can
 save the same bounded diagnostics ZIP locally.
