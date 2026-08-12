@@ -1,0 +1,52 @@
+package dev.starsector.preflight.cli;
+
+import java.util.Collection;
+
+/**
+ * The "did you mean" behind mistyped commands and options.
+ *
+ * <p>Split out so both ask the same question the same way. The threshold scales with the length of
+ * what was typed: one edit is worth guessing at for a short word, three for a long one, and beyond
+ * that a suggestion is noise wearing the shape of help.
+ */
+final class Suggestions {
+    private Suggestions() {
+    }
+
+    /** The nearest candidate, or null when nothing is near enough to be worth offering. */
+    static String closest(String requested, Collection<String> candidates) {
+        String closest = null;
+        int closestDistance = Integer.MAX_VALUE;
+        for (String candidate : candidates) {
+            int distance = editDistance(requested, candidate);
+            if (distance < closestDistance) {
+                closest = candidate;
+                closestDistance = distance;
+            }
+        }
+        int threshold = Math.max(1, Math.min(3, requested.length() / 2));
+        return closestDistance <= threshold ? closest : null;
+    }
+
+    static int editDistance(String left, String right) {
+        int[] prior = new int[right.length() + 1];
+        int[] current = new int[right.length() + 1];
+        for (int j = 0; j <= right.length(); j++) {
+            prior[j] = j;
+        }
+        for (int i = 1; i <= left.length(); i++) {
+            current[0] = i;
+            for (int j = 1; j <= right.length(); j++) {
+                int substitution = prior[j - 1]
+                        + (left.charAt(i - 1) == right.charAt(j - 1) ? 0 : 1);
+                current[j] = Math.min(
+                        Math.min(prior[j] + 1, current[j - 1] + 1),
+                        substitution);
+            }
+            int[] swap = prior;
+            prior = current;
+            current = swap;
+        }
+        return prior[right.length()];
+    }
+}

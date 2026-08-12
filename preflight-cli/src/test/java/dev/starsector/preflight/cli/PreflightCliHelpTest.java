@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -16,8 +17,12 @@ class PreflightCliHelpTest {
 
         assertEquals(0, captured.status());
         assertTrue(captured.standardOutput().contains("preflight <command> [options]"), captured.standardOutput());
-        assertTrue(captured.standardOutput().contains("doctor       Check installation"), captured.standardOutput());
-        assertTrue(captured.standardOutput().contains("lint         Report actionable asset problems"), captured.standardOutput());
+        // Each command and its summary share a row. The column is as wide as the longest command
+        // name, so pinning the exact run of spaces here would fail the day one is added.
+        assertTrue(listsCommand(captured.standardOutput(), "doctor", "Check installation"),
+                captured.standardOutput());
+        assertTrue(listsCommand(captured.standardOutput(), "lint", "Report actionable asset problems"),
+                captured.standardOutput());
         assertFalse(captured.standardOutput().contains("--adapter-targets"), captured.standardOutput());
         assertFalse(captured.standardOutput().contains("desktop"), captured.standardOutput());
         assertEquals("", captured.standardError());
@@ -82,6 +87,52 @@ class PreflightCliHelpTest {
         assertTrue(output.contains("preflight benchmark collect"), output);
         assertTrue(output.contains("preflight benchmark compare"), output);
         assertTrue(output.contains("preflight benchmark compare-runs"), output);
+    }
+
+    /**
+     * A mistyped option gets the same courtesy a mistyped command already got.
+     *
+     * <p>The candidates come from the command's own usage text rather than a hand-kept list, so this
+     * also fails if {@code doctor} ever stops documenting the option it accepts.
+     */
+    @Test
+    void aMistypedOptionPointsAtTheRealOne() {
+        assertEquals("--game", Suggestions.closest("--gmae", documentedOptions("doctor")));
+        assertEquals("--launcher", Suggestions.closest("--launchr", documentedOptions("doctor")));
+    }
+
+    /** Nothing near enough is offered nothing, rather than the least-wrong option on the list. */
+    @Test
+    void anOptionThatResemblesNothingGetsNoGuess() {
+        assertNull(Suggestions.closest("--nonsense", documentedOptions("doctor")));
+    }
+
+    private static java.util.List<String> documentedOptions(String command) {
+        java.util.LinkedHashSet<String> options = new java.util.LinkedHashSet<>();
+        java.util.regex.Matcher found = java.util.regex.Pattern.compile("--[a-z0-9][a-z0-9-]*")
+                .matcher(capturedUsage(command));
+        while (found.find()) {
+            options.add(found.group());
+        }
+        assertFalse(options.isEmpty(), "no options documented for " + command);
+        return java.util.List.copyOf(options);
+    }
+
+    private static String capturedUsage(String command) {
+        try {
+            return capture(new String[] {"help", command}).standardOutput();
+        } catch (Exception error) {
+            throw new IllegalStateException(error);
+        }
+    }
+
+    /** True when one line lists {@code command} with {@code summary} beside it, at any column width. */
+    private static boolean listsCommand(String output, String command, String summary) {
+        return java.util.regex.Pattern
+                .compile("^\\s*" + command + "\\s+" + java.util.regex.Pattern.quote(summary),
+                        java.util.regex.Pattern.MULTILINE)
+                .matcher(output)
+                .find();
     }
 
     private static Captured capture(String[] args) throws Exception {

@@ -8,8 +8,12 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingFile;
 
@@ -27,6 +31,7 @@ public final class PreflightCli {
         } catch (Exception error) {
             String message = error.getMessage();
             System.err.println("preflight: " + (message == null || message.isBlank() ? error.toString() : message));
+            hintForUnknownOption(args, message);
             if ("1".equals(System.getenv("PREFLIGHT_DEBUG"))) {
                 error.printStackTrace();
             } else if (!(error instanceof IllegalArgumentException)) {
@@ -436,8 +441,11 @@ public final class PreflightCli {
         output.println("  preflight help <command>");
         output.println();
         output.println("Commands:");
+        // Widened to whatever the longest command actually is, so adding one that outgrows the
+        // column cannot quietly leave a single ragged row in the first thing anyone sees.
+        int width = USAGE.keySet().stream().mapToInt(String::length).max().orElse(12);
         for (String command : USAGE.keySet()) {
-            output.printf("  %-12s %s%n", command, commandSummary(command));
+            output.printf("  %-" + width + "s  %s%n", command, commandSummary(command));
         }
         output.println();
         output.println("Run `preflight <command> --help` for detailed usage.");
@@ -472,40 +480,44 @@ public final class PreflightCli {
     }
 
     private static String closestCommand(String requested) {
-        String closest = null;
-        int closestDistance = Integer.MAX_VALUE;
-        for (String command : USAGE.keySet()) {
-            int distance = editDistance(requested, command);
-            if (distance < closestDistance) {
-                closest = command;
-                closestDistance = distance;
-            }
-        }
-        int threshold = Math.max(1, Math.min(3, requested.length() / 2));
-        return closestDistance <= threshold ? closest : null;
+        return Suggestions.closest(requested, USAGE.keySet());
     }
 
-    private static int editDistance(String left, String right) {
-        int[] prior = new int[right.length() + 1];
-        int[] current = new int[right.length() + 1];
-        for (int j = 0; j <= right.length(); j++) {
-            prior[j] = j;
+    /**
+     * Turns {@code Unknown option: --gmae} into a pointer at {@code --game}.
+     *
+     * <p>Done here rather than in each parser because every command rejects options from its own
+     * switch, and none of them holds a list of what it accepts. The usage text does hold one, it is
+     * the same text {@code preflight help} prints, and it cannot drift from the documentation
+     * without the documentation being wrong already.
+     */
+    private static void hintForUnknownOption(String[] rawArgs, String message) {
+        if (message == null || !message.startsWith(UNKNOWN_OPTION)) {
+            return;
         }
-        for (int i = 1; i <= left.length(); i++) {
-            current[0] = i;
-            for (int j = 1; j <= right.length(); j++) {
-                int substitution = prior[j - 1]
-                        + (left.charAt(i - 1) == right.charAt(j - 1) ? 0 : 1);
-                current[j] = Math.min(
-                        Math.min(prior[j] + 1, current[j - 1] + 1),
-                        substitution);
-            }
-            int[] swap = prior;
-            prior = current;
-            current = swap;
+        String[] args = Utf8Argv.decode(rawArgs);
+        if (args.length == 0) {
+            return;
         }
-        return prior[right.length()];
+        List<String> usage = USAGE.get(args[0]);
+        if (usage == null) {
+            return;
+        }
+        Set<String> documented = new LinkedHashSet<>();
+        Matcher options = DOCUMENTED_OPTION.matcher(String.join(" ", usage));
+        while (options.find()) {
+            documented.add(options.group());
+        }
+        String suggestion = Suggestions.closest(message.substring(UNKNOWN_OPTION.length()).trim(), documented);
+        if (suggestion != null) {
+            System.err.println("Did you mean `" + suggestion + "`?");
+        } else {
+            System.err.println("Run `preflight help " + args[0] + "` for the options it accepts.");
+        }
     }
+
+    private static final String UNKNOWN_OPTION = "Unknown option: ";
+    private static final Pattern DOCUMENTED_OPTION = Pattern.compile("--[a-z0-9][a-z0-9-]*");
 
     @FunctionalInterface
     private interface PathCommand {

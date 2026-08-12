@@ -65,11 +65,45 @@ final class StarsectorDiscovery {
                 .toList();
         LaunchTarget selected = candidates.isEmpty() ? null : candidates.get(0);
         if (selected == null) {
-            diagnostics.add("No launcher found. Set STARSECTOR_HOME or use --game/--launcher.");
+            diagnostics.add(nothingFound(platform, explicitGame));
         } else if (candidates.size() > 1 && candidates.get(1).score() == selected.score()) {
             diagnostics.add("Multiple launchers received the same score; selected the lexicographically first path. Use --launcher to override.");
         }
         return new DiscoveryResult(selected, candidates, List.copyOf(diagnostics));
+    }
+
+    /**
+     * Why nothing was found, said in terms of what the caller actually did.
+     *
+     * <p>Advising {@code --game} to someone who just passed {@code --game} is the least useful thing
+     * this can say. A path that does not exist and a folder that exists without an installation in it
+     * need different fixes, so they are not given the same note. An explicit path naming a file is
+     * accepted as a launcher upstream and rarely arrives here.
+     */
+    private static String nothingFound(Platform platform, Path explicitGame) {
+        if (explicitGame == null) {
+            return "No launcher found. Set STARSECTOR_HOME or use --game/--launcher.";
+        }
+        Path game = explicitGame.toAbsolutePath().normalize();
+        if (!Files.exists(game)) {
+            return "--game does not exist: " + game;
+        }
+        if (!Files.isDirectory(game)) {
+            return "--game is not a directory: " + game
+                    + ". Pass the folder holding the launcher, or name the launcher with --launcher.";
+        }
+        return "No Starsector launcher under " + game + ". Expected " + expectedLaunchers(platform)
+                + " there, or a folder containing one. Use --launcher to name a launcher directly.";
+    }
+
+    /** What an installation looks like here, so the note says what to go and check for. */
+    private static String expectedLaunchers(Platform platform) {
+        return switch (platform) {
+            case WINDOWS -> "starsector.exe or starsector.bat";
+            case LINUX -> "starsector.sh or starsector";
+            case MAC -> "Starsector.app or starsector.command";
+            case OTHER -> "a starsector launcher script";
+        };
     }
 
     private static void inspectRoot(

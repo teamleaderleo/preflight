@@ -69,7 +69,8 @@ record ScanOptions(
             case 'G' -> multiplier = 1024L * 1024L * 1024L;
             default -> {
                 if (!Character.isDigit(last)) {
-                    throw new IllegalArgumentException("Unknown byte-size suffix in: " + raw);
+                    throw new IllegalArgumentException("Unknown byte-size suffix in: " + raw
+                            + ". Use a number, optionally ending in K, M, or G -- for example 4G.");
                 }
             }
         }

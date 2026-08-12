@@ -1,7 +1,9 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -15,6 +17,54 @@ import org.junit.jupiter.api.io.TempDir;
 class StarsectorDiscoveryTest {
     @TempDir
     Path temporaryDirectory;
+
+    /**
+     * The note has to be about what the caller did. Telling someone who passed {@code --game} to
+     * pass {@code --game} is the one thing it must never say.
+     */
+    @Test
+    void anExplicitGamePathThatDoesNotExistIsNamed() throws Exception {
+        Path missing = temporaryDirectory.resolve("not-installed-here");
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.MAC, temporaryDirectory, temporaryDirectory, Map.of(), missing, null);
+
+        assertNull(result.selected());
+        String note = String.join(" ", result.diagnostics());
+        assertTrue(note.contains(missing.toAbsolutePath().normalize().toString()), note);
+        assertTrue(note.contains("does not exist"), note);
+        assertFalse(note.contains("STARSECTOR_HOME"), "it already told us where to look: " + note);
+    }
+
+    /** A real folder with nothing in it is a different mistake, and needs a different note. */
+    @Test
+    void anExplicitGamePathWithoutALauncherSaysWhatWasExpected() throws Exception {
+        Path empty = Files.createDirectories(temporaryDirectory.resolve("somewhere-else"));
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.WINDOWS, temporaryDirectory, temporaryDirectory, Map.of(), empty, null);
+
+        assertNull(result.selected());
+        String note = String.join(" ", result.diagnostics());
+        assertTrue(note.contains(empty.toAbsolutePath().normalize().toString()), note);
+        assertTrue(note.contains("starsector.exe"), "the note should name what to look for: " + note);
+    }
+
+    /** With nothing given, the note is the only place the caller learns what to give. */
+    @Test
+    void withNoExplicitPathTheNoteStillOffersTheWayIn() throws Exception {
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.LINUX,
+                temporaryDirectory.resolve("no-home"),
+                temporaryDirectory.resolve("nowhere"),
+                Map.of(),
+                null,
+                null);
+
+        assertNull(result.selected());
+        assertTrue(String.join(" ", result.diagnostics()).contains("STARSECTOR_HOME"),
+                result.diagnostics().toString());
+    }
 
     @Test
     // The decoy beside the stub is excluded by not being executable, and Windows has no such bit:
