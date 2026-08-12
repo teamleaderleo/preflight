@@ -28,13 +28,16 @@ REVIEWED_OVERSIZED_BLOBS = {
         }
     )
 }
+# Documentation screenshots are reviewed as exact Git blobs. Keeping the byte size
+# alongside the blob id makes accidental truncation or substitution obvious and
+# lets the history audit accept only the reviewed image bytes.
 REVIEWED_DOCUMENTATION_IMAGES = {
-    "docs/images/desktop-home-dark.png":
-        (61_109, "ac4840d1424bddf7f2ede41ef9f12188d2bf2eb2c77746995fb139798a10f831"),
-    "docs/images/desktop-home-light.png":
-        (64_418, "eb11473f6877972ddde5cf04f594233e9f5c6aec7e5d007c3429fade36a67d7a"),
-    "docs/images/desktop-profiles-light.png":
-        (59_424, "3d132ecb8433b1ac7e2e664939f3f426c2a5520b79a544abd5b073887ac224ce"),
+    "docs/images/desktop-home-dark.png": (61_109, "6b8308d1b71cb8e85a350bfb6d31956c51556ee5"),
+    "docs/images/desktop-home-light.png": (64_418, "1c4517a2161186f34a79ea9fffa66db79f28f167"),
+    "docs/images/desktop-profiles-light.png": (59_424, "b206041df4ee61123b3a6a47b492270bbcae4ac6"),
+    "docs/images/walkthrough-benchmark.png": (56_692, "69fb4cf05512f189151cf1e0f58085a6be6162fe"),
+    "docs/images/walkthrough-ready.png": (61_105, "7e413e9e2e55678192dd4c9f5a04673fc20f4cfa"),
+    "docs/images/walkthrough-setup.png": (50_674, "f41cfd715b7129a3439e3d3deb9e8886d52e90fd"),
 }
 FORBIDDEN_SEGMENTS = frozenset({"activation", "mods", "saves", "screenshots"})
 FORBIDDEN_BASENAMES = frozenset(
@@ -125,11 +128,16 @@ def allowed_binary(name: str) -> bool:
     return name.startswith(ALLOWED_BINARY_PREFIXES) and path.suffix.lower() in ALLOWED_BINARY_SUFFIXES
 
 
+def git_blob_sha1(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
 def reviewed_documentation_image(name: str, data: bytes) -> bool:
     fingerprint = REVIEWED_DOCUMENTATION_IMAGES.get(name)
     if fingerprint is None:
         return False
-    return (len(data), hashlib.sha256(data).hexdigest()) == fingerprint
+    return (len(data), git_blob_sha1(data)) == fingerprint
 
 
 def git(repository: Path, *args: str, input_data: bytes | None = None) -> bytes:
