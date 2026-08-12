@@ -18,7 +18,35 @@ test("unsubscribes an active native event stream", async () => {
   await waitFor(() => expect(mockedListen).toHaveBeenCalledOnce());
   stop();
 
-  expect(unlisten).toHaveBeenCalledOnce();
+  await waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
+});
+
+test("keeps one native stream while an effect resubscribes in the same turn", async () => {
+  const unlisten = vi.fn();
+  let nativeHandler: ((event: { event: string; id: number; payload: unknown }) => void) | undefined;
+  mockedListen.mockImplementation(async (_event, handler) => {
+    nativeHandler = handler as typeof nativeHandler;
+    return unlisten;
+  });
+  const firstHandler = vi.fn();
+  const secondHandler = vi.fn();
+
+  const stopFirst = listenWhileMounted("run-state", firstHandler);
+  await waitFor(() => expect(mockedListen).toHaveBeenCalledOnce());
+
+  stopFirst();
+  const stopSecond = listenWhileMounted("run-state", secondHandler);
+  await Promise.resolve();
+
+  expect(mockedListen).toHaveBeenCalledOnce();
+  expect(unlisten).not.toHaveBeenCalled();
+
+  nativeHandler?.({ event: "run-state", id: 1, payload: { state: "finished" } });
+  expect(firstHandler).not.toHaveBeenCalled();
+  expect(secondHandler).toHaveBeenCalledOnce();
+
+  stopSecond();
+  await waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
 });
 
 test("unsubscribes when registration completes after disposal", async () => {
