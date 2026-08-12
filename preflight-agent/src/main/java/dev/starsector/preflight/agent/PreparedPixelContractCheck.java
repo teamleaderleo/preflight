@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -265,7 +266,9 @@ public final class PreparedPixelContractCheck {
     }
 
     private static boolean archiveLike(Path path) {
-        String name = path.getFileName() == null ? "" : path.getFileName().toString().toLowerCase();
+        String name = path.getFileName() == null
+                ? ""
+                : path.getFileName().toString().toLowerCase(Locale.ROOT);
         return name.endsWith(".jar") || name.endsWith(".zip");
     }
 

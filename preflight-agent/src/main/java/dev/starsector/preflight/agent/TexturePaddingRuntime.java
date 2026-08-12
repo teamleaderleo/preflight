@@ -2,6 +2,7 @@ package dev.starsector.preflight.agent;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -135,7 +136,7 @@ public final class TexturePaddingRuntime {
         values.put("unpaddedProperty", UNPADDED_PROPERTY);
         values.put("unpaddedEnabled", Boolean.getBoolean(UNPADDED_PROPERTY));
         values.put("foldBypassInstalled", FOLD_BYPASS_INSTALLED);
-        values.put("npotCapability", NPOT_CAPABILITY.name().toLowerCase());
+        values.put("npotCapability", NPOT_CAPABILITY.name().toLowerCase(Locale.ROOT));
         values.put("npotCapabilityReason", NPOT_CAPABILITY_REASON);
         values.put("openGl20", OPENGL_20);
         values.put("arbTextureNonPowerOfTwo", ARB_NPOT);
