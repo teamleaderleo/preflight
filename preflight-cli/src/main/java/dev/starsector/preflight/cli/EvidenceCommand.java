@@ -3,10 +3,13 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Json;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /** Reports and prunes diagnostic evidence independently from acceleration caches. */
 final class EvidenceCommand {
@@ -26,6 +29,9 @@ final class EvidenceCommand {
         Integer keepBenchmarks = null;
         int exportRuns = DiagnosticBundle.DEFAULT_RUNS;
         int exportBenchmarks = DiagnosticBundle.DEFAULT_BENCHMARKS;
+        boolean countSelection = false;
+        List<String> runSessions = new ArrayList<>();
+        List<String> benchmarkSessions = new ArrayList<>();
         Path output = null;
         boolean exportOptions = false;
         boolean overwrite = false;
@@ -40,11 +46,21 @@ final class EvidenceCommand {
                         keepBenchmarks = count(args, ++index, "--keep-benchmarks");
                 case "--runs" -> {
                     exportOptions = true;
+                    countSelection = true;
                     exportRuns = count(args, ++index, "--runs");
                 }
                 case "--benchmarks" -> {
                     exportOptions = true;
+                    countSelection = true;
                     exportBenchmarks = count(args, ++index, "--benchmarks");
+                }
+                case "--run-session" -> {
+                    exportOptions = true;
+                    runSessions.add(sessionName(args, ++index, "--run-session"));
+                }
+                case "--benchmark-session" -> {
+                    exportOptions = true;
+                    benchmarkSessions.add(sessionName(args, ++index, "--benchmark-session"));
                 }
                 case "--output" -> {
                     exportOptions = true;
@@ -73,10 +89,21 @@ final class EvidenceCommand {
             if (output == null) {
                 throw new IllegalArgumentException("evidence export requires --output <bundle.zip>");
             }
+            boolean explicitSelection = !runSessions.isEmpty() || !benchmarkSessions.isEmpty();
+            if (explicitSelection && countSelection) {
+                throw new IllegalArgumentException(
+                        "--run-session/--benchmark-session cannot be combined with --runs/--benchmarks");
+            }
             PreflightHome home = PreflightHome.current();
+            EvidenceRetention.Inventory inventory = EvidenceRetention.inventory(home);
+            if (explicitSelection) {
+                inventory = selectSessions(inventory, runSessions, benchmarkSessions);
+                exportRuns = inventory.runs().size();
+                exportBenchmarks = inventory.benchmarks().size();
+            }
             DiagnosticBundle.Result result = DiagnosticBundle.export(
                     home,
-                    EvidenceRetention.inventory(home),
+                    inventory,
                     output,
                     exportRuns,
                     exportBenchmarks,
@@ -85,7 +112,7 @@ final class EvidenceCommand {
         }
         if (exportOptions) {
             throw new IllegalArgumentException(
-                    "--output, --overwrite, --runs, and --benchmarks require `preflight evidence export`");
+                    "export selectors and output options require `preflight evidence export`");
         }
         if (!prune && (confirmed || keepRuns != null || keepBenchmarks != null)) {
             throw new IllegalArgumentException(
@@ -102,6 +129,35 @@ final class EvidenceCommand {
         }
         EvidenceRetention.Plan plan = EvidenceRetention.plan(inventory, keepRuns, keepBenchmarks);
         return prune(plan, confirmed, json, System.out);
+    }
+
+    static EvidenceRetention.Inventory selectSessions(
+            EvidenceRetention.Inventory inventory,
+            List<String> runNames,
+            List<String> benchmarkNames) {
+        return new EvidenceRetention.Inventory(
+                selectSessions(inventory.runs(), runNames, "run"),
+                selectSessions(inventory.benchmarks(), benchmarkNames, "benchmark"));
+    }
+
+    private static List<EvidenceRetention.Session> selectSessions(
+            List<EvidenceRetention.Session> available,
+            List<String> names,
+            String kind) {
+        List<EvidenceRetention.Session> selected = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String name : names) {
+            if (!seen.add(name)) {
+                throw new IllegalArgumentException("Duplicate " + kind + " session: " + name);
+            }
+            EvidenceRetention.Session session = available.stream()
+                    .filter(candidate -> candidate.path().getFileName().toString().equals(name))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Unknown " + kind + " evidence session: " + name));
+            selected.add(session);
+        }
+        return List.copyOf(selected);
     }
 
     static int exported(DiagnosticBundle.Result result, boolean json, PrintStream out) {
@@ -123,7 +179,7 @@ final class EvidenceCommand {
         }
         out.printf(Locale.ROOT, "Saved diagnostics to %s (%s, %,d files).%n",
                 result.output(), CacheFootprint.humanBytes(result.bytes()), result.files());
-        out.printf(Locale.ROOT, "  newest %,d launch runs and %,d benchmark sessions%n",
+        out.printf(Locale.ROOT, "  %,d launch runs and %,d benchmark sessions included%n",
                 result.runs(), result.benchmarks());
         out.printf(Locale.ROOT, "  %,d metadata files included; %,d present files skipped%n",
                 result.included().size(), result.skipped().size());
@@ -212,6 +268,17 @@ final class EvidenceCommand {
         } catch (NumberFormatException invalid) {
             throw new IllegalArgumentException(option + " requires a nonnegative integer");
         }
+    }
+
+    private static String sessionName(String[] args, int index, String option) {
+        if (index >= args.length || args[index].isBlank()) {
+            throw new IllegalArgumentException(option + " requires a session name");
+        }
+        String value = args[index];
+        if (value.equals(".") || value.equals("..") || value.contains("/") || value.contains("\\")) {
+            throw new IllegalArgumentException(option + " requires a top-level session name");
+        }
+        return value;
     }
 
     private static Path path(String[] args, int index, String option) {
