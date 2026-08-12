@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 class StarsectorDiscoveryTest {
@@ -21,6 +23,7 @@ class StarsectorDiscoveryTest {
         Files.createDirectories(executable.getParent());
         Files.writeString(executable, "stub");
         executable.toFile().setExecutable(true);
+        Files.writeString(executable.getParent().resolve("compiler_directives.txt"), "not a launcher");
 
         DiscoveryResult result = StarsectorDiscovery.discover(
                 Platform.MAC,
@@ -32,6 +35,7 @@ class StarsectorDiscoveryTest {
 
         assertNotNull(result.selected());
         assertEquals(executable.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals(1, result.candidates().size());
     }
 
     @Test
@@ -77,6 +81,30 @@ class StarsectorDiscoveryTest {
 
         assertEquals(fastRendering.toAbsolutePath().normalize(), result.selected().launcher());
         assertTrue(result.selected().score() > result.candidates().get(1).score());
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void explicitSymlinkWinsWithoutDuplicatingItsDiscoveredTarget() throws Exception {
+        Path game = temporaryDirectory.resolve("game");
+        Files.createDirectories(game);
+        Path launcher = Files.writeString(game.resolve("starsector.sh"), "#!/bin/sh\n");
+        launcher.toFile().setExecutable(true);
+        Path alias = game.resolve("preferred-starsector.sh");
+        Files.createSymbolicLink(alias, launcher.getFileName());
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.LINUX,
+                temporaryDirectory,
+                temporaryDirectory.resolve("elsewhere"),
+                Map.of(),
+                game,
+                alias);
+
+        assertNotNull(result.selected());
+        assertEquals(alias.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals("--launcher", result.selected().source());
+        assertEquals(1, result.candidates().size());
     }
 
     @Test
