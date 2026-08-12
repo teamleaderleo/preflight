@@ -162,18 +162,52 @@ export function assertSyntheticPreparation(first, second) {
 
 export function assertSyntheticDiagnostics(result, output) {
   const included = Array.isArray(result?.included) ? result.included : [];
-  const entries = existsSync(output) ? readZipEntries(output) : new Map();
-  if (result?.format !== "starsector-preflight-diagnostics-export-v1"
-      || !existsSync(output) || realpathSync(result.output) !== realpathSync(output)
-      || !Number.isSafeInteger(result.bytes) || result.bytes <= 0
-      || !Number.isSafeInteger(result.files) || result.files < 3
-      || !/^[a-f0-9]{64}$/.test(result.sha256)
-      || !included.some((entry) => String(entry?.entry ?? entry?.source ?? entry?.path ?? "").endsWith("run.json"))
-      || included.some((entry) => String(entry?.entry ?? entry?.source ?? entry?.path ?? "").endsWith("console.txt"))
-      || !entries.has("README.txt") || !entries.has("manifest.json") || !entries.has("runs/1/run.json")
-      || [...entries.keys()].some((name) => name.endsWith("console.txt"))
-      || [...entries.values()].some((bytes) => bytes.includes(Buffer.from("PRIVATE-SENTINEL-MUST-NOT-EXPORT")))) {
-    throw new Error(`Synthetic diagnostics boundary is malformed: ${JSON.stringify(result)}`);
+  const present = existsSync(output);
+  const entries = present ? readZipEntries(output) : new Map();
+  const name = (entry) => String(entry?.entry ?? entry?.source ?? entry?.path ?? "");
+  // Reported one condition at a time. This assertion runs on three platforms and its failures are
+  // read from a CI log, where a single combined verdict costs a whole run to narrow down.
+  const problems = [];
+  if (result?.format !== "starsector-preflight-diagnostics-export-v1") {
+    problems.push(`format is ${JSON.stringify(result?.format)}`);
+  }
+  if (!present) {
+    problems.push(`no archive at ${output}`);
+  } else if (realpathSync(result.output) !== realpathSync(output)) {
+    // Windows hands out short 8.3 directory names, so the archive the engine reports and the one
+    // the caller asked for can be the same file under two spellings.
+    problems.push(
+      `archive path resolves to ${realpathSync(result.output)}, asked for ${realpathSync(output)}`,
+    );
+  }
+  if (!Number.isSafeInteger(result?.bytes) || result.bytes <= 0) {
+    problems.push(`bytes is ${JSON.stringify(result?.bytes)}`);
+  }
+  if (!Number.isSafeInteger(result?.files) || result.files < 3) {
+    problems.push(`files is ${JSON.stringify(result?.files)}`);
+  }
+  if (!/^[a-f0-9]{64}$/.test(result?.sha256 ?? "")) {
+    problems.push(`sha256 is ${JSON.stringify(result?.sha256)}`);
+  }
+  if (!included.some((entry) => name(entry).endsWith("run.json"))) {
+    problems.push("no run.json among the included entries");
+  }
+  if (included.some((entry) => name(entry).endsWith("console.txt"))) {
+    problems.push("console.txt was included");
+  }
+  for (const required of ["README.txt", "manifest.json", "runs/1/run.json"]) {
+    if (!entries.has(required)) problems.push(`archive is missing ${required}`);
+  }
+  if ([...entries.keys()].some((entry) => entry.endsWith("console.txt"))) {
+    problems.push("archive contains a console.txt");
+  }
+  if ([...entries.values()].some((bytes) => bytes.includes(Buffer.from("PRIVATE-SENTINEL-MUST-NOT-EXPORT")))) {
+    problems.push("archive carries private content past the boundary");
+  }
+  if (problems.length) {
+    throw new Error(
+      `Synthetic diagnostics boundary is malformed (${problems.join("; ")}): ${JSON.stringify(result)}`,
+    );
   }
 }
 
