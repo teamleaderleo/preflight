@@ -74,6 +74,7 @@
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <manifestEntries>
                     <Main-Class>dev.starsector.preflight.cli.PreflightCli</Main-Class>
+                    <Implementation-Version>${project.version}</Implementation-Version>
                     <Premain-Class>dev.starsector.preflight.agent.PreflightAgent</Premain-Class>
                     <Agent-Class>dev.starsector.preflight.agent.PreflightAgent</Agent-Class>
                     <Can-Redefine-Classes>false</Can-Redefine-Classes>

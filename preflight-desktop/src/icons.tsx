@@ -122,6 +122,17 @@ export function ShieldIcon(props: IconProps) {
   );
 }
 
+export function GaugeIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M4 17a8 8 0 1 1 16 0" />
+      <path d="m12 13 4-4" />
+      <circle cx="12" cy="17" r="1.4" />
+      <path d="M7 17h10" />
+    </svg>
+  );
+}
+
 export function ArrowIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

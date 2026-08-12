@@ -70,7 +70,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
             <span className="field-note">{profilesLoading ? "Checking…" : `${profiles?.profiles.length ?? 0} saved`}</span>
           </div>
           <div className="profile-list">
-            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><strong>No saved profiles</strong><span>Name the current mod setup to save it.</span></div> : null}
+            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><span>Save the current setup to add it here.</span></div> : null}
             {(profiles?.profiles ?? []).map((profile) => (
               <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
                 <div className="profile-card__copy">

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cleanUserMessage, errorMessage } from "./uiFormat";
+import { cleanUserMessage, errorMessage, localDateStamp } from "./uiFormat";
 
 describe("errorMessage", () => {
   test("keeps user-facing failures free of JavaScript's Error prefix", () => {
@@ -14,5 +14,11 @@ describe("errorMessage", () => {
   test("removes an embedded JavaScript error label from a complete notice", () => {
     expect(cleanUserMessage("Couldn’t use this folder. Error: launcher missing"))
       .toBe("Couldn’t use this folder: launcher missing");
+  });
+});
+
+describe("localDateStamp", () => {
+  test("uses the operator’s calendar date instead of UTC", () => {
+    expect(localDateStamp(new Date(2026, 7, 12, 0, 5))).toBe("2026-08-12");
   });
 });

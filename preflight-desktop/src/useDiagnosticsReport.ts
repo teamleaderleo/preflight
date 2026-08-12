@@ -17,7 +17,7 @@ import type {
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
-import { errorMessage } from "./uiFormat";
+import { errorMessage, localDateStamp } from "./uiFormat";
 
 const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 
@@ -182,7 +182,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     diagnosticsBusyRef.current = true;
     setDiagnosticsBusy(true);
     try {
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = localDateStamp();
       const destination = isDesktopHost()
         ? await saveFile({
           title: "Save Preflight diagnostics",

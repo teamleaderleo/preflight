@@ -2756,7 +2756,7 @@ footer {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   .app-shell {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -3321,7 +3321,7 @@ footer {
   }
 }
 
-@media (max-height: 720px) and (min-width: 901px) {
+@media (max-height: 720px) and (min-width: 1001px) {
   .page-viewport--home {
     overflow-y: auto;
   }

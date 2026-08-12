@@ -2,8 +2,8 @@ import styles from "./styles.css?raw";
 
 test("responsive layouts keep document scrolling locked to bounded workspaces", () => {
   expect(styles).toMatch(/body\s*\{[^}]*overflow:\s*hidden;/s);
-  expect(styles).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.app-shell\s*\{[^}]*height:\s*100dvh;[^}]*overflow:\s*hidden;/);
-  expect(styles).toMatch(/@media \(max-width: 900px\)[\s\S]*?\.page-viewport,[\s\S]*?overflow-y:\s*auto;/);
+  expect(styles).toMatch(/@media \(max-width: 1000px\)[\s\S]*?\.app-shell\s*\{[^}]*height:\s*100dvh;[^}]*overflow:\s*hidden;/);
+  expect(styles).toMatch(/@media \(max-width: 1000px\)[\s\S]*?\.page-viewport,[\s\S]*?overflow-y:\s*auto;/);
 });
 
 test("the drafting surface supports explicit themes while motion preferences remain first-class", () => {
@@ -45,7 +45,7 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.home-overview\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.brand,[\s\S]*?\.nav,[\s\S]*?\.sidebar__footer\s*\{[^}]*flex-shrink:\s*0;/);
-  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 901px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
 });
 
 test("optimization presets stay readable at the default desktop width", () => {

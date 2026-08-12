@@ -147,8 +147,15 @@ test("synthetic package assertions require exact discovery, cold/warm preparatio
   assert.doesNotThrow(() => assertSyntheticDiscovery({
     protocol: 1,
     ready: true,
+    engineVersion: "0.1.0",
     selected: { installRoot: fixture, launcher, kind: "shell-script" },
-  }, fixture, launcher));
+  }, fixture, launcher, "0.1.0"));
+  assert.throws(() => assertSyntheticDiscovery({
+    protocol: 1,
+    ready: true,
+    engineVersion: "development",
+    selected: { installRoot: fixture, launcher, kind: "shell-script" },
+  }, fixture, launcher, "0.1.0"), /Synthetic discovery result is malformed/);
   const stage = (artifactHit) => ({
     successful: true,
     resourceIndex: { status: "SUCCESS", artifactHit },

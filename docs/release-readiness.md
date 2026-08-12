@@ -2,7 +2,7 @@
 
 **Status:** release-candidate preparation; Fractal Softworks guidance requested, awaiting response
 
-**Updated:** 2026-08-11
+**Updated:** 2026-08-12
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
 still inside the release boundary below.
@@ -106,8 +106,13 @@ still inside the release boundary below.
   has now completed packaged disclosure, consent, upload, receipt persistence and deletion through
   its scoped grant. A second 3,762,549-byte canary cancelled after 256 KiB, confirmed server cleanup,
   retained the local ZIP, then retried to a matching receipt whose object was deleted through its
-  scoped grant. A final click-through of the receipt's delete button and the first complete hosted
-  candidate matrix remain. See [the packaged report canary](evidence/2026-08-08-packaged-report-canary.md).
+  scoped grant. On 2026-08-12, the packaged desktop created and disclosed a 38,165-byte ZIP,
+  uploaded it to the production intake, received a matching accepted receipt, and retained that
+  receipt across an exact package reinstall. The ZIP named 12 included evidence entries, listed the
+  excluded categories, and used the local calendar date. This report remains under automatic expiry
+  so its receipt can be inspected during the owner walkthrough. A final candidate cancel/retry/delete
+  sequence and the first complete hosted candidate matrix remain. See
+  [the packaged report canary](evidence/2026-08-08-packaged-report-canary.md).
 - [x] Keep automatic crash upload separate, default off, and out of scope unless its consent and
   privacy lifecycle are complete. No automatic crash-upload path is present.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an

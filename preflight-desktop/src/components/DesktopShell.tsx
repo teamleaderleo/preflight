@@ -1,11 +1,11 @@
 import type { AppStatus } from "../types";
 import {
   HomeIcon,
+  GaugeIcon,
   LayersIcon,
   MoonIcon,
   RefreshIcon,
   SettingsIcon,
-  ShieldIcon,
   SparklesIcon,
   SunIcon,
   SystemThemeIcon,
@@ -79,7 +79,7 @@ export function DesktopShell({
             <SparklesIcon /><span>Preflight</span>
           </button>
           <button className={`nav__item ${page === "reports" ? "nav__item--active" : ""}`} type="button" title="Benchmark" aria-current={page === "reports" ? "page" : undefined} onClick={() => onPageChange("reports")}>
-            <ShieldIcon /><span>Benchmark</span>
+            <GaugeIcon /><span>Benchmark</span>
           </button>
           <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" title="Profiles" aria-current={page === "profiles" ? "page" : undefined} onClick={() => onPageChange("profiles")} disabled={!isReady}>
             <LayersIcon /><span>Profiles</span>

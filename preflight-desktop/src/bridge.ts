@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import desktopPackage from "../package.json";
 import type {
   CacheHealth,
   CacheRepair,
@@ -60,7 +61,7 @@ export function browserPreviewScenario(): BrowserPreviewScenario {
 
 const previewSnapshot: DesktopSnapshot = {
   protocol: 1,
-  engineVersion: "preview",
+  engineVersion: desktopPackage.version,
   platform: "mac",
   ready: true,
   selected: {

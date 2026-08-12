@@ -47,9 +47,10 @@ export function exerciseSyntheticPackageContract(packageRoot, options = {}) {
     mkdirSync(home, { recursive: true });
     const launcher = writeSyntheticInstallation(fixture, launcherSentinel);
     const before = treeIdentity(fixture);
+    const expectedVersion = JSON.parse(readFileSync(join(engineDirectory, "bundle.json"), "utf8")).sourceVersion;
 
     const snapshot = JSON.parse(invoke(["desktop", "snapshot", "--game", fixture]));
-    assertSyntheticDiscovery(snapshot, fixture, launcher);
+    assertSyntheticDiscovery(snapshot, fixture, launcher, expectedVersion);
 
     const firstReport = join(temporary, "prepare-first.json");
     const secondReport = join(temporary, "prepare-second.json");
@@ -133,11 +134,12 @@ export function exerciseSyntheticPackageContract(packageRoot, options = {}) {
   }
 }
 
-export function assertSyntheticDiscovery(snapshot, fixture, launcher) {
+export function assertSyntheticDiscovery(snapshot, fixture, launcher, expectedVersion = null) {
   if (snapshot?.protocol !== 1 || snapshot?.ready !== true || !snapshot.selected
       || resolve(snapshot.selected.installRoot) !== resolve(fixture)
       || resolve(snapshot.selected.launcher) !== resolve(launcher)
-      || !["windows-script", "shell-script"].includes(snapshot.selected.kind)) {
+      || !["windows-script", "shell-script"].includes(snapshot.selected.kind)
+      || (expectedVersion !== null && snapshot.engineVersion !== expectedVersion)) {
     throw new Error(`Synthetic discovery result is malformed: ${JSON.stringify(snapshot)}`);
   }
 }

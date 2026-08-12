@@ -64,6 +64,25 @@ The development measurements and their context are collected in
 The desktop path is designed around a single routine: detect Starsector, prepare the current profile,
 and launch. Recommended optimizations and Balanced storage are the defaults.
 
+## From install to launch
+
+On first open, Preflight searches the usual installation folders. If Starsector isn't there, choose
+the folder containing `Starsector.app`, `starsector.exe`, or `starsector.sh`.
+
+![Preflight asking for a Starsector installation](docs/images/walkthrough-setup.png)
+
+Once the current mod profile is prepared, the home screen keeps the routine controls together. The
+large button launches Starsector; resolution, battle size, RAM, antialiasing, UI scale, fullscreen,
+and sound can be changed beside it.
+
+![Preflight ready to launch an 83-mod profile](docs/images/walkthrough-ready.png)
+
+The optional benchmark runs a normal launch and a Preflight launch, then compares their main-menu
+times. Support ZIPs are separate: Preflight shows their contents, exclusions, size, and checksum
+before anything can be sent.
+
+![Preflight benchmark and support controls](docs/images/walkthrough-benchmark.png)
+
 ## Compatibility and containment
 
 Preflight doesn't rewrite game or mod JARs, executables, assets, activation data, or saves. Runtime
