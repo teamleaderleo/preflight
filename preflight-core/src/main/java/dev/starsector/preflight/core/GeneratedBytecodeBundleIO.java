@@ -10,11 +10,9 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -49,15 +47,7 @@ public final class GeneratedBytecodeBundleIO {
                 while (buffer.hasRemaining()) channel.write(buffer);
                 channel.force(true);
             }
-            try {
-                Files.move(
-                        temporary,
-                        absolute,
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException ignored) {
-                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
-            }
+            AtomicPublish.replace(temporary, absolute);
             moved = true;
         } finally {
             if (!moved) Files.deleteIfExists(temporary);
