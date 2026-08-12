@@ -10,17 +10,22 @@ The workflow deliberately has no `pull_request` trigger. It accepts manual dispa
 GitHub Actions control plane
   -> outbound HTTPS connection from the runner service
   -> unprivileged preflight-runner account
+  -> SHA-256 check against the launcher bytes in the exact workflow revision
   -> root-owned /usr/local/libexec/starsector-preflight-ci-v1
   -> exact commit archive treated as inert input on the host
   -> disposable rootless Podman warm phase when requested
   -> fresh source extraction + offline rootless Podman acceptance phase
 ```
 
-The selected repository revision is never checked out or executed on the host by the VPS workflow. The workflow resolves an exact 40-character commit SHA and passes only that SHA, a fixed suite enum, and `online` or `offline` to `/usr/local/libexec/starsector-preflight-ci-v1`. If the launcher is missing, incorrectly owned, or writable by the runner account, verification fails closed.
+The selected repository revision is never checked out or executed on the host by the VPS workflow. The workflow resolves an exact 40-character commit SHA and passes only that SHA, a fixed suite enum, and `online` or `offline` to `/usr/local/libexec/starsector-preflight-ci-v1`.
+
+Before executing that launcher, the workflow fetches `build/ci/starsector-preflight-ci-v1` as inert data from the exact immutable workflow revision, computes its SHA-256, and compares it with the installed root-owned launcher. A missing launcher, ownership/permission failure, or byte mismatch fails closed. Updating the repository copy therefore does not silently update the persistent host; the operator must deliberately install the reviewed matching launcher.
 
 The launcher itself is installed from a reviewed repository revision by an operator running the bootstrap script as root. Once installed, an Actions job cannot replace it. The repository copy under `build/ci/` is installation source and review material; the workflow does not execute that copy.
 
 The runner account must not have `sudo`, SSH private keys, egress-service credentials, access to a Docker or Podman control socket, or permission to read another service account's files. Every container runs rootless, drops Linux capabilities, disables privilege escalation, uses a read-only container root, and has CPU, memory, and PID limits. A container still shares the host kernel and therefore does not provide the isolation of a separate VM.
+
+`scripts/test_vps_trust_boundary.py` is a repository-side policy test for this boundary. It rejects checkout or direct repository-script execution in the persistent-runner workflow and pins the required rootless, capability-drop, no-privilege-escalation, read-only-root, resource-limit, offline-acceptance, cache-ownership, and receipt rules. It is run by the Source boundary workflow so ordinary PRs cannot silently weaken those declarations.
 
 ## Source, network, and dependency handling
 
@@ -53,7 +58,7 @@ stat -c '%U %G %a %n' /usr/local/libexec/starsector-preflight-ci-v1
 
 The image is built from [`build/ci/Containerfile`](../build/ci/Containerfile). It is pulled only during explicit image builds; verification jobs use `--pull=never`. Record the printed image ID when changing the build environment.
 
-After merging a revision that changes the launcher or when migrating an older runner, re-run `prepare` from the reviewed revision before invoking VPS verification. Until the operator-owned launcher exists, the workflow intentionally fails closed.
+After merging a revision that changes the launcher or when migrating an older runner, re-run `prepare` from the reviewed revision before invoking VPS verification. Until the installed launcher matches the exact workflow revision, the workflow intentionally fails closed.
 
 ### Register the GitHub runner
 
@@ -110,7 +115,7 @@ sudo -iu preflight-runner \
 
 `online` means “warm dependencies, then accept only the offline rerun.” Use `offline` as the final argument only after provisioning the read-only operator seed described above.
 
-Every run prints a bounded verification receipt containing the launcher version, selected source SHA, source archive SHA-256 and byte count, suite, requested network mode, accepted `offline` network mode, image ID/digest when available, and resource limits. Phase markers in the log identify the optional online warm phase and the offline acceptance phase.
+Every run prints a bounded verification receipt containing the launcher version, selected source SHA, source archive SHA-256 and byte count, suite, requested network mode, accepted `offline` network mode, image ID/digest when available, and resource limits. The workflow also prints the SHA-256 of the installed launcher after it matches the exact workflow revision. Phase markers in the log identify the optional online warm phase and the offline acceptance phase.
 
 ## Updating the build image or launcher
 
