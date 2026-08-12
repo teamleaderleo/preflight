@@ -31,6 +31,11 @@ export function validateReleaseNotes(tag, text, source, { allowDraft = false } =
   }
 }
 
+export function draftNotesAllowedForEnvironment(environment = process.env) {
+  return environment.GITHUB_EVENT_NAME === "workflow_dispatch"
+    && environment.GITHUB_REF_TYPE !== "tag";
+}
+
 function firstXmlVersion(xml, source) {
   const version = xml.match(/<version>\s*([^<\s]+)\s*<\/version>/)?.[1];
   if (!version) throw new Error(`${source} has no project or parent version`);
@@ -83,8 +88,8 @@ if (isMain) {
   // Distribution invokes this command only for a private signed candidate or a public v* tag.
   // A workflow_dispatch on a branch is the private rehearsal and may intentionally use draft notes;
   // a tag ref (including a manually dispatched tag) must use finalized notes.
-  const privateCandidate = process.env.GITHUB_EVENT_NAME === "workflow_dispatch"
-    && process.env.GITHUB_REF_TYPE !== "tag";
-  validateReleaseNotes(tag, readFileSync(notes, "utf8"), notesRelative, { allowDraft: privateCandidate });
+  validateReleaseNotes(tag, readFileSync(notes, "utf8"), notesRelative, {
+    allowDraft: draftNotesAllowedForEnvironment(),
+  });
   console.log(`Release versions and notes agree on ${version}`);
 }
