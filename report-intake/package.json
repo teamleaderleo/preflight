@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "benchmark:dataset": "node scripts/benchmark-dataset.mjs",
     "canary": "node scripts/canary.mjs",
-    "check": "npm run typecheck && npm test",
+    "check": "npm run typecheck && npm test && npm run test:operator",
     "cf-typegen": "wrangler types --include-runtime false",
     "deploy": "wrangler deploy",
     "test": "vitest run",
+    "test:operator": "node --test scripts/*.node-test.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
