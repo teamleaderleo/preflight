@@ -7,13 +7,8 @@ import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.PreparedAudioIO;
 import dev.starsector.preflight.core.PreparedAudioManifest;
 import dev.starsector.preflight.core.PreparedAudioManifestIO;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -38,15 +33,6 @@ import java.util.TreeMap;
  * skipped, and at launch they fall through to the same failing decode they always had.
  */
 public final class PrepareAudioChild {
-    /** {@code sound.J}, the Ogg Vorbis decode. */
-    private static final String DECODER_CLASS = "sound.J";
-    private static final String DECODE_METHOD = "o00000";
-    /** {@code sound.F}: channel count, the direct PCM buffer, and the sample rate. */
-    private static final String RESULT_CLASS = "sound.F";
-    private static final String CHANNELS_FIELD = "o00000";
-    private static final String PCM_FIELD = "Object";
-    private static final String RATE_FIELD = "Ò" + "00000";
-
     private PrepareAudioChild() {
     }
 
@@ -91,13 +77,7 @@ public final class PrepareAudioChild {
         Path manifestOutput = Path.of(args[6]);
 
         ClassLoader game = gameClassLoader(args, FIXED_ARGUMENTS);
-
-        Class<?> decoderClass = Class.forName(DECODER_CLASS, true, game);
-        Method decode = decoderClass.getMethod(DECODE_METHOD, InputStream.class);
-        Class<?> resultClass = Class.forName(RESULT_CLASS, true, game);
-        Field channels = resultClass.getField(CHANNELS_FIELD);
-        Field pcm = resultClass.getField(PCM_FIELD);
-        Field rate = resultClass.getField(RATE_FIELD);
+        GameAudioDecoder decoder = GameAudioDecoder.boundTo(game);
 
         int prepared = 0;
         int undecodable = 0;
@@ -124,30 +104,13 @@ public final class PrepareAudioChild {
             }
             encodedBytes += encoded.length;
 
-            byte[] samples;
-            int channelCount;
-            int sampleRate;
-            try {
-                // A fresh decoder per file: one instance does not survive reuse.
-                Object decoded = decode.invoke(
-                        decoderClass.getDeclaredConstructor().newInstance(),
-                        new ByteArrayInputStream(encoded));
-                ByteBuffer buffer = ((ByteBuffer) pcm.get(decoded)).duplicate();
-                samples = new byte[buffer.remaining()];
-                buffer.get(samples);
-                channelCount = channels.getInt(decoded);
-                sampleRate = rate.getInt(decoded);
-            } catch (ReflectiveOperationException | RuntimeException failed) {
+            GameAudioDecoder.Decoded decoded = decoder.decode(encoded);
+            if (decoded == null) {
                 undecodable++;
                 record(skipped, logicalPath);
                 continue;
             }
-            if (channelCount < 1 || sampleRate < 1 || samples.length == 0
-                    || samples.length % (channelCount * 2) != 0) {
-                undecodable++;
-                record(skipped, logicalPath);
-                continue;
-            }
+            byte[] samples = decoded.samples();
 
             String sourceSha256 = Hashes.sha256(encoded);
             PreparedAudio audio = new PreparedAudio(
@@ -157,9 +120,9 @@ public final class PrepareAudioChild {
                     PreparedAudio.PcmEncoding.PCM_SIGNED,
                     16,
                     PreparedAudio.ByteOrder.LITTLE_ENDIAN,
-                    sampleRate,
-                    channelCount,
-                    samples.length / (long) (channelCount * 2),
+                    decoded.sampleRate(),
+                    decoded.channels(),
+                    decoded.frames(),
                     samples);
             Path blob = PreparedAudioCache.blobPath(
                     cache, sourceSha256, decoderIdentity, PreparedAudio.Policy.FULLY_DECODED_EFFECT);

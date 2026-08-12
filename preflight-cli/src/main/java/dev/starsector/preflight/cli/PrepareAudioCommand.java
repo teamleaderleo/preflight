@@ -30,7 +30,13 @@ import java.util.stream.Stream;
  */
 public final class PrepareAudioCommand {
     private static final String KEY_SCHEMA = "starsector-preflight-audio-decoder-policy-v1";
-    private static final List<String> CHILD_JVM_OPTIONS = List.of(
+    /**
+     * Verification off, because the game's own classes cannot pass it: obfuscation gave them names
+     * like {@code sound.int} and {@code sound.while}, which are illegal identifiers. The game's
+     * launcher disables it for the same reason. Shared with the installed test so the two cannot
+     * drift into spawning differently configured children.
+     */
+    static final List<String> CHILD_JVM_OPTIONS = List.of(
             "-noverify",
             "-XX:+UnlockDiagnosticVMOptions",
             "-XX:-BytecodeVerificationLocal",
