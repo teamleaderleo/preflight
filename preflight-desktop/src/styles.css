@@ -2040,15 +2040,21 @@ h2 {
 
 .profile-card__copy > div {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 7px;
 }
 
+/* Profile names are whatever the player typed, including one long unbroken word. Without a
+   shrinkable minimum the name pushes the Active badge and the row's actions off the card. */
 .profile-card__copy strong {
+  min-width: 0;
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .profile-card__copy b {
+  flex: 0 0 auto;
   padding: 3px 6px;
   border-radius: 3px;
   color: #417b66;
@@ -2077,8 +2083,10 @@ h2 {
   line-height: 1.5;
 }
 
+/* Carries the missing-mod list, whose names come from mod authors rather than from us. */
 .profile-card__copy small {
   color: #a34f45;
+  overflow-wrap: anywhere;
 }
 
 .profile-card__actions {
