@@ -11,6 +11,7 @@ import com.fs.starfarer.api.campaign.SectorEntityToken;
 import com.fs.util.container.repo.ObjectRepository;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,26 @@ import org.objectweb.asm.tree.MethodNode;
  */
 class EntityLookupPlanTest {
     private static final String ORIGINAL = "preflight$original$getEntityById";
+    private static final Locale TURKISH = Locale.forLanguageTag("tr-TR");
+
+    private Locale playerLocale;
+
+    /**
+     * The shipped fallback folds ids with the <em>default</em> locale, so any test asserting which
+     * entity a mixed-case id reaches is asserting something about the machine it runs on. These pin
+     * a locale instead of inheriting the operator's; {@link #theIndexTracksTheShippedFallbackEvenWhereTurkishBreaksIt}
+     * covers the case where that choice matters.
+     */
+    @BeforeEach
+    void pinLocale() {
+        playerLocale = Locale.getDefault();
+        Locale.setDefault(Locale.ROOT);
+    }
+
+    @AfterEach
+    void restoreLocale() {
+        Locale.setDefault(playerLocale);
+    }
 
     @BeforeEach
     @AfterEach
@@ -93,6 +114,27 @@ class EntityLookupPlanTest {
 
         assertSame(fixture.entities.get(3), ungated, "the shipped fallback matches case-insensitively");
         assertSame(ungated, gated, "so the index has to as well");
+    }
+
+    /**
+     * Turkish lowercases {@code I} to dotless {@code ı}, so {@code "ENTITY_3"} folds to
+     * {@code "entıty_3"} and never meets {@code "entity_3"}. The shipped fallback folds with the
+     * default locale, which means the <em>game</em> stops resolving that id for a Turkish player,
+     * with or without Preflight. The index's job is to be wrong in exactly the same way.
+     */
+    @Test
+    void theIndexTracksTheShippedFallbackEvenWhereTurkishBreaksIt() throws Exception {
+        Locale.setDefault(TURKISH);
+        Fixture fixture = Fixture.of(32);
+
+        Object ungated = fixture.lookupWithGateOff("ENTITY_3");
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+        Object gated = fixture.lookup("ENTITY_3");
+
+        assertNull(ungated, "Turkish folding puts the shipped fallback out of reach");
+        assertSame(ungated, gated, "so the index must not answer where the shipped method would not");
+        assertSame(fixture.entities.get(3), fixture.lookup("entity_3"),
+                "while the exact path is untouched by any of this");
     }
 
     @Test

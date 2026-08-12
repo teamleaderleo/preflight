@@ -122,32 +122,41 @@ A JVM's default locale is the player's, and two of Java's most ordinary operatio
 does not equal `"id"`. The codebase folds with `Locale.ROOT` in 201 places; the stragglers that did
 not have been corrected.
 
-### Open: the campaign entity index disagrees with its own model under Turkish
+### The campaign entity lookup folds with the player's locale, because the game does
 
 `EntityLookupRuntime` folds with `Locale.getDefault()` in all three places that matter — building
 the index, looking up in it, and validating a candidate. The behavioural model of the shipped method
-in `BaseLocation` folds with `Locale.ROOT`. Both look deliberate and they cannot both be right.
+in `BaseLocation` used to fold with `Locale.ROOT`, and under Turkish the two gave different answers.
 
-They agree in every locale except Turkish and Azeri, where `I` lowercases to `ı`. There
-`EntityLookupPlanTest.theCaseInsensitiveFallbackIsPreserved` and
-`aDuplicatedIdResolvesTheSameWayItDidBefore` fail: the index answers `null` for an id the model
-resolves to an entity. That is not a slow path, it is a different answer, and a Turkish player with
-the campaign entity index enabled would get it.
+The disassembly settles it: the shipped fallback folds **both** sides with the no-argument
+`String.toLowerCase()`, which is the default locale. The model was the side that was wrong and has
+been corrected. Nothing was copied out of the game — this is a statement about which overload the
+method calls, checked once with `javap` against a local install.
 
-Settling this needs the shipped method's own bytecode, which is not in this repository. Until then
-neither side should be changed to match the other, because aligning them the wrong way makes the
-cache authoritative for answers the original code would have refused. Reproduce with:
+The consequence is worth stating plainly, because it is a property of Starsector rather than of
+Preflight. Turkish and Azeri lowercase `I` to dotless `ı`, so `"ENTITY_3"` folds to `"entıty_3"` and
+never meets `"entity_3"`. **For a Turkish player the shipped case-insensitive fallback already does
+not match ids containing an `I`**, with or without Preflight. Exact matches are unaffected, which is
+the overwhelming majority of lookups, and the game's own id map is keyed unfolded.
 
-```bash
-mvn -pl preflight-agent -am test -Dtest=EntityLookupPlanTest -DargLine="-Duser.language=tr -Duser.country=TR"
-```
+So the index reproduces that, including the part that looks like a bug. Pinning `Locale.ROOT` in the
+index would have made it answer for ids the game itself declines — the one failure mode this
+project cannot accept, arrived at by way of a fix. `EntityLookupPlanTest` now pins a locale rather
+than inheriting the operator's, and
+`theIndexTracksTheShippedFallbackEvenWhereTurkishBreaksIt` covers the divergence directly, so the
+coverage no longer depends on remembering to pass a flag.
 
 **Number formatting.** `String.format("%.1f", 1.5)` is `1,5` under Turkish and German, `١٫٥` under
 Arabic, and `১.৫` under Bengali. The probe reports that printed durations and sizes now format with
 `Locale.ROOT` so evidence is reproducible whoever runs it. Integer conversions such as `%04x`, which
 the JSON writer uses for escapes, are not localized — that was checked rather than assumed.
 
-The full suite passes under `-Duser.language=tr -Duser.country=TR`.
+The full suite passes under `-Duser.language=tr -Duser.country=TR`, which is worth re-running after
+any change to string comparison:
+
+```bash
+mvn verify -DargLine="-Duser.language=tr -Duser.country=TR"
+```
 
 ## Publishing a file while something else holds it
 

@@ -38,8 +38,13 @@ system cannot represent are carried into the engine as ASCII, and a Linux sessio
 `C`/`POSIX` locale gets a UTF-8 one for the engine. One gap remains on Windows: the agent reaches
 the game through a `-javaagent` path that the JVM reads itself and that cannot be encoded, so an
 account name outside the system code page prevents an accelerated launch. Windows code pages cover
-their own language, so this affects mixed scripts rather than ordinary localized names. The detail
-is in [Java runtime support](java-runtime-support.md).
+their own language, so this affects mixed scripts rather than ordinary localized names.
+
+Adapters reproduce the game's own locale sensitivity rather than correcting it. Starsector's
+case-insensitive campaign entity fallback folds ids with the player's locale, so under Turkish and
+Azeri it already fails to match ids containing an `I`; the index in front of it answers the same way
+instead of resolving what the game would decline. The detail for both is in
+[Java runtime support](java-runtime-support.md).
 
 There is no automatic report or crash upload. **Send run report** exists only in a build configured
 for the private intake and still requires review and confirmation for each ZIP. Ordinary builds can

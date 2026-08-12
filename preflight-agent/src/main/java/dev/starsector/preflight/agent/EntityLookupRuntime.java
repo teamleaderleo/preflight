@@ -193,13 +193,13 @@ public final class EntityLookupRuntime {
                 return false;
             }
             if (!currentId.equals(requestedId)) {
-                // UNRESOLVED: this folds with the default locale, as does the index in build() and
-                // lookup(). The behavioural model in BaseLocation folds with Locale.ROOT. The two
-                // agree everywhere except Turkish and Azeri, where "ID" lowercases to "ıd", and
-                // there EntityLookupPlanTest fails: the index answers null for an id the model
-                // resolves. Which side is wrong depends on what the shipped method actually calls,
-                // which needs the game's own bytecode to settle. See docs/java-runtime-support.md.
-                return currentId.toLowerCase().equals(requestedId.toLowerCase());
+                // Deliberately the default locale, not Locale.ROOT: the shipped fallback folds both
+                // sides with String.toLowerCase(), which is the default locale, and build() and
+                // lookup() fold the index the same way. Under Turkish and Azeri that differs from
+                // Locale.ROOT -- "ID" folds to "ıd" -- so pinning ROOT here would answer for ids the
+                // game itself would not match. See docs/java-runtime-support.md.
+                Locale locale = Locale.getDefault();
+                return currentId.toLowerCase(locale).equals(requestedId.toLowerCase(locale));
             }
             Class<?> type = candidate.getClass();
             if (!isBaseCampaignEntity(type) && !LOCATION_TOKEN.equals(type.getName())) {
