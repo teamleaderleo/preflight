@@ -4,8 +4,9 @@ use serde::Deserialize;
 use serde_json::Value;
 #[cfg(debug_assertions)]
 use std::env;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command, Output, Stdio};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, State};
 
@@ -43,12 +44,138 @@ impl EnginePaths {
         Ok(Self { java, jar })
     }
 
-    pub(crate) fn command(&self) -> Command {
+    pub(crate) fn command(&self) -> EngineCommand {
         let mut command = Command::new(&self.java);
         command.arg("-jar").arg(&self.jar);
         configure_child_process(&mut command);
-        command
+        EngineCommand {
+            inner: command,
+            args: Vec::new(),
+        }
     }
+}
+
+/// First argument of an ASCII-encoded vector. Matches `Utf8Argv.SENTINEL` in the engine.
+const UTF8_ARGV_SENTINEL: &str = "--preflight-utf8-argv";
+
+/// An engine invocation whose arguments survive the trip into the JVM.
+///
+/// Windows hands a new process its command line converted to the active ANSI code page, and the
+/// Java launcher reads it from there on every released JDK. A game folder, profile name, or user
+/// directory holding anything outside that code page reaches `main` as `?` and is unrecoverable.
+/// No JVM option avoids this: `sun.jnu.encoding` comes from the System Locale and is not settable
+/// with `-D`.
+///
+/// So arguments are collected here rather than handed to [`Command`] as they arrive, and a vector
+/// that needs more than ASCII is Base64 UTF-8 encoded behind [`UTF8_ARGV_SENTINEL`] just before the
+/// process starts. The engine reverses it before parsing. Collecting them means a caller cannot add
+/// an argument that skips the encoding.
+pub(crate) struct EngineCommand {
+    inner: Command,
+    args: Vec<OsString>,
+}
+
+impl EngineCommand {
+    pub(crate) fn arg<S: AsRef<OsStr>>(&mut self, argument: S) -> &mut Self {
+        self.args.push(argument.as_ref().to_os_string());
+        self
+    }
+
+    pub(crate) fn args<I, S>(&mut self, arguments: I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        for argument in arguments {
+            self.arg(argument);
+        }
+        self
+    }
+
+    pub(crate) fn stdout(&mut self, configuration: Stdio) -> &mut Self {
+        self.inner.stdout(configuration);
+        self
+    }
+
+    pub(crate) fn stderr(&mut self, configuration: Stdio) -> &mut Self {
+        self.inner.stderr(configuration);
+        self
+    }
+
+    pub(crate) fn output(&mut self) -> std::io::Result<Output> {
+        self.prepared().output()
+    }
+
+    pub(crate) fn spawn(&mut self) -> std::io::Result<Child> {
+        self.prepared().spawn()
+    }
+
+    fn prepared(&mut self) -> &mut Command {
+        let args = std::mem::take(&mut self.args);
+        self.inner.args(encode_argv(args));
+        &mut self.inner
+    }
+
+    /// The arguments as callers supplied them, before any encoding.
+    #[cfg(test)]
+    pub(crate) fn arguments(&self) -> Vec<String> {
+        self.args
+            .iter()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_test(program: &str) -> Self {
+        Self {
+            inner: Command::new(program),
+            args: Vec::new(),
+        }
+    }
+}
+
+/// Returns `args` unchanged when every argument is ASCII, otherwise the sentinel-marked Base64
+/// UTF-8 form. Arguments that are not valid UTF-8 are already beyond recovery, so they are passed
+/// through rather than silently rewritten.
+fn encode_argv(args: Vec<OsString>) -> Vec<OsString> {
+    if args
+        .iter()
+        .all(|argument| argument.to_str().is_some_and(str::is_ascii))
+    {
+        return args;
+    }
+    let Some(text) = args
+        .iter()
+        .map(|argument| argument.to_str())
+        .collect::<Option<Vec<&str>>>()
+    else {
+        return args;
+    };
+    let mut encoded = Vec::with_capacity(args.len() + 1);
+    encoded.push(OsString::from(UTF8_ARGV_SENTINEL));
+    encoded.extend(
+        text.into_iter()
+            .map(|argument| OsString::from(base64_url(argument.as_bytes()))),
+    );
+    encoded
+}
+
+/// Base64 with the URL-safe alphabet and no padding, so an encoded argument needs no quoting.
+fn base64_url(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let mut block = 0_u32;
+        for (index, byte) in chunk.iter().enumerate() {
+            block |= u32::from(*byte) << (16 - 8 * index);
+        }
+        for index in 0..=chunk.len() {
+            let sextet = (block >> (18 - 6 * index)) & 0x3f;
+            encoded.push(char::from(ALPHABET[sextet as usize]));
+        }
+    }
+    encoded
 }
 
 #[cfg(debug_assertions)]
@@ -523,7 +650,7 @@ fn cache_health_json(
 }
 
 pub(crate) fn configure_cache_health_command(
-    command: &mut Command,
+    command: &mut EngineCommand,
     directory: &Path,
     expected_profile: Option<&str>,
 ) {
@@ -726,3 +853,59 @@ fn configure_child_process(command: &mut Command) {
 
 #[cfg(not(windows))]
 fn configure_child_process(_command: &mut Command) {}
+
+#[cfg(test)]
+mod tests {
+    use super::{UTF8_ARGV_SENTINEL, base64_url, encode_argv};
+    use std::ffi::OsString;
+
+    fn vector(args: &[&str]) -> Vec<OsString> {
+        args.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn ascii_vectors_reach_the_engine_unchanged() {
+        let args = vector(&["desktop", "snapshot", "--game", "C:\\Games\\Starsector", "--json"]);
+        assert_eq!(encode_argv(args.clone()), args);
+    }
+
+    #[test]
+    fn a_vector_needing_more_than_ascii_is_marked_and_encoded() {
+        let args = vector(&["desktop", "snapshot", "--game", "C:\\Synthetic Game – path Ω"]);
+        let encoded = encode_argv(args);
+        assert_eq!(encoded[0], OsString::from(UTF8_ARGV_SENTINEL));
+        assert_eq!(encoded.len(), 5);
+        for argument in &encoded[1..] {
+            let text = argument.to_str().unwrap();
+            assert!(text.is_ascii(), "{text} would not survive an ANSI code page");
+            assert!(
+                text.bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
+                "{text} needs quoting"
+            );
+        }
+    }
+
+    #[test]
+    fn encoding_matches_the_engine_decoder() {
+        // Base64url without padding, the exact form Utf8Argv reverses.
+        assert_eq!(base64_url(b""), "");
+        assert_eq!(base64_url(b"f"), "Zg");
+        assert_eq!(base64_url(b"fo"), "Zm8");
+        assert_eq!(base64_url(b"foo"), "Zm9v");
+        assert_eq!(base64_url(b"foob"), "Zm9vYg");
+        assert_eq!(base64_url(b"fooba"), "Zm9vYmE");
+        assert_eq!(base64_url(b"foobar"), "Zm9vYmFy");
+        assert_eq!(base64_url("Ω".as_bytes()), "zqk");
+        assert_eq!(base64_url(&[0xff, 0xfe, 0xfd]), "__79");
+    }
+
+    #[test]
+    fn every_argument_of_a_mixed_vector_is_encoded() {
+        // A decoder that only reverses the non-ASCII arguments would misread the rest, so the
+        // marker applies to the whole vector or to none of it.
+        let encoded = encode_argv(vector(&["cache", "prune", "--game", "Ω"]));
+        assert_eq!(encoded[1], OsString::from(base64_url(b"cache")));
+        assert_eq!(encoded[4], OsString::from(base64_url("Ω".as_bytes())));
+    }
+}

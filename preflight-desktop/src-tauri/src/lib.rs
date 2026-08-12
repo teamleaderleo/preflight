@@ -354,7 +354,7 @@ mod tests {
         desktop_smoke_outcome,
     };
     use crate::engine::{
-        LaunchSettingsInput, configure_cache_health_command, diagnostic_output_path,
+        EngineCommand, LaunchSettingsInput, configure_cache_health_command, diagnostic_output_path,
         validate_cache_repair_state, validate_launch_settings, validate_profile_mutation_state,
         validate_removal_scope,
     };
@@ -549,7 +549,7 @@ mod tests {
     fn cache_health_command_keeps_inspection_read_only_and_repair_explicit() {
         let game = PathBuf::from("/tmp/Starsector test");
 
-        let mut health = Command::new("preflight-engine");
+        let mut health = EngineCommand::for_test("preflight-engine");
         configure_cache_health_command(&mut health, &game, None);
         assert_eq!(
             vec![
@@ -559,13 +559,10 @@ mod tests {
                 "--game",
                 "/tmp/Starsector test"
             ],
-            health
-                .get_args()
-                .map(|argument| argument.to_string_lossy().into_owned())
-                .collect::<Vec<_>>()
+            health.arguments()
         );
 
-        let mut repair = Command::new("preflight-engine");
+        let mut repair = EngineCommand::for_test("preflight-engine");
         let profile = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         configure_cache_health_command(&mut repair, &game, Some(profile));
         assert_eq!(
@@ -579,10 +576,7 @@ mod tests {
                 "--game",
                 "/tmp/Starsector test"
             ],
-            repair
-                .get_args()
-                .map(|argument| argument.to_string_lossy().into_owned())
-                .collect::<Vec<_>>()
+            repair.arguments()
         );
     }
 

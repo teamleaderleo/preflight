@@ -15,6 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { inflateRawSync } from "node:zlib";
+import { encodeArgv } from "./utf8-argv.mjs";
 
 const PNG_1X1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -40,7 +41,7 @@ export function exerciseSyntheticPackageContract(packageRoot, options = {}) {
     "-Djava.awt.headless=true",
     "-jar",
     jar,
-    ...args,
+    ...encodeArgv(args),
   ], { cwd: engineDirectory, env: environment }));
 
   try {

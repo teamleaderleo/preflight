@@ -35,7 +35,8 @@ public final class PreflightCli {
         }
     }
 
-    static int run(String[] args) throws Exception {
+    static int run(String[] rawArgs) throws Exception {
+        String[] args = Utf8Argv.decode(rawArgs);
         if (args.length == 0) {
             globalUsage(System.err);
             return 2;
