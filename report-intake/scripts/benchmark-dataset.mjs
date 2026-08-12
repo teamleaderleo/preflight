@@ -42,8 +42,12 @@ export function benchmarkRecordsFromArchive(archive, source = "report.zip") {
         || typeof item.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(item.sha256)) {
       throw new Error(`${source}: manifest has an invalid included entry`);
     }
+    if (declared.has(item.entry)) {
+      throw new Error(`${source}: manifest has a duplicate included entry ${item.entry}`);
+    }
     declared.set(item.entry, item);
   }
+  verifyEvidenceInventory(files, declared, source);
 
   const archiveDigest = sha256(bytes);
   const records = [];
@@ -68,6 +72,9 @@ export function benchmarkRecordsFromArchive(archive, source = "report.zip") {
       productVersion: manifest.engineVersion,
       source,
     }));
+  }
+  if (!records.length) {
+    throw new Error(`${source}: archive contains no paired benchmark result`);
   }
   return records;
 }
@@ -191,6 +198,24 @@ function median(values) {
   const middle = Math.floor(sorted.length / 2);
   const value = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   return round(value, 3);
+}
+
+function verifyEvidenceInventory(files, declared, source) {
+  for (const [name, evidence] of files) {
+    if (name === "README.txt" || name === "manifest.json") continue;
+    const declaration = declared.get(name);
+    if (!declaration) {
+      throw new Error(`${source}: manifest doesn't inventory ${name}`);
+    }
+    if (declaration.bytes !== evidence.byteLength || declaration.sha256 !== sha256(evidence)) {
+      throw new Error(`${source}: manifest doesn't match ${name}`);
+    }
+  }
+  for (const name of declared.keys()) {
+    if (!files.has(name)) {
+      throw new Error(`${source}: manifest inventories missing evidence ${name}`);
+    }
+  }
 }
 
 function extractBounded(archive, source) {
