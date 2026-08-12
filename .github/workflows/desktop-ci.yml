@@ -67,6 +67,10 @@ jobs:
         working-directory: preflight-desktop
         run: npm ci
 
+      - name: Audit production frontend dependencies
+        working-directory: preflight-desktop
+        run: npm audit --omit=dev
+
       - name: Prepare the bounded desktop engine
         working-directory: preflight-desktop
         run: npm run engine:prepare
