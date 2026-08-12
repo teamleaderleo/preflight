@@ -86,6 +86,17 @@ pub(crate) async fn perform_report_upload(
         ReportUploadStateEvent::new("uploading", id, 0, report.bytes)
             .with_case(grant.case_id.clone()),
     );
+    if *cancel.borrow() {
+        delete_granted_case(&client, &origin, &grant)
+            .await
+            .map_err(|detail| {
+                ReportUploadError::Failed(format!(
+                    "Upload cancellation could not confirm deletion of case {}: {detail}",
+                    grant.case_id,
+                ))
+            })?;
+        return Err(ReportUploadError::Cancelled);
+    }
     let mut stream_cancel = cancel.clone();
     let stream_emit = emit.clone();
     let case_id = grant.case_id.clone();
