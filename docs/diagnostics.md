@@ -19,6 +19,22 @@ java -jar preflight.jar evidence export \
   --json
 ```
 
+The recency counts are only the default selection policy. When one exact run or benchmark should be
+shared, first use `preflight evidence --json` to read the top-level session names, then select those
+names explicitly:
+
+```bash
+java -jar preflight.jar evidence export \
+  --run-session desktop-benchmark-20260812T100000Z \
+  --output benchmark-contribution.zip \
+  --json
+```
+
+`--run-session` and `--benchmark-session` are repeatable and use only top-level session names from
+the measured evidence inventory. Duplicate, missing, path-like, `.` and `..` names are refused.
+Exact-session selectors cannot be combined with `--runs` or `--benchmarks`, so an explicit choice
+cannot silently fall back to a recency count.
+
 An existing destination is refused unless `--overwrite` is explicit. The desktop host passes that
 flag only after the native save dialog handles replacement confirmation.
 
