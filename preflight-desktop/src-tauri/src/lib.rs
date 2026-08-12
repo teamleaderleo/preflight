@@ -819,7 +819,24 @@ mod tests {
         )
         .await;
 
-        assert!(matches!(outcome, Err(ReportUploadError::Cancelled)));
+        // Snapshot before joining: if the outcome is wrong the server may still be waiting for a
+        // DELETE that never came, and its own timeout panic would replace this message with a
+        // less useful one. Naming the requests it did see separates "deletion was never sent"
+        // from "deletion was sent and its response could not be used".
+        let observed = requests
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|request| format!("{} {}", request.method, request.path))
+            .collect::<Vec<_>>();
+        let reported = match &outcome {
+            Ok(_) => "an upload that finished".to_string(),
+            Err(error) => format!("{error:?}"),
+        };
+        assert!(
+            matches!(outcome, Err(ReportUploadError::Cancelled)),
+            "a cancelled upload must report Cancelled; got {reported} after {observed:?}"
+        );
         server.join().unwrap();
         let requests = requests.lock().unwrap();
         assert!(
