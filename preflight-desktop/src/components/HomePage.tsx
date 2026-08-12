@@ -5,7 +5,7 @@ import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import type { usePreparation } from "../usePreparation";
 import type { useProfiles } from "../useProfiles";
-import { formatBytes, friendlyPlatform, shortPath } from "../uiFormat";
+import { formatBytes, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -101,8 +101,10 @@ export function HomePage({
     textureStorage,
     stopPreparation,
   } = preparation;
-  const { profiles, profilesLoading } = profilesState;
+  const { profiles, profilesLoading, profileBusy, beginRename, reviewProfile } = profilesState;
   const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
+  // Nothing to pick between until there is somewhere to switch to, so the card stays plain text.
+  const switchable = (profiles?.profiles ?? []).filter((profile) => !profile.active && profile.canActivate);
   const firstSetup = needsPreparation && (cache?.profiles.length ?? 0) === 0 && !snapshot?.lastRun;
   const storageBlocked = needsPreparation
     && !preparationPlanLoading
@@ -248,15 +250,40 @@ export function HomePage({
       {isReady && !needsPreparation && !cacheInspectionBlocked ? <section className="card home-overview" aria-label="Current Preflight setup">
         <div className="home-fact">
           <span>Mod profile</span>
-          <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? (profiles ? `${profiles.enabledMods.length} enabled mods` : "Unavailable")}</strong>
+          {switchable.length > 0 ? (
+            <select
+              className="home-profile-select"
+              aria-label="Mod profile"
+              value={activeProfile?.name ?? ""}
+              disabled={profileBusy || operationBlocked}
+              onChange={(event) => {
+                const name = event.target.value;
+                if (!name || name === activeProfile?.name) return;
+                void reviewProfile(name);
+                onNavigate("profiles");
+              }}
+            >
+              {activeProfile ? null : <option value="">{`Not saved · ${profiles?.enabledMods.length.toLocaleString() ?? 0} enabled mods`}</option>}
+              {(profiles?.profiles ?? []).map((profile) => (
+                <option value={profile.name} key={profile.name} disabled={!profile.active && !profile.canActivate}>{profile.name}</option>
+              ))}
+            </select>
+          ) : (
+            <strong>{profilesLoading ? "Reading…" : activeProfile?.name ?? (profiles ? `${profiles.enabledMods.length} enabled mods` : "Unavailable")}</strong>
+          )}
           <small>{profilesLoading
             ? "Checking the current mod list"
             : activeProfile
-              ? `Named by you · ${activeProfile.modCount.toLocaleString()} mod${activeProfile.modCount === 1 ? "" : "s"}`
+              ? `${activeProfile.modCount.toLocaleString()} mod${activeProfile.modCount === 1 ? "" : "s"} · saved ${formatSavedAt(activeProfile.savedAt)}`
               : profiles
                 ? "Current list isn't saved as a profile"
                 : "The current mod list couldn’t be read"}</small>
-          <button className="text-button" type="button" onClick={() => onNavigate("profiles")} disabled={!isReady}>Manage profiles <ArrowIcon /></button>
+          <div className="home-fact__links">
+            {activeProfile ? (
+              <button className="text-button" type="button" onClick={() => { beginRename(activeProfile.name); onNavigate("profiles"); }} disabled={profileBusy || operationBlocked}>Rename</button>
+            ) : null}
+            <button className="text-button" type="button" onClick={() => onNavigate("profiles")} disabled={!isReady}>Manage profiles <ArrowIcon /></button>
+          </div>
         </div>
         <div className="home-fact">
           <span>Preflight data</span>

@@ -1,6 +1,8 @@
 import { describe, expect, it, afterEach } from "vitest";
-import { displayPixels, resolutionChoices } from "./components/GameSettingSelects";
+import { battleSizePresets, displayPixels, resolutionChoices } from "./components/GameSettingSelects";
+import { storageGroupLabel } from "./components/PreparationPage";
 import { maximumUiScale } from "./uiFormat";
+import type { LaunchSettings } from "./types";
 
 /**
  * The resolution list and the UI scale ceiling it feeds.
@@ -58,5 +60,78 @@ describe("display pixels", () => {
   it("keeps the current resolution even when it exceeds the display", () => {
     withDisplay(1280, 720, 1);
     expect(resolutionChoices("3840x2160", 1280, 720)).toContain("3840x2160");
+  });
+});
+
+/**
+ * The battle-size shortcuts.
+ *
+ * The numbers a player wants are the ones the installation actually names -- vanilla's 200/400 --
+ * plus a few round steps above them, and nothing outside the range the settings command would
+ * accept. A mod that raises maxBattleSize moves the anchors, so the list is derived, not fixed.
+ */
+describe("battle size presets", () => {
+  function withLimits(limits: Partial<LaunchSettings["limits"]>): LaunchSettings {
+    return {
+      limits: {
+        antialiasingSamples: [0],
+        uiScaleMin: 1,
+        uiScaleMax: 3,
+        uiScaleStep: 0.05,
+        battleSizeMin: 200,
+        battleSizeDefault: 400,
+        battleSizeMax: 400,
+        battleSizeExtendedMax: 2000,
+        diagnostics: [],
+        ...limits,
+      },
+    } as LaunchSettings;
+  }
+
+  it("names the installation's own anchors and the round steps above them", () => {
+    expect(battleSizePresets(withLimits({}))).toEqual([
+      { value: 200, label: "Minimum" },
+      { value: 400, label: "Default" },
+      { value: 600, label: "Larger" },
+      { value: 1000, label: "Big" },
+      { value: 1500, label: "Huge" },
+      { value: 2000, label: "Maximum" },
+    ]);
+  });
+
+  it("separates the vanilla ceiling from the default when a mod raises it", () => {
+    const presets = battleSizePresets(withLimits({ battleSizeMax: 800 }));
+    expect(presets).toContainEqual({ value: 400, label: "Default" });
+    expect(presets).toContainEqual({ value: 800, label: "Vanilla max" });
+  });
+
+  it("never offers a value the settings command would refuse", () => {
+    const presets = battleSizePresets(withLimits({
+      battleSizeMin: 500,
+      battleSizeDefault: 700,
+      battleSizeMax: 700,
+      battleSizeExtendedMax: 900,
+    }));
+    // 200 and the 1000/1500 steps fall outside [500, 900] and are dropped rather than clamped.
+    expect(presets.map((preset) => preset.value)).toEqual([500, 600, 700, 900]);
+  });
+});
+
+/**
+ * Storage rows read as themselves.
+ *
+ * The engine's category ids -- "acceleration", "evidence" -- used to reach the breakdown raw,
+ * which named the folder layout rather than what a player would lose by deleting it.
+ */
+describe("storage group labels", () => {
+  it("explains the categories the engine reports", () => {
+    expect(storageGroupLabel("acceleration").label).toBe("Prepared game data");
+    expect(storageGroupLabel("evidence").detail).toMatch(/Reports page/);
+    expect(storageGroupLabel("configuration").label).toBe("Profiles and backups");
+    expect(storageGroupLabel("application").label).toBe("Preflight itself");
+  });
+
+  it("still shows a category it has never heard of", () => {
+    expect(storageGroupLabel("future-thing")).toEqual({ label: "future thing", detail: "" });
   });
 });

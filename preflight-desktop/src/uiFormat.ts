@@ -66,6 +66,17 @@ export function failedRunSummary(detail?: string): string {
   return `Starsector closed with an error: ${clampToCharacters(firstLine, 360)} The support evidence has full details.`;
 }
 
+const savedDateFormatter = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+export function formatSavedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : savedDateFormatter.format(date);
+}
+
 export function friendlyPlatform(platform: DesktopSnapshot["platform"]): string {
   return { mac: "macOS", windows: "Windows", linux: "Linux", other: "Desktop" }[platform];
 }

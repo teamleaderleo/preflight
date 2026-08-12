@@ -28,6 +28,10 @@ export function useProfiles(
   const [activationPlanGame, setActivationPlanGame] = useState<string | null>(null);
   const [mutationPlan, setMutationPlan] = useState<ProfileMutationPlan | null>(null);
   const [mutationPlanGame, setMutationPlanGame] = useState<string | null>(null);
+  // Which profile the rename editor is open for. This lives here rather than in the profiles page
+  // so the home card can open it on the way over.
+  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const profilesRequest = useRef(0);
   const actionRequest = useRef(0);
   const busyRef = useRef(false);
@@ -66,6 +70,8 @@ export function useProfiles(
     setActivationPlanGame(null);
     setMutationPlan(null);
     setMutationPlanGame(null);
+    setRenameTarget(null);
+    setRenameDraft("");
   }, [game]);
 
   useEffect(() => {
@@ -229,6 +235,22 @@ export function useProfiles(
     }
   };
 
+  const beginRename = (name: string) => {
+    setRenameTarget(name);
+    setRenameDraft(name);
+  };
+  const cancelRename = () => {
+    setRenameTarget(null);
+    setRenameDraft("");
+  };
+  const submitRename = () => {
+    const target = renameTarget;
+    const wanted = renameDraft.trim();
+    if (!target || !wanted || wanted === target) return;
+    void reviewProfileMutation("rename", target, wanted);
+    cancelRename();
+  };
+
   const clearProfiles = () => {
     profilesRequest.current += 1;
     actionRequest.current += 1;
@@ -240,6 +262,8 @@ export function useProfiles(
     setActivationPlanGame(null);
     setMutationPlan(null);
     setMutationPlanGame(null);
+    setRenameTarget(null);
+    setRenameDraft("");
   };
   const changeProfileName = (name: string) => {
     profileNameRevision.current += 1;
@@ -270,11 +294,17 @@ export function useProfiles(
     profileName,
     profiles: currentProfiles,
     profilesLoading,
+    renameDraft,
+    renameTarget,
     applyProfile,
     applyProfileMutation,
+    beginRename,
+    cancelRename,
     clearProfiles,
     refreshProfiles,
     reviewProfile,
+    setRenameDraft,
+    submitRename,
     reviewDeleteProfile: (name: string) => reviewProfileMutation("delete", name),
     reviewRenameProfile: (name: string, targetName: string) =>
       reviewProfileMutation("rename", name, targetName),

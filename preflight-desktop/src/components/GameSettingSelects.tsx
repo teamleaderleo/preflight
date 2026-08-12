@@ -109,3 +109,31 @@ export function battleSizeUpperBound(settings: LaunchSettings, current: number):
     ?? settings.limits.battleSizeMax
     ?? Math.max(current, 400);
 }
+
+/**
+ * A few battle sizes worth jumping straight to, named for what they mean.
+ *
+ * <p>The installation's own numbers come first -- vanilla is 200/400/400, but a mod can raise
+ * maxBattleSize and those anchors move with it. The round steps in between only appear when they
+ * sit inside the range, so a stock install offers the same five points a modded one does without
+ * ever offering a value the game would refuse.
+ */
+export function battleSizePresets(settings: LaunchSettings): Array<{ value: number; label: string }> {
+  const minimum = settings.limits.battleSizeMin ?? 1;
+  const upperBound = battleSizeUpperBound(settings, minimum);
+  const named = new Map<number, string>();
+  const name = (value: number | null, label: string) => {
+    if (value === null || value < minimum || value > upperBound || named.has(value)) return;
+    named.set(value, label);
+  };
+  name(minimum, "Minimum");
+  name(settings.limits.battleSizeDefault, "Default");
+  name(settings.limits.battleSizeMax, "Vanilla max");
+  name(600, "Larger");
+  name(1000, "Big");
+  name(1500, "Huge");
+  name(upperBound, "Maximum");
+  return [...named.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([value, label]) => ({ value, label }));
+}

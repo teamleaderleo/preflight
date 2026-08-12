@@ -197,7 +197,11 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getAllByText("Launch Starsector")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
-  expect(screen.getByText("Named by you · 83 mods")).toBeInTheDocument();
+  // The card names the profile and says when it was saved. It used to add "Named by you", which
+  // explained the difference between a chosen name and a generated one and told you nothing else.
+  expect(screen.getByLabelText("Mod profile")).toHaveValue("Main campaign");
+  expect(screen.getByText(/^83 mods · saved /)).toBeInTheDocument();
+  expect(screen.queryByText(/Named by you/)).not.toBeInTheDocument();
   expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
   expect(screen.queryByText(/Prepared ·/)).not.toBeInTheDocument();
   expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
@@ -520,8 +524,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
   render(<App />);
 
   await screen.findByText("Ready");
-  expect(await screen.findByText("Main campaign")).toBeInTheDocument();
-  expect(screen.getByText("Named by you · 83 mods")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Mod profile")).toHaveValue("Main campaign");
   await user.click(screen.getByRole("button", { name: "Manage profiles" }));
 
   expect(await screen.findByRole("heading", { name: "Profiles", level: 1 })).toBeInTheDocument();
@@ -538,6 +541,35 @@ test("profiles are preview-first and show the exact switch before applying", asy
 
   expect(await screen.findByText(/Switched to “Utilities only”/)).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Switch to Utilities only?" })).not.toBeInTheDocument();
+});
+
+/**
+ * The home card is where a player already is when they think about profiles, so switching and
+ * renaming start there. Both still land in the same reviewed flow -- home opens the review, it
+ * never applies anything on its own.
+ */
+test("the home card can start a switch, and it is still reviewed before anything changes", async () => {
+  const user = userEvent.setup();
+  const activate = vi.spyOn(bridge, "activateProfile");
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.selectOptions(await screen.findByLabelText("Mod profile"), "Utilities only");
+
+  expect(await screen.findByRole("heading", { name: "Switch to Utilities only?" })).toBeInTheDocument();
+  expect(activate).toHaveBeenCalledWith("/Applications/Starsector", "Utilities only", false);
+  expect(activate).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
+});
+
+test("the home card opens the rename editor for the profile it is showing", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(await screen.findByRole("button", { name: "Rename" }));
+
+  const editor = await screen.findByRole("group", { name: "Rename Main campaign" });
+  expect(within(editor).getByRole("textbox")).toHaveValue("Main campaign");
 });
 
 test("a profile with missing mods explains the problem without showing a dead switch action", async () => {

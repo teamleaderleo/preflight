@@ -31,6 +31,36 @@ export const optimizationPresets: Array<{
   },
 ];
 
+/**
+ * What each cache category is, in words a player can act on.
+ *
+ * <p>The engine names these groups for itself -- "acceleration", "evidence" -- and the breakdown
+ * used to print those ids raw, which says nothing about what is on disk or whether losing it costs
+ * anything. Unknown ids still render, spaced out, rather than disappearing.
+ */
+const storageGroups: Record<string, { label: string; detail: string }> = {
+  acceleration: {
+    label: "Prepared game data",
+    detail: "Textures, audio, and startup caches Preflight built. Rebuilt by preparing again.",
+  },
+  evidence: {
+    label: "Reports and recordings",
+    detail: "Launch timings, benchmarks, and diagnostics kept for the Reports page.",
+  },
+  configuration: {
+    label: "Profiles and backups",
+    detail: "Saved mod profiles, and the backup taken each time one is switched.",
+  },
+  application: {
+    label: "Preflight itself",
+    detail: "The installed copy of preflight.jar.",
+  },
+};
+
+export function storageGroupLabel(id: string): { label: string; detail: string } {
+  return storageGroups[id] ?? { label: id.replaceAll("-", " "), detail: "" };
+}
+
 type PreparationState = ReturnType<typeof usePreparation>;
 
 interface PreparationPageProps {
@@ -154,10 +184,13 @@ export function PreparationPage({
         <details className="storage-breakdown">
           <summary>Storage details</summary>
           <div className="storage-breakdown__grid">
-            {(cache?.groups ?? []).map((group) => <div key={group.id}><span>{group.id}</span><strong>{formatBytes(group.bytes)}</strong></div>)}
-            {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong></div> : null}
-            <div><span>Predicted additional</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong></div>
-            <div><span>Available now</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong></div>
+            {(cache?.groups ?? []).map((group) => {
+              const { label, detail } = storageGroupLabel(group.id);
+              return <div key={group.id}><span>{label}</span><strong>{formatBytes(group.bytes)}</strong>{detail ? <small>{detail}</small> : null}</div>;
+            })}
+            {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Under Preflight’s folder but not in a known category.</small></div> : null}
+            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>Estimated one-off cost for the current mod list, on top of the total above.</small></div>
+            <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space left where Preflight stores its data, right now.</small></div>
           </div>
         </details>
       </section>

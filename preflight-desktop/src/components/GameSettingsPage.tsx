@@ -2,7 +2,7 @@ import { CheckIcon, RefreshIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
 import { shortPath } from "../uiFormat";
 import { GameMemorySelect } from "./GameMemorySelect";
-import { ResolutionSelect, UiScaleSelect, battleSizeUpperBound, uiScaleMaximum } from "./GameSettingSelects";
+import { ResolutionSelect, UiScaleSelect, battleSizePresets, battleSizeUpperBound, uiScaleMaximum } from "./GameSettingSelects";
 
 interface GameSettingsPageProps {
   settings: LaunchSettings | null;
@@ -76,11 +76,18 @@ export function GameSettingsPage({
             <span><strong>Deployment-point budget</strong><b>{draft.battleSize}</b></span>
             <input id="launch-battle-size" aria-label="Deployment-point budget" type="range" min={settings.limits.battleSizeMin ?? 1} max={battleSizeUpperBound(settings, draft.battleSize)} step="10" value={draft.battleSize} onChange={(event) => onChange({ battleSize: Number(event.target.value) })} />
           </label>
-          <div className="battle-bounds">
-            <span>Minimum {settings.limits.battleSizeMin ?? "unknown"}</span>
-            <span>Default {settings.limits.battleSizeDefault ?? "unknown"}</span>
-            <span>Vanilla slider {settings.limits.battleSizeMax ?? "unknown"}</span>
-            <span>Extended {battleSizeUpperBound(settings, draft.battleSize)}</span>
+          <div className="battle-presets" role="group" aria-label="Battle size presets">
+            {battleSizePresets(settings).map((preset) => (
+              <button
+                type="button"
+                key={preset.value}
+                className={draft.battleSize === preset.value ? "battle-preset battle-preset--selected" : "battle-preset"}
+                aria-pressed={draft.battleSize === preset.value}
+                onClick={() => onChange({ battleSize: preset.value })}
+              >
+                <strong>{preset.value}</strong><small>{preset.label}</small>
+              </button>
+            ))}
           </div>
           {(settings.limits.battleSizeMax ?? 0) < battleSizeUpperBound(settings, draft.battleSize) ? <p className="setting-help">Preflight writes the same gameplay preference without changing game files. Opening the vanilla battle-size slider can reset a value above {settings.limits.battleSizeMax}.</p> : null}
           <label className="setting-field" htmlFor={settings.memory.editable ? "launch-memory" : undefined}>

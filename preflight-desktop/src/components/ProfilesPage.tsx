@@ -1,23 +1,11 @@
-import { useState } from "react";
 import { ShieldIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
-import { shortPath } from "../uiFormat";
+import { formatSavedAt, shortPath } from "../uiFormat";
 import type { useProfiles } from "../useProfiles";
 import type { NoticeTone } from "../types";
 
 type ProfilesState = ReturnType<typeof useProfiles>;
-
-const savedDateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-
-function formatSavedAt(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : savedDateFormatter.format(date);
-}
 
 interface ProfilesPageProps {
   message: string;
@@ -34,31 +22,21 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     profileName,
     profiles,
     profilesLoading,
+    renameDraft,
+    renameTarget,
     applyProfile,
     applyProfileMutation,
+    beginRename,
+    cancelRename,
     reviewDeleteProfile,
     reviewProfile,
-    reviewRenameProfile,
     saveCurrentProfile,
     dismissActivationPlan,
     dismissMutationPlan,
     setProfileName,
+    setRenameDraft,
+    submitRename,
   } = profilesState;
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [renameDraft, setRenameDraft] = useState("");
-  const beginRename = (name: string) => {
-    setRenaming(name);
-    setRenameDraft(name);
-  };
-  const cancelRename = () => {
-    setRenaming(null);
-    setRenameDraft("");
-  };
-  const submitRename = () => {
-    if (!renaming || !renameDraft.trim() || renameDraft.trim() === renaming) return;
-    void reviewRenameProfile(renaming, renameDraft.trim());
-    cancelRename();
-  };
 
   return (
     <div className="profiles-page">
@@ -98,13 +76,13 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
               </article>
             ))}
           </div>
-          {renaming ? (
-            <div className="profile-rename-editor" role="group" aria-label={`Rename ${renaming}`}>
-              <label htmlFor="rename-profile">Rename {renaming}</label>
+          {renameTarget ? (
+            <div className="profile-rename-editor" role="group" aria-label={`Rename ${renameTarget}`}>
+              <label htmlFor="rename-profile">Rename {renameTarget}</label>
               <div>
                 <input id="rename-profile" value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} maxLength={100} autoFocus />
                 <button className="button button--quiet button--compact" type="button" onClick={cancelRename}>Cancel</button>
-                <button className="button button--primary button--compact" type="button" onClick={submitRename} disabled={!renameDraft.trim() || renameDraft.trim() === renaming || profileBusy}>Review rename</button>
+                <button className="button button--primary button--compact" type="button" onClick={submitRename} disabled={!renameDraft.trim() || renameDraft.trim() === renameTarget || profileBusy}>Review rename</button>
               </div>
             </div>
           ) : null}
