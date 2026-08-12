@@ -30,7 +30,14 @@ export function exerciseSyntheticPackageContract(packageRoot, options = {}) {
   const engineDirectory = findPackagedEngine(packageRoot);
   const java = join(engineDirectory, "runtime", "bin", process.platform === "win32" ? "java.exe" : "java");
   const jar = join(engineDirectory, "preflight.jar");
-  const temporary = mkdtempSync(join(tmpdir(), "preflight-synthetic-contract-"));
+  // Canonicalised at creation so every path below is spelled the way the engine spells it back.
+  // Windows keeps 8.3 aliases for long directory names, and an account name over eight characters
+  // makes tmpdir() return one: the engine resolves C:\Users\RUNNER~1\... to C:\Users\runneradmin\...
+  // and the two disagree as strings while naming one file. Node's realpathSync leaves the alias in
+  // place; only its native form asks Windows to resolve it.
+  const temporary = realpathSync.native(
+    mkdtempSync(join(tmpdir(), "preflight-synthetic-contract-")),
+  );
   const home = join(temporary, "Operator Home");
   const fixture = join(temporary, "Synthetic Game – path Ω");
   const cache = join(home, ".starsector-preflight", "cache");
