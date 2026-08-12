@@ -13,8 +13,10 @@ max_archive_bytes="134217728"
 maven_opts="-Xmx320m -XX:MaxMetaspaceSize=160m -Djava.io.tmpdir=/tmp"
 
 fail() {
-  echo "starsector-preflight-ci-v${launcher_version}: $*" >&2
-  exit "${2:-1}"
+  local message="$1"
+  local status="${2:-1}"
+  echo "starsector-preflight-ci-v${launcher_version}: $message" >&2
+  exit "$status"
 }
 
 usage() {
@@ -95,8 +97,10 @@ curl --fail --location --silent --show-error \
   --output "$archive" \
   "$archive_url"
 chmod 0600 -- "$archive"
+archive_size="$(stat -c '%s' -- "$archive")"
+(( archive_size > 0 )) || fail "downloaded source archive is empty" 69
+(( archive_size <= max_archive_bytes )) || fail "downloaded source archive exceeds the ${max_archive_bytes}-byte limit" 69
 archive_sha256="$(sha256sum "$archive" | awk '{print $1}')"
-[[ -s "$archive" ]] || fail "downloaded source archive is empty" 69
 
 maven_args=(--batch-mode --no-transfer-progress "-Dmaven.repo.local=/maven-cache/repository")
 network_args=()
@@ -115,8 +119,8 @@ esac
 image_id="$(podman image inspect --format '{{.Id}}' "$image")"
 image_digest="$(podman image inspect --format '{{index .RepoDigests 0}}' "$image" 2>/dev/null || true)"
 [[ -n "$image_digest" && "$image_digest" != "<no value>" ]] || image_digest="unavailable"
-printf 'launcherVersion=%s\nsourceSha=%s\nsourceArchiveSha256=%s\nsuite=%s\nnetworkMode=%s\nimage=%s\nimageId=%s\nimageDigest=%s\nlimits=memory:%s cpus:%s pids:%s\n' \
-  "$launcher_version" "$sha" "$archive_sha256" "$suite" "$network_mode" \
+printf 'launcherVersion=%s\nsourceSha=%s\nsourceArchiveSha256=%s\nsourceArchiveBytes=%s\nsuite=%s\nnetworkMode=%s\nimage=%s\nimageId=%s\nimageDigest=%s\nlimits=memory:%s cpus:%s pids:%s\n' \
+  "$launcher_version" "$sha" "$archive_sha256" "$archive_size" "$suite" "$network_mode" \
   "$image" "$image_id" "$image_digest" "$memory" "$cpus" "$pids"
 
 fixed_entrypoint='set -Eeuo pipefail
