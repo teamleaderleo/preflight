@@ -4,12 +4,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class StartupPhaseRuntimeTest {
     @TempDir
     Path temporaryDirectory;
+
+    /**
+     * Puts the probe back down.
+     *
+     * <p>A destination is what {@code phaseProbeEnabled} reads, and one JVM runs every test class in
+     * this module, so leaving it set turns the probe on for everything that follows. That is not an
+     * abstract tidiness point: a plan whose transform instruments the class only while the probe is
+     * on then emits different bytecode, and a test pinning its SHA-256 fails according to which
+     * classes surefire happened to run first.
+     */
+    @AfterEach
+    void endSession() {
+        StartupPhaseRuntime.beginSession(null);
+    }
 
     @Test
     void persistsEachBoundaryWithoutWaitingForJvmShutdown() throws Exception {

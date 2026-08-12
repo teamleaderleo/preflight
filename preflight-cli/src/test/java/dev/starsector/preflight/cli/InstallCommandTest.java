@@ -16,12 +16,14 @@ class InstallCommandTest {
 
         assertEquals(Path.of("/game"), options.game());
         assertEquals(TextureStoragePolicy.BALANCED, options.textureStorage());
+        // Forwarded as the platform spells it, which is "\resolved\game" on Windows.
+        Path resolved = Path.of("/resolved/game");
         assertArrayEquals(new String[] {
-                "--game", "/resolved/game",
+                "--game", resolved.toString(),
                 "--texture-storage", "balanced",
                 "--workers", "2",
                 "--memory-mb", "128"
-        }, options.preparationArguments(Path.of("/resolved/game")));
+        }, options.preparationArguments(resolved));
     }
 
     @Test

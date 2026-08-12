@@ -10,9 +10,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class GraphicsLibCompactReplayPlanTest {
+    /**
+     * States the ambient condition this class pins a hash against.
+     *
+     * <p>{@code transform} returns the instrumented class instead of the reviewed one whenever the
+     * startup phase probe has a destination, and that destination is global to the JVM surefire runs
+     * every class in. Asserting an exact SHA-256 while inheriting whatever ran first makes the result
+     * depend on run order, which is the filesystem's by default and so differs per platform.
+     */
+    @BeforeEach
+    void withoutThePhaseProbe() {
+        StartupPhaseRuntime.beginSession(null);
+    }
+
     @AfterEach
     void reset() {
         GraphicsLibCompactReplayPlan.beginSession();

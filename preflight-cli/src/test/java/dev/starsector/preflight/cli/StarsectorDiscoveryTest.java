@@ -17,6 +17,10 @@ class StarsectorDiscoveryTest {
     Path temporaryDirectory;
 
     @Test
+    // The decoy beside the stub is excluded by not being executable, and Windows has no such bit:
+    // Files.isExecutable is true for anything readable, so the filter admits both and the count is 2.
+    // A macOS bundle is a macOS shape, and this asserts how it is read where it can exist.
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void discoversMacApplicationBundle() throws Exception {
         Path app = temporaryDirectory.resolve("Starsector.app");
         Path executable = app.resolve("Contents/MacOS/JavaApplicationStub");

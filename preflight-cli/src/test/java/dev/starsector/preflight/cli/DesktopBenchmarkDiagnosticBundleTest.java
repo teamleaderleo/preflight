@@ -36,8 +36,13 @@ final class DesktopBenchmarkDiagnosticBundleTest {
             assertTrue(entry != null);
             String exported = new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
             assertTrue(exported.contains("starsector-preflight-desktop-benchmark-v1"));
-            assertTrue(exported.contains("<home>"));
-            assertTrue(exported.contains("Synthetic Game"));
+            // Redacted in the escaped form the JSON actually holds, so the tail keeps the platform's
+            // separator: "<home>/Synthetic Game" on Unix and "<home>\\Synthetic Game" on Windows.
+            // Asserting the two halves separately would pass on a bundle that redacted the prefix
+            // and dropped the rest, which is the part worth knowing survived.
+            String escaped = install.toString().replace("\\", "\\\\");
+            String escapedHome = home.root().getParent().toString().replace("\\", "\\\\");
+            assertTrue(exported.contains(escaped.replace(escapedHome, "<home>")), exported);
             assertFalse(exported.contains(home.root().getParent().toString()));
         }
     }
