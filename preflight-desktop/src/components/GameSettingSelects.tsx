@@ -23,6 +23,23 @@ function resolutionArea(resolution: string): number {
   return width * height;
 }
 
+/**
+ * The panel's own pixels, which is what the game gets to ask for.
+ *
+ * <p>`screen.width` is CSS pixels of the scaled desktop, not the display. A Retina MacBook set to
+ * "looks like 1440 x 932" reports exactly that while the panel is 2880 x 1864, and Windows display
+ * scaling does the same thing at 1.5. Filtering the resolution list by the CSS number hides every
+ * mode above the scaled desktop -- and because the UI scale ceiling is derived from the chosen
+ * resolution, it drags that down too: 1440 x 932 allows 110%, where the panel allows 225%.
+ *
+ * The game's launcher enumerates real display modes and never sees the scaled number.
+ */
+export function displayPixels(): [number, number] {
+  if (typeof window === "undefined" || !window.screen) return [0, 0];
+  const ratio = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+  return [Math.round(window.screen.width * ratio), Math.round(window.screen.height * ratio)];
+}
+
 export function resolutionChoices(current: string, maximumWidth = 0, maximumHeight = 0): string[] {
   return Array.from(new Set([...COMMON_RESOLUTIONS, current]))
     .filter((resolution) => /^\d+x\d+$/.test(resolution))
@@ -42,8 +59,7 @@ interface ResolutionSelectProps {
 }
 
 export function ResolutionSelect({ id, label, value, onChange }: ResolutionSelectProps) {
-  const maximumWidth = typeof window === "undefined" ? 0 : window.screen?.width ?? 0;
-  const maximumHeight = typeof window === "undefined" ? 0 : window.screen?.height ?? 0;
+  const [maximumWidth, maximumHeight] = displayPixels();
   return (
     <select id={id} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
       {resolutionChoices(value, maximumWidth, maximumHeight).map((resolution) => (
