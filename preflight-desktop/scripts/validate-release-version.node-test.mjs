@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateReleaseNotes, validateReleaseVersion } from "./validate-release-version.mjs";
+import {
+  draftNotesAllowedForEnvironment,
+  validateReleaseNotes,
+  validateReleaseVersion,
+} from "./validate-release-version.mjs";
 
 test("requires the tag and all shipped version sources to agree", () => {
   const sources = {
@@ -43,6 +47,22 @@ test("requires reviewed release notes rather than a draft placeholder for public
     () => validateReleaseNotes("v0.2.0", "  \n", source, { allowDraft: true }),
     /missing reviewed notes/,
   );
+});
+
+test("allows draft notes only for a branch-dispatched private rehearsal", () => {
+  assert.equal(draftNotesAllowedForEnvironment({
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_REF_TYPE: "branch",
+  }), true);
+  assert.equal(draftNotesAllowedForEnvironment({
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_REF_TYPE: "tag",
+  }), false);
+  assert.equal(draftNotesAllowedForEnvironment({
+    GITHUB_EVENT_NAME: "push",
+    GITHUB_REF_TYPE: "tag",
+  }), false);
+  assert.equal(draftNotesAllowedForEnvironment({}), false);
 });
 
 test("historical discussion of drafts outside the release preamble is allowed", () => {
