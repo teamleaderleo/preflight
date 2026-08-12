@@ -90,6 +90,60 @@ class PreflightCliHelpTest {
     }
 
     /**
+     * An option explained in a command's help must also appear in that command's usage line.
+     *
+     * <p>Anything only explained below is invisible to a reader skimming the summary, and it stays
+     * invisible: nothing else compares the two halves. {@code run} had two -- both accepted by the
+     * parser, neither listed.
+     */
+    @Test
+    void everyExplainedOptionIsAlsoInTheUsageLine() throws Exception {
+        java.util.Map<String, java.util.List<String>> unlisted = new java.util.LinkedHashMap<>();
+        for (String command : commandsInGlobalHelp()) {
+            java.util.Set<String> summarised = new java.util.LinkedHashSet<>();
+            java.util.Set<String> explained = new java.util.LinkedHashSet<>();
+            for (String line : capture(new String[] {"help", command}).standardOutput().lines().toList()) {
+                String trimmed = line.strip();
+                java.util.regex.Matcher found = OPTION.matcher(trimmed);
+                if (trimmed.startsWith("preflight")) {
+                    while (found.find()) {
+                        summarised.add(found.group());
+                    }
+                } else if (trimmed.startsWith("--") && found.find()) {
+                    explained.add(found.group());
+                }
+            }
+            explained.removeAll(summarised);
+            if (!explained.isEmpty()) {
+                unlisted.put(command, java.util.List.copyOf(explained));
+            }
+        }
+        assertTrue(unlisted.isEmpty(), "options explained but never listed in their usage: " + unlisted);
+    }
+
+    private static final java.util.regex.Pattern OPTION =
+            java.util.regex.Pattern.compile("--[a-z0-9][a-z0-9-]*");
+
+    private static java.util.List<String> commandsInGlobalHelp() throws Exception {
+        java.util.List<String> commands = new java.util.ArrayList<>();
+        boolean listing = false;
+        for (String line : capture(new String[] {"--help"}).standardOutput().lines().toList()) {
+            if (line.startsWith("Commands:")) {
+                listing = true;
+                continue;
+            }
+            if (listing && line.isBlank()) {
+                break;
+            }
+            if (listing && line.startsWith("  ")) {
+                commands.add(line.strip().split("\\s+")[0]);
+            }
+        }
+        assertFalse(commands.isEmpty(), "global help listed no commands");
+        return commands;
+    }
+
+    /**
      * A mistyped option gets the same courtesy a mistyped command already got.
      *
      * <p>The candidates come from the command's own usage text rather than a hand-kept list, so this
