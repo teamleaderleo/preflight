@@ -38,6 +38,8 @@ jobs:
       - name: Validate operator runners
         if: runner.os != 'Windows'
         run: |
+          bash -n build/ci/starsector-preflight-ci-v1
+          python3 scripts/test_vps_runner_boundary.py
           bash -n scripts/run-prepared-pixel-coherent-direct-gameplay-smoke.sh
           bash -n scripts/run-prepared-pixel-main-menu-comparison-pilot.sh
           python3 -m py_compile scripts/starsector_log_ready_detector.py
