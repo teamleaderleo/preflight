@@ -16,6 +16,10 @@ function archive({
   measurementOnlyMs = 80_000,
   optimizedMs = 20_000,
   modifiedMillis = 1_786_529_600_000,
+  includeBenchmark = true,
+  extraEntries = {},
+  declareExtraEntries = true,
+  duplicateBenchmarkDeclaration = false,
 } = {}) {
   const benchmark = strToU8(JSON.stringify({
     format: "starsector-preflight-desktop-benchmark-v1",
@@ -59,6 +63,16 @@ function archive({
     },
   }));
   const entry = "runs/1/benchmark-result.json";
+  const included = [];
+  if (includeBenchmark) {
+    included.push({ entry, bytes: benchmark.byteLength, sha256: sha256(benchmark) });
+    if (duplicateBenchmarkDeclaration) included.push({ ...included[0] });
+  }
+  if (declareExtraEntries) {
+    for (const [name, bytes] of Object.entries(extraEntries)) {
+      included.push({ entry: name, bytes: bytes.byteLength, sha256: sha256(bytes) });
+    }
+  }
   const manifest = {
     format: DIAGNOSTICS_FORMAT,
     createdAt: new Date(modifiedMillis + 1_000).toISOString(),
@@ -73,14 +87,16 @@ function archive({
       maximumContentBytes: 5 * 1024 * 1024,
     },
     redactions: ["current user home -> <home>"],
-    included: [{ entry, bytes: benchmark.byteLength, sha256: sha256(benchmark) }],
+    included,
     skipped: [],
     excludedCategories: [],
   };
+  const evidence = { ...extraEntries };
+  if (includeBenchmark) evidence[entry] = benchmark;
   return zipSync({
     "README.txt": strToU8("review before sharing\n"),
     "manifest.json": strToU8(`${JSON.stringify(manifest)}\n`),
-    [entry]: benchmark,
+    ...evidence,
   }, { level: 6 });
 }
 
@@ -120,9 +136,6 @@ test("builds median aggregates and improvement-first leaderboard ordering", () =
 });
 
 test("rejects tampered benchmark evidence even when the ZIP is otherwise readable", () => {
-  const original = archive();
-  const files = new Map();
-  // This fixture is intentionally rebuilt with a stale manifest digest rather than mutating ZIP bytes.
   const benchmark = strToU8(JSON.stringify({
     format: "starsector-preflight-desktop-benchmark-v1",
     status: "passed",
@@ -132,7 +145,6 @@ test("rejects tampered benchmark evidence even when the ZIP is otherwise readabl
       metrics: { processToMainMenuMs: { measurementOnly: 80_000, optimized: 10_000, improvementPercent: 87.5 } },
     },
   }));
-  void original;
   const entry = "runs/1/benchmark-result.json";
   const staleDigest = "0".repeat(64);
   const manifest = {
@@ -142,9 +154,35 @@ test("rejects tampered benchmark evidence even when the ZIP is otherwise readabl
     selectedRuns: [{ rank: 1, modifiedMillis: 1_786_529_600_000 }],
     included: [{ entry, bytes: benchmark.byteLength, sha256: staleDigest }],
   };
-  files.set("README.txt", strToU8("review\n"));
-  files.set("manifest.json", strToU8(JSON.stringify(manifest)));
-  files.set(entry, benchmark);
-  const tampered = zipSync(Object.fromEntries(files));
+  const tampered = zipSync({
+    "README.txt": strToU8("review\n"),
+    "manifest.json": strToU8(JSON.stringify(manifest)),
+    [entry]: benchmark,
+  });
   assert.throws(() => benchmarkRecordsFromArchive(tampered, "tampered.zip"), /manifest doesn't match/);
+});
+
+test("rejects evidence that is present in the ZIP but absent from the manifest", () => {
+  const undeclared = archive({
+    extraEntries: { "runs/1/run.json": strToU8('{"state":"stopped"}\n') },
+    declareExtraEntries: false,
+  });
+  assert.throws(
+    () => benchmarkRecordsFromArchive(undeclared, "undeclared.zip"),
+    /manifest doesn't inventory runs\/1\/run\.json/,
+  );
+});
+
+test("rejects duplicate manifest inventory entries", () => {
+  assert.throws(
+    () => benchmarkRecordsFromArchive(archive({ duplicateBenchmarkDeclaration: true }), "duplicate.zip"),
+    /duplicate included entry runs\/1\/benchmark-result\.json/,
+  );
+});
+
+test("rejects a diagnostics ZIP that has no paired benchmark", () => {
+  assert.throws(
+    () => benchmarkRecordsFromArchive(archive({ includeBenchmark: false }), "support-only.zip"),
+    /archive contains no paired benchmark result/,
+  );
 });
