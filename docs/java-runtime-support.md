@@ -91,6 +91,34 @@ command lines stay readable. Three implementations must agree, and each pins the
 The desktop host collects arguments rather than handing them to the process builder as they arrive,
 so a caller cannot add one that skips the encoding.
 
+### Windows: the answer coming back, measured on a cp1252 runner
+
+Encoding the argument vector fixes the way in. The way out has the same problem in reverse: Java
+encodes `System.out` with `stdout.encoding`, which on Windows is the console's code page, and the
+desktop reads that stream as UTF-8.
+
+The packaged contract demonstrated it. Discovery resolved `Synthetic Game – path Ω` correctly —
+`ready: true`, with `starsector.bat` found inside it, which is only possible if the path arrived
+intact — and then reported it back as `Synthetic Game � path ?`. Two different failures in one
+string, which is what identifies the mechanism:
+
+| Character | In cp1252 | Arrives as | Why |
+| --- | --- | --- | --- |
+| `–` U+2013 | representable, byte `0x96` | `�` | `0x96` alone is not valid UTF-8 |
+| `Ω` U+03A9 | not representable | `?` | substituted at encoding, unrecoverable |
+
+Reproduced away from Windows by forcing the same charset, which emits the identical bytes:
+
+```bash
+java -Dstdout.encoding=windows-1252 Enc | python3 -c "import sys; print(sys.stdin.buffer.read().decode('utf-8', errors='replace'))"
+```
+
+`Utf8Console` therefore installs UTF-8 on `System.out` and `System.err` at the single entry point,
+before any command runs — the same chokepoint approach as argument decoding, and necessary because
+the CLI has over two hundred print sites. The trade is that a Windows console still on a legacy code
+page renders non-ASCII as mojibake, which is cosmetic and visible, against machine-read answers
+being silently wrong, which is neither.
+
 ### Unix: the locale, measured on Debian with OpenJDK 21
 
 Under `LC_ALL=C` or `POSIX` the charset is US-ASCII, and encoding the argument vector is **not

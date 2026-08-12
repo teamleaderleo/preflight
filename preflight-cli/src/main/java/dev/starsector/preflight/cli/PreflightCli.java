@@ -18,6 +18,7 @@ public final class PreflightCli {
     }
 
     public static void main(String[] args) {
+        Utf8Console.install();
         try {
             int status = run(args);
             if (status != 0) {
