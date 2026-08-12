@@ -833,9 +833,13 @@ mod tests {
             Ok(_) => "an upload that finished".to_string(),
             Err(error) => format!("{error:?}"),
         };
+        // A server that has already stopped with nothing recorded means the listener died rather
+        // than the upload misbehaving, and its own panic stays buried until the join below.
         assert!(
             matches!(outcome, Err(ReportUploadError::Cancelled)),
-            "a cancelled upload must report Cancelled; got {reported} after {observed:?}"
+            "a cancelled upload must report Cancelled; got {reported} after {observed:?} \
+             (server already stopped: {})",
+            server.is_finished()
         );
         server.join().unwrap();
         let requests = requests.lock().unwrap();
@@ -1011,7 +1015,22 @@ mod tests {
                             return;
                         }
                     }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    // A refused or reset connection arriving between the SYN and the accept is
+                    // reported to accept() itself, and Windows raises it as ConnectionAborted
+                    // rather than swallowing it. Failing the listener on that takes the whole
+                    // server down before it reads a single request, and the client then reports a
+                    // connection error against a port with nothing behind it -- which reads like a
+                    // fault in whatever it was uploading. These are the transient ones a listener
+                    // is expected to skip past.
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::WouldBlock
+                                | std::io::ErrorKind::Interrupted
+                                | std::io::ErrorKind::ConnectionAborted
+                                | std::io::ErrorKind::ConnectionReset
+                        ) =>
+                    {
                         thread::sleep(Duration::from_millis(5));
                     }
                     Err(error) => panic!("local report server failed: {error}"),
