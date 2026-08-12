@@ -16,6 +16,21 @@ export function validateReleaseVersion(tag, sources) {
   return version;
 }
 
+export function validateReleaseNotes(tag, text, source) {
+  if (!text.trim()) {
+    throw new Error(`Release ${tag} is missing reviewed notes: ${source}`);
+  }
+
+  // Draft notes are useful while the integration branch is moving, but neither a signed candidate
+  // nor a tag should be able to turn that placeholder into published release copy accidentally.
+  // Keep this deliberately tied to an explicit marker near the top of the document: ordinary prose
+  // may discuss historical drafts without making the release itself a draft.
+  const preamble = text.slice(0, 1024);
+  if (/\bdraft release notes\b/i.test(preamble)) {
+    throw new Error(`Release ${tag} still has draft notes: ${source}`);
+  }
+}
+
 function firstXmlVersion(xml, source) {
   const version = xml.match(/<version>\s*([^<\s]+)\s*<\/version>/)?.[1];
   if (!version) throw new Error(`${source} has no project or parent version`);
@@ -59,9 +74,11 @@ if (isMain) {
     );
   }
   const version = validateReleaseVersion(tag, sources);
-  const notes = resolve(repository, "docs", "releases", `${version}.md`);
-  if (!statSync(notes, { throwIfNoEntry: false })?.isFile() || !readFileSync(notes, "utf8").trim()) {
-    throw new Error(`Release ${tag} is missing reviewed notes: docs/releases/${version}.md`);
+  const notesRelative = `docs/releases/${version}.md`;
+  const notes = resolve(repository, notesRelative);
+  if (!statSync(notes, { throwIfNoEntry: false })?.isFile()) {
+    throw new Error(`Release ${tag} is missing reviewed notes: ${notesRelative}`);
   }
+  validateReleaseNotes(tag, readFileSync(notes, "utf8"), notesRelative);
   console.log(`Release versions and notes agree on ${version}`);
 }
