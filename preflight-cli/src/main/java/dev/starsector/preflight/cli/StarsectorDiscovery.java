@@ -43,7 +43,7 @@ final class StarsectorDiscovery {
             }
             Path root = explicitGame == null ? launcher.getParent() : explicitGame.toAbsolutePath().normalize();
             LaunchTarget target = targetForLauncher(platform, root, launcher, 10_000, "--launcher");
-            targets.put(target.launcher(), target);
+            addTarget(targets, target);
         }
 
         LinkedHashSet<Path> roots = new LinkedHashSet<>();
@@ -136,10 +136,12 @@ final class StarsectorDiscovery {
             return;
         }
         try (Stream<Path> entries = Files.list(macos)) {
-            entries.filter(Files::isRegularFile).forEach(path -> {
-                int bonus = app.getFileName().toString().toLowerCase(Locale.ROOT).contains("fast") ? 70 : 40;
-                addTarget(targets, targetForLauncher(platform, app, path, bonus, "macOS app bundle"));
-            });
+            entries.filter(Files::isRegularFile)
+                    .filter(path -> Files.isExecutable(path) || looksLikeLauncher(path))
+                    .forEach(path -> {
+                        int bonus = app.getFileName().toString().toLowerCase(Locale.ROOT).contains("fast") ? 70 : 40;
+                        addTarget(targets, targetForLauncher(platform, app, path, bonus, "macOS app bundle"));
+                    });
         } catch (IOException ignored) {
             // A later explicit override remains available.
         }
@@ -243,7 +245,16 @@ final class StarsectorDiscovery {
     }
 
     private static void addTarget(Map<Path, LaunchTarget> targets, LaunchTarget target) {
-        targets.merge(target.launcher(), target, (left, right) -> left.score() >= right.score() ? left : right);
+        Path identity = canonicalIdentity(target.launcher());
+        targets.merge(identity, target, (left, right) -> left.score() >= right.score() ? left : right);
+    }
+
+    private static Path canonicalIdentity(Path launcher) {
+        try {
+            return launcher.toRealPath();
+        } catch (IOException ignored) {
+            return launcher.toAbsolutePath().normalize();
+        }
     }
 
     private static void addStandardRoots(
