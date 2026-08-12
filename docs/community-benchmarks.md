@@ -33,7 +33,7 @@ npm run benchmark:dataset -- \
   accepted-report-1.zip accepted-report-2.zip
 ```
 
-The dataset builder performs bounded ZIP extraction, rechecks each paired benchmark entry against the diagnostics manifest, requires a completed passing pair, verifies the startup improvement calculation, strips private identity/path fields, and emits:
+The dataset builder performs bounded ZIP extraction, reconciles every evidence entry against the diagnostics manifest by byte count and SHA-256, rejects duplicate or missing inventory entries, requires at least one completed passing paired benchmark, verifies the startup improvement calculation, strips private identity/path fields, and emits:
 
 - sanitized contribution records;
 - overall median normal and optimized startup times;
@@ -41,7 +41,7 @@ The dataset builder performs bounded ZIP extraction, rechecks each paired benchm
 - the same aggregates by operating system;
 - an improvement-first leaderboard ordering.
 
-The generated dataset is an operator artifact. It is not automatically published.
+The generated dataset is an operator artifact. It is not automatically published. The Cloudflare intake remains the authoritative acceptance boundary for remotely submitted reports; the operator builder's extra inventory checks make direct local ZIP ingestion fail closed on inconsistent evidence rather than silently accepting a partial bundle.
 
 ## Public record boundary
 
