@@ -1,6 +1,6 @@
 # Self-hosted VPS verification
 
-The repository can use a personal repository-level GitHub Actions runner while keeping repository-controlled code out of the persistent host process. GitHub supplies the queue, manual trigger, commit status, and logs; the VPS supplies CPU and memory through a fixed operator-owned launcher and a fresh rootless Podman container.
+The repository can use a personal repository-level GitHub Actions runner while keeping repository-controlled code out of the persistent host process. GitHub supplies the queue, manual trigger, commit status, and logs; the VPS supplies CPU and memory through a fixed operator-owned launcher and fresh rootless Podman containers.
 
 The workflow deliberately has no `pull_request` trigger. It accepts manual dispatches and exact owner-only commands on same-repository pull requests, so public fork code cannot request work on the persistent VPS.
 
@@ -12,23 +12,27 @@ GitHub Actions control plane
   -> unprivileged preflight-runner account
   -> root-owned /usr/local/libexec/starsector-preflight-ci-v1
   -> exact commit archive treated as inert input on the host
-  -> disposable rootless Podman container
-  -> archive extraction and repository-controlled execution inside the container
+  -> disposable rootless Podman warm phase when requested
+  -> fresh source extraction + offline rootless Podman acceptance phase
 ```
 
 The selected repository revision is never checked out or executed on the host by the VPS workflow. The workflow resolves an exact 40-character commit SHA and passes only that SHA, a fixed suite enum, and `online` or `offline` to `/usr/local/libexec/starsector-preflight-ci-v1`. If the launcher is missing, incorrectly owned, or writable by the runner account, verification fails closed.
 
 The launcher itself is installed from a reviewed repository revision by an operator running the bootstrap script as root. Once installed, an Actions job cannot replace it. The repository copy under `build/ci/` is installation source and review material; the workflow does not execute that copy.
 
-The runner account must not have `sudo`, SSH private keys, egress-service credentials, access to a Docker or Podman control socket, or permission to read another service account's files. The container runs rootless, drops Linux capabilities, disables privilege escalation, uses a read-only container root, and has CPU, memory, and PID limits. A container still shares the host kernel and therefore does not provide the isolation of a separate VM.
+The runner account must not have `sudo`, SSH private keys, egress-service credentials, access to a Docker or Podman control socket, or permission to read another service account's files. Every container runs rootless, drops Linux capabilities, disables privilege escalation, uses a read-only container root, and has CPU, memory, and PID limits. A container still shares the host kernel and therefore does not provide the isolation of a separate VM.
 
-## Source and dependency handling
+## Source, network, and dependency handling
 
-For each run, the host-owned launcher downloads the exact public GitHub commit archive over HTTPS into a private per-run directory. The archive is size-bounded and hashed, then mounted read-only into the container. Extraction occurs only inside the disposable container into a fresh writable workspace.
+For each run, the host-owned launcher downloads the exact public GitHub commit archive over HTTPS into a private per-run directory. The archive is size-bounded and hashed, then mounted read-only into the container. Extraction occurs only inside a disposable container into a fresh writable workspace.
 
 Maven receives a fresh per-run writable local repository. That directory is deleted after the job, so one verification job cannot poison a writable dependency cache used by a later job.
 
-Offline verification is available only when an operator has provisioned `/var/lib/starsector-preflight-ci/m2` as a root-owned, non-writable dependency seed. The seed is mounted read-only and copied into the disposable per-run cache inside the container. If that seed is absent or writable by the runner account, offline verification fails instead of silently enabling network access or using a shared writable cache.
+An `online` request has two container phases. The first runs the requested Maven suite with network access solely to warm that per-run dependency cache. The second deletes and freshly re-extracts the source workspace, reuses only the per-run Maven cache, adds Maven `--offline`, disables container networking with `--network=none`, and reruns the same suite. Only the second phase is the accepted verification result.
+
+An `offline` request skips the warm phase. It is available only when an operator has provisioned `/var/lib/starsector-preflight-ci/m2` as a root-owned, non-writable dependency seed. The seed is mounted read-only and copied into the disposable per-run cache inside the container. If that seed is absent or writable by the runner account, offline verification fails instead of silently enabling network access or using a shared writable cache.
+
+The online warm phase intentionally has no host credentials or persistent writable repository/cache mount. Repository-controlled code can use the network there, but only from inside the constrained disposable container. The accepted phase always runs without network access.
 
 ## One-time VPS preparation
 
@@ -70,7 +74,7 @@ sudo bash ./scripts/bootstrap-vps-runner.sh register \
 
 The script prompts for the temporary token without echoing it. It accepts only an official `github.com/actions/runner/releases/download/` archive, verifies its checksum before extraction, registers the custom `starsector-preflight` label, and installs the runner as a system service under the unprivileged account.
 
-No inbound Actions port is needed. The runner needs outbound HTTPS access to GitHub and, for online verification, Maven repositories.
+No inbound Actions port is needed. The runner needs outbound HTTPS access to GitHub and, for the optional online warm phase, Maven repositories.
 
 ## Running verification
 
@@ -104,9 +108,9 @@ sudo -iu preflight-runner \
   online
 ```
 
-Use `offline` as the final argument only after provisioning the read-only operator seed described above.
+`online` means “warm dependencies, then accept only the offline rerun.” Use `offline` as the final argument only after provisioning the read-only operator seed described above.
 
-Every run prints a bounded verification receipt containing the launcher version, selected source SHA, source archive SHA-256 and byte count, suite, network mode, image ID/digest when available, and resource limits.
+Every run prints a bounded verification receipt containing the launcher version, selected source SHA, source archive SHA-256 and byte count, suite, requested network mode, accepted `offline` network mode, image ID/digest when available, and resource limits. Phase markers in the log identify the optional online warm phase and the offline acceptance phase.
 
 ## Updating the build image or launcher
 
