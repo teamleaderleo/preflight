@@ -3,6 +3,8 @@ package com.fs.starfarer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import jdk.jfr.Event;
+import jdk.jfr.Name;
 
 /** Tiny child-JVM target used to verify packaged javaagent probe behavior. */
 public final class SyntheticLauncher {
@@ -10,6 +12,12 @@ public final class SyntheticLauncher {
     }
 
     public static void main(String[] args) throws Exception {
+        // This is deliberately the first target-main action. SelfAgentIT compares this boundary with
+        // preflight.AgentStarted in the same JFR file, so the premain contract is proven by one JVM
+        // clock rather than by coordinating wall clocks between the parent and child processes.
+        TargetMainStarted mainStarted = new TargetMainStarted();
+        mainStarted.commit();
+
         new org.newdawn.slick.openal.OggDecoder().reset();
         int sampleRate = new com.fs.starfarer.loading.A().load();
         System.out.println("synthetic-starsector-launcher:" + sampleRate);
@@ -38,5 +46,9 @@ public final class SyntheticLauncher {
             Thread.sleep(10L);
         }
         throw new IllegalStateException("Recording stop was not acknowledged");
+    }
+
+    @Name("preflight.test.TargetMainStarted")
+    static final class TargetMainStarted extends Event {
     }
 }
