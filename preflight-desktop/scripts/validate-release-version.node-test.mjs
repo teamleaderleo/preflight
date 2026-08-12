@@ -23,23 +23,24 @@ test("requires the tag and all shipped version sources to agree", () => {
   );
 });
 
-test("requires reviewed release notes rather than a draft placeholder", () => {
+test("requires reviewed release notes rather than a draft placeholder for publication", () => {
   const source = "docs/releases/0.2.0.md";
+  const draft = "# Preflight 0.2.0\n\n> **Draft release notes.** Replace these before tagging.\n";
   assert.doesNotThrow(() => validateReleaseNotes(
     "v0.2.0",
     "# Preflight 0.2.0\n\n## Summary\n\nReviewed release details.\n",
     source,
   ));
   assert.throws(
-    () => validateReleaseNotes(
-      "v0.2.0",
-      "# Preflight 0.2.0\n\n> **Draft release notes.** Replace these before tagging.\n",
-      source,
-    ),
+    () => validateReleaseNotes("v0.2.0", draft, source),
     /still has draft notes/,
   );
+  assert.doesNotThrow(
+    () => validateReleaseNotes("v0.2.0", draft, source, { allowDraft: true }),
+    "private candidate rehearsal may intentionally use draft release notes",
+  );
   assert.throws(
-    () => validateReleaseNotes("v0.2.0", "  \n", source),
+    () => validateReleaseNotes("v0.2.0", "  \n", source, { allowDraft: true }),
     /missing reviewed notes/,
   );
 });
