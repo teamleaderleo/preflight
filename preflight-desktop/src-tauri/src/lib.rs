@@ -989,8 +989,13 @@ mod tests {
                             report_identity.as_ref(),
                         );
                         server_requests.lock().unwrap().push(request);
-                        stream.write_all(response.as_bytes()).unwrap();
-                        stream.flush().unwrap();
+                        // A cancelled upload resets its connection once the client stops
+                        // streaming the declared body. Windows reports that reset on the
+                        // response write, so a failed write here means the client already
+                        // left rather than that this server failed.
+                        let _ = stream
+                            .write_all(response.as_bytes())
+                            .and_then(|()| stream.flush());
                         if stop {
                             return;
                         }
