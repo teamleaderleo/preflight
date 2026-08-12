@@ -110,7 +110,12 @@ class SeamTimerTest {
 
         Map<String, Object> buckets =
                 (Map<String, Object>) timer.snapshot("serve").get("serveBetweenByGapSize");
-        Map<String, Object> bucket = (Map<String, Object>) buckets.get("under100ms");
+        // Which bucket depends on how long the sleep actually took, and a loaded machine can push
+        // 20 ms past the 100 ms boundary -- asking for "under100ms" by name got a null back. The
+        // claim is that one gap is filed once, and empty buckets are left out of the snapshot, so
+        // the count of buckets present says exactly that without naming one.
+        assertEquals(1, buckets.size(), "one gap belongs in one bucket, got " + buckets);
+        Map<String, Object> bucket = (Map<String, Object>) buckets.values().iterator().next();
         assertEquals(1L, bucket.get("gaps"));
         assertTrue((Long) bucket.get("millis") >= 15);
     }
