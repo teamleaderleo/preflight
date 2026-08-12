@@ -198,8 +198,7 @@ fn encode_argv(args: Vec<OsString>) -> Vec<OsString> {
 
 /// Base64 with the URL-safe alphabet and no padding, so an encoded argument needs no quoting.
 fn base64_url(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
         let mut block = 0_u32;
@@ -927,7 +926,10 @@ mod tests {
         assert_eq!(locale_for(&[("LC_ALL", "ru_RU.KOI8-R")]), None);
     }
 
-    #[cfg_attr(windows, ignore = "Windows takes its charset from the system code page")]
+    #[cfg_attr(
+        windows,
+        ignore = "Windows takes its charset from the system code page"
+    )]
     #[test]
     fn only_the_ascii_only_locales_are_rescued() {
         assert_eq!(locale_for(&[("LC_ALL", "C")]), Some("C.UTF-8"));
@@ -937,7 +939,10 @@ mod tests {
         assert_eq!(locale_for(&[("LANG", "")]), Some("C.UTF-8"));
     }
 
-    #[cfg_attr(windows, ignore = "Windows takes its charset from the system code page")]
+    #[cfg_attr(
+        windows,
+        ignore = "Windows takes its charset from the system code page"
+    )]
     #[test]
     fn lc_all_outranks_the_narrower_variables() {
         // The shell's own precedence: LC_ALL wins, so a UTF-8 LC_CTYPE under LC_ALL=C is still
@@ -954,19 +959,33 @@ mod tests {
 
     #[test]
     fn ascii_vectors_reach_the_engine_unchanged() {
-        let args = vector(&["desktop", "snapshot", "--game", "C:\\Games\\Starsector", "--json"]);
+        let args = vector(&[
+            "desktop",
+            "snapshot",
+            "--game",
+            "C:\\Games\\Starsector",
+            "--json",
+        ]);
         assert_eq!(encode_argv(args.clone()), args);
     }
 
     #[test]
     fn a_vector_needing_more_than_ascii_is_marked_and_encoded() {
-        let args = vector(&["desktop", "snapshot", "--game", "C:\\Synthetic Game – path Ω"]);
+        let args = vector(&[
+            "desktop",
+            "snapshot",
+            "--game",
+            "C:\\Synthetic Game – path Ω",
+        ]);
         let encoded = encode_argv(args);
         assert_eq!(encoded[0], OsString::from(UTF8_ARGV_SENTINEL));
         assert_eq!(encoded.len(), 5);
         for argument in &encoded[1..] {
             let text = argument.to_str().unwrap();
-            assert!(text.is_ascii(), "{text} would not survive an ANSI code page");
+            assert!(
+                text.is_ascii(),
+                "{text} would not survive an ANSI code page"
+            );
             assert!(
                 text.bytes()
                     .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
