@@ -64,6 +64,12 @@ jobs:
 
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk
+        with:
+          # The package carries a jlinked runtime built by whichever JDK is on the builder, so
+          # this line decides which Java reaches players. Stated here rather than inherited from
+          # the action's default, where changing it for an unrelated reason would quietly change
+          # what ships.
+          java-version: '17'
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -167,6 +173,12 @@ jobs:
 
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk
+        with:
+          # The package carries a jlinked runtime built by whichever JDK is on the builder, so
+          # this line decides which Java reaches players. Stated here rather than inherited from
+          # the action's default, where changing it for an unrelated reason would quietly change
+          # what ships.
+          java-version: '17'
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
