@@ -114,6 +114,58 @@ because its charset comes from the system code page, which no locale variable ch
 
 Desktop Linux installs are UTF-8 in practice, so this is insurance rather than a common path.
 
+## The default locale changes what strings mean
+
+A JVM's default locale is the player's, and two of Java's most ordinary operations follow it.
+
+**Case folding.** Under a Turkish locale `"GIF".toLowerCase()` is `gıf` and `"ID".toLowerCase()`
+does not equal `"id"`. The codebase folds with `Locale.ROOT` in 201 places; the stragglers that did
+not have been corrected.
+
+### Open: the campaign entity index disagrees with its own model under Turkish
+
+`EntityLookupRuntime` folds with `Locale.getDefault()` in all three places that matter — building
+the index, looking up in it, and validating a candidate. The behavioural model of the shipped method
+in `BaseLocation` folds with `Locale.ROOT`. Both look deliberate and they cannot both be right.
+
+They agree in every locale except Turkish and Azeri, where `I` lowercases to `ı`. There
+`EntityLookupPlanTest.theCaseInsensitiveFallbackIsPreserved` and
+`aDuplicatedIdResolvesTheSameWayItDidBefore` fail: the index answers `null` for an id the model
+resolves to an entity. That is not a slow path, it is a different answer, and a Turkish player with
+the campaign entity index enabled would get it.
+
+Settling this needs the shipped method's own bytecode, which is not in this repository. Until then
+neither side should be changed to match the other, because aligning them the wrong way makes the
+cache authoritative for answers the original code would have refused. Reproduce with:
+
+```bash
+mvn -pl preflight-agent -am test -Dtest=EntityLookupPlanTest -DargLine="-Duser.language=tr -Duser.country=TR"
+```
+
+**Number formatting.** `String.format("%.1f", 1.5)` is `1,5` under Turkish and German, `١٫٥` under
+Arabic, and `১.৫` under Bengali. The probe reports that printed durations and sizes now format with
+`Locale.ROOT` so evidence is reproducible whoever runs it. Integer conversions such as `%04x`, which
+the JSON writer uses for escapes, are not localized — that was checked rather than assumed.
+
+The full suite passes under `-Duser.language=tr -Duser.country=TR`.
+
+## Publishing a file while something else holds it
+
+Every prepared artifact is written to a temporary and then renamed over its final name. Unix renames
+over an open file; Windows refuses while any process holds that file open without delete sharing,
+and reports `AccessDeniedException`. A real-time virus scanner opening a file Preflight has just
+written is the ordinary case, and preparation publishes enough files that a rare per-file collision
+becomes a likely per-run failure — the classic "preparation randomly fails on Windows" report.
+
+The seventeen publication sites now share one `AtomicPublish.replace`, which keeps the existing
+fallback for a cross-filesystem move and adds a bounded backoff for contention: five attempts over
+roughly 300ms, then the original failure. Only `AccessDeniedException` is retried, so a missing
+temporary or an unwritable directory is still reported immediately. The retry never fires on Unix.
+
+This is reasoned from documented Windows semantics and the retry logic every major build tool
+carries for it. It has not been reproduced on Windows, but it costs nothing where the problem does
+not exist.
+
 ### Still open: the agent jar's own path
 
 The agent reaches the game through `JAVA_TOOL_OPTIONS=-javaagent:<jar>=<options>`. Its options are

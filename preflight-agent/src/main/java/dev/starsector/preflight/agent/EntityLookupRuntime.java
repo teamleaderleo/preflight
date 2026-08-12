@@ -193,6 +193,12 @@ public final class EntityLookupRuntime {
                 return false;
             }
             if (!currentId.equals(requestedId)) {
+                // UNRESOLVED: this folds with the default locale, as does the index in build() and
+                // lookup(). The behavioural model in BaseLocation folds with Locale.ROOT. The two
+                // agree everywhere except Turkish and Azeri, where "ID" lowercases to "ıd", and
+                // there EntityLookupPlanTest fails: the index answers null for an id the model
+                // resolves. Which side is wrong depends on what the shipped method actually calls,
+                // which needs the game's own bytecode to settle. See docs/java-runtime-support.md.
                 return currentId.toLowerCase().equals(requestedId.toLowerCase());
             }
             Class<?> type = candidate.getClass();
