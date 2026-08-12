@@ -80,4 +80,4 @@ The existing Support ZIP remains broader and troubleshooting-oriented. It should
 
 Cloudflare should remain the anonymous/private ingress layer. GitHub Actions can be useful downstream for validating and publishing a sanitized generated dataset or static leaderboard, but raw reports should not be accepted through public issues, pull requests, or workflow artifacts.
 
-Before a leaderboard is public, add explicit contribution consent, deduplication policy, minimum benchmark-quality checks, version/cohort filtering, and a documented process for removing a published record when the corresponding private report is deleted.
+Before a leaderboard is public, add explicit contribution consent, deduplication policy, minimum benchmark-quality checks, version/cohort filtering, and a documented process for removing a published record when the corresponding private report is deleted. The private/public identity and deletion rules are specified in [Community benchmark publication lifecycle](benchmark-publication-lifecycle.md).
