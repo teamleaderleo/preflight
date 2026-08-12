@@ -113,5 +113,7 @@ mutable hit maps, policy mismatch, subclass fail-open behavior, and exact archiv
 On the reviewed 83-mod profile, launch-free `--fast --janino-bytecode-cache --dry-run` preparation
 measured 181.1ms for Janino: 15.9ms to reconstruct exact archive/launcher policy from the resource
 index and selected launcher, and 165.3ms for the conservative identity. The recovered archive order produces the same
-context as the older complete class-entry index. No game-start improvement is claimed until a real
-cold/warm launch demonstrates calls, stores, hits, and clean shutdown telemetry.
+context as the older complete class-entry index. The earlier live cold/learn and cooled warm/hit pilot
+on the installed Janino path recorded 228 misses/stores followed by 228/228 exact hits, with clean
+shutdown and no adapter failure; its retained evidence is in
+[`2026-08-04-janino-bytecode-live-pilot.md`](evidence/2026-08-04-janino-bytecode-live-pilot.md).
