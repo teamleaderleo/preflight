@@ -12,7 +12,7 @@ usage() {
   cat <<'USAGE'
 Prepare a Debian/Ubuntu VPS and register a repository-level GitHub Actions runner.
 
-Prepare the host and build the local test image:
+Prepare the host, install the reviewed root-owned launcher, and build the local test image:
   sudo bash scripts/bootstrap-vps-runner.sh prepare [--runner-user USER] [--swap-gib N]
 
 Register the runner after GitHub provides a temporary registration token:
@@ -119,16 +119,25 @@ prepare_host() {
   ensure_subid /etc/subgid --add-subgids
   create_swap
 
-  local home root build_context
+  local home root build_context launcher_source launcher_path launcher_sha256
   home="$(runner_home)"
   root="$(repo_root)"
   build_context="$home/preflight-build-image"
+  launcher_source="$root/build/ci/starsector-preflight-ci-v1"
+  launcher_path="/usr/local/libexec/starsector-preflight-ci-v1"
+
+  [[ -f "$launcher_source" ]] || fail "missing reviewed launcher source: $launcher_source"
   install -d -m 0750 -o "$runner_user" -g "$runner_user" \
     "$home/actions-runner" \
-    "$home/.cache/starsector-preflight/m2" \
     "$build_context"
+  install -d -m 0755 -o root -g root \
+    /usr/local/libexec \
+    /var/lib/starsector-preflight-ci
   install -m 0644 -o "$runner_user" -g "$runner_user" \
     "$root/build/ci/Containerfile" "$build_context/Containerfile"
+  install -m 0755 -o root -g root \
+    "$launcher_source" "$launcher_path"
+  launcher_sha256="$(sha256sum "$launcher_path" | awk '{print $1}')"
 
   if command -v loginctl >/dev/null 2>&1; then
     loginctl enable-linger "$runner_user" || true
@@ -151,6 +160,11 @@ prepare_host() {
 Host preparation complete.
 Runner user: $runner_user
 Runner home: $home
+Operator launcher: $launcher_path
+Launcher SHA-256: $launcher_sha256
+
+The launcher is root-owned and is not modified by Actions jobs. Re-run `prepare`
+from a reviewed revision when intentionally updating the launcher or build image.
 
 Next, open the repository runner setup page and run the register subcommand with
 its exact download URL, SHA-256 checksum, and temporary registration token.
