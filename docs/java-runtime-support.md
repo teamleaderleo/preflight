@@ -44,27 +44,43 @@ producing wrong evidence.
 since JDK 13 and every JDK through 26 still accepts it with a warning. When it is finally removed
 those probes lose an optimization, not their correctness.
 
-## Non-ASCII paths on Windows
+## Non-ASCII paths
 
-Windows converts a process command line to the active ANSI code page before the Java launcher reads
-it. Characters outside that code page arrive as `?`, so a game folder, profile name, or user
-directory containing them is destroyed before argument parsing begins.
+A JVM decodes the arguments it is given, and on Unix it also encodes the paths it hands the
+filesystem. Both use `sun.jnu.encoding`, which the JVM derives from the platform. When that charset
+cannot represent a character, the path is lost. Windows and Unix lose it in different places, so
+they need different repairs.
 
-No JVM version or option fixes this:
+No JVM version or option changes the charset:
 
-- `sun.jnu.encoding` is derived from the System Locale and is documented as not settable with `-D`.
-- JEP 400 made `file.encoding` UTF-8 in JDK 18. It does not touch the launcher's command line.
-- [JDK-8337506](https://github.com/openjdk/jdk/pull/20428) (JDK 25) only stops the launcher
+- `sun.jnu.encoding` comes from the platform and is documented as not settable with `-D`. Measured:
+  passing `-Dsun.jnu.encoding=UTF-8` leaves it at `ANSI_X3.4-1968` and the argument still arrives
+  corrupted.
+- JEP 400 made `file.encoding` UTF-8 in JDK 18. It does not touch `sun.jnu.encoding`.
+- [JDK-8337506](https://github.com/openjdk/jdk/pull/20428) (JDK 25) only stops the Windows launcher
   substituting look-alike characters. It still converts through the ANSI code page, and characters
-  the code page cannot represent are still lost.
+  that code page cannot represent are still lost.
 - `java.exe` carries no `activeCodePage=UTF-8` application manifest on any released JDK.
 
-So a newer bundled runtime would not have helped. Instead, argument vectors that need more than
-ASCII are Base64 UTF-8 encoded behind a `--preflight-utf8-argv` sentinel, and the engine reverses
-them before parsing. Only ASCII crosses the process boundary, which every code page reproduces
-exactly. ASCII-only vectors are passed through untouched so ordinary command lines stay readable.
+A newer bundled runtime would not have helped.
 
-Three implementations have to agree, and each pins the same vectors in its own tests:
+### Windows: the command line
+
+Windows converts a process command line to the active ANSI code page before the launcher reads it.
+Characters outside that page arrive as `?`, and the packaged contract's `Synthetic Game – path Ω`
+fixture fails on a cp1252 runner with `Illegal char <?> at index 95`. That error comes from the
+Windows path parser rejecting a literal `?`, which is not a legal filename character — the path
+layer itself is UTF-16 and lossless, so the command line is the only lossy step.
+
+The scope is narrower than it first looks. The ANSI code page is chosen to cover the system's own
+language, so a Cyrillic account name on a Russian Windows round-trips fine. What breaks is text
+outside the machine's own code page: mixed scripts, emoji, or a folder named in a different language
+from the system.
+
+Argument vectors needing more than ASCII are therefore Base64 UTF-8 encoded behind a
+`--preflight-utf8-argv` sentinel, and the engine reverses them before parsing. Only ASCII crosses
+the boundary, which every code page reproduces exactly. ASCII-only vectors are untouched so ordinary
+command lines stay readable. Three implementations must agree, and each pins the same vectors:
 
 | Side | Implementation |
 | --- | --- |
@@ -75,13 +91,38 @@ Three implementations have to agree, and each pins the same vectors in its own t
 The desktop host collects arguments rather than handing them to the process builder as they arrive,
 so a caller cannot add one that skips the encoding.
 
+### Unix: the locale, measured on Debian with OpenJDK 21
+
+Under `LC_ALL=C` or `POSIX` the charset is US-ASCII, and encoding the argument vector is **not
+enough**. The decoded string is correct, but the file layer then cannot express it and the engine
+reports `Malformed input or input contains unmappable characters`. The engine jar's own path fails
+the same way, before any Preflight code runs, and a relative jar path does not help because the JVM
+resolves it against a `user.dir` decoded with the same charset.
+
+| Parent locale | Argument encoding | Locale rescue | Result |
+| --- | --- | --- | --- |
+| `C` | no | no | fails |
+| `C` | yes | no | fails |
+| `C` | no | yes | works |
+| `C` | yes | yes | works |
+| `en_US.UTF-8` | no | no | works |
+
+So the desktop gives an ASCII-only child `LC_ALL=C.UTF-8`. Only `C`, `POSIX`, and an empty locale
+are rescued. A real 8-bit locale such as `de_DE.ISO-8859-1` is left alone: its filenames are that
+charset's bytes, and reading them as UTF-8 would corrupt paths that work today. Windows is excluded
+because its charset comes from the system code page, which no locale variable changes.
+
+Desktop Linux installs are UTF-8 in practice, so this is insurance rather than a common path.
+
 ### Still open: the agent jar's own path
 
 The agent reaches the game through `JAVA_TOOL_OPTIONS=-javaagent:<jar>=<options>`. Its options are
-already Base64, but the jar path is read by the JVM itself and cannot be encoded. On Windows
-Preflight's home sits under `%LOCALAPPDATA%`, so a player whose Windows account name is not ASCII
-gives that jar a path the JVM cannot reproduce. A `-javaagent` path that does not resolve is a fatal
-startup error, so this fails closed: the game would not start through Preflight at all.
+already Base64, but the jar path is read by the JVM itself and cannot be encoded. On Unix the locale
+rescue covers it. On Windows nothing does: Preflight's home sits under `%LOCALAPPDATA%`, so an
+account name outside the system code page gives that jar an unreproducible path, and a `-javaagent`
+path that does not resolve aborts JVM startup. It fails closed — the game would not start through
+Preflight at all.
 
-Staging the agent jar at an ASCII path before launch would close it. That is a separate change and
-is not in the current candidate.
+This has not been reproduced on Windows; it follows from the same command-line conversion that the
+contract fixture demonstrates. Staging the agent jar at an ASCII path before launch would close it.
+That is a separate change and is not in the current candidate.

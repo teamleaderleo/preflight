@@ -48,11 +48,47 @@ impl EnginePaths {
         let mut command = Command::new(&self.java);
         command.arg("-jar").arg(&self.jar);
         configure_child_process(&mut command);
+        if let Some(locale) = ascii_locale_rescue(|name| std::env::var_os(name)) {
+            command.env("LC_ALL", locale);
+        }
         EngineCommand {
             inner: command,
             args: Vec::new(),
         }
     }
+}
+
+/// The locale a JVM inheriting a pure-ASCII environment should be given instead, if any.
+///
+/// A Unix JVM takes `sun.jnu.encoding` from the environment's locale, and that charset governs both
+/// the arguments it decodes and the bytes it hands the filesystem. Under `C`/`POSIX` the charset is
+/// US-ASCII, so a non-ASCII path is unusable no matter how it arrives: encoding the argument vector
+/// recovers the string but the file layer still cannot express it. Measured on Debian with OpenJDK
+/// 21, `LC_ALL=C.UTF-8` repairs the argument, the filesystem, and the engine jar's own path.
+///
+/// Only the ASCII-only locales are rescued. A real 8-bit locale is self-consistent with the
+/// filenames on that system, and reinterpreting it as UTF-8 would corrupt paths that work today.
+/// Windows is excluded because its charset comes from the system code page, which no locale
+/// variable changes.
+fn ascii_locale_rescue<F>(environment: F) -> Option<&'static str>
+where
+    F: Fn(&str) -> Option<OsString>,
+{
+    if cfg!(windows) {
+        return None;
+    }
+    let effective = ["LC_ALL", "LC_CTYPE", "LANG"]
+        .into_iter()
+        .find_map(|name| {
+            environment(name)
+                .and_then(|value| value.into_string().ok())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_default();
+    let ascii_only = effective.is_empty()
+        || effective.eq_ignore_ascii_case("C")
+        || effective.eq_ignore_ascii_case("POSIX");
+    ascii_only.then_some("C.UTF-8")
 }
 
 /// First argument of an ASCII-encoded vector. Matches `Utf8Argv.SENTINEL` in the engine.
@@ -856,11 +892,64 @@ fn configure_child_process(_command: &mut Command) {}
 
 #[cfg(test)]
 mod tests {
-    use super::{UTF8_ARGV_SENTINEL, base64_url, encode_argv};
+    use super::{UTF8_ARGV_SENTINEL, ascii_locale_rescue, base64_url, encode_argv};
     use std::ffi::OsString;
 
     fn vector(args: &[&str]) -> Vec<OsString> {
         args.iter().map(OsString::from).collect()
+    }
+
+    fn locale_for(variables: &[(&str, &str)]) -> Option<&'static str> {
+        let owned: Vec<(String, OsString)> = variables
+            .iter()
+            .map(|(name, value)| ((*name).to_string(), OsString::from(*value)))
+            .collect();
+        ascii_locale_rescue(|name| {
+            owned
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.clone())
+        })
+    }
+
+    #[test]
+    fn a_utf8_locale_is_left_alone() {
+        assert_eq!(locale_for(&[("LANG", "en_US.UTF-8")]), None);
+        assert_eq!(locale_for(&[("LC_ALL", "ja_JP.UTF-8")]), None);
+        assert_eq!(locale_for(&[("LC_CTYPE", "de_DE.utf8")]), None);
+    }
+
+    #[test]
+    fn a_real_eight_bit_locale_is_left_alone() {
+        // Its filenames are that charset's bytes. Reading them as UTF-8 would break paths that
+        // work today, which is worse than the non-ASCII case this rescues.
+        assert_eq!(locale_for(&[("LANG", "de_DE.ISO-8859-1")]), None);
+        assert_eq!(locale_for(&[("LC_ALL", "ru_RU.KOI8-R")]), None);
+    }
+
+    #[cfg_attr(windows, ignore = "Windows takes its charset from the system code page")]
+    #[test]
+    fn only_the_ascii_only_locales_are_rescued() {
+        assert_eq!(locale_for(&[("LC_ALL", "C")]), Some("C.UTF-8"));
+        assert_eq!(locale_for(&[("LC_ALL", "POSIX")]), Some("C.UTF-8"));
+        assert_eq!(locale_for(&[("LANG", "c")]), Some("C.UTF-8"));
+        assert_eq!(locale_for(&[]), Some("C.UTF-8"));
+        assert_eq!(locale_for(&[("LANG", "")]), Some("C.UTF-8"));
+    }
+
+    #[cfg_attr(windows, ignore = "Windows takes its charset from the system code page")]
+    #[test]
+    fn lc_all_outranks_the_narrower_variables() {
+        // The shell's own precedence: LC_ALL wins, so a UTF-8 LC_CTYPE under LC_ALL=C is still
+        // an ASCII environment.
+        assert_eq!(
+            locale_for(&[("LC_ALL", "C"), ("LC_CTYPE", "en_US.UTF-8")]),
+            Some("C.UTF-8")
+        );
+        assert_eq!(
+            locale_for(&[("LC_CTYPE", "en_US.UTF-8"), ("LANG", "C")]),
+            None
+        );
     }
 
     #[test]
