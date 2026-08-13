@@ -82,6 +82,14 @@ final class RuntimeProcessIdentity {
                 absolute, pid, parentPid, startedAt, observedAt, state, stoppedAt);
     }
 
+    long pid() {
+        return pid;
+    }
+
+    Path source() {
+        return source;
+    }
+
     Map<String, Object> inspect() {
         ProcessHandle process = ProcessHandle.of(pid).orElse(null);
         Instant liveStartedAt = process == null ? null : process.info().startInstant().orElse(null);

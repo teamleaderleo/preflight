@@ -75,6 +75,7 @@ public final class PreflightCli {
 
         return switch (args[0]) {
             case "run" -> RunCommand.execute(CommandLine.parse(args, 1));
+            case "stop" -> StopCommand.execute(args, 1);
             case "prepare" -> PrepareCommand.execute(args, 1);
             case "doctor" -> RunCommand.doctor(CommandLine.parse(args, 1));
             case "launch-settings" -> LaunchSettingsCommand.execute(args, 1);
@@ -271,6 +272,18 @@ public final class PreflightCli {
                         + " 23.1%; fastest stores every upload-ready pixel array raw.",
                 "  --plan is read-only. Every real preparation refuses before writing when its"
                         + " conservative upper bound and safety reserve do not fit."));
+        usage.put("stop", List.of(
+                "preflight stop [--dry-run] [--force] [--timeout-seconds <n>] [--json]",
+                "  Stops a Starsector process Preflight started. `preflight run` stays attached"
+                        + " until the game exits and never stops it, so a launch driven by hand"
+                        + " can outlive its wrapper and hold several GB and a GPU context.",
+                "  Only launches with a Preflight runtime record are considered, and a recorded PID"
+                        + " is signalled only when its live start instant still matches, so a"
+                        + " reused PID is reported instead of killed. A game the player started"
+                        + " from Starsector's own launcher is left alone.",
+                "  The default stop is a request the game's JVM can act on, so its shutdown hooks"
+                        + " run and the run report is finished rather than truncated. --force ends"
+                        + " a process that ignored it."));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
         usage.put("launch-settings", List.of(
                 "preflight launch-settings [--game <path>] [--json]",
@@ -457,6 +470,7 @@ public final class PreflightCli {
         return switch (command) {
             case "run" -> "Launch Starsector with reviewed optimizations and a bounded run report.";
             case "prepare" -> "Build reusable artifacts for the current enabled profile.";
+            case "stop" -> "Stop a Starsector process that Preflight started.";
             case "doctor" -> "Check installation discovery and launch readiness.";
             case "launch-settings" -> "Read or update the game settings used by ordinary and Preflight launches.";
             case "install" -> "Write the local Preflight launcher integration.";
