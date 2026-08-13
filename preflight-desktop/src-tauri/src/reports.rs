@@ -162,7 +162,10 @@ fn upload_outcome_error(error: ReportUploadError) -> NativeCommandError {
             true,
         ),
         ReportUploadError::Failed(detail) => {
-            NativeCommandError::new("report-upload-failed", detail, true)
+            // `Failed` currently includes transport errors, server/protocol rejection, receipt
+            // integrity failure, and uncertain cleanup. Until those outcomes are typed separately,
+            // the native contract cannot promise that repeating the same disclosed ZIP is useful.
+            NativeCommandError::new("report-upload-failed", detail, false)
         }
     }
 }
@@ -324,11 +327,11 @@ mod tests {
     }
 
     #[test]
-    fn transport_failure_keeps_message_separate_from_recovery_semantics() {
+    fn generic_upload_failure_does_not_overclaim_recovery_semantics() {
         let error = upload_outcome_error(ReportUploadError::Failed("receipt mismatch".to_string()));
         let value = serde_json::to_value(error).unwrap();
         assert_eq!("report-upload-failed", value["code"]);
         assert_eq!("receipt mismatch", value["message"]);
-        assert_eq!(true, value["retryable"]);
+        assert_eq!(false, value["retryable"]);
     }
 }
