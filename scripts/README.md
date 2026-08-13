@@ -54,9 +54,8 @@ Numbers to sanity-check a result against, all on the game-log-start to main-menu
   (`docs/evidence/2026-08-01-*`).
 - `fast`, fastest warm launch: **15.88s**, from the 2026-08-06 gates (16.66 / 16.28 / 15.88).
 
-A probe result is only worth comparing to those if the run itself was clean: the machine cooled,
-and nothing else on it. A probe run minutes after the previous launch, on a machine also running a
-dev server and a browser, reads slower — that is the run, not the instrument.
+Those are clean-machine numbers: cooled, with nothing else running. A launch measured on a busy
+machine is a measurement of a busy machine.
 
 The phase probe's own `elapsedMillis` is anchored at agent premain, which is neither end of the
 log-clock interval. Do not put the two side by side.

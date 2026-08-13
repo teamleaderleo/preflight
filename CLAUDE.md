@@ -13,6 +13,21 @@ where the time went, and `scripts/run-startup-benchmark.sh --unattended` is the 
 `preflight run` is the launcher, not a measurement: it never exits on its own, and a launch left
 running holds ~4 GB and a GPU context and poisons everything measured after it.
 
+## One observation is not a finding
+
+Say a fresh result in chat. Do not write it into a durable file until it has survived something —
+a citation to existing evidence, a second run, or a check that it is even the same condition and
+the same clock as the thing you are comparing it against.
+
+A number you got a minute ago is a number, not an explanation of itself. Writing the explanation
+down immediately is how a reference doc ends up carrying a guess that the next agent reads as
+established, and how one paragraph gets rewritten three times in an afternoon while its author
+works out what they actually saw. The measurement was real every time; the story attached to it
+was not.
+
+This applies hardest to `scripts/README.md`, `docs/evidence/`, and the handoff — the files that
+exist so nobody has to re-derive anything.
+
 ## Verify once, at the right level, then move on
 
 `mvn verify` locally is the correctness gate. CI exists because this is a Mac and the project
