@@ -42,14 +42,14 @@ The cold diagnostic gate and its transformed-class-cache warm repeat both report
 The cold diagnostic reached the ordinary main-menu marker in 17.103s. The warm diagnostic reached
 `resource-init-complete` in 17.308s; its quiet-log shutdown did not retain the later GraphicsLib
 marker, so it is correctness evidence rather than a menu-time result. A production `fast` benchmark
-without the deep call-site instrumentation reached the menu in 16.66s cold and 16.28s warm. One
-final fresh fast-only warm session then reached **15.88s**. It was not resumed from another
-benchmark: it used the direct unattended protocol and the launcher's normal saved 1440x932 windowed
-settings. That gate remained ACTIVE with 42 exact transformations, 42/42 transformed-class cache
-hits, zero decline/failure, 416 deferred members, and zero startup materializations. All 15,469
-prepared textures and pixel-conversion bypasses hit. These launches are inside the established
-roughly plus/minus 1.4s variance; the removed 151ms object seam is causal, but no whole-launch delta
-is claimed from them.
+without the deep call-site instrumentation reached the menu in 16.66s cold and 16.28s warm. A
+subsequent fresh warm benchmark reached **15.88s**, the best validated result in the accepted
+16-second gate series. It used the direct unattended protocol and the launcher's normal saved
+1440x932 windowed settings. That gate remained ACTIVE with 42 exact transformations, 42/42
+transformed-class cache hits, zero decline/failure, 416 deferred members, and zero startup
+materializations. All 15,469 prepared textures and pixel-conversion bypasses hit. Current
+whole-launch run-to-run spread on the reviewed machine is roughly ±0.6s; the removed 151ms object
+seam is causal, but no whole-launch delta is claimed from it.
 
 Runs:
 
