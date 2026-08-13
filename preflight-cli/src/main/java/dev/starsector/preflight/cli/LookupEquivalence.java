@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.ClasspathProfileIndex;
 import dev.starsector.preflight.core.ResourceIndex;
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -98,6 +99,7 @@ final class LookupEquivalence {
                 "preflight/missing/classpath/",
                 ".class");
         List<ZipFile> archives = new ArrayList<>();
+        Throwable primaryFailure = null;
         try {
             for (ClasspathProfileIndex.Archive archive : index.archives()) {
                 archives.add(new ZipFile(archive.physicalPath().toFile()));
@@ -142,22 +144,31 @@ final class LookupEquivalence {
                     baselineNanos,
                     indexedNanos,
                     mismatches);
+        } catch (IOException | RuntimeException | Error failure) {
+            primaryFailure = failure;
+            throw failure;
         } finally {
-            IOException failure = null;
-            for (ZipFile archive : archives) {
-                try {
-                    archive.close();
-                } catch (IOException error) {
-                    if (failure == null) {
-                        failure = error;
-                    } else {
-                        failure.addSuppressed(error);
-                    }
+            closeAll(archives, primaryFailure);
+        }
+    }
+
+    static void closeAll(List<? extends Closeable> closeables, Throwable primaryFailure) throws IOException {
+        IOException cleanupFailure = null;
+        for (Closeable closeable : closeables) {
+            try {
+                closeable.close();
+            } catch (IOException error) {
+                if (primaryFailure != null) {
+                    primaryFailure.addSuppressed(error);
+                } else if (cleanupFailure == null) {
+                    cleanupFailure = error;
+                } else {
+                    cleanupFailure.addSuppressed(error);
                 }
             }
-            if (failure != null) {
-                throw failure;
-            }
+        }
+        if (cleanupFailure != null) {
+            throw cleanupFailure;
         }
     }
 

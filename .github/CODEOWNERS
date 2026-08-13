@@ -1,0 +1,24 @@
+# Review hints for security- and release-sensitive boundaries.
+# Repository settings decide whether these owners are required reviewers.
+
+/SECURITY.md @teamleaderleo
+
+# Release artifacts, updater signing, and candidate metadata.
+/.github/workflows/distribution.yml @teamleaderleo
+/.github/workflows/release-metadata.yml @teamleaderleo
+/preflight-desktop/scripts/*updater* @teamleaderleo
+/preflight-desktop/scripts/candidate-crypt* @teamleaderleo
+/preflight-desktop/src-tauri/tauri.conf.json @teamleaderleo
+/preflight-desktop/src-tauri/src/updates.rs @teamleaderleo
+
+# Private support-report intake and its deployment boundary.
+/report-intake/ @teamleaderleo
+/.github/workflows/report-intake.yml @teamleaderleo
+
+# Self-hosted verification runner trust boundary.
+/.github/workflows/vps-verify.yml @teamleaderleo
+/build/ci/ @teamleaderleo
+/docs/self-hosted-runner.md @teamleaderleo
+/scripts/test_vps_runner_boundary.py @teamleaderleo
+/scripts/test_vps_trust_boundary.py @teamleaderleo
+/scripts/verify-in-container.sh @teamleaderleo

@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
@@ -83,7 +84,7 @@ class AppCdsCapabilityDetectorTest {
     }
 
     private static Path currentJavaExecutable() {
-        String executable = System.getProperty("os.name", "").toLowerCase().contains("win")
+        String executable = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")
                 ? "java.exe"
                 : "java";
         return Path.of(System.getProperty("java.home"), "bin", executable);

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.core.Json;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -17,6 +18,100 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class DesktopBenchmarkLaunchTest {
+    @Test
+    void aStuckMonitorIsSuppressedOntoTheFailureThatAbortedThePhase() throws Exception {
+        IllegalStateException launchFailure = new IllegalStateException("launch failed");
+        StubbornThread mirror = StubbornThread.started();
+        try {
+            DesktopBenchmarkLaunch.stopCancellationMirror(
+                    "baseline", mirror, new AtomicBoolean(), launchFailure);
+
+            assertEquals(1, launchFailure.getSuppressed().length);
+            assertEquals(
+                    "The baseline cancellation monitor didn't stop",
+                    launchFailure.getSuppressed()[0].getMessage());
+        } finally {
+            mirror.release();
+        }
+    }
+
+    @Test
+    void aStuckMonitorFailsThePhaseWhenTheLaunchItselfSucceeded() throws Exception {
+        StubbornThread mirror = StubbornThread.started();
+        try {
+            IOException thrown = assertThrows(IOException.class, () ->
+                    DesktopBenchmarkLaunch.stopCancellationMirror(
+                            "candidate", mirror, new AtomicBoolean(), null));
+
+            assertEquals("The candidate cancellation monitor didn't stop", thrown.getMessage());
+        } finally {
+            mirror.release();
+        }
+    }
+
+    @Test
+    void aMonitorThatStopsMarksThePhaseFinishedAndReportsNothing() throws Exception {
+        AtomicBoolean finished = new AtomicBoolean();
+        Thread mirror = new Thread(() -> { });
+        mirror.start();
+
+        DesktopBenchmarkLaunch.stopCancellationMirror("baseline", mirror, finished, null);
+
+        assertTrue(finished.get());
+    }
+
+    @Test
+    void interruptionWhileWaitingKeepsTheInterruptStatusAndReportsNothing() throws Exception {
+        StubbornThread mirror = StubbornThread.started();
+        AtomicBoolean interruptRetained = new AtomicBoolean();
+        try {
+            Thread caller = new Thread(() -> {
+                Thread.currentThread().interrupt();
+                try {
+                    DesktopBenchmarkLaunch.stopCancellationMirror(
+                            "baseline", mirror, new AtomicBoolean(), null);
+                    interruptRetained.set(Thread.currentThread().isInterrupted());
+                } catch (IOException unexpected) {
+                    interruptRetained.set(false);
+                }
+            });
+            caller.start();
+            caller.join(5_000L);
+
+            assertTrue(interruptRetained.get(), "a cut-short wait must not look like a clean stop");
+        } finally {
+            mirror.release();
+        }
+    }
+
+    /** A mirror thread that ignores interruption, standing in for one that will not stop. */
+    private static final class StubbornThread extends Thread {
+        private final AtomicBoolean released = new AtomicBoolean();
+
+        static StubbornThread started() {
+            StubbornThread thread = new StubbornThread();
+            thread.setDaemon(true);
+            thread.start();
+            return thread;
+        }
+
+        @Override
+        public void run() {
+            while (!released.get()) {
+                try {
+                    Thread.sleep(10L);
+                } catch (InterruptedException ignored) {
+                    // Deliberately unresponsive to interruption.
+                }
+            }
+        }
+
+        void release() throws InterruptedException {
+            released.set(true);
+            join(5_000L);
+        }
+    }
+
     @Test
     void acceptsOnlyTheSameSemanticRouteWithMeasurementFirst() {
         Map<String, Object> identity = DesktopBenchmarkLaunch.validatePair(

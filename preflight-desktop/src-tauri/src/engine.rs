@@ -5,10 +5,31 @@ use serde_json::Value;
 #[cfg(debug_assertions)]
 use std::env;
 use std::ffi::{OsStr, OsString};
+use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, State};
+
+/// A short desktop-to-engine read. `desktop snapshot` against the reviewed 83-mod installation
+/// measures 0.10s cold and 0.04s warm on the development MacBook, so this sits far above the
+/// observed cost: it is here to bound a stall, not to police a slow disk, a cold page cache, or a
+/// Windows scanner reading the jar.
+pub(crate) const READ_BUDGET: Duration = Duration::from_secs(60);
+
+/// A request that writes. Given more room than a read because it can rewrite prepared data and
+/// profile files before it answers.
+pub(crate) const MUTATION_BUDGET: Duration = Duration::from_secs(300);
+
+/// How often a pending child is checked. Small enough not to be visible on a request that
+/// normally answers in tens of milliseconds.
+const POLL_INTERVAL: Duration = Duration::from_millis(5);
+
+/// Captured output is capped so a runaway child cannot exhaust the desktop process. Engine
+/// responses are JSON documents measured in kilobytes.
+const MAX_CAPTURED_BYTES: usize = 8 * 1024 * 1024;
 
 pub(crate) struct EnginePaths {
     java: PathBuf,
@@ -138,8 +159,56 @@ impl EngineCommand {
         self
     }
 
-    pub(crate) fn output(&mut self) -> std::io::Result<Output> {
-        self.prepared().output()
+    /// Runs the engine and gives up on it after `budget`.
+    ///
+    /// `Command::output()` waits for the child forever. That is the right shape for the paths that
+    /// own an explicit lifecycle — preparation, the game, the benchmark — but every short
+    /// request/response call here inherits it too, and several of them hold the operation
+    /// coordinator while they wait. A child that stalls therefore also holds admission state, so
+    /// shutdown and reconciliation queue behind it.
+    ///
+    /// The two pipes are drained on their own threads. `Command::output()` gets the same
+    /// concurrency from the runtime; reading one to the end and then the other would deadlock
+    /// against a child that fills the pipe being read second.
+    pub(crate) fn output_within(&mut self, budget: Duration) -> std::io::Result<Output> {
+        let mut child = self
+            .prepared()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+        let stdout = drain(child.stdout.take());
+        let stderr = drain(child.stderr.take());
+        let deadline = Instant::now() + budget;
+        loop {
+            if let Some(status) = child.try_wait()? {
+                return Ok(Output {
+                    status,
+                    stdout: collect(stdout),
+                    stderr: collect(stderr),
+                });
+            }
+            if Instant::now() >= deadline {
+                // Terminate and reap this exact child rather than leaving it to the OS, so a
+                // timed-out request cannot leave a Java process holding the install behind it.
+                let _ = child.kill();
+                let _ = child.wait();
+                // The readers are deliberately not joined. Killing the child closes only the pipe
+                // ends it holds; anything it spawned that inherited them keeps a writer open, and
+                // joining would block on a process this request never owned — which is the wait
+                // the budget exists to end. The threads exit when the last writer closes, and
+                // MAX_CAPTURED_BYTES bounds what they hold until then.
+                drop(stdout);
+                drop(stderr);
+                return Err(std::io::Error::new(
+                    ErrorKind::TimedOut,
+                    format!(
+                        "the Preflight engine didn't answer within {} seconds",
+                        budget.as_secs()
+                    ),
+                ));
+            }
+            std::thread::sleep(POLL_INTERVAL);
+        }
     }
 
     pub(crate) fn spawn(&mut self) -> std::io::Result<Child> {
@@ -168,6 +237,32 @@ impl EngineCommand {
             args: Vec::new(),
         }
     }
+}
+
+/// Reads one pipe to its end on its own thread, keeping at most [`MAX_CAPTURED_BYTES`]. Reading
+/// continues past the cap so the child never blocks on a full pipe; the excess is discarded.
+fn drain<R: Read + Send + 'static>(pipe: Option<R>) -> JoinHandle<Vec<u8>> {
+    std::thread::spawn(move || {
+        let mut captured = Vec::new();
+        let Some(mut pipe) = pipe else {
+            return captured;
+        };
+        let mut buffer = [0u8; 16 * 1024];
+        while let Ok(read) = pipe.read(&mut buffer) {
+            if read == 0 {
+                break;
+            }
+            let room = MAX_CAPTURED_BYTES.saturating_sub(captured.len());
+            if room > 0 {
+                captured.extend_from_slice(&buffer[..read.min(room)]);
+            }
+        }
+        captured
+    })
+}
+
+fn collect(reader: JoinHandle<Vec<u8>>) -> Vec<u8> {
+    reader.join().unwrap_or_default()
 }
 
 /// Returns `args` unchanged when every argument is ASCII, otherwise the sentinel-marked Base64
@@ -360,7 +455,7 @@ fn launch_settings_json(
     }
     command.arg("--game").arg(directory).arg("--json");
     let output = command
-        .output()
+        .output_within(MUTATION_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -552,7 +647,7 @@ fn profile_json(
         .arg(directory)
         .arg("--json");
     let output = command
-        .output()
+        .output_within(MUTATION_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() && !(accepts_refusal && output.status.code() == Some(2)) {
         return Err(child_error(
@@ -575,7 +670,7 @@ pub(crate) fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value
     }
 
     let output = command
-        .output()
+        .output_within(READ_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -598,7 +693,7 @@ pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
         .arg("--game")
         .arg(directory);
     let output = command
-        .output()
+        .output_within(READ_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -668,7 +763,7 @@ fn cache_health_json(
     let mut command = paths.command();
     configure_cache_health_command(&mut command, &directory, expected_profile);
     let output = command
-        .output()
+        .output_within(READ_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() && output.status.code() != Some(3) {
         return Err(child_error(
@@ -746,7 +841,7 @@ fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value,
         command.arg("--yes");
     }
     let output = command
-        .output()
+        .output_within(MUTATION_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() && output.status.code() != Some(3) {
         return Err(child_error(
@@ -807,7 +902,7 @@ fn removal_json(app: &AppHandle, scope: &str, apply: bool) -> Result<Value, Stri
         command.arg("--yes");
     }
     let output = command
-        .output()
+        .output_within(MUTATION_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -868,7 +963,7 @@ pub(crate) fn export_diagnostics(app: AppHandle, output: String) -> Result<Value
         .arg("--overwrite")
         .arg("--json");
     let output = command
-        .output()
+        .output_within(MUTATION_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
@@ -888,6 +983,136 @@ fn configure_child_process(command: &mut Command) {
 
 #[cfg(not(windows))]
 fn configure_child_process(_command: &mut Command) {}
+
+#[cfg(all(test, unix))]
+mod bounded_request_tests {
+    use super::EngineCommand;
+    use std::io::ErrorKind;
+    use std::time::{Duration, Instant};
+
+    /// A stand-in engine, driven by `sh` so the child's behaviour is written where it is read.
+    /// Unix-only: the point is the wait, kill, and reap around the child rather than the child, and
+    /// CI runs these on Linux and macOS. Windows exercises the same code path through the product.
+    fn fake_engine(script: &str) -> EngineCommand {
+        let mut command = EngineCommand::for_test("sh");
+        command.arg("-c").arg(script);
+        command
+    }
+
+    #[test]
+    fn a_child_that_never_exits_fails_within_its_budget() {
+        let started = Instant::now();
+
+        let error = fake_engine("sleep 600")
+            .output_within(Duration::from_millis(300))
+            .expect_err("a child that never exits must not be waited on forever");
+
+        assert_eq!(error.kind(), ErrorKind::TimedOut);
+        assert!(error.to_string().contains("didn't answer"), "{error}");
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn a_stalled_child_filling_both_pipes_still_times_out() {
+        // Both pipes are filled well past any pipe buffer and then the child stalls. A reader that
+        // drained stdout to its end before touching stderr would block here rather than time out.
+        let started = Instant::now();
+
+        let error =
+            fake_engine("yes out | head -c 2000000; yes err | head -c 2000000 1>&2; sleep 600")
+                .output_within(Duration::from_secs(2))
+                .expect_err("a stalled child must time out even after filling both pipes");
+
+        assert_eq!(error.kind(), ErrorKind::TimedOut);
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn a_timed_out_child_is_terminated_rather_than_left_running() {
+        // The child records its own liveness. If the timeout only abandoned it, the marker would
+        // keep growing after the request gave up.
+        let directory =
+            std::env::temp_dir().join(format!("preflight-bounded-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("temporary directory");
+        let marker = directory.join("alive");
+        let script = format!(
+            "while true; do echo tick >> {}; sleep 0.05; done",
+            marker.display()
+        );
+
+        let error = fake_engine(&script)
+            .output_within(Duration::from_millis(400))
+            .expect_err("the request must time out");
+        assert_eq!(error.kind(), ErrorKind::TimedOut);
+
+        let after_timeout = std::fs::metadata(&marker)
+            .map(|data| data.len())
+            .unwrap_or(0);
+        std::thread::sleep(Duration::from_millis(600));
+        let later = std::fs::metadata(&marker)
+            .map(|data| data.len())
+            .unwrap_or(0);
+
+        std::fs::remove_dir_all(&directory).ok();
+        assert_eq!(later, after_timeout, "the timed-out child kept running");
+    }
+
+    #[test]
+    fn an_ordinary_request_still_returns_its_output_and_status() {
+        let output = fake_engine("printf answer; printf trouble 1>&2")
+            .output_within(Duration::from_secs(30))
+            .expect("an ordinary request succeeds");
+
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "answer");
+        assert_eq!(String::from_utf8_lossy(&output.stderr), "trouble");
+    }
+
+    #[test]
+    fn a_failing_request_keeps_its_exit_status_and_stderr() {
+        let output = fake_engine("printf refused 1>&2; exit 2")
+            .output_within(Duration::from_secs(30))
+            .expect("a nonzero exit is a result, not an error");
+
+        assert_eq!(output.status.code(), Some(2));
+        assert_eq!(String::from_utf8_lossy(&output.stderr), "refused");
+    }
+
+    #[test]
+    fn a_later_request_works_after_one_timed_out() {
+        let timed_out = fake_engine("sleep 600").output_within(Duration::from_millis(300));
+        assert_eq!(
+            timed_out.expect_err("first request times out").kind(),
+            ErrorKind::TimedOut
+        );
+
+        let output = fake_engine("printf recovered")
+            .output_within(Duration::from_secs(30))
+            .expect("the next request is unaffected");
+
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "recovered");
+    }
+
+    #[test]
+    fn captured_output_is_capped_without_stalling_the_child() {
+        // 24 MiB past the 8 MiB cap. The child must still run to completion — the reader keeps
+        // draining past the cap and discards the excess rather than letting the pipe fill.
+        let output = fake_engine("yes preflight | head -c 25165824")
+            .output_within(Duration::from_secs(60))
+            .expect("a loud child still completes");
+
+        assert!(output.status.success());
+        assert_eq!(output.stdout.len(), super::MAX_CAPTURED_BYTES);
+    }
+}
 
 #[cfg(test)]
 mod tests {

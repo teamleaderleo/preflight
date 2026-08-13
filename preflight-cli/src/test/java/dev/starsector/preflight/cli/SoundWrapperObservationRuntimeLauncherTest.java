@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -227,6 +228,6 @@ class SoundWrapperObservationRuntimeLauncherTest {
     }
 
     private static String javaName() {
-        return System.getProperty("os.name", "").toLowerCase().contains("win") ? "java.exe" : "java";
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "java.exe" : "java";
     }
 }

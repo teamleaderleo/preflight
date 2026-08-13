@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -68,7 +69,7 @@ class SyntheticGeneratedBytecodeCrossProcessTest {
     }
 
     private static String launch(Path cache, Path report) throws Exception {
-        String executable = System.getProperty("os.name", "").toLowerCase().contains("win")
+        String executable = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")
                 ? "java.exe"
                 : "java";
         Path java = Path.of(System.getProperty("java.home"), "bin", executable);

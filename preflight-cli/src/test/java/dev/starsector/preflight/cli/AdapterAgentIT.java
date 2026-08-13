@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.JarFile;
 import jdk.jfr.consumer.RecordingFile;
@@ -200,7 +201,7 @@ class AdapterAgentIT {
     }
 
     private static String executable(String name) {
-        return System.getProperty("os.name", "").toLowerCase().contains("win") ? name + ".exe" : name;
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? name + ".exe" : name;
     }
 
     private record ProcessResult(boolean completed, int exitCode, String output) {
