@@ -253,7 +253,6 @@ test("blocks installation and preparation mutations while the game is running", 
 
   await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
   await waitFor(() => expect(game).toHaveBeenCalled());
-  expect(screen.getByRole("button", { name: "Refresh installation status" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Change Starsector installation" })).toBeDisabled();
 
   await user.click(screen.getByRole("button", { name: "Preflight" }));
@@ -266,6 +265,36 @@ test("blocks installation and preparation mutations while the game is running", 
   expect(screen.queryByRole("button", { name: /Calculating|Prepare current profile/ })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review cleanup" })).toBeDisabled();
 
+  game.mockRestore();
+});
+
+test("re-reads the installation when the window is focused again", async () => {
+  const snapshot = vi.spyOn(bridge, "getSnapshot");
+  render(<App />);
+  await screen.findByText("Ready");
+  const onMount = snapshot.mock.calls.length;
+
+  window.dispatchEvent(new Event("focus"));
+
+  await waitFor(() => expect(snapshot.mock.calls.length).toBeGreaterThan(onMount));
+  snapshot.mockRestore();
+});
+
+test("returning to the window does not re-read the installation while the game runs", async () => {
+  const user = userEvent.setup();
+  const game = vi.spyOn(bridge, "startGame").mockImplementation(() => new Promise(() => undefined));
+  const snapshot = vi.spyOn(bridge, "getSnapshot");
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+  await waitFor(() => expect(game).toHaveBeenCalled());
+  const whileRunning = snapshot.mock.calls.length;
+
+  window.dispatchEvent(new Event("focus"));
+  await Promise.resolve();
+
+  expect(snapshot.mock.calls.length).toBe(whileRunning);
+  snapshot.mockRestore();
   game.mockRestore();
 });
 

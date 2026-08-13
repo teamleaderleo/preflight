@@ -256,6 +256,36 @@ export default function App() {
     || profilesState.profileBusy
     || removal.busy
     || updates.updateInstalling;
+  /**
+   * The snapshot describes files on disk: which installation is selected, whether it is usable,
+   * and whether a prepared cache exists. Preflight already re-reads it on start, after a launch,
+   * and when the game exits, so the only way it goes stale is the disk changing behind the app --
+   * the game installed, moved, or a cache deleted in Finder. That always means leaving Preflight
+   * and coming back, so watch for the return rather than have every page carry a button for it.
+   *
+   * <p>The guard matters: a refresh publishes installation status, and doing that during a
+   * preparation or a running game is the failure {@code setInstallationStatus} exists to contain.
+   */
+  const refreshOnReturn = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    refreshOnReturn.current = () => {
+      if (operationBlocked || status === "loading") return;
+      void refresh(snapshot?.selected?.installRoot);
+    };
+  });
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState === "hidden") return;
+      refreshOnReturn.current();
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, []);
+
   const activeOperation = preparing
     ? { reason: `Preparing this mod setup · ${preparation.preparationPercent}% complete`, owner: "home" as Page }
     : cacheRepairing
@@ -302,10 +332,8 @@ export default function App() {
       isReady={isReady}
       updateAvailable={Boolean(updateStatus?.available)}
       engineVersion={snapshot?.engineVersion ?? "…"}
-      refreshDisabled={operationBlocked}
       theme={theme.preference}
       onPageChange={setPage}
-      onRefresh={() => void refresh(snapshot?.selected?.installRoot)}
       onThemeChange={theme.setPreference}
     >
         {activeOperation && page !== activeOperation.owner ? (
