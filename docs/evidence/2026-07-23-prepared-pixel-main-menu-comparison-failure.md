@@ -135,6 +135,12 @@ The prepared launcher emitted its final reviewed texture marker and then remaine
 
 The compatibility half began game loading roughly three to four seconds after its final launcher marker. The merged detector used only a 1.5-second launcher quiet confirmation. This does not prove that early clicking caused the resource-resolution failure, but it is an order-sensitive difference that the replacement harness must remove.
 
+## Later vanilla fast-relaunch reproduction
+
+On 2026-07-24 the same class of `Error loading [...] resource, not found in [...]` fatal was reproduced manually with the plain Starsector launcher, the full mod set, and no Preflight, after quitting during loading and relaunching within a couple of seconds. The printed resource-search path was complete and the reported missing file was still present and byte-identical on disk; a later reproduction named a mod mission rather than the core mission above.
+
+That reproduction materially weakens an attribution of this failure class to Preflight or the texture adapter, but it does not by itself establish a single universal cause. It also means a disk-state guard based only on file presence and hashing cannot detect this particular failure when the runtime cannot resolve a file that remains present and unchanged.
+
 ## Required repair
 
 Before one replacement comparison is authorized, the runner must:
