@@ -48,11 +48,21 @@ from heat alone, ten times the effect it was trying to measure. `--cooldown-seco
 launches so each starts from the same thermal state. Held at a steady temperature, run-to-run
 variance is small.
 
-Two numbers to sanity-check any result against, both on the game-log-start to main-menu clock: the
-accepted `vanilla` medians for the reviewed 83-mod profile are **88.13s** and **88.49s** (five runs
-each, `docs/evidence/2026-08-01-*`), and `fast` reaches the menu in the high teens. A one-off that
-disagrees is usually a different condition or a different clock, not a discovery — the phase
-probe's own `elapsedMillis` is anchored at agent premain, which is neither end of that interval.
+Numbers to sanity-check a result against, all on the game-log-start to main-menu clock:
+
+- `vanilla`, reviewed 83-mod profile: **88.13s** and **88.49s** medians, five runs each
+  (`docs/evidence/2026-08-01-*`).
+- `fast`, fastest warm launch: **15.88s**, from the 2026-08-06 gates (16.66 / 16.28 / 15.88).
+
+**A probe reads about a second slower than a gate**, because the gates do not carry
+`--startup-phase-probe` and probing is not free: a `--mode fast` probe measured 16.91s against that
+15.88s record. Adjust before calling a probe result a regression.
+
+The phase probe's own `elapsedMillis` is anchored at agent premain, which is neither end of the
+log-clock interval. Do not put the two side by side.
+
+All of these are launch times with the profile already prepared. Building that profile is
+`preflight prepare`, a separate one-off command — not a cost hiding inside a cold launch.
 | `run-gameplay-pilot.sh [--game DIR] [--label NAME]` | One combat pilot with every beta probe on. Needs a human: load a campaign, open a simulation, raise the DP cap, deploy capitals, fight three to five minutes, exit normally. Reports which exact adapters applied and what their paths cost. |
 
 ## Read what a launch produced
