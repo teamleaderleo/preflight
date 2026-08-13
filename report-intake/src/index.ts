@@ -75,15 +75,8 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
   if (body.bytes < 1 || body.bytes > maxUploadBytes) throw new HttpError(413, "archive size is outside the allowed range");
 
   const now = new Date();
-  const quota = env.DAILY_REPORT_QUOTA.getByName(now.toISOString().slice(0, 10));
-  const reservation = await quota.reserve(body.bytes, DAILY_GRANT_LIMIT_BYTES);
-  if (!reservation.accepted) {
-    throw new HttpError(429, "daily report intake capacity has been reached", {
-      "retry-after": String(secondsUntilNextUtcDay(now)),
-    });
-  }
-
   const nowSeconds = Math.floor(now.getTime() / 1000);
+  const quotaDay = now.toISOString().slice(0, 10);
   const caseId = crypto.randomUUID();
   const objectKey = `accepted/${caseId}.zip`;
   const base = {
@@ -93,6 +86,7 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
     productVersion: body.productVersion,
     bytes: body.bytes,
     sha256: body.sha256,
+    quotaDay,
   };
   const uploadClaims: GrantClaims = {
     ...base,
@@ -104,6 +98,28 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
     purpose: "delete",
     exp: nowSeconds + (positiveInteger(env.RETENTION_DAYS, "RETENTION_DAYS") + 2) * 86400,
   };
+
+  // Sign before reserving capacity so a bad signing configuration cannot consume quota with cases
+  // that can never be used or deleted.
+  const uploadToken = await signGrant(env.REPORT_SIGNING_KEY, uploadClaims);
+  const deleteToken = await signGrant(env.REPORT_SIGNING_KEY, deleteClaims);
+  const quota = env.DAILY_REPORT_QUOTA.getByName(quotaDay);
+  const reservation = await quota.reserve(
+    caseId,
+    body.bytes,
+    grantExpiryMillis(uploadClaims.exp),
+    DAILY_GRANT_LIMIT_BYTES,
+    now.getTime(),
+  );
+  if (!reservation.accepted) {
+    throw new HttpError(429, "daily report intake capacity has been reached", {
+      "retry-after": String(Math.min(
+        positiveInteger(env.GRANT_TTL_SECONDS, "GRANT_TTL_SECONDS"),
+        secondsUntilNextUtcDay(now),
+      )),
+    });
+  }
+
   return json({
     protocolVersion: PROTOCOL_VERSION,
     caseId,
@@ -112,17 +128,17 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
       url: new URL(`/v1/cases/${caseId}/archive`, publicOrigin(env)).toString(),
       contentType: ZIP_CONTENT_TYPE,
       expiresAt: new Date(uploadClaims.exp * 1000).toISOString(),
-      token: await signGrant(env.REPORT_SIGNING_KEY, uploadClaims),
+      token: uploadToken,
     },
     finalize: {
       method: "POST",
       url: new URL(`/v1/cases/${caseId}/finalize`, publicOrigin(env)).toString(),
-      token: await signGrant(env.REPORT_SIGNING_KEY, uploadClaims),
+      token: uploadToken,
     },
     deletion: {
       method: "DELETE",
       url: new URL(`/v1/cases/${caseId}`, publicOrigin(env)).toString(),
-      token: await signGrant(env.REPORT_SIGNING_KEY, deleteClaims),
+      token: deleteToken,
     },
   }, 201);
 }
@@ -137,6 +153,19 @@ async function uploadArchive(request: Request, env: IntakeEnv, caseId: string): 
   if (length !== claims.bytes) throw new HttpError(400, "content-length doesn't match the grant");
   const maxUploadBytes = positiveInteger(env.MAX_UPLOAD_BYTES, "MAX_UPLOAD_BYTES");
   if (length > maxUploadBytes) throw new HttpError(413, "archive is too large");
+
+  const quota = quotaForClaims(env, claims);
+  if (quota) {
+    const now = Date.now();
+    const leaseState = await quota.beginUpload(
+      caseId,
+      now + positiveInteger(env.GRANT_TTL_SECONDS, "GRANT_TTL_SECONDS") * 1000,
+      now,
+    );
+    if (leaseState === "missing") throw new HttpError(409, "this case reservation is no longer active");
+    if (leaseState === "committed") throw new HttpError(409, "this case already has an uploaded archive");
+  }
+
   const bytes = new Uint8Array(await request.arrayBuffer());
   if (bytes.byteLength !== claims.bytes) throw new HttpError(400, "received byte count doesn't match the grant");
   const digest = await sha256Hex(bytes);
@@ -173,7 +202,21 @@ async function uploadArchive(request: Request, env: IntakeEnv, caseId: string): 
       contentBytes: String(bundle.contentBytes),
     },
   });
-  if (!stored) throw new HttpError(409, "this case already has an uploaded archive");
+  if (!stored) {
+    // A Worker interruption can occur after the immutable R2 write but before quota commit. Repair
+    // that narrow split-brain on replay, while still returning the established immutable-upload 409.
+    if (quota) {
+      const existing = await env.REPORTS.head(claims.objectKey);
+      if (existing && storedObjectMatches(existing, claims, caseId)) await quota.commit(caseId);
+    }
+    throw new HttpError(409, "this case already has an uploaded archive");
+  }
+  if (quota && !await quota.commit(caseId)) {
+    // The upload lease should make this unreachable. If the Durable Object state disappeared,
+    // remove the just-written object instead of retaining storage outside the daily quota contract.
+    await env.REPORTS.delete(claims.objectKey);
+    throw new HttpError(409, "this case reservation expired before the archive could be committed");
+  }
   return json({ status: "uploaded", caseId, bytes: bytes.byteLength, sha256: digest });
 }
 
@@ -212,6 +255,8 @@ async function finalizeCase(request: Request, env: IntakeEnv, caseId: string): P
 async function deleteCase(request: Request, env: IntakeEnv, caseId: string): Promise<Response> {
   const claims = await authorized(request, env, "delete", caseId);
   await env.REPORTS.delete(claims.objectKey);
+  const quota = quotaForClaims(env, claims);
+  if (quota) await quota.release(caseId);
   return new Response(null, { status: 204 });
 }
 
@@ -228,6 +273,17 @@ async function authorized(
   } catch {
     throw new HttpError(401, "invalid or expired bearer grant");
   }
+}
+
+function quotaForClaims(env: IntakeEnv, claims: GrantClaims): DurableObjectStub<DailyReportQuota> | undefined {
+  return claims.quotaDay ? env.DAILY_REPORT_QUOTA.getByName(claims.quotaDay) : undefined;
+}
+
+function storedObjectMatches(object: R2Object, claims: GrantClaims, caseId: string): boolean {
+  const metadata = object.customMetadata ?? {};
+  return object.size === claims.bytes
+    && metadata.sha256 === claims.sha256
+    && metadata.caseId === caseId;
 }
 
 async function boundedJson(request: Request, limit: number): Promise<unknown> {
@@ -299,6 +355,12 @@ function requiredMetadata(metadata: Record<string, string>, name: string): strin
   const value = metadata[name];
   if (!value) throw new HttpError(409, `stored archive is missing ${name}`);
   return value;
+}
+
+function grantExpiryMillis(expSeconds: number): number {
+  // verifyGrant accepts a token through the named expiry second (`exp < now`), so keep the lease
+  // alive until the following millisecond boundary as well.
+  return (expSeconds + 1) * 1000;
 }
 
 function secondsUntilNextUtcDay(now: Date): number {
