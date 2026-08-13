@@ -1,8 +1,11 @@
 package dev.starsector.preflight.agent;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import jdk.jfr.Recording;
 import jdk.jfr.RecordingState;
@@ -61,20 +64,57 @@ final class RecordingStopController {
                 return;
             }
             boolean written = PreflightAgent.stopRecording(recording, destination);
-            Files.writeString(
-                    complete,
-                    written ? "ok\n" : "recording-stop-failed\n",
-                    StandardCharsets.UTF_8);
+            publishCompletion(complete, written ? "ok\n" : "recording-stop-failed\n");
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         } catch (Throwable error) {
             try {
-                Files.writeString(
+                publishCompletion(
                         complete,
-                        "recording-stop-failed: " + error.getClass().getSimpleName() + "\n",
-                        StandardCharsets.UTF_8);
+                        "recording-stop-failed: " + error.getClass().getSimpleName() + "\n");
             } catch (Throwable ignored) {
                 // The ordinary shutdown fallback remains available.
+            }
+        }
+    }
+
+    /**
+     * Publishes the terminal response as one filesystem transition.
+     *
+     * <p>The reader treats existence of {@code complete} as acknowledgement. Writing directly to
+     * that path creates/truncates the file before all response bytes are necessarily visible, so a
+     * fast reader can observe a regular zero-length file and mistake a successful stop for failure.
+     * Finish the bytes under a private sibling name first and only then expose the terminal path.
+     */
+    static void publishCompletion(Path complete, String response) throws Exception {
+        Path absolute = complete.toAbsolutePath().normalize();
+        Path parent = absolute.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        Path temporary = absolute.resolveSibling(
+                absolute.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
+        boolean moved = false;
+        try {
+            Files.writeString(
+                    temporary,
+                    response,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE_NEW,
+                    StandardOpenOption.WRITE);
+            try {
+                Files.move(
+                        temporary,
+                        absolute,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
+            }
+            moved = true;
+        } finally {
+            if (!moved) {
+                Files.deleteIfExists(temporary);
             }
         }
     }
