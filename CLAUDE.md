@@ -13,20 +13,20 @@ where the time went, and `scripts/run-startup-benchmark.sh --unattended` is the 
 `preflight run` is the launcher, not a measurement: it never exits on its own, and a launch left
 running holds ~4 GB and a GPU context and poisons everything measured after it.
 
-## One observation is not a finding
+## Write what you saw, not what it means
 
-Say a fresh result in chat. Do not write it into a durable file until it has survived something —
-a citation to existing evidence, a second run, or a check that it is even the same condition and
-the same clock as the thing you are comparing it against.
+Fresh results are worth saying and worth writing down. What they are not is settled. A number you
+got a minute ago is a number, not an explanation of itself, and the difference shows up in how it
+is phrased: "one run, uncooled, 16.9s" survives being wrong. "Warm caches account for the gap"
+does not, and the next agent reads it as established.
 
-A number you got a minute ago is a number, not an explanation of itself. Writing the explanation
-down immediately is how a reference doc ends up carrying a guess that the next agent reads as
-established, and how one paragraph gets rewritten three times in an afternoon while its author
-works out what they actually saw. The measurement was real every time; the story attached to it
-was not.
+So write freely, and mark the status. Say which run, which condition, which clock, and say when
+something is a guess. A guess labelled as a guess is useful; the same sentence stated flat is what
+gets rewritten three times in an afternoon while its author works out what they actually saw.
 
-This applies hardest to `scripts/README.md`, `docs/evidence/`, and the handoff — the files that
-exist so nobody has to re-derive anything.
+Before a claim becomes flat statement in `scripts/README.md`, `docs/evidence/`, or the handoff —
+the files that exist so nobody has to re-derive anything — it wants a citation, a second run, or a
+check that it is even the same condition and the same clock as what it is being compared against.
 
 ## Verify once, at the right level, then move on
 
