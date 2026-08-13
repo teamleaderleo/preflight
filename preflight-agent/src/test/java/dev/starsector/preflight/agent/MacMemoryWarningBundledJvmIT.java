@@ -3,6 +3,7 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ class MacMemoryWarningBundledJvmIT {
         command.add(MacMemoryWarningProcessProbeChild.class.getName());
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         assertTrue(process.waitFor(10L, TimeUnit.SECONDS));
-        String output = new String(process.getInputStream().readAllBytes());
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertEquals(0, process.exitValue(), output);
         assertTrue(output.contains("\"corrections\":1"), output);
         assertTrue(output.contains("\"probeFailures\":0"), output);

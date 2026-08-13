@@ -1,8 +1,11 @@
 package dev.starsector.preflight.agent;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import jdk.jfr.Recording;
 import jdk.jfr.RecordingState;
@@ -61,21 +64,34 @@ final class RecordingStopController {
                 return;
             }
             boolean written = PreflightAgent.stopRecording(recording, destination);
-            Files.writeString(
-                    complete,
-                    written ? "ok\n" : "recording-stop-failed\n",
-                    StandardCharsets.UTF_8);
+            publish(complete, written ? "ok\n" : "recording-stop-failed\n");
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         } catch (Throwable error) {
             try {
-                Files.writeString(
-                        complete,
-                        "recording-stop-failed: " + error.getClass().getSimpleName() + "\n",
-                        StandardCharsets.UTF_8);
+                publish(complete, "recording-stop-failed: " + error.getClass().getSimpleName() + "\n");
             } catch (Throwable ignored) {
                 // The ordinary shutdown fallback remains available.
             }
+        }
+    }
+
+    /**
+     * Publishes the acknowledgement through a temporary file.
+     *
+     * <p>Whoever asked for the stop is polling for this file and reads it as soon as it exists.
+     * Writing in place creates and truncates before writing, so that reader can catch the file
+     * existing and still empty and conclude the stop failed. The rename makes the file appear
+     * only once it holds the whole answer.
+     */
+    static void publish(Path complete, String acknowledgement) throws IOException {
+        Path temporary = complete.resolveSibling(complete.getFileName() + ".tmp");
+        Files.writeString(temporary, acknowledgement, StandardCharsets.UTF_8);
+        try {
+            Files.move(temporary, complete, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException notAtomic) {
+            Files.move(temporary, complete, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 }

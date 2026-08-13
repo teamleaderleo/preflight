@@ -49,6 +49,8 @@ describe("private report intake", () => {
       bytes: archive.byteLength,
       sha256: await sha256Hex(archive),
     });
+    const quota = quotaFor(quotaDayFromToken(grant.upload.token));
+    expect(await quota.beginUpload(grant.caseId, Date.now() + 60_000)).toBe("committed");
 
     const finalize = await dispatch(new IncomingRequest(grant.finalize.url, {
       method: "POST",
@@ -75,6 +77,22 @@ describe("private report intake", () => {
     }));
     expect(removed.status).toBe(204);
     expect((await env.REPORTS.list()).objects).toHaveLength(0);
+    expect(await quota.beginUpload(grant.caseId, Date.now() + 60_000)).toBe("committed");
+  });
+
+  it("releases an uncommitted reservation when its case is explicitly deleted", async () => {
+    const archive = await bundle();
+    const grant = await createGrant(archive);
+    const quota = quotaFor(quotaDayFromToken(grant.deletion.token));
+
+    expect(await quota.beginUpload(grant.caseId, Date.now() + 60_000)).toBe("active");
+    const removed = await dispatch(new IncomingRequest(grant.deletion.url, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${grant.deletion.token}` },
+    }));
+
+    expect(removed.status).toBe(204);
+    expect(await quota.beginUpload(grant.caseId, Date.now() + 60_000)).toBe("missing");
   });
 
   it("rejects a digest mismatch without storing the body", async () => {
@@ -233,6 +251,23 @@ describe("private report intake", () => {
     expect((await env.REPORTS.list()).objects).toHaveLength(1);
   });
 
+  it("keeps a deleted accepted case closed to upload replay", async () => {
+    const archive = await bundle();
+    const grant = await createGrant(archive);
+    expect((await upload(grant, archive)).status).toBe(200);
+
+    const removed = await dispatch(new IncomingRequest(grant.deletion.url, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${grant.deletion.token}` },
+    }));
+    expect(removed.status).toBe(204);
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+
+    const replay = await upload(grant, archive);
+    expect(replay.status).toBe(409);
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
   it("requires the exact versioned create-case schema", async () => {
     const response = await dispatch(new IncomingRequest("https://intake.test/v1/cases", {
       method: "POST",
@@ -268,15 +303,46 @@ describe("private report intake", () => {
     expect(await rejected.json()).toEqual({ error: "too many report cases" });
   });
 
-  it("enforces exact byte reservations within each UTC-day quota object", async () => {
-    const firstDay = quotaFor(`test-day-one-${crypto.randomUUID()}`);
-    expect(await firstDay.reserve(6, 10)).toEqual({ accepted: true, usedBytes: 6 });
-    expect(await firstDay.reserve(5, 10)).toEqual({ accepted: false, usedBytes: 6 });
-    expect(await firstDay.reserve(4, 10)).toEqual({ accepted: true, usedBytes: 10 });
-    expect(await firstDay.reserve(1, 10)).toEqual({ accepted: false, usedBytes: 10 });
+  it("reclaims expired quota leases without reducing committed usage", async () => {
+    const quota = quotaFor(`test-quota-${crypto.randomUUID()}`);
+    const now = 1_000_000;
+    const first = crypto.randomUUID();
+    const second = crypto.randomUUID();
+    const third = crypto.randomUUID();
 
-    const secondDay = quotaFor(`test-day-two-${crypto.randomUUID()}`);
-    expect(await secondDay.reserve(10, 10)).toEqual({ accepted: true, usedBytes: 10 });
+    expect(await quota.reserve(first, 6, now + 100, 10, now))
+      .toEqual({ accepted: true, usedBytes: 6 });
+    expect(await quota.reserve(second, 5, now + 100, 10, now))
+      .toEqual({ accepted: false, usedBytes: 6 });
+
+    expect(await quota.reserve(second, 5, now + 300, 10, now + 101))
+      .toEqual({ accepted: true, usedBytes: 5 });
+    expect(await quota.commit(second)).toBe(true);
+    expect(await quota.commit(second)).toBe(true);
+    expect(await quota.release(second)).toBe(false);
+
+    expect(await quota.reserve(third, 6, now + 600, 10, now + 400))
+      .toEqual({ accepted: false, usedBytes: 5 });
+    expect(await quota.reserve(third, 5, now + 600, 10, now + 400))
+      .toEqual({ accepted: true, usedBytes: 10 });
+  });
+
+  it("extends active upload leases and releases uncommitted capacity", async () => {
+    const quota = quotaFor(`test-lease-${crypto.randomUUID()}`);
+    const now = 2_000_000;
+    const first = crypto.randomUUID();
+    const second = crypto.randomUUID();
+
+    expect(await quota.reserve(first, 6, now + 100, 10, now))
+      .toEqual({ accepted: true, usedBytes: 6 });
+    expect(await quota.beginUpload(first, now + 500, now + 50)).toBe("active");
+    expect(await quota.reserve(second, 5, now + 300, 10, now + 150))
+      .toEqual({ accepted: false, usedBytes: 6 });
+
+    expect(await quota.release(first)).toBe(true);
+    expect(await quota.beginUpload(first, now + 600, now + 200)).toBe("missing");
+    expect(await quota.reserve(second, 10, now + 600, 10, now + 200))
+      .toEqual({ accepted: true, usedBytes: 10 });
   });
 
   it("runs the production canary client through upload, receipt, and verified deletion", async () => {
@@ -298,6 +364,38 @@ describe("private report intake", () => {
   it("refuses a production canary outside an exact HTTPS origin", async () => {
     await expect(runCanary("http://intake.test")).rejects.toThrow("exact configured HTTPS origin");
     await expect(runCanary("https://intake.test/path")).rejects.toThrow("exact configured HTTPS origin");
+  });
+
+  it("refuses to serve a placeholder intake origin however it is spelled", async () => {
+    // url.origin carries the port, so a ".invalid" check against it misses a port-suffixed
+    // placeholder. A trailing root dot names the same host too.
+    for (const origin of [
+      "https://reports.example.invalid",
+      "https://reports.example.invalid:8443",
+      "https://reports.example.invalid.",
+      "https://reports.example.INVALID",
+      "https://invalid",
+    ]) {
+      const response = await worker.fetch(
+        new IncomingRequest(new URL("/healthz", origin).toString()),
+        envWithOrigin(origin),
+      );
+
+      expect(response.status, origin).toBe(500);
+      expect(await response.json(), origin).toEqual({ error: "internal error" });
+    }
+  });
+
+  it("serves a configured non-placeholder origin on a non-default port", async () => {
+    const origin = "https://intake.test:8443";
+
+    const response = await worker.fetch(
+      new IncomingRequest(new URL("/healthz", origin).toString()),
+      envWithOrigin(origin),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok", protocolVersion: PROTOCOL_VERSION });
   });
 });
 
@@ -333,6 +431,11 @@ async function dispatch(incoming: Request<unknown, IncomingRequestCfProperties>)
   return worker.fetch(incoming, env as TestEnv);
 }
 
+/** `PUBLIC_ORIGIN` is generated as the deployed origin's literal type, so an override needs a cast. */
+function envWithOrigin(origin: string): TestEnv {
+  return { ...(env as TestEnv), PUBLIC_ORIGIN: origin } as unknown as TestEnv;
+}
+
 function quotaFor(name: string): DurableObjectStub<DailyReportQuota> {
   return env.DAILY_REPORT_QUOTA.getByName(name);
 }
@@ -343,6 +446,14 @@ function supportEvidence(source: string, fields: Record<string, unknown>): Uint8
     source,
     records: [{ fields }],
   }));
+}
+
+function quotaDayFromToken(token: string): string {
+  const payload = token.split(".", 1)[0].replaceAll("-", "+").replaceAll("_", "/");
+  const padded = payload + "=".repeat((4 - payload.length % 4) % 4);
+  const claims = JSON.parse(atob(padded)) as { quotaDay?: string };
+  if (!claims.quotaDay) throw new Error("test grant is missing quotaDay");
+  return claims.quotaDay;
 }
 
 async function bundle(

@@ -44,7 +44,7 @@ final class GameAudioDecoder {
     /** Signed 16-bit little-endian PCM, as the game holds it. */
     record Decoded(byte[] samples, int channels, int sampleRate) {
         long frames() {
-            return samples.length / (long) (channels * 2);
+            return samples.length / ((long) channels * 2L);
         }
     }
 
@@ -91,10 +91,17 @@ final class GameAudioDecoder {
         } catch (ReflectiveOperationException | RuntimeException failed) {
             return null;
         }
-        if (channelCount < 1 || sampleRate < 1 || samples.length == 0
-                || samples.length % (channelCount * 2) != 0) {
+        if (!validPcmShape(samples.length, channelCount, sampleRate)) {
             return null;
         }
         return new Decoded(samples, channelCount, sampleRate);
+    }
+
+    static boolean validPcmShape(int sampleBytes, int channelCount, int sampleRate) {
+        if (channelCount < 1 || sampleRate < 1 || sampleBytes < 1) {
+            return false;
+        }
+        long frameBytes = (long) channelCount * 2L;
+        return sampleBytes % frameBytes == 0;
     }
 }

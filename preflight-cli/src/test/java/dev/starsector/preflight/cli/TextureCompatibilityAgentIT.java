@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.JarEntry;
@@ -313,7 +314,7 @@ class TextureCompatibilityAgentIT {
     }
 
     private static String executable(String name) {
-        return System.getProperty("os.name", "").toLowerCase().contains("win") ? name + ".exe" : name;
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? name + ".exe" : name;
     }
 
     private record Fixture(

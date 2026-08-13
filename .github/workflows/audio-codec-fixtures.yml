@@ -6,7 +6,7 @@ on:
     paths:
       - 'preflight-core/src/main/java/dev/starsector/preflight/core/OggVorbisIdentification.java'
       - 'preflight-core/src/test/java/dev/starsector/preflight/core/OggVorbisGoldenFixtureTest.java'
-      - 'preflight-core/src/test/resources/audio/ogg-v1/**'
+      - 'preflight-core/src/main/resources/audio/ogg-v1/**'
       - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/InstalledJorbisEquivalence*.java'
       - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/SoundWrapperObservation*.java'
       - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightCli.java'
@@ -14,6 +14,7 @@ on:
       - 'preflight-cli/src/test/java/com/jcraft/jogg/**'
       - 'preflight-cli/src/test/java/com/jcraft/jorbis/**'
       - 'preflight-cli/src/test/java/sound/**'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AudioFixturePackagingIT.java'
       - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/InstalledJorbis*.java'
       - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/SoundWrapperObservation*.java'
       - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/StarsectorDiscoveryTest.java'
@@ -25,7 +26,7 @@ on:
     paths:
       - 'preflight-core/src/main/java/dev/starsector/preflight/core/OggVorbisIdentification.java'
       - 'preflight-core/src/test/java/dev/starsector/preflight/core/OggVorbisGoldenFixtureTest.java'
-      - 'preflight-core/src/test/resources/audio/ogg-v1/**'
+      - 'preflight-core/src/main/resources/audio/ogg-v1/**'
       - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/InstalledJorbisEquivalence*.java'
       - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/SoundWrapperObservation*.java'
       - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightCli.java'
@@ -33,6 +34,7 @@ on:
       - 'preflight-cli/src/test/java/com/jcraft/jogg/**'
       - 'preflight-cli/src/test/java/com/jcraft/jorbis/**'
       - 'preflight-cli/src/test/java/sound/**'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AudioFixturePackagingIT.java'
       - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/InstalledJorbis*.java'
       - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/SoundWrapperObservation*.java'
       - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/StarsectorDiscoveryTest.java'
@@ -69,7 +71,7 @@ jobs:
           from hashlib import sha256
           from pathlib import Path
 
-          root = Path("preflight-core/src/test/resources/audio/ogg-v1")
+          root = Path("preflight-core/src/main/resources/audio/ogg-v1")
           manifest = root / "encoded-ogg-parts.sha256"
           for line_number, raw in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
               digest, length, name = raw.split()
@@ -87,7 +89,7 @@ jobs:
             mvn --batch-mode --no-transfer-progress \
               -pl preflight-core,preflight-cli -am \
               -Dtest=OggVorbisGoldenFixtureTest,InstalledJorbisEquivalenceCommandTest,InstalledJorbisFixtureIdentityTest,SoundWrapperObservationCommandTest,SoundWrapperObservationChildTest,SoundWrapperObservationRuntimeLauncherTest,StarsectorDiscoveryTest \
-              -Dit.test=InstalledJorbisEquivalenceCommandIT,SoundWrapperObservationCommandIT,SoundWrapperObservationRuntimeLauncherIT \
+              -Dit.test=AudioFixturePackagingIT,InstalledJorbisEquivalenceCommandIT,SoundWrapperObservationCommandIT,SoundWrapperObservationRuntimeLauncherIT \
               -Dsurefire.failIfNoSpecifiedTests=false \
               verify >> "$log" 2>&1
             status=$?

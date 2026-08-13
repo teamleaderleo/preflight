@@ -341,6 +341,11 @@ final class StarsectorDiscovery {
         }
     }
 
+    /**
+     * Keep CWD convenience deterministic. An arbitrary workspace is not itself a recursive search
+     * root: inspect only exact launcher filenames beside the caller and a fixed set of likely
+     * Starsector child locations. Explicit/environment/platform roots retain the deeper inspection.
+     */
     private static void addImplicitWorkingDirectory(
             Set<Path> roots, Path currentDirectory, List<String> diagnostics) {
         if (currentDirectory == null) {
@@ -351,6 +356,20 @@ final class StarsectorDiscovery {
             diagnostics.add("Skipped filesystem root as an implicit discovery directory: " + normalized);
             return;
         }
-        roots.add(normalized);
+        EXACT_LAUNCHER_NAMES.stream()
+                .sorted()
+                .map(normalized::resolve)
+                .forEach(roots::add);
+        for (String relative : List.of(
+                "Starsector",
+                "starsector",
+                "Starsector.app",
+                "starsector.app",
+                "Games/Starsector",
+                "Games/starsector",
+                "Games/Starsector.app",
+                "Games/starsector.app")) {
+            roots.add(normalized.resolve(relative));
+        }
     }
 }

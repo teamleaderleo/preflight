@@ -85,6 +85,9 @@ export type GrantClaims = {
   bytes: number;
   sha256: string;
   exp: number;
+  // Internal quota routing for lease-aware grants. Optional so grants issued by the immediately
+  // previous Worker revision remain valid through their short TTL during a rolling deployment.
+  quotaDay?: string;
 };
 
 export type Receipt = {
