@@ -8,7 +8,7 @@ export function useRemoval(
   announce: Announce,
   clearCache: () => void,
   clearProfiles: () => void,
-  clearReportReceipt: () => void,
+  clearReportReceipt: () => void = () => undefined,
 ) {
   const [plan, setPlan] = useState<RemovalPlan | null>(null);
   const [busy, setBusy] = useState(false);
