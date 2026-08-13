@@ -1,4 +1,4 @@
-use crate::engine::{EnginePaths, canonical_game_directory};
+use crate::engine::{EnginePaths, READ_BUDGET, canonical_game_directory};
 use crate::operations::{OperationCoordinator, PreparationProcess, refuse_update_install};
 use crate::{RunStarted, child_error, read_tail, take_deferred_exit};
 use serde::{Deserialize, Serialize};
@@ -151,7 +151,7 @@ pub(crate) fn get_preparation_plan(
         .arg(texture_storage)
         .arg("--workers")
         .arg(workers.to_string())
-        .output()
+        .output_within(READ_BUDGET)
         .map_err(|error| format!("Could not calculate preparation storage: {error}"))?;
     if !output.status.success() {
         return Err(child_error(

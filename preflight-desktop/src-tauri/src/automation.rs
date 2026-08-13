@@ -1,4 +1,4 @@
-use crate::engine::bundled_resource_file;
+use crate::engine::{READ_BUDGET, bundled_resource_file};
 use crate::operations::{DesktopSmokeProcess, OperationCoordinator, refuse_update_install};
 use crate::{
     EnginePaths, RunStarted, canonical_game_directory, child_error, read_tail, take_deferred_exit,
@@ -54,7 +54,7 @@ fn validate_benchmark_scenario(paths: &EnginePaths, scenario: &Path) -> Result<(
         .arg("scenario")
         .arg("validate")
         .arg(scenario)
-        .output()
+        .output_within(READ_BUDGET)
         .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
     if !output.status.success() {
         return Err(child_error(
