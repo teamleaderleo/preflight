@@ -5,6 +5,7 @@ import { strToU8, zipSync } from "fflate";
 
 const PROTOCOL_VERSION = 1;
 const BUNDLE_FORMAT = "starsector-preflight-diagnostics-v1";
+const SUPPORT_EVIDENCE_FORMAT = "starsector-preflight-support-evidence-v1";
 const ZIP_CONTENT_TYPE = "application/zip";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
@@ -104,7 +105,11 @@ export async function runCanary(requestedOrigin, fetchImpl = fetch) {
 }
 
 export function canaryBundle(now = new Date()) {
-  const evidence = strToU8(`${JSON.stringify({ state: "production-canary", synthetic: true })}\n`);
+  const evidence = strToU8(JSON.stringify({
+    format: SUPPORT_EVIDENCE_FORMAT,
+    source: "run.json",
+    records: [{ fields: { state: "production-canary", status: "synthetic" } }],
+  }));
   const entry = "runs/1/run.json";
   const manifest = {
     format: BUNDLE_FORMAT,
