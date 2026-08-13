@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -41,7 +42,7 @@ final class MacDesktopSmokeDriverTest {
         for (String script : scripts) {
             assertTrue(script.contains("application process whose unix id is " + pid), script);
             assertTrue(script.contains("tell application \"System Events\""), script);
-            assertFalse(script.toLowerCase().contains("starsector"), script);
+            assertFalse(script.toLowerCase(Locale.ROOT).contains("starsector"), script);
             assertFalse(script.contains("open -a"), script);
             assertFalse(script.contains("tell application \"Starsector\""), script);
         }
