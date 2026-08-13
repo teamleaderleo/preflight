@@ -20,8 +20,39 @@ Each `foo.py` here has a `test_foo.py` beside it; they run under the repository'
 
 | | |
 |---|---|
-| `probe-launch.sh [--label NAME] [--game DIR] [--timeout-seconds N] [-- FLAGS]` | One direct launch with `--startup-phase-probe`, run to the main-menu marker, stopped, and printed as a phase table plus a per-plugin callback table. **The default choice when you want to know where startup time goes right now.** |
-| `run-startup-benchmark.sh --unattended` | The repeated campaign: conditions shuffled inside each round, resumable, and the report refuses a result below five runs per condition. Slow and unattended. **Use this to prove a change moved something**, not to look around. |
+| `probe-launch.sh [--mode NAME] [--label NAME] [--game DIR] [-- FLAGS]` | One direct launch with `--startup-phase-probe`, run to the main-menu marker, stopped, and printed as a phase table plus a per-plugin callback table. **The default choice when you want to know where startup time goes right now.** `--mode` defaults to `fast`. |
+| `run-startup-benchmark.sh --unattended [--conditions LIST] [--rounds N] [--cooldown-seconds N]` | The repeated campaign: conditions shuffled inside each round, resumable, and the report refuses a result below five runs per condition. Slow and unattended. **Use this to prove a change moved something**, not to look around. |
+
+Both name conditions from the same table, so the same word means the same flags in both:
+
+| mode / condition | what it launches | when you want it |
+|---|---|---|
+| `fast` | `--fast`, the shipped preset an installed launcher runs | where a real user's time goes |
+| `enabled` | `--adapter --texture-auto` | the prepared texture path |
+| `adapter` | `--adapter` alone | the least-optimized launch a **probe** can measure |
+| `prepared` | `enabled` plus prepared pixels, padding retained | prepared-pixel comparisons |
+| `vanilla` | the game's own launcher, no Preflight | the baseline — **harness only** |
+
+**There is no probed baseline.** `--startup-phase-probe` is implemented by the adapter, and
+`preflight run` refuses the two together, so the least-optimized probe still has adapters on and is
+not a baseline. `probe-launch.sh --mode vanilla` refuses and says so rather than printing a number
+someone will quote. For a baseline, or to compare one against an optimized launch:
+
+```bash
+scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast
+```
+
+The harness shuffles conditions inside each round instead of running them back to back, because the
+machine gets hotter as it goes: the 2026-08-01 campaign drifted **+19.6s across fifteen launches**
+from heat alone, ten times the effect it was trying to measure. `--cooldown-seconds` idles between
+launches so each starts from the same thermal state. Held at a steady temperature, run-to-run
+variance is small.
+
+Two numbers to sanity-check any result against, both on the game-log-start to main-menu clock: the
+accepted `vanilla` medians for the reviewed 83-mod profile are **88.13s** and **88.49s** (five runs
+each, `docs/evidence/2026-08-01-*`), and `fast` reaches the menu in the high teens. A one-off that
+disagrees is usually a different condition or a different clock, not a discovery — the phase
+probe's own `elapsedMillis` is anchored at agent premain, which is neither end of that interval.
 | `run-gameplay-pilot.sh [--game DIR] [--label NAME]` | One combat pilot with every beta probe on. Needs a human: load a campaign, open a simulation, raise the DP cap, deploy capitals, fight three to five minutes, exit normally. Reports which exact adapters applied and what their paths cost. |
 
 ## Read what a launch produced
