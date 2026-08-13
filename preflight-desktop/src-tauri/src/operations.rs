@@ -106,23 +106,13 @@ pub(crate) fn begin_update_install(
     Ok(UpdateInstallGuard { operations })
 }
 
+/** Refuse a mutation while another native operation owns the desktop mutation boundary. */
 pub(crate) fn refuse_update_install(state: &OperationState) -> Result<(), String> {
     if state.update_installing {
         Err("Wait for the Preflight update to finish installing.".to_string())
-    } else {
-        Ok(())
-    }
-}
-
-pub(crate) fn refuse_report_upload_for_removal(
-    state: &OperationState,
-    scope: &str,
-) -> Result<(), String> {
-    if scope == "all-data" && state.report_upload.is_some() {
-        Err(
-            "Wait for the run report upload to finish or cancel it before deleting all Preflight data."
-                .to_string(),
-        )
+    } else if state.report_upload.is_some() {
+        Err("Wait for the run report upload to finish or cancel it before making other changes."
+            .to_string())
     } else {
         Ok(())
     }
@@ -160,19 +150,12 @@ mod tests {
     }
 
     #[test]
-    fn all_data_removal_refuses_active_report_upload() {
+    fn ordinary_mutation_refuses_active_report_upload() {
         let state = state_with_report_upload();
 
         assert_eq!(
-            refuse_report_upload_for_removal(&state, "all-data").unwrap_err(),
-            "Wait for the run report upload to finish or cancel it before deleting all Preflight data."
+            refuse_update_install(&state).unwrap_err(),
+            "Wait for the run report upload to finish or cancel it before making other changes."
         );
-    }
-
-    #[test]
-    fn launcher_only_removal_may_coexist_with_report_upload() {
-        let state = state_with_report_upload();
-
-        assert!(refuse_report_upload_for_removal(&state, "launcher").is_ok());
     }
 }
