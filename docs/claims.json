@@ -1,0 +1,64 @@
+{
+  "format": "preflight-claims-v1",
+  "claims": [
+    {
+      "id": "development-83-mod-main-menu-20260806",
+      "status": "accepted",
+      "scope": "development",
+      "publicClaimEligibility": "development-context-only",
+      "gameBuild": "0.98a-RC8",
+      "profile": {
+        "description": "current 83-mod profile",
+        "modCount": 83
+      },
+      "environment": {
+        "platform": "macOS",
+        "hardware": "Apple M5",
+        "javaRuntime": "bundled x86-64 Zulu 17 under Rosetta"
+      },
+      "protocol": {
+        "id": "direct",
+        "document": "docs/startup-benchmark.md",
+        "measurement": "main-menu-time",
+        "clockBoundary": "direct unattended launch to main-menu marker"
+      },
+      "result": {
+        "seconds": 15.88
+      },
+      "evidence": {
+        "path": "docs/evidence/2026-08-06-codex-lazy-fleet-members.md",
+        "runId": "20260806-084118",
+        "condition": "fast-1"
+      },
+      "health": {
+        "adapterStatus": "ACTIVE",
+        "transformedClassCacheHits": 42,
+        "transformedClassCacheExpected": 42,
+        "preparedTextureAndPixelHits": 15469,
+        "declines": 0,
+        "containedFailures": 0
+      },
+      "evidenceAssertions": [
+        "15.88s",
+        "20260806-084118",
+        "fast-1",
+        "0.98a-RC8",
+        "83-mod profile",
+        "42/42",
+        "15,469",
+        "ACTIVE",
+        "zero decline/failure"
+      ],
+      "publishedIn": [
+        "README.md",
+        "docs/optimization-history.md"
+      ],
+      "mentionedIn": [
+        "docs/release-readiness.md"
+      ],
+      "releaseCandidate": false,
+      "supersedes": [],
+      "supersededBy": null
+    }
+  ]
+}

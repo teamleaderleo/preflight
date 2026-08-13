@@ -13,30 +13,78 @@
 # success, on failure, on a detector timeout, and on Ctrl-C alike.
 #
 # Usage:
-#   scripts/probe-launch.sh [--label NAME] [--game DIR] [--timeout-seconds N] [-- EXTRA_FLAGS...]
+#   scripts/probe-launch.sh [--mode NAME] [--label NAME] [--game DIR]
+#                           [--timeout-seconds N] [-- EXTRA_FLAGS...]
 #
-# Any flags after `--` are passed through to `preflight run`, so conditions compose:
-#   scripts/probe-launch.sh --label stock -- --texture-auto
-#   scripts/probe-launch.sh --label full -- --texture-auto --texture-mode prepared-pixels \
-#       --prepared-npot --rule-token-cache --rule-command-cache
+# --mode names the same conditions the benchmark harness uses, with the same flags, so a probe and
+# a campaign mean the same thing by the same word:
+#
+#   fast       the shipped preset -- what an installed Preflight launcher runs. Use this to ask
+#              where time goes for a real user. (default)
+#   enabled    --adapter --texture-auto: the prepared texture path.
+#   adapter    --adapter alone. The least-optimized launch a probe can measure, which is NOT a
+#              baseline: adapters are on, because the phase probe is implemented by the adapter.
+#   prepared   enabled plus prepared pixels with power-of-two padding retained.
+#
+#   vanilla    refused, with a pointer. The game's own launcher cannot carry the phase probe, so
+#              there is no such thing as a probed baseline. Use the harness:
+#                  scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast
+#              which is also how to compare two conditions: it shuffles them inside each round
+#              rather than running them back to back, because a launch on a hot machine is slower.
+#              The 2026-08-01 campaign drifted +19.6s across fifteen launches from heat alone.
+#
+# Any flags after `--` are appended to the mode, so conditions still compose:
+#   scripts/probe-launch.sh --mode enabled --label npot -- --texture-mode prepared-pixels --prepared-npot
 set -euo pipefail
 
 GAME="${STARSECTOR_HOME:-/Applications/Starsector.app}"
-LABEL="probe"
+LABEL=""
+MODE="fast"
 TIMEOUT_SECONDS=400
 QUIET_SECONDS=25
 EXTRA=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --mode) MODE="$2"; shift 2 ;;
         --label) LABEL="$2"; shift 2 ;;
         --game) GAME="$2"; shift 2 ;;
         --timeout-seconds) TIMEOUT_SECONDS="$2"; shift 2 ;;
         --) shift; EXTRA=("$@"); break ;;
-        -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
+
+# The flags are copied from run-startup-benchmark.sh's own condition table rather than invented
+# here. Two tools that disagree about what "fast" means produce two numbers nobody can compare.
+MODE_FLAGS=()
+case "$MODE" in
+    fast)     MODE_FLAGS=(--fast) ;;
+    enabled)  MODE_FLAGS=(--adapter --texture-auto) ;;
+    adapter)  MODE_FLAGS=(--adapter) ;;
+    prepared) MODE_FLAGS=(--adapter --texture-auto --texture-mode prepared-pixels --prepared-npot) ;;
+    vanilla)
+        cat >&2 <<'REFUSED'
+There is no probed vanilla launch, and a number from one would be a lie.
+
+`--startup-phase-probe` is implemented by the adapter -- preflight run refuses the two together
+(CommandLine.java) -- so the least-optimized launch this script can measure still has adapters on.
+It is not a baseline and must not be reported as one.
+
+For a real baseline, and for comparing it against an optimized launch:
+
+    scripts/run-startup-benchmark.sh --unattended --conditions vanilla,fast
+
+That runs the game's own launcher for `vanilla`, shuffles the conditions inside every round so
+neither gets a hotter machine than the other, and refuses a result below five runs per condition.
+REFUSED
+        exit 2 ;;
+    *)
+        echo "Unknown mode: $MODE (expected fast, enabled, adapter, prepared, or vanilla)" >&2
+        exit 2 ;;
+esac
+[[ -n "$LABEL" ]] || LABEL="$MODE"
 
 [[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
@@ -110,19 +158,14 @@ LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null | awk '/^Selected
 
 echo "run:      $OUT"
 echo "head:     $(git rev-parse --short HEAD)"
-echo "flags:    --direct --adapter --startup-phase-probe --no-record ${EXTRA[*]:-}"
+echo "mode:     $MODE"
+echo "flags:    --direct ${MODE_FLAGS[*]} --startup-phase-probe --no-record ${EXTRA[*]:-}"
 
 python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$OUT/before.json"
 
-if (( ${#EXTRA[@]} )); then
-    java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
-        --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
-        "${EXTRA[@]}" >"$OUT/wrapper.log" 2>&1 &
-else
-    java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
-        --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
-        >"$OUT/wrapper.log" 2>&1 &
-fi
+java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
+    --trace-dir "$OUT" --direct "${MODE_FLAGS[@]}" --startup-phase-probe --no-record \
+    ${EXTRA[@]+"${EXTRA[@]}"} >"$OUT/wrapper.log" 2>&1 &
 WRAPPER_PID=$!
 
 QUIET_LOGS=false

@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,7 +37,7 @@ class GeneratedBytecodeBundleTest {
         LinkedHashMap<String, byte[]> ordered = new LinkedHashMap<>();
         ordered.put(Alpha.class.getName(), alpha);
         ordered.put(Beta.class.getName(), beta);
-        GeneratedBytecodeBundle right = new GeneratedBytecodeBundle(context.toUpperCase(), requested, ordered);
+        GeneratedBytecodeBundle right = new GeneratedBytecodeBundle(context.toUpperCase(Locale.ROOT), requested, ordered);
 
         byte[] leftBytes = GeneratedBytecodeBundleIO.toBytes(left);
         byte[] rightBytes = GeneratedBytecodeBundleIO.toBytes(right);
@@ -210,13 +211,13 @@ class GeneratedBytecodeBundleTest {
     void contextKeyIsCanonicalAndEveryRequiredComponentInvalidatesIt() {
         GeneratedBytecodeContext baseline = context();
         GeneratedBytecodeContext uppercase = new GeneratedBytecodeContext(
-                "0".repeat(64).toUpperCase(),
-                "1".repeat(64).toUpperCase(),
-                "2".repeat(64).toUpperCase(),
-                "3".repeat(64).toUpperCase(),
-                "4".repeat(64).toUpperCase(),
-                "5".repeat(64).toUpperCase(),
-                "6".repeat(64).toUpperCase());
+                "0".repeat(64).toUpperCase(Locale.ROOT),
+                "1".repeat(64).toUpperCase(Locale.ROOT),
+                "2".repeat(64).toUpperCase(Locale.ROOT),
+                "3".repeat(64).toUpperCase(Locale.ROOT),
+                "4".repeat(64).toUpperCase(Locale.ROOT),
+                "5".repeat(64).toUpperCase(Locale.ROOT),
+                "6".repeat(64).toUpperCase(Locale.ROOT));
         assertEquals(baseline.keySha256(), uppercase.keySha256());
         assertEquals(baseline.keySha256(), baseline.components().get("keySha256"));
 

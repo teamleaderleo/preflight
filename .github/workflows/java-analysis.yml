@@ -1,0 +1,44 @@
+name: Java static analysis
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.java'
+      - 'pom.xml'
+      - '*/pom.xml'
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/java-analysis.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '**/*.java'
+      - 'pom.xml'
+      - '*/pom.xml'
+      - '.github/actions/setup-build-jdk/**'
+      - '.github/workflows/java-analysis.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  error-prone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+        with:
+          # Error Prone 2.50 requires JDK 21+ to run. Maven still compiles the project with
+          # maven.compiler.release=17, so the shipped Java compatibility target stays unchanged.
+          java-version: '21'
+      - name: Compile main and test sources with Error Prone
+        run: >-
+          mvn --batch-mode --no-transfer-progress
+          -Panalysis
+          -DskipTests
+          test-compile

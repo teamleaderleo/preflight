@@ -3,6 +3,31 @@
 Project state lives in [docs/next-llm-handoff.md](docs/next-llm-handoff.md) — see
 [LLM_HANDOFF.md](LLM_HANDOFF.md). This file is about how to work, not what is true.
 
+## Look in scripts/README.md before doing it by hand
+
+Every script is indexed there with what it does and when you would reach for it. Check it before
+driving the game, measuring a launch, or writing a new script — the thing you want usually exists.
+
+Two that keep being missed: `scripts/probe-launch.sh` is one launch that stops itself and prints
+where the time went, and `scripts/run-startup-benchmark.sh --unattended` is the repeated campaign.
+`preflight run` is the launcher, not a measurement: it never exits on its own, and a launch left
+running holds ~4 GB and a GPU context and poisons everything measured after it.
+
+## Write what you saw, not what it means
+
+Fresh results are worth saying and worth writing down. What they are not is settled. A number you
+got a minute ago is a number, not an explanation of itself, and the difference shows up in how it
+is phrased: "one run, uncooled, 16.9s" survives being wrong. "Warm caches account for the gap"
+does not, and the next agent reads it as established.
+
+So write freely, and mark the status. Say which run, which condition, which clock, and say when
+something is a guess. A guess labelled as a guess is useful; the same sentence stated flat is what
+gets rewritten three times in an afternoon while its author works out what they actually saw.
+
+Before a claim becomes flat statement in `scripts/README.md`, `docs/evidence/`, or the handoff —
+the files that exist so nobody has to re-derive anything — it wants a citation, a second run, or a
+check that it is even the same condition and the same clock as what it is being compared against.
+
 ## Verify once, at the right level, then move on
 
 `mvn verify` locally is the correctness gate. CI exists because this is a Mac and the project

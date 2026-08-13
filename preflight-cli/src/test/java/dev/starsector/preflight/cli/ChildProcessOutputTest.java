@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,7 +19,7 @@ class ChildProcessOutputTest {
 
     @Test
     void streamsBothChildChannelsAndRetainsBoundedFatalTail() throws Exception {
-        boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
+        boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
         Path java = Path.of(System.getProperty("java.home"), "bin", windows ? "java.exe" : "java");
         ProcessBuilder builder = new ProcessBuilder(
                 java.toString(),

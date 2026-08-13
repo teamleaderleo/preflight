@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,7 @@ class SoundWrapperObservationCommandIT {
         Path java = Path.of(
                 System.getProperty("java.home"),
                 "bin",
-                System.getProperty("os.name", "").toLowerCase().contains("win") ? "java.exe" : "java");
+                System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "java.exe" : "java");
         SoundWrapperObservationCommand.Options options =
                 new SoundWrapperObservationCommand.Options(game, jogg, jorbis, java, report);
         int exit = SoundWrapperObservationCommand.execute(

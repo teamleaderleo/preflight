@@ -389,15 +389,13 @@ jobs:
           notes="docs/releases/${version}.md"
           test -f "$notes" || { echo "::error::Missing reviewed release notes: $notes"; exit 1; }
           node preflight-desktop/scripts/build-updater-manifest.mjs \
-            candidate-input "v${version}" candidate-input/candidate-latest.json \
+            candidate-input "v${version}" candidate-input/latest.json \
             "https://private-candidate.invalid/run-${GITHUB_RUN_ID}" "$notes"
 
       - name: Verify complete private candidate boundary
         shell: bash
         run: |
           set -euo pipefail
-          mv candidate-input/candidate-latest.json candidate-input/latest.json
-          mv candidate-input/candidate-latest.json.sha256 candidate-input/latest.json.sha256
           python3 scripts/verify_complete_release.py --release candidate-input
 
       - name: Encrypt complete private candidate

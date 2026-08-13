@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.JarEntry;
@@ -193,7 +194,7 @@ class PreparationFailureRecoveryIT {
     }
 
     private static Path javaExecutable() {
-        boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
+        boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
         return Path.of(System.getProperty("java.home"), "bin", windows ? "java.exe" : "java")
                 .toAbsolutePath().normalize();
     }

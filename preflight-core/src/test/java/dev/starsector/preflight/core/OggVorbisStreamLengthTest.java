@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
@@ -129,7 +130,7 @@ class OggVorbisStreamLengthTest {
     @Test
     void nonOggInputIsMalformedRatherThanGuessed() throws Exception {
         Path source = temporaryDirectory.resolve("not-ogg.bin");
-        Files.write(source, "this is not an Ogg container at all, not even close".getBytes());
+        Files.write(source, "this is not an Ogg container at all, not even close".getBytes(StandardCharsets.UTF_8));
 
         OggVorbisStreamLength.Measurement measurement = OggVorbisStreamLength.measure(source);
 
