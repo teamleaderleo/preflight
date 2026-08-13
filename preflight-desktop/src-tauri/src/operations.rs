@@ -92,6 +92,12 @@ pub(crate) fn begin_update_install(
             "Wait for profile preparation to finish before installing an update.".to_string(),
         );
     }
+    if state.report_upload.is_some() {
+        return Err(
+            "Wait for the run report upload to finish or cancel it before installing an update."
+                .to_string(),
+        );
+    }
     if state.update_installing {
         return Err("A Preflight update is already being installed.".to_string());
     }
@@ -105,5 +111,33 @@ pub(crate) fn refuse_update_install(state: &OperationState) -> Result<(), String
         Err("Wait for the Preflight update to finish installing.".to_string())
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_install_refuses_active_report_upload() {
+        let (cancel, _receiver) = watch::channel(false);
+        let operations = Mutex::new(OperationState {
+            report_upload: Some(ReportUploadProcess {
+                id: 7,
+                total_bytes: 1024,
+                cancel,
+            }),
+            ..OperationState::default()
+        });
+
+        let error = begin_update_install(&operations)
+            .err()
+            .expect("an active report upload must block update installation");
+
+        assert_eq!(
+            error,
+            "Wait for the run report upload to finish or cancel it before installing an update."
+        );
+        assert!(!operations.lock().unwrap().update_installing);
     }
 }
