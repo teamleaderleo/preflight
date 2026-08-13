@@ -153,17 +153,49 @@ final class DesktopBenchmarkLaunch {
                 sessionCancellation,
                 runDirectory.resolve(DesktopSmokeLaunch.CANCELLATION_FILE),
                 finished);
+        Throwable primaryFailure = null;
         try {
             return DesktopSmokeLaunch.launch(
                     scenario, runDirectory, game, launcher, driver, clock);
+        } catch (Exception | Error failure) {
+            primaryFailure = failure;
+            throw failure;
         } finally {
-            finished.set(true);
-            cancellationMirror.interrupt();
-            cancellationMirror.join(1_000L);
-            if (cancellationMirror.isAlive()) {
-                throw new IOException("The " + phase + " cancellation monitor didn't stop");
-            }
+            stopCancellationMirror(phase, cancellationMirror, finished, primaryFailure);
         }
+    }
+
+    /**
+     * Stops the mirror thread without letting its own failure stand in for the phase's.
+     *
+     * <p>A launch that already failed is the thing worth reading. A monitor that then refuses to
+     * stop is worth knowing about too, but as a suppressed detail on that failure rather than as
+     * the exception that replaces it and sends the reader towards cleanup.
+     */
+    static void stopCancellationMirror(
+            String phase, Thread cancellationMirror, AtomicBoolean finished, Throwable primaryFailure)
+            throws IOException {
+        finished.set(true);
+        cancellationMirror.interrupt();
+        try {
+            cancellationMirror.join(1_000L);
+        } catch (InterruptedException interruption) {
+            // The caller was interrupted, so this never waited the full second. Whether the
+            // daemon mirror stopped is unknown rather than failed; restore the status and let
+            // the caller decide.
+            Thread.currentThread().interrupt();
+            return;
+        }
+        if (!cancellationMirror.isAlive()) {
+            return;
+        }
+        IOException cleanupFailure =
+                new IOException("The " + phase + " cancellation monitor didn't stop");
+        if (primaryFailure != null) {
+            primaryFailure.addSuppressed(cleanupFailure);
+            return;
+        }
+        throw cleanupFailure;
     }
 
     static Thread cancellationMirror(
