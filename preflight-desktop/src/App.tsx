@@ -92,11 +92,24 @@ export default function App() {
   const setInstallationStatus = useCallback((next: AppStatus) => {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
   }, []);
-  const refresh = useCallback(async (game?: string): Promise<boolean> => {
+  /**
+   * `background` is for a re-read nobody asked for. A foreground refresh is allowed to say it is
+   * working and to report that it failed; a background one must not, because the page is already
+   * showing a correct answer and replacing it with "Finding Starsector…" and back is a flicker on
+   * every window focus. A background failure keeps the last good snapshot: the next thing the
+   * operator actually does will surface the problem with somewhere to go.
+   */
+  const refresh = useCallback(async (
+    game?: string,
+    options?: { background?: boolean },
+  ): Promise<boolean> => {
+    const background = options?.background === true;
     const request = ++refreshRequest.current;
-    setInstallationStatus("loading");
-    clearNotice("installation");
-    setRetryIntent(null);
+    if (!background) {
+      setInstallationStatus("loading");
+      clearNotice("installation");
+      setRetryIntent(null);
+    }
     try {
       const next = await getSnapshot(game);
       if (request !== refreshRequest.current) return false;
@@ -104,7 +117,7 @@ export default function App() {
       setInstallationStatus(next.ready ? "ready" : "setup");
       return true;
     } catch (error) {
-      if (request !== refreshRequest.current) return false;
+      if (request !== refreshRequest.current || background) return false;
       setInstallationStatus("error");
       setRetryIntent(game ? { kind: "installation", game } : { kind: "discovery" });
       announceInstallation(game ? `Couldn’t use ${shortPath(game)}. ${String(error)}` : String(error), "error");
@@ -270,7 +283,7 @@ export default function App() {
   useEffect(() => {
     refreshOnReturn.current = () => {
       if (operationBlocked || status === "loading") return;
-      void refresh(snapshot?.selected?.installRoot);
+      void refresh(snapshot?.selected?.installRoot, { background: true });
     };
   });
   useEffect(() => {

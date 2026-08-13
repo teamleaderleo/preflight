@@ -268,15 +268,38 @@ test("blocks installation and preparation mutations while the game is running", 
   game.mockRestore();
 });
 
-test("re-reads the installation when the window is focused again", async () => {
+test("re-reads the installation when the window is focused again, without flickering the page", async () => {
+  const pending = deferred<Awaited<ReturnType<typeof bridge.getSnapshot>>>();
+  const real = await bridge.getSnapshot();
   const snapshot = vi.spyOn(bridge, "getSnapshot");
   render(<App />);
-  await screen.findByText("Ready");
+  await screen.findByRole("heading", { name: "Ready", level: 1 });
   const onMount = snapshot.mock.calls.length;
+  snapshot.mockImplementationOnce(() => pending.promise);
 
   window.dispatchEvent(new Event("focus"));
-
   await waitFor(() => expect(snapshot.mock.calls.length).toBeGreaterThan(onMount));
+
+  // In flight: the title must still be the answer the page already had.
+  expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Finding Starsector…" })).not.toBeInTheDocument();
+
+  pending.resolve(real);
+  expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
+  snapshot.mockRestore();
+});
+
+test("a background re-read that fails keeps the last good installation on screen", async () => {
+  const snapshot = vi.spyOn(bridge, "getSnapshot");
+  render(<App />);
+  await screen.findByRole("heading", { name: "Ready", level: 1 });
+  snapshot.mockRejectedValueOnce(new Error("the disk went away"));
+
+  window.dispatchEvent(new Event("focus"));
+  await waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
+
+  expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
+  expect(screen.queryByText("the disk went away")).not.toBeInTheDocument();
   snapshot.mockRestore();
 });
 
