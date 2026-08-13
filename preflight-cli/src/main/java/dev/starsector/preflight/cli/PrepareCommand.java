@@ -6,6 +6,7 @@ import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.ResourceIndexValidator;
 import dev.starsector.preflight.core.SpecStoreProfileIdentity;
+import dev.starsector.preflight.core.SpecStoreCacheDirectories;
 import dev.starsector.preflight.core.TextureManifestValidator;
 import dev.starsector.preflight.core.TextureMemoryEstimator;
 import java.io.IOException;
@@ -20,9 +21,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Runs every renderer-independent preparation stage and writes one atomic report. */
 final class PrepareCommand {
+    static final String PROGRESS_PREFIX = "PREFLIGHT_PROGRESS ";
+    private static final String PROGRESS_FORMAT = "preflight-preparation-progress-v1";
+    private static final int PROGRESS_PHASES = 7;
     private static final int DEFAULT_WORKERS = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()));
     private static final long DEFAULT_MEMORY_MIB = 256;
     private static final int DEFAULT_LOOKUP_QUERIES = 5_000;
@@ -47,6 +54,65 @@ final class PrepareCommand {
 
         Path cache = (options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory())
                 .toAbsolutePath().normalize();
+        ResourceIndexBuilder.BuildResult plannedResourceBuild = null;
+        PreparationStoragePlanner.Plan storagePlan = null;
+        if (options.textures() && options.resourceIndex()) {
+            emitProgress("storage-plan", "started", null, null, Map.of());
+            System.err.println("prepare: storage-plan started");
+            plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
+            storagePlan = PreparationStoragePlanner.plan(
+                    plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
+            System.err.printf(
+                    Locale.ROOT,
+                    "prepare: storage-plan completed safe=%s predicted=%d upper=%d usable=%d durationMs=%.3f%n",
+                    storagePlan.safeToPrepare(),
+                    storagePlan.predictedAdditionalBytes(),
+                    storagePlan.upperBoundAdditionalBytes(),
+                    storagePlan.usableBytes(),
+                    storagePlan.durationNanos() / 1_000_000.0);
+            emitProgress(
+                    "storage-plan",
+                    "completed",
+                    storagePlan.safeToPrepare() ? "SUCCESS" : "FAILED",
+                    storagePlan.durationNanos(),
+                    Map.of(
+                            "predictedAdditionalBytes", storagePlan.predictedAdditionalBytes(),
+                            "upperBoundAdditionalBytes", storagePlan.upperBoundAdditionalBytes(),
+                            "usableBytes", storagePlan.usableBytes()));
+            if (options.plan()) {
+                if (options.json()) {
+                    System.out.println(Json.object(storagePlan.toMap()));
+                } else {
+                    printStoragePlan(storagePlan);
+                }
+                return 0;
+            }
+            if (!storagePlan.safeToPrepare()) {
+                System.err.println("Preflight refused preparation: " + storagePlan.refusalReason());
+                return 6;
+            }
+        } else if (options.plan()) {
+            throw new IllegalArgumentException("--plan requires resource-index and texture preparation");
+        }
+        OperationLease.Acquisition ownership = OperationLease.acquire(
+                PreflightHome.current(), "preparing", target.installRoot());
+        if (ownership.recovered() != null) {
+            System.err.println("Preflight recovered ownership left by interrupted "
+                    + ownership.recovered().operation() + " process " + ownership.recovered().pid()
+                    + "; removed " + ownership.recoveredTemporaryFiles() + " incomplete temporary files.");
+        }
+        try (OperationLease ignored = ownership.lease()) {
+            PreparationFaultInjection.afterLeaseAcquired();
+            return prepareOwned(options, target, cache, plannedResourceBuild, storagePlan);
+        }
+    }
+
+    private static int prepareOwned(
+            Options options,
+            LaunchTarget target,
+            Path cache,
+            ResourceIndexBuilder.BuildResult plannedResourceBuild,
+            PreparationStoragePlanner.Plan storagePlan) throws Exception {
         Files.createDirectories(cache);
         Path report = (options.report() == null
                 ? cache.resolve("reports/preparation-latest.json")
@@ -62,26 +128,37 @@ final class PrepareCommand {
         Path specStoreProfilePath = null;
         boolean allEnabledStagesSuccessful = true;
 
-        stageStarted("census");
-        Stage census = runStage("census", () -> {
-            ProfileCensus.Result result = ProfileCensus.scan(target.installRoot());
-            Map<String, Object> output = new LinkedHashMap<>();
-            output.put("profile", result.values());
-            return Stage.success(output);
-        });
-        stageCompleted("census", census);
-        stages.put("census", census.toMap());
-        allEnabledStagesSuccessful &= census.successful();
-        diagnostics.addAll(census.diagnostics());
+        ExecutorService openingStageExecutor = null;
+        CompletableFuture<Stage> censusFuture = null;
+        CompletableFuture<ClasspathStageResult> classpathFuture = null;
+        Stage census = null;
+        ClasspathStageResult classpathResult = null;
+        if (options.parallelStages()) {
+            openingStageExecutor = Executors.newFixedThreadPool(2, runnable -> {
+                Thread thread = new Thread(runnable, "preflight-prepare-opening-stage");
+                thread.setDaemon(true);
+                return thread;
+            });
+            censusFuture = CompletableFuture.supplyAsync(
+                    () -> runReportedStage("census", () -> prepareCensus(target.installRoot())),
+                    openingStageExecutor);
+            classpathFuture = CompletableFuture.supplyAsync(
+                    () -> runReportedClasspathStage(target.installRoot(), cache, options),
+                    openingStageExecutor);
+        } else {
+            census = runReportedStage("census", () -> prepareCensus(target.installRoot()));
+        }
 
         stageStarted("resource-index");
         Stage resourceStage;
         if (options.resourceIndex()) {
             try {
                 long stageStarted = System.nanoTime();
-                ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(target.installRoot());
+                ResourceIndexBuilder.BuildResult built = plannedResourceBuild == null
+                        ? ResourceIndexBuilder.build(target.installRoot())
+                        : plannedResourceBuild;
                 ResourceIndex selected = built.index();
-                Path output = cache.resolve("resource-indexes")
+                Path output = ResourceIndexIO.directory(cache)
                         .resolve(selected.profileFingerprint() + ".spfi");
                 boolean artifactHit = false;
                 if (Files.isRegularFile(output)) {
@@ -126,48 +203,26 @@ final class PrepareCommand {
             resourceStage = Stage.skipped("Disabled by --no-resource-index");
         }
         stageCompleted("resource-index", resourceStage);
+        if (options.parallelStages()) {
+            try {
+                census = censusFuture.join();
+                classpathResult = classpathFuture.join();
+            } finally {
+                openingStageExecutor.shutdown();
+            }
+        } else {
+            classpathResult = runReportedClasspathStage(target.installRoot(), cache, options);
+        }
+        Stage classpathStage = classpathResult.stage();
+        classpathIndex = classpathResult.index();
+        classpathIndexPath = classpathResult.path();
+
+        stages.put("census", census.toMap());
+        allEnabledStagesSuccessful &= census.successful();
+        diagnostics.addAll(census.diagnostics());
         stages.put("resourceIndex", resourceStage.toMap());
         allEnabledStagesSuccessful &= resourceStage.successful();
         diagnostics.addAll(resourceStage.diagnostics());
-
-        stageStarted("classpath-index");
-        Stage classpathStage;
-        if (options.classpath()) {
-            try {
-                long stageStarted = System.nanoTime();
-                ClasspathIndexBuilder.Result built = ClasspathIndexBuilder.build(target.installRoot(), cache);
-                ClasspathIndexBuilder.Validation validation = ClasspathIndexBuilder.validate(
-                        built.profile(), cache, options.deep());
-                Map<String, Object> details = new LinkedHashMap<>();
-                details.put("file", built.profilePath());
-                details.put("profileHit", built.profileHit());
-                details.put("profileWritten", built.profileWritten());
-                details.put("profileFingerprint", built.profile().profileFingerprint());
-                details.put("archiveCount", built.profile().archives().size());
-                details.put("entryCount", built.profile().entryCount());
-                details.put("providerCount", built.profile().providerCount());
-                details.put("archiveHits", built.archiveHits());
-                details.put("archiveBuilds", built.archiveBuilds());
-                details.put("quarantinedIndexes", built.quarantinedIndexes());
-                details.put("failedArchives", built.failedArchives());
-                details.put("buildDiagnostics", built.diagnostics());
-                details.put("valid", validation.valid());
-                details.put("deepValidation", validation.deep());
-                details.put("checkedArchives", validation.checkedArchives());
-                details.put("checkedEntries", validation.checkedEntries());
-                details.put("validationProblems", validation.problems());
-                classpathStage = validation.valid() && built.failedArchives() == 0
-                        ? Stage.success(details, System.nanoTime() - stageStarted)
-                        : Stage.failed(details, List.of("Classpath index preparation or validation failed"), System.nanoTime() - stageStarted);
-                classpathIndex = built.profile();
-                classpathIndexPath = built.profilePath().toAbsolutePath().normalize();
-            } catch (Exception error) {
-                classpathStage = Stage.failed(error);
-            }
-        } else {
-            classpathStage = Stage.skipped("Disabled by --no-classpath");
-        }
-        stageCompleted("classpath-index", classpathStage);
         stages.put("classpathIndex", classpathStage.toMap());
         allEnabledStagesSuccessful &= classpathStage.successful();
         diagnostics.addAll(classpathStage.diagnostics());
@@ -183,7 +238,7 @@ final class PrepareCommand {
                 SpecStoreProfileIdentityBuilder.Result built = SpecStoreProfileIdentityBuilder.build(
                         target.installRoot(), resourceIndex, classpathIndex);
                 SpecStoreProfileIdentity identity = built.identity();
-                Path output = cache.resolve("spec-store/profiles")
+                Path output = SpecStoreCacheDirectories.profiles(cache)
                         .resolve(identity.identitySha256() + ".json")
                         .toAbsolutePath().normalize();
                 Map<String, Object> artifact = new LinkedHashMap<>();
@@ -229,10 +284,21 @@ final class PrepareCommand {
                     TextureBatchBuilder.Result built = TextureBatchBuilder.build(
                             resourceIndex,
                             cache,
-                            new TextureBatchBuilder.Options(options.workers(), options.memoryMib() * 1024L * 1024L));
+                            new TextureBatchBuilder.Options(
+                                    options.workers(),
+                                    options.memoryMib() * 1024L * 1024L,
+                                    options.textureStorage().codec(),
+                                    options.textureStorage().rawWhenCompressionIsIneffective()));
                     TextureManifestValidator.Result validation = TextureManifestValidator.validate(cache, built.manifest());
                     Map<String, Object> details = new LinkedHashMap<>();
                     details.put("manifest", built.manifestPath());
+                    details.put("pack", built.packPath());
+                    details.put("packHit", built.packHit());
+                    details.put("packBytes", built.packBytes());
+                    details.put("packedBlobs", built.packedBlobs());
+                    details.put("rawBlobs", built.rawBlobs());
+                    details.put("lz4Blobs", built.lz4Blobs());
+                    details.put("packDurationMs", built.packDurationMillis());
                     details.put("candidateEntries", built.candidateEntries());
                     details.put("hashedEntries", built.hashedEntries());
                     details.put("uniqueContent", built.uniqueContent());
@@ -245,6 +311,7 @@ final class PrepareCommand {
                     details.put("sourceBytes", built.sourceBytes());
                     details.put("uniquePixelBytes", built.uniquePixelBytes());
                     details.put("uniqueBlobBytes", built.uniqueBlobBytes());
+                    details.put("textureStorage", options.textureStorage().optionValue());
                     details.put("memoryEstimate", TextureMemoryEstimator.estimate(built.manifest()).toReportValues());
                     details.put("buildDiagnostics", built.diagnostics());
                     details.put("valid", validation.valid());
@@ -324,6 +391,7 @@ final class PrepareCommand {
         output.put("classpathIndex", classpathIndexPath);
         output.put("specStoreProfile", specStoreProfilePath);
         output.put("options", options.toMap());
+        output.put("storagePlan", storagePlan == null ? null : storagePlan.toMap());
         output.put("stages", stages);
         output.put("readiness", readiness);
         output.put("diagnostics", List.copyOf(diagnostics));
@@ -332,6 +400,91 @@ final class PrepareCommand {
         writeAtomic(report, Json.object(output) + System.lineSeparator());
         System.out.println(report);
         return allEnabledStagesSuccessful ? 0 : 5;
+    }
+
+    private static void printStoragePlan(PreparationStoragePlanner.Plan plan) {
+        System.out.println("Preparation storage plan");
+        System.out.println("  Predicted additional: "
+                + PreparationStoragePlanner.humanBytes(plan.predictedAdditionalBytes()));
+        System.out.println("  Conservative upper bound: "
+                + PreparationStoragePlanner.humanBytes(plan.upperBoundAdditionalBytes()));
+        System.out.println("  Safety reserve: "
+                + PreparationStoragePlanner.humanBytes(plan.safetyReserveBytes()));
+        System.out.println("  Available: "
+                + PreparationStoragePlanner.humanBytes(plan.usableBytes()));
+        System.out.println("  Reusable loose blobs: "
+                + PreparationStoragePlanner.humanBytes(plan.reusableLooseBytes()));
+        System.out.println("  Safe to prepare: " + (plan.safeToPrepare() ? "yes" : "no"));
+        if (plan.refusalReason() != null) {
+            System.out.println("  " + plan.refusalReason());
+        }
+    }
+
+    private static Stage prepareCensus(Path installRoot) throws IOException {
+        ProfileCensus.Result result = ProfileCensus.scan(installRoot);
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("profile", result.values());
+        return Stage.success(output);
+    }
+
+    private static Stage runReportedStage(String name, StageOperation operation) {
+        stageStarted(name);
+        Stage stage = runStage(name, operation);
+        stageCompleted(name, stage);
+        return stage;
+    }
+
+    private static ClasspathStageResult runReportedClasspathStage(
+            Path installRoot,
+            Path cache,
+            Options options) {
+        stageStarted("classpath-index");
+        ClasspathStageResult result = prepareClasspath(installRoot, cache, options);
+        stageCompleted("classpath-index", result.stage());
+        return result;
+    }
+
+    private static ClasspathStageResult prepareClasspath(Path installRoot, Path cache, Options options) {
+        if (!options.classpath()) {
+            return new ClasspathStageResult(
+                    Stage.skipped("Disabled by --no-classpath"), null, null);
+        }
+        try {
+            long started = System.nanoTime();
+            ClasspathIndexBuilder.Result built = ClasspathIndexBuilder.build(installRoot, cache);
+            ClasspathIndexBuilder.Validation validation = ClasspathIndexBuilder.validate(
+                    built.profile(), cache, options.deep());
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("file", built.profilePath());
+            details.put("profileHit", built.profileHit());
+            details.put("profileWritten", built.profileWritten());
+            details.put("profileFingerprint", built.profile().profileFingerprint());
+            details.put("archiveCount", built.profile().archives().size());
+            details.put("entryCount", built.profile().entryCount());
+            details.put("providerCount", built.profile().providerCount());
+            details.put("archiveHits", built.archiveHits());
+            details.put("archiveBuilds", built.archiveBuilds());
+            details.put("quarantinedIndexes", built.quarantinedIndexes());
+            details.put("failedArchives", built.failedArchives());
+            details.put("buildDiagnostics", built.diagnostics());
+            details.put("valid", validation.valid());
+            details.put("deepValidation", validation.deep());
+            details.put("checkedArchives", validation.checkedArchives());
+            details.put("checkedEntries", validation.checkedEntries());
+            details.put("validationProblems", validation.problems());
+            Stage stage = validation.valid() && built.failedArchives() == 0
+                    ? Stage.success(details, System.nanoTime() - started)
+                    : Stage.failed(
+                            details,
+                            List.of("Classpath index preparation or validation failed"),
+                            System.nanoTime() - started);
+            return new ClasspathStageResult(
+                    stage,
+                    built.profile(),
+                    built.profilePath().toAbsolutePath().normalize());
+        } catch (Exception error) {
+            return new ClasspathStageResult(Stage.failed(error), null, null);
+        }
     }
 
     private static Stage runStage(String name, StageOperation operation) {
@@ -345,6 +498,7 @@ final class PrepareCommand {
     }
 
     private static void stageStarted(String name) {
+        emitProgress(name, "started", null, null, Map.of());
         System.err.println("prepare: " + name + " started");
     }
 
@@ -355,6 +509,36 @@ final class PrepareCommand {
                 name,
                 stage.status(),
                 stage.durationNanos() / 1_000_000.0);
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        copyMetric(stage.details(), metrics, "entryCount");
+        copyMetric(stage.details(), metrics, "candidateEntries");
+        copyMetric(stage.details(), metrics, "uniqueContent");
+        copyMetric(stage.details(), metrics, "cacheHitBlobs");
+        copyMetric(stage.details(), metrics, "builtBlobs");
+        copyMetric(stage.details(), metrics, "uniqueBlobBytes");
+        emitProgress(name, "completed", stage.status(), stage.durationNanos(), metrics);
+    }
+
+    private static void copyMetric(Map<String, Object> source, Map<String, Object> target, String key) {
+        Object value = source.get(key);
+        if (value != null) target.put(key, value);
+    }
+
+    private static void emitProgress(
+            String phase,
+            String state,
+            String status,
+            Long durationNanos,
+            Map<String, Object> metrics) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("format", PROGRESS_FORMAT);
+        event.put("phase", phase);
+        event.put("state", state);
+        event.put("totalPhases", PROGRESS_PHASES);
+        event.put("status", status);
+        event.put("durationMs", durationNanos == null ? null : durationNanos / 1_000_000.0);
+        event.put("metrics", metrics);
+        System.err.println(PROGRESS_PREFIX + Json.object(event));
     }
 
     private static void writeAtomic(Path target, String content) throws IOException {
@@ -371,6 +555,7 @@ final class PrepareCommand {
                     content,
                     StandardOpenOption.CREATE_NEW,
                     StandardOpenOption.WRITE);
+            PreparationFaultInjection.beforeAtomicMove(target);
             try {
                 Files.move(
                         temporary,
@@ -402,6 +587,11 @@ final class PrepareCommand {
         boolean resourceIndex = true;
         boolean classpath = true;
         boolean textures = true;
+        boolean parallelStages = Boolean.parseBoolean(
+                System.getProperty("preflight.prepare.parallel", "true"));
+        boolean plan = false;
+        boolean json = false;
+        TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
         for (int i = offset; i < args.length; i++) {
             switch (args[i]) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
@@ -417,6 +607,12 @@ final class PrepareCommand {
                 case "--no-resource-index" -> resourceIndex = false;
                 case "--no-classpath" -> classpath = false;
                 case "--no-textures" -> textures = false;
+                case "--parallel-stages" -> parallelStages = true;
+                case "--serial-stages" -> parallelStages = false;
+                case "--texture-storage" -> textureStorage =
+                        TextureStoragePolicy.parse(requireValue(args, ++i, "--texture-storage"));
+                case "--plan" -> plan = true;
+                case "--json" -> json = true;
                 default -> throw new IllegalArgumentException("Unknown prepare option: " + args[i]);
             }
         }
@@ -431,7 +627,8 @@ final class PrepareCommand {
         }
         return new Options(
                 game, launcher, cache, report, workers, memoryMib, deep, verifyLookups,
-                lookupQueries, seed, resourceIndex, classpath, textures);
+                lookupQueries, seed, resourceIndex, classpath, textures, parallelStages, textureStorage,
+                plan, json);
     }
 
     private static String requireValue(String[] args, int index, String option) {
@@ -479,7 +676,11 @@ final class PrepareCommand {
             long seed,
             boolean resourceIndex,
             boolean classpath,
-            boolean textures) {
+            boolean textures,
+            boolean parallelStages,
+            TextureStoragePolicy textureStorage,
+            boolean plan,
+            boolean json) {
         Map<String, Object> toMap() {
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("workers", workers);
@@ -491,6 +692,9 @@ final class PrepareCommand {
             values.put("resourceIndex", resourceIndex);
             values.put("classpath", classpath);
             values.put("textures", textures);
+            values.put("parallelStages", parallelStages);
+            values.put("textureStorage", textureStorage.optionValue());
+            values.put("plan", plan);
             return values;
         }
     }
@@ -545,5 +749,11 @@ final class PrepareCommand {
     @FunctionalInterface
     private interface StageOperation {
         Stage run() throws Exception;
+    }
+
+    private record ClasspathStageResult(
+            Stage stage,
+            ClasspathProfileIndex index,
+            Path path) {
     }
 }

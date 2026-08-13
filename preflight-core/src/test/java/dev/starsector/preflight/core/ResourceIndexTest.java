@@ -5,8 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 class ResourceIndexTest {
@@ -31,7 +35,40 @@ class ResourceIndexTest {
     void rejectsTraversalAndAbsolutePaths() {
         assertThrows(IllegalArgumentException.class, () -> ResourceIndex.normalizeLogicalPath("../secret"));
         assertThrows(IllegalArgumentException.class, () -> ResourceIndex.normalizeLogicalPath("/absolute"));
+        assertThrows(IllegalArgumentException.class, () -> ResourceIndex.normalizeLogicalPath("\\absolute"));
         assertThrows(IllegalArgumentException.class, () -> ResourceIndex.normalizeLogicalPath("C:\\absolute"));
+        assertThrows(IllegalArgumentException.class, () -> ResourceIndex.normalizeLogicalPath("z:relative"));
+    }
+
+    @Test
+    void allocationLightNormalizerMatchesTheLegacyNormalizer() {
+        List<String> fixed = List.of(
+                "data/weapons/example.wpn",
+                "data//weapons///example.wpn",
+                "./graphics\\ships//Example.PNG",
+                "a/./b",
+                "a//b/",
+                ".../a.b",
+                "a b/c-d_e",
+                "graphics/Ä/İ/Σ.png",
+                ".",
+                "./",
+                "////",
+                "a/../b");
+        for (String value : fixed) {
+            assertSameNormalization(value);
+        }
+
+        Random random = new Random(0x5a17c0deL);
+        String alphabet = "abcXYZ01239./\\:-_ \t";
+        for (int sample = 0; sample < 20_000; sample++) {
+            int length = random.nextInt(65);
+            StringBuilder value = new StringBuilder(length);
+            for (int index = 0; index < length; index++) {
+                value.append(alphabet.charAt(random.nextInt(alphabet.length())));
+            }
+            assertSameNormalization(value.toString());
+        }
     }
 
     @Test
@@ -61,5 +98,46 @@ class ResourceIndexTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> index.resolve(new ResourceIndex.Provider(8, "data/example.json", 1, 1)));
+    }
+
+    private static void assertSameNormalization(String raw) {
+        try {
+            String expected = legacyNormalize(raw);
+            assertEquals(expected, ResourceIndex.normalizeRelativePath(raw), raw);
+            assertEquals(
+                    expected.toLowerCase(Locale.ROOT),
+                    ResourceIndex.normalizeLogicalPath(raw),
+                    raw);
+        } catch (IllegalArgumentException expected) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> ResourceIndex.normalizeRelativePath(raw),
+                    raw);
+        }
+    }
+
+    private static String legacyNormalize(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalArgumentException();
+        }
+        String value = raw.replace('\\', '/');
+        if (value.startsWith("/") || value.matches("^[A-Za-z]:.*")) {
+            throw new IllegalArgumentException();
+        }
+
+        ArrayDeque<String> segments = new ArrayDeque<>();
+        for (String segment : value.split("/+")) {
+            if (segment.isEmpty() || segment.equals(".")) {
+                continue;
+            }
+            if (segment.equals("..")) {
+                throw new IllegalArgumentException();
+            }
+            segments.addLast(segment);
+        }
+        if (segments.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        return String.join("/", new ArrayList<>(segments));
     }
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document converts the July 2026 real-install evidence into the near-term execution plan for Starsector Preflight.
+This document converts the July 2026 real-install evidence into the near-term execution plan for Preflight.
 
 Discovery is complete for the three dominant repeat-launch CPU domains on the reviewed Starsector 0.98a-RC8 installation:
 

@@ -27,9 +27,9 @@ import org.objectweb.asm.tree.VarInsnNode;
  *
  * <p>The wrapper emits the two typed calls itself rather than leaving them to the runtime, because
  * it is woven <em>into</em> {@code BaseLocation} and can therefore name the game's own classes
- * directly. That keeps reflection off the hot path entirely, and it puts the membership check —
- * {@code getObjects().contains(entity)}, the game's own {@code forFastContains} HashSet — in the
- * one place that can see live repository state.
+ * directly. Candidate validation lives in the runtime so that it can reproduce the shipped split
+ * between exact-map matches and case-folded fallback matches without linking the redistributable
+ * agent to the game's implementation classes.
  *
  * <p>{@code BaseLocation} implements {@code com.fs.util.DoNotObfuscate}, so unlike every other seam
  * in this project its name and its members are stable rather than a happy accident.
@@ -46,7 +46,6 @@ final class EntityLookupPlan {
 
     private static final String ORIGINAL_LOOKUP = "preflight$original$getEntityById";
     private static final String RUNTIME = "dev/starsector/preflight/agent/EntityLookupRuntime";
-    private static final String REPOSITORY = "com/fs/util/container/repo/ObjectRepository";
     private static final String TOKEN = "com/fs/starfarer/api/campaign/SectorEntityToken";
 
     private EntityLookupPlan() {
@@ -79,26 +78,28 @@ final class EntityLookupPlan {
         owner.accept(writer);
         // Only now, so the counters cannot describe a rewrite that never happened and the gate
         // cannot open on a class this plan declined.
-        EntityLookupRuntime.indexInstalled();
+        EntityLookupRuntime.locationInstalled();
         return writer.toByteArray();
     }
 
     /**
      * <pre>
      *   Object found = EntityLookupRuntime.lookup(getAllEntities(), this, id);
-     *   if (found != null &amp;&amp; getObjects().contains(found)) return (SectorEntityToken) found;
+     *   if (EntityLookupRuntime.missing(found)) return null;
+     *   if (found != null &amp;&amp; EntityLookupRuntime.validCandidate(found, id)) return (SectorEntityToken) found;
      *   return preflight$original$getEntityById(id);
      * </pre>
      *
      * <p>The runtime call comes first so that the gate-off path is one static call returning null,
-     * a branch, and the original. The membership check is second because it is the expensive half of
-     * being right: it is what makes an index that has gone stale unable to answer with an entity the
-     * location no longer holds.
+     * a branch, and the original. A private sentinel distinguishes an authoritative current-index
+     * miss from a fail-open null; candidates are checked against the same validity rules as the
+     * shipped exact-map path before the wrapper accepts them.
      */
     private static MethodNode wrapper(String owner, int access) {
         MethodNode wrapper =
                 new MethodNode(Opcodes.ASM9, access, LOOKUP_METHOD, LOOKUP_DESCRIPTOR, null, null);
         LabelNode delegate = new LabelNode();
+        LabelNode candidate = new LabelNode();
 
         wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         wrapper.instructions.add(new MethodInsnNode(
@@ -111,13 +112,20 @@ final class EntityLookupPlan {
         wrapper.instructions.add(new VarInsnNode(Opcodes.ASTORE, 2));
 
         wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
-        wrapper.instructions.add(new JumpInsnNode(Opcodes.IFNULL, delegate));
-        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
         wrapper.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKEVIRTUAL, owner, OBJECTS_METHOD, OBJECTS_DESCRIPTOR, false));
+                Opcodes.INVOKESTATIC, RUNTIME, "missing", "(Ljava/lang/Object;)Z", false));
+        wrapper.instructions.add(new JumpInsnNode(Opcodes.IFEQ, candidate));
+        wrapper.instructions.add(new InsnNode(Opcodes.ACONST_NULL));
+        wrapper.instructions.add(new InsnNode(Opcodes.ARETURN));
+
+        wrapper.instructions.add(candidate);
         wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        wrapper.instructions.add(new JumpInsnNode(Opcodes.IFNULL, delegate));
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1));
         wrapper.instructions.add(new MethodInsnNode(
-                Opcodes.INVOKEVIRTUAL, REPOSITORY, "contains", "(Ljava/lang/Object;)Z", false));
+                Opcodes.INVOKESTATIC, RUNTIME, "validCandidate",
+                "(Ljava/lang/Object;Ljava/lang/String;)Z", false));
         wrapper.instructions.add(new JumpInsnNode(Opcodes.IFEQ, delegate));
         wrapper.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2));
         wrapper.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST, TOKEN));

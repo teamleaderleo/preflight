@@ -1,11 +1,14 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 record CommandLine(
         Path game,
@@ -14,6 +17,9 @@ record CommandLine(
         boolean dryRun,
         boolean summarize,
         boolean scan,
+        OptimizationPreset optimizationPreset,
+        Set<OptimizationDomain> disabledOptimizationDomains,
+        AdapterPlanScope adapterPlanScope,
         AdapterMode adapterMode,
         Path adapterTargets,
         Path textureCacheDirectory,
@@ -33,8 +39,15 @@ record CommandLine(
         boolean preparedAudio,
         boolean loadJsonMemo,
         boolean ruleCommandClassCache,
+        boolean graphicsLibCompactReplay,
+        boolean janinoBytecodeCache,
+        boolean graphicsLibInsigniaManagerCache,
         boolean directLaunch,
+        boolean fileOnlyLogs,
         boolean quietLogs,
+        boolean suppressAssetProgressLogs,
+        boolean trustValidatedTextureIndex,
+        boolean desktopSmoke,
         List<String> forwardedArgs) {
     static CommandLine parse(String[] args, int offset) {
         Path game = null;
@@ -43,6 +56,9 @@ record CommandLine(
         boolean dryRun = false;
         boolean summarize = true;
         boolean scan = true;
+        OptimizationPreset optimizationPreset = OptimizationPreset.CUSTOM;
+        Set<OptimizationDomain> disabledOptimizationDomains = new LinkedHashSet<>();
+        AdapterPlanScope adapterPlanScope = AdapterPlanScope.FULL;
         boolean exhaustiveFileReads = false;
         RecordingMode recordingMode = RecordingMode.FULL;
         boolean singleChunkRecording = false;
@@ -55,8 +71,15 @@ record CommandLine(
         boolean preparedAudio = false;
         boolean loadJsonMemo = false;
         boolean ruleCommandClassCache = false;
+        boolean graphicsLibCompactReplay = false;
+        boolean janinoBytecodeCache = false;
+        boolean graphicsLibInsigniaManagerCache = false;
         boolean directLaunch = false;
+        boolean fileOnlyLogs = false;
         boolean quietLogs = false;
+        boolean suppressAssetProgressLogs = false;
+        boolean trustValidatedTextureIndex = false;
+        boolean desktopSmoke = false;
         AdapterMode adapterMode = AdapterMode.OFF;
         boolean adapterModeSpecified = false;
         Path adapterTargets = null;
@@ -69,10 +92,50 @@ record CommandLine(
         List<String> forwarded = new ArrayList<>();
         for (int i = offset; i < args.length; i++) {
             String arg = args[i];
+            if ("--fast".equals(arg) || "--optimization-preset".equals(arg)) {
+                optimizationPreset = "--fast".equals(arg)
+                        ? OptimizationPreset.RECOMMENDED
+                        : OptimizationPreset.parse(requireValue(args, ++i, arg));
+                PresetConfiguration preset = PresetConfiguration.forPreset(optimizationPreset);
+                summarize = preset.summarize();
+                scan = preset.scan();
+                adapterMode = preset.adapterMode();
+                adapterPlanScope = preset.adapterPlanScope();
+                textureAuto = preset.textureAuto();
+                textureAdapterMode = preset.textureAdapterMode();
+                textureModeSpecified = preset.textureAuto();
+                exhaustiveFileReads = preset.exhaustiveFileReads();
+                recordingMode = preset.recordingMode();
+                singleChunkRecording = preset.singleChunkRecording();
+                npotDirect = preset.npotDirect();
+                unpadded = preset.unpadded();
+                campaignEntityIndex = preset.campaignEntityIndex();
+                startupPhaseProbe = preset.startupPhaseProbe();
+                ruleTokenCache = preset.ruleTokenCache();
+                resourceProbeCache = preset.resourceProbeCache();
+                preparedAudio = preset.preparedAudio();
+                loadJsonMemo = preset.loadJsonMemo();
+                ruleCommandClassCache = preset.ruleCommandClassCache();
+                graphicsLibCompactReplay = preset.graphicsLibCompactReplay();
+                janinoBytecodeCache = preset.janinoBytecodeCache();
+                graphicsLibInsigniaManagerCache = preset.graphicsLibInsigniaManagerCache();
+                fileOnlyLogs = preset.fileOnlyLogs();
+                quietLogs = preset.quietLogs();
+                suppressAssetProgressLogs = preset.suppressAssetProgressLogs();
+                trustValidatedTextureIndex = preset.trustValidatedTextureIndex();
+                continue;
+            }
             switch (arg) {
                 case "--game" -> game = Path.of(requireValue(args, ++i, arg));
                 case "--launcher" -> launcher = Path.of(requireValue(args, ++i, arg));
                 case "--trace-dir" -> traceDirectory = Path.of(requireValue(args, ++i, arg));
+                case "--disable-optimization-domain" -> {
+                    OptimizationDomain domain = OptimizationDomain.parse(requireValue(args, ++i, arg));
+                    if (!disabledOptimizationDomains.add(domain)) {
+                        throw new IllegalArgumentException(
+                                "Optimization domain " + domain.optionValue() + " was supplied more than once");
+                    }
+                }
                 case "--dry-run" -> dryRun = true;
                 case "--no-summary" -> summarize = false;
                 case "--no-scan" -> scan = false;
@@ -100,30 +163,27 @@ record CommandLine(
                 case "--prepared-npot" -> npotDirect = true;
                 case "--prepared-unpadded" -> unpadded = true;
                 case "--campaign-entity-index" -> campaignEntityIndex = true;
+                case "--no-campaign-entity-index" -> campaignEntityIndex = false;
                 case "--startup-phase-probe" -> startupPhaseProbe = true;
                 case "--rule-token-cache" -> ruleTokenCache = true;
                 case "--resource-probe-cache" -> resourceProbeCache = true;
                 case "--prepared-audio" -> preparedAudio = true;
                 case "--loadjson-memo" -> loadJsonMemo = true;
                 case "--rule-command-cache" -> ruleCommandClassCache = true;
+                case "--graphicslib-compact-replay" -> graphicsLibCompactReplay = true;
+                case "--janino-bytecode-cache" -> janinoBytecodeCache = true;
+                case "--graphicslib-insignia-cache" -> graphicsLibInsigniaManagerCache = true;
                 case "--direct" -> directLaunch = true;
-                case "--quiet-logs" -> quietLogs = true;
-                // One flag for "everything that has landed and is safe to turn on". The individual
-                // flags stay, because a campaign that isolates one of them needs to name it -- but
-                // nobody running the game should have to remember seven of them in the right order.
-                case "--fast" -> {
-                    adapterMode = AdapterMode.ENABLED;
-                    textureAuto = true;
-                    textureAdapterMode = TextureAdapterMode.PREPARED_PIXELS;
-                    textureModeSpecified = true;
-                    npotDirect = true;
-                    ruleTokenCache = true;
-                    ruleCommandClassCache = true;
-                    resourceProbeCache = true;
-                    preparedAudio = true;
-                    loadJsonMemo = true;
-                    recordingMode = RecordingMode.OFF;
+                case "--file-only-logs" -> fileOnlyLogs = true;
+                case "--quiet-logs" -> {
+                    fileOnlyLogs = true;
+                    quietLogs = true;
                 }
+                case "--suppress-asset-progress-logs" -> suppressAssetProgressLogs = true;
+                case "--full-asset-progress-logs" -> suppressAssetProgressLogs = false;
+                case "--trust-validated-texture-index" -> trustValidatedTextureIndex = true;
+                case "--recheck-texture-sources" -> trustValidatedTextureIndex = false;
+                case "--desktop-smoke" -> desktopSmoke = true;
                 case "--texture-mode" -> {
                     textureAdapterMode = TextureAdapterMode.valueOf(
                             requireValue(args, ++i, arg).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_'));
@@ -137,6 +197,36 @@ record CommandLine(
                 }
                 default -> throw new IllegalArgumentException("Unknown option: " + arg);
             }
+        }
+        if (desktopSmoke && optimizationPreset == OptimizationPreset.OFF) {
+            if (adapterModeSpecified) {
+                throw new IllegalArgumentException(
+                        "The measurement-only desktop benchmark owns its adapter mode");
+            }
+            // Off remains a real unoptimized launch everywhere else. The paired benchmark needs
+            // only the exact frame/state hooks required to delimit and measure the same scenario;
+            // its plan scope prevents every optimization and detailed profiler from transforming.
+            adapterMode = AdapterMode.ENABLED;
+            adapterPlanScope = AdapterPlanScope.MEASUREMENT_ONLY;
+        }
+        if (!disabledOptimizationDomains.isEmpty()
+                && optimizationPreset == OptimizationPreset.CUSTOM) {
+            throw new IllegalArgumentException(
+                    "--disable-optimization-domain requires a product optimization preset");
+        }
+        if (disabledOptimizationDomains.contains(OptimizationDomain.PREPARED_TEXTURES)) {
+            if (textureCacheDirectory != null || textureManifest != null || textureIndex != null) {
+                throw new IllegalArgumentException(
+                        "The prepared-textures domain cannot be disabled with explicit texture artifacts");
+            }
+            textureAuto = false;
+            textureAdapterMode = TextureAdapterMode.COMPATIBILITY;
+            textureModeSpecified = false;
+            npotDirect = false;
+            unpadded = false;
+        }
+        if (disabledOptimizationDomains.contains(OptimizationDomain.PREPARED_AUDIO)) {
+            preparedAudio = false;
         }
         if (adapterTargets != null && adapterMode == AdapterMode.OFF) {
             throw new IllegalArgumentException("--adapter-targets requires --adapter-probe or --adapter");
@@ -198,8 +288,24 @@ record CommandLine(
         if (ruleCommandClassCache && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--rule-command-cache requires --adapter");
         }
+        if (graphicsLibCompactReplay && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--graphicslib-compact-replay requires --adapter");
+        }
+        if (janinoBytecodeCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--janino-bytecode-cache requires --adapter");
+        }
+        if (graphicsLibInsigniaManagerCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("--graphicslib-insignia-cache requires --adapter");
+        }
         if (startupPhaseProbe && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("--startup-phase-probe requires --adapter");
+        }
+        if (adapterPlanScope == AdapterPlanScope.PORTABLE_STARTUP
+                && (campaignEntityIndex
+                        || graphicsLibCompactReplay
+                        || graphicsLibInsigniaManagerCache)) {
+            throw new IllegalArgumentException(
+                    "Gameplay and mod-specific options require the recommended preset or a custom launch");
         }
         // --texture-auto and --texture-mode are independent: auto resolves which manifest and
         // index to use, the mode decides which TextureLoader target reads them. Both modes are
@@ -214,6 +320,9 @@ record CommandLine(
                 dryRun,
                 summarize,
                 scan,
+                optimizationPreset,
+                Set.copyOf(disabledOptimizationDomains),
+                adapterPlanScope,
                 adapterMode,
                 adapterTargets,
                 textureCacheDirectory,
@@ -233,9 +342,68 @@ record CommandLine(
                 preparedAudio,
                 loadJsonMemo,
                 ruleCommandClassCache,
+                graphicsLibCompactReplay,
+                janinoBytecodeCache,
+                graphicsLibInsigniaManagerCache,
                 directLaunch,
+                fileOnlyLogs,
                 quietLogs,
+                suppressAssetProgressLogs,
+                trustValidatedTextureIndex,
+                desktopSmoke,
                 List.copyOf(forwarded));
+    }
+
+    private record PresetConfiguration(
+            boolean summarize,
+            boolean scan,
+            AdapterMode adapterMode,
+            AdapterPlanScope adapterPlanScope,
+            boolean textureAuto,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean singleChunkRecording,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            boolean ruleTokenCache,
+            boolean resourceProbeCache,
+            boolean preparedAudio,
+            boolean loadJsonMemo,
+            boolean ruleCommandClassCache,
+            boolean graphicsLibCompactReplay,
+            boolean janinoBytecodeCache,
+            boolean graphicsLibInsigniaManagerCache,
+            boolean fileOnlyLogs,
+            boolean quietLogs,
+            boolean suppressAssetProgressLogs,
+            boolean trustValidatedTextureIndex) {
+        static PresetConfiguration forPreset(OptimizationPreset preset) {
+            return switch (preset) {
+                case CUSTOM -> new PresetConfiguration(
+                        true, true, AdapterMode.OFF, preset.planScope(),
+                        false, TextureAdapterMode.COMPATIBILITY, false, RecordingMode.FULL,
+                        false, false, false, false, false, false, false, false, false,
+                        false, false, false, false, false, false, false, false);
+                case RECOMMENDED -> new PresetConfiguration(
+                        true, true, AdapterMode.ENABLED, preset.planScope(),
+                        true, TextureAdapterMode.PREPARED_PIXELS, false, RecordingMode.OFF,
+                        false, false, true, true, false, true, false, true, true,
+                        true, true, true, true, true, false, true, true);
+                case CONSERVATIVE -> new PresetConfiguration(
+                        true, true, AdapterMode.ENABLED, preset.planScope(),
+                        true, TextureAdapterMode.PREPARED_PIXELS, false, RecordingMode.OFF,
+                        false, true, false, false, false, true, false, true, true,
+                        true, false, true, false, true, false, true, true);
+                case OFF -> new PresetConfiguration(
+                        false, false, AdapterMode.OFF, preset.planScope(),
+                        false, TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF,
+                        false, false, false, false, false, false, false, false, false,
+                        false, false, false, false, false, false, false, false);
+            };
+        }
     }
 
     private static AdapterMode chooseAdapterMode(

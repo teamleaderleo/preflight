@@ -75,6 +75,7 @@ final class ProfileIdentityContext implements Closeable {
         this.resources = resources;
         this.realRoots = realRoots;
         this.workers = workers;
+        this.fileHashes.put(gameJar, gameJarSha256);
     }
 
     /** Reads the index from disk. The launcher does this once and shares the result. */
@@ -131,13 +132,17 @@ final class ProfileIdentityContext implements Closeable {
     }
 
     Path resolve(ResourceIndex.Provider provider) throws IOException {
-        Path memoised = realProviders.get(provider);
-        if (memoised != null) {
-            return memoised;
+        try {
+            return realProviders.computeIfAbsent(provider, key -> {
+                try {
+                    return resolveUncached(key);
+                } catch (IOException error) {
+                    throw new UncheckedIOException(error);
+                }
+            });
+        } catch (UncheckedIOException failed) {
+            throw failed.getCause();
         }
-        Path resolved = resolveUncached(provider);
-        Path raced = realProviders.putIfAbsent(provider, resolved);
-        return raced == null ? resolved : raced;
     }
 
     private Path resolveUncached(ResourceIndex.Provider provider) throws IOException {
@@ -169,13 +174,17 @@ final class ProfileIdentityContext implements Closeable {
     }
 
     private Path realDirectory(Path directory) throws IOException {
-        Path memoised = realDirectories.get(directory);
-        if (memoised != null) {
-            return memoised;
+        try {
+            return realDirectories.computeIfAbsent(directory, path -> {
+                try {
+                    return path.toRealPath();
+                } catch (IOException error) {
+                    throw new UncheckedIOException(error);
+                }
+            });
+        } catch (UncheckedIOException failed) {
+            throw failed.getCause();
         }
-        Path real = directory.toRealPath();
-        realDirectories.put(directory, real);
-        return real;
     }
 
     /**

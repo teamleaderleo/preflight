@@ -74,6 +74,12 @@ class SpecCacheKeyTest {
     }
 
     @Test
+    void malformedDrivePathsRetainTheOldRegexClassification() {
+        assertNull(SpecCacheKey.of("C:\n/data/variants/wolf.variant", VARIANTS, ".variant"));
+        assertNull(SpecCacheKey.of("C:\u2028/data/variants/wolf.variant", VARIANTS, ".variant"));
+    }
+
+    @Test
     void matchesAnyOfTheDirectoriesACacheServes() {
         assertEquals("abs:data/shipsystems/wpn/burndrive.wpn",
                 SpecCacheKey.of("/install/data/shipsystems/wpn/burndrive.wpn", WEAPONS, ".wpn"));

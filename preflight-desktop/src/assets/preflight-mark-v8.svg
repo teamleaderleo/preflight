@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <pattern id="draft-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#d9d8d0" stroke-width="0.45" opacity="0.42" />
+    </pattern>
+    <filter id="soft-edge" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="0.55" />
+    </filter>
+    <mask id="star-field">
+      <rect width="512" height="512" fill="black" />
+      <path
+        d="M200 0H512V340L420 290 315 252 333 225 351 196 369 166 380 137 384 116 378 104 368 102 350 114 320 135 280 166 234 197Z"
+        fill="white"
+        filter="url(#soft-edge)"
+      />
+    </mask>
+  </defs>
+
+  <!-- The v6 illustration is the immutable base. Only the clipped star field is rebuilt. -->
+  <image href="preflight-mark-v6.png" x="0" y="0" width="512" height="512" />
+
+  <g mask="url(#star-field)">
+    <rect width="512" height="512" fill="#fdf3e3" />
+    <rect width="512" height="512" fill="url(#draft-grid)" />
+
+    <g fill="none" stroke="#6f91a5" opacity="0.78">
+      <circle cx="442" cy="115" r="162" stroke-width="0.8" />
+      <circle cx="442" cy="115" r="169" stroke-width="0.75" />
+      <circle cx="442" cy="115" r="202" stroke-width="0.7" opacity="0.72" />
+      <circle cx="442" cy="115" r="209" stroke-width="0.65" opacity="0.68" />
+    </g>
+
+    <path
+      d="M445 -10 458 92 525 105 458 118 445 220 432 118 330 105 432 92Z"
+      fill="#fdf3e3"
+      stroke="#173e67"
+      stroke-width="3"
+      stroke-linejoin="miter"
+    />
+  </g>
+
+  <!-- Restore the drafting-frame geometry covered by the localized rebuild. -->
+  <path d="M15 15H497V497H256" fill="none" stroke="#173e67" stroke-width="1.15" />
+  <path d="M256 8V22M452 490V504M490 256H504" fill="none" stroke="#173e67" stroke-width="1.15" />
+</svg>

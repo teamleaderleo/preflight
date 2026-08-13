@@ -55,6 +55,24 @@ final class JsonText {
         }
     }
 
+    static Long integer(String json, String key) {
+        int value = findValue(json, key);
+        if (value < 0) return null;
+        Cursor cursor = new Cursor(json, value);
+        cursor.skipWhitespaceAndComments();
+        int start = cursor.position();
+        if (cursor.peek() == '-') cursor.advance();
+        while (Character.isDigit(cursor.peek())) cursor.advance();
+        if (cursor.position() == start || (cursor.position() == start + 1 && json.charAt(start) == '-')) {
+            return null;
+        }
+        try {
+            return Long.valueOf(json.substring(start, cursor.position()));
+        } catch (NumberFormatException malformed) {
+            return null;
+        }
+    }
+
     private static int findValue(String json, String key) {
         Cursor cursor = new Cursor(json, 0);
         while (!cursor.finished()) {

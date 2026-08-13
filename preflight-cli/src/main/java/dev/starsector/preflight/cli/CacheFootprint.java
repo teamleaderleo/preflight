@@ -1,5 +1,12 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.PreparedAudioCache;
+import dev.starsector.preflight.core.ClasspathCacheDirectories;
+import dev.starsector.preflight.core.GeneratedBytecodeCache;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.ResourceIndexIO;
+import dev.starsector.preflight.core.TextureManifestIO;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -23,30 +30,55 @@ import java.util.TreeMap;
  */
 final class CacheFootprint {
     /** Directories under the home whose contents are reported separately. */
-    private static final Map<String, String> CATEGORIES = new LinkedHashMap<>(Map.of(
-            "cache/blobs", "prepared texture payloads, shared across profiles by content hash",
-            "cache/resource-indexes", "one per prepared profile",
-            "cache/manifests", "one per prepared profile",
-            "cache/spec-store", "prepared JSON, rules and command-class artifacts",
-            "cache/classpath", "mod jar and class inventories",
-            "cache/comparison-state-snapshots", "benchmark comparison inputs",
-            "cache/reports", "generated reports",
-            "runs", "per-launch evidence: adapter reports, phase timings, recordings",
-            "benchmarks", "recorded benchmark scenarios",
-            "bin", "the installed copy of preflight.jar"));
+    private static final Map<String, Category> CATEGORIES = new LinkedHashMap<>(Map.ofEntries(
+            Map.entry(relative(PreparedTextureIO.cacheDirectory(Path.of("cache"))), acceleration(
+                    "prepared texture payloads, shared across profiles by content hash")),
+            Map.entry(relative(PreparedTexturePackIO.directory(Path.of("cache"))),
+                    acceleration("profile texture packs and learned read order")),
+            Map.entry(relative(ResourceIndexIO.directory(Path.of("cache"))),
+                    acceleration("one per prepared profile")),
+            Map.entry(relative(TextureManifestIO.directory(Path.of("cache"))),
+                    acceleration("one per prepared profile")),
+            Map.entry("cache/spec-store", acceleration(
+                    "prepared JSON, rules and command-class artifacts")),
+            Map.entry(relative(PreparedAudioCache.root(Path.of("cache"))), acceleration(
+                    "decoded PCM and exact-profile audio manifests")),
+            Map.entry(relative(GeneratedBytecodeCache.root(Path.of("cache"))), acceleration(
+                    "exact-context Janino class maps and deduplicated packs")),
+            Map.entry("cache/adapter-transformations", acceleration(
+                    "exact-context transformed game and mod classes")),
+            Map.entry(relative(ClasspathCacheDirectories.root(Path.of("cache"))),
+                    acceleration("mod jar and class inventories")),
+            Map.entry("cache/comparison-state-snapshots", evidence(
+                    "benchmark comparison inputs")),
+            Map.entry("cache/reports", evidence("generated diagnostic reports")),
+            Map.entry("runs", evidence(
+                    "per-launch evidence: adapter reports, phase timings, recordings")),
+            Map.entry("benchmarks", evidence("recorded benchmark scenarios")),
+            Map.entry("profiles", configuration("named enabled-mod profiles")),
+            Map.entry("profile-backups", configuration("enabled-mod backups from profile activation")),
+            Map.entry("bin", application("the installed copy of preflight.jar"))));
 
     private CacheFootprint() {
+    }
+
+    private static String relative(Path path) {
+        return path.toString().replace('\\', '/');
     }
 
     static Report measure(PreflightHome home) throws IOException {
         List<Entry> entries = new ArrayList<>();
         long total = 0;
         long counted = 0;
-        for (Map.Entry<String, String> category : CATEGORIES.entrySet()) {
+        for (Map.Entry<String, Category> category : CATEGORIES.entrySet()) {
             Path directory = home.root().resolve(category.getKey());
             Usage usage = usage(directory);
             if (usage.files() > 0 || Files.exists(directory)) {
-                entries.add(new Entry(category.getKey(), category.getValue(), usage));
+                entries.add(new Entry(
+                        category.getKey(),
+                        category.getValue().group(),
+                        category.getValue().description(),
+                        usage));
                 counted = Math.addExact(counted, usage.bytes());
             }
         }
@@ -62,6 +94,22 @@ final class CacheFootprint {
                 profiles(home));
     }
 
+    private static Category acceleration(String description) {
+        return new Category("acceleration", description);
+    }
+
+    private static Category evidence(String description) {
+        return new Category("evidence", description);
+    }
+
+    private static Category configuration(String description) {
+        return new Category("configuration", description);
+    }
+
+    private static Category application(String description) {
+        return new Category("application", description);
+    }
+
     /**
      * Every prepared profile the cache holds, newest first.
      *
@@ -72,8 +120,8 @@ final class CacheFootprint {
      */
     private static List<Profile> profiles(PreflightHome home) throws IOException {
         Map<String, Profile> byFingerprint = new TreeMap<>();
-        collect(byFingerprint, home.cache().resolve("resource-indexes"), ".spfi", true);
-        collect(byFingerprint, home.cache().resolve("manifests"), ".spfm", false);
+        collect(byFingerprint, ResourceIndexIO.directory(home.cache()), ".spfi", true);
+        collect(byFingerprint, TextureManifestIO.directory(home.cache()), ".spfm", false);
         List<Profile> profiles = new ArrayList<>(byFingerprint.values());
         profiles.sort(Comparator.comparingLong(Profile::lastModifiedMillis).reversed());
         return List.copyOf(profiles);
@@ -150,7 +198,10 @@ final class CacheFootprint {
     record Usage(long bytes, long files) {
     }
 
-    record Entry(String path, String description, Usage usage) {
+    private record Category(String group, String description) {
+    }
+
+    record Entry(String path, String group, String description, Usage usage) {
     }
 
     record Profile(

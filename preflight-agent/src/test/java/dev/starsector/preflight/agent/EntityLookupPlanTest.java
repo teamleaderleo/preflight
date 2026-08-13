@@ -11,6 +11,7 @@ import com.fs.starfarer.api.campaign.SectorEntityToken;
 import com.fs.util.container.repo.ObjectRepository;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,12 +28,37 @@ import org.objectweb.asm.tree.MethodNode;
  */
 class EntityLookupPlanTest {
     private static final String ORIGINAL = "preflight$original$getEntityById";
+    private static final Locale TURKISH = Locale.forLanguageTag("tr-TR");
+
+    private Locale playerLocale;
+
+    /**
+     * The shipped fallback folds ids with the <em>default</em> locale, so any test asserting which
+     * entity a mixed-case id reaches is asserting something about the machine it runs on. These pin
+     * a locale instead of inheriting the operator's; {@link #theIndexTracksTheShippedFallbackEvenWhereTurkishBreaksIt}
+     * covers the case where that choice matters.
+     */
+    @BeforeEach
+    void pinLocale() {
+        playerLocale = Locale.getDefault();
+        Locale.setDefault(Locale.ROOT);
+    }
+
+    @AfterEach
+    void restoreLocale() {
+        Locale.setDefault(playerLocale);
+    }
 
     @BeforeEach
     @AfterEach
     void clearGate() {
         System.clearProperty(EntityLookupRuntime.ENABLED_PROPERTY);
         EntityLookupRuntime.beginSession();
+        // These fixture tests define only BaseLocation. The two exact installed-class transforms
+        // have their own archive integration test; mark their gates here so answer-equivalence can
+        // continue to exercise the location wrapper in isolation.
+        EntityLookupRuntime.repositoryInstalled();
+        EntityLookupRuntime.idMutationInstalled();
     }
 
     @Test
@@ -88,6 +114,27 @@ class EntityLookupPlanTest {
 
         assertSame(fixture.entities.get(3), ungated, "the shipped fallback matches case-insensitively");
         assertSame(ungated, gated, "so the index has to as well");
+    }
+
+    /**
+     * Turkish lowercases {@code I} to dotless {@code ı}, so {@code "ENTITY_3"} folds to
+     * {@code "entıty_3"} and never meets {@code "entity_3"}. The shipped fallback folds with the
+     * default locale, which means the <em>game</em> stops resolving that id for a Turkish player,
+     * with or without Preflight. The index's job is to be wrong in exactly the same way.
+     */
+    @Test
+    void theIndexTracksTheShippedFallbackEvenWhereTurkishBreaksIt() throws Exception {
+        Locale.setDefault(TURKISH);
+        Fixture fixture = Fixture.of(32);
+
+        Object ungated = fixture.lookupWithGateOff("ENTITY_3");
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+        Object gated = fixture.lookup("ENTITY_3");
+
+        assertNull(ungated, "Turkish folding puts the shipped fallback out of reach");
+        assertSame(ungated, gated, "so the index must not answer where the shipped method would not");
+        assertSame(fixture.entities.get(3), fixture.lookup("entity_3"),
+                "while the exact path is untouched by any of this");
     }
 
     @Test
@@ -149,6 +196,47 @@ class EntityLookupPlanTest {
     }
 
     @Test
+    void anAbsentIdIsServedOnlyAfterTheLiveSnapshotIsConfirmed() throws Exception {
+        Fixture fixture = Fixture.of(32);
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+
+        assertNull(fixture.lookup("missing"));
+
+        assertEquals(1L, EntityLookupRuntime.counters().get("missingServed"),
+                "a confirmed live-list miss should not run the allocating shipped fallback");
+        assertEquals(0L, EntityLookupRuntime.counters().get("declined"));
+    }
+
+    @Test
+    void aSameSizeListReplacementInvalidatesAPreviouslyConfirmedMiss() throws Exception {
+        Fixture fixture = Fixture.of(32);
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+        assertNull(fixture.lookup("replacement"));
+        long rebuilds = (Long) EntityLookupRuntime.counters().get("rebuilds");
+
+        Object replacement = fixture.replace(7, "replacement");
+
+        assertSame(replacement, fixture.lookup("replacement"));
+        assertTrue((Long) EntityLookupRuntime.counters().get("rebuilds") > rebuilds,
+                "size equality must not hide direct List.set mutation");
+    }
+
+    @Test
+    void anIdMutationInvalidatesAPreviouslyConfirmedMiss() throws Exception {
+        Fixture fixture = Fixture.ofMutable(32);
+        System.setProperty(EntityLookupRuntime.ENABLED_PROPERTY, "true");
+        assertNull(fixture.lookup("renamed"));
+        long rebuilds = (Long) EntityLookupRuntime.counters().get("rebuilds");
+
+        MutableEntity renamed = (MutableEntity) fixture.entities.get(9);
+        renamed.setId("renamed");
+
+        assertSame(renamed, fixture.lookup("renamed"));
+        assertTrue((Long) EntityLookupRuntime.counters().get("rebuilds") > rebuilds,
+                "setId-style mutation must be visible even though the list did not change");
+    }
+
+    @Test
     void anAlreadyRewrittenClassIsDeclined() throws Exception {
         byte[] once = rewritten();
         assertNull(EntityLookupPlan.transform(ClassSignature.parse(once), once),
@@ -173,6 +261,15 @@ class EntityLookupPlanTest {
 
         @SuppressWarnings("unchecked")
         static Fixture of(int size) throws Exception {
+            return create(size, false);
+        }
+
+        static Fixture ofMutable(int size) throws Exception {
+            return create(size, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Fixture create(int size, boolean mutable) throws Exception {
             Class<?> type = define(rewritten());
             Object location = type.getDeclaredConstructor().newInstance();
             Fixture fixture = new Fixture(
@@ -183,7 +280,11 @@ class EntityLookupPlanTest {
                     (ObjectRepository) type.getMethod(EntityLookupPlan.OBJECTS_METHOD)
                             .invoke(location));
             for (int i = 0; i < size; i++) {
-                fixture.add("entity_" + i);
+                if (mutable) {
+                    fixture.add(new MutableEntity("entity_" + i));
+                } else {
+                    fixture.add("entity_" + i);
+                }
             }
             return fixture;
         }
@@ -222,10 +323,30 @@ class EntityLookupPlanTest {
         }
 
         Object add(String id) {
-            SectorEntityToken entity = () -> id;
+            SectorEntityToken entity = new com.fs.starfarer.campaign.BaseCampaignEntity(id);
+            return add(entity);
+        }
+
+        Object add(SectorEntityToken entity) {
             entities.add(entity);
             repository.add(entity);
             return entity;
+        }
+
+        Object replace(int index, String id) {
+            SectorEntityToken old = entities.get(index);
+            SectorEntityToken replacement = new com.fs.starfarer.campaign.BaseCampaignEntity(id);
+            entities.set(index, replacement);
+            repository.remove(old);
+            repository.add(replacement);
+            return replacement;
+        }
+    }
+
+    private static final class MutableEntity
+            extends com.fs.starfarer.campaign.BaseCampaignEntity {
+        private MutableEntity(String id) {
+            super(id);
         }
     }
 

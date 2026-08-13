@@ -655,10 +655,10 @@ change is deliberately inert until a loader-specific cache proves equivalent and
 
 That is closer to SWC's ahead-of-time transform cache or a persistent query cache than React's
 `useRef`, which only avoids repeat work inside one process. The follow-up in
-[issue #263](https://github.com/teamleaderleo/starsector-preflight/issues/263) is now narrowed to
+[issue #263](https://github.com/teamleaderleo/preflight/issues/263) is now narrowed to
 preparing the dominant pure representations and deterministically rehydrating the live objects. The
 reversible, version-aware optimized-mod manager is tracked separately in
-[issue #262](https://github.com/teamleaderleo/starsector-preflight/issues/262).
+[issue #262](https://github.com/teamleaderleo/preflight/issues/262).
 
 ## Reproduction
 

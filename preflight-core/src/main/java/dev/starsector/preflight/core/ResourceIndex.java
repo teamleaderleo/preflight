@@ -2,10 +2,7 @@ package dev.starsector.preflight.core;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -134,25 +131,66 @@ public final class ResourceIndex {
         if (raw == null || raw.isBlank()) {
             throw new IllegalArgumentException("Resource path is required");
         }
-        String value = raw.replace('\\', '/');
-        if (value.startsWith("/") || value.matches("^[A-Za-z]:.*")) {
+        int length = raw.length();
+        char first = raw.charAt(0);
+        if (first == '/' || first == '\\'
+                || (length >= 2 && asciiLetter(first) && raw.charAt(1) == ':')) {
             throw new IllegalArgumentException("Resource path must be relative: " + raw);
         }
 
-        Deque<String> segments = new ArrayDeque<>();
-        for (String segment : value.split("/+")) {
-            if (segment.isEmpty() || segment.equals(".")) {
+        boolean rewrite = false;
+        int segmentStart = 0;
+        for (int index = 0; index <= length; index++) {
+            char current = index == length ? '/' : raw.charAt(index);
+            if (current != '/' && current != '\\') {
                 continue;
             }
-            if (segment.equals("..")) {
+
+            int segmentLength = index - segmentStart;
+            if ((index < length && current == '\\') || segmentLength == 0) {
+                rewrite = true;
+            }
+            if (segmentLength == 1 && raw.charAt(segmentStart) == '.') {
+                rewrite = true;
+                segmentStart = index + 1;
+                continue;
+            }
+            if (segmentLength == 2
+                    && raw.charAt(segmentStart) == '.'
+                    && raw.charAt(segmentStart + 1) == '.') {
                 throw new IllegalArgumentException("Resource path may not contain '..': " + raw);
             }
-            segments.addLast(segment);
+            segmentStart = index + 1;
         }
-        if (segments.isEmpty()) {
+        if (!rewrite) {
+            return raw;
+        }
+
+        StringBuilder normalized = new StringBuilder(length);
+        segmentStart = 0;
+        for (int index = 0; index <= length; index++) {
+            char current = index == length ? '/' : raw.charAt(index);
+            if (current != '/' && current != '\\') {
+                continue;
+            }
+            int segmentLength = index - segmentStart;
+            if (segmentLength > 0
+                    && !(segmentLength == 1 && raw.charAt(segmentStart) == '.')) {
+                if (!normalized.isEmpty()) {
+                    normalized.append('/');
+                }
+                normalized.append(raw, segmentStart, index);
+            }
+            segmentStart = index + 1;
+        }
+        if (normalized.isEmpty()) {
             throw new IllegalArgumentException("Resource path is empty after normalization: " + raw);
         }
-        return String.join("/", new ArrayList<>(segments));
+        return normalized.toString();
+    }
+
+    private static boolean asciiLetter(char value) {
+        return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z');
     }
 
     public record Root(String id, Path path, boolean core) {

@@ -112,6 +112,41 @@ class ResilienceTest(unittest.TestCase):
         self.assertIn('if completed "$condition" "$round"; then', SCRIPT_TEXT)
         self.assertIn('.status == "accepted"', SCRIPT_TEXT)
 
+    def test_resume_restores_the_measurement_contract(self):
+        for field in (
+            "RECORDED_CONDITIONS",
+            "RECORDED_UNATTENDED",
+            "RECORDED_COOLDOWN",
+            "RECORDED_GAME",
+            "RECORDED_CACHE",
+            "RECORDED_SEED",
+            "RECORDED_PROTOCOL",
+        ):
+            self.assertIn(field, SCRIPT_TEXT)
+        self.assertIn('CONDITIONS="$RECORDED_CONDITIONS"', SCRIPT_TEXT)
+        self.assertIn('UNATTENDED="$RECORDED_UNATTENDED"', SCRIPT_TEXT)
+        self.assertIn('SEED="$RECORDED_SEED"', SCRIPT_TEXT)
+
+    def test_resume_never_overwrites_immutable_launch_settings(self):
+        settings = re.search(
+            r'LAUNCH_SETTINGS="\$ROOT/launch-settings.json"(?P<body>.*?)\n\nPROTOCOL=clicked',
+            SCRIPT_TEXT, re.DOTALL,
+        )
+        self.assertIsNotNone(settings, "launch-settings contract not found")
+        body = settings.group("body")
+        self.assertIn('if [[ -n "$SESSION" ]]', body)
+        self.assertIn('[[ -f "$LAUNCH_SETTINGS" ]]', body)
+        self.assertIn('else\n    java -jar "$JAR" launch-settings > "$LAUNCH_SETTINGS"', body)
+
+    def test_legacy_resume_fails_instead_of_guessing(self):
+        self.assertIn("This session predates the resumable session contract", SCRIPT_TEXT)
+        self.assertIn("Refusing to guess its protocol, conditions, display settings", SCRIPT_TEXT)
+
+    def test_resume_rejects_code_and_environment_drift(self):
+        self.assertIn('.repositoryHead == $head and .preflightJarSha256 == $jar', SCRIPT_TEXT)
+        self.assertIn('and .hardware == $hardware and .os == $os and .java == $java', SCRIPT_TEXT)
+        self.assertIn("Refusing to combine unlike launches", SCRIPT_TEXT)
+
 
 class ReportTest(unittest.TestCase):
     def test_medians_and_delta_are_measured_against_vanilla(self):
@@ -478,10 +513,13 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertTrue(conditions, "no prepared conditions found in the launch dispatch")
         for condition in conditions:
             self.assertIn(condition, guard.group("test"), f"{condition} is not guarded")
+        self.assertIn("fast", guard.group("test"), "the current --fast preset is not guarded")
+        self.assertIn("full", guard.group("test"), "the historical full stack is not guarded")
 
-    def test_both_cache_serving_conditions_are_checked_and_no_others(self):
-        # vanilla and agent legitimately have no adapter evidence; enabled and fast both
-        # serve from the cache, so both have to prove they did.
+    def test_compatibility_cache_serving_conditions_are_checked_and_no_others(self):
+        # vanilla and agent legitimately have no adapter evidence. The compatibility-pixel
+        # conditions prove cache service here; prepared-pixel conditions use the stricter
+        # cache-plus-bridge guard above.
         guard = re.search(
             r'elif \[\[ (?P<test>[^\]]*) \]\] \\?\s*\n?\s*&& ! served_prepared_textures',
             SCRIPT_TEXT,
@@ -489,23 +527,36 @@ class AdapterEvidenceTest(unittest.TestCase):
         self.assertIsNotNone(guard, "adapter guard not found")
         condition = guard.group("test")
         self.assertIn("enabled", condition)
-        self.assertIn("fast", condition)
+        self.assertIn("compatibility", condition)
+        self.assertIn("profile", condition)
+        self.assertNotIn("fast", condition)
         self.assertNotIn("vanilla", condition)
         self.assertNotIn("agent", condition)
+
+    def test_fast_condition_invokes_the_cli_fast_preset(self):
+        fast = re.search(
+            r"^        fast\)(?P<body>.*?) ;;",
+            SCRIPT_TEXT,
+            re.DOTALL | re.MULTILINE,
+        )
+        self.assertIsNotNone(fast, "fast launch condition not found")
+        self.assertRegex(fast.group("body"), r"(?:^|\s)--fast(?:\s|$)")
 
 
 class UnattendedTest(unittest.TestCase):
     """Running without an operator removes the two things a human did. The ways it goes wrong
     quietly are measuring two protocols as one, and reading our own SIGTERM as a failed run."""
 
-    def test_profile_condition_requests_one_timestamp_coherent_chunk(self):
+    def test_profile_condition_finishes_live_recording_before_shutdown(self):
         profile = re.search(
             r"^        profile\)(?P<body>.*?) ;;",
             SCRIPT_TEXT,
             re.DOTALL | re.MULTILINE,
         )
         self.assertIsNotNone(profile, "profile launch condition not found")
-        self.assertIn("--profile --single-chunk-recording", profile.group("body"))
+        self.assertIn("--profile", profile.group("body"))
+        self.assertNotIn("--single-chunk-recording", profile.group("body"))
+        self.assertIn("finish_live_recording", SCRIPT_TEXT)
 
     def test_every_condition_is_driven_including_vanilla(self):
         # The properties travel through the game's own EXTRAARGS hook rather than through the

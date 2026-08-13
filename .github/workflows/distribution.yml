@@ -2,66 +2,95 @@ name: Distribution
 
 on:
   workflow_dispatch:
+    inputs:
+      signed_candidate:
+        description: Build a private update-signed candidate without publishing a release
+        required: true
+        type: boolean
+        default: false
   push:
     tags:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   distribution:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate update-signed build credentials
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "::error::TAURI_SIGNING_PRIVATE_KEY is required for an update-signed build"; exit 1; }
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "::error::TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required for an update-signed build"; exit 1; }
+          test -n "$PREFLIGHT_UPDATER_PUBLIC_KEY" || { echo "::error::PREFLIGHT_UPDATER_PUBLIC_KEY is required for an update-signed build"; exit 1; }
+
+      - name: Validate private-candidate report intake
+        if: inputs.signed_candidate
+        env:
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ vars.PREFLIGHT_REPORT_INTAKE_ORIGIN }}
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREFLIGHT_REPORT_INTAKE_ORIGIN" || { echo "::error::PREFLIGHT_REPORT_INTAKE_ORIGIN is required for a private signed candidate"; exit 1; }
+          test "${#PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD}" -ge 32 || { echo "::error::PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD must contain at least 32 characters"; exit 1; }
+
       - name: Check out source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify source and history boundary
+        run: python3 scripts/verify_source_boundary.py
+
+      - name: Validate update-signed version and notes
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          if [[ "$tag" != v* ]]; then
+            tag="v$(node -p "require('./preflight-desktop/package.json').version")"
+          fi
+          node preflight-desktop/scripts/validate-release-version.mjs "$tag"
 
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk
+        with:
+          # The package carries a jlinked runtime built by whichever JDK is on the builder, so
+          # this line decides which Java reaches players. Stated here rather than inherited from
+          # the action's default, where changing it for an unrelated reason would quietly change
+          # what ships.
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
 
       - name: Verify and package
         run: mvn --batch-mode --no-transfer-progress verify
 
-      - name: Assemble distribution
+      - name: Generate release dependency inventories
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist
-          cp preflight-cli/target/preflight.jar dist/preflight.jar
-          (
-            cd dist
-            sha256sum preflight.jar > preflight.jar.sha256
-          )
-          cat > dist/README.txt <<'TEXT'
-          Starsector Preflight
-          ====================
+          cargo install cargo-cyclonedx --version 0.5.9 --locked
+          scripts/generate-release-sboms.sh "$RUNNER_TEMP/preflight-sboms"
 
-          Requires Java 17 or newer.
-
-          Discover and launch Starsector:
-              java -jar preflight.jar run
-
-          Check discovery without launching:
-              java -jar preflight.jar doctor
-
-          Install a convenient platform launcher:
-              java -jar preflight.jar install
-
-          Verify this download on macOS or Linux:
-              shasum -a 256 -c preflight.jar.sha256
-
-          Verify on Windows PowerShell:
-              (Get-FileHash .\preflight.jar -Algorithm SHA256).Hash.ToLower()
-
-          Project documentation:
-              https://github.com/teamleaderleo/starsector-preflight
-          TEXT
-          tar -C dist -czf dist/starsector-preflight.tar.gz preflight.jar preflight.jar.sha256 README.txt
-          (
-            cd dist
-            zip -q starsector-preflight.zip preflight.jar preflight.jar.sha256 README.txt
-          )
-          sha256sum dist/starsector-preflight.tar.gz dist/starsector-preflight.zip > dist/archives.sha256
+      - name: Assemble distribution
+        run: scripts/assemble-core-release.sh dist "$RUNNER_TEMP/preflight-sboms"
 
       - name: Smoke-test packaged JAR
         shell: bash
@@ -70,34 +99,379 @@ jobs:
           java -jar dist/preflight.jar --help
           java -jar dist/preflight.jar doctor --game "$RUNNER_TEMP/does-not-exist" >/dev/null 2>&1 || test $? -eq 3
 
+      - name: Encrypt private-candidate core artifacts
+        if: inputs.signed_candidate
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-core
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            node preflight-desktop/scripts/candidate-crypt.mjs \
+              encrypt "$file" "candidate-core/${name}.pfcandidate"
+          done < <(find dist -maxdepth 1 -type f -print0)
+
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !inputs.signed_candidate }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: starsector-preflight-${{ github.ref_name }}
+          name: preflight-release-core-${{ github.run_id }}
           path: |
             dist/preflight.jar
             dist/preflight.jar.sha256
-            dist/starsector-preflight.tar.gz
-            dist/starsector-preflight.zip
+            dist/preflight.tar.gz
+            dist/preflight.zip
             dist/archives.sha256
             dist/README.txt
+            dist/LICENSE
+            dist/THIRD_PARTY_NOTICES.md
+            dist/PRIVACY.md
+            dist/KNOWN_LIMITATIONS.md
+            dist/DEPENDENCY_INVENTORY.md
+            dist/SBOM-SHA256SUMS.txt
+            dist/*.cdx.json
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload encrypted private-candidate core
+        if: inputs.signed_candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-release-core-${{ github.run_id }}
+          path: candidate-core/*.pfcandidate
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop:
+    name: Desktop / ${{ matrix.name }}
+    needs: distribution
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            # Tauri's AppImage toolchain targets 22.04; it also gives the package an older
+            # glibc compatibility floor than the moving ubuntu-latest runner.
+            os: ubuntu-22.04
+            bundles: deb,appimage
+          - name: macOS
+            os: macos-latest
+            bundles: dmg
+            # Tauri's updater archive is emitted by the app target, while the installable
+            # package remains the DMG. Building both keeps their payloads verifiably identical.
+            update_bundles: dmg,app
+          - name: Windows
+            os: windows-latest
+            bundles: nsis
+            update_bundles: nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 17
+        uses: ./.github/actions/setup-build-jdk
+        with:
+          # The package carries a jlinked runtime built by whichever JDK is on the builder, so
+          # this line decides which Java reaches players. Stated here rather than inherited from
+          # the action's default, where changing it for an unrelated reason would quietly change
+          # what ships.
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install frontend dependencies
+        working-directory: preflight-desktop
+        run: npm ci
+
+      - name: Download verified engine JAR
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preflight-release-core-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-verified-core
+
+      - name: Stage verified engine JAR
+        if: ${{ !inputs.signed_candidate }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          cp "$RUNNER_TEMP/preflight-verified-core/preflight.jar" preflight-cli/target/preflight.jar
+
+      - name: Decrypt and stage private-candidate engine JAR
+        if: inputs.signed_candidate
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          node preflight-desktop/scripts/candidate-crypt.mjs decrypt \
+            "$RUNNER_TEMP/preflight-verified-core/preflight.jar.pfcandidate" \
+            preflight-cli/target/preflight.jar
+
+      - name: Test frontend and prepare desktop engine
+        working-directory: preflight-desktop
+        shell: bash
+        run: |
+          npm run engine:prepare:verified
+          npm test
+          npm run test:release:prepared
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Write verified updater configuration
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+        run: node scripts/write-updater-config.mjs src-tauri/target/release-updater-config.json
+
+      - name: Reverify bounded desktop engine
+        working-directory: preflight-desktop
+        run: npm run engine:verify
+
+      - name: Build native desktop package
+        if: runner.os != 'Linux' && !startsWith(github.ref, 'refs/tags/v') && !inputs.signed_candidate
+        working-directory: preflight-desktop
+        run: npx tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Build update-enabled native desktop package
+        if: runner.os != 'Linux' && (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate)
+        working-directory: preflight-desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
+        run: npx tauri build --bundles ${{ matrix.update_bundles }} --config src-tauri/target/release-updater-config.json
+
+      - name: Build Linux Debian package
+        if: runner.os == 'Linux'
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
+        run: npx tauri build --bundles deb
+
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux' && !startsWith(github.ref, 'refs/tags/v') && !inputs.signed_candidate
+        working-directory: preflight-desktop
+        env:
+          # linuxdeploy scans the bundled jlink runtime as part of the AppDir. Its dependency
+          # resolver does not infer the JVM's private server directory, so expose the existing
+          # libjvm.so while it validates those ELF files.
+          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
+        run: npx tauri bundle --verbose --bundles appimage
+
+      - name: Build update-enabled Linux AppImage
+        if: runner.os == 'Linux' && (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate)
+        working-directory: preflight-desktop
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
+        run: npx tauri bundle --verbose --bundles appimage --config src-tauri/target/release-updater-config.json
+
+      - name: Verify extracted native package contents
+        working-directory: preflight-desktop
+        env:
+          # The first public beta is distributed without paid Apple/Windows publisher
+          # identities. Tauri's separate, free update signature remains mandatory.
+          PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE: 'false'
+          PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate }}
+        run: npm run desktop:verify-package
+
+      - name: Exercise native installation and removal
+        working-directory: preflight-desktop
+        run: npm run desktop:exercise-install
+
+      - name: Collect native package and checksum
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate }}
+        run: npm run desktop:collect
+
+      - name: Encrypt private-candidate desktop artifacts
+        if: inputs.signed_candidate
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-desktop
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            node scripts/candidate-crypt.mjs \
+              encrypt "$file" "candidate-desktop/${name}.pfcandidate"
+          done < <(find desktop-dist -maxdepth 1 -type f -print0)
+
+      - name: Upload desktop package
+        if: ${{ !inputs.signed_candidate }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-release-${{ matrix.name }}-${{ github.run_id }}
+          path: preflight-desktop/desktop-dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload encrypted private-candidate desktop package
+        if: inputs.signed_candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-release-${{ matrix.name }}-${{ github.run_id }}
+          path: preflight-desktop/candidate-desktop/*.pfcandidate
+          if-no-files-found: error
+          retention-days: 14
+
+  candidate:
+    name: Assemble private signed candidate
+    if: github.event_name == 'workflow_dispatch' && inputs.signed_candidate
+    needs: [distribution, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download verified candidate artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: preflight-release-*-${{ github.run_id }}
+          path: candidate-encrypted
+          merge-multiple: true
+
+      - name: Authenticate and decrypt private-candidate artifacts
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-input
+          count=0
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file" .pfcandidate)"
+            node preflight-desktop/scripts/candidate-crypt.mjs \
+              decrypt "$file" "candidate-input/${name}"
+            count=$((count + 1))
+          done < <(find candidate-encrypted -type f -name '*.pfcandidate' -print0)
+          test "$count" -gt 0 || { echo "::error::No encrypted candidate inputs were found"; exit 1; }
+
+      - name: Build inert private-candidate update feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./preflight-desktop/package.json').version")"
+          notes="docs/releases/${version}.md"
+          test -f "$notes" || { echo "::error::Missing reviewed release notes: $notes"; exit 1; }
+          node preflight-desktop/scripts/build-updater-manifest.mjs \
+            candidate-input "v${version}" candidate-input/candidate-latest.json \
+            "https://private-candidate.invalid/run-${GITHUB_RUN_ID}" "$notes"
+
+      - name: Verify complete private candidate boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv candidate-input/candidate-latest.json candidate-input/latest.json
+          mv candidate-input/candidate-latest.json.sha256 candidate-input/latest.json.sha256
+          python3 scripts/verify_complete_release.py --release candidate-input
+
+      - name: Encrypt complete private candidate
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate-output
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            node preflight-desktop/scripts/candidate-crypt.mjs \
+              encrypt "$file" "candidate-output/${name}.pfcandidate"
+          done < <(find candidate-input -maxdepth 1 -type f -print0)
+
+      - name: Preserve encrypted private candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-private-signed-candidate-${{ github.run_id }}
+          path: candidate-output/*.pfcandidate
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish complete verified release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [distribution, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download verified release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: preflight-release-*-${{ github.run_id }}
+          path: release-input
+          merge-multiple: true
+
+      - name: Build verified update feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          notes="docs/releases/${version}.md"
+          test -f "$notes" || { echo "::error::Missing reviewed release notes: $notes"; exit 1; }
+          node preflight-desktop/scripts/build-updater-manifest.mjs \
+            release-input "$GITHUB_REF_NAME" release-input/latest.json \
+            "https://github.com/teamleaderleo/preflight/releases/download/$GITHUB_REF_NAME" "$notes"
+
+      - name: Verify complete public release boundary
+        run: python3 scripts/verify_complete_release.py --release release-input
+
+      - name: Preserve complete release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-complete-release-${{ github.run_id }}
+          path: release-input/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Stage and publish complete tagged release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" \
-            dist/preflight.jar \
-            dist/preflight.jar.sha256 \
-            dist/starsector-preflight.tar.gz \
-            dist/starsector-preflight.zip \
-            dist/archives.sha256 \
-            dist/README.txt \
+            release-input/* \
+            --draft \
             --verify-tag \
-            --generate-notes \
-            --title "Starsector Preflight $GITHUB_REF_NAME"
+            --notes-file "docs/releases/${version}.md" \
+            --title "Preflight $GITHUB_REF_NAME"
+          gh release edit "$GITHUB_REF_NAME" --draft=false

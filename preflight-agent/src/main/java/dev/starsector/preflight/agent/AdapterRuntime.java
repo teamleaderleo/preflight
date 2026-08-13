@@ -5,20 +5,29 @@ import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Installs the optional probe transformer while keeping every unknown build unmodified. */
 final class AdapterRuntime {
+    static final String DISABLED_PLANS_PROPERTY = "preflight.adapter.disabledPlans";
+    static final String DISABLED_PLANS_ENVIRONMENT = "PREFLIGHT_DISABLE_ADAPTER_PLANS";
+
     private AdapterRuntime() {
     }
 
     static Session start(AgentOptions options, Instrumentation instrumentation) {
         Objects.requireNonNull(options, "options");
         Objects.requireNonNull(instrumentation, "instrumentation");
+        Set<String> disabledPlans = disabledPlans(System.getenv(), System.getProperties());
+        AdapterPlanControl.configure(options.adapterPlanScope(), disabledPlans);
+        SourceArchiveHashes.beginSession();
+        AdapterTransformationCache.beginSession();
         TextureCompatibilityRuntime.beginSession();
         TexturePreparedPixelRuntime.beginSession();
         TexturePaddingRuntime.beginSession();
@@ -29,8 +38,42 @@ final class AdapterRuntime {
         RulesCsvCacheRuntime.beginSession();
         RulesDuplicateIndexRuntime.beginSession();
         RuleTokenCacheRuntime.beginSession();
+        RulesRegexCacheRuntime.beginSession();
+        ResourcePriorityRuntime.beginSession();
+        SaveDescriptorCompatibilityRuntime.beginSession();
+        IndustryDemandSupplyMemoRuntime.beginSession();
+        CodexLazyFleetMemberRuntime.beginSession();
+        IndEvoSyntheticMarketRuntime.beginSession();
         RuleCommandClassCacheRuntime.beginSession();
         MergedReadCacheRuntime.beginSession();
+        LoadingUtilsReaderRuntime.beginSession();
+        LoadJsonMemoRuntime.reset();
+        AudioStreamSourceErrorRuntime.beginSession();
+        AudioResourceFallbackRuntime.beginSession();
+        AudioMusicTransitionRuntime.beginSession();
+        AiTweaksEngagementRangeRuntime.beginSession();
+        AshLibVariantLookupRuntime.beginSession();
+        GraphicsLibCompactReplayPlan.beginSession();
+        JaninoBytecodeCacheRuntime.beginSession();
+        GraphicsLibInsigniaManagerCacheRuntime.beginSession();
+        GraphicsLibHotSettingsRuntime.reset();
+        MagicLibPaintjobLoadRuntime.reset();
+        EntityLookupRuntime.beginSession();
+        RadarRenderRuntime.beginSession();
+        DeploymentIconCacheRuntime.beginSession();
+        CommodityEventModMemoRuntime.beginSession();
+        CampaignEntityMaintenanceRuntime.beginSession();
+        FleetAiProfilerRuntime.beginSession();
+        SimOpponentSafetyRuntime.beginSession();
+        LogisticsNotificationsFuelRuntime.reset();
+        MacMemoryWarningRuntime.beginSession();
+        CombatRuntimeIntegrityRuntime.beginSession();
+        FrameTimeRuntime.beginSession(Boolean.getBoolean("preflight.frameTimes"));
+        boolean campaignTimes = Boolean.getBoolean("preflight.campaignTimes");
+        CampaignCallTimeRuntime.beginSession(campaignTimes);
+        CampaignEngineTimeRuntime.beginSession(campaignTimes);
+        CampaignLocationEconomyTimeRuntime.beginSession(campaignTimes);
+        CampaignMarketFleetTimeRuntime.beginSession(campaignTimes);
         StartupPhaseRuntime.beginSession(options.startupPhaseProbe()
                 ? sibling(options.adapterReport(), "startup-phases.json") : null);
         StartupPhaseRuntime.enableMergedReadProbe(options.startupPhaseProbe());
@@ -39,6 +82,31 @@ final class AdapterRuntime {
                 options.adapterReport(),
                 options.adapterTargets(),
                 options.candidatePrefixes());
+        RuntimeProcessReport runtimeProcess = RuntimeProcessReport.current(
+                options.adapterReport().resolveSibling("runtime-process.json"));
+        try {
+            runtimeProcess.running();
+        } catch (IOException error) {
+            report.contained("Could not publish runtime process identity", error);
+        }
+        try {
+            RuntimeSemanticState.beginSession(
+                    options.adapterReport().resolveSibling("runtime-state.json"));
+        } catch (IOException error) {
+            report.contained("Could not publish runtime semantic state", error);
+        }
+        DesktopSmokeLiveReport desktopSmoke;
+        try {
+            desktopSmoke = DesktopSmokeLiveReport.start(options.adapterReport(), options.adapterMode());
+        } catch (IOException error) {
+            report.contained("Could not start desktop smoke live evidence", error);
+            try {
+                desktopSmoke = DesktopSmokeLiveReport.start(
+                        options.adapterReport(), options.adapterMode(), false);
+            } catch (IOException impossible) {
+                throw new IllegalStateException(impossible);
+            }
+        }
         CodeLoaderSignatureReport codeLoaderReport = new CodeLoaderSignatureReport(
                 sibling(options.adapterReport(), "code-loader-signatures.json"));
         AudioDecoderSignatureReport audioDecoderReport = new AudioDecoderSignatureReport(
@@ -51,12 +119,14 @@ final class AdapterRuntime {
                 sibling(options.adapterReport(), "janino-loader-contract.json"),
                 janinoTarget());
         Session session = new Session(
+                runtimeProcess,
                 report,
                 codeLoaderReport,
                 audioDecoderReport,
                 soundLoaderReport,
                 textureLoaderReport,
                 janinoLoaderReport,
+                desktopSmoke,
                 options.adapterMode() != AdapterMode.OFF);
         if (options.adapterMode() == AdapterMode.OFF) {
             return session;
@@ -68,6 +138,7 @@ final class AdapterRuntime {
         }
 
         if (options.adapterMode() == AdapterMode.ENABLED) {
+            SourceArchiveHashes.configure(options.textureCacheDirectory());
             TextureCompatibilityRuntime.configure(
                     options.textureCacheDirectory(),
                     options.textureManifest(),
@@ -79,15 +150,24 @@ final class AdapterRuntime {
             RulesCsvCacheRuntime.configure(options.rulesCsvCache());
             RuleCommandClassCacheRuntime.configure(options.ruleCommandClassCache());
             MergedReadCacheRuntime.configure(options.mergedReadCache());
+            GraphicsLibCompactReplayPlan.configure(
+                    options.graphicsLibCompactReplay(), options.textureCacheDirectory());
+            JaninoBytecodeCacheRuntime.configure(
+                    options.janinoBytecodeCache(), options.janinoBytecodeContext());
+            GraphicsLibInsigniaManagerCacheRuntime.configure(
+                    options.graphicsLibInsigniaManagerCache());
             if (options.ruleTokenCache()) {
-                RuleTokenCacheRuntime.enable();
+                RuleTokenCacheRuntime.configure(options.rulesCsvCache());
             }
             ResourceProbeRuntime.enable(options.resourceProbeCache());
             LoadJsonMemoRuntime.enable(options.loadJsonMemo());
             if (options.preparedAudioCache() != null && options.audioDecoderIdentity() != null) {
                 PreparedAudioRuntime.enable(true);
                 PreparedAudioRuntime.configure(
-                        options.preparedAudioCache(), options.audioDecoderIdentity());
+                        options.preparedAudioCache(),
+                        options.audioDecoderIdentity(),
+                        options.preparedAudioManifest(),
+                        options.preparedAudioManifestIdentity());
             }
         }
 
@@ -96,6 +176,49 @@ final class AdapterRuntime {
             registry = loadRegistry(options.adapterTargets(), report);
             if (options.adapterMode() == AdapterMode.ENABLED) {
                 registry = registry.withTextureTarget(options.textureAdapterMode());
+                report.diagnostic("Loaded the exact refit simulator opponent-safety target");
+                report.diagnostic("Loaded the exact startup resource-priority index target");
+                report.diagnostic("Loaded the exact save-descriptor compatibility memo target");
+                report.diagnostic("Loaded the exact Codex industry demand/supply memo targets");
+                report.diagnostic("Loaded the exact IndEvo synthetic-market safety targets");
+                report.diagnostic("Loaded the exact campaign commodity event-mod memo target");
+                report.diagnostic("Loaded the exact campaign entity-maintenance targets");
+                report.diagnostic("Loaded the exact resource source-hint isolation target");
+                report.diagnostic("Loaded the exact MagicLib unlocked-paintjob set target");
+                report.diagnostic("Loaded the exact MagicLib optional-paintjob JSON shortcut");
+                report.diagnostic("Loaded the exact GraphicsLib hot-settings cache target");
+                if (AudioStreamSourceErrorRuntime.disabled()) {
+                    report.diagnostic("Skipped the streaming-audio OpenAL error-order target by diagnostic property");
+                } else {
+                    report.diagnostic("Loaded the exact streaming-audio OpenAL error-order target");
+                }
+                report.diagnostic("Loaded the exact sound classpath-root resource fallback target");
+                report.diagnostic("Loaded the exact AI Tweaks per-selection range target");
+                report.diagnostic("Loaded the exact AshLib callback-scoped variant index targets");
+                if (FrameTimeRuntime.enabled()) {
+                    registry = registry.withFrameTimeTarget();
+                    report.diagnostic("Loaded the exact lightweight frame-time and campaign-state targets");
+                }
+                if (CampaignCallTimeRuntime.enabled()) {
+                    registry = registry.withCampaignCallTimeTargets();
+                }
+                if (CampaignEngineTimeRuntime.enabled()) {
+                    registry = registry.withCampaignEngineTimeTarget();
+                }
+                if (CampaignLocationEconomyTimeRuntime.enabled()) {
+                    registry = registry.withCampaignLocationEconomyTimeTargets();
+                }
+                if (CampaignMarketFleetTimeRuntime.enabled()) {
+                    registry = registry.withCampaignMarketFleetTimeTargets();
+                }
+                if (campaignTimes) {
+                    report.diagnostic("Loaded the exact opt-in detailed campaign timing targets");
+                }
+                if (!options.startupPhaseProbe()
+                        && (FrameTimeRuntime.enabled() || LoadJsonMemoRuntime.ready())) {
+                    registry = registry.withFrameTimeStartupCompletionTarget();
+                    report.diagnostic("Loaded the exact lightweight runtime startup-completion target");
+                }
                 if (options.startupPhaseProbe()) {
                     registry = registry.withStartupPhaseTarget();
                     report.diagnostic("Loaded the exact ResourceLoaderState and SpecStore startup-phase probe targets");
@@ -104,6 +227,10 @@ final class AdapterRuntime {
                     registry = registry.withVariantJsonCacheTarget();
                     report.diagnostic("Loaded the exact SpecStore variant JSON cache target ("
                             + VariantJsonCacheRuntime.status() + ")");
+                } else {
+                    // The variant target composes this disjoint rewrite whenever it is present.
+                    registry = registry.withSpecStoreQuoteNormalizationTarget();
+                    report.diagnostic("Loaded the exact SpecStore quote-normalization target");
                 }
                 if (WeaponJsonCacheRuntime.ready()) {
                     registry = registry.withWeaponJsonCacheTarget();
@@ -129,6 +256,8 @@ final class AdapterRuntime {
                     registry = registry.withRulesDuplicateIndexTarget();
                     report.diagnostic("Loaded the exact rules duplicate-index target");
                 }
+                registry = registry.withRulesRegexCacheTarget();
+                report.diagnostic("Loaded the exact rules fixed-pattern cache target");
                 if (RuleTokenCacheRuntime.ready()) {
                     registry = registry.withRuleTokenCacheTarget();
                     report.diagnostic("Loaded the exact rule-expression tokenizer memo target");
@@ -155,9 +284,50 @@ final class AdapterRuntime {
                     report.diagnostic("Loaded the exact merged-read cache target ("
                             + MergedReadCacheRuntime.status() + ")");
                 }
+                if (GraphicsLibCompactReplayPlan.ready()) {
+                    registry = registry.withGraphicsLibCompactReplayTarget();
+                    report.diagnostic("Loaded the exact GraphicsLib compact auto-generation replay target ("
+                            + GraphicsLibCompactReplayPlan.status() + ")");
+                } else if (options.graphicsLibCompactReplay()) {
+                    report.diagnostic("GraphicsLib compact replay was requested but is unavailable ("
+                            + GraphicsLibCompactReplayPlan.status() + ")");
+                }
+                if (JaninoBytecodeCacheRuntime.ready()) {
+                    registry = registry.withJaninoBytecodeCacheTarget();
+                    report.diagnostic("Loaded the exact Janino complete-map bytecode cache target ("
+                            + JaninoBytecodeCacheRuntime.status() + ")");
+                } else if (options.janinoBytecodeCache() != null) {
+                    report.diagnostic("Janino bytecode cache was requested but is unavailable ("
+                            + JaninoBytecodeCacheRuntime.status() + ")");
+                }
+                if (GraphicsLibInsigniaManagerCacheRuntime.ready()) {
+                    registry = registry.withGraphicsLibInsigniaManagerCacheTarget();
+                    report.diagnostic("Loaded the exact GraphicsLib insignia manager-cache target");
+                }
                 TexturePreparedPixelRuntime.select(options.textureAdapterMode());
                 report.diagnostic("Loaded the compiled exact TextureLoader "
                         + options.textureAdapterMode().optionValue() + " target");
+            }
+            int beforeScope = registry.targets().size();
+            registry = registry.forScope(options.adapterPlanScope());
+            if (registry.targets().size() != beforeScope) {
+                report.diagnostic("Adapter plan scope " + options.adapterPlanScope().optionValue()
+                        + " omitted " + (beforeScope - registry.targets().size()) + " target(s)");
+            }
+            if (!disabledPlans.isEmpty()) {
+                applyDisabledDiagnosticRuntimeGates(disabledPlans);
+                int before = registry.targets().size();
+                registry = registry.withoutPlans(disabledPlans);
+                report.diagnostic("Plan filter disabled "
+                        + (before - registry.targets().size())
+                        + " direct target(s) and every matching composed rewrite: "
+                        + String.join(",", disabledPlans));
+            }
+            if (options.adapterMode() == AdapterMode.ENABLED) {
+                AdapterTransformationCache.configure(
+                        options.textureCacheDirectory(), options, registry, System.getProperties());
+                report.diagnostic("Adapter transformation cache: "
+                        + AdapterTransformationCache.telemetry().get("status"));
             }
         } catch (IOException | RuntimeException error) {
             report.contained("Could not load adapter target registry", error);
@@ -175,7 +345,7 @@ final class AdapterRuntime {
                     soundLoaderReport,
                     textureLoaderReport,
                     janinoLoaderReport), false);
-            report.transformerInstalled(registry.targets().size());
+            report.transformerInstalled(registry);
             if (registry.targets().isEmpty()) {
                 report.diagnostic("No adapter targets are allowlisted; probe-only observation remains safe");
             }
@@ -191,6 +361,39 @@ final class AdapterRuntime {
         String property = properties.getProperty("preflight.adapter.disabled");
         String environmentValue = environment.get("PREFLIGHT_DISABLE_ADAPTER");
         return truthy(property) || truthy(environmentValue);
+    }
+
+    static Set<String> disabledPlans(Properties properties) {
+        return disabledPlans(Map.of(), properties);
+    }
+
+    static Set<String> disabledPlans(Map<String, String> environment, Properties properties) {
+        Set<String> plans = new LinkedHashSet<>();
+        for (String raw : List.of(
+                environment.getOrDefault(DISABLED_PLANS_ENVIRONMENT, ""),
+                properties.getProperty(DISABLED_PLANS_PROPERTY, ""))) {
+            for (String token : raw.split(",")) {
+                String plan = token.trim();
+                if (!plan.isEmpty()) plans.add(plan);
+            }
+        }
+        return Set.copyOf(plans);
+    }
+
+    /** Keeps composed diagnostic probes off when their standalone registry target is filtered. */
+    static void applyDisabledDiagnosticRuntimeGates(Set<String> disabledPlans) {
+        if (disabledPlans.contains(CampaignCallTimeRuntime.PLAN_ID)) {
+            CampaignCallTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CampaignEngineTimeRuntime.PLAN_ID)) {
+            CampaignEngineTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CampaignLocationEconomyTimeRuntime.PLAN_ID)) {
+            CampaignLocationEconomyTimeRuntime.beginSession(false);
+        }
+        if (disabledPlans.contains(CampaignMarketFleetTimeRuntime.PLAN_ID)) {
+            CampaignMarketFleetTimeRuntime.beginSession(false);
+        }
     }
 
     private static BytecodeShapeReport.CaptureTarget janinoTarget() {
@@ -243,36 +446,75 @@ final class AdapterRuntime {
     }
 
     static final class Session implements AutoCloseable {
+        private final RuntimeProcessReport runtimeProcess;
         private final AdapterReport report;
         private final CodeLoaderSignatureReport codeLoaderReport;
         private final AudioDecoderSignatureReport audioDecoderReport;
         private final SoundLoaderContractReport soundLoaderReport;
         private final BytecodeShapeReport textureLoaderReport;
         private final BytecodeShapeReport janinoLoaderReport;
+        private final DesktopSmokeLiveReport desktopSmoke;
         private final boolean writeReport;
         private final AtomicBoolean closed = new AtomicBoolean();
 
         private Session(
+                RuntimeProcessReport runtimeProcess,
                 AdapterReport report,
                 CodeLoaderSignatureReport codeLoaderReport,
                 AudioDecoderSignatureReport audioDecoderReport,
                 SoundLoaderContractReport soundLoaderReport,
                 BytecodeShapeReport textureLoaderReport,
                 BytecodeShapeReport janinoLoaderReport,
+                DesktopSmokeLiveReport desktopSmoke,
                 boolean writeReport) {
+            this.runtimeProcess = runtimeProcess;
             this.report = report;
             this.codeLoaderReport = codeLoaderReport;
             this.audioDecoderReport = audioDecoderReport;
             this.soundLoaderReport = soundLoaderReport;
             this.textureLoaderReport = textureLoaderReport;
             this.janinoLoaderReport = janinoLoaderReport;
+            this.desktopSmoke = desktopSmoke;
             this.writeReport = writeReport;
         }
 
         @Override
         public void close() {
-            if (!closed.compareAndSet(false, true) || !writeReport) {
+            if (!closed.compareAndSet(false, true)) {
                 return;
+            }
+            try {
+                runtimeProcess.stopped();
+            } catch (IOException error) {
+                System.err.println("[Preflight] Failed to finalize runtime process identity: "
+                        + error.getMessage());
+            }
+            RuntimeSemanticState.stopped();
+            desktopSmoke.close();
+            if (!writeReport) return;
+            try {
+                MergedReadCacheRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish lazy read cache: "
+                        + error.getMessage());
+            }
+            try {
+                JaninoBytecodeCacheRuntime.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish Janino bytecode pack: "
+                        + error.getMessage());
+            }
+            try {
+                AdapterTransformationCache.complete();
+            } catch (ThreadDeath | VirtualMachineError fatal) {
+                throw fatal;
+            } catch (Throwable error) {
+                System.err.println("[Preflight] Failed to publish adapter transformation cache: "
+                        + error.getMessage());
             }
             try {
                 report.write();

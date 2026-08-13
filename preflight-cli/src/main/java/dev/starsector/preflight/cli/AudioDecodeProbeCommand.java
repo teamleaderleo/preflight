@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -94,7 +95,7 @@ final class AudioDecodeProbeCommand {
         if (unmatched > 0) {
             long matched = ((Number) report.get("audioFileReadEvents")).longValue();
             out.append("  ").append(unmatched).append(" further audio reads matched no declared file (")
-                    .append(String.format("%.0f%%", 100.0 * unmatched / Math.max(1, unmatched + matched)))
+                    .append(String.format(Locale.ROOT, "%.0f%%", 100.0 * unmatched / Math.max(1, unmatched + matched)))
                     .append(" of audio reads). Nothing below describes them.\n");
             @SuppressWarnings("unchecked")
             List<String> sample = (List<String>) report.get("unmatchedAudioSample");
@@ -143,11 +144,11 @@ final class AudioDecodeProbeCommand {
     }
 
     private static String seconds(Object millis) {
-        return String.format("%.1f s", ((Number) millis).doubleValue() / 1000.0);
+        return String.format(Locale.ROOT, "%.1f s", ((Number) millis).doubleValue() / 1000.0);
     }
 
     private static String megabytes(Object bytes) {
-        return String.format("%.1f MB", ((Number) bytes).doubleValue() / (1024.0 * 1024.0));
+        return String.format(Locale.ROOT, "%.1f MB", ((Number) bytes).doubleValue() / (1024.0 * 1024.0));
     }
 
     private static String wrap(String text, String indent) {

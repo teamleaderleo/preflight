@@ -102,7 +102,7 @@ addresses. Even a perfect texture cache leaves that untouched.
   work disappears.
 - **It does not show that removing texture work speeds up startup.** It shows the work is on the
   thread that matters. Only the OFF-versus-ENABLED benchmark in
-  [#80](https://github.com/teamleaderleo/starsector-preflight/issues/80) can turn that into a number,
+  [#80](https://github.com/teamleaderleo/preflight/issues/80) can turn that into a number,
   and no such number exists yet.
 - **It says nothing about memory.** 1,169 MB of decoded PCM is a footprint question regardless of
   which thread built it.

@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ -f pom.xml ]] || { echo "Run this from the starsector-preflight repository root." >&2; exit 1; }
+[[ -f pom.xml ]] || { echo "Run this from the Preflight repository root." >&2; exit 1; }
 [[ -d "$GAME" ]] || { echo "Starsector installation not found: $GAME" >&2; exit 1; }
 
 JAR=preflight-cli/target/preflight.jar
@@ -114,17 +114,25 @@ echo "flags:    --direct --adapter --startup-phase-probe --no-record ${EXTRA[*]:
 
 python3 "$DETECTOR" snapshot --log-dir "$LOG_DIR" --output "$OUT/before.json"
 
-java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
-    --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
-    ${EXTRA[@]+"${EXTRA[@]}"} >"$OUT/wrapper.log" 2>&1 &
+if (( ${#EXTRA[@]} )); then
+    java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
+        --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
+        "${EXTRA[@]}" >"$OUT/wrapper.log" 2>&1 &
+else
+    java -jar "$JAR" run --game "$GAME" --launcher "$LAUNCHER" \
+        --trace-dir "$OUT" --direct --adapter --startup-phase-probe --no-record \
+        >"$OUT/wrapper.log" 2>&1 &
+fi
 WRAPPER_PID=$!
 
 QUIET_LOGS=false
-for flag in "${EXTRA[@]}"; do
-    if [[ "$flag" == "--quiet-logs" ]]; then
-        QUIET_LOGS=true
-    fi
-done
+if (( ${#EXTRA[@]} )); then
+    for flag in "${EXTRA[@]}"; do
+        if [[ "$flag" == "--quiet-logs" ]]; then
+            QUIET_LOGS=true
+        fi
+    done
+fi
 
 if [[ "$QUIET_LOGS" == true ]]; then
     # The main-menu log marker can legitimately remain in log4j's final 64 KiB buffer until the

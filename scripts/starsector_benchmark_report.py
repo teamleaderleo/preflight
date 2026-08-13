@@ -18,15 +18,28 @@ from pathlib import Path
 
 BASELINE = "vanilla"
 CAMPAIGN_MINIMUM = 5
-ORDER = ["vanilla", "agent", "enabled", "fast", "prepared", "prepared-unpadded", "profile"]
+ORDER = [
+    "vanilla",
+    "agent",
+    "enabled",
+    "compatibility",
+    "prepared",
+    "full",
+    "fast",
+    "prepared-unpadded",
+    "profile",
+]
 LABELS = {
     "vanilla": "vanilla (no preflight)",
     "agent": "agent only (recorder)",
     "enabled": "preflight + recorder",
-    "fast": "preflight, no recorder",
+    "compatibility": "compatibility textures, no recorder",
+    "fast": "current --fast preset",
+    "full": "legacy 2026-08-03 full stack",
     "prepared": "prepared pixels",
     "prepared-unpadded": "prepared pixels, unpadded",
     "profile": "sampling (diagnostic)",
+    "fast-profile": "current --fast sampling (diagnostic)",
 }
 # Conditions that exist to be analysed, not timed. They are reported so their runs are
 # visible, but they never enter a comparison and never hold back the campaign gate: a
@@ -38,13 +51,14 @@ DIAGNOSTIC = {"profile"}
 # a texture cache worth -15% behind a recorder worth +24%. A comparison is only clean when
 # the two conditions differ in one thing.
 INTERESTING = [
-    ("fast", "prepared", "the pixel conversion, cache and recorder held constant"),
+    ("compatibility", "prepared", "the pixel conversion, cache and recorder held constant"),
     ("prepared", "prepared-unpadded", "removing the power-of-two padding"),
     ("agent", "enabled", "the texture cache, recorder held constant"),
     ("vanilla", "prepared", "what a user would actually feel, best path"),
-    ("vanilla", "fast", "what a user would actually feel"),
+    ("vanilla", "fast", "what a current installed Preflight launcher provides"),
+    ("vanilla", "compatibility", "the historical compatibility-cache subset"),
     ("vanilla", "agent", "the cost of the recorder"),
-    ("enabled", "fast", "the cost of the recorder, cache held constant"),
+    ("enabled", "compatibility", "the cost of the recorder, cache held constant"),
     ("vanilla", "enabled", "net, confounded by the recorder"),
 ]
 

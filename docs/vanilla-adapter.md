@@ -1,6 +1,6 @@
 # Vanilla runtime adapter
 
-Starsector Preflight uses a wrapper-launch model. It does not replace or edit the Starsector launcher.
+Preflight uses a wrapper-launch model. It does not replace or edit the Starsector launcher.
 
 ```text
 Preflight launcher
@@ -241,6 +241,19 @@ Its nested `textureCompatibility.preparedPixels` object records:
 - active and pending buffers;
 - releases and internal errors.
 
+After every probe or enabled run, the wrapper also converts this raw telemetry into
+`adapter-health.json`. Its status is one of `ACTIVE`, `PARTIAL`, `SAFE_FALLBACK`, `DISABLED`,
+`PROBE_ONLY`, `NO_TARGETS`, or `ERROR`. In particular, a game update, modified source archive, or
+another agent owning a target becomes a visible `PARTIAL`/`SAFE_FALLBACK` result instead of a
+silent loss of acceleration. The report records whether any acceleration remained active, whether
+original bytecode was retained, the bounded exact-match problems, and the two files needed for
+compatibility review. Its `evidenceKinds` separates version/target mismatch, source rejection,
+unavailable or declined plans, shadowing, ordinary cache misses, cache rejection, wrapper fallback,
+contained adapter failure, and runtime-integrity failure. Misses remain informational; rejection
+and failure signals make an otherwise active result `PARTIAL` and add a specific next action.
+Generating this verdict is post-processing: failure to write it cannot turn a successful game run
+into a failed one.
+
 ## Manual acceptance sequence
 
 A useful real-install check exists once the prepared manifest contains startup images:
@@ -263,6 +276,30 @@ PREFLIGHT_DISABLE_ADAPTER=1
 ```
 
 JFR profiling remains independent and may continue.
+
+One or more exact plans can also be disabled without losing the rest of the adapter. Use a
+comma-separated plan-ID list in either setting:
+
+```text
+PREFLIGHT_DISABLE_ADAPTER_PLANS=prepared-audio-v1,graphicslib-hot-settings-cache-v1
+-Dpreflight.adapter.disabledPlans=prepared-audio-v1,graphicslib-hot-settings-cache-v1
+```
+
+The filter applies to direct targets and to plans composed onto a class owned by another target.
+The same composition gate enforces the selected adapter plan scope. The adapter transformation
+cache includes the effective scope, disabled-plan set, and complete `preflight.*` property set in
+its identity, so differently gated bytecode can't share a cached result. The environment form is
+inherited by an ordinary Preflight launch and is the practical emergency switch for a packaged
+build.
+
+The shutdown adapter report records the effective scope and disabled-plan set, plus the number of
+registered exact targets for each plan. Its bounded 58-plan inventory also names the exact host
+boundary for plans composed onto another target and marks every entry `REGISTERED`, `COMPOSED`,
+`INACTIVE`, `DISABLED`, or `OUT_OF_SCOPE`. Each entry states the vanilla fallback explicitly. The
+catalog is checked against an exhaustive built-in target inventory, including the alternate texture
+target, and every catalogued plan is exercised through its independent kill switch. Bounded target
+evaluations and transformation timings retain the same plan IDs. Prepared-pixel and padding reports
+include their runtime safety state even when the corresponding plan never becomes effective.
 
 ## Target records
 

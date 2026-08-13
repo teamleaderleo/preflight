@@ -49,4 +49,21 @@ class DesktopBridgeCommandTest {
         assertNull(snapshot.get("selected"));
         assertTrue(snapshot.get("diagnostics").toString().contains("No launcher found"));
     }
+
+    @Test
+    void desktopSmokeStatusesHaveScriptableExitCodes() {
+        assertEquals(0, DesktopBridgeCommand.statusExitCode("passed"));
+        assertEquals(3, DesktopBridgeCommand.statusExitCode("skipped"));
+        assertEquals(1, DesktopBridgeCommand.statusExitCode("failed"));
+        assertEquals(1, DesktopBridgeCommand.statusExitCode(null));
+    }
+
+    @Test
+    void benchmarkFailuresKeepTheActionableEngineReason() {
+        java.io.IOException failure = DesktopBridgeCommand.launchFailure(
+                "Desktop benchmark launch failed",
+                new IllegalStateException("runtime marker didn't appear"));
+
+        assertTrue(failure.getMessage().contains("runtime marker didn't appear"));
+    }
 }

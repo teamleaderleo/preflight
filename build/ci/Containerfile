@@ -1,6 +1,6 @@
 FROM docker.io/library/maven:3.9.11-eclipse-temurin-17
 
-LABEL org.opencontainers.image.title="Starsector Preflight build environment" \
+LABEL org.opencontainers.image.title="Preflight build environment" \
       org.opencontainers.image.description="Versioned Maven and JDK environment for disposable repository verification"
 
 ENV MAVEN_CONFIG=/maven-cache

@@ -5,7 +5,6 @@ import com.fs.util.container.repo.ObjectRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -21,8 +20,14 @@ import java.util.Map;
  *   <li>on any failure of that fast path -- a map miss, a null containing location, or the
  *       membership check failing -- it falls back to a linear scan comparing lowercased ids, which
  *       returns the <em>first</em> match in list order;
- *   <li>the fallback applies no membership or location check of its own.
+ *   <li>the fallback applies no membership or location check of its own;
+ *   <li>the fallback folds both sides with the <em>default</em> locale, not {@code Locale.ROOT}.
  * </ul>
+ *
+ * <p>That last point is the one thing here that had to be checked against the shipped bytecode
+ * rather than inferred, because it is invisible in every locale except Turkish and Azeri. It is
+ * left unpinned on purpose: pinning it would make this fixture agree with a rewrite that answers
+ * for ids the game itself would decline.
  *
  * <p>Nothing here is copied from Starsector, whose jars are not redistributable and are not in this
  * repository. It is a model of the observed behaviour, written to be disagreed with by a test if the
@@ -46,6 +51,7 @@ public class BaseLocation {
         idToEntity = null;
     }
 
+    @SuppressWarnings("StringCaseLocaleUsage") // The point of the fixture is that it is unpinned.
     public SectorEntityToken getEntityById(String id) {
         if (idToEntity == null) {
             idToEntity = new HashMap<>();
@@ -60,8 +66,7 @@ public class BaseLocation {
             }
         }
         for (SectorEntityToken entity : getAllEntities()) {
-            if (entity.getId() != null
-                    && entity.getId().toLowerCase(Locale.ROOT).equals(id.toLowerCase(Locale.ROOT))) {
+            if (entity.getId() != null && entity.getId().toLowerCase().equals(id.toLowerCase())) {
                 return entity;
             }
         }

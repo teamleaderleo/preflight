@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -45,6 +47,14 @@ class PreparedAudioCacheTest {
         byte[] returned = decoded.pcmBytes();
         returned[1] = 88;
         assertNotEquals(returned[1], decoded.pcmBytes()[1]);
+        ByteBuffer direct = ByteBuffer.allocateDirect(decoded.pcmByteCount());
+        decoded.copyPcmTo(direct);
+        direct.flip();
+        byte[] directCopy = new byte[direct.remaining()];
+        direct.get(directCopy);
+        assertArrayEquals(decoded.pcmBytes(), directCopy);
+        assertThrows(java.nio.BufferOverflowException.class,
+                () -> decoded.copyPcmTo(ByteBuffer.allocate(decoded.pcmByteCount() - 1)));
 
         assertThrows(IllegalArgumentException.class, () -> new PreparedAudio(
                 "a".repeat(64),
@@ -137,6 +147,49 @@ class PreparedAudioCacheTest {
 
         byte[] trailing = java.util.Arrays.copyOf(encoded, encoded.length + 1);
         assertThrows(IOException.class, () -> PreparedAudioIO.fromBytes(trailing));
+    }
+
+    @Test
+    void trustedBlobReadSkipsOnlyThePayloadChecksum() throws Exception {
+        PreparedAudio audio = audio("c", "d", pcm(16, 9));
+        Path blob = temporaryDirectory.resolve("trusted.spau");
+        PreparedAudioIO.write(blob, audio);
+
+        byte[] sameLengthCorruption = Files.readAllBytes(blob);
+        // The final PCM byte is immediately before the 32-byte outer checksum. Changing it keeps
+        // every structural and dimensional invariant valid while making the checksum stale.
+        sameLengthCorruption[sameLengthCorruption.length - 33] ^= 1;
+        Files.write(blob, sameLengthCorruption);
+        PreparedAudio trusted = PreparedAudioIO.readTrusted(blob);
+        assertEquals(audio.pcmByteCount(), trusted.pcmByteCount());
+        assertThrows(IOException.class, () -> PreparedAudioIO.read(blob));
+
+        Files.write(blob, java.util.Arrays.copyOf(sameLengthCorruption, sameLengthCorruption.length - 1));
+        assertThrows(IOException.class, () -> PreparedAudioIO.readTrusted(blob));
+    }
+
+    @Test
+    void trustedBlobReadStillRejectsMalformedStructure() throws Exception {
+        PreparedAudio audio = audio("e", "f", pcm(16, 7));
+        Path blob = temporaryDirectory.resolve("trusted-structure.spau");
+        byte[] encoded = PreparedAudioIO.toBytes(audio);
+
+        // File header: magic, version, payload length. The PCM length follows two hashes, six
+        // ints, two longs, and is therefore at byte 116 in format v1.
+        byte[] badPayloadLength = encoded.clone();
+        ByteBuffer.wrap(badPayloadLength).order(ByteOrder.BIG_ENDIAN).putInt(8, 1);
+        Files.write(blob, badPayloadLength);
+        assertThrows(IOException.class, () -> PreparedAudioIO.readTrusted(blob));
+
+        byte[] badPcmLength = encoded.clone();
+        ByteBuffer.wrap(badPcmLength).order(ByteOrder.BIG_ENDIAN).putInt(116, audio.pcmByteCount() - 1);
+        Files.write(blob, badPcmLength);
+        assertThrows(IOException.class, () -> PreparedAudioIO.readTrusted(blob));
+
+        byte[] badSampleCount = encoded.clone();
+        ByteBuffer.wrap(badSampleCount).order(ByteOrder.BIG_ENDIAN).putLong(108, audio.sampleCount() + 1);
+        Files.write(blob, badSampleCount);
+        assertThrows(IOException.class, () -> PreparedAudioIO.readTrusted(blob));
     }
 
     @Test

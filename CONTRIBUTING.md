@@ -4,14 +4,30 @@ By contributing you agree that your contributions are licensed under the reposit
 
 ## Development requirements
 
+For Java-only work:
+
 - JDK 17
 - Maven 3.9 or newer
 
-Run the verification suite:
+For repository-wide desktop and report-intake verification, also install:
+
+- Node.js 22
+- npm
+- the stable Rust toolchain with `rustfmt` and `clippy`
+
+Run the Java verification suite:
 
 ```bash
 mvn verify
 ```
+
+Before merging a change that crosses Java, desktop, packaging, or report-intake boundaries, run the repository-wide verification entrypoint:
+
+```bash
+bash ./scripts/verify-all.sh
+```
+
+That command runs the Maven reactor first, reuses its verified runnable JAR for the desktop packaged-engine contract, verifies the React and Rust hosts, regenerates and checks the report-intake bindings, runs Worker tests and the production dependency audit, and performs a Wrangler dry-run without deploying. Native DMG/NSIS/Debian/AppImage assembly remains in the platform GitHub Actions matrix.
 
 ## Optional analysis profiles
 

@@ -1,0 +1,125 @@
+name: Preflight support
+description: Report a launch, performance, gameplay, storage, installation, update, or removal problem
+title: "[Support] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem without attaching saves, game or mod files, activation codes, raw logs, crash dumps, diagnostics ZIPs, or a complete run-report receipt. A receipt contains a private deletion authorization. If you sent a report through Preflight, share only its case ID.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Launch or startup
+        - Campaign or combat performance
+        - Preparation, cache, or disk use
+        - Installation, update, or removal
+        - Profiles or game settings
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: preflight-version
+    attributes:
+      label: Preflight version
+      description: Use the version shown in the app or release download. For a development checkout, give the commit SHA.
+      placeholder: 0.1.0 or 720223d0
+    validations:
+      required: true
+
+  - type: input
+    id: game-version
+    attributes:
+      label: Starsector version
+      placeholder: 0.98a-RC8
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: Windows 11 x86-64, macOS 15 arm64, or Ubuntu 24.04 x86-64
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Preflight installation
+      options:
+        - Desktop app
+        - Standalone JAR
+        - Development checkout
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Optimization preset
+      options:
+        - Recommended
+        - Conservative
+        - Off / troubleshooting
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: storage-policy
+    attributes:
+      label: Texture storage policy
+      options:
+        - Balanced
+        - Fastest
+        - Not prepared / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: mods
+    attributes:
+      label: Mod profile
+      description: Give the enabled mod count and the IDs or names that seem relevant. Don't attach mod files or assets.
+      placeholder: 83 enabled mods; GraphicsLib 1.12.1, Nexerelin ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What happened?
+      description: Include the visible result, whether the game reached the menu or campaign, and any startup time or FPS number shown by Preflight.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: input
+    id: case-id
+    attributes:
+      label: Optional run-report case ID
+      description: Share only the case ID, never the complete receipt or deletion token. Leave this blank if no report was sent.
+      placeholder: 3961d5f3-cd4c-4b62-b915-e9cc5a68d5db
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public issue privacy
+      options:
+        - label: I haven't attached private game data, raw logs, a diagnostics ZIP, an activation code, or a complete run-report receipt.
+          required: true

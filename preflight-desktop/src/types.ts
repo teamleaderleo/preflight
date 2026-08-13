@@ -28,10 +28,402 @@ export interface RunStarted {
   pid: number;
 }
 
-export interface RunStateEvent {
-  state: "started" | "finished";
-  pid: number;
-  success?: boolean;
+export interface OperationSnapshot {
+  format: "preflight-operation-state-v1";
+  gamePid: number | null;
+  desktopSmokePid: number | null;
+  desktopSmokeRunDirectory: string | null;
+  preparationPid: number | null;
+  reportUploadId: number | null;
+  reportUploadTotalBytes: number | null;
+  updateInstalling: boolean;
 }
 
-export type AppStatus = "loading" | "ready" | "setup" | "running" | "error";
+export interface DesktopSmokeProbe {
+  protocol: number;
+  probe: {
+    ready: boolean;
+    driver: {
+      id: string;
+      version: number;
+      platform: string;
+      capabilities: string[];
+    } | null;
+    diagnostics: string[];
+  };
+}
+
+export interface DesktopSmokeStateEvent {
+  state: "started" | "cancelling" | "cancelled" | "finished";
+  pid: number;
+  success?: boolean;
+  detail?: string;
+  runDirectory: string;
+  comparison?: DesktopBenchmarkComparison | null;
+}
+
+export interface DesktopBenchmarkMetric {
+  measurementOnly: number;
+  optimized: number;
+  delta: number;
+  improvementPercent: number | null;
+}
+
+export interface DesktopBenchmarkComparison {
+  available: boolean;
+  metrics: Record<string, DesktopBenchmarkMetric>;
+  context?: {
+    measurementOnly?: DesktopBenchmarkRuntimeContext | null;
+    optimized?: DesktopBenchmarkRuntimeContext | null;
+    measurementOverhead?: {
+      measurementOnly?: DesktopBenchmarkMeasurementOverhead | null;
+      optimized?: DesktopBenchmarkMeasurementOverhead | null;
+    };
+    storage?: {
+      scope: "all-prepared-data";
+      bytes: number;
+      files: number;
+    } | null;
+  };
+}
+
+export interface DesktopBenchmarkMeasurementOverhead {
+  samples: number;
+  totalNanos: number;
+  averageMicros: number;
+  maximumMicros: number;
+  routeSharePercent: number;
+  withinBudget: boolean;
+}
+
+export interface DesktopBenchmarkRuntimeContext {
+  adapterMode?: string;
+  cacheHits: number;
+  cacheMisses: number;
+  fallbacks: number;
+  failures: number;
+  memoryAvailablePercent: number | null;
+}
+
+export interface PreparationStoragePlan {
+  format: "preflight-preparation-storage-plan-v1";
+  profileFingerprint: string;
+  textureStorage: "balanced" | "fastest";
+  cacheDirectory: string;
+  packPath: string;
+  candidateEntries: number;
+  hashedEntries: number;
+  uniqueContent: number;
+  supportedContent: number;
+  unsupportedContent: number;
+  failedContent: number;
+  uniqueSourceBytes: number;
+  uniquePixelBytes: number;
+  reusableLooseBytes: number;
+  predictedLooseBytes: number;
+  upperLooseBytes: number;
+  predictedPackBytes: number;
+  upperPackBytes: number;
+  predictedMetadataBytes: number;
+  upperMetadataBytes: number;
+  predictedAdditionalBytes: number;
+  upperBoundAdditionalBytes: number;
+  safetyReserveBytes: number;
+  requiredFreeBytes: number;
+  usableBytes: number;
+  remainingAfterUpperBoundBytes: number;
+  packHit: boolean;
+  complete: boolean;
+  safeToPrepare: boolean;
+  refusalReason: string | null;
+  diagnostics: string[];
+  durationMs: number;
+}
+
+export type OptimizationPreset = "recommended" | "conservative" | "off";
+export type OptimizationDomain = "prepared-textures" | "prepared-audio";
+
+export interface DiagnosticsExport {
+  format: "starsector-preflight-diagnostics-export-v1";
+  output: string;
+  bytes: number;
+  sha256: string;
+  files: number;
+  runs: number;
+  benchmarks: number;
+  included: Array<{ entry: string; bytes: number; sha256: string }>;
+  skipped: Array<{ entry: string; reason: string }>;
+}
+
+export interface ReportIntakeStatus {
+  configured: boolean;
+  origin: string | null;
+  reason: string | null;
+}
+
+export interface ReportDeletion {
+  method: "DELETE";
+  url: string;
+  token: string;
+}
+
+export interface ReportReceipt {
+  protocolVersion: number;
+  caseId: string;
+  objectKey: string;
+  bytes: number;
+  sha256: string;
+  productVersion: string;
+  receivedAt: string;
+  retentionDeadline: string;
+  deletion: ReportDeletion;
+  signature: string;
+}
+
+export interface ReportUploadStateEvent {
+  state: "starting" | "uploading" | "finalizing" | "cancelling" | "cancelled" | "finished" | "failed";
+  uploadId: number;
+  uploadedBytes: number;
+  totalBytes: number;
+  caseId: string | null;
+  receipt: ReportReceipt | null;
+  detail: string | null;
+}
+
+export interface LaunchSettings {
+  format: "starsector-preflight-launch-settings-v1";
+  directLaunchAvailable: boolean;
+  reason: string | null;
+  settings: {
+    resolution: string;
+    fullscreen: boolean;
+    sound: boolean;
+    javaOptions: string[];
+  } | null;
+  preferences: {
+    resolution: string | null;
+    fullscreen: boolean;
+    sound: boolean;
+    antialiasingSamples: number | null;
+    uiScale: number | null;
+    battleSize: number | null;
+    diagnostics: string[];
+  };
+  limits: {
+    antialiasingSamples: number[];
+    uiScaleMin: number;
+    uiScaleMax: number;
+    uiScaleStep: number;
+    battleSizeMin: number | null;
+    battleSizeDefault: number | null;
+    battleSizeMax: number | null;
+    battleSizeExtendedMax: number | null;
+    diagnostics: string[];
+  };
+  memory: {
+    available: boolean;
+    editable: boolean;
+    maxHeapMiB: number | null;
+    initialHeapMiB: number | null;
+    source: string | null;
+    sourceKind: string | null;
+    reason: string | null;
+    diagnostics: string[];
+    backup: string | null;
+  };
+  changed: boolean;
+  backup: string | null;
+}
+
+export interface LaunchSettingsUpdate {
+  resolution: string;
+  fullscreen: boolean;
+  sound: boolean;
+  antialiasingSamples: number;
+  uiScale: number;
+  battleSize: number;
+  memoryMiB: number | null;
+}
+
+export interface RunStateEvent {
+  state: "started" | "cancelling" | "cancelled" | "finished";
+  pid: number;
+  success?: boolean;
+  detail?: string;
+}
+
+export interface PreparationStateEvent extends RunStateEvent {
+  detail?: string;
+  report?: string;
+}
+
+export interface PreparationProgressEvent {
+  pid: number;
+  format: "preflight-preparation-progress-v1";
+  phase: string;
+  state: "started" | "completed";
+  totalPhases: number;
+  status?: "SUCCESS" | "FAILED" | "SKIPPED";
+  durationMs?: number;
+  metrics: Record<string, number>;
+}
+
+export interface CacheGroup {
+  id: "acceleration" | "evidence" | "configuration" | "application" | string;
+  bytes: number;
+  files: number;
+}
+
+export interface CacheSnapshot {
+  format: "starsector-preflight-cache-v1";
+  root: string;
+  present: boolean;
+  total: { bytes: number; files: number };
+  groups: CacheGroup[];
+  uncategorizedBytes: number;
+  currentProfileFingerprint: string | null;
+  profiles: Array<{
+    fingerprint: string;
+    current: boolean;
+    bytes: number;
+    indexBytes: number;
+    manifestBytes: number;
+    lastModifiedMillis: number;
+  }>;
+}
+
+export interface CacheHealth {
+  format: "starsector-preflight-cache-health-v1";
+  status: "unknown" | "unsafe" | "cold" | "ready" | "repair-needed";
+  profileFingerprint: string | null;
+  issues: Array<{
+    artifact: string;
+    summary: string;
+    path: string;
+  }>;
+  repairBytes: number;
+  repairFiles: number;
+}
+
+export interface CacheRepair {
+  format: "starsector-preflight-cache-repair-v1";
+  safe: boolean;
+  applied: boolean;
+  status: "unknown" | "unsafe" | "profile-changed" | "cold" | "ready" | "repair-needed";
+  profileFingerprint: string | null;
+  bytes: number;
+  files: number;
+  targets: Array<{
+    artifact: string;
+    path: string;
+    bytes: number;
+  }>;
+}
+
+export interface CacheCleanupPlan {
+  format: "starsector-preflight-cache-prune-v1";
+  safe: boolean;
+  applied: boolean;
+  currentProfileFingerprint: string | null;
+  survivingProfileFingerprints: string[];
+  bytes: number;
+  files: number;
+  reachableTextureBlobs: number;
+  reachablePreparedAudioBlobs: number;
+  refusals: string[];
+  groups: Array<{ reason: string; bytes: number; files: number }>;
+  removals: Array<{ path: string; bytes: number; reason: string }>;
+  removalsTruncated: boolean;
+}
+
+export type RemovalScope = "launcher" | "all-data";
+
+export interface RemovalPlan {
+  format: "preflight-removal-v1";
+  scope: RemovalScope;
+  safe: boolean;
+  applied: boolean;
+  bytes: number;
+  files: number;
+  targets: Array<{
+    kind: "launch-integration" | "installed-engine" | "preflight-data";
+    label: string;
+    path: string;
+    bytes: number;
+    files: number;
+  }>;
+  refusals: string[];
+  preserves: string[];
+}
+
+export interface UpdateStatus {
+  format: "preflight-update-v1";
+  configured: boolean;
+  currentVersion: string;
+  available: boolean;
+  version: string | null;
+  date: string | null;
+  notes: string | null;
+  reason: string | null;
+}
+
+export interface UpdateProgressEvent {
+  state: "downloading" | "downloaded" | "installed";
+  downloadedBytes: number;
+  contentLength: number | null;
+}
+
+export interface NamedProfile {
+  name: string;
+  installRoot: string;
+  enabledMods: string[];
+  modCount: number;
+  profileFingerprint: string;
+  savedAt: string;
+  sameInstall: boolean;
+  active: boolean;
+  canActivate: boolean;
+  missingMods: string[];
+  file: string;
+}
+
+export interface ProfileList {
+  format: "starsector-preflight-profile-list-v1";
+  installRoot: string;
+  enabledMods: string[];
+  profiles: NamedProfile[];
+  diagnostics: string[];
+}
+
+export interface ProfileActivationPlan {
+  format: "starsector-preflight-profile-activation-v1";
+  name: string;
+  installRoot: string;
+  savedInstallRoot: string;
+  sameInstall: boolean;
+  active: boolean;
+  canActivate: boolean;
+  applied: boolean;
+  enable: string[];
+  disable: string[];
+  missingMods: string[];
+  atomicReplace?: boolean;
+  backup?: string;
+}
+
+export interface ProfileMutationPlan {
+  format: "starsector-preflight-profile-mutation-v1";
+  operation: "rename" | "delete";
+  name: string;
+  targetName: string | null;
+  profileFingerprint: string;
+  active: boolean;
+  modCount: number;
+  applied: boolean;
+  preparedDataKept: boolean;
+  backup?: string;
+}
+
+export type AppStatus = "loading" | "ready" | "setup" | "launching" | "running" | "error";
+export type NoticeTone = "info" | "success" | "warning" | "error";
+export type Announce = (message: string, tone?: NoticeTone) => void;

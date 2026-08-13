@@ -26,6 +26,15 @@ final class ProjectileJsonCachePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
         if (!TARGET.equals(signature.internalName())
                 || !signature.hasMethod(
                         ProjectileLoaderPhasePlan.LOAD_ALL_METHOD,
@@ -33,10 +42,8 @@ final class ProjectileJsonCachePlan {
                 || !signature.hasMethod(
                         ProjectileLoaderPhasePlan.LOAD_ONE_METHOD,
                         ProjectileLoaderPhasePlan.LOAD_ONE_DESCRIPTOR)) {
-            return null;
+            return false;
         }
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         MethodNode loadAll = uniqueMethod(
                 owner, ProjectileLoaderPhasePlan.LOAD_ALL_METHOD, ProjectileLoaderPhasePlan.LOAD_ALL_DESCRIPTOR);
         MethodNode loadOne = uniqueMethod(
@@ -45,7 +52,7 @@ final class ProjectileJsonCachePlan {
         AbstractInsnNode loadAllReturn = uniqueReturn(loadAll);
         if (loadAll == null || loadOne == null || originalCall == null || loadAllReturn == null
                 || hasRuntimeCalls(loadAll) || hasRuntimeCalls(loadOne)) {
-            return null;
+            return false;
         }
 
         int pathLocal = loadOne.maxLocals++;
@@ -71,10 +78,7 @@ final class ProjectileJsonCachePlan {
         loadOne.instructions.insert(originalCall, after);
         loadAll.instructions.insertBefore(loadAllReturn, new MethodInsnNode(
                 Opcodes.INVOKESTATIC, RUNTIME, "complete", "()V", false));
-
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 
     private static MethodInsnNode uniqueJsonCall(MethodNode method) {

@@ -92,3 +92,86 @@ and it took a benchmark that happened to print a total to notice.
 That is the lesson worth keeping: the arm that is supposed to be equivalent should be **diffed
 against the arm it replaces**, not just timed against it. The timing was right the whole way
 through. The parity check was the thing that had never been run.
+
+## Follow-up: a failed listing is not an empty directory
+
+On 2026-08-04, `combat-reserves-20260804-055653` aborted while loading
+`data/missions/ii_test1/descriptor.json`. Interstellar Imperium's merged mission list referenced the
+file, the enabled mod root was in the resolver walk, and the file existed on disk with the exact
+requested spelling. The probe cache nevertheless skipped every root and vanilla reported the
+resource missing. This was not the game's fast-relaunch failure.
+
+The second ambiguity was `File.list()`: it returns `null` both for a directory that does not exist
+and for an I/O or permissions failure while listing a real directory. The cache treated either as a
+complete empty listing and retained that answer for the launch. Its report consequently claimed
+zero failures even though it had made a real file disappear.
+
+Directory snapshots now use the NIO directory-stream API, which distinguishes a proven missing or
+non-directory path from other failures. Proven absence remains cacheable. Any I/O, iteration, or
+security failure creates an incomplete listing whose every lookup defers to the vanilla resolver.
+The report records these as `listingFailures`, and a regression test pins the rule that an
+incomplete listing can never claim a child is absent.
+
+## Follow-up: whole-root absence is disabled
+
+The NIO distinction was necessary but insufficient. The next live launch, recorded as
+`dialog-grid-20260804-062621`, failed on a different exactly named file:
+
+```
+data/missions/randyforrandis/descriptor.json
+```
+
+The file existed in the enabled Everybody Loves KoC mod, its `mission_list.csv` was the source of
+the request, and the cache reported no listing failures. It nevertheless skipped 17,484 root opens
+wholesale and the vanilla loader exhausted the resolver walk. That proves the whole-root shortcut
+has another false-negative mode which its telemetry cannot currently distinguish from a real miss.
+
+`resource-probe-cache-v3` therefore never answers the per-root open itself. It always invokes the
+original resolver method, whose internal `File.exists()` calls still use the narrower directory
+memo. This gives back the path-construction portion of the optimization, but restores the game's
+own resource-selection boundary and removes the failure mode entirely. Restoring wholesale skips
+requires an exhaustive parity replay of the actual per-root open contract, not another live-launch
+guess.
+
+The resource-probe cache is also no longer implied by `--fast`. It remains explicitly runnable as
+`--adapter --resource-probe-cache` for parity work, but two fatal live false negatives mean it does
+not satisfy the meaning of the normal safe preset yet. This containment is broader than the v3
+runtime change on purpose: the next gameplay pilot must establish startup correctness without any
+resource-listing substitution before the narrower memo is reconsidered for the preset.
+
+That next run, `dialog-grid-safe-retry-20260804-063940`, proved the resource-probe cache was not the
+only cause. Its report records the cache disabled, zero probes, zero skipped roots, and no resolver
+transformation. Starsector nevertheless failed to resolve the existing, readable Iron Shell file
+`data/missions/eis_queens/mission_text.txt`. The launch still served prepared merged reads and
+memoised JSON through the shared `LoadingUtils` transform. Since merged mission rows carry source
+context used by the following per-mission loads, visible JSON-tree equivalence alone is not enough
+to clear that layer. The next isolation arm disables every startup cache while retaining only the
+exact simulation/dialog telemetry.
+
+## Follow-up: an attempted conservative return also failed
+
+The later simulator investigation established that its blank opponent grid was unrelated to any
+startup cache: Starsector had persisted `cat_custom` as the selected simulator category while the
+saved custom-opponent list was empty. With the resource cache disabled, the remaining intermittent
+resource failures also reproduced independently of its transform.
+
+Commit `26664c3` therefore briefly enabled resource-probe-cache-v3 in `--fast` again. It did **not**
+restore the disproven whole-root shortcut: every per-root open still invoked vanilla. Only the
+lower `File.exists()` memo was active, with case/Unicode ambiguity and failed listings delegated to
+the filesystem.
+
+The very next ordinary fast launch, `20260804-125209-161-149caeb5`, failed on the unchanged core
+file `data/missions/forlornhope/mission_text.txt`. The file existed with the exact requested name,
+was readable, and had not changed since 2025. This was not a recorded rapid relaunch: the preceding
+Preflight run was roughly 13 hours earlier. V3 reported 17,105 probes, all answered from remembered
+listings, with zero filesystem deferrals, listing failures, or whole-root skips.
+
+The resolver bytecode establishes the boundary exactly. Core loose data uses its bare-path branch,
+which constructs `new File(path)` and calls the `File.exists()` site v3 replaced. The classpath
+branch does not call the memo. Thus v3 supplied a false negative at the remaining narrow seam; the
+listing looked complete to Java but omitted an existing exact child. A directory enumeration is
+not an authoritative proof of absence on this installation, even when it returns normally.
+
+The resource-probe cache is consequently excluded from `--fast` again. The explicit flag remains
+for parity experiments, but no directory-listing negative cache belongs in a normal launch until it
+can validate absence without merely repeating the assumption that failed here.

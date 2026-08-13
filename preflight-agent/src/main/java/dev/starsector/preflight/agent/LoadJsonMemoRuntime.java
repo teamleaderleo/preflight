@@ -1,6 +1,7 @@
 package dev.starsector.preflight.agent;
 
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +30,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * read a spec and construct from it rather than editing it in place, and a caller that did write
  * to the object would already have been racing the next caller for it. {@link #reparse} exists for
  * a profile that wants the immutable version, and gives up only the parse.
+ *
+ * <p>Once resource initialization begins and the enabled roots plus full profile identity are
+ * stable, eligible cold paths can also be reconstructed from the general full-data-profile cache.
+ * The first decoded object becomes this process's ordinary memo value, so sharing and mutation
+ * behavior remain identical to a vanilla parse followed by this memo.
  */
 public final class LoadJsonMemoRuntime {
     static final String PLAN_ID = "loadjson-memo-v1";
@@ -39,11 +45,15 @@ public final class LoadJsonMemoRuntime {
     private static final AtomicLong calls = new AtomicLong();
     private static final AtomicLong hits = new AtomicLong();
     private static final AtomicLong failures = new AtomicLong();
+    private static final AtomicLong preparedHits = new AtomicLong();
+    private static final AtomicLong preparedMisses = new AtomicLong();
+    private static final AtomicLong preparedCaptures = new AtomicLong();
 
     private static volatile boolean enabled =
             "on".equalsIgnoreCase(System.getProperty(ENABLED_PROPERTY));
     private static volatile boolean reparse =
             "on".equalsIgnoreCase(System.getProperty(REPARSE_PROPERTY));
+    private static volatile boolean profileStable;
 
     /**
      * The resolver carries two one-shot pieces of state that the next resolve consumes and clears:
@@ -53,9 +63,9 @@ public final class LoadJsonMemoRuntime {
      * goes to vanilla so the resolver consumes it.
      */
     private static volatile boolean restrictionProbeReady;
-    private static java.lang.reflect.Method resolverSingleton;
-    private static java.lang.reflect.Field pendingDirectory;
-    private static java.lang.reflect.Field pendingFlag;
+    private static MethodHandle resolverSingleton;
+    private static MethodHandle pendingDirectoryGetter;
+    private static MethodHandle pendingFlagGetter;
     private static final AtomicLong bypassed = new AtomicLong();
 
     private LoadJsonMemoRuntime() {
@@ -92,6 +102,11 @@ public final class LoadJsonMemoRuntime {
             // it is not the answer an unrestricted call would get.
             return loaded;
         }
+        return loadJsonResolved(path, vanilla);
+    }
+
+    /** The unrestricted path, separated so persistence behavior can be executed in isolation. */
+    static Object loadJsonResolved(String path, MethodHandle vanilla) throws Throwable {
         Object cached = parsed.get(path);
         if (cached != null) {
             hits.incrementAndGet();
@@ -105,11 +120,32 @@ public final class LoadJsonMemoRuntime {
                 return vanilla.invoke(path);
             }
         }
+        if (profileStable && MergedReadCacheRuntime.singleJsonEligible(path)) {
+            Object prepared = MergedReadCacheRuntime.singleJson(path);
+            if (prepared != null) {
+                preparedHits.incrementAndGet();
+                parsed.put(path, prepared);
+                return prepared;
+            }
+            preparedMisses.incrementAndGet();
+        }
         Object loaded = vanilla.invoke(path);
         if (loaded != null) {
             parsed.put(path, loaded);
+            if (profileStable && MergedReadCacheRuntime.captureSingleJson(path, loaded)) {
+                preparedCaptures.incrementAndGet();
+            }
         }
         return loaded;
+    }
+
+    /** Resource-loader entry: enabled roots and the full profile identity are now fixed. */
+    public static void markProfileStable() {
+        profileStable = true;
+    }
+
+    static void markStartupComplete() {
+        markProfileStable();
     }
 
     /**
@@ -125,9 +161,12 @@ public final class LoadJsonMemoRuntime {
             return true;
         }
         try {
-            Object resolver = resolverSingleton.invoke(null);
-            return pendingDirectory.get(resolver) != null || pendingFlag.getBoolean(null);
-        } catch (ReflectiveOperationException | RuntimeException unreadable) {
+            Object resolver = resolverSingleton.invoke();
+            return pendingDirectoryGetter.invoke(resolver) != null
+                    || (boolean) pendingFlagGetter.invoke();
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable unreadable) {
             failures.incrementAndGet();
             enabled = false;
             return true;
@@ -141,11 +180,16 @@ public final class LoadJsonMemoRuntime {
         try {
             Class<?> resolver = Class.forName("com.fs.util.C", false,
                     LoadJsonMemoRuntime.class.getClassLoader());
-            resolverSingleton = resolver.getMethod("Object");
-            pendingDirectory = resolver.getDeclaredField("String");
+            java.lang.reflect.Method singleton = resolver.getMethod("Object");
+            java.lang.reflect.Field pendingDirectory = resolver.getDeclaredField("String");
+            java.lang.reflect.Field pendingFlag = resolver.getDeclaredField("super");
+            singleton.setAccessible(true);
             pendingDirectory.setAccessible(true);
-            pendingFlag = resolver.getDeclaredField("super");
             pendingFlag.setAccessible(true);
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            resolverSingleton = lookup.unreflect(singleton);
+            pendingDirectoryGetter = lookup.unreflectGetter(pendingDirectory);
+            pendingFlagGetter = lookup.unreflectGetter(pendingFlag);
             restrictionProbeReady = true;
             return true;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
@@ -171,12 +215,17 @@ public final class LoadJsonMemoRuntime {
     static Map<String, Object> report() {
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("enabled", enabled);
+        report.put("resolverGuard", "prelinked-method-handles");
+        report.put("profileStable", profileStable);
         report.put("sharesParsedObjects", !reparse);
         report.put("calls", calls.get());
         report.put("servedFromMemo", hits.get());
         report.put("bypassedForPendingResolverState", bypassed.get());
         report.put("distinctPaths", parsed.size());
         report.put("failures", failures.get());
+        report.put("preparedHits", preparedHits.get());
+        report.put("preparedMisses", preparedMisses.get());
+        report.put("preparedCaptures", preparedCaptures.get());
         return report;
     }
 
@@ -186,5 +235,13 @@ public final class LoadJsonMemoRuntime {
         hits.set(0);
         bypassed.set(0);
         failures.set(0);
+        preparedHits.set(0);
+        preparedMisses.set(0);
+        preparedCaptures.set(0);
+        profileStable = false;
+        restrictionProbeReady = false;
+        resolverSingleton = null;
+        pendingDirectoryGetter = null;
+        pendingFlagGetter = null;
     }
 }

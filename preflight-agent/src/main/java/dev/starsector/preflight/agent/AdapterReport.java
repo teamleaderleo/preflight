@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Thread-safe bounded diagnostics for adapter probing and activation. */
 final class AdapterReport {
@@ -41,6 +42,7 @@ final class AdapterReport {
     private boolean transformerInstalled;
     private boolean killSwitchActive;
     private int registryTargets;
+    private final Map<String, Integer> registeredPlanTargets = new TreeMap<>();
     private long observedClasses;
     private long parsedClasses;
     private long malformedClasses;
@@ -49,6 +51,9 @@ final class AdapterReport {
     private long transformationEligible;
     private long transformationDeclined;
     private long transformationsApplied;
+    private long transformationsFromCache;
+    private long transformationNanos;
+    private final List<TransformationTiming> transformationTimings = new ArrayList<>();
     private long shadowedTargets;
     private final Map<String, String> shadowingSources = new LinkedHashMap<>();
     private long containedFailures;
@@ -63,9 +68,13 @@ final class AdapterReport {
         this.prefixes = List.copyOf(prefixes);
     }
 
-    synchronized void transformerInstalled(int targets) {
+    synchronized void transformerInstalled(AdapterTargetRegistry registry) {
         transformerInstalled = true;
-        registryTargets = targets;
+        registryTargets = registry.targets().size();
+        registeredPlanTargets.clear();
+        for (AdapterTarget target : registry.targets()) {
+            registeredPlanTargets.merge(target.planId(), 1, Integer::sum);
+        }
     }
 
     synchronized void killSwitch(String detail) {
@@ -182,9 +191,25 @@ final class AdapterReport {
                 + "; original bytes retained");
     }
 
-    synchronized void transformed(AdapterTarget target) {
+    synchronized void transformed(
+            AdapterTarget target, long elapsedNanos, int inputBytes, int outputBytes) {
         transformationsApplied++;
+        transformationNanos += Math.max(0, elapsedNanos);
+        transformationTimings.add(new TransformationTiming(
+                target.id(), target.internalClassName(), target.planId(),
+                Math.max(0, elapsedNanos), inputBytes, outputBytes, false));
         diagnostic("Applied transformation plan " + target.planId() + " to " + target.internalClassName());
+    }
+
+    synchronized void transformedFromCache(
+            AdapterTarget target, long elapsedNanos, int inputBytes, int outputBytes) {
+        transformationsApplied++;
+        transformationsFromCache++;
+        transformationTimings.add(new TransformationTiming(
+                target.id(), target.internalClassName(), target.planId(),
+                Math.max(0, elapsedNanos), inputBytes, outputBytes, true));
+        diagnostic("Restored cached transformation plan " + target.planId()
+                + " for " + target.internalClassName());
     }
 
     synchronized void contained(String detail, Throwable error) {
@@ -244,10 +269,15 @@ final class AdapterReport {
         field(output, "mode", mode.name());
         field(output, "destination", destination.toString());
         nullableField(output, "targetFile", targetFile == null ? null : targetFile.toString());
+        numberField(output, "jvmMaxHeapBytes", Runtime.getRuntime().maxMemory());
         arrayField(output, "candidatePrefixes", prefixes);
         booleanField(output, "transformerInstalled", transformerInstalled);
         booleanField(output, "killSwitchActive", killSwitchActive);
         numberField(output, "registryTargets", registryTargets);
+        key(output, "registeredPlanTargets")
+                .append(Json.value(registeredPlanTargets)).append(',');
+        key(output, "planInventory")
+                .append(Json.value(AdapterPlanCatalog.inventory(registeredPlanTargets))).append(',');
         numberField(output, "observedClasses", observedClasses);
         numberField(output, "parsedClasses", parsedClasses);
         numberField(output, "retainedCandidates", orderedCandidates.size());
@@ -258,6 +288,8 @@ final class AdapterReport {
         numberField(output, "transformationEligible", transformationEligible);
         numberField(output, "transformationDeclined", transformationDeclined);
         numberField(output, "transformationsApplied", transformationsApplied);
+        numberField(output, "transformationsFromCache", transformationsFromCache);
+        numberField(output, "transformationNanos", transformationNanos);
         numberField(output, "shadowedTargets", shadowedTargets);
         arrayField(output, "shadowedBy", shadowingSources.entrySet().stream()
                 .map(entry -> entry.getKey() + " <- " + entry.getValue())
@@ -267,7 +299,13 @@ final class AdapterReport {
         booleanField(output, "candidateTruncated", candidateTruncated);
         booleanField(output, "diagnosticsTruncated", diagnosticsTruncated);
         booleanField(output, "evaluationsTruncated", evaluationsTruncated);
+        key(output, "planControl").append(Json.value(AdapterPlanControl.telemetry())).append(',');
         key(output, "textureCompatibility").append(Json.value(TextureCompatibilityRuntime.telemetry())).append(',');
+        key(output, "texturePreparedPixels")
+                .append(Json.value(TexturePreparedPixelRuntime.telemetry())).append(',');
+        key(output, "texturePadding").append(Json.value(TexturePaddingRuntime.report())).append(',');
+        key(output, "adapterTransformationCache")
+                .append(Json.value(AdapterTransformationCache.telemetry())).append(',');
         key(output, "startupPhases").append(Json.value(StartupPhaseRuntime.telemetry())).append(',');
         key(output, "variantJsonCache").append(Json.value(VariantJsonCacheRuntime.telemetry())).append(',');
         key(output, "weaponJsonCache").append(Json.value(WeaponJsonCacheRuntime.telemetry())).append(',');
@@ -278,12 +316,106 @@ final class AdapterReport {
                 .append(Json.value(RuleCommandClassCacheRuntime.telemetry())).append(',');
         key(output, "rulesDuplicateIndex").append(Json.value(RulesDuplicateIndexRuntime.telemetry())).append(',');
         key(output, "ruleTokenCache").append(Json.value(RuleTokenCacheRuntime.telemetry())).append(',');
+        key(output, "rulesRegexCache").append(Json.value(RulesRegexCacheRuntime.telemetry())).append(',');
+        key(output, "resourcePriority").append(Json.value(ResourcePriorityRuntime.telemetry())).append(',');
+        key(output, "saveDescriptorCompatibility")
+                .append(Json.value(SaveDescriptorCompatibilityRuntime.telemetry())).append(',');
+        key(output, "industryDemandSupplyMemo")
+                .append(Json.value(IndustryDemandSupplyMemoRuntime.telemetry())).append(',');
+        key(output, "codexLazyFleetMembers")
+                .append(Json.value(CodexLazyFleetMemberRuntime.telemetry())).append(',');
+        key(output, "indEvoSyntheticMarket")
+                .append(Json.value(IndEvoSyntheticMarketRuntime.telemetry())).append(',');
         key(output, "mergedReadCache").append(Json.value(MergedReadCacheRuntime.telemetry())).append(',');
+        key(output, "loadingUtilsReader")
+                .append(Json.value(LoadingUtilsReaderRuntime.telemetry())).append(',');
+        key(output, "sourceArchiveHashes")
+                .append(Json.value(SourceArchiveHashes.telemetry())).append(',');
+        key(output, "campaignEntityIndex").append(Json.value(EntityLookupRuntime.counters())).append(',');
+        key(output, "fleetAiProfiler")
+                .append(Json.value(FleetAiProfilerRuntime.telemetry())).append(',');
+        key(output, "campaignRadarRender")
+                .append(Json.value(RadarRenderRuntime.telemetry())).append(',');
+        key(output, "deploymentIconCache")
+                .append(Json.value(DeploymentIconCacheRuntime.telemetry())).append(',');
+        key(output, "commodityEventModMemo")
+                .append(Json.value(CommodityEventModMemoRuntime.telemetry())).append(',');
+        key(output, "simOpponentSafety")
+                .append(Json.value(SimOpponentSafetyRuntime.telemetry())).append(',');
+        key(output, "sourceHintIsolation")
+                .append(Json.value(SourceHintIsolationRuntime.telemetry())).append(',');
         // These three kept their counters to themselves until now, which meant a launch could not
         // be asked afterwards how much any of them actually did.
         key(output, "resourceProbeCache").append(Json.value(ResourceProbeRuntime.report())).append(',');
         key(output, "loadJsonMemo").append(Json.value(LoadJsonMemoRuntime.report())).append(',');
         key(output, "preparedAudio").append(Json.value(PreparedAudioRuntime.report())).append(',');
+        key(output, "audioStreamSourceError")
+                .append(Json.value(AudioStreamSourceErrorRuntime.telemetry())).append(',');
+        key(output, "audioResourceFallback")
+                .append(Json.value(AudioResourceFallbackRuntime.telemetry())).append(',');
+        key(output, "audioMusicTransitions")
+                .append(Json.value(AudioMusicTransitionRuntime.telemetry())).append(',');
+        key(output, "aiTweaksEngagementRange")
+                .append(Json.value(AiTweaksEngagementRangeRuntime.telemetry())).append(',');
+        key(output, "ashLibVariantLookup")
+                .append(Json.value(AshLibVariantLookupRuntime.telemetry())).append(',');
+        key(output, "graphicsLibCompactReplay")
+                .append(Json.value(GraphicsLibCompactReplayPlan.telemetry())).append(',');
+        key(output, "janinoBytecodeCache")
+                .append(Json.value(JaninoBytecodeCacheRuntime.telemetry())).append(',');
+        key(output, "graphicsLibInsigniaManagerCache")
+                .append(Json.value(GraphicsLibInsigniaManagerCacheRuntime.telemetry())).append(',');
+        key(output, "graphicsLibHotSettings")
+                .append(Json.value(GraphicsLibHotSettingsRuntime.telemetry())).append(',');
+        key(output, "versionCheckResponseDedup")
+                .append(Json.value(VersionCheckResponseDedupRuntime.telemetry())).append(',');
+        key(output, "magicLibPaintjob")
+                .append(Json.value(MagicLibPaintjobRuntime.telemetry())).append(',');
+        key(output, "magicLibPaintjobNotification")
+                .append(Json.value(MagicLibPaintjobNotificationRuntime.telemetry())).append(',');
+        key(output, "magicLibPaintjobLoad")
+                .append(Json.value(MagicLibPaintjobLoadRuntime.telemetry())).append(',');
+        key(output, "stelnetMarketUpdater")
+                .append(Json.value(StelnetMarketUpdaterRuntime.telemetry())).append(',');
+        key(output, "logisticsNotificationsFuel")
+                .append(Json.value(LogisticsNotificationsFuelRuntime.telemetry())).append(',');
+        key(output, "macMemoryWarning")
+                .append(Json.value(MacMemoryWarningRuntime.telemetry())).append(',');
+        key(output, "combatRuntimeIntegrity")
+                .append(Json.value(CombatRuntimeIntegrityRuntime.telemetry())).append(',');
+        key(output, "frameTimes")
+                .append(Json.value(FrameTimeRuntime.telemetry())).append(',');
+        key(output, "runtimeSemanticState")
+                .append(Json.value(RuntimeSemanticState.telemetry())).append(',');
+        key(output, "campaignCallTimes")
+                .append(Json.value(CampaignCallTimeRuntime.telemetry())).append(',');
+        key(output, "campaignEngineTimes")
+                .append(Json.value(CampaignEngineTimeRuntime.telemetry())).append(',');
+        key(output, "campaignLocationEconomyTimes")
+                .append(Json.value(CampaignLocationEconomyTimeRuntime.telemetry())).append(',');
+        key(output, "campaignMarketFleetTimes")
+                .append(Json.value(CampaignMarketFleetTimeRuntime.telemetry())).append(',');
+        key(output, "campaignEntityMaintenance")
+                .append(Json.value(CampaignEntityMaintenanceRuntime.telemetry())).append(',');
+
+        key(output, "transformationTimings").append('[');
+        List<TransformationTiming> orderedTimings = transformationTimings.stream()
+                .sorted(Comparator.comparingLong(TransformationTiming::elapsedNanos).reversed())
+                .toList();
+        for (int i = 0; i < orderedTimings.size(); i++) {
+            if (i > 0) output.append(',');
+            TransformationTiming timing = orderedTimings.get(i);
+            output.append('{');
+            field(output, "targetId", timing.targetId());
+            field(output, "className", timing.className());
+            field(output, "planId", timing.planId());
+            numberField(output, "elapsedNanos", timing.elapsedNanos());
+            numberField(output, "inputBytes", timing.inputBytes());
+            numberField(output, "outputBytes", timing.outputBytes());
+            booleanField(output, "cacheHit", timing.cacheHit());
+            trimComma(output).append('}');
+        }
+        output.append("],");
 
         key(output, "rankedCandidates").append('[');
         for (int i = 0; i < rankedCandidates.size(); i++) {
@@ -471,5 +603,15 @@ final class AdapterReport {
         private Evaluation {
             problems = List.copyOf(problems);
         }
+    }
+
+    private record TransformationTiming(
+            String targetId,
+            String className,
+            String planId,
+            long elapsedNanos,
+            int inputBytes,
+            int outputBytes,
+            boolean cacheHit) {
     }
 }

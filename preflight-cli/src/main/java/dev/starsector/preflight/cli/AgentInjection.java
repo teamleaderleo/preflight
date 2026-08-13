@@ -1,6 +1,9 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
+import dev.starsector.preflight.agent.DeploymentIconCacheRuntime;
+import dev.starsector.preflight.agent.CommodityEventModMemoRuntime;
 import dev.starsector.preflight.agent.EntityLookupRuntime;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TexturePaddingRuntime;
@@ -545,11 +548,254 @@ final class AgentInjection {
             String audioDecoderIdentity,
             Path mergedReadCache,
             boolean quietLogs) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, false,
+                null, null, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, graphicsLibCompactReplay,
+                null, null, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay,
+            boolean graphicsLibInsigniaManagerCache) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, graphicsLibCompactReplay,
+                null, null, graphicsLibInsigniaManagerCache);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay,
+            Path janinoBytecodeCache,
+            String janinoBytecodeContext) {
+        return append(existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, null, null, mergedReadCache, quietLogs, graphicsLibCompactReplay,
+                janinoBytecodeCache, janinoBytecodeContext, false);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path preparedAudioManifest,
+            String preparedAudioManifestIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay,
+            Path janinoBytecodeCache,
+            String janinoBytecodeContext,
+            boolean graphicsLibInsigniaManagerCache) {
+        return append(
+                existing, agentJar, destination, adapterMode, adapterReport, adapterTargets,
+                textureCacheDirectory, textureManifest, textureIndex, textureAdapterMode,
+                exhaustiveFileReads, recordingMode, npotDirect, unpadded, singleChunkRecording,
+                campaignEntityIndex, startupPhaseProbe, variantJsonCache, weaponJsonCache,
+                projectileJsonCache, hullJsonCache, rulesCsvCache, ruleTokenCache,
+                ruleCommandClassCache, resourceProbeCache, loadJsonMemo, preparedAudioCache,
+                audioDecoderIdentity, preparedAudioManifest, preparedAudioManifestIdentity,
+                mergedReadCache, quietLogs, graphicsLibCompactReplay, janinoBytecodeCache,
+                janinoBytecodeContext, graphicsLibInsigniaManagerCache, AdapterPlanScope.FULL);
+    }
+
+    static String append(
+            String existing,
+            Path agentJar,
+            Path destination,
+            AdapterMode adapterMode,
+            Path adapterReport,
+            Path adapterTargets,
+            Path textureCacheDirectory,
+            Path textureManifest,
+            Path textureIndex,
+            TextureAdapterMode textureAdapterMode,
+            boolean exhaustiveFileReads,
+            RecordingMode recordingMode,
+            boolean npotDirect,
+            boolean unpadded,
+            boolean singleChunkRecording,
+            boolean campaignEntityIndex,
+            boolean startupPhaseProbe,
+            Path variantJsonCache,
+            Path weaponJsonCache,
+            Path projectileJsonCache,
+            Path hullJsonCache,
+            Path rulesCsvCache,
+            boolean ruleTokenCache,
+            Path ruleCommandClassCache,
+            boolean resourceProbeCache,
+            boolean loadJsonMemo,
+            Path preparedAudioCache,
+            String audioDecoderIdentity,
+            Path preparedAudioManifest,
+            String preparedAudioManifestIdentity,
+            Path mergedReadCache,
+            boolean quietLogs,
+            boolean graphicsLibCompactReplay,
+            Path janinoBytecodeCache,
+            String janinoBytecodeContext,
+            boolean graphicsLibInsigniaManagerCache,
+            AdapterPlanScope adapterPlanScope) {
+        if (adapterPlanScope == null) {
+            throw new IllegalArgumentException("Adapter plan scope is required");
+        }
+        if ((janinoBytecodeCache == null) != (janinoBytecodeContext == null)) {
+            throw new IllegalArgumentException(
+                    "Janino bytecode cache and compilation context must be supplied together");
+        }
+        if (janinoBytecodeCache != null && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("Janino bytecode cache requires the enabled adapter");
+        }
         if (mergedReadCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Merged read cache requires the enabled adapter");
         }
         if (preparedAudioCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Prepared audio requires the enabled adapter");
+        }
+        if ((preparedAudioManifest == null) != (preparedAudioManifestIdentity == null)) {
+            throw new IllegalArgumentException(
+                    "Prepared audio manifest and identity must be supplied together");
+        }
+        if (preparedAudioManifest != null && preparedAudioCache == null) {
+            throw new IllegalArgumentException("Prepared audio manifest requires the audio cache");
         }
         if (loadJsonMemo && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("loadJSON memo requires the enabled adapter");
@@ -587,6 +833,12 @@ final class AgentInjection {
         if (rulesCsvCache != null && adapterMode != AdapterMode.ENABLED) {
             throw new IllegalArgumentException("Rules CSV cache requires the enabled adapter");
         }
+        if (graphicsLibCompactReplay && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("GraphicsLib compact replay requires the enabled adapter");
+        }
+        if (graphicsLibInsigniaManagerCache && adapterMode != AdapterMode.ENABLED) {
+            throw new IllegalArgumentException("GraphicsLib insignia cache requires the enabled adapter");
+        }
         String current = existing == null ? "" : existing.trim();
         String lower = current.toLowerCase(Locale.ROOT);
         if (lower.contains("-javaagent:") && lower.contains("preflight")) {
@@ -597,6 +849,8 @@ final class AgentInjection {
                 .append(encodedPath(destination))
                 .append(",adapter=")
                 .append(adapterMode.optionValue())
+                .append(",planScope=")
+                .append(adapterPlanScope.optionValue())
                 .append(",textureMode=")
                 .append(textureAdapterMode.optionValue());
         appendPath(arguments, "adapterReport64", adapterReport);
@@ -611,6 +865,10 @@ final class AgentInjection {
         appendPath(arguments, "rulesCsvCache64", rulesCsvCache);
         appendPath(arguments, "ruleCommandCache64", ruleCommandClassCache);
         appendPath(arguments, "mergedReadCache64", mergedReadCache);
+        appendPath(arguments, "janinoBytecodeCache64", janinoBytecodeCache);
+        if (janinoBytecodeContext != null) {
+            arguments.append(",janinoBytecodeContext=").append(janinoBytecodeContext);
+        }
         if (exhaustiveFileReads) {
             arguments.append(",fileReads=all");
         }
@@ -637,11 +895,22 @@ final class AgentInjection {
         if (quietLogs) {
             arguments.append(",quietLogs=on");
         }
+        if (graphicsLibCompactReplay) {
+            arguments.append(",graphicsLibCompactReplay=on");
+        }
+        if (graphicsLibInsigniaManagerCache) {
+            arguments.append(",graphicsLibInsigniaManagerCache=on");
+        }
         // Both or neither: a cache with no decoder identity cannot be trusted to hold this
         // decoder's output, and an identity with no cache has nothing to check it against.
         if (preparedAudioCache != null && audioDecoderIdentity != null) {
             appendPath(arguments, "preparedAudioCache64", preparedAudioCache);
             arguments.append(",audioDecoder=").append(audioDecoderIdentity);
+            if (preparedAudioManifest != null) {
+                appendPath(arguments, "preparedAudioManifest64", preparedAudioManifest);
+                arguments.append(",preparedAudioManifestIdentity=")
+                        .append(preparedAudioManifestIdentity);
+            }
         }
         String option = "-javaagent:"
                 + quoteJvmOptionValue(agentJar.toAbsolutePath().normalize().toString())
@@ -662,7 +931,9 @@ final class AgentInjection {
             option = option + " -XX:FlightRecorderOptions=memorysize=256m,maxchunksize=256m";
         }
         if (campaignEntityIndex) {
-            option = option + " -D" + EntityLookupRuntime.ENABLED_PROPERTY + "=true";
+            option = option + " -D" + EntityLookupRuntime.ENABLED_PROPERTY + "=true"
+                    + " -D" + DeploymentIconCacheRuntime.ENABLED_PROPERTY + "=true"
+                    + " -D" + CommodityEventModMemoRuntime.ENABLED_PROPERTY + "=true";
         }
         return current.isEmpty() ? option : current + " " + option;
     }

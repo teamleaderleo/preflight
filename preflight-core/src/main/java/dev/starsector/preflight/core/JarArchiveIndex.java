@@ -1,9 +1,6 @@
 package dev.starsector.preflight.core;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
@@ -99,27 +96,9 @@ public final class JarArchiveIndex {
     }
 
     public static String normalizeEntryName(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw new IllegalArgumentException("JAR entry name is required");
-        }
-        String value = raw.replace('\\', '/');
-        if (value.startsWith("/") || value.matches("^[A-Za-z]:.*")) {
-            throw new IllegalArgumentException("JAR entry name must be relative: " + raw);
-        }
-        Deque<String> segments = new ArrayDeque<>();
-        for (String segment : value.split("/+")) {
-            if (segment.isEmpty() || segment.equals(".")) {
-                continue;
-            }
-            if (segment.equals("..")) {
-                throw new IllegalArgumentException("JAR entry name may not contain '..': " + raw);
-            }
-            segments.addLast(segment);
-        }
-        if (segments.isEmpty()) {
-            throw new IllegalArgumentException("JAR entry name is empty after normalization: " + raw);
-        }
-        return String.join("/", new ArrayList<>(segments));
+        // JAR names and resource-relative paths have the same grammar. The shared scanner returns
+        // an already-clean name unchanged and avoids the old regex, split array, deque and join.
+        return ResourceIndex.normalizeRelativePath(raw);
     }
 
     public record Entry(

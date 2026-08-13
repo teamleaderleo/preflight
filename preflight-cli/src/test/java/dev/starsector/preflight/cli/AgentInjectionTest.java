@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
@@ -23,7 +24,21 @@ class AgentInjectionTest {
         assertEquals(1, occurrences(value, "-javaagent:"));
         assertTrue(value.contains("dest64="));
         assertTrue(value.contains("adapter=off"));
+        assertTrue(value.contains("planScope=full"));
         assertTrue(value.contains("textureMode=compatibility"));
+    }
+
+    @Test
+    void carriesTheEngineOwnedPlanScopeWithoutExposingPlanIds() {
+        String value = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null,
+                TextureAdapterMode.COMPATIBILITY, false, RecordingMode.OFF, false, false,
+                false, false, false, null, null, null, null, null, false, null,
+                false, false, null, null, null, null, null, false, false, null, null,
+                false, AdapterPlanScope.PORTABLE_STARTUP);
+
+        assertTrue(value.contains("planScope=portable-startup"), value);
     }
 
     @Test
@@ -127,6 +142,8 @@ class AgentInjectionTest {
                 false, RecordingMode.OFF, false, false, false, true);
 
         assertTrue(enabled.contains(" -Dpreflight.campaign.entityIndex=true"), enabled);
+        assertTrue(enabled.contains(" -Dpreflight.deployment.iconCache=true"), enabled);
+        assertTrue(enabled.contains(" -Dpreflight.campaign.eventModMemo=true"), enabled);
         assertThrows(
                 IllegalArgumentException.class,
                 () -> AgentInjection.append(
@@ -257,6 +274,83 @@ class AgentInjectionTest {
                         Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
                         false, RecordingMode.OFF, false, false, false, false, false,
                         null, null, null, null, null, false, Path.of("cache", "profile.sprk")));
+    }
+
+    @Test
+    void graphicsLibCompactReplayRequiresAndReachesTheEnabledAdapter() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, null, null, null, null, false, null, false, false,
+                null, null, null, false, true, false);
+
+        assertTrue(enabled.contains(",graphicsLibCompactReplay=on"), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, true, false));
+    }
+
+    @Test
+    void graphicsLibInsigniaCacheRequiresAndReachesTheEnabledAdapter() {
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null, TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, null, null, null, null, false, null, false, false,
+                null, null, null, false, false, true);
+
+        assertTrue(enabled.contains(",graphicsLibInsigniaManagerCache=on"), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, false, true));
+    }
+
+    @Test
+    void janinoBytecodeCacheRequiresAnExactContextAndReachesTheEnabledAdapter() {
+        String token = String.join(".",
+                "01".repeat(32), "02".repeat(32), "03".repeat(32), "04".repeat(32),
+                "05".repeat(32), "06".repeat(32), "07".repeat(32));
+        String enabled = AgentInjection.append(
+                "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                Path.of("adapter.json"), null, null, null, null,
+                TextureAdapterMode.COMPATIBILITY,
+                false, RecordingMode.OFF, false, false, false, false, false,
+                null, null, null, null, null, false, null, false, false,
+                null, null, null, false, false, Path.of("cache"), token);
+
+        assertTrue(enabled.contains(",janinoBytecodeCache64="), enabled);
+        assertTrue(enabled.contains(",janinoBytecodeContext=" + token), enabled);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.PROBE,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, false, Path.of("cache"), token));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentInjection.append(
+                        "", Path.of("preflight.jar"), Path.of("startup.jfr"), AdapterMode.ENABLED,
+                        Path.of("adapter.json"), null, null, null, null,
+                        TextureAdapterMode.COMPATIBILITY,
+                        false, RecordingMode.OFF, false, false, false, false, false,
+                        null, null, null, null, null, false, null, false, false,
+                        null, null, null, false, false, Path.of("cache"), null));
     }
 
     @Test

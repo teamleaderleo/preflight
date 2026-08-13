@@ -4,6 +4,9 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PathContainment;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePack;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.ResourceIndexValidator;
@@ -23,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,6 +39,8 @@ public final class TextureCompatibilityRuntime {
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
     /** Opt back in to hashing every prepared blob's pixels on the loading thread. */
     public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.texture.verifyBlobChecksum";
+    /** Diagnostic: use the configure-time full index validation as the launch snapshot. */
+    public static final String TRUST_VALIDATED_INDEX_PROPERTY = "preflight.texture.trustValidatedIndex";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
     static final int MAX_INTERNAL_ERRORS = 8;
@@ -43,12 +49,15 @@ public final class TextureCompatibilityRuntime {
 
     private static final Telemetry TELEMETRY = new Telemetry();
     private static final SeamTimer SERVE_CLOCK = new SeamTimer();
+    private static final AtomicBoolean PACK_ORDER_HOOK_INSTALLED = new AtomicBoolean();
     private static volatile State state = State.disabled();
 
     private TextureCompatibilityRuntime() {
     }
 
     static synchronized void beginSession() {
+        state.persistPackOrder();
+        state.close();
         state = State.disabled();
         TELEMETRY.reset();
         SERVE_CLOCK.reset();
@@ -87,13 +96,35 @@ public final class TextureCompatibilityRuntime {
             for (ResourceIndex.Root root : index.roots()) {
                 sourceRoots.add(PathContainment.realDirectory(root.path()));
             }
+            PreparedTexturePack pack = null;
+            if (!Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY)) {
+                Path candidate = PreparedTexturePackIO.path(cacheRoot, manifest.profileFingerprint());
+                try {
+                    Path packFile = PathContainment.existingInsideRealRoot(cacheRoot, candidate);
+                    if (Files.isRegularFile(packFile)) {
+                        List<String> blobs = manifest.entries().values().stream()
+                                .map(TextureManifest.Entry::blobRelativePath)
+                                .distinct()
+                                .toList();
+                        pack = PreparedTexturePackIO.open(
+                                packFile, manifest.profileFingerprint(), blobs);
+                    }
+                } catch (IOException | IllegalArgumentException ignored) {
+                    // Loose content-addressed blobs remain the fail-open serving path.
+                }
+            }
             state = new State(
                     cacheRoot,
                     manifest,
                     index,
                     List.copyOf(sourceRoots),
-                    Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY));
+                    Boolean.getBoolean(VERIFY_BLOB_CHECKSUM_PROPERTY),
+                    pack);
             TELEMETRY.configured();
+            if (pack != null) {
+                TELEMETRY.packConfigured();
+                ensurePackOrderHook();
+            }
             return true;
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
@@ -104,6 +135,8 @@ public final class TextureCompatibilityRuntime {
     }
 
     static synchronized void disable(DisableReason reason) {
+        state.persistPackOrder();
+        state.close();
         state = State.disabled();
         TELEMETRY.disabled(reason);
     }
@@ -222,28 +255,50 @@ public final class TextureCompatibilityRuntime {
                 TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
                 return null;
             }
-            Path source;
-            try {
-                source = PathContainment.existingInsideRealRoot(
-                        current.sourceRoots.get(winner.rootIndex()),
-                        current.index.resolve(winner));
-            } catch (IllegalArgumentException error) {
-                TELEMETRY.fallback(FallbackReason.PATH_INVALID);
-                return null;
-            } catch (IOException error) {
-                TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
-                return null;
-            }
-            SourceVerdict verdict = verifySource(source, winner, entry);
-            if (verdict != SourceVerdict.UNCHANGED) {
-                TELEMETRY.fallback(verdict == SourceVerdict.MISSING
-                        ? FallbackReason.SOURCE_MISSING
-                        : FallbackReason.SOURCE_CHANGED);
-                return null;
+            if (!trustValidatedIndex()) {
+                Path source;
+                try {
+                    source = PathContainment.existingInsideRealRoot(
+                            current.sourceRoots.get(winner.rootIndex()),
+                            current.index.resolve(winner));
+                } catch (IllegalArgumentException error) {
+                    TELEMETRY.fallback(FallbackReason.PATH_INVALID);
+                    return null;
+                } catch (IOException error) {
+                    TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
+                    return null;
+                }
+                SourceVerdict verdict = verifySource(source, winner, entry);
+                if (verdict != SourceVerdict.UNCHANGED) {
+                    TELEMETRY.fallback(verdict == SourceVerdict.MISSING
+                            ? FallbackReason.SOURCE_MISSING
+                            : FallbackReason.SOURCE_CHANGED);
+                    return null;
+                }
             }
             if (entry.transformation() != PreparedTexture.Transformation.IDENTITY) {
                 TELEMETRY.fallback(FallbackReason.UNSUPPORTED_TEXTURE);
                 return null;
+            }
+
+            if (current.pack != null && !current.packDisabled.get()) {
+                try {
+                    PreparedTexture packed = current.pack.readTrusted(entry.blobRelativePath());
+                    if (matches(entry, packed)) {
+                        current.recordPackAccess(entry.blobRelativePath());
+                        TELEMETRY.packHit(packed.pixelBytes());
+                        if (PreparedTextureIO.singleReadLz4Enabled()
+                                && entry.blobRelativePath().endsWith("-lz4.spft")) {
+                            TELEMETRY.packSingleReadLz4Hit();
+                        }
+                        return packed;
+                    }
+                    current.packDisabled.set(true);
+                    TELEMETRY.packFailure();
+                } catch (IOException error) {
+                    current.packDisabled.set(true);
+                    TELEMETRY.packFailure();
+                }
             }
 
             Path blob;
@@ -370,12 +425,34 @@ public final class TextureCompatibilityRuntime {
     static Map<String, Object> telemetry() {
         Map<String, Object> values = new LinkedHashMap<>(TELEMETRY.snapshot(ready()));
         values.put("blobChecksumVerification", state.verifyBlobChecksum);
+        values.put("trustedValidatedIndex", trustValidatedIndex());
+        values.put("packedStoreAvailable", state.pack != null);
+        values.put("packedStoreActive", state.pack != null && !state.packDisabled.get());
         // How long the game took over the textures, and how much of that was this seam. The
         // difference is the game's own per-texture work -- the decode this replaces is gone, but the
         // upload, the buffer teardown, and whatever else it does between two textures are not.
         values.putAll(SERVE_CLOCK.snapshot("serve"));
         values.put("preparedPixels", TexturePreparedPixelRuntime.telemetry());
         return Map.copyOf(values);
+    }
+
+    private static boolean trustValidatedIndex() {
+        // An explicit content-hash diagnostic is stronger than the snapshot optimization even if
+        // both properties were supplied by different launch layers.
+        return Boolean.getBoolean(TRUST_VALIDATED_INDEX_PROPERTY)
+                && !Boolean.getBoolean(VERIFY_SOURCE_HASH_PROPERTY);
+    }
+
+    private static void ensurePackOrderHook() {
+        if (!PACK_ORDER_HOOK_INSTALLED.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            Runtime.getRuntime().addShutdownHook(new Thread(
+                    () -> state.persistPackOrder(), "preflight-texture-pack-order"));
+        } catch (IllegalStateException | SecurityException error) {
+            PACK_ORDER_HOOK_INSTALLED.set(false);
+        }
     }
 
     private static boolean matches(TextureManifest.Entry entry, PreparedTexture texture) {
@@ -477,22 +554,27 @@ public final class TextureCompatibilityRuntime {
         private final ResourceIndex index;
         private final List<Path> sourceRoots;
         private final boolean verifyBlobChecksum;
+        private final PreparedTexturePack pack;
         private final boolean ready;
         private final AtomicInteger internalErrors = new AtomicInteger();
         private final AtomicInteger quarantines = new AtomicInteger();
         private final AtomicBoolean circuitBreaker = new AtomicBoolean();
+        private final AtomicBoolean packDisabled = new AtomicBoolean();
+        private final LinkedHashSet<String> packAccessOrder = new LinkedHashSet<>();
 
         private State(
                 Path cacheRoot,
                 TextureManifest manifest,
                 ResourceIndex index,
                 List<Path> sourceRoots,
-                boolean verifyBlobChecksum) {
+                boolean verifyBlobChecksum,
+                PreparedTexturePack pack) {
             this.cacheRoot = cacheRoot;
             this.manifest = manifest;
             this.index = index;
             this.sourceRoots = sourceRoots;
             this.verifyBlobChecksum = verifyBlobChecksum;
+            this.pack = pack;
             this.ready = true;
         }
 
@@ -502,7 +584,42 @@ public final class TextureCompatibilityRuntime {
             this.index = null;
             this.sourceRoots = List.of();
             this.verifyBlobChecksum = false;
+            this.pack = null;
             this.ready = false;
+        }
+
+        private void close() {
+            if (pack != null) {
+                try {
+                    pack.close();
+                } catch (IOException ignored) {
+                    // Process teardown or reconfiguration owns no correctness requirement here.
+                }
+            }
+        }
+
+        private synchronized void recordPackAccess(String blobRelativePath) {
+            packAccessOrder.add(blobRelativePath);
+        }
+
+        private void persistPackOrder() {
+            if (pack == null) {
+                return;
+            }
+            List<String> snapshot;
+            synchronized (this) {
+                if (packAccessOrder.isEmpty()) {
+                    return;
+                }
+                snapshot = List.copyOf(packAccessOrder);
+            }
+            try {
+                PreparedTexturePackOrderIO.write(
+                        PreparedTexturePackOrderIO.path(cacheRoot, manifest.profileFingerprint()),
+                        manifest.profileFingerprint(), snapshot);
+            } catch (IOException | IllegalArgumentException ignored) {
+                // A tuning hint must never affect the active pack or the loose fallback.
+            }
         }
 
         private static State disabled() {
@@ -524,6 +641,11 @@ public final class TextureCompatibilityRuntime {
         private long bytesServed;
         private long prefetchSkipped;
         private long prefetchKept;
+        private boolean packConfigured;
+        private long packHits;
+        private long packBytes;
+        private long packFailures;
+        private long packSingleReadLz4Hits;
 
         synchronized void reset() {
             fallbackReasons.clear();
@@ -539,6 +661,11 @@ public final class TextureCompatibilityRuntime {
             bytesServed = 0;
             prefetchSkipped = 0;
             prefetchKept = 0;
+            packConfigured = false;
+            packHits = 0;
+            packBytes = 0;
+            packFailures = 0;
+            packSingleReadLz4Hits = 0;
         }
 
         synchronized void configured() {
@@ -586,6 +713,23 @@ public final class TextureCompatibilityRuntime {
             prefetchKept++;
         }
 
+        synchronized void packConfigured() {
+            packConfigured = true;
+        }
+
+        synchronized void packHit(long bytes) {
+            packHits++;
+            packBytes = saturatedAdd(packBytes, bytes);
+        }
+
+        synchronized void packFailure() {
+            packFailures++;
+        }
+
+        synchronized void packSingleReadLz4Hit() {
+            packSingleReadLz4Hits++;
+        }
+
         synchronized Map<String, Object> snapshot(boolean ready) {
             Map<String, Object> reasons = new LinkedHashMap<>();
             for (FallbackReason reason : FallbackReason.values()) {
@@ -612,6 +756,11 @@ public final class TextureCompatibilityRuntime {
             // that does not. It is not visible in hits, which count only what the cache served.
             values.put("prefetchSkipped", prefetchSkipped);
             values.put("prefetchKept", prefetchKept);
+            values.put("packConfigured", packConfigured);
+            values.put("packHits", packHits);
+            values.put("packBytes", packBytes);
+            values.put("packFailures", packFailures);
+            values.put("packSingleReadLz4Hits", packSingleReadLz4Hits);
             values.put("circuitBreakerActive", disableReasons.contains(DisableReason.CIRCUIT_BREAKER));
             values.put("disableReasons", disabled);
             values.put("fallbackReasons", reasons);

@@ -1,0 +1,55 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Preflight",
+  "version": "0.1.0",
+  "identifier": "io.github.teamleaderleo.preflight",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Preflight",
+        "width": 1040,
+        "height": 700,
+        "minWidth": 720,
+        "minHeight": 560,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Utility",
+    "shortDescription": "A performance launcher for Starsector",
+    "longDescription": "Preflight finds your Starsector installation, prepares repeatable loading work, and launches it with reviewed optimizations while keeping its data separate from the game and saves.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "target/engine/": "engine/",
+      "licenses/B612-OFL.txt": "licenses/B612-OFL.txt",
+      "licenses/IBM-Plex-Sans-OFL.txt": "licenses/IBM-Plex-Sans-OFL.txt",
+      "licenses/Orbitron-OFL.txt": "licenses/Orbitron-OFL.txt"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": ""
+    }
+  }
+}

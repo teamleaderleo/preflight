@@ -1,8 +1,11 @@
 package dev.starsector.preflight.cli;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -40,7 +43,7 @@ final class StarsectorDiscovery {
             }
             Path root = explicitGame == null ? launcher.getParent() : explicitGame.toAbsolutePath().normalize();
             LaunchTarget target = targetForLauncher(platform, root, launcher, 10_000, "--launcher");
-            targets.put(target.launcher(), target);
+            addTarget(targets, target);
         }
 
         LinkedHashSet<Path> roots = new LinkedHashSet<>();
@@ -48,7 +51,7 @@ final class StarsectorDiscovery {
         if (explicitGame == null) {
             addRoot(roots, pathFromEnvironment(environment, "STARSECTOR_HOME"));
             addRoot(roots, pathFromEnvironment(environment, "STARSECTOR_DIR"));
-            addRoot(roots, currentDirectory);
+            addImplicitWorkingDirectory(roots, currentDirectory, diagnostics);
             addStandardRoots(roots, platform, home, environment);
         }
 
@@ -62,11 +65,45 @@ final class StarsectorDiscovery {
                 .toList();
         LaunchTarget selected = candidates.isEmpty() ? null : candidates.get(0);
         if (selected == null) {
-            diagnostics.add("No launcher found. Set STARSECTOR_HOME or use --game/--launcher.");
+            diagnostics.add(nothingFound(platform, explicitGame));
         } else if (candidates.size() > 1 && candidates.get(1).score() == selected.score()) {
             diagnostics.add("Multiple launchers received the same score; selected the lexicographically first path. Use --launcher to override.");
         }
         return new DiscoveryResult(selected, candidates, List.copyOf(diagnostics));
+    }
+
+    /**
+     * Why nothing was found, said in terms of what the caller actually did.
+     *
+     * <p>Advising {@code --game} to someone who just passed {@code --game} is the least useful thing
+     * this can say. A path that does not exist and a folder that exists without an installation in it
+     * need different fixes, so they are not given the same note. An explicit path naming a file is
+     * accepted as a launcher upstream and rarely arrives here.
+     */
+    private static String nothingFound(Platform platform, Path explicitGame) {
+        if (explicitGame == null) {
+            return "No launcher found. Set STARSECTOR_HOME or use --game/--launcher.";
+        }
+        Path game = explicitGame.toAbsolutePath().normalize();
+        if (!Files.exists(game)) {
+            return "--game does not exist: " + game;
+        }
+        if (!Files.isDirectory(game)) {
+            return "--game is not a directory: " + game
+                    + ". Pass the folder holding the launcher, or name the launcher with --launcher.";
+        }
+        return "No Starsector launcher under " + game + ". Expected " + expectedLaunchers(platform)
+                + " there, or a folder containing one. Use --launcher to name a launcher directly.";
+    }
+
+    /** What an installation looks like here, so the note says what to go and check for. */
+    private static String expectedLaunchers(Platform platform) {
+        return switch (platform) {
+            case WINDOWS -> "starsector.exe or starsector.bat";
+            case LINUX -> "starsector.sh or starsector";
+            case MAC -> "Starsector.app or starsector.command";
+            case OTHER -> "a starsector launcher script";
+        };
     }
 
     private static void inspectRoot(
@@ -86,13 +123,7 @@ final class StarsectorDiscovery {
             if (isAppBundle(root)) {
                 inspectAppBundle(platform, root, targets);
             }
-            try (Stream<Path> paths = Files.walk(root, 3)) {
-                paths.filter(Files::isRegularFile)
-                        .filter(StarsectorDiscovery::looksLikeLauncher)
-                        .forEach(path -> addTarget(
-                                targets,
-                                targetForLauncher(platform, root, path, 0, "discovered under " + root)));
-            }
+            inspectTree(platform, root, targets, diagnostics);
             try (Stream<Path> children = Files.list(root)) {
                 children.filter(Files::isDirectory)
                         .filter(StarsectorDiscovery::isAppBundle)
@@ -103,16 +134,48 @@ final class StarsectorDiscovery {
         }
     }
 
+    private static void inspectTree(
+            Platform platform,
+            Path root,
+            Map<Path, LaunchTarget> targets,
+            List<String> diagnostics) throws IOException {
+        Files.walkFileTree(root, Set.of(), 3, new SimpleFileVisitor<>() {
+            private boolean reportedUnreadable;
+
+            @Override
+            public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) {
+                if (attributes.isRegularFile() && looksLikeLauncher(path)) {
+                    addTarget(
+                            targets,
+                            targetForLauncher(platform, root, path, 0, "discovered under " + root));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path path, IOException error) {
+                if (!reportedUnreadable) {
+                    diagnostics.add("Skipped an unreadable discovery path under " + root + ": "
+                            + path + ": " + error.getMessage());
+                    reportedUnreadable = true;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
     private static void inspectAppBundle(Platform platform, Path app, Map<Path, LaunchTarget> targets) {
         Path macos = app.resolve("Contents").resolve("MacOS");
         if (!Files.isDirectory(macos)) {
             return;
         }
         try (Stream<Path> entries = Files.list(macos)) {
-            entries.filter(Files::isRegularFile).forEach(path -> {
-                int bonus = app.getFileName().toString().toLowerCase(Locale.ROOT).contains("fast") ? 70 : 40;
-                addTarget(targets, targetForLauncher(platform, app, path, bonus, "macOS app bundle"));
-            });
+            entries.filter(Files::isRegularFile)
+                    .filter(path -> Files.isExecutable(path) || looksLikeLauncher(path))
+                    .forEach(path -> {
+                        int bonus = app.getFileName().toString().toLowerCase(Locale.ROOT).contains("fast") ? 70 : 40;
+                        addTarget(targets, targetForLauncher(platform, app, path, bonus, "macOS app bundle"));
+                    });
         } catch (IOException ignored) {
             // A later explicit override remains available.
         }
@@ -216,7 +279,16 @@ final class StarsectorDiscovery {
     }
 
     private static void addTarget(Map<Path, LaunchTarget> targets, LaunchTarget target) {
-        targets.merge(target.launcher(), target, (left, right) -> left.score() >= right.score() ? left : right);
+        Path identity = canonicalIdentity(target.launcher());
+        targets.merge(identity, target, (left, right) -> left.score() >= right.score() ? left : right);
+    }
+
+    private static Path canonicalIdentity(Path launcher) {
+        try {
+            return launcher.toRealPath();
+        } catch (IOException ignored) {
+            return launcher.toAbsolutePath().normalize();
+        }
     }
 
     private static void addStandardRoots(
@@ -267,5 +339,18 @@ final class StarsectorDiscovery {
         if (path != null) {
             roots.add(path);
         }
+    }
+
+    private static void addImplicitWorkingDirectory(
+            Set<Path> roots, Path currentDirectory, List<String> diagnostics) {
+        if (currentDirectory == null) {
+            return;
+        }
+        Path normalized = currentDirectory.toAbsolutePath().normalize();
+        if (normalized.getParent() == null) {
+            diagnostics.add("Skipped filesystem root as an implicit discovery directory: " + normalized);
+            return;
+        }
+        roots.add(normalized);
     }
 }

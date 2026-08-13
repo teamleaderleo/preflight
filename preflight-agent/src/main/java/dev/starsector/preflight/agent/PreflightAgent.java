@@ -12,7 +12,7 @@ import jdk.jfr.Name;
 import jdk.jfr.Recording;
 import jdk.jfr.RecordingState;
 
-/** Launch-time JFR and optional fail-closed adapter agent for Starsector Preflight. */
+/** Launch-time JFR and optional fail-closed adapter agent for Preflight. */
 public final class PreflightAgent {
     private PreflightAgent() {
     }
@@ -35,16 +35,23 @@ public final class PreflightAgent {
                 "Adapter initialization",
                 () -> AdapterRuntime.start(options, instrumentation));
         Recording recording = startRecording(options);
+        contain("Recording stop controller", () -> RecordingStopController.start(
+                recording, options.destination().toAbsolutePath().normalize()));
         RecordingFlusher flusher = contain(
                 "Recording flusher",
                 () -> RecordingFlusher.start(
                         recording,
                         options.destination().toAbsolutePath().normalize(),
                         options.flushInterval()));
+        boolean manualRecordingClose = recording != null && options.flushInterval().isZero();
         try {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     () -> {
-                        markStopping(recording);
+                        if (manualRecordingClose) {
+                            stopRecording(recording, options.destination());
+                        } else {
+                            markStopping(recording);
+                        }
                         closeFlusher(flusher);
                         closeAdapter(adapterSession);
                         closeQuietLogs(options.quietLogs());
@@ -126,13 +133,14 @@ public final class PreflightAgent {
 
             Configuration configuration = Configuration.getConfiguration(options.settings());
             Recording recording = new Recording(configuration);
-            recording.setName("Starsector Preflight startup");
+            recording.setName("Preflight startup");
             recording.setToDisk(true);
-            // The JVM must dump this recording from its own shutdown hook. That hook writes the
-            // destination before it wipes the chunk repository; a competing hook of ours that
-            // stopped the recording could be caught between those two steps and dump a recording
-            // whose chunks had already been deleted, leaving an empty file behind.
-            recording.setDumpOnExit(true);
+            // Ordinary multi-chunk recordings use HotSpot's dump hook plus periodic sidecars. The
+            // The flush=0 policy deliberately never rotates its active chunk. Its deterministic
+            // path is the live request/ack controller; the shutdown hook remains a last-chance
+            // writer when an operator exits without using that protocol. Do not race it against
+            // HotSpot's independent dump hook.
+            recording.setDumpOnExit(!options.flushInterval().isZero());
             recording.setDestination(destination);
             configureStartupEvents(recording, options);
             recording.start();
@@ -173,6 +181,15 @@ public final class PreflightAgent {
         recording.enable("jdk.JVMInformation");
         recording.enable("jdk.OSInformation");
         recording.enable("jdk.CPUInformation");
+
+        // Register both custom boundaries before the recording starts. AgentStopping may otherwise
+        // be loaded for the first time inside a JVM shutdown hook, when HotSpot is concurrently
+        // tearing JFR down; a fast process can still write a valid destination while losing that
+        // late event registration. Explicit class-based settings ensure the live request/ack path
+        // does not depend on first-use registration; a hook that begins after JVM teardown remains
+        // best effort by definition.
+        recording.enable(AgentStarted.class);
+        recording.enable(AgentStopping.class);
 
         // Where each thread actually is, and whether it was waiting on another thread rather than
         // working. Both modes need these: they are what "where does the time go" is answered from,
@@ -224,32 +241,38 @@ public final class PreflightAgent {
         }
     }
 
-    private static void stopRecording(Recording recording, Path destination) {
+    static boolean stopRecording(Recording recording, Path destination) {
         if (recording == null) {
-            return;
+            return false;
         }
-        try {
-            if (recording.getState() == RecordingState.RUNNING) {
-                AgentStopping stopping = new AgentStopping();
-                stopping.commit();
-                try {
-                    recording.stop();
-                } catch (IllegalStateException ignored) {
-                    // The JVM may stop the destination-backed recording concurrently during shutdown.
+        synchronized (recording) {
+            try {
+                if (recording.getState() == RecordingState.RUNNING) {
+                    AgentStopping stopping = new AgentStopping();
+                    stopping.commit();
+                    try {
+                        recording.stop();
+                    } catch (IllegalStateException ignored) {
+                        // The JVM may stop the destination-backed recording concurrently during shutdown.
+                    }
                 }
-            }
-            if (recording.getState() != RecordingState.CLOSED) {
-                recording.close();
-            }
-            if (!Files.isRegularFile(destination)) {
-                log("Recording ended without creating " + destination);
-            } else if (Files.size(destination) == 0L) {
-                log("Recording ended with an empty " + destination);
-            } else {
+                if (recording.getState() != RecordingState.CLOSED) {
+                    recording.close();
+                }
+                if (!Files.isRegularFile(destination)) {
+                    log("Recording ended without creating " + destination);
+                    return false;
+                }
+                if (Files.size(destination) == 0L) {
+                    log("Recording ended with an empty " + destination);
+                    return false;
+                }
                 log("Wrote startup recording to " + destination);
+                return true;
+            } catch (Throwable error) {
+                log("Failed to finish recording: " + message(error));
+                return false;
             }
-        } catch (Throwable error) {
-            log("Failed to finish recording: " + message(error));
         }
     }
 
@@ -269,7 +292,7 @@ public final class PreflightAgent {
 
     @Name("preflight.AgentStarted")
     @Label("Preflight Agent Started")
-    @Category("Starsector Preflight")
+    @Category("Preflight")
     static final class AgentStarted extends Event {
         @Label("Destination")
         String destination;
@@ -289,7 +312,7 @@ public final class PreflightAgent {
 
     @Name("preflight.AgentStopping")
     @Label("Preflight Agent Stopping")
-    @Category("Starsector Preflight")
+    @Category("Preflight")
     static final class AgentStopping extends Event {
     }
 }

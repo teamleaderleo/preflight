@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
@@ -33,6 +34,7 @@ class PrepareCommandTest {
                 "--report", report.toString(),
                 "--workers", "2",
                 "--memory-mb", "32",
+                "--parallel-stages",
                 "--deep",
                 "--verify-lookups",
                 "--lookup-queries", "250",
@@ -51,6 +53,10 @@ class PrepareCommandTest {
         assertTrue(first.contains("\"artifactHit\":false"), first);
         assertTrue(first.contains("\"profileHit\":false"), first);
         assertTrue(first.contains("\"builtBlobs\":2"), first);
+        assertTrue(first.contains("\"textureStorage\":\"balanced\""), first);
+        assertTrue(first.contains("\"storagePlan\":{\"format\":\"preflight-preparation-storage-plan-v1\""), first);
+        assertTrue(first.contains("\"safeToPrepare\":true"), first);
+        assertTrue(first.contains("\"parallelStages\":true"), first);
         assertTrue(first.contains("\"liveAdapterIntegrated\":true"), first);
         assertTrue(first.contains("\"liveAdapterEnabledByPreparation\":false"), first);
         assertTrue(first.contains("\"vanillaAdapter\":\"compatibility-v2-behaviorally-accepted\""), first);
@@ -88,6 +94,41 @@ class PrepareCommandTest {
     }
 
     @Test
+    void storagePlanIsJsonAndStrictlyReadOnly() throws Exception {
+        Path install = fixture();
+        Path cache = temporaryDirectory.resolve("plan-only-cache");
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        PrintStream originalErr = System.err;
+        try (PrintStream capturedOut = new PrintStream(stdout, true, StandardCharsets.UTF_8);
+                PrintStream capturedErr = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+            System.setOut(capturedOut);
+            System.setErr(capturedErr);
+            assertEquals(0, PreflightCli.run(new String[] {
+                    "prepare",
+                    "--plan",
+                    "--json",
+                    "--game", install.toString(),
+                    "--cache-dir", cache.toString(),
+                    "--workers", "2",
+                    "--texture-storage", "balanced"
+            }));
+        } finally {
+            System.setOut(originalOut);
+            System.setErr(originalErr);
+        }
+
+        String json = stdout.toString(StandardCharsets.UTF_8);
+        assertTrue(json.startsWith("{\"format\":\"preflight-preparation-storage-plan-v1\""), json);
+        assertTrue(json.contains("\"predictedAdditionalBytes\":"), json);
+        assertTrue(json.contains("\"upperBoundAdditionalBytes\":"), json);
+        assertTrue(json.contains("\"safeToPrepare\":true"), json);
+        assertFalse(Files.exists(cache));
+        assertTrue(stderr.toString(StandardCharsets.UTF_8).contains("prepare: storage-plan completed"));
+    }
+
+    @Test
     void printsBoundedStageProgressToStderrAndKeepsStdoutAsReportPath() throws Exception {
         Path install = fixture();
         Path report = temporaryDirectory.resolve("progress.json");
@@ -121,8 +162,12 @@ class PrepareCommandTest {
                 "lookup-verification"}) {
             assertTrue(progress.contains("prepare: " + stage + " started"), progress);
             assertTrue(progress.contains("prepare: " + stage + " completed status="), progress);
+            assertTrue(progress.contains(
+                    PrepareCommand.PROGRESS_PREFIX
+                            + "{\"format\":\"preflight-preparation-progress-v1\",\"phase\":\""
+                            + stage + "\""), progress);
         }
-        assertTrue(progress.length() < 2_000, progress);
+        assertTrue(progress.length() < 8_000, progress);
     }
 
     @Test
@@ -136,6 +181,7 @@ class PrepareCommandTest {
                 "--game", install.toString(),
                 "--cache-dir", temporaryDirectory.resolve("minimal-cache").toString(),
                 "--report", report.toString(),
+                "--serial-stages",
                 "--no-resource-index",
                 "--no-classpath",
                 "--no-textures"
@@ -146,6 +192,7 @@ class PrepareCommandTest {
         assertTrue(json.contains("\"classpathIndex\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"specStoreIdentity\":{\"status\":\"SKIPPED\""), json);
         assertTrue(json.contains("\"textures\":{\"status\":\"SKIPPED\""), json);
+        assertTrue(json.contains("\"parallelStages\":false"), json);
         assertEquals(before, Files.getLastModifiedTime(install.resolve("mods/enabled_mods.json")).toMillis());
     }
 

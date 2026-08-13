@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Hashes;
+import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +30,13 @@ import java.util.stream.Stream;
  */
 public final class PrepareAudioCommand {
     private static final String KEY_SCHEMA = "starsector-preflight-audio-decoder-policy-v1";
-    private static final List<String> CHILD_JVM_OPTIONS = List.of(
+    /**
+     * Verification off, because the game's own classes cannot pass it: obfuscation gave them names
+     * like {@code sound.int} and {@code sound.while}, which are illegal identifiers. The game's
+     * launcher disables it for the same reason. Shared with the installed test so the two cannot
+     * drift into spawning differently configured children.
+     */
+    static final List<String> CHILD_JVM_OPTIONS = List.of(
             "-noverify",
             "-XX:+UnlockDiagnosticVMOptions",
             "-XX:-BytecodeVerificationLocal",
@@ -60,7 +67,7 @@ public final class PrepareAudioCommand {
         Path install = InstallRoot.resolve(game);
         cache = cache.toAbsolutePath().normalize();
         if (output == null) {
-            output = cache.resolve("prepared-audio").resolve("bake.json");
+            output = PreparedAudioCache.root(cache).resolve("bake.json");
         }
 
         ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(install);
@@ -90,6 +97,9 @@ public final class PrepareAudioCommand {
                 : SoundWrapperObservationRuntimeLauncher.selectJava(install, null).executable();
         List<Path> gameJars = jars(install);
         String decoderIdentity = decoderPolicyIdentity(gameJars);
+        String gameBuildIdentity = starsectorBuildIdentity(gameJars);
+        Path manifest = PreparedAudioCache.manifestDirectory(cache)
+                .resolve(index.profileFingerprint() + ".spam");
 
         Path workFile = Files.createTempFile("preflight-prepared-audio", ".tsv");
         Files.writeString(workFile, String.join("\n", work), StandardCharsets.UTF_8);
@@ -102,15 +112,25 @@ public final class PrepareAudioCommand {
         command.add(javaExecutable.toString());
         command.addAll(CHILD_JVM_OPTIONS);
         command.add("-cp");
-        List<Path> classpath = new ArrayList<>(gameJars);
-        classpath.add(SelfJar.locate().toAbsolutePath().normalize());
-        command.add(String.join(System.getProperty("path.separator"),
-                classpath.stream().map(Path::toString).toList()));
+        // Preflight's jar alone, staged where the launcher can read it. The game's jars follow as
+        // arguments instead: the launcher consumes -cp itself, before any Preflight code exists to
+        // decode it, and Windows converts that value to the system code page on the way in. A path
+        // outside the page arrives as question marks and the class simply is not found. Arguments
+        // can be carried as Base64; a class path cannot, so nothing that might need it goes there.
+        command.add(AgentJarStaging.readableByTheChildJvm(SelfJar.locate()).toString());
         command.add(PrepareAudioChild.class.getName());
-        command.add(workFile.toString());
-        command.add(cache.toString());
-        command.add(decoderIdentity);
-        command.add(output.toAbsolutePath().normalize().toString());
+        List<String> childArguments = new ArrayList<>(List.of(
+                workFile.toString(),
+                cache.toString(),
+                decoderIdentity,
+                output.toAbsolutePath().normalize().toString(),
+                index.profileFingerprint(),
+                gameBuildIdentity,
+                manifest.toAbsolutePath().normalize().toString()));
+        for (Path jar : gameJars) {
+            childArguments.add(jar.toAbsolutePath().normalize().toString());
+        }
+        command.addAll(List.of(Utf8Argv.encode(childArguments.toArray(new String[0]))));
 
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         String childOutput;
@@ -150,6 +170,15 @@ public final class PrepareAudioCommand {
             }
         }
         return Hashes.sha256(canonical.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String starsectorBuildIdentity(List<Path> gameJars) throws IOException {
+        for (Path jar : gameJars) {
+            if (jar.getFileName().toString().equals("starfarer_obf.jar")) {
+                return Hashes.sha256(jar);
+            }
+        }
+        throw new IOException("Could not find starfarer_obf.jar in the installation jar set");
     }
 
     static List<Path> jars(Path install) throws IOException {

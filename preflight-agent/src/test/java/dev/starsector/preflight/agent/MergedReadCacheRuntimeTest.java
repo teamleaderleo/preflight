@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,6 +29,8 @@ class MergedReadCacheRuntimeTest {
             "vanillaJson", MethodType.methodType(Object.class, String.class, Object.class));
     private static final MethodHandle UNSTORABLE_VANILLA = handle(
             "unstorableJson", MethodType.methodType(Object.class, String.class, Object.class));
+    private static final MethodHandle SINGLE_VANILLA = handle(
+            "singleVanillaJson", MethodType.methodType(Object.class, String.class));
 
     @TempDir
     Path temporaryDirectory;
@@ -36,6 +39,14 @@ class MergedReadCacheRuntimeTest {
     void reset() {
         VANILLA_CALLS.set(0);
         MergedReadCacheRuntime.beginSession();
+        LoadJsonMemoRuntime.reset();
+        LoadJsonMemoRuntime.enable(true);
+    }
+
+    @AfterEach
+    void disableMemo() {
+        LoadJsonMemoRuntime.enable(false);
+        LoadJsonMemoRuntime.reset();
     }
 
     @Test
@@ -134,6 +145,43 @@ class MergedReadCacheRuntimeTest {
         assertEquals(1L, telemetry("writes"));
     }
 
+    @Test
+    void publishesPostStartupSingleJsonAtShutdownAndServesItNextProcess() throws Throwable {
+        Path artifact = artifact('f');
+        MergedReadCacheRuntime.configure(artifact);
+
+        MergedReadCacheRuntime.mergedJsonRead(
+                "data/config/engine_styles.json", Set.of(), JSON_VANILLA);
+        MergedReadCacheRuntime.complete();
+        assertEquals(1L, telemetry("writes"));
+
+        LoadJsonMemoRuntime.markStartupComplete();
+        JSONObject first = (JSONObject) LoadJsonMemoRuntime.loadJsonResolved(
+                "data/config/chatter/characters/default.json", SINGLE_VANILLA);
+        assertEquals("data/config/chatter/characters/default.json", first.get("path"));
+        assertEquals(2, VANILLA_CALLS.get());
+        MergedReadCacheRuntime.complete();
+        MergedReadCacheRuntime.complete();
+        assertEquals(2L, telemetry("writes"), "an unchanged shutdown publication is a no-op");
+        assertEquals(2, PreparedMergedReadCacheIO.read(artifact).entries().size());
+
+        MergedReadCacheRuntime.beginSession();
+        LoadJsonMemoRuntime.reset();
+        LoadJsonMemoRuntime.enable(true);
+        MergedReadCacheRuntime.configure(artifact);
+        LoadJsonMemoRuntime.markStartupComplete();
+        JSONObject restored = (JSONObject) LoadJsonMemoRuntime.loadJsonResolved(
+                "data/config/chatter/characters/default.json", SINGLE_VANILLA);
+
+        assertEquals(2, VANILLA_CALLS.get(), "a prepared single-file hit must not enter vanilla");
+        assertEquals(first.get("path"), restored.get("path"));
+        assertEquals(((JSONArray) first.get("lines")).toString(),
+                ((JSONArray) restored.get("lines")).toString());
+        assertTrue(first != restored);
+        assertEquals(1L, telemetry("singleJsonHits"));
+        assertEquals(1L, LoadJsonMemoRuntime.report().get("preparedHits"));
+    }
+
     private Path artifact(char digit) {
         return temporaryDirectory.resolve(String.valueOf(digit).repeat(64) + ".spmr");
     }
@@ -153,6 +201,11 @@ class MergedReadCacheRuntimeTest {
     private static Object unstorableJson(String ignoredPath, Object ignoredKeys) {
         VANILLA_CALLS.incrementAndGet();
         return new JSONObject().put("decimal", BigDecimal.ONE);
+    }
+
+    private static Object singleVanillaJson(String path) {
+        VANILLA_CALLS.incrementAndGet();
+        return new JSONObject().put("path", path).put("lines", new JSONArray().put("hello"));
     }
 
     private static MethodHandle handle(String name, MethodType type) {

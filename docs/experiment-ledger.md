@@ -1,0 +1,200 @@
+# Optimization experiment ledger
+
+**Status:** exhaustive at the experiment-family level
+
+**Scope:** retained work through 2026-08-06
+
+**Updated:** 2026-08-07
+
+This ledger accounts for the optimization branches explored during the current campaign, including
+ideas that were rejected, corrected, or left deliberately unfinished. A row may consolidate several
+closely related probes when they tested successive versions of the same idea; the linked reports
+retain the individual runs, identities, failures, and raw measurements.
+
+It complements the narrative [optimization history](optimization-history.md). The history explains
+why the work changed direction. This page accounts for each abandoned branch.
+
+## Dispositions
+
+| Disposition | Meaning |
+| --- | --- |
+| **Accepted** | Retained in the current Recommended path or its preparation/storage support. |
+| **Accepted with limit** | Retained with a claim narrower than the initial hypothesis. |
+| **Correctness** | Retained to prevent a crash, race, stale result, or misleading warning. |
+| **Diagnostic** | Improved attribution or measurement. |
+| **Rejected** | Measured slower, behaviorally unsafe, aimed at the wrong path, or couldn't meet the identity boundary; implementation artifacts were removed or remain disabled. |
+| **Deferred** | Awaiting a runtime consumer, fidelity gate, platform evidence, or worthwhile product tradeoff. |
+
+## July 16–31: establishing the real paths
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Audio | Prepare decoded sound before launch | **Accepted with limit** | Real-install evidence established substantial Vorbis CPU work. Some decode overlapped other startup work. Prepared audio reduces CPU, heat, and a measured wait; its wall-time claim excludes the overlapped work. | [Initial audio/startup report](evidence/2026-07-16-real-install-audio-startup-report.md), [loading-thread analysis](evidence/2026-07-30-the-loading-thread-never-waits-for-the-audio.md) |
+| Audio | Validate prepared audio through the generic decoder API | **Rejected** | The equivalence gate exercised an API the game never called. It was replaced by the installed decoder and actual game-JVM path before prepared audio could be accepted. | [Wrong API gate](evidence/2026-07-26-the-audio-gate-decodes-an-api-the-game-never-calls.md), [prepared-audio contract](evidence/2026-07-26-what-prepared-audio-would-have-to-hold.md) |
+| Wrapper | Optimize the wrapper payload | **Rejected** | Payload construction was cheap. Work moved to the game process and its resource identities. | [Wrapper payload report](evidence/2026-07-26-the-wrapper-payload-was-never-the-problem.md) |
+| Textures | Compatibility-only decoded-image cache | **Accepted with limit** | The second exact compatibility contract served 4,926 prepared images with three ordinary fallbacks and no corruption. The run established a rollback boundary for more aggressive pixel work. | [Compatibility v2 gate](evidence/2026-07-19-real-texture-compatibility-v2-acceptance.md) |
+| Textures | Direct prepared-pixel upload using partial layout invariants | **Rejected** | Multiple variants crashed or rendered black, cropped, tiled, stretched, or displaced textures despite plausible counters. Dimension-only, guessed padding, backing-dimension replay, and “half an invariant” were all insufficient. | [Live failure](evidence/2026-07-22-prepared-pixel-live-pilot-failure.md), [NPOT visual failure](evidence/2026-07-22-prepared-pixel-visual-failure.md), [dimension replay](evidence/2026-07-22-prepared-pixel-dimension-replay-visual-corruption.md), [half invariant](evidence/2026-07-31-half-an-invariant-kills-the-launcher.md) |
+| Textures | Coherent image plus original converter | **Diagnostic** | A visually correct control separated byte-layout mistakes from converter/lifecycle mistakes and supplied a known-good comparison path. | [Converter probe](evidence/2026-07-22-prepared-pixel-coherent-converter-probe.md) |
+| Textures | Corrected coherent-direct NPOT path | **Accepted** | Correcting the axis/layout contract passed launcher, main menu, campaign, combat, save, and clean-exit smoke testing on the exact reviewed installation. | [Axis launcher gate](evidence/2026-07-23-prepared-pixel-axis-launcher-pass.md), [gameplay smoke gate](evidence/2026-07-23-prepared-pixel-gameplay-smoke-pass.md) |
+| Textures | Treat the comparison cache as immutable | **Rejected** | The game legitimately mutated parts of the cache during a run. The repaired contract validates stable source content and relevant invariants. | [Mutable-cache failure](evidence/2026-07-23-prepared-pixel-main-menu-mutable-cache-failure.md) |
+| Textures | Compare prepared and compatibility runs without a fixed profile | **Rejected** | The first pair changed profile state, invalidating the timing comparison. Later benchmarks pinned the mod/profile identity and automated the timing boundary. | [Comparison failure](evidence/2026-07-23-prepared-pixel-main-menu-comparison-failure.md), [comparison contract](evidence/2026-07-23-prepared-pixel-main-menu-comparison-contract.md) |
+| Textures | Remove power-of-two upload padding | **Accepted** | The retained agent boundary could replace the allocation path directly. The live result removed 1.22 GiB of actual upload allocation. | [Padding sites](evidence/2026-07-26-padding-sites-in-the-installed-loader.md), [implementation boundary](evidence/2026-07-26-padding-removal-needs-no-instruction-surgery.md), [live result](evidence/2026-08-02-the-padding-is-gone.md) |
+| Textures | Lossy BC1/BC3 GPU-ready cache | **Deferred** | Drivers accepted the formats, and a real corpus was about 4.51 times smaller where eligible. Texture-specific fidelity and the runtime consumer remain unresolved. This is a separate opt-in research path. | [GL capability probe](evidence/2026-07-25-macos-gl-capability-probe.md), [real profile run](evidence/2026-07-26-first-real-profile-run.md), [encoder agreement](evidence/2026-07-26-encoder-driver-byte-agreement.md) |
+| Runtime | Replace the bundled x86 JVM with a native Apple Silicon JVM | **Deferred** | The installed game and native dependencies are x86-64. Pointing the launcher at an arm64 JDK leaves that constraint in place. | [Rosetta runtime](evidence/2026-07-25-macos-rosetta-runtime.md), [installed JVM configuration](evidence/2026-07-26-jvm-configuration-of-the-installed-game.md) |
+| Assets | Treat every unusual mod config shape as invalid | **Rejected** | Corpus review found syntax the game silently ignores as well as nonstandard syntax it accepts. The linter was changed to match the game's dialect and to preserve standalone-mod context. | [Config dialect](evidence/2026-07-28-config-the-game-silently-never-reads.md), [single-mod linting](evidence/2026-07-28-linting-one-mod-alone.md), [86-mod census](evidence/2026-07-28-what-eighty-six-mods-ship.md) |
+| Images | Target progressive JPEG decode | **Accepted with limit** | Progressive JPEGs could cost roughly nine times a comparable decode, and one corpus path totaled about 17 seconds. They became lint and preparation targets. | [Decode comparison](evidence/2026-07-28-progressive-jpeg-costs-nine-times-the-decode.md), [installed-path total](evidence/2026-08-02-progressive-jpeg-is-seventeen-seconds.md) |
+| Measurement | Interpret a stalled or missing main menu as a slow load | **Rejected** | A JVM failure could resemble an indefinitely slow launch. Process exit, crash logs, and menu state became separate benchmark outcomes. | [Crash/slow-load distinction](evidence/2026-07-31-a-jvm-crash-that-looks-exactly-like-a-slow-load.md) |
+
+## August 1–3: correcting the benchmark and removing the large waits
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Measurement | Direct launch with automatic main-menu timing and shutdown | **Diagnostic** | Removed launcher dwell and operator reaction time, producing the first repeatable startup number and making cohorts practical. | [First valid number](evidence/2026-08-01-the-first-valid-startup-number.md) |
+| Measurement | Attribute phases from gaps between log lines | **Rejected** | A log gap can contain unrelated work on another thread or before the logger is active. Logs remain event markers. | [What the load waits for](evidence/2026-08-01-what-the-load-is-actually-waiting-for.md), [four seconds before logging](evidence/2026-08-03-four-seconds-before-the-jvm-logs-anything.md) |
+| Measurement | Accept the apparent 18-second launch mode | **Rejected** | The bimodality came from a stale benchmark anchor. The harness now derives the current process/run identity and refuses mismatched evidence. | [Anchor diagnosis](evidence/2026-08-01-the-bimodality-was-the-anchor.md) |
+| Measurement | Read JFR timestamps as ordinary wall time under the installed flags | **Rejected** | `UseFastUnorderedTimeStamps` made the observed clock roughly 2.49 times wrong. JFR uses a corrected attribution contract. | [Profiler correction](evidence/2026-08-02-what-the-profiler-was-not-telling-us.md), [single-chunk profile](evidence/2026-08-02-live-single-chunk-startup-profile.md) |
+| Textures | Put the prepared lookup behind the prefetch queue | **Rejected** | Individual work became cheaper. The loading thread still waited about 27 seconds on a one-thread queue. | [Prefetch wait](evidence/2026-08-01-the-loading-thread-waits-on-a-one-thread-prefetcher.md) |
+| Textures | Bypass both redundant work and the prefetch wait | **Accepted** | The controlled comparison moved from 88.13 to 62.60 seconds, a 29 percent reduction, when the two independently useful paths composed. | [Ten percent by not waiting](evidence/2026-08-01-ten-percent-by-not-waiting.md), [composed result](evidence/2026-08-01-twenty-nine-percent-when-they-compose.md) |
+| Textures | Attribute the remaining texture block to the graphics driver | **Rejected** | Thread and replay evidence located the block in CPU/I/O and scheduling work before the driver. | [Texture block diagnosis](evidence/2026-08-03-the-texture-block-was-not-the-graphics-driver.md) |
+| Textures | Verify every prepared blob checksum on every trusted launch read | **Rejected** | The checksum cost roughly eight times the rest of a prepared read. Full checks stay in preparation and validation; trusted reads are admitted only after the manifest and source profile are validated. | [Checksum benchmark](evidence/2026-08-02-prepared-blob-checksum-benchmark.md) |
+| Startup | Move independent preparation before the timed launch | **Accepted** | Offline work and profile construction stopped occupying the game process's critical path, producing 34.66/35.54-second gates after the texture waypoint. | [Accumulated scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md) |
+| Startup | Treat the 100 percent tail as audio drain | **Rejected** | An exact tail probe found about 27 seconds of mod callbacks. | [Tail probe](evidence/2026-08-02-direct-100-percent-tail-probe.md) |
+| Specs | Optimize only the shared spec reader | **Rejected as sufficient** | The reader itself was worth roughly half a second; the visible 0 percent plateau came from the wider `SpecStore` construction and rule pipeline. The reader was later optimized as a smaller tail item. | [Spec reader](evidence/2026-08-02-the-spec-reader-is-half-a-second.md), [SpecStore plateau](evidence/2026-08-02-zero-percent-is-spec-store.md) |
+| Specs | Cache live mutable spec objects | **Rejected by design** | The accepted boundary stores tagged JSON/CSV inputs and lets Starsector construct fresh mutable objects. This preserved ownership and reduced variants, weapons, projectiles, hulls, and rules by multiple factors. | [SpecStore progression](evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md) |
+| Rules | Memoize token shapes and replace duplicate linear registration | **Accepted** | Repeated tokenization and 21,059 duplicate checks became bounded cache/set work. Live rule objects remain process-local. | [SpecStore plateau details](evidence/2026-08-02-zero-percent-is-spec-store.md) |
+| JSON | Promote quoted numbers or broadly pretype values during rehydration | **Rejected** | Generic quoted-number memoization, schema promotion, and reflective post-decode pretyping regressed or weakened fidelity. Tagged trees and narrow verified normalization remained. | [SpecStore progression](evidence/2026-08-03-spec-store-is-no-longer-a-reading-problem.md) |
+| JSON | General merged-reader tagged-tree cache | **Accepted** | Installed `json.jar` replay established fidelity. The cache sits beneath corpus-specific caches, catches their misses, and rehydrates input trees directly. | [Fidelity replay](evidence/2026-08-03-merged-read-json-fidelity.md), [integrated launch](evidence/2026-08-04-merged-read-cache-launch.md) |
+| Identity | Rehash the same profile separately for every cache | **Rejected** | Shared profile/provider hash memoization reduced the exact identity work from 1.613 to 0.452 seconds and avoided spending 150–250 milliseconds to support later caches. | [Hash memo](evidence/2026-08-03-profile-hash-memo-benchmark.md) |
+| Resources | Cache directory listings as answers to `File.exists()` | **Rejected** | Listings and existence probes have different semantics; the shortcut produced false negatives for real files. It was removed from Recommended. | [Listing failure](evidence/2026-08-03-a-listing-is-not-what-the-filesystem-was-asked.md) |
+| Resources | Cache source hints shared by loading threads | **Rejected** | Another thread could consume or replace the hint, making an existing mod resource disappear. Source selection now remains request-local or validated. | [Source-hint race](evidence/2026-08-04-resource-source-hint-race.md) |
+| Resources | Add a 16 MiB read-ahead window | **Rejected** | The probe read 132.2 GB to serve a 2.2 GB pack, expanded the exact seam to 16.563 seconds, and produced a 35.59-second launch. Bounded positioned reads remained. | [Packed-store evolution](evidence/2026-08-06-packed-texture-store.md) |
+| Resources | Segmented memory mapping for the prepared store | **Rejected** | The exact replay was 8.9 percent slower than bounded positioned reads. | [Packed-store evolution](evidence/2026-08-06-packed-texture-store.md) |
+| Resources | Optimize root probes before knowing their frequency | **Diagnostic** | A single probe was cheap. Frequency determined relevance. Later work targeted repeated path resolution and priority construction. | [Root-probe report](evidence/2026-08-02-what-a-root-probe-costs.md) |
+| Save loading | Pre-scan references or build a binary save cache | **Rejected** | Parsing the complete 103 MB save took about 685 milliseconds. The dominant save-load cost occurred elsewhere. | [Save diagnosis](evidence/2026-08-02-save-loading-is-not-parsing.md), [save-load decomposition](evidence/2026-08-02-a-save-load-is-eleven-seconds.md) |
+| GraphicsLib | Cache `loadJSON` calls as the primary callback optimization | **Rejected as attribution** | Profiling found the larger costs in generated-normal discovery, validation, settings, and object lifetime. | [GraphicsLib attribution](evidence/2026-08-03-loadjson-is-not-where-graphicslib-spends-its-time.md) |
+| GraphicsLib | Compact generated-normal replay | **Accepted** | Exact compact state avoided repeated normal-map discovery and generation. Identity and live validation boundaries remain. | [Compact replay](evidence/2026-08-02-graphicslib-compact-autogen-replay.md), [live adapter](evidence/2026-08-04-graphicslib-compact-replay-adapter-live.md) |
+| AshLib | Reuse stable startup JSON | **Accepted** | The exact callback path removed roughly 7.1–7.4 seconds of repeated component work on the reviewed profile. | [AshLib diagnostic](evidence/2026-08-02-ashlib-startup-json-cache.md) |
+
+## August 4–5: mod callbacks, generated code, gameplay, and correctness
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Janino | Persist complete generated-class maps | **Accepted** | A direct 18.014-second aggregate fell to 2.364 seconds, and the first live pilot removed roughly 5.37 seconds from launch. Exact compiler, classpath, source, and request identities gate use. | [Janino live pilot](evidence/2026-08-04-janino-bytecode-live-pilot.md) |
+| Janino | Keep a full bundle for every request | **Rejected as representation** | Hundreds of bundles repeated the same classes. A content-deduplicated pack shrank about 145.96 MiB to 1.13 MiB and reduced the warm seam to 29–38 milliseconds. | [Deduplicated pack](evidence/2026-08-05-janino-deduplicated-pack.md) |
+| Logging | Disable console output and keep the ordinary file log | **Accepted** | File-only startup logging saved about 249 milliseconds with fidelity retained. | [Quiet logs](evidence/2026-08-04-quiet-logs.md) |
+| Logging | Add broader asynchronous/buffered logging | **Rejected for default** | A larger 403-millisecond micro-result introduced more ordering and failure complexity; the narrower file-only mode was retained. | [Quiet logs](evidence/2026-08-04-quiet-logs.md) |
+| Specs | Four tagged spec caches | **Accepted** | Rehydrating the four prepared corpora took 133 milliseconds and preserved installed `json.jar` behavior and fresh object construction. | [Tagged spec JSON](evidence/2026-08-04-tagged-spec-json.md) |
+| Rules | Tagged rules CSV and composed rule-expression caches | **Accepted** | The last text-backed spec cache moved to tagged values. The fast preset installs both verified rule-expression caches. | [Tagged rules](evidence/2026-08-05-tagged-rules-csv.md), [cache composition](evidence/2026-08-05-rule-command-cache-composition.md) |
+| Specs | Persist rule token shapes | **Accepted with limit** | Stable token shapes persist across unchanged profiles. Commands and live rule objects remain process-local. The benefit is roughly tenths of a second. | [Persisted token shapes](evidence/2026-08-05-persisted-rule-token-shapes.md) |
+| JSON | Profile-stable startup cache | **Accepted** | Exact profile attribution extended prepared JSON safely and produced a 29.61-second five-run median. | [Profile-stable cache](evidence/2026-08-05-profile-stable-startup-json-cache.md) |
+| JSON | Reuse the full-data profile cache after startup | **Accepted with limit** | The normal single-file campaign cache reached 99.73 percent coverage. Measured gameplay was unchanged, so reuse remains narrow. | [Post-startup cache](evidence/2026-08-05-post-startup-loadjson-cache.md) |
+| Resource priority | Rebuild priority order quadratically | **Rejected as implementation** | An indexed order reduced the exact seam from 558.257 to 4.148 milliseconds, a 99.3 percent improvement. | [Priority index](evidence/2026-08-05-resource-priority-index.md) |
+| Transformer | Inventory every game class on ordinary launch | **Rejected as implementation** | Exact targeting reduced parsed classes from 2,612 to 38, a 98.5 percent reduction. Unknown targets remain untouched. | [Exact transformer](evidence/2026-08-05-exact-target-transformer.md) |
+| Adapter identity | Hash reviewed source archives on every launch | **Rejected as implementation** | A source-hash journal retains exact source identities across unchanged launches and invalidates on metadata/content drift. | [Source-hash journal](evidence/2026-08-05-adapter-source-hash-journal.md) |
+| Audio | Hash the entire encoded corpus again to locate prepared PCM | **Rejected as implementation** | A path index served 2,049 of 2,050 paths directly, leaving one safe hash fallback and removing about 133.3 MB of Rosetta hashing in later work. | [Audio path index](evidence/2026-08-05-prepared-audio-path-index.md) |
+| Audio | Checksum every prepared PCM read | **Rejected** | Like textures, full verification cost roughly eight times the rest of the trusted read. Checked preparation plus validated manifest admission replaced repeated launch checks. | [Trusted-read benchmark](evidence/2026-08-05-prepared-audio-trusted-read-benchmark.md) |
+| Audio | Compress prepared PCM | **Rejected** | Representative PCM was effectively incompressible under LZ4 and barely changed under Zstandard. Selective preparation or launch-time decode are the honest lower-space alternatives. | [Cache-space budget](evidence/2026-08-05-cache-space-budget.md) |
+| Audio | Fix stale OpenAL error attribution | **Correctness** | Starsector checked an earlier OpenAL error after creating a new music source. The exact safeguard clears and checks at the correct boundary. | [OpenAL safeguard](evidence/2026-08-05-openal-stream-source-stale-error.md) |
+| GraphicsLib | Validate every generated normal again on unchanged launches | **Accepted** | A journal memoizes reviewed normal validation across stable profiles and invalidates on source drift. | [Normal-validation journal](evidence/2026-08-05-graphicslib-normal-validation-journal.md) |
+| GraphicsLib | Upload generated normals that are immediately unloaded | **Accepted** | Lazy materialization reserves GPU work for generated normals that are consumed. | [Lazy generated normals](evidence/2026-08-05-graphicslib-lazy-generated-normals.md) |
+| GraphicsLib | Reread three Luna settings inside the light renderer | **Accepted** | Exact hot-setting reuse removes repeated lookup from the rendering path and listens for settings changes. | [Hot settings](evidence/2026-08-05-graphicslib-hot-settings-cache.md) |
+| GraphicsLib | Construct unattached fleet managers during insignia drawing | **Accepted with limit** | The repeated construction path was narrowed to its safe scope. | [Insignia manager](evidence/2026-08-04-graphicslib-insignia-manager-cache.md) |
+| AshLib | Reuse repository inputs beyond repository population | **Rejected by boundary** | Variant inputs are reused only during the exact population phase; extending their lifetime risked stale mod state. | [Variant index](evidence/2026-08-05-ashlib-variant-index.md) |
+| MagicLib | Copy and linearly scan unlocked paintjobs every campaign frame | **Accepted with limit** | A mutation-aware lookup preserves the mod's ownership and change behavior. | [Paintjob hotspot](evidence/2026-08-04-magiclib-paintjob-campaign-hotspot.md) |
+| MagicLib | Probe 874 absent optional paintjob files repeatedly | **Accepted** | Exact absence handling replaces repeated optional JSON probes and keeps request-local filesystem semantics. | [Optional paintjob JSON](evidence/2026-08-05-magiclib-optional-paintjob-json.md) |
+| Stellar Networks | Refresh a remote market on every paused frame | **Accepted with limit** | The mod's refresh invalidation now bounds paused-frame work. | [Paused market refresh](evidence/2026-08-04-stelnet-paused-market-refresh.md) |
+| Nexerelin | Construct the campaign engine implicitly during a startup callback | **Accepted with limit** | The exact faction-config startup path defers engine construction. Target drift restores the original behavior. | [Nexerelin startup](evidence/2026-08-05-nexerelin-faction-config-startup.md) |
+| Campaign | Cache `getEntityById` with mutation generations | **Accepted** | Failed lookup had cost about 1.486 milliseconds. Generation-based validation was 36.5–40.8 times faster than a deep snapshot microbenchmark and the live pilot served 229,924 fast validations with none deep. | [Failed lookup](evidence/2026-08-02-a-failed-lookup-scans-the-sector.md), [linear scan](evidence/2026-08-02-getentitybyid-is-a-linear-scan.md) |
+| Campaign | Memoize commodity event-mod values | **Accepted** | Live samples recorded 16.17 million calls at 98.78 percent hits and later 129.03 million at 99.8269 percent, with mutation-aware validation refined after the first pilot. | [Commodity hotspot](evidence/2026-08-05-commodity-event-mod-campaign-hotspot.md) |
+| Campaign | Rebuild a fixed seven-class radar set | **Accepted** | The set is constructed once. | [Radar type set](evidence/2026-08-05-campaign-radar-type-set.md) |
+| Combat UI | Scan the deployment icon grid for each member question | **Accepted** | A bounded member-to-icon index replaces repeated scans and invalidates with deployment changes. | [Deployment icon scan](evidence/2026-08-04-deployment-member-icon-scan.md) |
+| AI Tweaks | Recompute and box fixed engagement ranges during target selection | **Accepted with limit** | Exact fixed-range reuse removes repeated computation. Changed combat state follows the original path. | [Engagement range](evidence/2026-08-05-aitweaks-engagement-range.md) |
+| Simulation | Pass stale removed-mod opponent IDs into vanilla | **Correctness** | Invalid fleet members are filtered or rebuilt before vanilla consumes them, preventing stale prepared/profile state from bricking simulation. | [Stale opponents](evidence/2026-08-04-stale-simulation-opponents.md) |
+| Combat | Leave the bundled JVM's risky optimizer active for the exact combat target | **Correctness** | The reviewed target receives a narrow JIT safeguard; source or bytecode drift declines the transform. | [Combat JVM safeguard](evidence/2026-08-05-combat-jvm-safeguard.md) |
+| Memory | Warn from literal free-page count on macOS | **Correctness** | The warning now reflects memory pressure. | [macOS warning](evidence/2026-08-05-macos-memory-pressure-warning.md) |
+| Telemetry | Report only frame time and CPU samples | **Rejected as sufficient** | Direct average/median FPS, 1 percent and 0.1 percent lows, and 60/30-FPS budget shares were added; title-demo and warm-up phases are separated. | [FPS reporting](evidence/2026-08-05-frame-time-fps-reporting.md), [campaign attribution](evidence/2026-08-05-campaign-engine-call-times.md) |
+
+## August 6: storage policy and the remaining serial tail
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Adapters | Run separate transformation pipelines over the same classes | **Rejected as implementation** | Exact targets are now parsed and rewritten once. Each adapter keeps independent admission and failure reporting. | [Pipeline collapse](evidence/2026-08-06-adapter-transformation-pipelines.md) |
+| AppCDS | Archive transformed obfuscated classes for JVM startup | **Rejected** | Dynamic AppCDS failed its safety and reuse gate for the shipped obfuscated classes. The experiment and artifacts were removed. | [AppCDS gate](evidence/2026-08-06-appcds-obfuscated-class-gate.md) |
+| GraphicsLib | Persist and replay the public mapping traversal | **Rejected** | The replay expanded an approximately 0.25-second path to about 1.70 seconds and added a 4.19 MiB artifact. The adapter and artifact were deleted. | [Traversal rejection](evidence/2026-08-06-graphicslib-traversal-replay-rejected.md) |
+| Textures | Store every exact prepared texture raw | **Accepted as Fastest** | Raw measured 691.143 milliseconds at the exact learned-order replay seam and occupies about 5.338 GB on the profile. | [Hybrid/Fastest comparison](evidence/2026-08-06-balanced-hybrid-texture-pack.md) |
+| Textures | Store every exact texture with LZ4 | **Accepted as baseline, then refined** | All-LZ4 reduced the store by 58.8 percent with no measurable whole-launch regression. A later hybrid stopped compressing blobs below a 1.30 ratio. | [Balanced storage](evidence/2026-08-06-balanced-texture-storage.md), [hybrid refinement](evidence/2026-08-06-balanced-hybrid-texture-pack.md) |
+| Textures | Use Zstandard as Balanced | **Rejected** | It saved another 562 MB. Decode took 5.318 seconds under the game JVM; LZ4 took 1.533 seconds and prepared much faster. | [Balanced storage](evidence/2026-08-06-balanced-texture-storage.md) |
+| Textures | Preserve codec-bearing paths as the learned pack key | **Rejected as implementation** | Switching raw/LZ4 representations lost every learned access and poisoned layout comparisons. Codec-independent content identity now preserves order across policies. | [Hybrid pack](evidence/2026-08-06-balanced-hybrid-texture-pack.md) |
+| Textures | Serve 15,469 prepared blobs as loose files | **Accepted as fallback, replaced as hot path** | A profile pack reduced open/seek overhead. Checked loose artifacts remain available for repair and fallback. Exact packed replay fell from 4.559 to 1.632 seconds before later refinements. | [Packed store](evidence/2026-08-06-packed-texture-store.md) |
+| Textures | Read a trusted packed LZ4 range twice | **Rejected as implementation** | A single positioned read saved 34.607 milliseconds, about 3.1 percent at the exact range seam. | [Single read](evidence/2026-08-06-prepared-texture-single-read.md) |
+| Textures | Recopy prepared pixels into compatibility rasters | **Rejected as implementation** | Lazy carriers removed about 2.116 GB of compatibility allocation, reducing 15,470 possible raster materializations to one. | [Lazy carriers](evidence/2026-08-06-lazy-texture-carriers.md) |
+| Textures | Revalidate and rebuild the texture index during launch | **Rejected as implementation** | The completed preparation publishes a validated snapshot consumed directly by launch; drift still returns to validation or vanilla. | [Validated snapshot](evidence/2026-08-06-validated-texture-index-snapshot.md) |
+| Textures | Keep padded allocation as the fast default | **Rejected** | True-size allocation became Recommended/Fast after live visual and gameplay gates. Conservative retains padding as the compatibility choice. | [Unpadded default](evidence/2026-08-06-unpadded-fast-default.md) |
+| Textures | Infer NPOT support from the Recommended preset | **Rejected** | NPOT is a desktop OpenGL context capability, so the runtime now requires OpenGL 2.0 core or the ARB extension on the live LWJGL context and otherwise keeps the original padded path. | [Live-context contract](evidence/2026-08-08-npot-is-a-live-context-contract.md) |
+| Textures | Allocate new compressed scratch for every Balanced read | **Rejected as implementation** | A bounded per-loader-thread scratch buffer removes repeated allocation within the declared decoded-size memory budget. | [Balanced scratch](evidence/2026-08-06-balanced-texture-scratch.md) |
+| Audio | Copy trusted PCM through redundant heap buffers | **Rejected as implementation** | The direct path reaches OpenAL with fewer copies and retains checked fallback for drift or corruption. | [Direct audio read](evidence/2026-08-06-prepared-audio-direct-read.md) |
+| LoadingUtils | Allocate a 1 MiB buffer for each shared reader input | **Rejected as implementation** | Reuse reduced the exact reader from 761.978 to 276.073 milliseconds and avoided roughly 1.3 GB of scratch allocation. | [Shared reader](evidence/2026-08-06-loading-utils-reader.md) |
+| Paths | Use regex and allocation-heavy normalization in hot resource paths | **Rejected as implementation** | Narrow scanners and fixed parsing improved normalization by 6.88 times and remaining path seams by roughly 3.48 to 8.51 times. | [Path normalization](evidence/2026-08-06-resource-path-normalization.md), [remaining regex](evidence/2026-08-06-remaining-path-regex.md) |
+| Specs | Compile regexes for every smart-quote normalization | **Rejected as implementation** | A direct scan preserved output and improved the exact normalization seam by 4.02 times. | [Quote normalization](evidence/2026-08-06-spec-store-quote-normalization.md) |
+| Strings | Add an ASCII lowercase specialization | **Rejected** | The candidate was slower on the actual corpus/runtime. | [Remaining regex and string probes](evidence/2026-08-06-remaining-path-regex.md) |
+| Wrapper | Select independent launch profiles serially | **Accepted replacement** | Bounded parallel selection saved about 130 milliseconds, roughly 9.9 percent of the wrapper seam, and retains a serial fallback. | [Parallel selection](evidence/2026-08-06-launch-profile-parallel-selection.md) |
+| Preparation | Run every preparation stage serially | **Accepted replacement** | A dependency graph overlaps independent stages; repeated samples moved 10.103 to 9.183 seconds and 10.268 to 9.309 seconds. | [Dependency graph](evidence/2026-08-06-preparation-dependency-graph.md) |
+| Preparation | Maximize concurrency with no resource bound | **Rejected by design** | CPU, I/O, heat, and decoded-size memory budgets remain bounded, with a serial kill switch for constrained hardware. | [Dependency graph](evidence/2026-08-06-preparation-dependency-graph.md), [Balanced storage](evidence/2026-08-06-balanced-texture-storage.md) |
+| Loading screen | Redraw native startup UI as fast as the loading loop runs | **Accepted replacement** | A bounded redraw cadence removed serial native overhead and preserved progress updates. | [Redraw rate](evidence/2026-08-06-loading-screen-redraw-rate.md) |
+| Logs | Emit an asset progress line for every small event | **Accepted replacement** | Concise progress preserves useful stage information and removes repeated formatting and file work. | [Concise progress](evidence/2026-08-06-concise-asset-progress-logs.md) |
+| Main menu | Persist save descriptors across launches | **Rejected** | The apparent half-second ordering win exposed a GraphicsLib race and a two-minute cleanup storm. Only a same-JVM second-call memo remains. | [Save-descriptor memo](evidence/2026-08-06-main-menu-save-descriptor-memo.md) |
+| Version checks | Fetch identical responses repeatedly within a process | **Accepted with limit** | Process-local response deduplication removes duplicate work. Network state expires with the process. | [Response dedup](evidence/2026-08-06-version-check-response-dedup.md) |
+| Version checks | Treat asynchronous network work as critical launch wall time | **Rejected as attribution** | Samples found no established block at the main-menu boundary. | [Response dedup](evidence/2026-08-06-version-check-response-dedup.md) |
+| Codex mod | Apply a synthetic industry twice during demand/supply calculation | **Accepted** | The exact callback reuses one synthetic industry and avoids redundant application. | [Industry calculation](evidence/2026-08-06-codex-industry-demand-supply.md) |
+| Codex mod | Construct fleet members during startup even when never consumed | **Accepted** | Lazy creation removed about 151 milliseconds at startup and contributed to the 15.88-second chronological record. | [Lazy fleet members](evidence/2026-08-06-codex-lazy-fleet-members.md) |
+| Cache cleanup | Delete old artifacts based only on age or filename | **Rejected by design** | Prune derives reachability from readable current manifests and proves Janino duplicates byte-for-byte. Unknown state retains data; the dry run is separate from `--yes`. | [Cache-space budget](evidence/2026-08-05-cache-space-budget.md) |
+| Desktop | Assume a successful macOS build proves Windows/Linux operation | **Rejected as claim** | Cross-platform packages build. Installation discovery, game launch, and hardware behavior still require beta evidence on Windows and Linux. | [Distribution matrix](evidence/2026-08-06-desktop-distribution-matrix.md) |
+
+## August 8: first-beta trust boundary
+
+| Area | Experiment | Disposition | Result and retained decision | Evidence |
+| --- | --- | --- | --- | --- |
+| Distribution | Make paid Apple and Windows publisher identities block the first beta | **Rejected as release gate** | Packages will publish checksums and explicit OS-warning instructions. The separate free Tauri updater signature remains mandatory. | [Package trust](evidence/2026-08-08-package-trust-and-report-boundary.md) |
+| Diagnostics | Trust a report because it came through the desktop client | **Rejected by design** | The client carries no durable credential. The Worker treats every request as anonymous hostile input and accepts only bounded, parsed JSON/JSONL evidence into private storage. | [Report boundary](evidence/2026-08-08-package-trust-and-report-boundary.md) |
+
+## Limits on current claims
+
+Rosetta makes CPU and allocation reductions especially visible on the reference machine. Windows
+and Linux need their own measurements. The 15.88-second warm run is a record; a release median needs
+a cohort. Cache hit rates establish repeated work; FPS claims need controlled frame distributions.
+
+The same restraint applies to work awaiting a runtime consumer. Lossy GPU blocks,
+selective audio preparation, a maximum-compression texture tier, and more aggressive preparation
+overlap remain possible directions. They should enter this ledger as accepted only after their
+behavioral boundary, failure path, and measured user-facing tradeoff are all established.
+
+## Supporting reports folded into the rows above
+
+Every dated Markdown report in the evidence archive is linked from this ledger or its two companion
+publication documents. The following reports are intermediate contracts, controls, or snapshots
+within experiment families already summarized above; they are listed here so the publication set
+also serves as a complete route into the archive.
+
+The initial state and early real-install controls are preserved in
+[the July 16 handoff snapshot](evidence/2026-07-16-llm-handoff-snapshot.md),
+[the real sound-wrapper observation](evidence/2026-07-18-real-sound-wrapper-observation.md), and
+[the first texture preparation pilot](evidence/2026-07-18-real-texture-preparation-and-compatibility-pilot.md).
+The prepared-pixel sequence also includes
+[the coherent-direct diagnostic](evidence/2026-07-22-prepared-pixel-coherent-direct-diagnostic.md),
+[its visual failure](evidence/2026-07-22-prepared-pixel-coherent-direct-visual-failure.md),
+[the installed contract pass](evidence/2026-07-22-prepared-pixel-installed-contract-pass.md),
+[the lifecycle repair](evidence/2026-07-22-prepared-pixel-lifecycle-repair.md),
+[the NPOT padding implementation](evidence/2026-07-22-prepared-pixel-npot-padding.md),
+[the original-layout control](evidence/2026-07-22-prepared-pixel-original-layout-probe.md), and
+[the corrected core-resource guard](evidence/2026-07-23-prepared-pixel-core-resource-guard-path-failure.md).
+
+Later measurement and integration controls are retained in
+[the direct Rosetta observation](evidence/2026-08-01-the-game-runs-under-rosetta.md),
+[the operator/harness defect report](evidence/2026-08-01-two-bugs-the-operator-was-hiding.md),
+[the launch-free remaining-work census](evidence/2026-08-02-what-is-left-measured-without-launching.md),
+[the stock-JAR endpoint comparison](evidence/2026-08-03-stock-jars-measured-end-to-end.md),
+[the repeated file-lookup attribution](evidence/2026-08-03-the-game-spends-nine-seconds-looking-for-files.md),
+[the two-thread audio wait](evidence/2026-08-03-the-launch-was-waiting-for-two-threads.md),
+[the audio classpath fallback](evidence/2026-08-05-audio-classpath-root-fallback.md),
+[the fast-preset harness gate](evidence/2026-08-05-startup-benchmark-fast-preset.md), and
+[the trusted texture direct-read cohort](evidence/2026-08-06-trusted-texture-direct-read.md).

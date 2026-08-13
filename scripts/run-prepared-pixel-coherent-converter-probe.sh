@@ -16,7 +16,7 @@ for command in git java mvn jq shasum unzip tar; do
 done
 
 if [[ ! -f pom.xml ]]; then
-    echo "Run this script from the starsector-preflight repository root." >&2
+    echo "Run this script from the Preflight repository root." >&2
     exit 1
 fi
 

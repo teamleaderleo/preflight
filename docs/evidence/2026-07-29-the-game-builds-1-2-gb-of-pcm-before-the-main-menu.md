@@ -13,7 +13,7 @@ the recording against its own working directory rather than the game's, so every
 opened by relative path looked unopened. The effect count was **1,278 of 2,050**; it is **2,050 of
 2,050**. The PCM was **940.3 MB**; it is **1,169.4 MB**. The section explaining which effects went
 unopened described a bug in this repository, not behaviour of the game, and has been deleted.
-[#232](https://github.com/teamleaderleo/starsector-preflight/issues/232).
+[#232](https://github.com/teamleaderleo/preflight/issues/232).
 
 *Corrected 2026-07-29.* The first version called the session "menus only"; the player had entered the
 campaign and flown on the map, without combat. It also claimed music is never opened at load, which

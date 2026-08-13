@@ -1,26 +1,83 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 class StarsectorDiscoveryTest {
     @TempDir
     Path temporaryDirectory;
 
+    /**
+     * The note has to be about what the caller did. Telling someone who passed {@code --game} to
+     * pass {@code --game} is the one thing it must never say.
+     */
     @Test
+    void anExplicitGamePathThatDoesNotExistIsNamed() throws Exception {
+        Path missing = temporaryDirectory.resolve("not-installed-here");
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.MAC, temporaryDirectory, temporaryDirectory, Map.of(), missing, null);
+
+        assertNull(result.selected());
+        String note = String.join(" ", result.diagnostics());
+        assertTrue(note.contains(missing.toAbsolutePath().normalize().toString()), note);
+        assertTrue(note.contains("does not exist"), note);
+        assertFalse(note.contains("STARSECTOR_HOME"), "it already told us where to look: " + note);
+    }
+
+    /** A real folder with nothing in it is a different mistake, and needs a different note. */
+    @Test
+    void anExplicitGamePathWithoutALauncherSaysWhatWasExpected() throws Exception {
+        Path empty = Files.createDirectories(temporaryDirectory.resolve("somewhere-else"));
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.WINDOWS, temporaryDirectory, temporaryDirectory, Map.of(), empty, null);
+
+        assertNull(result.selected());
+        String note = String.join(" ", result.diagnostics());
+        assertTrue(note.contains(empty.toAbsolutePath().normalize().toString()), note);
+        assertTrue(note.contains("starsector.exe"), "the note should name what to look for: " + note);
+    }
+
+    /** With nothing given, the note is the only place the caller learns what to give. */
+    @Test
+    void withNoExplicitPathTheNoteStillOffersTheWayIn() throws Exception {
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.LINUX,
+                temporaryDirectory.resolve("no-home"),
+                temporaryDirectory.resolve("nowhere"),
+                Map.of(),
+                null,
+                null);
+
+        assertNull(result.selected());
+        assertTrue(String.join(" ", result.diagnostics()).contains("STARSECTOR_HOME"),
+                result.diagnostics().toString());
+    }
+
+    @Test
+    // The decoy beside the stub is excluded by not being executable, and Windows has no such bit:
+    // Files.isExecutable is true for anything readable, so the filter admits both and the count is 2.
+    // A macOS bundle is a macOS shape, and this asserts how it is read where it can exist.
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void discoversMacApplicationBundle() throws Exception {
         Path app = temporaryDirectory.resolve("Starsector.app");
         Path executable = app.resolve("Contents/MacOS/JavaApplicationStub");
         Files.createDirectories(executable.getParent());
         Files.writeString(executable, "stub");
         executable.toFile().setExecutable(true);
+        Files.writeString(executable.getParent().resolve("compiler_directives.txt"), "not a launcher");
 
         DiscoveryResult result = StarsectorDiscovery.discover(
                 Platform.MAC,
@@ -32,6 +89,7 @@ class StarsectorDiscoveryTest {
 
         assertNotNull(result.selected());
         assertEquals(executable.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals(1, result.candidates().size());
     }
 
     @Test
@@ -80,6 +138,30 @@ class StarsectorDiscoveryTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void explicitSymlinkWinsWithoutDuplicatingItsDiscoveredTarget() throws Exception {
+        Path game = temporaryDirectory.resolve("game");
+        Files.createDirectories(game);
+        Path launcher = Files.writeString(game.resolve("starsector.sh"), "#!/bin/sh\n");
+        launcher.toFile().setExecutable(true);
+        Path alias = game.resolve("preferred-starsector.sh");
+        Files.createSymbolicLink(alias, launcher.getFileName());
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.LINUX,
+                temporaryDirectory,
+                temporaryDirectory.resolve("elsewhere"),
+                Map.of(),
+                game,
+                alias);
+
+        assertNotNull(result.selected());
+        assertEquals(alias.toAbsolutePath().normalize(), result.selected().launcher());
+        assertEquals("--launcher", result.selected().source());
+        assertEquals(1, result.candidates().size());
+    }
+
+    @Test
     void explicitWindowsBatchLauncherUsesCmd() throws Exception {
         Path launcher = Files.writeString(temporaryDirectory.resolve("starsector.bat"), "@echo off\r\n");
 
@@ -95,5 +177,22 @@ class StarsectorDiscoveryTest {
         assertEquals("call", result.selected().command().get(4));
         assertEquals("\"" + launcher.toAbsolutePath().normalize() + "\"", result.selected().command().get(5));
         assertEquals(launcher.toAbsolutePath().normalize(), result.selected().launcher());
+    }
+
+    @Test
+    void doesNotRecursivelyInspectFilesystemRootFromPackagedWorkingDirectory() throws Exception {
+        Path filesystemRoot = temporaryDirectory.toAbsolutePath().getRoot();
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.OTHER,
+                temporaryDirectory,
+                filesystemRoot,
+                Map.of(),
+                null,
+                null);
+
+        assertTrue(result.candidates().isEmpty());
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(message -> message.contains("Skipped filesystem root as an implicit discovery directory")));
     }
 }

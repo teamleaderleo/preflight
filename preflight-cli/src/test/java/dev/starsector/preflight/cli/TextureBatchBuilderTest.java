@@ -2,10 +2,15 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePack;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.TextureManifestIO;
 import dev.starsector.preflight.core.TextureManifestValidator;
@@ -15,6 +20,8 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +59,9 @@ class TextureBatchBuilderTest {
         assertEquals(0, first.cacheHitBlobs());
         assertEquals(1, first.deduplicatedEntries());
         assertEquals(3, first.manifest().entryCount());
+        assertFalse(first.packHit());
+        assertEquals(2, first.packedBlobs());
+        assertTrue(Files.isRegularFile(first.packPath()));
         assertTrue(TextureManifestValidator.validate(cache, first.manifest()).valid());
         assertEquals(
                 first.manifest().entry("graphics/a.png").orElseThrow().blobRelativePath(),
@@ -64,6 +74,16 @@ class TextureBatchBuilderTest {
                 a,
                 PreparedTexture.Transformation.IDENTITY);
         assertEquals(referenceTexture, builtTexture);
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                first.packPath(),
+                first.manifest().profileFingerprint(),
+                first.manifest().entries().values().stream()
+                        .map(entry -> entry.blobRelativePath())
+                        .collect(java.util.stream.Collectors.toSet()))) {
+            assertEquals(2, pack.entryCount());
+            assertEquals(referenceTexture, pack.readTrusted(
+                    first.manifest().entry("graphics/a.png").orElseThrow().blobRelativePath()));
+        }
 
         TextureBatchBuilder.Result second = TextureBatchBuilder.build(
                 index,
@@ -71,6 +91,7 @@ class TextureBatchBuilderTest {
                 new TextureBatchBuilder.Options(2, 16 * MIB));
         assertEquals(2, second.cacheHitBlobs());
         assertEquals(0, second.builtBlobs());
+        assertTrue(second.packHit());
 
         Path corruptBlob = cache.resolve(
                 second.manifest().entry("graphics/a.png").orElseThrow().blobRelativePath());
@@ -140,6 +161,115 @@ class TextureBatchBuilderTest {
                 new TextureBatchBuilder.Options(2, 16 * MIB));
         assertEquals(1, changed.builtBlobs());
         assertEquals(1, changed.cacheHitBlobs());
+    }
+
+    @Test
+    void observedOrderRebuildsThePackOnceThenHits() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        writeImage(root.resolve("graphics/a.png"), Color.RED);
+        writeImage(root.resolve("graphics/b.png"), Color.BLUE);
+        ResourceIndex index = index(root, "profile", List.of("graphics/a.png", "graphics/b.png"));
+        Path cache = temporaryDirectory.resolve("cache");
+
+        TextureBatchBuilder.Result first = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        List<String> reversed = first.manifest().entries().values().stream()
+                .map(entry -> entry.blobRelativePath())
+                .distinct()
+                .toList();
+        reversed = new java.util.ArrayList<>(reversed);
+        Collections.reverse(reversed);
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(cache, first.manifest().profileFingerprint()),
+                first.manifest().profileFingerprint(), reversed);
+
+        TextureBatchBuilder.Result reordered = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        assertFalse(reordered.packHit());
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                reordered.packPath(), reordered.manifest().profileFingerprint(), reversed)) {
+            assertTrue(pack.hasEntryOrder(reversed));
+        }
+
+        TextureBatchBuilder.Result reused = TextureBatchBuilder.build(
+                index, cache, new TextureBatchBuilder.Options(1, 16 * MIB));
+        assertTrue(reused.packHit());
+    }
+
+    @Test
+    void observedOrderSurvivesSwitchingBetweenRawAndBalancedStorage() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        writeImage(root.resolve("graphics/a.png"), Color.RED);
+        writeImage(root.resolve("graphics/b.png"), Color.BLUE);
+        ResourceIndex index = index(root, "profile", List.of("graphics/a.png", "graphics/b.png"));
+        Path cache = temporaryDirectory.resolve("cache");
+        TextureBatchBuilder.Options raw = new TextureBatchBuilder.Options(
+                1, 16 * MIB, PreparedTextureIO.StorageCodec.RAW);
+        TextureBatchBuilder.Options balanced = new TextureBatchBuilder.Options(
+                1, 16 * MIB, PreparedTextureIO.StorageCodec.LZ4);
+
+        TextureBatchBuilder.Result rawResult = TextureBatchBuilder.build(index, cache, raw);
+        List<String> observedRaw = new java.util.ArrayList<>(rawResult.manifest().entries().values()
+                .stream().map(entry -> entry.blobRelativePath()).distinct().toList());
+        Collections.reverse(observedRaw);
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(cache, rawResult.manifest().profileFingerprint()),
+                rawResult.manifest().profileFingerprint(), observedRaw);
+
+        TextureBatchBuilder.Result balancedResult = TextureBatchBuilder.build(index, cache, balanced);
+        List<String> expectedBalanced = observedRaw.stream()
+                .map(path -> path.substring(0, path.length() - ".spft".length()) + "-lz4.spft")
+                .toList();
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                balancedResult.packPath(), balancedResult.manifest().profileFingerprint(),
+                expectedBalanced)) {
+            assertTrue(pack.hasEntryOrder(expectedBalanced));
+        }
+
+        PreparedTexturePackOrderIO.write(
+                PreparedTexturePackOrderIO.path(cache, rawResult.manifest().profileFingerprint()),
+                rawResult.manifest().profileFingerprint(), expectedBalanced);
+        TextureBatchBuilder.Result rawAgain = TextureBatchBuilder.build(index, cache, raw);
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                rawAgain.packPath(), rawAgain.manifest().profileFingerprint(), observedRaw)) {
+            assertTrue(pack.hasEntryOrder(observedRaw));
+        }
+    }
+
+    @Test
+    void balancedStoresOnlyIneffectivelyCompressedPixelsRaw() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        Path noisy = root.resolve("graphics/noisy.png");
+        Path solid = root.resolve("graphics/solid.png");
+        writeNoisyImage(noisy);
+        writeLargeSolidImage(solid);
+        ResourceIndex index = index(
+                root, "profile", List.of("graphics/noisy.png", "graphics/solid.png"));
+        Path cache = temporaryDirectory.resolve("cache");
+        TextureBatchBuilder.Options balanced = new TextureBatchBuilder.Options(
+                1, 32 * MIB, PreparedTextureIO.StorageCodec.LZ4, true);
+
+        TextureBatchBuilder.Result first = TextureBatchBuilder.build(index, cache, balanced);
+        String noisyBlob = first.manifest().entry("graphics/noisy.png")
+                .orElseThrow().blobRelativePath();
+        String solidBlob = first.manifest().entry("graphics/solid.png")
+                .orElseThrow().blobRelativePath();
+        assertFalse(noisyBlob.endsWith("-lz4.spft"));
+        assertTrue(solidBlob.endsWith("-lz4.spft"));
+        assertEquals(1, first.rawBlobs());
+        assertEquals(1, first.lz4Blobs());
+        assertEquals(PreparedTextureIO.read(cache.resolve(noisyBlob)),
+                BulkTexturePreprocessor.prepare(
+                        noisy, PreparedTexture.Transformation.IDENTITY));
+
+        TextureBatchBuilder.Result second = TextureBatchBuilder.build(index, cache, balanced);
+        assertEquals(2, second.cacheHitBlobs());
+        assertEquals(0, second.builtBlobs());
+        assertTrue(second.packHit());
+        assertEquals(noisyBlob, second.manifest().entry("graphics/noisy.png")
+                .orElseThrow().blobRelativePath());
+        assertEquals(solidBlob, second.manifest().entry("graphics/solid.png")
+                .orElseThrow().blobRelativePath());
     }
 
     @Test
@@ -216,12 +346,12 @@ class TextureBatchBuilderTest {
     }
 
     @Test
-    void unsupportedImageReaderIsSkippedWithoutFailingPreparedFallbacks() throws Exception {
+    void unsupportedImageFormatIsSkippedWithoutFailingPreparedFallbacks() throws Exception {
         Path root = temporaryDirectory.resolve("root");
-        Path source = root.resolve("graphics/unsupported.webp");
+        Path source = root.resolve("graphics/unsupported.tga");
         Files.createDirectories(source.getParent());
-        Files.write(source, new byte[] {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'});
-        ResourceIndex index = index(root, "profile", List.of("graphics/unsupported.webp"));
+        Files.write(source, new byte[] {0, 0, 0, 0});
+        ResourceIndex index = index(root, "profile", List.of("graphics/unsupported.tga"));
 
         TextureBatchBuilder.Result result = TextureBatchBuilder.build(
                 index,
@@ -234,6 +364,62 @@ class TextureBatchBuilderTest {
         assertEquals(0, result.manifest().entryCount());
         assertTrue(result.diagnostics().stream()
                 .anyMatch(message -> message.contains("Skipped unsupported texture")));
+    }
+
+    @Test
+    void preparesSimpleLosslessWebpThroughThePureJavaImageIoProvider() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        Path source = root.resolve("graphics/icon.webp");
+        Files.createDirectories(source.getParent());
+        Files.write(source, Base64.getDecoder().decode(
+                "UklGRiwAAABXRUJQVlA4TB8AAAAvAUAAAB8gEEjeHzqN+RcQFPwf3fxHZA/gBgwR/Q8BAA=="));
+        ResourceIndex index = index(root, "profile", List.of("graphics/icon.webp"));
+
+        TextureBatchBuilder.Result result = TextureBatchBuilder.build(
+                index,
+                temporaryDirectory.resolve("cache"),
+                new TextureBatchBuilder.Options(1, 16 * MIB));
+
+        assertEquals(1, result.builtBlobs());
+        assertEquals(0, result.failedBlobs());
+        assertEquals(0, result.skippedUnsupportedBlobs());
+        assertTrue(result.manifest().entry("graphics/icon.webp").isPresent());
+    }
+
+    @Test
+    void extendedWebpStaysOnTheAuthoritativeGameDecoder() throws Exception {
+        Path root = temporaryDirectory.resolve("root");
+        Path source = root.resolve("graphics/extended.webp");
+        Files.createDirectories(source.getParent());
+        Files.write(source, new byte[] {
+                'R', 'I', 'F', 'F', 8, 0, 0, 0, 'W', 'E', 'B', 'P', 'V', 'P', '8', 'X'
+        });
+        ResourceIndex index = index(root, "profile", List.of("graphics/extended.webp"));
+
+        Path cache = temporaryDirectory.resolve("cache");
+        String sourceHash = Hashes.sha256(source);
+        Path staleBlob = cache.resolve("blobs")
+                .resolve(sourceHash.substring(0, 2))
+                .resolve(sourceHash + "-identity.spft");
+        Files.createDirectories(staleBlob.getParent());
+        PreparedTexture stale = BulkTexturePreprocessor.prepare(
+                new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB),
+                sourceHash,
+                PreparedTexture.Transformation.IDENTITY);
+        PreparedTextureIO.write(staleBlob, stale);
+
+        TextureBatchBuilder.Result result = TextureBatchBuilder.build(
+                index,
+                cache,
+                new TextureBatchBuilder.Options(1, 16 * MIB));
+
+        assertEquals(0, result.builtBlobs());
+        assertEquals(0, result.cacheHitBlobs());
+        assertEquals(0, result.failedBlobs());
+        assertEquals(1, result.skippedUnsupportedBlobs());
+        assertTrue(result.manifest().entry("graphics/extended.webp").isEmpty());
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(message -> message.contains("pixel-identical to the game decoder")));
     }
 
     private static ResourceIndex index(Path root, String fingerprint, List<String> paths) throws Exception {
@@ -260,6 +446,25 @@ class TextureBatchBuilderTest {
             for (int x = 0; x < image.getWidth(); x++) {
                 image.setRGB(x, y, color.getRGB());
             }
+        }
+        assertTrue(ImageIO.write(image, "png", path.toFile()));
+    }
+
+    private static void writeLargeSolidImage(Path path) throws Exception {
+        Files.createDirectories(path.getParent());
+        BufferedImage image = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, Color.RED.getRGB());
+        }
+        assertTrue(ImageIO.write(image, "png", path.toFile()));
+    }
+
+    private static void writeNoisyImage(Path path) throws Exception {
+        Files.createDirectories(path.getParent());
+        BufferedImage image = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        java.util.Random random = new java.util.Random(0x5eedL);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) image.setRGB(x, y, random.nextInt());
         }
         assertTrue(ImageIO.write(image, "png", path.toFile()));
     }

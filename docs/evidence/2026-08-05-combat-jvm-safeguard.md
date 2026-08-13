@@ -1,0 +1,110 @@
+# Exact combat JIT safeguard
+
+On 2026-08-05 a controlled combat run crashed while ships were being destroyed around a full
+retreat order:
+
+```text
+java.lang.ClassCastException: class com.fs.starfarer.combat.entities.ship.A.J
+cannot be cast to class com.fs.starfarer.combat.entities.ship.A.null
+    at com.fs.starfarer.combat.entities.Ship.advance(Unknown Source)
+```
+
+The run is
+`~/.starsector-preflight/runs/frame-time-state-v3-20260805-004434`; Preflight classified it as
+`FATAL_LOG_EVIDENCE` even though the shell launcher returned zero.
+
+## Why this is not an ordinary bad cast
+
+Static inspection of the exact installed `starfarer_obf.jar` shows that `A.J` directly implements
+`A.null`. A one-shot probe at `CombatEngine.advance` then established the loaded relationship before
+combat:
+
+- `A.null.isAssignableFrom(A.J) == true`;
+- both classes use `jdk.internal.loader.ClassLoaders$AppClassLoader:app`;
+- both code sources are the same installed `starfarer_obf.jar`;
+- `A.null` is present in `A.J.getInterfaces()`;
+- Preflight transforms neither `Ship.advance`, `A.J`, nor `A.null`.
+
+The installation's launcher is not the stock macOS policy. It runs x86-64 Zulu 17.0.10 through
+Rosetta, enables a large group of experimental compiler/vector flags, and supplies a directives
+file that restricts combat code to C1. The impossible cast under that policy is therefore strong
+evidence of a JIT/runtime miscompile. It is not proof of which individual flag or compiler phase is
+responsible.
+
+Java verification cannot be restored as a diagnostic: the shipped obfuscated core contains JVM
+identifiers such as `for.Object`, and Zulu 17 rejects it with `ClassFormatError` before the title
+screen. Starsector's `-noverify` is required for this build.
+
+## Controlled isolation
+
+The follow-up run
+`~/.starsector-preflight/runs/retreat-ship-interpreted-v1-20260805-005857` added only:
+
+```text
+-XX:CompileCommand=exclude,com/fs/starfarer/combat/entities/Ship.advance
+```
+
+The player recreated the relevant destruction/full-retreat overlap. The run exited normally with
+adapter health `ACTIVE`, 26 transformations, zero declines/failures, and the runtime relationship
+above intact. Its combat frame distribution was 5,905 frames, p50 16.8ms, p95 24.7ms, and p99
+48.8ms. The exclusion did not show an obvious performance penalty in that non-identical battle.
+One successful run does not prove an intermittent failure is gone, but it is a meaningful A/B and
+the narrowest safe workaround available before the JVM starts.
+
+## Automatic boundary
+
+`CombatJvmSafeguard` injects the reviewed `Ship` compile exclusions only when all of these match:
+
+1. macOS;
+2. the reviewed aggressive launcher flags;
+3. the reviewed combat C1-only directives;
+4. bundled x86-64 Azul Zulu 17.0.10 on Darwin;
+5. SHA-256 `71997384...b29926` for the exact `Ship.class` entry.
+
+Any probe error or identity drift retains the launcher's original policy. The decision, reason,
+class hash, and escape hatch are written to `run.json`. Users can opt out with
+`PREFLIGHT_DISABLE_COMBAT_JVM_SAFEGUARD=1`. A real-install dry run activated the safeguard and
+showed the exact `_JAVA_OPTIONS`; synthetic tests cover platform/launcher drift, explicit disable,
+the final class gate, option idempotence, and preservation of a manual diagnostic mode.
+
+## Second proven site
+
+The later run
+`~/.starsector-preflight/runs/commodity-event-mod-v1-20260805-013251` confirms the first boundary was
+too narrow. HotSpot logged that the `Ship.advance` compile exclusion was accepted, and runtime
+integrity again proved `A.J` directly implements `A.null` in the same archive and loader. After a
+long combat session the game failed with the identical impossible cast at:
+
+```text
+java.lang.ClassCastException: class com.fs.starfarer.combat.entities.ship.A.J
+cannot be cast to class com.fs.starfarer.combat.entities.ship.A.null
+    at com.fs.starfarer.combat.entities.Ship.render(Unknown Source)
+    at com.fs.starfarer.combat.entities.Ship.render(Unknown Source)
+```
+
+The three-argument `Ship.render` contains three reviewed iterations of the same fitted-module list,
+each casting its entries to `A.null`; `A.J` is one of four concrete classes in the exact archive
+that directly implement that interface. There was no native JVM crash report. Preflight correctly
+classified the Java fatal despite the launcher returning zero.
+
+The automatic safeguard now excludes both `Ship.advance` and the overloaded `Ship.render` methods
+from compilation under the same exact fingerprint. The class hash gate already covers both method
+bodies, so no broader build or platform is opted in. The escape hatch remains
+`PREFLIGHT_DISABLE_COMBAT_JVM_SAFEGUARD=1`.
+
+## Expanded live validation
+
+`~/.starsector-preflight/runs/ship-cast-sites-interpreted-v1-20260805-031646` completed a campaign
+load and a large simulation battle with both exclusions accepted by HotSpot. It exited normally,
+reported adapter health `ACTIVE` with 28 transformations and no decline or contained failure, and
+the runtime probe again established the exact assignable same-loader/same-archive relationship.
+There was no `ClassCastException`, fatal log evidence, or native JVM crash file.
+
+The non-identical battle recorded 3,996 active combat frames: p50 16.8ms, p95 30.2ms, and p99
+65.1ms. The earlier failing combat-only run, with only `Ship.advance` interpreted, recorded p50
+17.5ms, p95 22.0ms, and p99 33.1ms. The tail distributions cannot be treated as an A/B because the
+ship counts, effects, and battle phases differed. The state-separated execution samples provide a
+more specific cost check: `Ship.render`'s own bytecode was the leaf in 6/1,190 combat samples
+(0.50%) with render interpreted, versus 23/4,406 (0.52%) in the earlier compiled-render run. No
+material interpreter tax is visible at the protected method itself, while the median frame time did
+not regress. Correctness therefore remains the appropriate default for this exact risky runtime.

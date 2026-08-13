@@ -6,6 +6,8 @@ import java.nio.file.Path;
 import java.util.Locale;
 
 final class SelfJar {
+    static final String CLASSES_OVERRIDE_PROPERTY = "dev.starsector.preflight.test.selfJar";
+
     private SelfJar() {
     }
 
@@ -14,6 +16,17 @@ final class SelfJar {
             Path location = Path.of(PreflightCli.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                     .toAbsolutePath()
                     .normalize();
+            if (Files.isDirectory(location)) {
+                String override = System.getProperty(CLASSES_OVERRIDE_PROPERTY);
+                if (override != null && !override.isBlank()) {
+                    Path candidate = Path.of(override).toAbsolutePath().normalize();
+                    if (Files.isRegularFile(candidate)
+                            && candidate.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar")) {
+                        return candidate;
+                    }
+                    throw new IllegalStateException("Preflight test self-JAR is not a packaged JAR: " + candidate);
+                }
+            }
             if (!Files.isRegularFile(location)
                     || !location.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar")) {
                 throw new IllegalStateException(

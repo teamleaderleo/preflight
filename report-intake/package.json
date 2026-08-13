@@ -1,0 +1,31 @@
+{
+  "name": "@preflight/report-intake",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark:dataset": "node scripts/benchmark-dataset.mjs",
+    "canary": "node scripts/canary.mjs",
+    "check": "npm run typecheck && npm test && npm run test:operator",
+    "cf-typegen": "wrangler types --include-runtime false",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:operator": "node --test scripts/*.node-test.mjs",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fflate": "0.8.3"
+  },
+  "overrides": {
+    "undici": "7.29.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260804.1",
+    "@cloudflare/vitest-pool-workers": "0.20.2",
+    "@types/node": "24.10.10",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10",
+    "wrangler": "4.119.0"
+  }
+}

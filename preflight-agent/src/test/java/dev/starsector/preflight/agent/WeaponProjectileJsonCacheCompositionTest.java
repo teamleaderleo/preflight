@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.nio.file.Path;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
@@ -37,6 +38,30 @@ class WeaponProjectileJsonCacheCompositionTest {
                 "dev/starsector/preflight/agent/WeaponJsonCacheRuntime", "cached"));
         assertEquals(1, calls(rewritten,
                 "dev/starsector/preflight/agent/ProjectileJsonCacheRuntime", "cached"));
+    }
+
+    @Test
+    void disablingTheSecondaryPlanKeepsOnlyThePrimaryRewrite() throws Exception {
+        WeaponJsonCacheRuntime.beginSession();
+        ProjectileJsonCacheRuntime.beginSession();
+        WeaponJsonCacheRuntime.configure(temporaryDirectory.resolve("a".repeat(64) + ".spwj"));
+        ProjectileJsonCacheRuntime.configure(temporaryDirectory.resolve("b".repeat(64) + ".sppj"));
+        AdapterPlanControl.configure(Set.of(ProjectileJsonCacheRuntime.PLAN_ID));
+        try {
+            byte[] original = fixture();
+            byte[] rewritten = AdapterTransformationRegistry.transform(
+                    AdapterTargetRegistry.weaponJsonCacheTarget(),
+                    ClassSignature.parse(original),
+                    original);
+
+            assertNotNull(rewritten);
+            assertEquals(1, calls(rewritten,
+                    "dev/starsector/preflight/agent/WeaponJsonCacheRuntime", "cached"));
+            assertEquals(0, calls(rewritten,
+                    "dev/starsector/preflight/agent/ProjectileJsonCacheRuntime", "cached"));
+        } finally {
+            AdapterPlanControl.configure(Set.of());
+        }
     }
 
     private static byte[] fixture() {

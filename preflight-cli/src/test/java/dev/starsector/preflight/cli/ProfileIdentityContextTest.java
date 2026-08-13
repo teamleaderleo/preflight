@@ -15,6 +15,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -79,6 +82,39 @@ class ProfileIdentityContextTest {
         // Six corpora over one install must not collide, or a cache would read another's artifact.
         assertEquals(6, List.of(variant, weapon, projectile, hull, rules, commands)
                 .stream().distinct().count());
+    }
+
+    @Test
+    void theSharedContextProducesTheSameIdentitiesWhenCorporaRunConcurrently() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("concurrent-shared"), 80);
+        ResourceIndex resources = layout.index();
+
+        List<String> serial;
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, resources)) {
+            serial = List.of(
+                    VariantJsonProfileIdentityBuilder.build(context).identitySha256(),
+                    WeaponJsonProfileIdentityBuilder.build(context).identitySha256(),
+                    ProjectileJsonProfileIdentityBuilder.build(context).identitySha256(),
+                    HullJsonProfileIdentityBuilder.build(context).identitySha256(),
+                    RulesCsvProfileIdentityBuilder.build(context).identitySha256(),
+                    RuleCommandClassProfileIdentityBuilder.build(context).identitySha256(),
+                    MergedReadProfileIdentityBuilder.build(context).identitySha256());
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, resources)) {
+            List<Future<String>> concurrent = List.of(
+                    executor.submit(() -> VariantJsonProfileIdentityBuilder.build(context).identitySha256()),
+                    executor.submit(() -> WeaponJsonProfileIdentityBuilder.build(context).identitySha256()),
+                    executor.submit(() -> ProjectileJsonProfileIdentityBuilder.build(context).identitySha256()),
+                    executor.submit(() -> HullJsonProfileIdentityBuilder.build(context).identitySha256()),
+                    executor.submit(() -> RulesCsvProfileIdentityBuilder.build(context).identitySha256()),
+                    executor.submit(() -> RuleCommandClassProfileIdentityBuilder.build(context).identitySha256()),
+                    executor.submit(() -> MergedReadProfileIdentityBuilder.build(context).identitySha256()));
+            assertEquals(serial, concurrent.stream().map(ProfileIdentityContextTest::get).toList());
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -180,6 +216,25 @@ class ProfileIdentityContextTest {
         try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, layout.index())) {
             assertSame(context.gameJarSha256(), context.gameJarSha256());
             assertEquals(Hashes.sha256(context.gameJar()), context.gameJarSha256());
+        }
+    }
+
+    @Test
+    void theConstructorSeedsTheGameJarIntoTheSharedContentMemo() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("seeded-jar"), 4);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, layout.index())) {
+            String initial = context.gameJarSha256();
+            Files.writeString(context.gameJar(), "changed-during-the-same-preparation");
+            assertEquals(initial, context.sha256All(List.of(context.gameJar())).get(0),
+                    "Janino and other identities must reuse the digest preparation already paid for");
+        }
+    }
+
+    private static String get(Future<String> future) {
+        try {
+            return future.get();
+        } catch (Exception error) {
+            throw new AssertionError("Concurrent identity calculation failed", error);
         }
     }
 

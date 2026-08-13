@@ -69,17 +69,22 @@ final class ResourceProbePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        return write(owner);
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
         if (!TARGET_CLASS.equals(signature.internalName())
                 || !signature.hasMethod(RESOLVE_METHOD, RESOLVE_DESCRIPTOR)
                 || !signature.hasMethod(OPEN_METHOD, OPEN_DESCRIPTOR)) {
-            return null;
+            return false;
         }
-        ClassNode owner = new ClassNode(Opcodes.ASM9);
-        new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
         // A class file older than 51 cannot carry a MethodHandle constant, and raising its version
         // to make room would change how it is verified. Decline instead.
         if ((owner.version & 0xFFFF) < Opcodes.V1_7) {
-            return null;
+            return false;
         }
 
         List<MethodInsnNode> sites = new ArrayList<>();
@@ -88,11 +93,11 @@ final class ResourceProbePlan {
             if (callsRuntime(method) || VANILLA_OPEN_METHOD.equals(method.name)) {
                 // Already rewritten. Doing it twice would be harmless but it means something
                 // upstream is confused about what it is holding, so decline.
-                return null;
+                return false;
             }
             if (OPEN_METHOD.equals(method.name) && OPEN_DESCRIPTOR.equals(method.desc)) {
                 if (open != null) {
-                    return null;
+                    return false;
                 }
                 open = method;
             }
@@ -100,7 +105,7 @@ final class ResourceProbePlan {
         }
         if (sites.size() != EXPECTED_CALL_SITES || open == null
                 || (open.access & Opcodes.ACC_STATIC) != 0) {
-            return null;
+            return false;
         }
         for (MethodInsnNode site : sites) {
             for (MethodNode method : owner.methods) {
@@ -113,6 +118,10 @@ final class ResourceProbePlan {
         }
         owner.methods.add(wrap(open));
 
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
         return writer.toByteArray();

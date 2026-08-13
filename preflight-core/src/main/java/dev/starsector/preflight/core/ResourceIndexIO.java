@@ -9,10 +9,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -24,6 +22,7 @@ import java.util.Map;
 
 /** Binary persistence for {@link ResourceIndex}. */
 public final class ResourceIndexIO {
+    private static final int ESTABLISHED_FORMAT_VERSION = 1;
     private static final byte[] MAGIC = {'S', 'P', 'F', 'I'};
     private static final int CHECKSUM_BYTES = 32;
     private static final int MAX_FILE_BYTES = 512 * 1024 * 1024;
@@ -34,6 +33,11 @@ public final class ResourceIndexIO {
     private static final int MAX_EAGER_COLLECTION_CAPACITY = 65_536;
 
     private ResourceIndexIO() {
+    }
+
+    public static Path directory(Path cacheRoot) {
+        return CacheFormatNamespace.directory(
+                cacheRoot, "resource-indexes", ResourceIndex.FORMAT_VERSION, ESTABLISHED_FORMAT_VERSION);
     }
 
     public static void write(Path target, ResourceIndex index) throws IOException {
@@ -58,15 +62,7 @@ public final class ResourceIndexIO {
                 }
                 channel.force(true);
             }
-            try {
-                Files.move(
-                        temporary,
-                        absolute,
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException ignored) {
-                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
-            }
+            AtomicPublish.replace(temporary, absolute);
             moved = true;
         } finally {
             if (!moved) {

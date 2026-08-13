@@ -2,6 +2,129 @@
 
 Preflight follows a measurement-first sequence. Each optimization keeps the original loader available as a fallback.
 
+> **Historical engineering ledger.** Most of this document records the sequence that produced the
+> current implementation. It is retained because rejected experiments and corrected measurements
+> are part of the evidence, but it is no longer the best description of what blocks release. Start
+> with [Release readiness](release-readiness.md), [Optimization history](optimization-history.md),
+> and the [product contract](product-contract.md).
+
+## Current release program (2026-08-09)
+
+Startup reached roughly 101 seconds at the observed high end and centered on an 88.13-second
+five-run median. The current development profile has reached a 15.88-second warm record
+after clean 16.66-second cold and 16.28-second warm gates. The chronological headline is therefore
+**101 seconds to 15.88 seconds**. The final candidate needs its own packaged benchmark pass; that
+result will sit beside the development record.
+
+Release work now has priority over another narrow startup experiment:
+
+1. resolve the publication policy after the requested Fractal Softworks guidance window;
+2. complete the hosted three-platform candidate and its Windows/Linux install, update, rollback,
+   and removal evidence;
+3. clean-install and real-game beta evidence on macOS, Windows, and Linux;
+4. a retained startup benchmark from the release candidate plus frame-time/FPS evidence for any
+   gameplay claims; and
+5. update-signed, checksum-qualified packages with a tested rollback and support path.
+
+The [cross-platform evidence plan](cross-platform-evidence-plan.md) defines the free hosted matrix,
+the narrower role of emulated Windows and Ubuntu ARM64 source-contract runs, and the native beta
+evidence needed for real-game performance and driver claims. The checked
+[VMware Fusion harness](fusion-acceptance.md) records Windows x64 package behavior under ARM64
+emulation without treating Ubuntu ARM64 as evidence for the published x86-64 Linux packages.
+
+The first-beta install guide now covers exact checksum manifests, the bounded Gatekeeper and
+SmartScreen overrides, `.deb` installation through APT, AppImage execution, native-package removal,
+and the separate reviewed all-data cleanup. It never recommends disabling an operating system
+security feature globally.
+
+Further startup or gameplay work remains welcome only when it keeps exact identity gates, bounded
+diagnostics, an independently disableable plan, and the original behavior on uncertainty.
+
+The first lifecycle slice landed on 2026-08-07: preparation, launch, confirmed profile switches,
+launch-setting writes, and confirmed cache pruning now share a durable cross-process lease.
+Preparation has structured live phase progress and safe cancellation in the desktop host;
+interrupted PID-tagged temporary writes inside Preflight's home are reclaimed by the next owner.
+Prepared-cache health and repair now follow that same ownership model. Inspection distinguishes a
+cold profile from structurally damaged profile metadata, and confirmed repair is pinned to the
+fingerprint the user reviewed. It re-derives that identity under the lease, refuses symlinked
+namespace escapes, removes only the affected profile's metadata or pack, retains shared blobs, and
+returns through the ordinary disk-bounded preparation path. The desktop also reconciles its local
+operation state directly with the native coordinator if an event subscription fails; durable CLI
+ownership still prevents a restarted desktop from overlapping an existing mutation.
+Preview-first cache cleanup is now wired through the CLI and desktop: the plan preserves the current
+and readable named profiles, groups every removal reason, caps path samples, and is recalculated
+under the lease before applying. A read-only pass over the reviewed install found 5.42 GiB across
+31,338 safely removable files while protecting 30,638 texture blobs reachable from the current
+profile. The two removal scopes now have the same preview/apply contract in the CLI and desktop:
+launch integrations plus the installed command engine can leave prepared data intact, while an
+all-data removal also clears caches, profiles, evidence, and backups without targeting the game.
+An interrupted all-data removal blocks other mutations until it is explicitly resumed. The
+signature-verified update client and fail-closed three-platform feed pipeline are now implemented;
+the free updater key is provisioned and recoverable. The isolated macOS lifecycle now covers a
+signed 0.1.0 to 0.1.1 update, a fully downloaded rejected-signature case that preserves 0.1.1, a
+checked-package rollback to 0.1.0, app-only removal with separate data retained, and packaged-engine
+full-data removal with game, mod, and save sentinels retained. The same disposable-home removal
+exercise is wired into Debian and Windows package jobs. Their completed hosted evidence, update and
+rollback lifecycles, the hosted candidate, and unattended desktop smoke automation follow. A manual
+private-candidate path now uses the real key across the three-platform matrix, assembles an inert
+signed feed, encrypts and authenticates every file before workflow-artifact upload, and retains
+the complete result without publication authority. Paid Apple and Windows publisher identities are
+explicitly outside the
+first-beta gate; packages will publish checksums and honest OS-warning instructions instead.
+The report receiver is now implemented as a private R2-bound Worker with stateless signed grants,
+strict ZIP/manifest validation, immutable upload, signed receipt, deletion authorization, and
+Worker-runtime tests. A real ZIP from the Java exporter completed its local lifecycle. The desktop
+now reviews the exact entry list, size, digest, and exclusions; the native host revalidates and
+streams the file with progress/cancellation; and the accepted receipt can be copied or used for
+early deletion. Production deployment and its direct canary are complete; the remaining packaged
+release-candidate lifecycle still blocks enabling the compile-time origin. A local update-signed
+macOS package has now completed disclosure, consent, fail-closed recovery, retry, and receipt. The
+receipt's exact private object matched the disclosed size and SHA-256 through authenticated R2
+access and was then deleted through authenticated operator access. The desktop now retains an
+unexpired deletion receipt across restarts and removes the local authorization after deletion,
+dismissal, or expiry. A production-origin release-mode DMG has since completed disclosure,
+consent, mid-stream cancellation with confirmed server cleanup, local-ZIP preservation, retry,
+receipt persistence and scoped deletion. The hosted matrix remains. The same package run found and
+fixed an ordinary-package updater configuration crash before the first window;
+package verification now starts the copied native host as well as its embedded engine. See
+[the packaged report canary](evidence/2026-08-08-packaged-report-canary.md).
+Production provisioning is now complete: the private bucket has 14-day expiration, the signing key
+lives in Cloudflare's secret store, per-client edge brakes run before mutation work, and a
+day-sharded SQLite counter imposes an exact 500 MiB grant ceiling per UTC day. A live synthetic
+create/upload/finalize/delete canary passed and left the bucket empty. The remaining gate is the
+complete hosted candidate; development and distributed builds still omit the compile-time intake
+origin.
+The [signed macOS updater rehearsal](evidence/2026-08-08-signed-update-rollback-rehearsal.md)
+records the feed isolation, package checksums, failure behavior, and rollback boundary.
+The first smoke prerequisite is now in the runtime itself: every injected JVM atomically publishes
+its PID, parent PID, available start instant, and lifecycle state in the run directory, allowing a
+driver to attach without process-name or Launch Services guesses and to reject PID reuse. A runtime
+whose operating system doesn't expose a start instant stays non-attachable.
+The driver-neutral evidence sealer is also implemented. It accepts only an ordered scenario result,
+turns missing capabilities into a skip rather than a pass, bounds diagnostics and artifact bytes,
+confines artifacts to the real run directory, hashes stable files itself, and publishes the accepted
+evidence atomically. The driver-neutral runner composes those contracts: it gates capabilities,
+validates the live PID before each ordered step, requires a fresh observation after input, enforces
+monotonic call deadlines, stops on the first failure, and seals pass/skip/failure output through the
+engine. Its mock pass, missing-capability skip, and mid-run failure paths are covered without
+launching a game.
+Semantic waits now come from a second atomic runtime record bound to the same PID and process start
+instant. Exact resource-init, campaign-loop, and combat-loop seams publish only state transitions;
+ordinary frames pay one volatile comparison. The runner validates that identity and owns the wait,
+so OS adapters don't infer gameplay state from a screenshot or window title.
+PID-addressed macOS, Windows, and Linux X11 adapters are checked in with offline boundary tests.
+Every installed-package exercise now validates the shipped campaign scenario and asks the packaged
+engine to seal an intentional no-game driver result. The result must remain `skipped`; a missing
+driver or permission can't be promoted to a package pass. The existing platform probe still has to
+return either a valid PID-addressed driver or a specific unavailable reason.
+The same exercise now generates a license-free installation under a spaces-and-Unicode path, proves
+explicit discovery, cold preparation and warm reuse, constructs a launch without executing its
+sentinel launcher, verifies the installation stayed byte-identical, and opens the diagnostics ZIP
+to prove a private console sentinel wasn't exported.
+The macOS packaged host now owns the Accessibility boundary through a capability-authorized native
+bridge; its no-launch install exercise rejects any permission diagnostic attributed to bundled
+Java. One isolated live action test remains, followed by native Windows and Linux beta validation.
+
 ## Measured result (2026-08-01, third campaign)
 
 `benchmarkAccepted: true`, 15 of 15 runs, no exclusions, launch-order drift **-0.04s (0.0% of
@@ -250,7 +373,7 @@ declared music files were opened, but vanilla music is one container — `sounds
 
 The first published version of this said 1,278 effects and 940.3 MB. The probe was resolving the
 recording's relative paths against its own working directory instead of the game's, so every resource
-the game opened by relative path looked unopened ([#232](https://github.com/teamleaderleo/starsector-preflight/issues/232)).
+the game opened by relative path looked unopened ([#232](https://github.com/teamleaderleo/preflight/issues/232)).
 
 Reads are still not decodes; the equivalence work remains what proves what the decoder does with
 them. [Evidence](evidence/2026-07-29-the-game-builds-1-2-gb-of-pcm-before-the-main-menu.md).

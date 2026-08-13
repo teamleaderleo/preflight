@@ -26,18 +26,19 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     strategy:
       fail-fast: false
       matrix:
         os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-build-jdk
       - name: Validate operator runners
         if: runner.os != 'Windows'
         run: |
+          bash -n build/ci/starsector-preflight-ci-v1
+          python3 scripts/test_vps_runner_boundary.py
           bash -n scripts/run-prepared-pixel-coherent-direct-gameplay-smoke.sh
           bash -n scripts/run-prepared-pixel-main-menu-comparison-pilot.sh
           python3 -m py_compile scripts/starsector_log_ready_detector.py
@@ -46,15 +47,23 @@ jobs:
           python3 scripts/test_starsector_profile_guard.py
           python3 -m py_compile scripts/starsector_core_resource_guard.py
           python3 scripts/test_starsector_core_resource_guard.py
+          python3 -m py_compile scripts/verify_release_boundary.py
+          python3 scripts/test_verify_release_boundary.py
+          python3 -m py_compile scripts/verify_complete_release.py
+          python3 scripts/test_verify_complete_release.py
           python3 -m py_compile scripts/test_prepared_comparison_pilot.py
           python3 scripts/test_prepared_comparison_pilot.py
           python3 -m py_compile scripts/starsector_critical_path.py
           python3 scripts/test_starsector_critical_path.py
+          python3 scripts/test_starsector_gameplay_hotspots.py
       - name: Verify
         run: mvn --batch-mode --no-transfer-progress verify
+      - name: Verify real runnable JAR boundary
+        if: runner.os != 'Windows'
+        run: python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); import verify_release_boundary as v; v.validate_jar_bytes(Path('preflight-cli/target/preflight.jar').read_bytes())"
       - name: Upload runnable JAR
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: starsector-preflight
           path: preflight-cli/target/preflight.jar

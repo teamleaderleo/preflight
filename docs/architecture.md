@@ -21,14 +21,32 @@ Portable identity, format, validation, and report code. Current persisted format
 
 A Java 17 agent injected into the selected child launcher through process-local `JAVA_TOOL_OPTIONS`. It starts JFR in `premain`, records bounded evidence, applies exact source-bound adapter targets, and leaves unknown or changed installations untouched.
 
-The startup recording is dumped by the JVM's own JFR shutdown hook (`dumpOnExit`), never by the agent's shutdown hook. Both hooks run concurrently, and the JVM's hook wipes the JFR chunk repository as its last step, so an agent-side `Recording.stop()` can be caught between stopping the recording and transferring its chunks and dump a zero-byte file over the destination. The agent's own hook is therefore limited to best-effort evidence and adapter-report finalization.
+Ordinary rotating recordings are dumped by the JVM's own JFR shutdown hook (`dumpOnExit`), never
+stopped by the agent's shutdown hook. Both hooks run concurrently, and HotSpot wipes the JFR chunk
+repository as its last step, so a competing agent-side stop can race into an empty destination.
+Single-chunk recordings instead use a file request/ack protocol while the JVM is still live: the
+agent commits `preflight.AgentStopping`, stops and closes the recording synchronously, then writes
+the acknowledgement. The benchmark refuses evidence without that acknowledgement. The agent's
+shutdown hook remains a last-chance non-empty-file fallback, but a JVM already entering shutdown
+can't promise the final custom event and isn't treated as the deterministic boundary path.
 
-The current live texture plans are:
+The prepared-texture path is split into exact stages:
 
-- `texture-compatibility-v2`: reconstructs a decoded image from a verified prepared blob while preserving Starsector's asynchronous preloader and the rest of the original texture path. It passed bounded behavioral acceptance on Starsector 0.98a-RC8 on 2026-07-19. Repeated timing remains pending.
-- `texture-prepared-pixels-v2`: retains Starsector's upload and lifetime path while aiming to bypass decode and pixel conversion. It remains fail-closed until the installed color-transfer dataflow is represented exactly.
+- `texture-compatibility-v2` preserves Starsector's asynchronous preloader and decoded-image
+  contract for conservative compatibility.
+- `texture-prepared-pixels-v2` serves validated upload-ready pixels while retaining Starsector's
+  upload and lifetime path. Its accepted integration gates, packed storage, index snapshot, and
+  visual regressions are recorded in the [optimization history](optimization-history.md).
 
-The generated-bytecode wrapper also remains fail-open: incomplete Janino dependency evidence always calls the original generator and bypasses cache storage.
+The generated-bytecode wrapper remains fail-open: incomplete evidence calls the original generator
+and bypasses storage. Its live-gated Janino plan uses a conservative whole-profile identity, then
+rechecks the live compiler policy before serving a complete mutable class map.
+
+Mod-owned adapters use the same boundary as game-owned ones. The two GraphicsLib 1.12.1 pilots pin
+the exact class, whole mod archive, and URL classloader. Compact replay replaces the reviewed class;
+the insignia pilot splices the reviewed accessor while preserving the original render body. Both
+passed
+their separate live startup or combat acceptance gates and are included by `--fast`.
 
 ### `preflight-cli`
 
@@ -53,7 +71,11 @@ preflight.jar run
   -> write final run, adapter, profile, and JFR-derived reports
 ```
 
-Adapter mode is OFF by default. Cache preparation alone never enables a transformation. A live texture run requires explicit adapter activation plus validated matching artifacts. The environment/property kill switch remains authoritative.
+A raw CLI `run` is unoptimized unless a preset or individual adapter option is selected. The
+installed launcher and desktop product select **Recommended**; **Conservative** restricts plans to
+portable startup work; **Off** retains only process ownership and bounded outcome reporting. Cache
+preparation alone never enables a transformation. Exact identity, artifact validation, and every
+environment/property kill switch remain authoritative.
 
 ## Current cache and run layout
 
@@ -75,8 +97,22 @@ Adapter mode is OFF by default. Cache preparation alone never enables a transfor
     adapter-analysis.json
 ```
 
-Content-addressed blobs may be shared by multiple profiles. Fingerprint-named manifests and indexes bind a launch to one exact profile. Corrupt or identity-mismatched artifacts are bounded and quarantined; missing, stale, ambiguous, unsupported, or escaped paths use the original game path.
+Content-addressed blobs may be shared by multiple profiles. Fingerprint-named manifests and indexes
+bind a launch to an exact profile. Corrupt or identity-mismatched artifacts are bounded and
+quarantined; missing, stale, ambiguous, unsupported, or escaped paths use the original game path.
 
 ## Current evidence boundary
 
-Compatibility-v2 has a real behavioral acceptance result and no performance claim. The next decision point is a repeated OFF-versus-ENABLED campaign collected under one stable profile and comparable JVM/run identities. Prepared pixels, audio reuse, and Janino reuse remain gated by their exact equivalence and context requirements.
+The development profile has clean live gates for the Recommended stack, including prepared
+textures, merged/spec data, generated Janino bytecode, prepared audio, exact vanilla gameplay
+indexes, and reviewed mod-specific adapters. That doesn't establish universal compatibility.
+Unknown class, source, loader, artifact, or profile identities decline to the original path and are
+reported. The shutdown report carries a bounded catalog for all 58 direct and composed plans,
+including each exact host boundary, filter state, and original-bytecode fallback. A wrapper or
+discovery change can still require a Preflight update.
+
+Performance claims require comparable game, mod-profile, JVM, launcher, cache, machine-load, and
+measurement identities. The development history runs from a roughly 101-second observed worst case
+and an 88.13-second five-run median to a retained 15.88-second warm record.
+The release candidate benchmark adds the packaged result without replacing that development
+history.

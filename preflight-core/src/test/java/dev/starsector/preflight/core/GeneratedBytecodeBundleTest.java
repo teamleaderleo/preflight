@@ -3,6 +3,8 @@ package dev.starsector.preflight.core;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -132,6 +134,76 @@ class GeneratedBytecodeBundleTest {
         GeneratedBytecodeCache.Lookup invalid = GeneratedBytecodeCache.lookup(
                 cache, "bad", bundle.requestedClassName());
         assertEquals(GeneratedBytecodeCache.Status.ERROR, invalid.status());
+    }
+
+    @Test
+    void packDeduplicatesClassBytesAndRoundTripsIndependentCompleteMaps() throws Exception {
+        String context = "e".repeat(64);
+        byte[] alpha = classBytes(Alpha.class);
+        byte[] beta = classBytes(Beta.class);
+        LinkedHashMap<String, byte[]> both = new LinkedHashMap<>();
+        both.put(Beta.class.getName(), beta);
+        both.put(Alpha.class.getName(), alpha);
+
+        GeneratedBytecodePack.Builder builder = new GeneratedBytecodePack.Builder(context);
+        assertTrue(builder.record(Alpha.class.getName(), both));
+        assertTrue(builder.record(Beta.class.getName(), both));
+        GeneratedBytecodePack pack = builder.build();
+        assertNotNull(pack);
+        assertEquals(2, pack.requestCount());
+        assertEquals(2, pack.classCount());
+        assertEquals((long) alpha.length + beta.length, pack.uniqueBytecodeBytes());
+        assertEquals(2L * (alpha.length + beta.length), pack.expandedBytecodeBytes());
+
+        byte[] encoded = GeneratedBytecodePack.toBytes(pack);
+        GeneratedBytecodePack decoded = GeneratedBytecodePack.fromBytes(encoded);
+        Map<String, byte[]> first = decoded.classesFor(Alpha.class.getName());
+        Map<String, byte[]> second = decoded.classesFor(Beta.class.getName());
+        assertTrue(decoded.exactlyContains(new GeneratedBytecodeBundle(
+                context, Alpha.class.getName(), both)));
+        assertTrue(!decoded.exactlyContains(new GeneratedBytecodeBundle(
+                context, Alpha.class.getName(), Map.of(Alpha.class.getName(), alpha))));
+        assertTrue(!decoded.exactlyContains(new GeneratedBytecodeBundle(
+                "0".repeat(64), Alpha.class.getName(), both)));
+        assertEquals(first.keySet(), second.keySet());
+        first.put("synthetic.Extra", new byte[] {1});
+        first.get(Alpha.class.getName())[4] ^= 1;
+        assertTrue(!second.containsKey("synthetic.Extra"));
+        assertArrayEquals(alpha, second.get(Alpha.class.getName()));
+
+        Path target = GeneratedBytecodePack.path(temporaryDirectory, context);
+        GeneratedBytecodePack.write(target, pack);
+        assertEquals(context, GeneratedBytecodePack.read(target).contextKeySha256());
+        assertTrue(target.startsWith(temporaryDirectory.toAbsolutePath().normalize()));
+
+        byte[] corrupt = encoded.clone();
+        corrupt[corrupt.length / 2] ^= 1;
+        IOException checksum = assertThrows(
+                IOException.class, () -> GeneratedBytecodePack.fromBytes(corrupt));
+        assertTrue(checksum.getMessage().contains("checksum"), checksum.getMessage());
+    }
+
+    @Test
+    void partialPackExpandsWithoutRewritingAnUnchangedPack() throws Exception {
+        String context = "f".repeat(64);
+        byte[] alpha = classBytes(Alpha.class);
+        byte[] beta = classBytes(Beta.class);
+        GeneratedBytecodePack.Builder initial = new GeneratedBytecodePack.Builder(context);
+        assertTrue(initial.record(Alpha.class.getName(), Map.of(Alpha.class.getName(), alpha)));
+        GeneratedBytecodePack partial = initial.build();
+        assertNotNull(partial);
+
+        GeneratedBytecodePack.Builder unchanged = new GeneratedBytecodePack.Builder(partial);
+        assertTrue(unchanged.record(Alpha.class.getName(), Map.of(Alpha.class.getName(), alpha)));
+        assertNull(unchanged.build());
+
+        GeneratedBytecodePack.Builder expanded = new GeneratedBytecodePack.Builder(partial);
+        assertTrue(expanded.record(Beta.class.getName(), Map.of(Beta.class.getName(), beta)));
+        GeneratedBytecodePack complete = expanded.build();
+        assertNotNull(complete);
+        assertEquals(2, complete.requestCount());
+        assertArrayEquals(alpha, complete.classesFor(Alpha.class.getName()).get(Alpha.class.getName()));
+        assertArrayEquals(beta, complete.classesFor(Beta.class.getName()).get(Beta.class.getName()));
     }
 
     @Test

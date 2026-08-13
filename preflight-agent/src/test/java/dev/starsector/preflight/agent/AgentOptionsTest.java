@@ -19,6 +19,7 @@ class AgentOptionsTest {
         assertEquals(Path.of("build/startup.jfr"), options.destination());
         assertEquals("default", options.settings());
         assertEquals(AdapterMode.OFF, options.adapterMode());
+        assertEquals(AdapterPlanScope.FULL, options.adapterPlanScope());
         assertEquals(Path.of("build/adapter.json"), options.adapterReport());
         assertNull(options.adapterTargets());
         assertNull(options.textureCacheDirectory());
@@ -51,6 +52,27 @@ class AgentOptionsTest {
         assertEquals(
                 List.of("com/fs/starfarer/", "com/fs/graphics/"),
                 options.candidatePrefixes());
+    }
+
+    @Test
+    void enabledModeInspectsExactTargetsWithoutBuildingTheBroadProbeInventory() {
+        AgentOptions options = AgentOptions.parse("adapter=enabled");
+
+        assertEquals(AdapterMode.ENABLED, options.adapterMode());
+        assertTrue(options.candidatePrefixes().isEmpty());
+    }
+
+    @Test
+    void parsesEngineOwnedPlanScopesAndRejectsUnknownScopes() {
+        assertEquals(
+                AdapterPlanScope.PORTABLE_STARTUP,
+                AgentOptions.parse("adapter=enabled,planScope=portable-startup").adapterPlanScope());
+        assertEquals(
+                AdapterPlanScope.MEASUREMENT_ONLY,
+                AgentOptions.parse("adapter=enabled,planScope=measurement-only").adapterPlanScope());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AgentOptions.parse("adapter=enabled,planScope=probably-safe"));
     }
 
     @Test
@@ -119,6 +141,33 @@ class AgentOptionsTest {
     void quietLogShutdownIsExplicitlyOptIn() {
         assertFalse(AgentOptions.parse("").quietLogs());
         assertTrue(AgentOptions.parse("quietLogs=on").quietLogs());
+    }
+
+    @Test
+    void graphicsLibCompactReplayIsExplicitlyOptIn() {
+        assertFalse(AgentOptions.parse("adapter=enabled").graphicsLibCompactReplay());
+        assertTrue(AgentOptions.parse(
+                "adapter=enabled,graphicsLibCompactReplay=on").graphicsLibCompactReplay());
+    }
+
+    @Test
+    void parsesJaninoBytecodeCacheAndExactContext() {
+        String context = String.join(".",
+                "01".repeat(32), "02".repeat(32), "03".repeat(32), "04".repeat(32),
+                "05".repeat(32), "06".repeat(32), "07".repeat(32));
+        AgentOptions options = AgentOptions.parse(
+                "adapter=enabled,janinoBytecodeCache64=" + encoded("build/cache")
+                        + ",janinoBytecodeContext=" + context);
+        assertEquals(Path.of("build/cache"), options.janinoBytecodeCache());
+        assertEquals(context, options.janinoBytecodeContext());
+    }
+
+    @Test
+    void graphicsLibInsigniaManagerCacheIsExplicitlyOptIn() {
+        assertFalse(AgentOptions.parse("adapter=enabled").graphicsLibInsigniaManagerCache());
+        assertTrue(AgentOptions.parse(
+                "adapter=enabled,graphicsLibInsigniaManagerCache=on")
+                .graphicsLibInsigniaManagerCache());
     }
 
     @Test

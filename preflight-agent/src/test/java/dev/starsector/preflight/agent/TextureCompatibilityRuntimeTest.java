@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -34,6 +36,7 @@ class TextureCompatibilityRuntimeTest {
         TextureCompatibilityRuntime.beginSession();
         System.clearProperty(TextureCompatibilityRuntime.VERIFY_SOURCE_HASH_PROPERTY);
         System.clearProperty(TextureCompatibilityRuntime.VERIFY_BLOB_CHECKSUM_PROPERTY);
+        System.clearProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY);
     }
 
     @Test
@@ -55,6 +58,60 @@ class TextureCompatibilityRuntimeTest {
         assertEquals(1L, telemetry.get("hits"));
         assertEquals(0L, telemetry.get("fallbacks"));
         assertEquals(12L, telemetry.get("bytesServed"));
+    }
+
+    @Test
+    void validProfilePackServesWithoutOpeningTheLooseBlob() throws Exception {
+        Fixture fixture = fixture();
+        TextureManifest manifest = TextureManifestIO.read(fixture.manifest());
+        String relative = manifest.entries().firstEntry().getValue().blobRelativePath();
+        Path pack = PreparedTexturePackIO.path(fixture.cache(), manifest.profileFingerprint());
+        PreparedTexturePackIO.write(
+                pack, manifest.profileFingerprint(), fixture.cache(), List.of(relative));
+        Files.delete(fixture.blob());
+
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+
+        Map<String, Object> telemetry = TextureCompatibilityRuntime.telemetry();
+        assertEquals(true, telemetry.get("packedStoreAvailable"));
+        assertEquals(true, telemetry.get("packedStoreActive"));
+        assertEquals(1L, telemetry.get("packHits"));
+        assertEquals(12L, telemetry.get("packBytes"));
+        assertEquals(0L, telemetry.get("packFailures"));
+        assertEquals(0L, telemetry.get("packSingleReadLz4Hits"));
+
+        TextureCompatibilityRuntime.beginSession();
+        assertEquals(
+                List.of(relative),
+                PreparedTexturePackOrderIO.read(
+                        PreparedTexturePackOrderIO.path(
+                                fixture.cache(), manifest.profileFingerprint()),
+                        manifest.profileFingerprint()));
+    }
+
+    @Test
+    void packReadFailureDisablesItAndFallsBackToTheLooseBlob() throws Exception {
+        Fixture fixture = fixture();
+        TextureManifest manifest = TextureManifestIO.read(fixture.manifest());
+        String relative = manifest.entries().firstEntry().getValue().blobRelativePath();
+        Path pack = PreparedTexturePackIO.path(fixture.cache(), manifest.profileFingerprint());
+        PreparedTexturePackIO.write(
+                pack, manifest.profileFingerprint(), fixture.cache(), List.of(relative));
+
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        Files.write(pack, new byte[] {1});
+
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        Map<String, Object> telemetry = TextureCompatibilityRuntime.telemetry();
+        assertEquals(true, telemetry.get("packedStoreAvailable"));
+        assertEquals(false, telemetry.get("packedStoreActive"));
+        assertEquals(0L, telemetry.get("packHits"));
+        assertEquals(1L, telemetry.get("packFailures"));
+        assertEquals(1L, telemetry.get("hits"));
+        assertEquals(0L, telemetry.get("fallbacks"));
     }
 
     /**
@@ -138,6 +195,18 @@ class TextureCompatibilityRuntimeTest {
         Map<String, Object> reasons =
                 (Map<String, Object>) TextureCompatibilityRuntime.telemetry().get("fallbackReasons");
         assertEquals(1L, reasons.get("source-changed"));
+    }
+
+    @Test
+    void diagnosticValidatedIndexSnapshotSkipsOnlyPostConfigureSourceChanges() throws Exception {
+        Fixture fixture = fixture();
+        assertTrue(TextureCompatibilityRuntime.configure(
+                fixture.cache(), fixture.manifest(), fixture.index()));
+        System.setProperty(TextureCompatibilityRuntime.TRUST_VALIDATED_INDEX_PROPERTY, "true");
+        Files.write(fixture.source(), new byte[] {9, 9, 9, 9, 9});
+
+        assertNotNull(TextureCompatibilityRuntime.load("graphics/test.png"));
+        assertEquals(true, TextureCompatibilityRuntime.telemetry().get("trustedValidatedIndex"));
     }
 
     /**

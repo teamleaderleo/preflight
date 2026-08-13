@@ -42,33 +42,42 @@ final class LoadJsonMemoPlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) {
+            return null;
+        }
+        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
+        return writer.toByteArray();
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !signature.hasMethod(LOAD_METHOD, LOAD_DESCRIPTOR)) {
+            return false;
+        }
         // A class file older than 51 cannot carry a MethodHandle constant, and raising its version
         // to make room would change how it is verified. Decline instead.
         if ((owner.version & 0xFFFF) < Opcodes.V1_7) {
-            return null;
+            return false;
         }
 
         MethodNode vanilla = null;
         for (MethodNode method : owner.methods) {
             if (VANILLA_METHOD.equals(method.name)) {
                 // Already rewritten.
-                return null;
+                return false;
             }
             if (LOAD_METHOD.equals(method.name) && LOAD_DESCRIPTOR.equals(method.desc)) {
                 if (vanilla != null) {
-                    return null;
+                    return false;
                 }
                 vanilla = method;
             }
         }
         if (vanilla == null || (vanilla.access & Opcodes.ACC_STATIC) == 0) {
-            return null;
+            return false;
         }
 
         vanilla.name = VANILLA_METHOD;
@@ -88,9 +97,6 @@ final class LoadJsonMemoPlan {
         entry.maxStack = 2;
         entry.maxLocals = 1;
         owner.methods.add(entry);
-
-        ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
-        owner.accept(writer);
-        return writer.toByteArray();
+        return true;
     }
 }

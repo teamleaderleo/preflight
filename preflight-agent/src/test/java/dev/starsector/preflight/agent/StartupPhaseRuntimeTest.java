@@ -4,12 +4,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class StartupPhaseRuntimeTest {
     @TempDir
     Path temporaryDirectory;
+
+    /**
+     * Puts the probe back down.
+     *
+     * <p>A destination is what {@code phaseProbeEnabled} reads, and one JVM runs every test class in
+     * this module, so leaving it set turns the probe on for everything that follows. That is not an
+     * abstract tidiness point: a plan whose transform instruments the class only while the probe is
+     * on then emits different bytecode, and a test pinning its SHA-256 fails according to which
+     * classes surefire happened to run first.
+     */
+    @AfterEach
+    void endSession() {
+        StartupPhaseRuntime.beginSession(null);
+    }
 
     @Test
     void persistsEachBoundaryWithoutWaitingForJvmShutdown() throws Exception {
@@ -25,6 +40,11 @@ class StartupPhaseRuntimeTest {
         StartupPhaseRuntime.specSubphaseStart("variant-object-construction");
         StartupPhaseRuntime.specSubphaseEnd();
         StartupPhaseRuntime.specLoaderEnd();
+        long hotCall = StartupPhaseRuntime.hotCallStart();
+        StartupPhaseRuntime.hotCallEnd("gfx.autoGenMissingNormals", hotCall);
+        StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/a.png");
+        StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/a.png");
+        StartupPhaseRuntime.hotPath("gfx.normal.cachePath", "cache/b.png");
         StartupPhaseRuntime.pluginStart(new ExamplePlugin());
         StartupPhaseRuntime.pluginEnd();
         StartupPhaseRuntime.mark("resource-init-complete");
@@ -40,6 +60,9 @@ class StartupPhaseRuntimeTest {
         assertTrue(json.contains("\"label\":\"1:SpecStore.new\""));
         assertTrue(json.contains("\"label\":\"variant-object-construction\""));
         assertTrue(json.contains("\"calls\":2"));
+        assertTrue(json.contains("\"label\":\"gfx.autoGenMissingNormals\""));
+        assertTrue(json.contains("\"label\":\"gfx.normal.cachePath\""));
+        assertTrue(json.contains("\"distinctPaths\":2"));
         assertTrue(json.contains("StartupPhaseRuntimeTest$ExamplePlugin"));
         assertTrue(json.contains("\"completed\":true"));
     }

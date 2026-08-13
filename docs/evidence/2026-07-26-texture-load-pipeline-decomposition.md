@@ -97,7 +97,7 @@ contain, so the upload phase sends correctly sized buffers rather than the real 
   cache, and roughly doubled measured decode time. The packaged script therefore runs the pipeline
   probe before it.
 - The offline bake cost is real: **10.4 s for 10.3 M pixels**, about 1 Mpx/s, after the encoder work
-  in [#182](https://github.com/teamleaderleo/starsector-preflight/pull/182) traded 4× throughput for
+  in [#182](https://github.com/teamleaderleo/preflight/pull/182) traded 4× throughput for
   quality. A full profile is roughly 1.1 Gpx, so a first bake is on the order of 18 minutes
   single-threaded — one time, cacheable, and trivially parallel across textures.
 

@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-DEST="$HOME/Projects/starsector-preflight"
-URL="https://github.com/teamleaderleo/starsector-preflight.git"
+DEST="$HOME/Projects/preflight"
+URL="https://github.com/teamleaderleo/preflight.git"
 
 if ! command -v git >/dev/null 2>&1; then
     printf '%s\n' "Git was not found. Install the Xcode command-line tools or Git first."
@@ -12,7 +12,7 @@ fi
 mkdir -p "$HOME/Projects"
 
 if [ ! -e "$DEST" ]; then
-    printf '%s\n' "Cloning Starsector Preflight into $DEST"
+    printf '%s\n' "Cloning Preflight into $DEST"
     git clone "$URL" "$DEST"
 elif [ -d "$DEST/.git" ]; then
     if ! git -C "$DEST" diff --quiet || ! git -C "$DEST" diff --cached --quiet; then

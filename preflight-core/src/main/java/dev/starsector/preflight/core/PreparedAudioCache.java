@@ -12,8 +12,26 @@ import java.util.Objects;
 /** Fail-open content-addressed lookup for exact prepared-audio identities. */
 public final class PreparedAudioCache {
     private static final String KEY_SCHEMA = "starsector-preflight-prepared-audio-key-v1";
+    private static final int ESTABLISHED_AUDIO_FORMAT_VERSION = 1;
+    private static final int ESTABLISHED_MANIFEST_FORMAT_VERSION = 1;
 
     private PreparedAudioCache() {
+    }
+
+    public static Path root(Path cacheRoot) {
+        return CacheFormatNamespace.directory(
+                Objects.requireNonNull(cacheRoot, "cacheRoot"),
+                "prepared-audio",
+                PreparedAudio.FORMAT_VERSION,
+                ESTABLISHED_AUDIO_FORMAT_VERSION);
+    }
+
+    public static Path manifestDirectory(Path cacheRoot) {
+        return CacheFormatNamespace.directory(
+                root(cacheRoot),
+                "manifests",
+                PreparedAudioManifest.FORMAT_VERSION,
+                ESTABLISHED_MANIFEST_FORMAT_VERSION);
     }
 
     public static String cacheKeySha256(
@@ -37,12 +55,12 @@ public final class PreparedAudioCache {
             PreparedAudio.Policy policy) {
         Objects.requireNonNull(cacheRoot, "cacheRoot");
         String key = cacheKeySha256(sourceSha256, decoderPolicyIdentitySha256, policy);
-        Path root = cacheRoot.toAbsolutePath().normalize();
-        Path target = root.resolve("prepared-audio")
+        Path cacheBoundary = cacheRoot.toAbsolutePath().normalize();
+        Path target = root(cacheRoot).toAbsolutePath().normalize()
                 .resolve(key.substring(0, 2))
                 .resolve(key + ".spau")
                 .normalize();
-        if (!target.startsWith(root)) {
+        if (!target.startsWith(cacheBoundary)) {
             throw new IllegalArgumentException("Prepared audio path escaped the cache root");
         }
         return target;

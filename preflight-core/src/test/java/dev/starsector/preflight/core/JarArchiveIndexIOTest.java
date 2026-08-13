@@ -3,6 +3,7 @@ package dev.starsector.preflight.core;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,6 +50,8 @@ class JarArchiveIndexIOTest {
         assertThrows(IllegalArgumentException.class, () -> JarArchiveIndex.normalizeEntryName("../outside"));
         assertThrows(IllegalArgumentException.class, () -> JarArchiveIndex.normalizeEntryName("/absolute"));
         assertThrows(IllegalArgumentException.class, () -> JarArchiveIndex.normalizeEntryName("C:\\absolute"));
+        assertEquals("a/b/C.class", JarArchiveIndex.normalizeEntryName("a//./b\\C.class/"));
+        assertSame("a/b/C.class", JarArchiveIndex.normalizeEntryName("a/b/C.class"));
 
         Map<String, JarArchiveIndex.Entry> duplicates = new LinkedHashMap<>();
         duplicates.put("a//A.class", new JarArchiveIndex.Entry("a/A.class", 1, 1, 0, 0));

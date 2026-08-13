@@ -8,8 +8,12 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordingFile;
 
@@ -18,6 +22,7 @@ public final class PreflightCli {
     }
 
     public static void main(String[] args) {
+        Utf8Console.install();
         try {
             int status = run(args);
             if (status != 0) {
@@ -26,6 +31,7 @@ public final class PreflightCli {
         } catch (Exception error) {
             String message = error.getMessage();
             System.err.println("preflight: " + (message == null || message.isBlank() ? error.toString() : message));
+            hintForUnknownOption(args, message);
             if ("1".equals(System.getenv("PREFLIGHT_DEBUG"))) {
                 error.printStackTrace();
             } else if (!(error instanceof IllegalArgumentException)) {
@@ -35,7 +41,8 @@ public final class PreflightCli {
         }
     }
 
-    static int run(String[] args) throws Exception {
+    static int run(String[] rawArgs) throws Exception {
+        String[] args = Utf8Argv.decode(rawArgs);
         if (args.length == 0) {
             globalUsage(System.err);
             return 2;
@@ -71,9 +78,11 @@ public final class PreflightCli {
             case "prepare" -> PrepareCommand.execute(args, 1);
             case "doctor" -> RunCommand.doctor(CommandLine.parse(args, 1));
             case "launch-settings" -> LaunchSettingsCommand.execute(args, 1);
-            case "install" -> InstallCommand.execute(CommandLine.parse(args, 1));
+            case "install" -> InstallCommand.execute(args, 1);
             case "uninstall" -> UninstallCommand.execute(args, 1);
             case "cache" -> CacheCommand.execute(args, 1);
+            case "evidence" -> EvidenceCommand.execute(args, 1);
+            case "profile" -> ProfileCommand.execute(args, 1);
             case "scan" -> ScanCommand.execute(ScanOptions.parse(args, 1));
             case "index" -> IndexCommand.execute(args, 1);
             case "texture" -> textureCommand(args);
@@ -178,21 +187,65 @@ public final class PreflightCli {
     private static Map<String, List<String>> usageByCommand() {
         Map<String, List<String>> usage = new LinkedHashMap<>();
         usage.put("run", List.of(
-                "preflight run [--game <path>] [--launcher <path>] [--direct] [--quiet-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index] [--startup-phase-probe] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
+                "preflight run [--game <path>] [--launcher <path>] [--direct] [--optimization-preset recommended|conservative|off | --fast] [--disable-optimization-domain prepared-textures|prepared-audio] [--file-only-logs | --quiet-logs] [--suppress-asset-progress-logs] [--trace-dir <path>] [--dry-run] [--no-summary] [--no-scan] [--adapter-probe | --adapter | --no-adapter] [--adapter-targets <path>] [--campaign-entity-index | --no-campaign-entity-index] [--startup-phase-probe] [--graphicslib-compact-replay] [--janino-bytecode-cache] [--graphicslib-insignia-cache] [--texture-auto [--texture-cache-dir <path>] | --texture-cache-dir <path> --texture-manifest <path> --texture-index <path>] [--texture-mode compatibility|prepared-pixels [--prepared-unpadded | --prepared-npot]]"
+                        + " [--trust-validated-texture-index] [--no-record | --profile] [--single-chunk-recording] [-- <launcher args>]",
                 "    --direct starts Starsector through its own launchDirect path without showing the"
                         + " launcher. Resolution, fullscreen and sound come from the launcher's saved"
                         + " preferences; the run fails closed if those settings are unavailable or unsafe.",
+                "    --optimization-preset recommended enables every startup and gameplay cache"
+                        + " that has passed its live gate, disables profiling and duplicate-console"
+                        + " overhead, and leaves each exact adapter fail-closed. --fast is its"
+                        + " backwards-compatible alias and installed Preflight launchers use it by default.",
+                "    --optimization-preset conservative keeps the portable startup caches and"
+                        + " padded texture allocation, but omits gameplay and mod-specific plans."
+                        + " off retains the wrapper and process report without transforms, scanning,"
+                        + " summaries, or profiling. Later explicit raw options are for diagnostics.",
+                "    --disable-optimization-domain is a preset-only troubleshooting control."
+                        + " prepared-textures removes the complete prepared texture context;"
+                        + " prepared-audio removes the decoder-bound prepared audio context."
+                        + " Other adapters and correctness repairs are unchanged.",
+                "    --suppress-asset-progress-logs removes only the reviewed vanilla per-file"
+                        + " weapon, projectile, hull, and variant INFO messages. Errors, warnings,"
+                        + " and phase summaries remain; it is included by --fast and can be"
+                        + " reversed by a later --full-asset-progress-logs.",
+                "    --trust-validated-texture-index treats the complete configure-time provider"
+                        + " validation as this launch's immutable source snapshot, avoiding one"
+                        + " source filesystem round trip per texture. It is included by --fast"
+                        + " and can be reversed by a later --recheck-texture-sources.",
+                "    --file-only-logs keeps synchronous, crash-safe INFO writes in starsector.log"
+                        + " but removes the duplicate console appender. It is included by --fast.",
                 "    --quiet-logs keeps every INFO line in the rolling starsector.log, removes the"
                         + " duplicate console appender, and buffers file writes. It saves about 0.40s"
                         + " on the reviewed profile but a hard crash can lose the final 64 KiB, so it"
-                        + " is opt-in and is not implied by --fast.",
+                        + " remains an explicit upgrade over --fast's unbuffered file-only mode.",
+                "    --graphicslib-compact-replay replaces only the exact reviewed GraphicsLib"
+                        + " 1.12.1 TextureData class with its measured compact normal-map request"
+                        + " replay. Any class, archive, or classloader drift retains the mod's"
+                        + " original bytes and is reported in adapter-health.json.",
+                "    --janino-bytecode-cache reuses Janino's complete generated-class map only"
+                        + " under the exact reviewed compiler, classpath, source graph, JVM, debug,"
+                        + " parent-loader, and protection-domain policy. It is included by --fast"
+                        + " after a clean cold/learn and warm/hit live gate.",
+                "    --graphicslib-insignia-cache memoizes getFleetManager results only within one"
+                        + " exact GraphicsLib 1.12.1 insignia UI render. It changes no render math"
+                        + " and is included by --fast after a live combat pilot served repeated"
+                        + " owners without an adapter failure.",
+                "    --adapter also validates the exact refit simulator's merged opponent list"
+                        + " against Starsector's loaded ship and fighter registries. Nonexistent"
+                        + " mod entries are omitted from that simulator invocation and reported;"
+                        + " registry uncertainty retains the original list. It also isolates"
+                        + " vanilla's one-shot mod resource hint per loading thread, preventing"
+                        + " another thread from making an existing resource appear missing. On"
+                        + " exact MagicLib 1.5.6 it also answers paintjob unlock checks from the"
+                        + " mod's authoritative set instead of copying and scanning a list.",
                 "    --no-record runs the caches without recording a startup profile. The profile costs"
                         + " roughly a quarter of startup, so this is the mode to launch with when you"
                         + " want the speed and not the measurement; analysis commands need a recording.",
                 "    --prepared-unpadded serves textures at their true size instead of padded up to a"
                         + " power of two, which both lets the bridge carry them and drops the padding"
                         + " entirely -- 1.86 GiB allocated and never sampled on the reviewed profile."
-                        + " Needs a driver that accepts non-power-of-two uploads.",
+                        + " It activates only when the live LWJGL context exposes OpenGL 2.0 core or"
+                        + " GL_ARB_texture_non_power_of_two; otherwise the original padded path stays active.",
                 "    --prepared-npot is the conservative alternative: it carries the same textures while"
                         + " keeping the power-of-two padding, so it needs nothing of the driver. Use it"
                         + " to separate a broken conversion bypass from broken padding removal. Without"
@@ -206,34 +259,87 @@ public final class PreflightCli {
                         + " disables periodic sidecar dumps, which themselves rotate chunks. Use it"
                         + " when the order and timing of startup events matters. It spends extra memory"
                         + " and gives up crash/force-quit sidecar recovery; --no-record is incompatible.",
-                "    --campaign-entity-index enables the experimental BaseLocation.getEntityById"
-                        + " index. It requires --adapter, fails open to the original method on every"
-                        + " miss, and is intended for live-campaign validation before default use."));
+                "    --campaign-entity-index enables the BaseLocation.getEntityById index. It"
+                        + " requires --adapter, serves only snapshot-validated hits and misses, and"
+                        + " fails open on any validation error. The exact mutation-tracked deployment"
+                        + " icon cache and per-commodity event-mod memo use the same gameplay-cache"
+                        + " switch; --fast enables all three."));
         usage.put("prepare", List.of(
-                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]"));
+                "preflight prepare [--game <path>] [--launcher <path>] [--cache-dir <path>] [--report <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced] [--parallel-stages|--serial-stages] [--deep] [--verify-lookups] [--lookup-queries <count>] [--seed <long>] [--no-resource-index] [--no-classpath] [--no-textures]",
+                "preflight prepare --plan [--json] [--game <path>] [--cache-dir <path>] [--workers <count>] [--texture-storage fastest|balanced]",
+                "  balanced (default) uses exact lossless LZ4 except where compression saves under"
+                        + " 23.1%; fastest stores every upload-ready pixel array raw.",
+                "  --plan is read-only. Every real preparation refuses before writing when its"
+                        + " conservative upper bound and safety reserve do not fit."));
         usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
         usage.put("launch-settings", List.of(
-                "preflight launch-settings [--json]",
-                "  Reports whether Starsector can be started without showing its launcher, and with"
-                        + " which resolution, fullscreen and sound settings. The game supports this"
-                        + " itself through its launchDirect/startRes/startFS/startSound properties;"
-                        + " the settings are read from the launcher's own preferences so an unattended"
-                        + " launch matches a clicked one. Always exits zero -- unavailable is an"
-                        + " answer, with a reason saying what to do about it."));
-        usage.put("install", List.of("preflight install [--game <path>] [--launcher <path>]"));
+                "preflight launch-settings [--game <path>] [--json]",
+                "preflight launch-settings set [--game <path>] [--resolution WIDTHxHEIGHT]"
+                        + " [--fullscreen true|false] [--sound true|false]"
+                        + " [--antialiasing 0|2|4|8|12|16|24|32] [--ui-scale 1.00..3.00]"
+                        + " [--battle-size <points>] [--memory-mb <MiB>] [--json]",
+                "  Reports and updates Starsector's own launcher/gameplay preferences. A set writes"
+                        + " only the named keys, snapshots their previous values under Preflight's"
+                        + " home first, and preserves unrelated gameplay settings. Battle size is"
+                        + " checked against the selected installation's current settings.json bounds.",
+                "  Heap memory follows the launcher that will actually run, including fr.vmparams."
+                        + " Preflight refuses ambiguous layouts, keeps an exact file backup, and"
+                        + " updates both -Xms and -Xmx when the launcher defines both.",
+                "  The direct-launch availability fields are required by the startup benchmark: Starsector"
+                        + " itself supports launchDirect/startRes/startFS/startSound, and Preflight"
+                        + " refuses that unattended path when the game's saved inputs are incomplete."));
+        usage.put("install", List.of(
+                "preflight install [--game <path>] [--launcher <path>] [--prepare] [--texture-storage fastest|balanced] [--workers <count>] [--memory-mb <MiB>]",
+                "  --prepare builds the exact current profile after installing the launcher.",
+                "  balanced is the default. Worker and memory controls apply only to preparation;",
+                "  without --prepare they are rejected rather than silently ignored."));
         usage.put("uninstall", List.of(
-                "preflight uninstall [--purge] [--yes]",
-                "  Prints what it would remove and exits; --yes performs the removal.",
-                "  --purge also removes ~/.starsector-preflight, discarding prepared caches",
+                "preflight uninstall [--scope launcher|all-data] [--json] [--yes]",
+                "  Prints an exact removal plan and exits; --yes performs the removal.",
+                "  launcher removes installed launch integrations and the installed command engine.",
+                "  all-data (or the legacy --purge spelling) also removes ~/.starsector-preflight,",
+                "  discarding prepared caches",
                 "  and every run and benchmark record under it. The Starsector installation",
                 "  is never modified by Preflight, so nothing there needs restoring."));
         usage.put("cache", List.of(
-                "preflight cache",
+                "preflight cache [--game <path>] [--launcher <path>] [--json]",
                 "  Reports total storage by category, the prepared profiles held, and which",
-                "  one the current install matches.",
-                "preflight cache prune [--yes]",
-                "  Removes every profile except the current one, including the texture blobs",
-                "  no surviving profile references. Prints the plan and exits unless --yes."));
+                "  one the current install matches. --json emits the stable desktop/tooling contract.",
+                "preflight cache health [--game <path>] [--launcher <path>] [--json]",
+                "  Checks the exact current profile's index, texture manifest/pack, and optional",
+                "  prepared-audio manifest without reading game, mod, or save contents into output.",
+                "preflight cache repair [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
+                "  Plans a profile-scoped repair. --yes removes only unreadable current-profile",
+                "  metadata/packs; shared blobs remain available for preparation to reuse or quarantine.",
+                "preflight cache prune [--keep-named] [--json] [--yes]",
+                "  Removes every profile except the current one; --keep-named also preserves every",
+                "  readable named profile. This includes profile texture packs,",
+                "  texture and prepared-audio blobs no survivor references, stale Janino contexts,",
+                "  and per-request bytecode bundles represented by the retained deduplicated pack.",
+                "  Prints the plan and exits unless --yes; --json emits the stable plan contract."));
+        usage.put("evidence", List.of(
+                "preflight evidence [--json]",
+                "  Reports launch-run and benchmark evidence separately from acceleration caches.",
+                "preflight evidence export --output <bundle.zip> [--runs <count>] [--benchmarks <count>] [--overwrite] [--json]",
+                "  Writes a bounded, disclosed ZIP from allowlisted text metadata only. Defaults to",
+                "  the newest three runs and two benchmarks; caches, logs, crash dumps, recordings,",
+                "  screenshots, game/mod assets, saves, symlinks, and unknown files are excluded.",
+                "  Counts are capped at 20 each. Existing output is refused unless --overwrite.",
+                "preflight evidence prune [--keep-runs <count>] [--keep-benchmarks <count>] [--json] [--yes]",
+                "  Keeps the newest requested number in each selected category. An omitted category",
+                "  is untouched. The plan is preview-only unless --yes; sessions that change while",
+                "  the command is running are refused rather than deleting active evidence."));
+        usage.put("profile", List.of(
+                "preflight profile list [--game <path>] [--launcher <path>] [--json]",
+                "preflight profile save <name> [--game <path>] [--launcher <path>] [--json]",
+                "preflight profile activate <name> [--game <path>] [--launcher <path>] [--json] [--yes]",
+                "preflight profile rename <name> <new-name> [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
+                "preflight profile delete <name> [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
+                "  Saves and restores ordered enabled-mod sets. Activation prints the exact plan",
+                "  by default; --yes stages and replaces mods/enabled_mods.json after backing it up.",
+                "  Rename and delete also preview by default. Applying them requires the exact profile",
+                "  fingerprint from that preview; delete keeps prepared data and writes a profile backup.",
+                "  Missing mods or a profile saved for another installation are refused."));
         usage.put("scan", List.of(
                 "preflight scan [--game <path>] [--launcher <path>] [--json <profile.json>] [--vram-budget <size>] [--max-texture-size <pixels>]",
                 "  --vram-budget accepts bytes or a K/M/G suffix (e.g. 4G); adds a decoded-VRAM budget verdict",
@@ -248,7 +354,8 @@ public final class PreflightCli {
                 "preflight texture inspect <texture.spft>",
                 "preflight texture verify <image> <texture.spft>",
                 "preflight texture benchmark <image> <texture.spft> [--runs <count>]",
-                "preflight texture build [--game <path> | --index <index.spfi>] [--cache-dir <path>] [--workers <count>] [--memory-mb <MiB>]",
+                "preflight texture build [--game <path> | --index <index.spfi>] [--cache-dir <path>] [--workers <count>] [--memory-mb <MiB>] [--texture-storage fastest|balanced]",
+                "  balanced is the default; fastest trades substantially more disk space for minimum decode CPU",
                 "preflight texture manifest inspect <manifest.spfm>",
                 "preflight texture manifest query <manifest.spfm> <logical-path> [--cache-dir <path>]",
                 "preflight texture manifest validate <manifest.spfm> [--cache-dir <path>]"));
@@ -335,8 +442,11 @@ public final class PreflightCli {
         output.println("  preflight help <command>");
         output.println();
         output.println("Commands:");
+        // Widened to whatever the longest command actually is, so adding one that outgrows the
+        // column cannot quietly leave a single ragged row in the first thing anyone sees.
+        int width = USAGE.keySet().stream().mapToInt(String::length).max().orElse(12);
         for (String command : USAGE.keySet()) {
-            output.printf("  %-12s %s%n", command, commandSummary(command));
+            output.printf("  %-" + width + "s  %s%n", command, commandSummary(command));
         }
         output.println();
         output.println("Run `preflight <command> --help` for detailed usage.");
@@ -345,13 +455,15 @@ public final class PreflightCli {
 
     private static String commandSummary(String command) {
         return switch (command) {
-            case "run" -> "Launch Starsector with bounded profiling and optional adapters.";
+            case "run" -> "Launch Starsector with reviewed optimizations and a bounded run report.";
             case "prepare" -> "Build reusable artifacts for the current enabled profile.";
             case "doctor" -> "Check installation discovery and launch readiness.";
-            case "launch-settings" -> "Report whether the game can start without showing its launcher.";
+            case "launch-settings" -> "Read or update the game settings used by ordinary and Preflight launches.";
             case "install" -> "Write the local Preflight launcher integration.";
             case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
             case "cache" -> "Report what Preflight is storing and which profiles it holds.";
+            case "evidence" -> "Report, export, and prune bounded diagnostic evidence.";
+            case "profile" -> "Save, inspect, rename, delete, and safely activate named enabled-mod profiles.";
             case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
             case "index" -> "Build, inspect, query, or validate a resource-provider index.";
             case "texture" -> "Prepare and inspect texture cache artifacts.";
@@ -369,40 +481,44 @@ public final class PreflightCli {
     }
 
     private static String closestCommand(String requested) {
-        String closest = null;
-        int closestDistance = Integer.MAX_VALUE;
-        for (String command : USAGE.keySet()) {
-            int distance = editDistance(requested, command);
-            if (distance < closestDistance) {
-                closest = command;
-                closestDistance = distance;
-            }
-        }
-        int threshold = Math.max(1, Math.min(3, requested.length() / 2));
-        return closestDistance <= threshold ? closest : null;
+        return Suggestions.closest(requested, USAGE.keySet());
     }
 
-    private static int editDistance(String left, String right) {
-        int[] prior = new int[right.length() + 1];
-        int[] current = new int[right.length() + 1];
-        for (int j = 0; j <= right.length(); j++) {
-            prior[j] = j;
+    /**
+     * Turns {@code Unknown option: --gmae} into a pointer at {@code --game}.
+     *
+     * <p>Done here rather than in each parser because every command rejects options from its own
+     * switch, and none of them holds a list of what it accepts. The usage text does hold one, it is
+     * the same text {@code preflight help} prints, and it cannot drift from the documentation
+     * without the documentation being wrong already.
+     */
+    private static void hintForUnknownOption(String[] rawArgs, String message) {
+        if (message == null || !message.startsWith(UNKNOWN_OPTION)) {
+            return;
         }
-        for (int i = 1; i <= left.length(); i++) {
-            current[0] = i;
-            for (int j = 1; j <= right.length(); j++) {
-                int substitution = prior[j - 1]
-                        + (left.charAt(i - 1) == right.charAt(j - 1) ? 0 : 1);
-                current[j] = Math.min(
-                        Math.min(prior[j] + 1, current[j - 1] + 1),
-                        substitution);
-            }
-            int[] swap = prior;
-            prior = current;
-            current = swap;
+        String[] args = Utf8Argv.decode(rawArgs);
+        if (args.length == 0) {
+            return;
         }
-        return prior[right.length()];
+        List<String> usage = USAGE.get(args[0]);
+        if (usage == null) {
+            return;
+        }
+        Set<String> documented = new LinkedHashSet<>();
+        Matcher options = DOCUMENTED_OPTION.matcher(String.join(" ", usage));
+        while (options.find()) {
+            documented.add(options.group());
+        }
+        String suggestion = Suggestions.closest(message.substring(UNKNOWN_OPTION.length()).trim(), documented);
+        if (suggestion != null) {
+            System.err.println("Did you mean `" + suggestion + "`?");
+        } else {
+            System.err.println("Run `preflight help " + args[0] + "` for the options it accepts.");
+        }
     }
+
+    private static final String UNKNOWN_OPTION = "Unknown option: ";
+    private static final Pattern DOCUMENTED_OPTION = Pattern.compile("--[a-z0-9][a-z0-9-]*");
 
     @FunctionalInterface
     private interface PathCommand {

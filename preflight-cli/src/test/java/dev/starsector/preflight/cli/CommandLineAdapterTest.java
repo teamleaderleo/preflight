@@ -4,12 +4,116 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import dev.starsector.preflight.agent.AdapterMode;
+import dev.starsector.preflight.agent.AdapterPlanScope;
 import dev.starsector.preflight.agent.RecordingMode;
 import dev.starsector.preflight.agent.TextureAdapterMode;
 import java.nio.file.Path;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class CommandLineAdapterTest {
+    @Test
+    void productPresetsAreTypedAndFastRemainsTheRecommendedAlias() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+        CommandLine recommended = CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "recommended"}, 1);
+        CommandLine conservative = CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "conservative"}, 1);
+        CommandLine off = CommandLine.parse(
+                new String[] {"run", "--optimization-preset", "off"}, 1);
+
+        assertEquals(OptimizationPreset.RECOMMENDED, fast.optimizationPreset());
+        assertEquals(OptimizationPreset.RECOMMENDED, recommended.optimizationPreset());
+        assertEquals(fast, recommended);
+        assertEquals(AdapterPlanScope.FULL, recommended.adapterPlanScope());
+
+        assertEquals(OptimizationPreset.CONSERVATIVE, conservative.optimizationPreset());
+        assertEquals(AdapterPlanScope.PORTABLE_STARTUP, conservative.adapterPlanScope());
+        assertEquals(AdapterMode.ENABLED, conservative.adapterMode());
+        assertEquals(TextureAdapterMode.PREPARED_PIXELS, conservative.textureAdapterMode());
+        assertEquals(true, conservative.npotDirect());
+        assertEquals(false, conservative.unpadded());
+        assertEquals(false, conservative.campaignEntityIndex());
+        assertEquals(false, conservative.graphicsLibCompactReplay());
+        assertEquals(false, conservative.graphicsLibInsigniaManagerCache());
+
+        assertEquals(OptimizationPreset.OFF, off.optimizationPreset());
+        assertEquals(AdapterMode.OFF, off.adapterMode());
+        assertEquals(RecordingMode.OFF, off.recordingMode());
+        assertEquals(false, off.scan());
+        assertEquals(false, off.summarize());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--optimization-preset", "experimental"}, 1));
+    }
+
+    @Test
+    void productDomainsDisableTheirCompletePreparedCacheContextsRegardlessOfOrder() {
+        CommandLine domainsFirst = CommandLine.parse(new String[] {
+                "run",
+                "--disable-optimization-domain", "prepared_audio",
+                "--disable-optimization-domain", "prepared-textures",
+                "--optimization-preset", "recommended"
+        }, 1);
+        CommandLine presetFirst = CommandLine.parse(new String[] {
+                "run",
+                "--optimization-preset", "recommended",
+                "--disable-optimization-domain", "prepared-textures",
+                "--disable-optimization-domain", "prepared-audio"
+        }, 1);
+
+        assertEquals(domainsFirst, presetFirst);
+        assertEquals(Set.of(
+                OptimizationDomain.PREPARED_TEXTURES,
+                OptimizationDomain.PREPARED_AUDIO), presetFirst.disabledOptimizationDomains());
+        assertEquals(false, presetFirst.textureAuto());
+        assertEquals(TextureAdapterMode.COMPATIBILITY, presetFirst.textureAdapterMode());
+        assertEquals(false, presetFirst.npotDirect());
+        assertEquals(false, presetFirst.unpadded());
+        assertEquals(false, presetFirst.preparedAudio());
+        assertEquals(true, presetFirst.loadJsonMemo());
+        assertEquals(true, presetFirst.campaignEntityIndex());
+    }
+
+    @Test
+    void productDomainsRejectUnknownNamesCustomLaunchesAndConflictingArtifacts() {
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "recommended",
+                "--disable-optimization-domain", "everything"
+        }, 1));
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--disable-optimization-domain", "prepared-audio"
+        }, 1));
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "recommended",
+                "--disable-optimization-domain", "prepared-audio",
+                "--disable-optimization-domain", "prepared-audio"
+        }, 1));
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "recommended",
+                "--texture-cache-dir", "cache",
+                "--texture-manifest", "manifest.json",
+                "--texture-index", "index.json",
+                "--disable-optimization-domain", "prepared-textures"
+        }, 1));
+    }
+
+    @Test
+    void conservativeScopeCannotBeMixedWithGameplayOrModSpecificSwitches() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {
+                        "run", "--optimization-preset", "conservative", "--campaign-entity-index"
+                }, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {
+                        "run", "--optimization-preset", "conservative", "--graphicslib-compact-replay"
+                }, 1));
+    }
+
     @Test
     void recordingFlagsSelectTheThreeModesAndDefaultToFull() {
         assertEquals(RecordingMode.FULL, CommandLine.parse(new String[] {"run"}, 1).recordingMode());
@@ -40,12 +144,36 @@ class CommandLineAdapterTest {
         assertEquals(AdapterMode.OFF, defaults.adapterMode());
         assertEquals(TextureAdapterMode.COMPATIBILITY, defaults.textureAdapterMode());
         assertEquals(false, defaults.directLaunch());
+        assertEquals(false, defaults.fileOnlyLogs());
         assertEquals(false, defaults.quietLogs());
+        assertEquals(false, defaults.suppressAssetProgressLogs());
+        assertEquals(false, defaults.trustValidatedTextureIndex());
+        assertEquals(false, defaults.desktopSmoke());
 
         CommandLine direct = CommandLine.parse(
                 new String[] {"run", "--direct", "--quiet-logs"}, 1);
         assertEquals(true, direct.directLaunch());
+        assertEquals(true, direct.fileOnlyLogs());
         assertEquals(true, direct.quietLogs());
+
+        CommandLine smoke = CommandLine.parse(
+                new String[] {"run", "--fast", "--direct", "--desktop-smoke"}, 1);
+        assertEquals(true, smoke.desktopSmoke());
+
+        CommandLine measurement = CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "off", "--direct", "--desktop-smoke"
+        }, 1);
+        assertEquals(true, measurement.desktopSmoke());
+        assertEquals(OptimizationPreset.OFF, measurement.optimizationPreset());
+        assertEquals(AdapterMode.ENABLED, measurement.adapterMode());
+        assertEquals(AdapterPlanScope.MEASUREMENT_ONLY, measurement.adapterPlanScope());
+        assertEquals(false, measurement.textureAuto());
+        assertEquals(false, measurement.campaignEntityIndex());
+        assertEquals(false, measurement.preparedAudio());
+        assertEquals(false, measurement.loadJsonMemo());
+        assertThrows(IllegalArgumentException.class, () -> CommandLine.parse(new String[] {
+                "run", "--optimization-preset", "off", "--desktop-smoke", "--no-adapter"
+        }, 1));
 
         CommandLine probe = CommandLine.parse(
                 new String[] {"run", "--adapter-probe", "--adapter-targets", "targets.txt"}, 1);
@@ -79,13 +207,45 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void fastDoesNotSilentlyTradeAwayTheHardCrashLogTail() {
+    void fastDropsOnlyTheDuplicateConsoleAndKeepsTheHardCrashLogTail() {
         CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
         CommandLine explicit = CommandLine.parse(
                 new String[] {"run", "--fast", "--quiet-logs"}, 1);
 
+        assertEquals(true, fast.fileOnlyLogs());
         assertEquals(false, fast.quietLogs());
+        assertEquals(true, fast.suppressAssetProgressLogs());
+        assertEquals(true, fast.trustValidatedTextureIndex());
+        assertEquals(false, CommandLine.parse(
+                new String[] {"run", "--fast", "--full-asset-progress-logs"}, 1)
+                .suppressAssetProgressLogs());
+        assertEquals(false, CommandLine.parse(
+                new String[] {"run", "--fast", "--recheck-texture-sources"}, 1)
+                .trustValidatedTextureIndex());
+        assertEquals(true, explicit.fileOnlyLogs());
         assertEquals(true, explicit.quietLogs());
+    }
+
+    @Test
+    void fastUsesAcceptedTrueSizeTexturesInsteadOfPaddedNpotCarriers() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+
+        assertEquals(true, fast.unpadded());
+        assertEquals(false, fast.npotDirect());
+    }
+
+    @Test
+    void fastExcludesTheResourceProbeCacheAfterTheConservativeMemoAlsoLostAFile() {
+        CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
+        CommandLine explicit = CommandLine.parse(
+                new String[] {"run", "--adapter", "--resource-probe-cache"}, 1);
+
+        assertEquals(false, fast.resourceProbeCache());
+        assertEquals(true, fast.campaignEntityIndex());
+        assertEquals(false, CommandLine.parse(
+                new String[] {"run", "--fast", "--no-campaign-entity-index"}, 1)
+                .campaignEntityIndex());
+        assertEquals(true, explicit.resourceProbeCache());
     }
 
     @Test
@@ -100,6 +260,55 @@ class CommandLineAdapterTest {
                 IllegalArgumentException.class,
                 () -> CommandLine.parse(
                         new String[] {"run", "--adapter-probe", "--startup-phase-probe"}, 1));
+    }
+
+    @Test
+    void graphicsLibCompactReplayRequiresTheEnabledAdapterAndIsIncludedInFast() {
+        CommandLine enabled = CommandLine.parse(
+                new String[] {"run", "--adapter", "--graphicslib-compact-replay"}, 1);
+        assertEquals(true, enabled.graphicsLibCompactReplay());
+        assertEquals(true,
+                CommandLine.parse(new String[] {"run", "--fast"}, 1).graphicsLibCompactReplay());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--graphicslib-compact-replay"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--graphicslib-compact-replay"}, 1));
+    }
+
+    @Test
+    void janinoBytecodeCacheRequiresTheEnabledAdapterAndIsIncludedInFast() {
+        CommandLine enabled = CommandLine.parse(
+                new String[] {"run", "--adapter", "--janino-bytecode-cache"}, 1);
+        assertEquals(true, enabled.janinoBytecodeCache());
+        assertEquals(true,
+                CommandLine.parse(new String[] {"run", "--fast"}, 1).janinoBytecodeCache());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--janino-bytecode-cache"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--janino-bytecode-cache"}, 1));
+    }
+
+    @Test
+    void graphicsLibInsigniaCacheRequiresTheEnabledAdapterAndIsIncludedInFast() {
+        CommandLine enabled = CommandLine.parse(
+                new String[] {"run", "--adapter", "--graphicslib-insignia-cache"}, 1);
+        assertEquals(true, enabled.graphicsLibInsigniaManagerCache());
+        assertEquals(true,
+                CommandLine.parse(new String[] {"run", "--fast"}, 1)
+                        .graphicsLibInsigniaManagerCache());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(new String[] {"run", "--graphicslib-insignia-cache"}, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CommandLine.parse(
+                        new String[] {"run", "--adapter-probe", "--graphicslib-insignia-cache"}, 1));
     }
 
     @Test

@@ -182,10 +182,11 @@ progressively, carrying more pixels than all the baseline ones combined, and dec
 what loading a texture costs. The fix changes no pixels.
 
 The video-memory figure is the same waste the
-[NPOT padding removal](evidence/2026-07-26-padding-removal-needs-no-instruction-surgery.md) targets
-from the runtime side. The two approaches are complementary: mods can stop shipping non-power-of-two
-art, and Preflight can stop padding it on hardware that supports `GL_ARB_texture_non_power_of_two`.
-Neither makes the other redundant, because most users run mods they did not write.
+[NPOT padding removal](evidence/2026-08-08-npot-is-a-live-context-contract.md) targets
+from the runtime side on a live OpenGL 2.0 or extension-capable context. The two approaches are
+complementary: mods can stop shipping non-power-of-two art, and Preflight can stop padding it when
+the current context proves that those dimensions are supported. Neither makes the other redundant,
+because most users run mods they did not write.
 
 ## What it does not do
 

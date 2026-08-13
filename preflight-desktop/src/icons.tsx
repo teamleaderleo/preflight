@@ -32,11 +32,12 @@ export function SparklesIcon(props: IconProps) {
   );
 }
 
-export function ClockIcon(props: IconProps) {
+export function LayersIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7v5l3.2 2" />
+      <path d="m12 3 8 4.5-8 4.5-8-4.5z" />
+      <path d="m4 12 8 4.5 8-4.5" />
+      <path d="m4 16.5 8 4.5 8-4.5" />
     </svg>
   );
 }
@@ -70,6 +71,32 @@ export function RefreshIcon(props: IconProps) {
   );
 }
 
+export function SystemThemeIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="3" y="4" width="18" height="13" rx="1.5" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  );
+}
+
+export function SunIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  );
+}
+
+export function MoonIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M20 15.2A8.2 8.2 0 0 1 8.8 4 8.2 8.2 0 1 0 20 15.2Z" />
+    </svg>
+  );
+}
+
 export function PlayIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>
@@ -91,6 +118,17 @@ export function ShieldIcon(props: IconProps) {
     <svg {...defaults} {...props}>
       <path d="M12 3 5 6v5c0 4.5 2.8 8 7 10 4.2-2 7-5.5 7-10V6z" />
       <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+export function GaugeIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M4 17a8 8 0 1 1 16 0" />
+      <path d="m12 13 4-4" />
+      <circle cx="12" cy="17" r="1.4" />
+      <path d="M7 17h10" />
     </svg>
   );
 }

@@ -71,6 +71,22 @@ def main() -> int:
         print(f"  {rest / 1000:>7.2f}s {'':5}  {'':24}  "
               f"the other {sum(1 for p in plugins if p.get('durationMillis', 0) < 100)} plugins")
 
+    hot_calls = data.get("hotCalls", [])
+    if hot_calls:
+        print("\n== exact callback call sites ==")
+        for call in sorted(hot_calls, key=lambda item: -item.get("durationMillis", 0)):
+            cost = call.get("durationMillis", 0)
+            maximum = call.get("maxCallMillis", 0)
+            print(f"  {cost / 1000:>7.2f}s  {call.get('calls', 0):>7} calls  "
+                  f"{maximum / 1000:>7.2f}s max  {call['label']}")
+
+    hot_paths = data.get("hotPaths", [])
+    if hot_paths:
+        print("\n== exact callback path cardinality ==")
+        for paths in sorted(hot_paths, key=lambda item: -item.get("calls", 0)):
+            print(f"  {paths.get('calls', 0):>7} calls  "
+                  f"{paths.get('distinctPaths', 0):>7} distinct  {paths['label']}")
+
     return 0
 
 

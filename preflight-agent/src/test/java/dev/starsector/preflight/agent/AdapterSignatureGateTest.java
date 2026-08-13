@@ -14,10 +14,12 @@ import java.security.CodeSource;
 import java.security.MessageDigest;
 import java.security.ProtectionDomain;
 import java.security.cert.Certificate;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -262,6 +264,136 @@ class AdapterSignatureGateTest {
         properties.setProperty("preflight.adapter.disabled", "true");
         assertTrue(AdapterRuntime.killSwitch(Map.of(), properties));
         assertTrue(AdapterRuntime.killSwitch(Map.of("PREFLIGHT_DISABLE_ADAPTER", "1"), new Properties()));
+    }
+
+    @Test
+    void diagnosticPlanFilterParsesAndOmitsEveryTargetForAPlan() {
+        Properties properties = new Properties();
+        properties.setProperty(AdapterRuntime.DISABLED_PLANS_PROPERTY,
+                " prepared-audio-v1, campaign-entity-index-v3,prepared-audio-v1 ");
+        Set<String> disabled = AdapterRuntime.disabledPlans(
+                Map.of(AdapterRuntime.DISABLED_PLANS_ENVIRONMENT,
+                        "vanilla-loading-utils-utf8-reader-v1, prepared-audio-v1"),
+                properties);
+        assertEquals(Set.of(
+                "prepared-audio-v1",
+                "campaign-entity-index-v3",
+                "vanilla-loading-utils-utf8-reader-v1"), disabled);
+
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withoutPlans(disabled);
+        assertTrue(registry.targets().stream()
+                .noneMatch(target -> disabled.contains(target.planId())));
+        assertTrue(registry.targets().stream()
+                .anyMatch(target -> SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())));
+    }
+
+    @Test
+    void portableStartupScopeKeepsStartupPlansAndOmitsGameplayAndModPlans() {
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withLoadJsonMemoTarget()
+                .withGraphicsLibCompactReplayTarget()
+                .withGraphicsLibInsigniaManagerCacheTarget()
+                .forScope(AdapterPlanScope.PORTABLE_STARTUP);
+
+        Set<String> plans = registry.targets().stream()
+                .map(AdapterTarget::planId)
+                .collect(java.util.stream.Collectors.toSet());
+        assertTrue(plans.contains(TexturePreparedPixelRuntime.PLAN_ID));
+        assertTrue(plans.contains(TexturePrefetchBypassPlan.PLAN_ID));
+        assertTrue(plans.contains(SourceHintIsolationRuntime.PLAN_ID));
+        assertTrue(plans.contains(LoadJsonMemoRuntime.PLAN_ID));
+        assertFalse(plans.contains(EntityLookupRuntime.PLAN_ID));
+        assertFalse(plans.contains(SimOpponentSafetyRuntime.PLAN_ID));
+        assertFalse(plans.contains(GraphicsLibCompactReplayPlan.PLAN_ID));
+        assertFalse(plans.contains(GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID));
+    }
+
+    @Test
+    void measurementOnlyScopeKeepsOnlyLightweightFrameAndStateBoundaries() {
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withFrameTimeTarget()
+                .withFrameTimeStartupCompletionTarget()
+                .withCampaignCallTimeTargets()
+                .withCampaignEngineTimeTarget()
+                .withCampaignLocationEconomyTimeTargets()
+                .withCampaignMarketFleetTimeTargets()
+                .forScope(AdapterPlanScope.MEASUREMENT_ONLY);
+
+        Set<String> plans = registry.targets().stream()
+                .map(AdapterTarget::planId)
+                .collect(java.util.stream.Collectors.toSet());
+        assertEquals(Set.of(
+                FrameTimeRuntime.PLAN_ID,
+                FrameTimeStatePlan.PLAN_ID,
+                FrameTimeStartupCompletionPlan.PLAN_ID), plans);
+        assertFalse(plans.contains(TexturePreparedPixelRuntime.PLAN_ID));
+        assertFalse(plans.contains(CampaignCallTimeRuntime.PLAN_ID));
+        assertFalse(plans.contains(CampaignEngineTimeRuntime.PLAN_ID));
+    }
+
+    @Test
+    void everyBuiltInTargetIsBoundToAnExactArchiveClassLoaderAndMethodShape() {
+        AdapterTargetRegistry registry = AdapterTargetRegistry.empty()
+                .withTextureTarget(TextureAdapterMode.PREPARED_PIXELS)
+                .withStartupPhaseTarget()
+                .withVariantJsonCacheTarget()
+                .withSpecStoreQuoteNormalizationTarget()
+                .withWeaponJsonCacheTarget()
+                .withProjectileJsonCacheTarget()
+                .withHullJsonCacheTarget()
+                .withRulesDuplicateIndexTarget()
+                .withRulesCsvCacheTarget()
+                .withRulesRegexCacheTarget()
+                .withRuleTokenCacheTarget()
+                .withRuleCommandClassCacheTarget()
+                .withMergedReadCacheTarget()
+                .withLoadJsonMemoTarget()
+                .withResourceProbeCacheTarget()
+                .withPreparedAudioTarget()
+                .withGraphicsLibCompactReplayTarget()
+                .withJaninoBytecodeCacheTarget()
+                .withGraphicsLibInsigniaManagerCacheTarget()
+                .withCampaignCallTimeTargets()
+                .withCampaignEngineTimeTarget()
+                .withCampaignLocationEconomyTimeTargets()
+                .withCampaignMarketFleetTimeTargets()
+                .withFrameTimeStartupCompletionTarget();
+
+        List<AdapterTarget> targets = new ArrayList<>(registry.targets());
+        targets.addAll(AdapterTargetRegistry.empty().withFrameTimeTarget().targets());
+        assertTrue(targets.size() > 70, "inventory unexpectedly shrank");
+        for (AdapterTarget target : targets) {
+            assertTrue(target.hasLiveSourceBinding(), target.id());
+            assertTrue(target.sha256().matches("[0-9a-f]{64}"), target.id());
+            assertTrue(target.sourceSha256().matches("[0-9a-f]{64}"), target.id());
+            assertFalse(target.sourceKind().isBlank(), target.id());
+            assertFalse(target.sourceSuffix().isBlank(), target.id());
+            assertFalse(target.loaderClass().isBlank(), target.id());
+            assertFalse(target.requiredMethods().isEmpty(), target.id());
+        }
+    }
+
+    @Test
+    void diagnosticPlanFilterAlsoDisablesComposedRuntimeGates() {
+        CampaignCallTimeRuntime.beginSession(true);
+        CampaignEngineTimeRuntime.beginSession(true);
+        CampaignLocationEconomyTimeRuntime.beginSession(true);
+        CampaignMarketFleetTimeRuntime.beginSession(true);
+
+        AdapterRuntime.applyDisabledDiagnosticRuntimeGates(Set.of(
+                CampaignCallTimeRuntime.PLAN_ID,
+                CampaignEngineTimeRuntime.PLAN_ID,
+                CampaignLocationEconomyTimeRuntime.PLAN_ID,
+                CampaignMarketFleetTimeRuntime.PLAN_ID));
+
+        assertFalse((Boolean) CampaignCallTimeRuntime.telemetry().get("enabled"));
+        assertFalse((Boolean) CampaignEngineTimeRuntime.telemetry().get("enabled"));
+        assertFalse((Boolean) CampaignLocationEconomyTimeRuntime.telemetry().get("enabled"));
+        assertFalse((Boolean) CampaignMarketFleetTimeRuntime.telemetry().get("enabled"));
     }
 
     private static ProtectionDomain domain(Path path) throws Exception {

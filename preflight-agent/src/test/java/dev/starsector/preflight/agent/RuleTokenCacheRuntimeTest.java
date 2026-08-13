@@ -10,17 +10,24 @@ import com.fs.starfarer.api.util.Misc;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The memo is only worth having if a hit is indistinguishable from a scan. These compare answers
  * against {@link Misc#tokenize}, which reproduces the shipped tokenizer's relevant properties.
  */
 class RuleTokenCacheRuntimeTest {
+    private static final String PROFILE = "b".repeat(64);
     private static MethodHandle vanilla;
+
+    @TempDir
+    Path temporary;
 
     @BeforeEach
     @AfterEach
@@ -134,6 +141,41 @@ class RuleTokenCacheRuntimeTest {
         assertEquals(100L, RuleTokenCacheRuntime.telemetry().get("calls"));
         assertEquals(98L, RuleTokenCacheRuntime.telemetry().get("hits"));
         assertEquals(2L, RuleTokenCacheRuntime.telemetry().get("misses"));
+    }
+
+    @Test
+    void completedStartupPublishesAndNextSessionServesPreparedShapes() throws Throwable {
+        Path rules = temporary.resolve(PROFILE + ".sprc");
+        RuleTokenCacheRuntime.configure(rules);
+        List<?> learned = tokenize("$market.size > 3");
+        assertEquals(1, Misc.tokenizeCalls);
+
+        RuleTokenCacheRuntime.complete();
+        assertTrue(Files.isRegularFile(temporary.resolve(PROFILE + ".sprt")));
+        assertEquals(1L, RuleTokenCacheRuntime.telemetry().get("writes"));
+
+        RuleTokenCacheRuntime.beginSession();
+        Misc.tokenizeCalls = 0;
+        RuleTokenCacheRuntime.configure(rules);
+        List<?> restored = tokenize("$market.size > 3");
+
+        assertEquals(0, Misc.tokenizeCalls);
+        assertSameTokens(learned, restored);
+        assertEquals(1L, RuleTokenCacheRuntime.telemetry().get("preparedHits"));
+        assertEquals(0L, RuleTokenCacheRuntime.telemetry().get("misses"));
+    }
+
+    @Test
+    void corruptPreparedArtifactFallsBackToVanillaAndCanBeRelearned() throws Throwable {
+        Path rules = temporary.resolve(PROFILE + ".sprc");
+        Files.write(temporary.resolve(PROFILE + ".sprt"), new byte[] {1, 2, 3});
+
+        RuleTokenCacheRuntime.configure(rules);
+        assertEquals(2, tokenize("FireBest now").size());
+
+        assertEquals(1, Misc.tokenizeCalls);
+        assertEquals(1L, RuleTokenCacheRuntime.telemetry().get("loadFailures"));
+        assertEquals(1L, RuleTokenCacheRuntime.telemetry().get("misses"));
     }
 
     private static List<?> tokenize(String expression) throws Throwable {

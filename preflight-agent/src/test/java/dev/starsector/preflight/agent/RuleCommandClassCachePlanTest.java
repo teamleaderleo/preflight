@@ -37,6 +37,23 @@ class RuleCommandClassCachePlanTest {
     }
 
     @Test
+    void chainsAfterTheTokenMemoOnTheSharedExpressionClass() throws Exception {
+        byte[] original = withTokenConstructor(RuleCommandLookupFixture.vanilla());
+        byte[] memoised = RuleTokenCachePlan.transform(ClassSignature.parse(original), original);
+
+        assertNotNull(memoised);
+        byte[] rewritten = RuleCommandClassCachePlan.transform(
+                ClassSignature.parse(memoised), memoised);
+
+        assertNotNull(rewritten, "the command shortcut must survive the token target winning");
+        assertEquals(1, calls(rewritten,
+                "dev/starsector/preflight/agent/RuleTokenCacheRuntime", "tokenize"));
+        assertEquals(1, calls(rewritten, RUNTIME, "shortcut"));
+        assertEquals(1, calls(rewritten, RUNTIME, "noteFailure"));
+        assertEquals(1, calls(rewritten, RUNTIME, "noteWinner"));
+    }
+
+    @Test
     void refusesToWeaveTwice() throws Exception {
         byte[] original = RuleCommandLookupFixture.vanilla();
         byte[] once = RuleCommandClassCachePlan.transform(ClassSignature.parse(original), original);
@@ -91,6 +108,31 @@ class RuleCommandClassCachePlanTest {
         method.visitMaxs(0, 0);
         method.visitEnd();
         writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] withTokenConstructor(byte[] original) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(original).accept(owner, ClassReader.EXPAND_FRAMES);
+        MethodNode constructor = new MethodNode(Opcodes.ACC_PUBLIC,
+                RuleTokenCachePlan.LOAD_METHOD, RuleTokenCachePlan.LOAD_DESCRIPTOR, null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(
+                Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        constructor.visitVarInsn(Opcodes.ALOAD, 1);
+        constructor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                RuleTokenCachePlan.TOKENIZE_OWNER,
+                RuleTokenCachePlan.TOKENIZE_NAME,
+                RuleTokenCachePlan.TOKENIZE_DESCRIPTOR,
+                false);
+        constructor.visitInsn(Opcodes.POP);
+        constructor.visitInsn(Opcodes.RETURN);
+        constructor.visitMaxs(0, 0);
+        constructor.visitEnd();
+        owner.methods.add(constructor);
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        owner.accept(writer);
         return writer.toByteArray();
     }
 

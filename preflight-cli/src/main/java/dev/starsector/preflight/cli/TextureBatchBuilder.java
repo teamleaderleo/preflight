@@ -3,6 +3,9 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedTexture;
 import dev.starsector.preflight.core.PreparedTextureIO;
+import dev.starsector.preflight.core.PreparedTexturePack;
+import dev.starsector.preflight.core.PreparedTexturePackIO;
+import dev.starsector.preflight.core.PreparedTexturePackOrderIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.TextureManifest;
 import dev.starsector.preflight.core.TextureManifestIO;
@@ -40,6 +43,7 @@ final class TextureBatchBuilder {
     private static final Set<String> IMAGE_IO_READER_EXTENSIONS = imageIoReaderExtensions();
     private static final long ESTIMATED_BUILD_BYTES_PER_PIXEL = 24L;
     private static final long ESTIMATED_BLOB_READ_MULTIPLIER = 3L;
+    static final double BALANCED_RAW_BELOW_RATIO = 1.30;
 
     private TextureBatchBuilder() {
     }
@@ -95,7 +99,9 @@ final class TextureBatchBuilder {
                         group.getKey(),
                         group.getValue().get(0),
                         budget,
-                        snapshotReader));
+                        snapshotReader,
+                        options.storageCodec(),
+                        options.rawWhenCompressionIsIneffective()));
             }
 
             Map<BlobKey, BlobResult> blobs = new HashMap<>();
@@ -158,14 +164,20 @@ final class TextureBatchBuilder {
             }
 
             TextureManifest manifest = new TextureManifest(index.profileFingerprint(), manifestEntries);
-            Path manifestPath = cacheRoot.resolve("manifests")
+            Path manifestPath = TextureManifestIO.directory(cacheRoot)
                     .resolve(index.profileFingerprint() + ".spfm");
             TextureManifestIO.write(manifestPath, manifest);
+            PackResult pack = ensurePack(cacheRoot, manifest);
 
             long sourceBytes = hashed.stream().mapToLong(HashedCandidate::sourceBytes).sum();
             return new Result(
                     manifest,
                     manifestPath,
+                    pack.path(),
+                    pack.hit(),
+                    pack.bytes(),
+                    pack.entries(),
+                    pack.durationNanos(),
                     candidates.size(),
                     hashed.size(),
                     groups.size(),
@@ -186,7 +198,91 @@ final class TextureBatchBuilder {
         }
     }
 
-    private static List<Candidate> collectCandidates(ResourceIndex index) {
+    private static PackResult ensurePack(Path cacheRoot, TextureManifest manifest) throws IOException {
+        long started = System.nanoTime();
+        List<String> logicalOrder = manifest.entries().values().stream()
+                .map(TextureManifest.Entry::blobRelativePath)
+                .distinct()
+                .toList();
+        List<String> blobs = preferredPackOrder(cacheRoot, manifest.profileFingerprint(), logicalOrder);
+        Path path = PreparedTexturePackIO.path(cacheRoot, manifest.profileFingerprint());
+        if (blobs.isEmpty()) {
+            return new PackResult(path, false, 0, 0, System.nanoTime() - started);
+        }
+        if (Files.isRegularFile(path)) {
+            try (PreparedTexturePack existing =
+                    PreparedTexturePackIO.open(path, manifest.profileFingerprint(), blobs)) {
+                if (existing.hasEntryOrder(blobs)) {
+                    return new PackResult(
+                            path, true, existing.fileBytes(), existing.entryCount(),
+                            System.nanoTime() - started);
+                }
+            } catch (IOException ignored) {
+                // The loose content-addressed blobs remain authoritative and rebuild the pack.
+            }
+        }
+        PreparedTexturePackIO.write(path, manifest.profileFingerprint(), cacheRoot, blobs);
+        try (PreparedTexturePack built =
+                PreparedTexturePackIO.open(path, manifest.profileFingerprint(), blobs)) {
+            return new PackResult(
+                    path, false, built.fileBytes(), built.entryCount(),
+                    System.nanoTime() - started);
+        }
+    }
+
+    private static List<String> preferredPackOrder(
+            Path cacheRoot, String profile, List<String> logicalOrder) {
+        Path sidecar = PreparedTexturePackOrderIO.path(cacheRoot, profile);
+        if (!Files.isRegularFile(sidecar)) {
+            return logicalOrder;
+        }
+        try {
+            Set<String> available = Set.copyOf(logicalOrder);
+            Map<String, String> availableByContent = new HashMap<>();
+            Set<String> ambiguousContent = new java.util.HashSet<>();
+            for (String path : logicalOrder) {
+                String identity = codecIndependentBlobPath(path);
+                String previous = availableByContent.putIfAbsent(identity, path);
+                if (previous != null && !previous.equals(path)) {
+                    ambiguousContent.add(identity);
+                }
+            }
+            LinkedHashSet<String> ordered = new LinkedHashSet<>();
+            for (String observed : PreparedTexturePackOrderIO.read(sidecar, profile)) {
+                if (available.contains(observed)) {
+                    ordered.add(observed);
+                    continue;
+                }
+                String identity = codecIndependentBlobPath(observed);
+                if (!ambiguousContent.contains(identity)) {
+                    String equivalent = availableByContent.get(identity);
+                    if (equivalent != null) {
+                        ordered.add(equivalent);
+                    }
+                }
+            }
+            ordered.addAll(logicalOrder);
+            return List.copyOf(ordered);
+        } catch (IOException | IllegalArgumentException ignored) {
+            return logicalOrder;
+        }
+    }
+
+    /** Keeps learned pack order valid when the same exact pixels switch storage codec. */
+    private static String codecIndependentBlobPath(String path) {
+        for (PreparedTextureIO.StorageCodec codec : PreparedTextureIO.StorageCodec.values()) {
+            if (codec == PreparedTextureIO.StorageCodec.RAW) {
+                continue;
+            }
+            String suffix = "-" + codec.suffix() + ".spft";
+            if (path.endsWith(suffix)) {
+                return path.substring(0, path.length() - suffix.length()) + ".spft";
+            }
+        }
+        return path;
+    }
+
+    static List<Candidate> collectCandidates(ResourceIndex index) {
         List<Candidate> candidates = new ArrayList<>();
         for (Map.Entry<String, List<ResourceIndex.Provider>> entry : index.entries().entrySet()) {
             if (!IMAGE_EXTENSIONS.contains(extension(entry.getKey()))) {
@@ -203,7 +299,7 @@ final class TextureBatchBuilder {
         return List.copyOf(candidates);
     }
 
-    private static List<HashedCandidate> hashCandidates(
+    static List<HashedCandidate> hashCandidates(
             List<Candidate> candidates,
             List<String> diagnostics,
             ExecutorService executor,
@@ -277,29 +373,67 @@ final class TextureBatchBuilder {
             BlobKey key,
             HashedCandidate representative,
             MemoryBudget budget,
-            SnapshotReader snapshotReader) {
+            SnapshotReader snapshotReader,
+            PreparedTextureIO.StorageCodec storageCodec,
+            boolean rawWhenCompressionIsIneffective) {
         return () -> {
-            String relative = blobRelativePath(key);
+            PreparedTextureIO.StorageCodec selectedCodec = selectedStorageCodec(
+                    cacheRoot, key, storageCodec, rawWhenCompressionIsIneffective);
+            String relative = blobRelativePath(key, selectedCodec);
             Path blob = cacheRoot.resolve(relative).normalize();
             if (!blob.startsWith(cacheRoot)) {
                 return BlobResult.failure(key, relative, false, "Blob path escaped the cache root");
             }
 
+            // Format policy is part of cache eligibility, not merely build eligibility. Check it
+            // before accepting an older blob so tightening the fidelity boundary cannot reuse an
+            // artifact produced under the previous policy.
+            if ("webp".equals(extension(representative.logicalPath()))) {
+                try (ImageInputStream input = ImageIO.createImageInputStream(representative.source().toFile())) {
+                    if (input == null) {
+                        throw new IOException("ImageIO could not open the source");
+                    }
+                    requireExactlyDecodableWebp(input);
+                } catch (UnsupportedImageException error) {
+                    return BlobResult.unsupported(
+                            key,
+                            relative,
+                            false,
+                            "Skipped unsupported texture " + representative.logicalPath() + ": " + error.getMessage());
+                }
+            }
+
             boolean quarantined = false;
             if (Files.isRegularFile(blob)) {
                 long blobSize = Files.size(blob);
-                long reservation = budget.acquire(saturatedMultiply(blobSize, ESTIMATED_BLOB_READ_MULTIPLIER));
+                // Checked LZ4 validation temporarily owns the encoded file, checked payload and
+                // decoded pixels. The compression ratio is intentionally unbounded, so serialize
+                // these preparation-only reads inside the declared budget instead of estimating
+                // decoded memory from compressed bytes and risking concurrent high-ratio blobs.
+                long estimatedReadBytes = selectedCodec == PreparedTextureIO.StorageCodec.LZ4
+                        ? budget.maximum()
+                        : saturatedMultiply(blobSize, ESTIMATED_BLOB_READ_MULTIPLIER);
+                long reservation = budget.acquire(estimatedReadBytes);
                 try {
                     PreparedTexture existing = PreparedTextureIO.read(blob);
                     if (existing.sourceSha256().equals(key.sourceSha256())
                             && existing.transformation() == key.transformation()) {
+                        SelectedBlob selected = finalizeBalancedSelection(
+                                cacheRoot,
+                                key,
+                                selectedCodec,
+                                rawWhenCompressionIsIneffective,
+                                relative,
+                                blob,
+                                blobSize,
+                                existing);
                         return BlobResult.success(
                                 key,
-                                relative,
+                                selected.relativePath(),
                                 metadata(existing),
-                                true,
-                                false,
-                                blobSize);
+                                selected.cacheHit(),
+                                selected.quarantined(),
+                                selected.bytes());
                     }
                     quarantined = quarantine(cacheRoot, blob, "identity-mismatch");
                 } catch (IOException error) {
@@ -364,14 +498,23 @@ final class TextureBatchBuilder {
                         encoded,
                         key.sourceSha256(),
                         key.transformation());
-                PreparedTextureIO.write(blob, texture);
+                PreparedTextureIO.write(blob, texture, selectedCodec);
+                SelectedBlob selected = finalizeBalancedSelection(
+                        cacheRoot,
+                        key,
+                        selectedCodec,
+                        rawWhenCompressionIsIneffective,
+                        relative,
+                        blob,
+                        Files.size(blob),
+                        texture);
                 return BlobResult.success(
                         key,
-                        relative,
+                        selected.relativePath(),
                         metadata(texture),
                         false,
-                        quarantined,
-                        Files.size(blob));
+                        quarantined || selected.quarantined(),
+                        selected.bytes());
             } catch (Exception error) {
                 return BlobResult.failure(
                         key,
@@ -384,6 +527,60 @@ final class TextureBatchBuilder {
         };
     }
 
+    static PreparedTextureIO.StorageCodec selectedStorageCodec(
+            Path cacheRoot,
+            BlobKey key,
+            PreparedTextureIO.StorageCodec requested,
+            boolean rawWhenCompressionIsIneffective) {
+        if (!rawWhenCompressionIsIneffective || requested != PreparedTextureIO.StorageCodec.LZ4) {
+            return requested;
+        }
+        Path lz4 = cacheRoot.resolve(blobRelativePath(key, PreparedTextureIO.StorageCodec.LZ4));
+        Path raw = cacheRoot.resolve(blobRelativePath(key, PreparedTextureIO.StorageCodec.RAW));
+        if (!Files.isRegularFile(lz4) || !Files.isRegularFile(raw)) {
+            return requested;
+        }
+        try {
+            long compressedBytes = PreparedTextureIO.storedPixelBytes(lz4);
+            long rawBytes = PreparedTextureIO.storedPixelBytes(raw);
+            return compressionRatio(rawBytes, compressedBytes) < BALANCED_RAW_BELOW_RATIO
+                    ? PreparedTextureIO.StorageCodec.RAW
+                    : requested;
+        } catch (IOException ignored) {
+            return requested;
+        }
+    }
+
+    private static SelectedBlob finalizeBalancedSelection(
+            Path cacheRoot,
+            BlobKey key,
+            PreparedTextureIO.StorageCodec selectedCodec,
+            boolean rawWhenCompressionIsIneffective,
+            String relative,
+            Path blob,
+            long blobSize,
+            PreparedTexture texture) throws IOException {
+        if (!rawWhenCompressionIsIneffective
+                || selectedCodec != PreparedTextureIO.StorageCodec.LZ4
+                || compressionRatio(texture.pixelBytes(), PreparedTextureIO.storedPixelBytes(blob))
+                        >= BALANCED_RAW_BELOW_RATIO) {
+            return new SelectedBlob(relative, blobSize, true, false);
+        }
+        String rawRelative = blobRelativePath(key, PreparedTextureIO.StorageCodec.RAW);
+        Path raw = cacheRoot.resolve(rawRelative).normalize();
+        if (!raw.startsWith(cacheRoot)) {
+            throw new IOException("Raw prepared texture path escaped the cache root");
+        }
+        boolean quarantined = Files.isRegularFile(raw)
+                && quarantine(cacheRoot, raw, "superseded-or-corrupt");
+        PreparedTextureIO.write(raw, texture, PreparedTextureIO.StorageCodec.RAW);
+        return new SelectedBlob(rawRelative, Files.size(raw), false, quarantined);
+    }
+
+    static double compressionRatio(long rawBytes, long compressedBytes) {
+        return compressedBytes <= 0 ? Double.POSITIVE_INFINITY : rawBytes / (double) compressedBytes;
+    }
+
     private static TextureMetadata metadata(PreparedTexture texture) {
         return new TextureMetadata(
                 texture.sourceSha256(),
@@ -394,11 +591,12 @@ final class TextureBatchBuilder {
                 texture.pixelBytes());
     }
 
-    private static Dimensions probe(Path source) throws IOException {
+    static Dimensions probe(Path source) throws IOException {
         try (ImageInputStream input = ImageIO.createImageInputStream(source.toFile())) {
             if (input == null) {
                 throw new IOException("ImageIO could not open the source");
             }
+            requireExactlyDecodableWebp(input);
             var readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext()) {
                 String sourceExtension = extension(source.getFileName().toString());
@@ -415,10 +613,47 @@ final class TextureBatchBuilder {
                 if (width <= 0 || height <= 0) {
                     throw new IOException("Image dimensions are invalid");
                 }
-                return new Dimensions(width, height);
+                var type = reader.getRawImageType(0);
+                if (type == null) {
+                    var types = reader.getImageTypes(0);
+                    type = types.hasNext() ? types.next() : null;
+                }
+                if (type == null) {
+                    throw new IOException("Image reader did not expose a color model");
+                }
+                int channels = type.getColorModel().hasAlpha() ? 4 : 3;
+                return new Dimensions(width, height, channels);
             } finally {
                 reader.dispose();
             }
+        }
+    }
+
+    /**
+     * The pure-Java and game-native readers are pixel-identical for simple lossless VP8L files.
+     * They are not identical for the reviewed extended lossy-alpha file, so those stay on the
+     * game's authoritative decoder instead of being baked into the exact prepared cache.
+     */
+    private static void requireExactlyDecodableWebp(ImageInputStream input) throws IOException {
+        long position = input.getStreamPosition();
+        byte[] header = new byte[16];
+        int offset = 0;
+        while (offset < header.length) {
+            int read = input.read(header, offset, header.length - offset);
+            if (read < 0) {
+                break;
+            }
+            offset += read;
+        }
+        input.seek(position);
+        boolean webp = offset >= 12
+                && header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F'
+                && header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P';
+        boolean simpleLossless = offset >= 16
+                && header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'L';
+        if (webp && !simpleLossless) {
+            throw new UnsupportedImageException(
+                    "Only simple lossless VP8L WebP is pixel-identical to the game decoder");
         }
     }
 
@@ -456,10 +691,14 @@ final class TextureBatchBuilder {
         return value * multiplier;
     }
 
-    private static String blobRelativePath(BlobKey key) {
+    static String blobRelativePath(BlobKey key, PreparedTextureIO.StorageCodec storageCodec) {
         String suffix = key.transformation().name().toLowerCase(Locale.ROOT).replace('_', '-');
-        return "blobs/" + key.sourceSha256().substring(0, 2) + "/"
-                + key.sourceSha256() + "-" + suffix + ".spft";
+        String codecSuffix = storageCodec == PreparedTextureIO.StorageCodec.RAW
+                ? ""
+                : "-" + storageCodec.suffix();
+        return PreparedTextureIO.cacheDirectoryName() + "/"
+                + key.sourceSha256().substring(0, 2) + "/"
+                + key.sourceSha256() + "-" + suffix + codecSuffix + ".spft";
     }
 
     private static String extension(String path) {
@@ -487,7 +726,19 @@ final class TextureBatchBuilder {
         };
     }
 
-    record Options(int workers, long memoryBudgetBytes) {
+    record Options(
+            int workers,
+            long memoryBudgetBytes,
+            PreparedTextureIO.StorageCodec storageCodec,
+            boolean rawWhenCompressionIsIneffective) {
+        Options(int workers, long memoryBudgetBytes) {
+            this(workers, memoryBudgetBytes, PreparedTextureIO.StorageCodec.RAW, false);
+        }
+
+        Options(int workers, long memoryBudgetBytes, PreparedTextureIO.StorageCodec storageCodec) {
+            this(workers, memoryBudgetBytes, storageCodec, false);
+        }
+
         Options {
             if (workers < 1 || workers > 64) {
                 throw new IllegalArgumentException("Texture workers must be between 1 and 64");
@@ -495,12 +746,18 @@ final class TextureBatchBuilder {
             if (memoryBudgetBytes < 16L * 1024 * 1024) {
                 throw new IllegalArgumentException("Texture memory budget must be at least 16 MiB");
             }
+            Objects.requireNonNull(storageCodec, "storageCodec");
         }
     }
 
     record Result(
             TextureManifest manifest,
             Path manifestPath,
+            Path packPath,
+            boolean packHit,
+            long packBytes,
+            int packedBlobs,
+            long packDurationNanos,
             long candidateEntries,
             long hashedEntries,
             long uniqueContent,
@@ -518,6 +775,26 @@ final class TextureBatchBuilder {
         double durationMillis() {
             return durationNanos / 1_000_000.0;
         }
+
+        double packDurationMillis() {
+            return packDurationNanos / 1_000_000.0;
+        }
+
+        long rawBlobs() {
+            return manifest.entries().values().stream()
+                    .map(TextureManifest.Entry::blobRelativePath)
+                    .distinct()
+                    .filter(path -> !path.endsWith("-lz4.spft"))
+                    .count();
+        }
+
+        long lz4Blobs() {
+            return packedBlobs - rawBlobs();
+        }
+    }
+
+    private record PackResult(
+            Path path, boolean hit, long bytes, int entries, long durationNanos) {
     }
 
     @FunctionalInterface
@@ -530,10 +807,10 @@ final class TextureBatchBuilder {
         String hash(Path source) throws IOException;
     }
 
-    private record Candidate(String logicalPath, Path source, String rootId, long sourceBytes) {
+    record Candidate(String logicalPath, Path source, String rootId, long sourceBytes) {
     }
 
-    private record HashedCandidate(
+    record HashedCandidate(
             String logicalPath,
             Path source,
             String rootId,
@@ -551,10 +828,10 @@ final class TextureBatchBuilder {
         }
     }
 
-    private record BlobKey(String sourceSha256, PreparedTexture.Transformation transformation) {
+    record BlobKey(String sourceSha256, PreparedTexture.Transformation transformation) {
     }
 
-    private record Dimensions(int width, int height) {
+    record Dimensions(int width, int height, int channels) {
     }
 
     private record TextureMetadata(
@@ -564,6 +841,10 @@ final class TextureBatchBuilder {
             int height,
             int channels,
             int pixelBytes) {
+    }
+
+    private record SelectedBlob(
+            String relativePath, long bytes, boolean cacheHit, boolean quarantined) {
     }
 
     private record BlobResult(
@@ -595,7 +876,7 @@ final class TextureBatchBuilder {
         }
     }
 
-    private static final class UnsupportedImageException extends IOException {
+    static final class UnsupportedImageException extends IOException {
         UnsupportedImageException(String message) {
             super(message);
         }

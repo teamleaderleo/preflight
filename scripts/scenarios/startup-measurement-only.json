@@ -1,0 +1,18 @@
+{
+  "format": "starsector-preflight-smoke-v1",
+  "name": "startup-measurement-only",
+  "timeoutSeconds": 240,
+  "launch": {
+    "preset": "measurement-only",
+    "textureStorage": "balanced",
+    "profile": null
+  },
+  "steps": [
+    {
+      "id": "menu",
+      "kind": "wait-state",
+      "state": "main-menu-ready",
+      "timeoutSeconds": 180
+    }
+  ]
+}

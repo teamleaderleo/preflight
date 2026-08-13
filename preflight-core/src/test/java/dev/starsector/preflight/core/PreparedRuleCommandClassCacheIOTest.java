@@ -92,7 +92,7 @@ class PreparedRuleCommandClassCacheIOTest {
         assertThrows(IOException.class, () -> PreparedRuleCommandClassCacheIO.read(file));
 
         byte[] rules = PreparedRulesCsvCacheIO.toBytes(
-                new PreparedRulesCsvCache("a".repeat(64), "[]"));
+                new PreparedRulesCsvCache("a".repeat(64), JsonTree.encode(java.util.List.of())));
         assertThrows(IOException.class, () -> PreparedRuleCommandClassCacheIO.fromBytes(rules));
     }
 

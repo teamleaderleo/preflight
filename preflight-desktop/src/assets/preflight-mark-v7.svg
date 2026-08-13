@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Preflight spacecraft mark</title>
+  <desc id="desc">A centered spacecraft on drafting paper, aimed toward concentric circles in the upper right.</desc>
+  <defs>
+    <pattern id="small-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#9eafba" stroke-width="1" opacity="0.18"/>
+    </pattern>
+    <style>
+      .ink { stroke: #18344d; stroke-linecap: round; stroke-linejoin: round; }
+      .paper { fill: #f4f0e3; }
+    </style>
+  </defs>
+
+  <rect width="512" height="512" class="paper"/>
+  <rect width="512" height="512" fill="url(#small-grid)"/>
+  <path d="M256 16V496M16 256H496" fill="none" stroke="#78909f" stroke-width="2" opacity="0.19"/>
+
+  <g class="ink" fill="none">
+    <circle cx="478" cy="55" r="168" stroke-width="12" opacity="0.5"/>
+    <circle cx="478" cy="55" r="116" stroke-width="10" opacity="0.4"/>
+    <circle cx="478" cy="55" r="64" stroke-width="8" opacity="0.32"/>
+  </g>
+
+  <g transform="translate(28 0) rotate(38 256 256)" class="ink">
+    <!-- Two broad swept wings sit behind a single rocket-like hull. -->
+    <path d="M228 210L104 328L118 358L232 302Z" class="paper" stroke-width="13"/>
+    <path d="M284 210L408 328L394 358L280 302Z" class="paper" stroke-width="13"/>
+
+    <!-- The centered hull, cockpit, and engine aperture are the only remaining details. -->
+    <path d="M256 68C280 112 290 168 290 230L282 364L270 430H242L230 364L222 230C222 168 232 112 256 68Z" class="paper" stroke-width="14"/>
+    <path d="M256 106L278 174L276 226H236L234 174Z" fill="#dfe5e3" stroke-width="8"/>
+    <path d="M242 390H270L266 420H246Z" fill="#dfe5e3" stroke-width="8"/>
+  </g>
+
+  <g fill="none" stroke="#18344d" stroke-width="3" opacity="0.8">
+    <path d="M16 64V16H64M448 16H496V64M496 448V496H448M64 496H16V448"/>
+    <path d="M128 10V24M256 10V24M384 10V24M128 488V502M256 488V502M384 488V502"/>
+    <path d="M10 128H24M10 256H24M10 384H24M488 128H502M488 256H502M488 384H502"/>
+  </g>
+</svg>

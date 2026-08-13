@@ -14,6 +14,7 @@ record AgentOptions(
         Path destination,
         String settings,
         AdapterMode adapterMode,
+        AdapterPlanScope adapterPlanScope,
         Path adapterReport,
         Path adapterTargets,
         Path textureCacheDirectory,
@@ -37,6 +38,12 @@ record AgentOptions(
         Path mergedReadCache,
         Path preparedAudioCache,
         String audioDecoderIdentity,
+        Path preparedAudioManifest,
+        String preparedAudioManifestIdentity,
+        boolean graphicsLibCompactReplay,
+        Path janinoBytecodeCache,
+        String janinoBytecodeContext,
+        boolean graphicsLibInsigniaManagerCache,
         List<String> candidatePrefixes) {
     /**
      * Long enough that a startup which finishes inside it pays nothing, short enough that a session
@@ -80,6 +87,7 @@ record AgentOptions(
         }
         String settings = values.getOrDefault("settings", "profile");
         AdapterMode adapterMode = AdapterMode.parse(values.get("adapter"));
+        AdapterPlanScope adapterPlanScope = AdapterPlanScope.parse(values.get("planScope"));
         Path adapterReport = decodedPath(values, "adapterReport64");
         if (adapterReport == null) {
             adapterReport = destination.resolveSibling("adapter.json");
@@ -127,10 +135,18 @@ record AgentOptions(
         // decoder's output if it was baked by this decoder; without it nothing is served.
         Path preparedAudioCache = decodedPath(values, "preparedAudioCache64");
         String audioDecoderIdentity = values.get("audioDecoder");
+        Path preparedAudioManifest = decodedPath(values, "preparedAudioManifest64");
+        String preparedAudioManifestIdentity = values.get("preparedAudioManifestIdentity");
+        boolean graphicsLibCompactReplay = "on".equalsIgnoreCase(values.get("graphicsLibCompactReplay"));
+        Path janinoBytecodeCache = decodedPath(values, "janinoBytecodeCache64");
+        String janinoBytecodeContext = values.get("janinoBytecodeContext");
+        boolean graphicsLibInsigniaManagerCache =
+                "on".equalsIgnoreCase(values.get("graphicsLibInsigniaManagerCache"));
         return new AgentOptions(
                 destination,
                 settings,
                 adapterMode,
+                adapterPlanScope,
                 adapterReport,
                 adapterTargets,
                 textureCacheDirectory,
@@ -154,7 +170,13 @@ record AgentOptions(
                 mergedReadCache,
                 preparedAudioCache,
                 audioDecoderIdentity,
-                DEFAULT_CANDIDATE_PREFIXES);
+                preparedAudioManifest,
+                preparedAudioManifestIdentity,
+                graphicsLibCompactReplay,
+                janinoBytecodeCache,
+                janinoBytecodeContext,
+                graphicsLibInsigniaManagerCache,
+                adapterMode == AdapterMode.PROBE ? DEFAULT_CANDIDATE_PREFIXES : List.of());
     }
 
     /** {@code flush=<seconds>}; {@code 0} turns sidecar flushing off. */

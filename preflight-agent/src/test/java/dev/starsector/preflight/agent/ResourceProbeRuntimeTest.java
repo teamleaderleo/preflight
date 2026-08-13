@@ -3,7 +3,6 @@ package dev.starsector.preflight.agent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fs.util.C;
@@ -104,6 +103,16 @@ class ResourceProbeRuntimeTest {
     }
 
     @Test
+    void anIncompleteDirectoryListingNeverClaimsThatAChildIsAbsent() {
+        assertFalse(ResourceProbeRuntime.listingClaimsAbsent(
+                new String[0], false, "descriptor.json"));
+        assertTrue(ResourceProbeRuntime.listingClaimsAbsent(
+                new String[0], true, "descriptor.json"));
+        assertFalse(ResourceProbeRuntime.listingClaimsAbsent(
+                new String[] {"descriptor.json"}, true, "descriptor.json"));
+    }
+
+    @Test
     void aDisabledRuntimeIsExactlyFileExists() throws Exception {
         ResourceProbeRuntime.enable(false);
         Files.createDirectories(root.resolve("data"));
@@ -121,16 +130,18 @@ class ResourceProbeRuntimeTest {
     }
 
     @Test
-    void aPerRootOpenForAnAbsentFileNeverReachesTheOriginal() throws Throwable {
+    void aPerRootOpenForAnAbsentFileAlwaysReachesTheOriginal() throws Throwable {
         Files.createDirectories(root.resolve("data/hulls"));
         Counter vanilla = new Counter();
 
-        assertNull(ResourceProbeRuntime.open(null, "data/hulls/absent.ship",
+        assertNotNull(ResourceProbeRuntime.open(null, "data/hulls/absent.ship",
                 directoryRoot(), vanilla.handle()));
-        assertNull(ResourceProbeRuntime.open(null, "data/weapons/absent.wpn",
+        assertNotNull(ResourceProbeRuntime.open(null, "data/weapons/absent.wpn",
                 directoryRoot(), vanilla.handle()));
-        assertEquals(0, vanilla.calls, "an absent file is answered from the listing, not by opening");
-        assertEquals(2L, ResourceProbeRuntime.report().get("rootOpensSkippedWholesale"));
+        assertEquals(2, vanilla.calls,
+                "whole-root misses are not safe to answer without the original resolver");
+        assertEquals(false, ResourceProbeRuntime.report().get("rootOpenShortcutEnabled"));
+        assertEquals(0L, ResourceProbeRuntime.report().get("rootOpensSkippedWholesale"));
     }
 
     @Test

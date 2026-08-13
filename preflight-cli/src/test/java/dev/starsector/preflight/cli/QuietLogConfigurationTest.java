@@ -29,6 +29,20 @@ class QuietLogConfigurationTest {
     }
 
     @Test
+    void fileOnlyModeKeepsSynchronousCrashSafeWrites() throws Exception {
+        Path configuration = QuietLogConfiguration.path(temporaryDirectory, false);
+        QuietLogConfiguration.write(configuration, false);
+        String content = Files.readString(configuration, StandardCharsets.ISO_8859_1);
+
+        assertTrue(content.contains("log4j.rootLogger=INFO, file"));
+        assertTrue(content.contains("RollingFileAppender"));
+        assertFalse(content.contains("ConsoleAppender"));
+        assertFalse(content.contains("BufferedIO"));
+        assertFalse(content.contains("BufferSize"));
+        assertTrue(configuration.endsWith(QuietLogConfiguration.FILE_ONLY_NAME));
+    }
+
+    @Test
     void usesAnAsciiUriThatCannotSplitJavaToolOptionsAtPathSpaces() {
         Path configuration = QuietLogConfiguration.path(
                 temporaryDirectory.resolve("run with spaces"));

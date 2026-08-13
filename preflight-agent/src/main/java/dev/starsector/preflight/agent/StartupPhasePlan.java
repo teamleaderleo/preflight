@@ -24,16 +24,23 @@ final class StartupPhasePlan {
     }
 
     static byte[] transform(ClassSignature signature, byte[] originalBytes) {
-        if (!TARGET_CLASS.equals(signature.internalName())
-                || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
-            return null;
-        }
         ClassNode owner = new ClassNode(Opcodes.ASM9);
         new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+        if (!apply(signature, owner)) return null;
+        byte[] transformed = write(owner);
+        StartupPhaseRuntime.installed();
+        return transformed;
+    }
+
+    static boolean apply(ClassSignature signature, ClassNode owner) {
+        if (!TARGET_CLASS.equals(signature.internalName())
+                || !signature.hasMethod(INIT_METHOD, INIT_DESCRIPTOR)) {
+            return false;
+        }
         MethodNode init = uniqueMethod(owner, INIT_METHOD, INIT_DESCRIPTOR);
         MethodNode renderProgress = uniqueMethod(owner, "renderProgress", "(F)V");
         if (init == null || calls(init, RUNTIME, "mark", "(Ljava/lang/String;)V").size() > 0) {
-            return null;
+            return false;
         }
 
         MethodInsnNode renderBackground = uniqueCall(init,
@@ -79,7 +86,7 @@ final class StartupPhasePlan {
                 || shutdown == null || awaitRetry == null
                 || graphicsFinalize == null || scripts == null
                 || pluginCallback == null || pluginLoop == null || onlyReturn == null) {
-            return null;
+            return false;
         }
 
         init.instructions.insertBefore(init.instructions.getFirst(), mark("resource-init-enter"));
@@ -117,9 +124,12 @@ final class StartupPhasePlan {
                 Opcodes.INVOKESTATIC, RUNTIME, "progress", "(F)V", false));
         renderProgress.instructions.insertBefore(renderProgress.instructions.getFirst(), progress);
 
+        return true;
+    }
+
+    static byte[] write(ClassNode owner) {
         ClassWriter writer = new SafeClassWriter(ClassWriter.COMPUTE_MAXS);
         owner.accept(writer);
-        StartupPhaseRuntime.installed();
         return writer.toByteArray();
     }
 

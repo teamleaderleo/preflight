@@ -13,7 +13,8 @@ final class InstallCommand {
     private InstallCommand() {
     }
 
-    static int execute(CommandLine options) throws Exception {
+    static int execute(String[] args, int offset) throws Exception {
+        Options options = Options.parse(args, offset);
         Platform platform = Platform.current();
         Path home = Path.of(System.getProperty("user.home"));
         DiscoveryResult discovery = StarsectorDiscovery.discover(
@@ -25,7 +26,7 @@ final class InstallCommand {
                 options.launcher());
         LaunchTarget target = discovery.selected();
         if (target == null) {
-            return RunCommand.doctor(options);
+            return RunCommand.doctor(CommandLine.parse(options.discoveryArguments(), 0));
         }
 
         PreflightHome preflight = PreflightHome.resolve(platform, home, System.getenv());
@@ -40,28 +41,53 @@ final class InstallCommand {
                     StandardCopyOption.COPY_ATTRIBUTES);
         }
 
-        return switch (platform) {
+        int installed = switch (platform) {
             case MAC -> installMac(preflight, installedJar, target.installRoot());
             case LINUX -> installLinux(preflight, installedJar, target.installRoot());
             case WINDOWS -> installWindows(preflight, installedJar, target.installRoot());
             case OTHER -> {
                 System.err.println("Automatic launcher installation is unsupported on this operating system. Use: java -jar "
-                        + installedJar + " run --game " + target.installRoot());
+                        + installedJar + " run --fast --game " + target.installRoot());
                 yield 4;
             }
         };
+        if (installed == 0) {
+            retireLegacyLaunchers(preflight);
+        }
+        if (installed != 0 || !options.prepare()) {
+            return installed;
+        }
+
+        System.out.println("Preparing the exact current profile ("
+                + options.textureStorage().optionValue() + " texture storage)...");
+        return PrepareCommand.execute(options.preparationArguments(target.installRoot()), 0);
+    }
+
+    static void retireLegacyLaunchers(PreflightHome preflight) {
+        for (PreflightHome.Integration integration : preflight.integrations()) {
+            if (!integration.legacy() || !integration.present()) {
+                continue;
+            }
+            try {
+                UninstallCommand.removeIntegration(integration);
+                System.out.println("Removed renamed launcher: " + integration.path());
+            } catch (IOException failure) {
+                System.err.println("The new Preflight launcher is installed, but the old launcher at "
+                        + integration.path() + " could not be removed: " + failure.getMessage());
+            }
+        }
     }
 
     private static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
         Path app = preflight.pathOf(PreflightHome.Id.MAC_APP);
         Path macos = app.resolve("Contents").resolve("MacOS");
         Files.createDirectories(macos);
-        Path executable = macos.resolve("starsector-preflight");
+        Path executable = macos.resolve("preflight");
         String script = "#!/bin/sh\nexec "
                 + shellQuote(javaExecutable())
                 + " -jar "
                 + shellQuote(jar.toString())
-                + " run --game "
+                + " run --fast --game "
                 + shellQuote(game.toString())
                 + " \"$@\"\n";
         Files.writeString(executable, script, StandardCharsets.UTF_8);
@@ -71,12 +97,12 @@ final class InstallCommand {
                 <?xml version="1.0" encoding="UTF-8"?>
                 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
                 <plist version="1.0"><dict>
-                  <key>CFBundleName</key><string>Starsector Preflight</string>
-                  <key>CFBundleDisplayName</key><string>Starsector Preflight</string>
+                  <key>CFBundleName</key><string>Preflight</string>
+                  <key>CFBundleDisplayName</key><string>Preflight</string>
                   <key>CFBundleIdentifier</key><string>dev.starsector.preflight.launcher</string>
                   <key>CFBundleVersion</key><string>1</string>
                   <key>CFBundlePackageType</key><string>APPL</string>
-                  <key>CFBundleExecutable</key><string>starsector-preflight</string>
+                  <key>CFBundleExecutable</key><string>preflight</string>
                   <key>LSUIElement</key><true/>
                 </dict></plist>
                 """;
@@ -92,7 +118,7 @@ final class InstallCommand {
                 + shellQuote(javaExecutable())
                 + " -jar "
                 + shellQuote(jar.toString())
-                + " run --game "
+                + " run --fast --game "
                 + shellQuote(game.toString())
                 + " \"$@\"\n";
         Files.writeString(launcher, script, StandardCharsets.UTF_8);
@@ -102,8 +128,8 @@ final class InstallCommand {
         Files.createDirectories(desktop.getParent());
         String desktopFile = "[Desktop Entry]\n"
                 + "Type=Application\n"
-                + "Name=Starsector Preflight\n"
-                + "Exec=" + launcher + "\n"
+                + "Name=Preflight\n"
+                + "Exec=" + desktopExecArgument(launcher.toString()) + "\n"
                 + "Terminal=false\n"
                 + "Categories=Game;Utility;\n";
         Files.writeString(desktop, desktopFile, StandardCharsets.UTF_8);
@@ -117,11 +143,11 @@ final class InstallCommand {
         Path command = preflight.pathOf(PreflightHome.Id.WINDOWS_COMMAND);
         Files.createDirectories(preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY));
         String content = "@echo off\r\n\""
-                + javaExecutable()
+                + windowsBatchLiteral(javaExecutable())
                 + "\" -jar \""
-                + jar
-                + "\" run --game \""
-                + game
+                + windowsBatchLiteral(jar.toString())
+                + "\" run --fast --game \""
+                + windowsBatchLiteral(game.toString())
                 + "\" %*\r\n";
         Files.writeString(command, content, StandardCharsets.UTF_8);
         System.out.println("Installed Windows launcher: " + command);
@@ -138,6 +164,39 @@ final class InstallCommand {
         return "'" + value.replace("'", "'\\''") + "'";
     }
 
+    /** Quotes one executable path under the freedesktop Desktop Entry Exec grammar. */
+    static String desktopExecArgument(String value) {
+        if (value.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException("Desktop launcher path contains NUL");
+        }
+        StringBuilder quoted = new StringBuilder(value.length() + 2).append('"');
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                // Exec quoting and the desktop-file string layer both consume backslashes.
+                case '\\' -> quoted.append("\\\\\\\\");
+                case '"' -> quoted.append("\\\\\\\"");
+                case '`' -> quoted.append("\\\\`");
+                case '$' -> quoted.append("\\\\$");
+                // A literal percent must not become a desktop-entry field code such as %f.
+                case '%' -> quoted.append("%%");
+                case '\n' -> quoted.append("\\n");
+                case '\r' -> quoted.append("\\r");
+                case '\t' -> quoted.append("\\t");
+                default -> quoted.append(character);
+            }
+        }
+        return quoted.append('"').toString();
+    }
+
+    /** Prevents a literal percent in an installed path from becoming cmd.exe expansion. */
+    static String windowsBatchLiteral(String value) {
+        if (value.indexOf('\0') >= 0 || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+            throw new IllegalArgumentException("Windows launcher path contains a control character");
+        }
+        return value.replace("%", "%%");
+    }
+
     private static void makeExecutable(Path file) throws IOException {
         try {
             Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(file);
@@ -148,6 +207,106 @@ final class InstallCommand {
             Files.setPosixFilePermissions(file, updated);
         } catch (UnsupportedOperationException ignored) {
             file.toFile().setExecutable(true, false);
+        }
+    }
+
+    record Options(
+            Path game,
+            Path launcher,
+            boolean prepare,
+            TextureStoragePolicy textureStorage,
+            Integer workers,
+            Long memoryMib) {
+        static Options parse(String[] args, int offset) {
+            Path game = null;
+            Path launcher = null;
+            boolean prepare = false;
+            TextureStoragePolicy textureStorage = TextureStoragePolicy.DEFAULT;
+            boolean textureStorageSpecified = false;
+            Integer workers = null;
+            Long memoryMib = null;
+            for (int i = offset; i < args.length; i++) {
+                switch (args[i]) {
+                    case "--game" -> game = Path.of(requireValue(args, ++i, "--game"));
+                    case "--launcher" -> launcher = Path.of(requireValue(args, ++i, "--launcher"));
+                    case "--prepare" -> prepare = true;
+                    case "--texture-storage" -> {
+                        textureStorage = TextureStoragePolicy.parse(
+                                requireValue(args, ++i, "--texture-storage"));
+                        textureStorageSpecified = true;
+                    }
+                    case "--workers" -> workers = parseInt(
+                            requireValue(args, ++i, "--workers"), "worker count");
+                    case "--memory-mb" -> memoryMib = parseLong(
+                            requireValue(args, ++i, "--memory-mb"), "memory budget");
+                    default -> throw new IllegalArgumentException("Unknown install option: " + args[i]);
+                }
+            }
+            if (!prepare && (textureStorageSpecified || workers != null || memoryMib != null)) {
+                throw new IllegalArgumentException(
+                        "--texture-storage, --workers, and --memory-mb require --prepare");
+            }
+            if (workers != null && (workers < 1 || workers > 64)) {
+                throw new IllegalArgumentException("Texture workers must be between 1 and 64");
+            }
+            if (memoryMib != null && (memoryMib < 16 || memoryMib > 65_536)) {
+                throw new IllegalArgumentException(
+                        "Texture memory budget must be between 16 and 65536 MiB");
+            }
+            return new Options(game, launcher, prepare, textureStorage, workers, memoryMib);
+        }
+
+        String[] preparationArguments(Path installRoot) {
+            java.util.List<String> values = new java.util.ArrayList<>();
+            values.add("--game");
+            values.add(installRoot.toString());
+            values.add("--texture-storage");
+            values.add(textureStorage.optionValue());
+            if (workers != null) {
+                values.add("--workers");
+                values.add(Integer.toString(workers));
+            }
+            if (memoryMib != null) {
+                values.add("--memory-mb");
+                values.add(Long.toString(memoryMib));
+            }
+            return values.toArray(String[]::new);
+        }
+
+        String[] discoveryArguments() {
+            java.util.List<String> values = new java.util.ArrayList<>();
+            if (game != null) {
+                values.add("--game");
+                values.add(game.toString());
+            }
+            if (launcher != null) {
+                values.add("--launcher");
+                values.add(launcher.toString());
+            }
+            return values.toArray(String[]::new);
+        }
+
+        private static String requireValue(String[] args, int index, String option) {
+            if (index >= args.length) {
+                throw new IllegalArgumentException("Missing value for " + option);
+            }
+            return args[index];
+        }
+
+        private static int parseInt(String raw, String kind) {
+            try {
+                return Integer.parseInt(raw);
+            } catch (NumberFormatException error) {
+                throw new IllegalArgumentException("Invalid " + kind + ": " + raw, error);
+            }
+        }
+
+        private static long parseLong(String raw, String kind) {
+            try {
+                return Long.parseLong(raw);
+            } catch (NumberFormatException error) {
+                throw new IllegalArgumentException("Invalid " + kind + ": " + raw, error);
+            }
         }
     }
 }

@@ -1,7 +1,6 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
-import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,15 +38,53 @@ final class RunCommand {
             printDiscovery(discovery);
             return 3;
         }
-        TextureLaunchContext textureContext = textureContext(options, target);
-        SpecStoreCacheContexts specStoreCaches = specStoreCacheContexts(options, target, textureContext);
-        VariantJsonCacheContext variantJsonCache = specStoreCaches.variantJson();
-        WeaponJsonCacheContext weaponJsonCache = specStoreCaches.weaponJson();
-        ProjectileJsonCacheContext projectileJsonCache = specStoreCaches.projectileJson();
-        HullJsonCacheContext hullJsonCache = specStoreCaches.hullJson();
-        RulesCsvCacheContext rulesCsvCache = specStoreCaches.rulesCsv();
-        RuleCommandCacheContext ruleCommandCache = specStoreCaches.ruleCommand();
-        MergedReadCacheContext mergedReadCache = specStoreCaches.mergedRead();
+        return executeSelected(options, discovery, target, platform);
+    }
+
+    private static int executeSelected(
+            CommandLine options,
+            DiscoveryResult discovery,
+            LaunchTarget target,
+            Platform platform) throws Exception {
+        OperationLease.Acquisition operationOwnership = options.dryRun()
+                ? null
+                : OperationLease.acquire(PreflightHome.current(), "launching", target.installRoot());
+        if (operationOwnership != null && operationOwnership.recovered() != null) {
+            System.err.println("Preflight recovered ownership left by interrupted "
+                    + operationOwnership.recovered().operation() + " process "
+                    + operationOwnership.recovered().pid() + "; removed "
+                    + operationOwnership.recoveredTemporaryFiles() + " incomplete temporary files.");
+        }
+        try (OperationLease ignored = operationOwnership == null ? null : operationOwnership.lease()) {
+            return executeOwned(options, discovery, target, platform);
+        }
+    }
+
+    private static int executeOwned(
+            CommandLine options,
+            DiscoveryResult discovery,
+            LaunchTarget target,
+            Platform platform) throws Exception {
+        Path home = Path.of(System.getProperty("user.home"));
+        CombatJvmSafeguard.Resolution combatJvmSafeguard =
+                CombatJvmSafeguard.resolve(platform, target, System.getenv());
+        LaunchOwnership ownership = LaunchOwnership.detect(target);
+        boolean janinoCacheOwned = options.janinoBytecodeCache() && !ownership.fastRendering();
+        if (options.janinoBytecodeCache() && ownership.fastRendering()) {
+            System.out.println("Preflight left Janino compilation to Fast Rendering's custom "
+                    + "system classloader (" + String.join(", ", ownership.evidence()) + ").");
+        }
+        LaunchCacheContexts.Result cacheContexts =
+                LaunchCacheContexts.select(options, target, janinoCacheOwned);
+        LaunchCacheContexts.Texture textureContext = cacheContexts.texture();
+        LaunchCacheContexts.VariantJson variantJsonCache = cacheContexts.variantJson();
+        LaunchCacheContexts.WeaponJson weaponJsonCache = cacheContexts.weaponJson();
+        LaunchCacheContexts.ProjectileJson projectileJsonCache = cacheContexts.projectileJson();
+        LaunchCacheContexts.HullJson hullJsonCache = cacheContexts.hullJson();
+        LaunchCacheContexts.RulesCsv rulesCsvCache = cacheContexts.rulesCsv();
+        LaunchCacheContexts.RuleCommand ruleCommandCache = cacheContexts.ruleCommand();
+        LaunchCacheContexts.MergedRead mergedReadCache = cacheContexts.mergedRead();
+        LaunchCacheContexts.Janino janinoBytecodeCache = cacheContexts.janino();
         DirectLaunchSettings directSettings = directLaunchSettings(options);
 
         Path runDirectory = options.traceDirectory() == null
@@ -56,37 +93,28 @@ final class RunCommand {
         Path recording = runDirectory.resolve("startup.jfr");
         Path report = runDirectory.resolve("summary.json");
         Path adapterReport = runDirectory.resolve("adapter.json");
+        Path adapterHealth = runDirectory.resolve("adapter-health.json");
         Path adapterAnalysis = runDirectory.resolve("adapter-analysis.json");
         Path metadata = runDirectory.resolve("run.json");
         Path profile = runDirectory.resolve("profile.json");
         Path console = runDirectory.resolve("console.txt");
-        Path quietLogConfiguration = options.quietLogs()
-                ? QuietLogConfiguration.path(runDirectory)
+        Path logConfiguration = options.fileOnlyLogs()
+                ? QuietLogConfiguration.path(runDirectory, options.quietLogs())
                 : null;
         Path agentJar = SelfJar.locate();
+        // The identity below is the installed JAR's; only the path the child JVM must read itself
+        // is restated, and only when the system's encoding would otherwise destroy it.
+        Path injectedAgentJar = AgentJarStaging.readableByTheChildJvm(agentJar);
 
         // Prepared audio is served only when the cache the bake wrote is present *and* the decoder
-        // that baked it is still the decoder installed. Neither is worth guessing at: if the bake
-        // has not been run, or the game has been updated since, nothing is passed and the launch
-        // decodes exactly as it always did.
-        Path preparedAudioCache = null;
-        String audioDecoderIdentity = null;
-        if (options.preparedAudio()) {
-            Path candidate = Path.of(System.getProperty("user.home"))
-                    .resolve(".starsector-preflight").resolve("cache")
-                    .toAbsolutePath().normalize();
-            if (Files.isDirectory(candidate.resolve("prepared-audio"))) {
-                preparedAudioCache = candidate;
-                audioDecoderIdentity = PrepareAudioCommand.decoderPolicyIdentity(
-                        PrepareAudioCommand.jars(InstallRoot.resolve(options.game())));
-            } else {
-                System.out.println("No prepared audio for this installation yet; "
-                        + "run `preflight audio prepare` to build it.");
-            }
-        }
+        // that baked it is still the decoder installed. A current, fully content-validated manifest
+        // additionally enables path lookup; without one the original exact byte-hash lookup remains.
+        LaunchCacheContexts.PreparedAudio preparedAudio = cacheContexts.preparedAudio();
+        Path preparedAudioCache = preparedAudio == null ? null : preparedAudio.cacheRoot();
+        String audioDecoderIdentity = preparedAudio == null ? null : preparedAudio.decoderIdentity();
         String javaToolOptions = AgentInjection.append(
                 System.getenv("JAVA_TOOL_OPTIONS"),
-                agentJar,
+                injectedAgentJar,
                 recording,
                 options.adapterMode(),
                 adapterReport,
@@ -113,16 +141,40 @@ final class RunCommand {
                 options.loadJsonMemo(),
                 preparedAudioCache,
                 audioDecoderIdentity,
+                preparedAudio == null ? null : preparedAudio.manifest(),
+                preparedAudio == null ? null : preparedAudio.manifestIdentity(),
                 mergedReadCache == null ? null : mergedReadCache.artifact(),
-                options.quietLogs());
+                options.quietLogs(),
+                options.graphicsLibCompactReplay(),
+                janinoBytecodeCache == null ? null : janinoBytecodeCache.cacheRoot(),
+                janinoBytecodeCache == null ? null : janinoBytecodeCache.contextToken(),
+                options.graphicsLibInsigniaManagerCache(),
+                options.adapterPlanScope());
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
-        if (quietLogConfiguration != null) {
+        if (logConfiguration != null) {
             javaToolOptions = appendJavaOptions(
                     javaToolOptions,
-                    List.of(QuietLogConfiguration.javaOption(quietLogConfiguration)));
+                    List.of(QuietLogConfiguration.javaOption(logConfiguration)));
         }
+        if (options.suppressAssetProgressLogs()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.assetProgressLogs=off"));
+        }
+        if (options.trustValidatedTextureIndex()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.texture.trustValidatedIndex=true"));
+        }
+        if (options.desktopSmoke()) {
+            javaToolOptions = appendJavaOptions(
+                    javaToolOptions,
+                    List.of("-Dpreflight.desktopSmoke=true", "-Dpreflight.frameTimes=true"));
+        }
+        String javaOptions = CombatJvmSafeguard.appendOptions(
+                System.getenv("_JAVA_OPTIONS"), combatJvmSafeguard);
 
         List<String> command = new ArrayList<>(target.command());
         command.addAll(options.forwardedArgs());
@@ -135,15 +187,18 @@ final class RunCommand {
                 discovery,
                 options,
                 textureContext,
-                directSettings);
+                directSettings,
+                janinoBytecodeCache,
+                combatJvmSafeguard,
+                javaOptions);
         if (options.dryRun()) {
             return 0;
         }
 
         RunIdentity runIdentity = RunIdentity.capture(agentJar);
         Files.createDirectories(runDirectory);
-        if (quietLogConfiguration != null) {
-            QuietLogConfiguration.write(quietLogConfiguration);
+        if (logConfiguration != null) {
+            QuietLogConfiguration.write(logConfiguration, options.quietLogs());
         }
         // The census is a third full walk of the same 61,693 files -- 854ms on the reviewed profile
         // -- and nothing about the launch reads its output. It writes profile.json, which is a
@@ -165,16 +220,18 @@ final class RunCommand {
         ChildProcessOutput.Result childOutput = null;
         List<String> postprocessingFailures = new ArrayList<>();
         StarsectorRunLogEvidence.Snapshot logSnapshot = StarsectorRunLogEvidence.snapshot(target.installRoot());
-
         try {
             writeMetadata(
                     metadata, target, command, runIdentity, started, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
-                    postprocessingFailures, null);
+                    postprocessingFailures, null, combatJvmSafeguard);
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(target.workingDirectory().toFile());
             builder.environment().put("JAVA_TOOL_OPTIONS", javaToolOptions);
+            if (javaOptions != null && !javaOptions.isBlank()) {
+                builder.environment().put("_JAVA_OPTIONS", javaOptions);
+            }
             builder.environment().put("PREFLIGHT_RUN_DIR", runDirectory.toString());
 
             childOutput = ChildProcessOutput.run(builder, console);
@@ -244,6 +301,14 @@ final class RunCommand {
             }
             if (Files.isRegularFile(adapterReport)) {
                 System.out.println("Preflight adapter report: " + adapterReport);
+                try {
+                    AdapterHealthReport.Result health = AdapterHealthReport.analyze(adapterReport, adapterHealth);
+                    System.out.println("Preflight adapter health: " + health.status() + " — " + health.summary());
+                    System.out.println("Preflight adapter health report: " + adapterHealth);
+                } catch (Exception error) {
+                    addPostprocessingFailure(postprocessingFailures, "adapter-health", error);
+                    System.err.println("Preflight adapter health skipped: " + message(error));
+                }
                 Path startupPhases = adapterReport.resolveSibling("adapter-startup-phases.json");
                 if (Files.isRegularFile(startupPhases)) {
                     System.out.println("Preflight startup phase report: " + startupPhases);
@@ -279,7 +344,7 @@ final class RunCommand {
                         metadata, target, command, runIdentity, started, ended, exitCode, launcherExitCode, outcome,
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
-                        console, childOutput, postprocessingFailures, executionFailure);
+                        console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
             }
@@ -385,14 +450,27 @@ final class RunCommand {
             String javaToolOptions,
             DiscoveryResult discovery,
             CommandLine options,
-            TextureLaunchContext textureContext,
-            DirectLaunchSettings directSettings) {
+            LaunchCacheContexts.Texture textureContext,
+            DirectLaunchSettings directSettings,
+            LaunchCacheContexts.Janino janinoBytecodeCache,
+            CombatJvmSafeguard.Resolution combatJvmSafeguard,
+            String javaOptions) {
         System.out.println("Preflight selected:");
         System.out.println("  install:  " + target.installRoot());
         System.out.println("  launcher: " + target.launcher());
         System.out.println("  kind:     " + target.kind());
+        LaunchOwnership ownership = LaunchOwnership.detect(target);
+        System.out.println("  runtime owner: " + ownership.owner()
+                + (ownership.evidence().isEmpty() ? "" : " " + ownership.evidence()));
         System.out.println("  run data: " + runDirectory);
+        System.out.println("  optimization preset: " + options.optimizationPreset().optionValue());
+        System.out.println("  disabled optimization domains: "
+                + options.disabledOptimizationDomains().stream()
+                        .map(OptimizationDomain::optionValue)
+                        .sorted()
+                        .toList());
         System.out.println("  adapter:  " + options.adapterMode());
+        System.out.println("  adapter plan scope: " + options.adapterPlanScope().optionValue());
         System.out.println("  recording: " + options.recordingMode()
                 + (options.singleChunkRecording() ? " (single timestamp-coherent chunk)" : ""));
         System.out.println("  campaign entity index: " + options.campaignEntityIndex());
@@ -401,6 +479,15 @@ final class RunCommand {
         System.out.println("  resource probe cache: " + options.resourceProbeCache());
         System.out.println("  loadJSON memo: " + options.loadJsonMemo());
         System.out.println("  rule command class cache: " + options.ruleCommandClassCache());
+        System.out.println("  GraphicsLib compact replay: " + options.graphicsLibCompactReplay());
+        System.out.println("  Janino bytecode cache: "
+                + (janinoBytecodeCache != null ? "active"
+                : options.janinoBytecodeCache() ? "suppressed or unavailable" : "off"));
+        System.out.println("  GraphicsLib insignia manager cache: "
+                + options.graphicsLibInsigniaManagerCache());
+        System.out.println("  combat JVM safeguard: "
+                + (combatJvmSafeguard.active() ? "active — " : "inactive — ")
+                + combatJvmSafeguard.reason());
         System.out.println("  quiet logs: " + (options.quietLogs()
                 ? QuietLogConfiguration.path(runDirectory)
                 : "off"));
@@ -425,13 +512,16 @@ final class RunCommand {
         }
         System.out.println("  command:  " + renderCommand(command));
         System.out.println("  JAVA_TOOL_OPTIONS: " + javaToolOptions);
+        if (javaOptions != null && !javaOptions.isBlank()) {
+            System.out.println("  _JAVA_OPTIONS: " + javaOptions);
+        }
         for (String diagnostic : discovery.diagnostics()) {
             System.out.println("  note: " + diagnostic);
         }
     }
 
     private static void printDiscovery(DiscoveryResult discovery) {
-        System.out.println("Starsector Preflight doctor");
+        System.out.println("Preflight doctor");
         if (discovery.selected() != null) {
             System.out.println("Selected: " + discovery.selected().launcher());
         }
@@ -533,13 +623,14 @@ final class RunCommand {
             Path profile,
             CommandLine options,
             DirectLaunchSettings directSettings,
-            TextureLaunchContext textureContext,
+            LaunchCacheContexts.Texture textureContext,
             Path adapterReport,
             Path adapterAnalysis,
             Path console,
             ChildProcessOutput.Result childOutput,
             List<String> postprocessingFailures,
-            String executionFailure) throws IOException {
+            String executionFailure,
+            CombatJvmSafeguard.Resolution combatJvmSafeguard) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("started", started);
         values.put("ended", ended);
@@ -560,6 +651,9 @@ final class RunCommand {
         values.put("installRoot", target.installRoot());
         values.put("launcher", target.launcher());
         values.put("launcherKind", target.kind());
+        LaunchOwnership ownership = LaunchOwnership.detect(target);
+        values.put("runtimeOwner", ownership.owner());
+        values.put("runtimeOwnershipEvidence", ownership.evidence());
         values.put("command", renderCommand(command));
         values.put("profile", profile);
         values.put("recordingMode", options.recordingMode());
@@ -573,14 +667,30 @@ final class RunCommand {
         values.put("resourceProbeCache", options.resourceProbeCache());
         values.put("loadJsonMemo", options.loadJsonMemo());
         values.put("ruleCommandClassCache", options.ruleCommandClassCache());
+        values.put("graphicsLibCompactReplay", options.graphicsLibCompactReplay());
+        values.put("janinoBytecodeCache", options.janinoBytecodeCache());
+        values.put("graphicsLibInsigniaManagerCache", options.graphicsLibInsigniaManagerCache());
+        values.put("combatJvmSafeguard", combatJvmSafeguard.toReportValues());
         values.put("quietLogs", options.quietLogs());
-        values.put("quietLogConfiguration", options.quietLogs()
-                ? QuietLogConfiguration.path(path.getParent())
+        values.put("fileOnlyLogs", options.fileOnlyLogs());
+        values.put("assetProgressLogsSuppressed", options.suppressAssetProgressLogs());
+        values.put("trustedValidatedTextureIndex", options.trustValidatedTextureIndex());
+        values.put("desktopSmoke", options.desktopSmoke());
+        values.put("quietLogConfiguration", options.fileOnlyLogs()
+                ? QuietLogConfiguration.path(path.getParent(), options.quietLogs())
                 : null);
         values.put("directLaunch", options.directLaunch());
         values.put("directLaunchSettings", directSettings == null ? null : directSettings.toReportValues());
+        values.put("optimizationPreset", options.optimizationPreset().optionValue());
+        values.put("disabledOptimizationDomains", options.disabledOptimizationDomains().stream()
+                .map(OptimizationDomain::optionValue)
+                .sorted()
+                .toList());
         values.put("adapterMode", options.adapterMode());
+        values.put("adapterPlanScope", options.adapterPlanScope().optionValue());
         values.put("adapterReport", adapterReport);
+        Path adapterHealth = adapterReport.resolveSibling("adapter-health.json");
+        values.put("adapterHealthReport", Files.isRegularFile(adapterHealth) ? adapterHealth : null);
         values.put("adapterAnalysis", Files.isRegularFile(adapterAnalysis) ? adapterAnalysis : null);
         values.put("adapterTargets", options.adapterTargets());
         values.put("textureAdapterMode", options.textureAdapterMode());
@@ -595,6 +705,8 @@ final class RunCommand {
         values.put("textureCurrentIndexBuildMs", textureContext == null ? null : textureContext.indexBuildMillis());
         values.put("adapterKillSwitchProperty", "preflight.adapter.disabled");
         values.put("adapterKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER");
+        values.put("adapterPlanKillSwitchProperty", "preflight.adapter.disabledPlans");
+        values.put("adapterPlanKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER_PLANS");
         Files.writeString(path, Json.object(values) + System.lineSeparator());
     }
 
@@ -618,273 +730,4 @@ final class RunCommand {
         return existing == null || existing.isBlank() ? options : existing + " " + options;
     }
 
-    private static TextureLaunchContext textureContext(CommandLine options, LaunchTarget target) throws IOException {
-        if (options.textureAuto()) {
-            System.out.println("Preflight is matching prepared textures to the current installed profile...");
-            CurrentTextureCache.Resolution resolved = CurrentTextureCache.resolve(
-                    target.installRoot(), options.textureCacheDirectory());
-            return new TextureLaunchContext(
-                    resolved.cacheDirectory(),
-                    resolved.manifest(),
-                    resolved.index(),
-                    resolved.resourceIndex(),
-                    true,
-                    resolved.profileFingerprint(),
-                    resolved.manifestSha256(),
-                    resolved.indexSha256(),
-                    resolved.checkedProviders(),
-                    resolved.indexBuildMillis());
-        }
-        if (options.textureManifest() == null) {
-            return null;
-        }
-        return new TextureLaunchContext(
-                options.textureCacheDirectory().toAbsolutePath().normalize(),
-                options.textureManifest().toAbsolutePath().normalize(),
-                options.textureIndex().toAbsolutePath().normalize(),
-                null,
-                false,
-                null,
-                null,
-                null,
-                0,
-                0);
-    }
-
-    /**
-     * Selects every spec-store cache artifact from one pass over the launch profile.
-     *
-     * <p>These identities used to be built independently, which meant six reads of the same
-     * 8&nbsp;MB resource index, six hashes of the same game jar, and 12,797 separate {@code
-     * toRealPath} resolutions -- 1,612ms in the launcher before the JVM started. Sharing one
-     * {@link ProfileIdentityContext} removes the duplication without changing a single digest, and
-     * the context starts from the checksummed index {@link CurrentTextureCache} just read and
-     * equality-checked instead of decoding that 8&nbsp;MB artifact again.
-     *
-     * <p>Each cache still fails independently: an identity that cannot be built leaves that one
-     * context null and vanilla loading handles that corpus, exactly as before.
-     */
-    private static SpecStoreCacheContexts specStoreCacheContexts(
-            CommandLine options,
-            LaunchTarget target,
-            TextureLaunchContext textures) {
-        if (options.adapterMode() != dev.starsector.preflight.agent.AdapterMode.ENABLED
-                || textures == null || !textures.automatic()) {
-            return SpecStoreCacheContexts.none();
-        }
-        long opened = System.nanoTime();
-        try (ProfileIdentityContext context =
-                     ProfileIdentityContext.of(target.installRoot(), textures.resourceIndex())) {
-            System.out.printf(Locale.ROOT,
-                    "Preflight read the launch profile in %.1fms (%d providers).%n",
-                    (System.nanoTime() - opened) / 1_000_000.0,
-                    context.resources().providerCount());
-            return new SpecStoreCacheContexts(
-                    variantJsonCacheContext(context, textures),
-                    weaponJsonCacheContext(context, textures),
-                    projectileJsonCacheContext(context, textures),
-                    hullJsonCacheContext(context, textures),
-                    rulesCsvCacheContext(context, textures),
-                    options.ruleCommandClassCache()
-                            ? ruleCommandCacheContext(context, textures)
-                            : null,
-                    mergedReadCacheContext(context, textures));
-        } catch (Exception error) {
-            System.err.println("Preflight launch profile identity failed: " + message(error)
-                    + "; vanilla loading remains active.");
-            return SpecStoreCacheContexts.none();
-        }
-    }
-
-    private static VariantJsonCacheContext variantJsonCacheContext(
-            ProfileIdentityContext context, TextureLaunchContext textures) {
-        long started = System.nanoTime();
-        try {
-            VariantJsonProfileIdentityBuilder.Result profile =
-                    VariantJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "variant-json", profile.identitySha256(), ".spvj");
-            report("variant JSON", profile.identitySha256(), started, artifact,
-                    String.format(Locale.ROOT, "%d paths, %d providers",
-                            profile.logicalPaths(), profile.providerCount()));
-            return new VariantJsonCacheContext(artifact);
-        } catch (Exception error) {
-            declined("variant JSON", error);
-            return null;
-        }
-    }
-
-    private static WeaponJsonCacheContext weaponJsonCacheContext(
-            ProfileIdentityContext context, TextureLaunchContext textures) {
-        long started = System.nanoTime();
-        try {
-            WeaponJsonProfileIdentityBuilder.Result profile =
-                    WeaponJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "weapon-json", profile.identitySha256(), ".spwj");
-            report("weapon JSON", profile.identitySha256(), started, artifact,
-                    String.format(Locale.ROOT, "%d paths, %d providers",
-                            profile.logicalPaths(), profile.providerCount()));
-            return new WeaponJsonCacheContext(artifact);
-        } catch (Exception error) {
-            declined("weapon JSON", error);
-            return null;
-        }
-    }
-
-    private static ProjectileJsonCacheContext projectileJsonCacheContext(
-            ProfileIdentityContext context, TextureLaunchContext textures) {
-        long started = System.nanoTime();
-        try {
-            ProjectileJsonProfileIdentityBuilder.Result profile =
-                    ProjectileJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "projectile-json", profile.identitySha256(), ".sppj");
-            report("projectile JSON", profile.identitySha256(), started, artifact,
-                    String.format(Locale.ROOT, "%d paths, %d providers",
-                            profile.logicalPaths(), profile.providerCount()));
-            return new ProjectileJsonCacheContext(artifact);
-        } catch (Exception error) {
-            declined("projectile JSON", error);
-            return null;
-        }
-    }
-
-    private static HullJsonCacheContext hullJsonCacheContext(
-            ProfileIdentityContext context, TextureLaunchContext textures) {
-        long started = System.nanoTime();
-        try {
-            HullJsonProfileIdentityBuilder.Result profile =
-                    HullJsonProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "hull-json", profile.identitySha256(), ".sphj");
-            report("hull JSON", profile.identitySha256(), started, artifact,
-                    String.format(Locale.ROOT, "%d paths, %d providers",
-                            profile.logicalPaths(), profile.providerCount()));
-            return new HullJsonCacheContext(artifact);
-        } catch (Exception error) {
-            declined("hull JSON", error);
-            return null;
-        }
-    }
-
-    private static RulesCsvCacheContext rulesCsvCacheContext(
-            ProfileIdentityContext context, TextureLaunchContext textures) {
-        long started = System.nanoTime();
-        try {
-            RulesCsvProfileIdentityBuilder.Result profile =
-                    RulesCsvProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "rules-csv", profile.identitySha256(), ".sprc");
-            report("rules CSV", profile.identitySha256(), started, artifact,
-                    String.format(Locale.ROOT, "%d providers", profile.providerCount()));
-            return new RulesCsvCacheContext(artifact);
-        } catch (Exception error) {
-            declined("rules CSV", error);
-            return null;
-        }
-    }
-
-    private static RuleCommandCacheContext ruleCommandCacheContext(
-            ProfileIdentityContext context, TextureLaunchContext textures) {
-        long started = System.nanoTime();
-        try {
-            RuleCommandClassProfileIdentityBuilder.Result profile =
-                    RuleCommandClassProfileIdentityBuilder.build(context);
-            Path artifact =
-                    artifact(textures, "rule-command-classes", profile.identitySha256(), ".sprk");
-            report("rule command class", profile.identitySha256(), started, artifact,
-                    String.format(Locale.ROOT, "%d settings.json providers, %d jars, %.1f MB",
-                            profile.settingsProviderCount(), profile.jarCount(),
-                            profile.jarBytes() / 1_048_576.0));
-            return new RuleCommandCacheContext(artifact);
-        } catch (Exception error) {
-            declined("rule command class", error);
-            return null;
-        }
-    }
-
-    private static MergedReadCacheContext mergedReadCacheContext(
-            ProfileIdentityContext context, TextureLaunchContext textures) {
-        long started = System.nanoTime();
-        try {
-            MergedReadProfileIdentityBuilder.Result profile =
-                    MergedReadProfileIdentityBuilder.build(context);
-            Path artifact = artifact(textures, "merged-reads", profile.identitySha256(), ".spmr");
-            report("merged read", profile.identitySha256(), started, artifact,
-                    String.format(Locale.ROOT, "%d paths, %d providers",
-                            profile.logicalPaths(), profile.providerCount()));
-            return new MergedReadCacheContext(artifact);
-        } catch (Exception error) {
-            declined("merged read", error);
-            return null;
-        }
-    }
-
-    private static Path artifact(
-            TextureLaunchContext textures, String store, String identity, String extension) {
-        return textures.cacheDirectory()
-                .resolve("spec-store").resolve(store)
-                .resolve(identity + extension)
-                .toAbsolutePath().normalize();
-    }
-
-    private static void report(
-            String label, String identity, long started, Path artifact, String detail) {
-        System.out.printf(Locale.ROOT,
-                "Preflight matched %s dependency profile %s in %.1fms (%s, %s).%n",
-                label,
-                identity,
-                (System.nanoTime() - started) / 1_000_000.0,
-                detail,
-                Files.isRegularFile(artifact) ? "hit" : "learning run");
-    }
-
-    private static void declined(String label, Exception error) {
-        System.err.println("Preflight " + label + " cache selection failed: " + message(error)
-                + "; vanilla loading remains active.");
-    }
-
-    private record SpecStoreCacheContexts(
-            VariantJsonCacheContext variantJson,
-            WeaponJsonCacheContext weaponJson,
-            ProjectileJsonCacheContext projectileJson,
-            HullJsonCacheContext hullJson,
-            RulesCsvCacheContext rulesCsv,
-            RuleCommandCacheContext ruleCommand,
-            MergedReadCacheContext mergedRead) {
-
-        static SpecStoreCacheContexts none() {
-            return new SpecStoreCacheContexts(null, null, null, null, null, null, null);
-        }
-    }
-
-    private record TextureLaunchContext(
-            Path cacheDirectory,
-            Path manifest,
-            Path index,
-            ResourceIndex resourceIndex,
-            boolean automatic,
-            String profileFingerprint,
-            String manifestSha256,
-            String indexSha256,
-            long checkedProviders,
-            double indexBuildMillis) {
-    }
-
-    private record VariantJsonCacheContext(Path artifact) {
-    }
-
-    private record WeaponJsonCacheContext(Path artifact) {
-    }
-
-    private record ProjectileJsonCacheContext(Path artifact) {
-    }
-
-    private record HullJsonCacheContext(Path artifact) {
-    }
-
-    private record RulesCsvCacheContext(Path artifact) {
-    }
-
-    private record RuleCommandCacheContext(Path artifact) {
-    }
-
-    private record MergedReadCacheContext(Path artifact) {
-    }
 }

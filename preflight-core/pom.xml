@@ -6,11 +6,17 @@
   <parent>
     <groupId>dev.starsector.preflight</groupId>
     <artifactId>starsector-preflight</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
   </parent>
   <artifactId>preflight-core</artifactId>
 
   <dependencies>
+    <!-- Pure-Java lossless codecs keep prepared caches portable across every game platform. -->
+    <dependency>
+      <groupId>io.airlift</groupId>
+      <artifactId>aircompressor</artifactId>
+      <version>${aircompressor.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>

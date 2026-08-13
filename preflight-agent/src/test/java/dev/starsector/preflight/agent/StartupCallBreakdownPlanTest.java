@@ -1,0 +1,229 @@
+package dev.starsector.preflight.agent;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+import org.junit.jupiter.api.Test;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+
+class StartupCallBreakdownPlanTest {
+    private static final StartupCallBreakdownPlan.Probe PROBE =
+            StartupCallBreakdownPlan.probes().stream()
+                    .filter(probe -> "ashlib/data/plugins/repositories/ShipRenderInfoRepo"
+                            .equals(probe.className()))
+                    .findFirst()
+                    .orElseThrow();
+
+    @Test
+    void wrapsReviewedCallSiteAndDeclinesUnknownIdentity() throws Exception {
+        byte[] original = fixture();
+        ClassSignature exact = exactSignature(original);
+        byte[] transformed = StartupCallBreakdownPlan.transform(exact, original);
+        assertNotNull(transformed);
+        assertEquals(2, runtimeCalls(transformed));
+        assertNull(StartupCallBreakdownPlan.transform(ClassSignature.parse(transformed), transformed));
+        assertNull(StartupCallBreakdownPlan.transform(ClassSignature.parse(original), original));
+    }
+
+    @Test
+    void wrapsNexerelinFactionLoadAndDefaultLookups() throws Exception {
+        StartupCallBreakdownPlan.Probe nex = StartupCallBreakdownPlan.probes().stream()
+                .filter(probe -> "exerelin/utilities/NexFactionConfig".equals(probe.className()))
+                .findFirst()
+                .orElseThrow();
+        byte[] original = nexFixture();
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature exact = new ClassSignature(parsed.internalName(), nex.sha256(),
+                parsed.majorVersion(), parsed.access(), parsed.methods());
+
+        byte[] transformed = StartupCallBreakdownPlan.transform(exact, original);
+
+        assertNotNull(transformed);
+        assertEquals(6, runtimeCalls(transformed));
+    }
+
+    @Test
+    void wrapsMagicLibApplicationLoadBoundaries() throws Exception {
+        StartupCallBreakdownPlan.Probe magic = StartupCallBreakdownPlan.probes().stream()
+                .filter(probe -> "org/magiclib/Magic_modPlugin".equals(probe.className()))
+                .findFirst()
+                .orElseThrow();
+        byte[] original = magicFixture();
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature exact = new ClassSignature(parsed.internalName(), magic.sha256(),
+                parsed.majorVersion(), parsed.access(), parsed.methods());
+
+        byte[] transformed = StartupCallBreakdownPlan.transform(exact, original);
+
+        assertNotNull(transformed);
+        assertEquals(24, runtimeCalls(transformed));
+    }
+
+    @Test
+    void wrapsCampaignEnginePublicationBoundaries() throws Exception {
+        StartupCallBreakdownPlan.Probe campaign = StartupCallBreakdownPlan.probes().stream()
+                .filter(probe -> CampaignEngineTimePlan.TARGET_CLASS.equals(probe.className()))
+                .findFirst()
+                .orElseThrow();
+        byte[] original = campaignFixture();
+        ClassSignature parsed = ClassSignature.parse(original);
+        ClassSignature exact = new ClassSignature(parsed.internalName(), campaign.sha256(),
+                parsed.majorVersion(), parsed.access(), parsed.methods());
+
+        byte[] transformed = StartupCallBreakdownPlan.transform(exact, original);
+
+        assertNotNull(transformed);
+        assertEquals(10, runtimeCalls(transformed));
+    }
+
+    private static byte[] fixture() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, PROBE.className(),
+                null, "java/lang/Object", null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "populateShip", "(Lcom/fs/starfarer/api/combat/ShipHullSpecAPI;)V", null, null);
+        method.visitCode();
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "ashlib/data/plugins/misc/AshMisc", "getVaraint",
+                "(Lcom/fs/starfarer/api/combat/ShipHullSpecAPI;)Ljava/lang/String;", false);
+        method.visitInsn(Opcodes.POP);
+        method.visitInsn(Opcodes.RETURN);
+        method.visitMaxs(0, 0);
+        method.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] nexFixture() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                "exerelin/utilities/NexFactionConfig", null, "java/lang/Object", null);
+        MethodVisitor constructor = writer.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
+                "(Ljava/lang/String;)V", null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                "java/lang/Object", "<init>", "()V", false);
+        constructor.visitLdcInsn("exerelin_fleets");
+        constructor.visitLdcInsn("miningFleetName");
+        constructor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "exerelin/utilities/StringHelper", "getString",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        constructor.visitInsn(Opcodes.POP);
+        constructor.visitVarInsn(Opcodes.ALOAD, 0);
+        constructor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                "exerelin/utilities/NexFactionConfig", "loadFactionConfig", "()V", false);
+        constructor.visitInsn(Opcodes.RETURN);
+        constructor.visitMaxs(0, 0);
+        constructor.visitEnd();
+        MethodVisitor load = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                "loadFactionConfig", "()V", null, null);
+        load.visitCode();
+        load.visitInsn(Opcodes.ACONST_NULL);
+        load.visitLdcInsn("data/config/exerelinFactionConfig/test.json");
+        load.visitLdcInsn("nexerelin");
+        load.visitMethodInsn(Opcodes.INVOKEINTERFACE,
+                "com/fs/starfarer/api/SettingsAPI", "getMergedJSONForMod",
+                "(Ljava/lang/String;Ljava/lang/String;)Lorg/json/JSONObject;", true);
+        load.visitInsn(Opcodes.POP);
+        load.visitInsn(Opcodes.RETURN);
+        load.visitMaxs(0, 0);
+        load.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] magicFixture() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                "org/magiclib/Magic_modPlugin", null, "java/lang/Object", null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC,
+                "onApplicationLoad", "()V", null, null);
+        method.visitCode();
+        invoke(method, "data/scripts/Magic_modPlugin", "onApplicationLoad");
+        invoke(method, "org/magiclib/util/MagicSettings", "loadModSettings");
+        invoke(method, "org/magiclib/bounty/MagicBountyLoader", "loadBountiesFromJSON");
+        invoke(method, "org/magiclib/util/MagicInterference", "loadInterference");
+        invoke(method, "org/magiclib/plugins/MagicAutoTrails", "getTrailData");
+        invoke(method, "org/magiclib/util/MagicVariables", "loadThemesBlacklist");
+        invoke(method, "org/magiclib/util/MagicSettings", "getBoolean");
+        invoke(method, "org/magiclib/achievements/MagicAchievementManager", "getInstance");
+        invoke(method, "org/magiclib/achievements/MagicAchievementManager", "getInstance");
+        invoke(method, "org/magiclib/achievements/MagicAchievementManager", "onApplicationLoad");
+        invoke(method, "org/magiclib/paintjobs/MagicPaintjobManager", "onApplicationLoad");
+        invoke(method, "org/magiclib/subsystems/MagicSubsystemsManager", "initialize");
+        method.visitInsn(Opcodes.RETURN);
+        method.visitMaxs(0, 0);
+        method.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static byte[] campaignFixture() {
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, CampaignEngineTimePlan.TARGET_CLASS,
+                null, "java/lang/Object", null);
+        MethodVisitor get = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "getInstance", "()Lcom/fs/starfarer/campaign/CampaignEngine;", null, null);
+        get.visitCode();
+        get.visitInsn(Opcodes.ACONST_NULL);
+        get.visitMethodInsn(Opcodes.INVOKESTATIC, CampaignEngineTimePlan.TARGET_CLASS,
+                "setInstance", "(Lcom/fs/starfarer/campaign/CampaignEngine;)V", false);
+        get.visitInsn(Opcodes.ACONST_NULL);
+        get.visitInsn(Opcodes.ARETURN);
+        get.visitMaxs(0, 0);
+        get.visitEnd();
+
+        MethodVisitor set = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                "setInstance", "(Lcom/fs/starfarer/campaign/CampaignEngine;)V", null, null);
+        set.visitCode();
+        set.visitInsn(Opcodes.ACONST_NULL);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/api/Global", "setSector",
+                "(Lcom/fs/starfarer/api/campaign/SectorAPI;)V", false);
+        set.visitInsn(Opcodes.ACONST_NULL);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/api/Global", "setFactory",
+                "(Lcom/fs/starfarer/api/FactoryAPI;)V", false);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/combat/CombatEngine",
+                "destroyInstance", "()V", false);
+        set.visitMethodInsn(Opcodes.INVOKESTATIC, "com/fs/starfarer/combat/CombatEngine",
+                "getInstance", "()Lcom/fs/starfarer/combat/CombatEngine;", false);
+        set.visitInsn(Opcodes.POP);
+        set.visitInsn(Opcodes.RETURN);
+        set.visitMaxs(0, 0);
+        set.visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static void invoke(MethodVisitor method, String owner, String name) {
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, owner, name, "()V", false);
+    }
+
+    private static ClassSignature exactSignature(byte[] bytes) throws Exception {
+        ClassSignature parsed = ClassSignature.parse(bytes);
+        return new ClassSignature(parsed.internalName(), PROBE.sha256(), parsed.majorVersion(),
+                parsed.access(), parsed.methods());
+    }
+
+    private static int runtimeCalls(byte[] bytes) {
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
+        new ClassReader(bytes).accept(owner, 0);
+        int calls = 0;
+        for (var method : owner.methods) {
+            for (var instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode invoked
+                        && "dev/starsector/preflight/agent/StartupPhaseRuntime".equals(invoked.owner)) {
+                    calls++;
+                }
+            }
+        }
+        return calls;
+    }
+}

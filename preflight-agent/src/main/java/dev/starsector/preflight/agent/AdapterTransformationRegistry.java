@@ -1,11 +1,18 @@
 package dev.starsector.preflight.agent;
 
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.ClassNode;
+
 /** Registry for manually reviewed target-specific bytecode rewrites. */
 final class AdapterTransformationRegistry {
     private AdapterTransformationRegistry() {
     }
 
     static byte[] transform(AdapterTarget target, ClassSignature signature, byte[] originalBytes) {
+        if (!AdapterPlanControl.allows(target.planId())) {
+            return null;
+        }
         if (TextureCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
             return TextureCompatibilityRuntime.ready()
                     ? TextureCompatibilityPlan.transform(signature, originalBytes)
@@ -35,24 +42,90 @@ final class AdapterTransformationRegistry {
         // Ungated: the wrapper it installs delegates to the original until
         // preflight.campaign.entityIndex says otherwise, so there is nothing to be ready for.
         if (EntityLookupRuntime.PLAN_ID.equals(target.planId())) {
-            return EntityLookupPlan.transform(signature, originalBytes);
+            byte[] location = EntityLookupPlan.transform(signature, originalBytes);
+            if (location != null) {
+                // BaseLocation also carries paused snapshot maintenance and deeper opt-in
+                // attribution. Compose the disjoint rewrites while the original exact source
+                // identity is still known.
+                byte[] maintained = AdapterPlanControl.allows(CampaignEntityMaintenanceRuntime.PLAN_ID)
+                        ? CampaignEntityMaintenancePlan.transform(signature, location)
+                        : null;
+                byte[] base = maintained == null ? location : maintained;
+                byte[] timed = AdapterPlanControl.allows(CampaignLocationEconomyTimeRuntime.PLAN_ID)
+                        ? CampaignLocationEconomyTimePlan.transform(signature, base)
+                        : null;
+                return timed == null ? base : timed;
+            }
+            byte[] repository = EntityRepositoryListPlan.transform(signature, originalBytes);
+            if (repository != null) {
+                return repository;
+            }
+            byte[] entity = EntityIdMutationPlan.transform(signature, originalBytes);
+            if (entity == null) {
+                return null;
+            }
+            // BaseCampaignEntity also carries the empty-script maintenance shortcut. The
+            // transformer returns after this entity-index target succeeds, so compose the
+            // disjoint runScripts rewrite while retaining the original exact source identity.
+            byte[] maintained = AdapterPlanControl.allows(CampaignEntityMaintenanceRuntime.PLAN_ID)
+                    ? CampaignEntityMaintenancePlan.transform(signature, entity)
+                    : null;
+            return maintained == null ? entity : maintained;
+        }
+        // Like the campaign index, this wrapper is inert until its system property is enabled.
+        if (DeploymentIconCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return DeploymentIconCachePlan.transform(signature, originalBytes);
+        }
+        if (RadarRenderRuntime.PLAN_ID.equals(target.planId())) {
+            return RadarRenderPlan.transform(signature, originalBytes);
+        }
+        // Inert until --campaign-entity-index/--fast enables its runtime property. The exact
+        // wrapper retains and delegates to the reviewed vanilla method on every cache miss.
+        if (CommodityEventModMemoRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] dirtyAccessor = MutableStatDirtyAccessorPlan.transform(signature, originalBytes);
+            return dirtyAccessor != null
+                    ? dirtyAccessor
+                    : CommodityEventModMemoPlan.transform(signature, originalBytes);
+        }
+        // Always-on inside adapter mode. The exact refit UI target returns the shipped list unless
+        // Starsector's own variant registry proves that one of its merged CSV ids is invalid.
+        if (SimOpponentSafetyRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] safety = SimOpponentSafetyPlan.transform(signature, originalBytes);
+            return safety != null
+                    ? safety : SimOpponentDialogProbePlan.transform(signature, originalBytes);
         }
         if (StartupPhaseRuntime.PLAN_ID.equals(target.planId())) {
             // LoadingUtils is reached by this plan, by the merged-read cache's and by the loadJSON
-            // memo's, and only one target per class ever transforms, so every branch composes all
-            // three.
+            // memo's and by the shared reader rewrite. Only one target per class ever transforms,
+            // so every branch composes all four.
             byte[] loadingUtils = loadingUtilsPlans(signature, originalBytes);
             if (loadingUtils != null) {
                 return loadingUtils;
+            }
+            byte[] callbackBreakdown = StartupCallBreakdownPlan.transform(signature, originalBytes);
+            if (callbackBreakdown != null) {
+                return callbackBreakdown;
             }
             byte[] startupPhases = StartupPhasePlan.transform(signature, originalBytes);
             if (startupPhases != null) {
                 return startupPhases;
             }
-            byte[] specStore = SpecStorePhasePlan.transform(signature, originalBytes);
-            if (specStore == null) {
+            byte[] composedSpecStore = specStorePlans(signature, originalBytes);
+            if (composedSpecStore != null) {
+                return composedSpecStore;
+            }
+            byte[] specStoreBase = SpecStorePhasePlan.transform(signature, originalBytes);
+            if (specStoreBase == null) {
+                byte[] composedWeaponLoader = weaponLoaderPlans(signature, originalBytes);
+                if (composedWeaponLoader != null) {
+                    return composedWeaponLoader;
+                }
                 byte[] weaponPhases = WeaponLoaderPhasePlan.transform(signature, originalBytes);
                 if (weaponPhases == null) {
+                    byte[] composedHullLoader = shipHullLoaderPlans(signature, originalBytes);
+                    if (composedHullLoader != null) {
+                        return composedHullLoader;
+                    }
                     byte[] hullPhases = ShipHullLoaderPhasePlan.transform(signature, originalBytes);
                     if (hullPhases == null) {
                         byte[] rulesPhases = RulesLoaderPhasePlan.transform(signature, originalBytes);
@@ -69,20 +142,23 @@ final class AdapterTransformationRegistry {
                                     memoised == null ? originalBytes : memoised);
                             return shortcut == null ? memoised : shortcut;
                         }
-                        byte[] optimized = rulesOptimizations(rulesPhases);
-                        byte[] rules = optimized == null ? rulesPhases : optimized;
-                        byte[] published = ruleCommandClassPublish(rules);
-                        return published == null ? rules : published;
+                        byte[] optimized = rulesLoaderPlans(signature, rulesPhases);
+                        return optimized == null ? rulesPhases : optimized;
                     }
-                    if (!HullJsonCacheRuntime.ready()) {
-                        return hullPhases;
+                    if (!AdapterPlanControl.allows(HullJsonCacheRuntime.PLAN_ID)
+                            || !HullJsonCacheRuntime.ready()) {
+                        byte[] concise = assetProgressLogs(hullPhases);
+                        return concise == null ? hullPhases : concise;
                     }
                     try {
                         byte[] cached = HullJsonCachePlan.transform(
                                 ClassSignature.parse(hullPhases), hullPhases);
-                        return cached == null ? hullPhases : cached;
+                        byte[] current = cached == null ? hullPhases : cached;
+                        byte[] concise = assetProgressLogs(current);
+                        return concise == null ? current : concise;
                     } catch (java.io.IOException ignored) {
-                        return hullPhases;
+                        byte[] concise = assetProgressLogs(hullPhases);
+                        return concise == null ? hullPhases : concise;
                     }
                 }
                 try {
@@ -95,55 +171,209 @@ final class AdapterTransformationRegistry {
                     return weaponPhases;
                 }
             }
+            byte[] factionPhases = FactionLoaderPhasePlan.transform(signature, specStoreBase);
+            byte[] specStore = factionPhases == null ? specStoreBase : factionPhases;
             try {
                 byte[] variantPhases = VariantLoaderPhasePlan.transform(
                         ClassSignature.parse(specStore), specStore);
                 byte[] attributed = variantPhases == null ? specStore : variantPhases;
-                if (!VariantJsonCacheRuntime.ready()) {
-                    return attributed;
-                }
-                byte[] cached = VariantJsonCachePlan.transform(
+                byte[] optimized = specStoreOptimizations(
                         ClassSignature.parse(attributed), attributed);
-                return cached == null ? attributed : cached;
+                return optimized == null ? attributed : optimized;
             } catch (java.io.IOException ignored) {
                 return specStore;
             }
         }
-        if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return VariantJsonCacheRuntime.ready()
-                    ? VariantJsonCachePlan.transform(signature, originalBytes)
+        if (ResourcePriorityRuntime.PLAN_ID.equals(target.planId())) {
+            return resourceLoaderPlans(signature, originalBytes);
+        }
+        if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(target.planId())) {
+            return SaveDescriptorCompatibilityPlan.transform(signature, originalBytes);
+        }
+        if (IndustryDemandSupplyMemoRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] memo = IndustryDemandSupplyMemoPlan.transform(signature, originalBytes);
+            if (memo == null) return null;
+            byte[] lazy = AdapterPlanControl.allows(CodexLazyFleetMemberRuntime.PLAN_ID)
+                    ? CodexLazyFleetMemberPlan.transform(signature, memo)
                     : null;
+            byte[] optimized = lazy == null ? memo : lazy;
+            if (!StartupPhaseRuntime.phaseProbeEnabled()
+                    || !IndustryDemandSupplyMemoPlan.CODEX_CLASS.equals(signature.internalName())) {
+                return optimized;
+            }
+            byte[] timed = AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
+                    ? StartupCallBreakdownPlan.transform(signature, optimized)
+                    : null;
+            return timed == null ? optimized : timed;
+        }
+        if (CodexLazyFleetMemberRuntime.PLAN_ID.equals(target.planId())) {
+            return CodexLazyFleetMemberPlan.transform(signature, originalBytes);
+        }
+        if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(target.planId())) {
+            return IndEvoSyntheticMarketPlan.transform(signature, originalBytes);
+        }
+        if (VariantJsonCacheRuntime.PLAN_ID.equals(target.planId())
+                || SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(target.planId())) {
+            return specStoreOptimizations(signature, originalBytes);
         }
         if (WeaponJsonCacheRuntime.PLAN_ID.equals(target.planId())
                 || ProjectileJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
             return weaponJsonCaches(originalBytes);
         }
         if (HullJsonCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return HullJsonCacheRuntime.ready()
-                    ? HullJsonCachePlan.transform(signature, originalBytes)
-                    : null;
+            if (!HullJsonCacheRuntime.ready()) {
+                return null;
+            }
+            byte[] cached = HullJsonCachePlan.transform(signature, originalBytes);
+            byte[] current = cached == null ? originalBytes : cached;
+            byte[] concise = assetProgressLogs(current);
+            return concise == null ? cached : concise;
         }
         if (RulesDuplicateIndexRuntime.PLAN_ID.equals(target.planId())
-                || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return rulesOptimizations(originalBytes);
+                || RulesCsvCacheRuntime.PLAN_ID.equals(target.planId())
+                || RulesRegexCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return rulesLoaderPlans(signature, originalBytes);
         }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(target.planId())
                 || MergedReadCacheRuntime.PLAN_ID.equals(target.planId())) {
             return loadingUtilsPlans(signature, originalBytes);
         }
-        if (ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
-            return ResourceProbeRuntime.ready()
-                    ? ResourceProbePlan.transform(signature, originalBytes)
-                    : null;
+        if (SourceHintIsolationRuntime.PLAN_ID.equals(target.planId())
+                || ResourceProbeRuntime.PLAN_ID.equals(target.planId())) {
+            return resourceResolverPlans(signature, originalBytes);
         }
         if (PreparedAudioRuntime.PLAN_ID.equals(target.planId())) {
             return PreparedAudioRuntime.ready()
                     ? PreparedAudioPlan.transform(signature, originalBytes)
                     : null;
         }
-        // The memo can install on its own, without the attribution probe in front of it.
+        if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(target.planId())) {
+            return AudioStreamSourceErrorPlan.transform(signature, originalBytes);
+        }
+        if (AudioResourceFallbackRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] repaired = AudioResourceFallbackPlan.transform(signature, originalBytes);
+            if (repaired == null || !PreparedAudioRuntime.pathLookupReady()) {
+                return repaired;
+            }
+            byte[] pathIndexed = AdapterPlanControl.allows(PreparedAudioRuntime.PLAN_ID)
+                    ? PreparedAudioPathPlan.transform(repaired)
+                    : null;
+            return pathIndexed == null ? repaired : pathIndexed;
+        }
+        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(target.planId())) {
+            return AiTweaksEngagementRangePlan.transform(signature, originalBytes);
+        }
+        if (AshLibVariantLookupRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] optimized = AshLibVariantLookupPlan.transform(signature, originalBytes);
+            if (optimized == null || !StartupPhaseRuntime.phaseProbeEnabled()
+                    || (!AshLibVariantLookupPlan.REPOSITORY_CLASS.equals(signature.internalName())
+                    && !AshLibVariantLookupPlan.SHIP_JSON_CLASS.equals(signature.internalName()))) {
+                return optimized;
+            }
+            byte[] timed = AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
+                    ? StartupCallBreakdownPlan.transform(signature, optimized)
+                    : null;
+            return timed == null ? optimized : timed;
+        }
+        if (GraphicsLibCompactReplayPlan.PLAN_ID.equals(target.planId())) {
+            return GraphicsLibCompactReplayPlan.ready()
+                    ? GraphicsLibCompactReplayPlan.transform(signature)
+                    : null;
+        }
+        if (JaninoBytecodeCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return JaninoBytecodeCacheRuntime.ready()
+                    ? JaninoBytecodeCachePlan.transform(signature, originalBytes)
+                    : null;
+        }
+        if (GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID.equals(target.planId())) {
+            return GraphicsLibInsigniaManagerCacheRuntime.ready()
+                    ? GraphicsLibInsigniaManagerCachePlan.transform(signature, originalBytes)
+                    : null;
+        }
+        if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(target.planId())) {
+            return GraphicsLibHotSettingsPlan.transform(signature, originalBytes);
+        }
+        if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(target.planId())) {
+            return VersionCheckResponseDedupPlan.transform(signature, originalBytes);
+        }
+        if (MagicLibPaintjobRuntime.PLAN_ID.equals(target.planId())) {
+            return MagicLibPaintjobPlan.transform(signature, originalBytes);
+        }
+        if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] notification =
+                    MagicLibPaintjobNotificationPlan.transform(signature, originalBytes);
+            byte[] current = notification == null ? originalBytes : notification;
+            byte[] optionalJson = AdapterPlanControl.allows(MagicLibPaintjobLoadRuntime.PLAN_ID)
+                    ? MagicLibPaintjobLoadPlan.transform(signature, current)
+                    : null;
+            boolean changed = notification != null || optionalJson != null;
+            current = optionalJson == null ? current : optionalJson;
+            if (changed && AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
+                    && StartupPhaseRuntime.phaseProbeEnabled()) {
+                byte[] timed = StartupCallBreakdownPlan.transform(signature, current);
+                current = timed == null ? current : timed;
+            }
+            return changed ? current : null;
+        }
+        if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(target.planId())) {
+            return StelnetMarketUpdaterPlan.transform(signature, originalBytes);
+        }
+        if (LogisticsNotificationsFuelRuntime.PLAN_ID.equals(target.planId())) {
+            return LogisticsNotificationsFuelPlan.transform(signature, originalBytes);
+        }
+        if (MacMemoryWarningRuntime.PLAN_ID.equals(target.planId())) {
+            return MacMemoryWarningPlan.transform(signature, originalBytes);
+        }
+        if (FrameTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return FrameTimePlan.transform(signature, originalBytes);
+        }
+        if (CampaignCallTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CampaignCallTimePlan.transform(signature, originalBytes);
+        }
+        if (CampaignEngineTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CampaignEngineTimePlan.transform(signature, originalBytes);
+        }
+        if (CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CampaignLocationEconomyTimePlan.transform(signature, originalBytes);
+        }
+        if (CampaignMarketFleetTimeRuntime.PLAN_ID.equals(target.planId())) {
+            return CampaignMarketFleetTimePlan.transform(signature, originalBytes);
+        }
+        if (CampaignEntityMaintenanceRuntime.PLAN_ID.equals(target.planId())) {
+            byte[] maintained = CampaignEntityMaintenancePlan.transform(signature, originalBytes);
+            if (maintained == null) return null;
+            // Market.advance is also an opt-in attribution target. Maintenance is registered
+            // first in production, so compose the probe here while the original exact source
+            // identity is still available.
+            byte[] timed = AdapterPlanControl.allows(CampaignMarketFleetTimeRuntime.PLAN_ID)
+                    ? CampaignMarketFleetTimePlan.transform(signature, maintained)
+                    : null;
+            if (timed != null) return timed;
+            timed = AdapterPlanControl.allows(CampaignLocationEconomyTimeRuntime.PLAN_ID)
+                    ? CampaignLocationEconomyTimePlan.transform(signature, maintained)
+                    : null;
+            return timed == null ? maintained : timed;
+        }
+        if (FleetAiProfilerRuntime.PLAN_ID.equals(target.planId())) {
+            return FleetAiProfilerPlan.transform(signature, originalBytes);
+        }
+        if (FrameTimeStatePlan.PLAN_ID.equals(target.planId())) {
+            return FrameTimeStatePlan.transform(signature, originalBytes);
+        }
+        if (FrameTimeStartupCompletionPlan.PLAN_ID.equals(target.planId())) {
+            return FrameTimeStartupCompletionPlan.transform(signature, originalBytes);
+        }
+        if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(target.planId())) {
+            return CombatRuntimeIntegrityPlan.transform(signature, originalBytes);
+        }
+        // The token target normally wins selection for this shared class. Compose the command-name
+        // shortcut here too; otherwise --fast can configure both caches while silently installing
+        // only the tokenizer memo. Either optimization may still install on its own.
         if (RuleTokenCacheRuntime.PLAN_ID.equals(target.planId())) {
-            return ruleTokenCache(originalBytes, null);
+            byte[] memoised = ruleTokenCache(originalBytes, null);
+            byte[] current = memoised == null ? originalBytes : memoised;
+            byte[] shortcut = ruleCommandClassLookup(current);
+            return shortcut == null ? memoised : shortcut;
         }
         // Two classes share this plan: the expression class carries the shortcut, the rules loader
         // carries the publish. Only one of them can match any given signature.
@@ -152,15 +382,106 @@ final class AdapterTransformationRegistry {
                 return null;
             }
             byte[] shortcut = RuleCommandClassCachePlan.transform(signature, originalBytes);
-            return shortcut != null
-                    ? shortcut
-                    : RuleCommandClassCachePlan.transformLoader(signature, originalBytes);
+            return shortcut != null ? shortcut : rulesLoaderPlans(signature, originalBytes);
         }
         return null;
     }
 
+    /** Applies every independent WeaponSpecLoader rewrite to one tree and computes frames once. */
+    private static byte[] weaponLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        if (!WeaponLoaderPhasePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            if (!WeaponLoaderPhasePlan.apply(signature, owner)) {
+                return null;
+            }
+            ProjectileLoaderPhasePlan.apply(signature, owner);
+            if (AdapterPlanControl.allows(WeaponJsonCacheRuntime.PLAN_ID)
+                    && WeaponJsonCacheRuntime.ready()) {
+                WeaponJsonCachePlan.apply(signature, owner);
+            }
+            if (AdapterPlanControl.allows(ProjectileJsonCacheRuntime.PLAN_ID)
+                    && ProjectileJsonCacheRuntime.ready()) {
+                ProjectileJsonCachePlan.apply(signature, owner);
+            }
+            if (AssetProgressLogRuntime.suppress()) {
+                AssetProgressLogPlan.apply(signature, owner);
+            }
+            return WeaponJsonCachePlan.write(owner);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The caller retains the old independently fail-open pipeline as a fallback.
+            return null;
+        }
+    }
+
+    /** Applies every independent ShipHullSpecLoader rewrite to one tree and frame pass. */
+    private static byte[] shipHullLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        if (!ShipHullLoaderPhasePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            if (!ShipHullLoaderPhasePlan.apply(signature, owner)) {
+                return null;
+            }
+            if (AdapterPlanControl.allows(HullJsonCacheRuntime.PLAN_ID)
+                    && HullJsonCacheRuntime.ready()) {
+                HullJsonCachePlan.apply(signature, owner);
+            }
+            if (AssetProgressLogRuntime.suppress()) {
+                AssetProgressLogPlan.apply(signature, owner);
+            }
+            return ShipHullLoaderPhasePlan.write(owner);
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The caller retains the old independently fail-open pipeline as a fallback.
+            return null;
+        }
+    }
+
+    /** Applies every independent SpecStore rewrite to one tree and computes its frames once. */
+    private static byte[] specStorePlans(ClassSignature signature, byte[] originalBytes) {
+        if (!SpecStorePhasePlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            if (!SpecStorePhasePlan.apply(signature, owner)) {
+                return null;
+            }
+            FactionLoaderPhasePlan.apply(signature, owner);
+            VariantLoaderPhasePlan.apply(signature, owner);
+            if (AdapterPlanControl.allows(VariantJsonCacheRuntime.PLAN_ID)
+                    && VariantJsonCacheRuntime.ready()) {
+                VariantJsonCachePlan.apply(signature, owner);
+            }
+            if (AdapterPlanControl.allows(SpecStoreQuoteNormalizationPlan.PLAN_ID)) {
+                SpecStoreQuoteNormalizationPlan.apply(signature, owner);
+            }
+            if (AssetProgressLogRuntime.suppress()) {
+                AssetProgressLogPlan.apply(signature, owner);
+            }
+            byte[] transformed = VariantJsonCachePlan.write(owner);
+            StartupPhaseRuntime.installed();
+            return transformed;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // The caller retains the old independently fail-open pipeline as a fallback.
+            return null;
+        }
+    }
+
     /**
-     * Composes the three independent rewrites that share {@code LoadingUtils}.
+     * Composes the four independent rewrites that share {@code LoadingUtils}.
      *
      * <p>The cache goes first because it and the probe weave the same pair of merged readers and
      * only one of them can: each declines a class already carrying the other's renamed methods.
@@ -172,60 +493,63 @@ final class AdapterTransformationRegistry {
      * mine" from "nothing left to add".
      */
     private static byte[] loadingUtilsPlans(ClassSignature signature, byte[] originalBytes) {
-        byte[] current = originalBytes;
-        ClassSignature currentSignature = signature;
+        if (!LoadingUtilsReaderPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        ClassNode owner = new ClassNode(Opcodes.ASM9);
         boolean changed = false;
         try {
-            if (MergedReadCacheRuntime.ready()) {
-                byte[] cached = MergedReadCachePlan.transform(currentSignature, current);
-                if (cached != null) {
-                    current = cached;
-                    currentSignature = ClassSignature.parse(current);
-                    changed = true;
-                }
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            if (AdapterPlanControl.allows(MergedReadCacheRuntime.PLAN_ID)
+                    && MergedReadCacheRuntime.ready()) {
+                changed |= MergedReadCachePlan.apply(signature, owner);
             }
-            if (StartupPhaseRuntime.mergedReadProbeEnabled()) {
-                byte[] probed = MergedReadProbePlan.transform(currentSignature, current);
-                if (probed != null) {
-                    current = probed;
-                    currentSignature = ClassSignature.parse(current);
-                    changed = true;
-                }
+            if (AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
+                    && StartupPhaseRuntime.mergedReadProbeEnabled()) {
+                changed |= MergedReadProbePlan.apply(signature, owner);
             }
-            if (LoadJsonMemoRuntime.ready()) {
-                byte[] memoised = LoadJsonMemoPlan.transform(currentSignature, current);
-                if (memoised != null) {
-                    current = memoised;
-                    changed = true;
-                }
+            if (AdapterPlanControl.allows(LoadJsonMemoRuntime.PLAN_ID)
+                    && LoadJsonMemoRuntime.ready()) {
+                changed |= LoadJsonMemoPlan.apply(signature, owner);
             }
-            return changed ? current : null;
+            if (AdapterPlanControl.allows(LoadingUtilsReaderPlan.PLAN_ID)) {
+                changed |= LoadingUtilsReaderPlan.apply(signature, owner);
+            }
+            return changed ? LoadingUtilsReaderPlan.write(owner) : null;
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
         } catch (Throwable ignored) {
-            // Whatever already applied is valid bytecode; losing the rest is the safe direction.
-            return changed ? current : null;
+            // A partial in-memory rewrite is never published. The original class remains active.
+            return null;
         }
     }
+
 
     /** Composes the two independent method-pair rewrites that share WeaponSpecLoader. */
     private static byte[] weaponJsonCaches(byte[] originalBytes) {
         byte[] current = originalBytes;
         boolean changed = false;
         try {
-            if (WeaponJsonCacheRuntime.ready()) {
+            if (AdapterPlanControl.allows(WeaponJsonCacheRuntime.PLAN_ID)
+                    && WeaponJsonCacheRuntime.ready()) {
                 byte[] weapon = WeaponJsonCachePlan.transform(ClassSignature.parse(current), current);
                 if (weapon != null) {
                     current = weapon;
                     changed = true;
                 }
             }
-            if (ProjectileJsonCacheRuntime.ready()) {
+            if (AdapterPlanControl.allows(ProjectileJsonCacheRuntime.PLAN_ID)
+                    && ProjectileJsonCacheRuntime.ready()) {
                 byte[] projectile = ProjectileJsonCachePlan.transform(ClassSignature.parse(current), current);
                 if (projectile != null) {
                     current = projectile;
                     changed = true;
                 }
+            }
+            byte[] concise = assetProgressLogs(current);
+            if (concise != null) {
+                current = concise;
+                changed = true;
             }
             return changed ? current : null;
         } catch (java.io.IOException ignored) {
@@ -233,19 +557,65 @@ final class AdapterTransformationRegistry {
         }
     }
 
-    /** Composes the merged-CSV cache and duplicate index that share the rules loader. */
+    /** Composes the prepared variant restore and the disjoint fixed quote normalization. */
+    private static byte[] specStoreOptimizations(
+            ClassSignature signature, byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+        if (AdapterPlanControl.allows(VariantJsonCacheRuntime.PLAN_ID)
+                && VariantJsonCacheRuntime.ready()) {
+            byte[] cached = VariantJsonCachePlan.transform(signature, current);
+            if (cached != null) {
+                current = cached;
+                changed = true;
+            }
+        }
+        try {
+            ClassSignature currentSignature = changed ? ClassSignature.parse(current) : signature;
+            byte[] normalized = AdapterPlanControl.allows(SpecStoreQuoteNormalizationPlan.PLAN_ID)
+                    ? SpecStoreQuoteNormalizationPlan.transform(currentSignature, current)
+                    : null;
+            if (normalized != null) {
+                current = normalized;
+                changed = true;
+            }
+        } catch (java.io.IOException ignored) {
+            // A valid prepared-variant transform remains useful if the disjoint rewrite cannot
+            // inspect its output. Every original String.replaceAll call remains untouched.
+        }
+        byte[] concise = assetProgressLogs(current);
+        if (concise != null) {
+            current = concise;
+            changed = true;
+        }
+        return changed ? current : null;
+    }
+
+    private static byte[] assetProgressLogs(byte[] originalBytes) {
+        if (!AssetProgressLogRuntime.suppress()) {
+            return null;
+        }
+        try {
+            return AssetProgressLogPlan.transform(ClassSignature.parse(originalBytes), originalBytes);
+        } catch (java.io.IOException ignored) {
+            return null;
+        }
+    }
+
     private static byte[] rulesOptimizations(byte[] originalBytes) {
         byte[] current = originalBytes;
         boolean changed = false;
         try {
-            if (RulesCsvCacheRuntime.ready()) {
+            if (AdapterPlanControl.allows(RulesCsvCacheRuntime.PLAN_ID)
+                    && RulesCsvCacheRuntime.ready()) {
                 byte[] cached = RulesCsvCachePlan.transform(ClassSignature.parse(current), current);
                 if (cached != null) {
                     current = cached;
                     changed = true;
                 }
             }
-            if (RulesDuplicateIndexRuntime.ready()) {
+            if (AdapterPlanControl.allows(RulesDuplicateIndexRuntime.PLAN_ID)
+                    && RulesDuplicateIndexRuntime.ready()) {
                 byte[] indexed = RulesDuplicateIndexPlan.transform(ClassSignature.parse(current), current);
                 if (indexed != null) {
                     current = indexed;
@@ -258,6 +628,31 @@ final class AdapterTransformationRegistry {
         }
     }
 
+    /** Composes every independent rewrite on the exact campaign-rules loader. */
+    private static byte[] rulesLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+
+        byte[] optimized = rulesOptimizations(current);
+        if (optimized != null) {
+            current = optimized;
+            changed = true;
+        }
+        byte[] regex = AdapterPlanControl.allows(RulesRegexCacheRuntime.PLAN_ID)
+                ? RulesRegexCachePlan.transform(signature, current)
+                : null;
+        if (regex != null) {
+            current = regex;
+            changed = true;
+        }
+        byte[] published = ruleCommandClassPublish(current);
+        if (published != null) {
+            current = published;
+            changed = true;
+        }
+        return changed ? current : null;
+    }
+
     /**
      * Chains the tokenizer memo onto the expression constructor.
      *
@@ -266,7 +661,8 @@ final class AdapterTransformationRegistry {
      *     for that case keeps "no plan matched this class" distinguishable from "nothing to add"
      */
     private static byte[] ruleTokenCache(byte[] current, byte[] attributed) {
-        if (!RuleTokenCacheRuntime.ready()) {
+        if (!AdapterPlanControl.allows(RuleTokenCacheRuntime.PLAN_ID)
+                || !RuleTokenCacheRuntime.ready()) {
             return attributed;
         }
         try {
@@ -282,7 +678,8 @@ final class AdapterTransformationRegistry {
 
     /** Chains the command-name shortcut onto an expression class that may already be rewritten. */
     private static byte[] ruleCommandClassLookup(byte[] current) {
-        if (!RuleCommandClassCacheRuntime.ready()) {
+        if (!AdapterPlanControl.allows(RuleCommandClassCacheRuntime.PLAN_ID)
+                || !RuleCommandClassCacheRuntime.ready()) {
             return null;
         }
         try {
@@ -297,7 +694,8 @@ final class AdapterTransformationRegistry {
 
     /** Chains the learning run's publish onto a rules loader that may already be rewritten. */
     private static byte[] ruleCommandClassPublish(byte[] current) {
-        if (!RuleCommandClassCacheRuntime.ready()) {
+        if (!AdapterPlanControl.allows(RuleCommandClassCacheRuntime.PLAN_ID)
+                || !RuleCommandClassCacheRuntime.ready()) {
             return null;
         }
         try {
@@ -332,6 +730,9 @@ final class AdapterTransformationRegistry {
         if (rewritten == null) {
             return null;
         }
+        if (!AdapterPlanControl.allows(TexturePaddingRuntime.PLAN_ID)) {
+            return rewritten;
+        }
         try {
             ClassSignature rewrittenSignature = ClassSignature.parse(rewritten);
             byte[] folded = TexturePaddingPlan.transform(rewrittenSignature, rewritten);
@@ -346,6 +747,9 @@ final class AdapterTransformationRegistry {
     }
 
     static boolean hasPlan(String planId) {
+        if (!AdapterPlanControl.allows(planId)) {
+            return false;
+        }
         if (TextureCompatibilityRuntime.PLAN_ID.equals(planId)) {
             return TextureCompatibilityRuntime.ready();
         }
@@ -382,11 +786,35 @@ final class AdapterTransformationRegistry {
         if (RulesCsvCacheRuntime.PLAN_ID.equals(planId)) {
             return RulesCsvCacheRuntime.ready();
         }
+        if (RulesRegexCacheRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (SpecStoreQuoteNormalizationPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (ResourcePriorityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (SaveDescriptorCompatibilityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (IndustryDemandSupplyMemoRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CodexLazyFleetMemberRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (IndEvoSyntheticMarketRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
         if (RuleTokenCacheRuntime.PLAN_ID.equals(planId)) {
             return RuleTokenCacheRuntime.ready();
         }
         if (RuleCommandClassCacheRuntime.PLAN_ID.equals(planId)) {
             return RuleCommandClassCacheRuntime.ready();
+        }
+        if (SourceHintIsolationRuntime.PLAN_ID.equals(planId)) {
+            return true;
         }
         if (ResourceProbeRuntime.PLAN_ID.equals(planId)) {
             return ResourceProbeRuntime.ready();
@@ -394,16 +822,203 @@ final class AdapterTransformationRegistry {
         if (PreparedAudioRuntime.PLAN_ID.equals(planId)) {
             return PreparedAudioRuntime.ready();
         }
+        if (AudioStreamSourceErrorRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AudioMusicTransitionRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AudioResourceFallbackRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AiTweaksEngagementRangeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (AshLibVariantLookupRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
         if (LoadJsonMemoRuntime.PLAN_ID.equals(planId)) {
             return LoadJsonMemoRuntime.ready();
         }
         if (MergedReadCacheRuntime.PLAN_ID.equals(planId)) {
             return MergedReadCacheRuntime.ready();
         }
+        if (LoadingUtilsReaderPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (GraphicsLibCompactReplayPlan.PLAN_ID.equals(planId)) {
+            return GraphicsLibCompactReplayPlan.ready();
+        }
+        if (JaninoBytecodeCacheRuntime.PLAN_ID.equals(planId)) {
+            return JaninoBytecodeCacheRuntime.ready();
+        }
+        if (GraphicsLibInsigniaManagerCacheRuntime.PLAN_ID.equals(planId)) {
+            return GraphicsLibInsigniaManagerCacheRuntime.ready();
+        }
+        if (GraphicsLibHotSettingsRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (VersionCheckResponseDedupRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MagicLibPaintjobRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MagicLibPaintjobNotificationRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (StelnetMarketUpdaterRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (LogisticsNotificationsFuelRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (MacMemoryWarningRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (FrameTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CampaignCallTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CampaignEngineTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CampaignLocationEconomyTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CampaignMarketFleetTimeRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CampaignEntityMaintenanceRuntime.PLAN_ID.equals(planId)) {
+            return CampaignEntityMaintenanceRuntime.enabled();
+        }
+        if (FleetAiProfilerRuntime.PLAN_ID.equals(planId)) {
+            return FleetAiProfilerRuntime.enabled();
+        }
+        if (FrameTimeStatePlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (FrameTimeStartupCompletionPlan.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CombatRuntimeIntegrityRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (DeploymentIconCacheRuntime.PLAN_ID.equals(planId)) {
+            return DeploymentIconCacheRuntime.ready();
+        }
+        if (RadarRenderRuntime.PLAN_ID.equals(planId)) {
+            return true;
+        }
+        if (CommodityEventModMemoRuntime.PLAN_ID.equals(planId)) {
+            return CommodityEventModMemoRuntime.ready();
+        }
+        if (SimOpponentSafetyRuntime.PLAN_ID.equals(planId)) {
+            return SimOpponentSafetyRuntime.ready();
+        }
         return false;
+    }
+
+    /** Composes the always-on race fix with the optional probe cache on their shared resolver. */
+    private static byte[] resourceResolverPlans(ClassSignature signature, byte[] originalBytes) {
+        if (!SourceHintIsolationPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            boolean isolated = AdapterPlanControl.allows(SourceHintIsolationRuntime.PLAN_ID)
+                    && SourceHintIsolationPlan.apply(signature, owner);
+            boolean probed = AdapterPlanControl.allows(ResourceProbeRuntime.PLAN_ID)
+                    && ResourceProbeRuntime.ready()
+                    && ResourceProbePlan.apply(signature, owner);
+            if (!isolated && !probed) return null;
+            byte[] transformed = SourceHintIsolationPlan.write(owner);
+            if (isolated) SourceHintIsolationRuntime.installed();
+            return transformed;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Retry whichever standalone plan remains enabled. Losing either optimization is the
+            // safe direction; a disabled plan must never return through this fallback.
+            if (AdapterPlanControl.allows(SourceHintIsolationRuntime.PLAN_ID)) {
+                return SourceHintIsolationPlan.transform(signature, originalBytes);
+            }
+            return AdapterPlanControl.allows(ResourceProbeRuntime.PLAN_ID)
+                    && ResourceProbeRuntime.ready()
+                    ? ResourceProbePlan.transform(signature, originalBytes)
+                    : null;
+        }
     }
 
     static boolean anyPlanCompiled() {
         return true;
+    }
+
+    /** Composes the always-on priority index with either optional ResourceLoaderState marker. */
+    private static byte[] resourceLoaderPlans(ClassSignature signature, byte[] originalBytes) {
+        if (!ResourcePriorityPlan.TARGET_CLASS.equals(signature.internalName())) {
+            return null;
+        }
+        try {
+            ClassNode owner = new ClassNode(Opcodes.ASM9);
+            new ClassReader(originalBytes).accept(owner, ClassReader.EXPAND_FRAMES);
+            boolean marked = false;
+            if (AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
+                    && StartupPhaseRuntime.phaseProbeEnabled()) {
+                marked = StartupPhasePlan.apply(signature, owner);
+            } else if (AdapterPlanControl.allows(FrameTimeStartupCompletionPlan.PLAN_ID)) {
+                marked = FrameTimeStartupCompletionPlan.apply(signature, owner);
+            }
+            boolean indexed = ResourcePriorityPlan.apply(signature, owner);
+            boolean rateLimited = ResourceProgressRateLimitPlan.apply(signature, owner);
+            if (!marked && !indexed && !rateLimited) return null;
+            byte[] transformed = ResourcePriorityPlan.write(owner);
+            if (marked && StartupPhaseRuntime.phaseProbeEnabled()) {
+                StartupPhaseRuntime.installed();
+            }
+            return transformed;
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // A partial tree is never published. Retry the old independent fail-open pipeline.
+            return resourceLoaderPlansIndependently(signature, originalBytes);
+        }
+    }
+
+    private static byte[] resourceLoaderPlansIndependently(
+            ClassSignature signature, byte[] originalBytes) {
+        byte[] current = originalBytes;
+        boolean changed = false;
+        try {
+            byte[] marked = null;
+            if (AdapterPlanControl.allows(StartupPhaseRuntime.PLAN_ID)
+                    && StartupPhaseRuntime.phaseProbeEnabled()) {
+                marked = StartupPhasePlan.transform(signature, current);
+            } else if (AdapterPlanControl.allows(FrameTimeStartupCompletionPlan.PLAN_ID)) {
+                marked = FrameTimeStartupCompletionPlan.transform(signature, current);
+            }
+            if (marked != null) {
+                current = marked;
+                changed = true;
+            }
+            byte[] indexed = ResourcePriorityPlan.transform(ClassSignature.parse(current), current);
+            if (indexed != null) {
+                current = indexed;
+                changed = true;
+            }
+            byte[] rateLimited = ResourceProgressRateLimitPlan.transform(signature, current);
+            if (rateLimited != null) {
+                current = rateLimited;
+                changed = true;
+            }
+        } catch (ThreadDeath | VirtualMachineError fatal) {
+            throw fatal;
+        } catch (Throwable ignored) {
+            // Return whichever exact standalone transformation completed, if any.
+        }
+        return changed ? current : null;
     }
 }
