@@ -1,5 +1,12 @@
 # Contributing
 
+Preflight is pre-beta and is not taking outside code yet. Unsolicited pull requests will be closed
+without review — the release surface is still moving, and reviewing against a moving surface costs
+more than it saves. Bug reports are welcome.
+
+An offer to take on an item in an issue is not an assignment, and no reply to one should be read as
+granting it.
+
 By contributing you agree that your contributions are licensed under the repository's [MIT license](LICENSE).
 
 ## Development requirements
