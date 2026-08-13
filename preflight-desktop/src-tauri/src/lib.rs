@@ -1003,6 +1003,16 @@ mod tests {
             while Instant::now() < deadline {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        // accept() on BSD-derived systems, macOS included, hands back a socket
+                        // that inherits the listener's non-blocking flag; Linux does not. Left
+                        // inherited, the first read here returns WouldBlock whenever the client's
+                        // request has not landed in the buffer yet, read_local_request gives up,
+                        // and dropping the stream resets a connection the client is still writing
+                        // into. The client then reports a connection reset against a server that
+                        // recorded no requests at all -- which reads as the upload misbehaving.
+                        // Setting it explicitly makes the read timeout below the thing that
+                        // decides when to give up, on every platform.
+                        stream.set_nonblocking(false).unwrap();
                         let Some(request) = read_local_request(&mut stream) else {
                             continue;
                         };
