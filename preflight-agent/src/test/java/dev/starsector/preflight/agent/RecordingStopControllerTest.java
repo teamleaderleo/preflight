@@ -1,6 +1,7 @@
 package dev.starsector.preflight.agent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -38,6 +39,20 @@ final class RecordingStopControllerTest {
             }
         }
         assertTrue(stopping);
+    }
+
+    @Test
+    void completionPublicationReplacesOnlyWithTheFinishedResponse(@TempDir Path directory)
+            throws Exception {
+        Path complete = directory.resolve("startup.stop-complete");
+        Files.writeString(complete, "stale\n");
+
+        RecordingStopController.publishCompletion(complete, "ok\n");
+
+        assertEquals("ok\n", Files.readString(complete));
+        try (var entries = Files.list(directory)) {
+            assertFalse(entries.anyMatch(path -> path.getFileName().toString().contains(".stop-complete.tmp-")));
+        }
     }
 
     @Test
