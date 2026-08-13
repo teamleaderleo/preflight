@@ -38,6 +38,17 @@
         "declines": 0,
         "containedFailures": 0
       },
+      "evidenceAssertions": [
+        "15.88s",
+        "20260806-084118",
+        "fast-1",
+        "0.98a-RC8",
+        "83-mod profile",
+        "42/42",
+        "15,469",
+        "ACTIVE",
+        "zero decline/failure"
+      ],
       "publishedIn": [
         "README.md",
         "docs/release-readiness.md",
