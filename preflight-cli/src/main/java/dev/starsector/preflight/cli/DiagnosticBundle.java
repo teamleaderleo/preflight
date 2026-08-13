@@ -66,27 +66,33 @@ final class DiagnosticBundle {
             Preflight diagnostics bundle
             ============================
 
-            This ZIP contains only bounded, textual Preflight metadata selected by an explicit
-            filename allowlist from the newest launch-run and benchmark evidence sessions.
+            This ZIP contains bounded, projected Preflight support metadata selected by an explicit
+            filename allowlist from the newest launch-run and benchmark evidence sessions. Rich local
+            evidence files are not copied verbatim. Each included evidence entry is transformed into
+            the versioned starsector-preflight-support-evidence-v1 schema, which retains only bounded
+            scalar fields whose full field path uses the support allowlist.
 
             Included when present:
-            - run outcome, runtime and launch-option metadata
-            - enabled-mod/resource metadata (names, counts, sizes and hashes; never asset contents)
-            - adapter activation, health, counters and bounded timing summaries
+            - bounded run outcome, runtime and launch-option metadata
+            - bounded enabled-mod/resource identities and counts
+            - adapter activation, health, counters and timing summaries
             - desktop-smoke process/state identity and sealed outcome metadata
-            - benchmark identity, settings and result metadata
+            - benchmark identity, settings and result metrics
 
             Always excluded:
+            - unknown evidence fields and unknown nested containers
+            - path/file/root/directory, command-line, log, stack, environment, token and URL fields
+            - absolute-path-looking string values, even under an otherwise allowed support field
             - acceleration caches and prepared texture/audio/bytecode payloads
             - Starsector files, mod files, saves and decoded assets
             - console/wrapper/game logs, crash dumps and environment dumps
             - JFR recordings, screenshots, audio and unknown filenames
-            - symbolic links and files larger than 512 KiB
+            - symbolic links and source files larger than 512 KiB
 
-            Absolute paths below the current user's home directory are replaced with <home> in
-            exported text. Other metadata, including enabled mod IDs and platform/runtime details,
-            remains visible because it is useful for compatibility diagnosis. Inspect the ZIP
-            before sharing it if that information is sensitive to you.
+            Absolute paths below the current user's home directory are also replaced with <home>
+            before projection as defense in depth. Other bounded metadata, including enabled mod IDs
+            and platform/runtime details, may remain visible because it is useful for compatibility
+            diagnosis. Inspect the ZIP before sharing it if that information is sensitive to you.
 
             manifest.json lists every included or skipped source and the enforced limits.
             """).getBytes(StandardCharsets.UTF_8);
@@ -211,10 +217,21 @@ final class DiagnosticBundle {
                     skipped.add(new Skipped(entry, result.skippedReason()));
                     continue;
                 }
-                byte[] bytes = result.bytes();
-                remaining[0] -= bytes.length;
-                files.add(new BundleFile(entry, bytes));
-                included.add(new Included(entry, bytes.length, Hashes.sha256(bytes)));
+                byte[] projected;
+                try {
+                    projected = SupportEvidenceProjection.project(
+                            name, new String(result.bytes(), StandardCharsets.UTF_8));
+                } catch (IllegalArgumentException malformed) {
+                    skipped.add(new Skipped(entry, "did not match the bounded support evidence schema"));
+                    continue;
+                }
+                if (projected.length > remaining[0]) {
+                    skipped.add(new Skipped(entry, "would exceed the 5 MiB bundle content limit after projection"));
+                    continue;
+                }
+                remaining[0] -= projected.length;
+                files.add(new BundleFile(entry, projected));
+                included.add(new Included(entry, projected.length, Hashes.sha256(projected)));
             }
         }
     }
