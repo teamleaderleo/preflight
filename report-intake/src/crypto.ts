@@ -84,7 +84,14 @@ function isClaims(value: unknown): value is GrantClaims {
     && typeof claims.productVersion === "string"
     && Number.isSafeInteger(claims.bytes)
     && typeof claims.sha256 === "string"
-    && Number.isInteger(claims.exp);
+    && Number.isInteger(claims.exp)
+    && (claims.quotaDay === undefined || isQuotaDay(claims.quotaDay));
+}
+
+function isQuotaDay(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
 }
 
 export async function sha256Hex(bytes: ArrayBuffer | Uint8Array): Promise<string> {
