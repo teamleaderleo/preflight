@@ -3,6 +3,7 @@ package dev.starsector.preflight.cli;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -48,7 +49,7 @@ class LookupEquivalenceCleanupTest {
                 List.of(failing(new IOException("close failed")), successful),
                 null));
 
-        assertEquals(true, closed[0]);
+        assertTrue(closed[0]);
     }
 
     private static Closeable failing(IOException failure) {
