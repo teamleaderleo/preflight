@@ -8,6 +8,7 @@ import {
   isDesktopHost,
   sendRunReport,
 } from "./bridge";
+import { nativeCommandError } from "./nativeErrors";
 import type {
   DiagnosticsExport,
   ReportIntakeStatus,
@@ -222,8 +223,9 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       setReportUploadedBytes(diagnosticsExport.bytes);
       announce(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`, "success");
     } catch (error) {
-      const detail = errorMessage(error);
-      if (detail.toLowerCase().includes("cancel")) {
+      const nativeError = nativeCommandError(error);
+      const detail = nativeError?.message ?? errorMessage(error);
+      if (nativeError?.code === "report-upload-cancelled") {
         announce("Report upload stopped. The diagnostics ZIP is still on this computer.", "warning");
       } else {
         setReportError(detail);
