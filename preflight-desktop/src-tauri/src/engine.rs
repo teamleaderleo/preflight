@@ -1,5 +1,7 @@
 use crate::child_error;
-use crate::operations::{OperationCoordinator, OperationState, refuse_update_install};
+use crate::operations::{
+    OperationCoordinator, OperationState, refuse_report_upload_for_removal, refuse_update_install,
+};
 use serde::Deserialize;
 use serde_json::Value;
 #[cfg(debug_assertions)]
@@ -884,6 +886,7 @@ pub(crate) fn apply_removal(
             "Wait for profile preparation to finish before removing Preflight files.".to_string(),
         );
     }
+    refuse_report_upload_for_removal(&running)?;
     let result = removal_json(&app, &scope, true);
     drop(running);
     result
