@@ -113,7 +113,10 @@ async function createCase(request: Request, env: IntakeEnv): Promise<Response> {
   );
   if (!reservation.accepted) {
     throw new HttpError(429, "daily report intake capacity has been reached", {
-      "retry-after": String(secondsUntilNextUtcDay(now)),
+      "retry-after": String(Math.min(
+        positiveInteger(env.GRANT_TTL_SECONDS, "GRANT_TTL_SECONDS"),
+        secondsUntilNextUtcDay(now),
+      )),
     });
   }
 
