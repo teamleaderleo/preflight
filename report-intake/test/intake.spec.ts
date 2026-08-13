@@ -319,7 +319,7 @@ describe("private report intake", () => {
     ]) {
       const response = await worker.fetch(
         new IncomingRequest(new URL("/healthz", origin).toString()),
-        { ...(env as TestEnv), PUBLIC_ORIGIN: origin },
+        envWithOrigin(origin),
       );
 
       expect(response.status, origin).toBe(500);
@@ -332,7 +332,7 @@ describe("private report intake", () => {
 
     const response = await worker.fetch(
       new IncomingRequest(new URL("/healthz", origin).toString()),
-      { ...(env as TestEnv), PUBLIC_ORIGIN: origin },
+      envWithOrigin(origin),
     );
 
     expect(response.status).toBe(200);
@@ -370,6 +370,11 @@ async function upload(grant: Grant, archive: Uint8Array): Promise<Response> {
 
 async function dispatch(incoming: Request<unknown, IncomingRequestCfProperties>): Promise<Response> {
   return worker.fetch(incoming, env as TestEnv);
+}
+
+/** `PUBLIC_ORIGIN` is generated as the deployed origin's literal type, so an override needs a cast. */
+function envWithOrigin(origin: string): TestEnv {
+  return { ...(env as TestEnv), PUBLIC_ORIGIN: origin } as unknown as TestEnv;
 }
 
 function quotaFor(name: string): DurableObjectStub<DailyReportQuota> {
