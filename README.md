@@ -104,6 +104,11 @@ update can still require a Preflight update, so unknown versions aren't advertis
 full boundary is in the [Product contract](docs/product-contract.md), with current limitations in
 [Known limitations](docs/known-limitations.md).
 
+A packaged build makes one network request nobody asked for: once per session it reads a fixed file
+on the public release feed to see whether a newer signed release exists. The address is the same for
+every user and carries nothing about the installation. Everything else leaves the machine only when
+the user sends it. See [Privacy](docs/privacy.md).
+
 ## Development quick start
 
 Public packages aren't available during the preview. Build the self-contained CLI and Java agent

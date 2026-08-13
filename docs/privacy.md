@@ -3,11 +3,46 @@
 Preflight runs locally. Preparation, launching, profiles, settings, storage cleanup, diagnostics,
 and benchmarking don't send data to the project maintainer.
 
+Packaged builds make one routine network request that the user doesn't start: the update check
+described below. Everything else leaves the machine only when the user asks for it.
+
 The desktop build can save a diagnostics ZIP chosen by the user. A build compiled with the private
 intake origin also exposes **Send run report**. Nothing is sent until the user opens its review,
 sees the fixed inclusion and exclusion boundary, exact entries, finished ZIP byte count and
 SHA-256, and confirms the send. Ordinary development and source builds omit the origin, so sending
 is disabled while local export remains available.
+
+## The update check
+
+A packaged desktop build checks once per app session whether a newer signed release exists. It runs
+the first time Preflight has a usable Starsector installation, so it doesn't run while discovery is
+still going, while the game is launching or running, or when no installation was found. It gives up
+after 30 seconds.
+
+The request is an ordinary HTTPS GET of one fixed file on the project's public release feed:
+
+```
+https://github.com/teamleaderleo/preflight/releases/latest/download/latest.json
+```
+
+That address is compiled in and validated before use. The check refuses to run against anything that
+isn't an absolute HTTPS URL, and refuses credentials, a query string, or a fragment outright, so no
+build can attach a version, machine, or install identifier to it. The URL is the same for every
+user. Preflight compares the versions locally and uploads nothing; whether an update is available is
+decided on the machine.
+
+GitHub, as the host, necessarily sees the ordinary metadata of any HTTPS request — source address,
+client identifier, and time — exactly as it would for a manual download of the same file. Preflight
+adds nothing to it.
+
+A build without a compiled updater verification key, which is every ordinary development and source
+build, makes no request at all and reports that verified updates aren't configured. On Linux the
+check is limited to the AppImage; other packages are left to the package manager that installed
+them.
+
+Downloading and installing an update is a separate, explicit action. The download is verified
+against the compiled signing key, and a failed download or verification leaves the installed version
+in place.
 
 ## What a run report contains
 
