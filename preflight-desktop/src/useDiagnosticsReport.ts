@@ -8,6 +8,7 @@ import {
   isDesktopHost,
   sendRunReport,
 } from "./bridge";
+import { REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
 import type {
   DiagnosticsExport,
   ReportIntakeStatus,
@@ -18,8 +19,6 @@ import type {
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage, localDateStamp } from "./uiFormat";
-
-const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 
 function savedRunReportReceipt(): ReportReceipt | null {
   try {
