@@ -374,22 +374,11 @@ h2 {
 }
 
 .card {
-  position: relative;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--paper);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
-}
-
-/*
- * A tooltip has to escape its card, and z-index alone cannot do it: backdrop-filter makes every
- * card a stacking context, so .info-tip__content's z-index only orders it within its own card and
- * the next card paints over whatever hangs below. Raise the card the open tooltip belongs to.
- */
-.card:hover,
-.card:focus-within {
-  z-index: 2;
 }
 
 .launch-console {
@@ -1161,11 +1150,13 @@ h2 {
   line-height: 1;
 }
 
+/*
+ * Fixed, and a child of body rather than of the card -- see InfoTip.tsx. Cards create stacking
+ * contexts, and a tooltip positioned inside one cannot be lifted above the card that follows it.
+ */
 .info-tip__content {
-  position: absolute;
-  z-index: 60;
-  top: calc(100% - 3px);
-  left: 8px;
+  position: fixed;
+  z-index: 200;
   width: min(290px, calc(100vw - 48px));
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
@@ -1184,8 +1175,7 @@ h2 {
   transition: opacity 120ms ease, transform 120ms ease, visibility 120ms;
 }
 
-.info-tip:hover .info-tip__content,
-.info-tip:focus-within .info-tip__content {
+.info-tip__content--open {
   opacity: 1;
   transform: translateY(0);
   visibility: visible;

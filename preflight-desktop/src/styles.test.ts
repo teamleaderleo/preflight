@@ -70,5 +70,8 @@ test("focus and pointer targets cover every native desktop control", () => {
   expect(styles).toMatch(/\.text-button\s*\{[^}]*min-height:\s*44px;/s);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.nav__item\s*\{[^}]*width:\s*44px;/);
   expect(styles).toMatch(/\.page-title:focus-visible\s*\{[^}]*text-decoration-color:\s*var\(--accent\);/s);
-  expect(styles).toMatch(/\.info-tip:hover \.info-tip__content,[\s\S]*?\.info-tip:focus-within \.info-tip__content\s*\{[^}]*visibility:\s*visible;/);
+  // The tooltip is portalled into body and positioned from JS, so hover and focus are handled in
+  // InfoTip.tsx; the stylesheet only has to make the open state visible.
+  expect(styles).toMatch(/\.info-tip__content\s*\{[^}]*position:\s*fixed;/s);
+  expect(styles).toMatch(/\.info-tip__content--open\s*\{[^}]*visibility:\s*visible;/s);
 });

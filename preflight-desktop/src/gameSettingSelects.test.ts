@@ -115,6 +115,26 @@ describe("battle size presets", () => {
     // 200 and the 1000/1500 steps fall outside [500, 900] and are dropped rather than clamped.
     expect(presets.map((preset) => preset.value)).toEqual([500, 600, 700, 900]);
   });
+
+  /**
+   * An installation Preflight cannot read reports every battle-size limit as null -- run
+   * `preflight launch-settings --json` with no --game to see it. The slider falls back to a range
+   * of 1 to the extended maximum, and a "Minimum" button holding that 1 would be inventing a game
+   * rule that no installation stated.
+   */
+  it("names only the steps when the installation stated no limits of its own", () => {
+    const presets = battleSizePresets(withLimits({
+      battleSizeMin: null,
+      battleSizeDefault: null,
+      battleSizeMax: null,
+    }));
+    expect(presets).toEqual([
+      { value: 600, label: "Larger" },
+      { value: 1000, label: "Big" },
+      { value: 1500, label: "Huge" },
+      { value: 2000, label: "Maximum" },
+    ]);
+  });
 });
 
 /**
@@ -135,3 +155,4 @@ describe("storage group labels", () => {
     expect(storageGroupLabel("future-thing")).toEqual({ label: "future thing", detail: "" });
   });
 });
+

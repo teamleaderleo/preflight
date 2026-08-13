@@ -126,7 +126,10 @@ export function battleSizePresets(settings: LaunchSettings): Array<{ value: numb
     if (value === null || value < minimum || value > upperBound || named.has(value)) return;
     named.set(value, label);
   };
-  name(minimum, "Minimum");
+  // Only the numbers the installation actually reported get named. `preflight launch-settings` on
+  // an installation it cannot read returns every battle-size limit as null, and a "Minimum" button
+  // holding the slider's fallback of 1 would be inventing a game rule.
+  name(settings.limits.battleSizeMin, "Minimum");
   name(settings.limits.battleSizeDefault, "Default");
   name(settings.limits.battleSizeMax, "Vanilla max");
   name(600, "Larger");
