@@ -20,11 +20,12 @@ npm run cf-typegen
 npm run check
 ```
 
-Thirteen tests run inside `workerd` with local R2 and Durable Object bindings. They cover the
-accepted lifecycle, exact daily quota accounting, edge rate limiting, the production canary, and
-rejection of digest changes, unexpected entries, oversized decompression, token changes, replay,
-and protocol drift. `npm audit --omit=dev` covers the two production dependencies; the lockfile also
-overrides a vulnerable transitive development copy of Undici to its patched 7.x release.
+The test suite runs inside `workerd` with local R2 and Durable Object bindings. It covers the
+accepted lifecycle, expiring and committed daily quota accounting, edge rate limiting, the
+production canary, and rejection of digest changes, unexpected entries, oversized decompression,
+token changes, replay, and protocol drift. `npm audit --omit=dev` covers the two production
+dependencies; the lockfile also overrides a vulnerable transitive development copy of Undici to its
+patched 7.x release.
 
 ## Production provisioning
 
