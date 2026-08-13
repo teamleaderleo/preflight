@@ -180,6 +180,62 @@ class StarsectorDiscoveryTest {
     }
 
     @Test
+    void implicitWorkingDirectoryStillFindsADirectKnownLauncher() throws Exception {
+        Path workspace = Files.createDirectories(temporaryDirectory.resolve("workspace-direct"));
+        Path launcher = Files.writeString(workspace.resolve("starsector.sh"), "#!/bin/sh\n");
+        launcher.toFile().setExecutable(true);
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.OTHER,
+                temporaryDirectory.resolve("no-home"),
+                workspace,
+                Map.of(),
+                null,
+                null);
+
+        assertNotNull(result.selected());
+        assertEquals(launcher.toAbsolutePath().normalize(), result.selected().launcher());
+    }
+
+    @Test
+    void implicitWorkingDirectoryFindsDocumentedNearbyStarsectorChild() throws Exception {
+        Path workspace = Files.createDirectories(temporaryDirectory.resolve("workspace-nearby"));
+        Path game = Files.createDirectories(workspace.resolve("Starsector"));
+        Path launcher = Files.writeString(game.resolve("starsector.sh"), "#!/bin/sh\n");
+        launcher.toFile().setExecutable(true);
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.OTHER,
+                temporaryDirectory.resolve("no-home"),
+                workspace,
+                Map.of(),
+                null,
+                null);
+
+        assertNotNull(result.selected());
+        assertEquals(launcher.toAbsolutePath().normalize(), result.selected().launcher());
+    }
+
+    @Test
+    void implicitWorkingDirectoryDoesNotTraverseUnrelatedNestedWorkspace() throws Exception {
+        Path workspace = Files.createDirectories(temporaryDirectory.resolve("workspace-bounded"));
+        Path decoyDirectory = Files.createDirectories(workspace.resolve("unrelated/project/output"));
+        Path decoy = Files.writeString(decoyDirectory.resolve("starsector.sh"), "#!/bin/sh\n");
+        decoy.toFile().setExecutable(true);
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.OTHER,
+                temporaryDirectory.resolve("no-home"),
+                workspace,
+                Map.of(),
+                null,
+                null);
+
+        assertNull(result.selected());
+        assertTrue(result.candidates().isEmpty());
+    }
+
+    @Test
     void doesNotRecursivelyInspectFilesystemRootFromPackagedWorkingDirectory() throws Exception {
         Path filesystemRoot = temporaryDirectory.toAbsolutePath().getRoot();
 
