@@ -4,11 +4,11 @@
 
 **Profile:** Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, bundled x86-64 Zulu 17 under Rosetta
 
-**Updated:** 2026-08-11
+**Updated:** 2026-08-13
 
 The development installation's observed worst case reached roughly 101 seconds, and its established
-initial five-run baseline centered on 88.13 seconds. The fastest warm launch recorded so far
-takes 15.88 seconds on the later 83-mod profile. **101 seconds to 15.88 seconds** is the chronological
+initial five-run baseline centered on 88.13 seconds. The best validated warm gate so far is
+15.88 seconds on the later 83-mod profile. **101 seconds to 15.88 seconds** is the chronological
 headline; 88.13 seconds supplies the repeatable baseline context. The final package still needs its
 own benchmark pass.
 
@@ -29,10 +29,10 @@ and [the profiler correction](evidence/2026-08-02-what-the-profiler-was-not-tell
 The game-log-to-main-menu duration and wrapper wall time are separate metrics. JFR supplies
 attribution under a corrected clock contract. Ordinary launches establish wall time, integration,
 and visual correctness.
-Whole-launch noise on the test machine is roughly ±1.4 seconds, so isolated sub-second changes need
-controlled replays or larger cohorts. Reports record browser activity, memory pressure, ambient
-temperature, and back-to-back thermal throttling. The current harness and condition definitions are
-documented in [startup-benchmark.md](startup-benchmark.md).
+Current whole-launch run-to-run spread on the test machine is roughly ±0.6 seconds, so isolated
+sub-second changes still need controlled replays or larger cohorts. Reports record browser activity,
+memory pressure, ambient temperature, and back-to-back thermal throttling. The current harness and
+condition definitions are documented in [startup-benchmark.md](startup-benchmark.md).
 
 The controlled chronology begins at an 88.13-second median. Earlier accepted launches reached
 roughly 101 seconds under less favorable conditions. The first accepted optimization waypoint was
@@ -53,10 +53,11 @@ entered the working stack.
 | Loading-screen redraw and title-tail work | 17.09 / 16.68s, then 16.21s |
 | Current production gates | 16.66 / 16.28 / **15.88s** |
 
-The 15.88-second run retained 42/42 transformed-class cache hits, 15,469 prepared-texture and
-pixel-conversion hits, active adapter health, and no adapter decline or failure. Its exact record is
-in [the lazy fleet-member report](evidence/2026-08-06-codex-lazy-fleet-members.md). The final
-candidate benchmark will add a packaged result beside this record.
+The 15.88-second validated gate retained 42/42 transformed-class cache hits, 15,469 prepared-texture
+and pixel-conversion hits, active adapter health, and no adapter decline or failure. It is the best
+validated result in the accepted 16-second gate series. Its exact record is in
+[the lazy fleet-member report](evidence/2026-08-06-codex-lazy-fleet-members.md). The final candidate
+benchmark will add a packaged result beside this record.
 
 ## The first texture cache accelerated the wrong part of the wait
 
