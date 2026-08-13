@@ -306,6 +306,38 @@ describe("private report intake", () => {
     await expect(runCanary("http://intake.test")).rejects.toThrow("exact configured HTTPS origin");
     await expect(runCanary("https://intake.test/path")).rejects.toThrow("exact configured HTTPS origin");
   });
+
+  it("refuses to serve a placeholder intake origin however it is spelled", async () => {
+    // url.origin carries the port, so a ".invalid" check against it misses a port-suffixed
+    // placeholder. A trailing root dot names the same host too.
+    for (const origin of [
+      "https://reports.example.invalid",
+      "https://reports.example.invalid:8443",
+      "https://reports.example.invalid.",
+      "https://reports.example.INVALID",
+      "https://invalid",
+    ]) {
+      const response = await worker.fetch(
+        new IncomingRequest(new URL("/healthz", origin).toString()),
+        envWithOrigin(origin),
+      );
+
+      expect(response.status, origin).toBe(500);
+      expect(await response.json(), origin).toEqual({ error: "internal error" });
+    }
+  });
+
+  it("serves a configured non-placeholder origin on a non-default port", async () => {
+    const origin = "https://intake.test:8443";
+
+    const response = await worker.fetch(
+      new IncomingRequest(new URL("/healthz", origin).toString()),
+      envWithOrigin(origin),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok", protocolVersion: PROTOCOL_VERSION });
+  });
 });
 
 async function createGrant(archive: Uint8Array): Promise<Grant> {
@@ -338,6 +370,11 @@ async function upload(grant: Grant, archive: Uint8Array): Promise<Response> {
 
 async function dispatch(incoming: Request<unknown, IncomingRequestCfProperties>): Promise<Response> {
   return worker.fetch(incoming, env as TestEnv);
+}
+
+/** `PUBLIC_ORIGIN` is generated as the deployed origin's literal type, so an override needs a cast. */
+function envWithOrigin(origin: string): TestEnv {
+  return { ...(env as TestEnv), PUBLIC_ORIGIN: origin } as unknown as TestEnv;
 }
 
 function quotaFor(name: string): DurableObjectStub<DailyReportQuota> {
