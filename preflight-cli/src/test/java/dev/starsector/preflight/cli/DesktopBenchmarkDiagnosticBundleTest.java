@@ -16,7 +16,7 @@ final class DesktopBenchmarkDiagnosticBundleTest {
     Path directory;
 
     @Test
-    void exportsTheSealedPairedDesktopBenchmarkResult() throws Exception {
+    void exportsProjectedSealedPairedDesktopBenchmarkMetrics() throws Exception {
         PreflightHome home = PreflightHome.resolve(
                 Platform.MAC, directory.resolve("user-home"), Map.of());
         Path session = Files.createDirectories(home.runs().resolve("desktop-benchmark-20260812T100000Z"));
@@ -35,15 +35,14 @@ final class DesktopBenchmarkDiagnosticBundleTest {
             var entry = zip.getEntry("runs/1/benchmark-result.json");
             assertTrue(entry != null);
             String exported = new String(zip.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(exported.contains("starsector-preflight-desktop-benchmark-v1"));
-            // Redacted in the escaped form the JSON actually holds, so the tail keeps the platform's
-            // separator: "<home>/Synthetic Game" on Unix and "<home>\\Synthetic Game" on Windows.
-            // Asserting the two halves separately would pass on a bundle that redacted the prefix
-            // and dropped the rest, which is the part worth knowing survived.
-            String escaped = install.toString().replace("\\", "\\\\");
-            String escapedHome = home.root().getParent().toString().replace("\\", "\\\\");
-            assertTrue(exported.contains(escaped.replace(escapedHome, "<home>")), exported);
-            assertFalse(exported.contains(home.root().getParent().toString()));
+            assertTrue(exported.contains(SupportEvidenceProjection.FORMAT), exported);
+            assertTrue(exported.contains("starsector-preflight-desktop-benchmark-v1"), exported);
+            assertTrue(exported.contains("metrics.processToMainMenuMs.measurementOnly"), exported);
+            assertTrue(exported.contains("metrics.processToMainMenuMs.optimized"), exported);
+            assertTrue(exported.contains("20000"), exported);
+            assertFalse(exported.contains("installRoot"), exported);
+            assertFalse(exported.contains("Synthetic Game"), exported);
+            assertFalse(exported.contains(home.root().getParent().toString()), exported);
         }
     }
 }
