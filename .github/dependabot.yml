@@ -6,42 +6,116 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      maven-dependencies:
+      maven-bytecode-tooling:
+        applies-to: version-updates
+        patterns:
+          - "org.ow2.asm:*"
+        update-types:
+          - minor
+          - patch
+      maven-junit:
+        applies-to: version-updates
+        patterns:
+          - "org.junit:junit-bom"
+          - "org.junit.jupiter:junit-jupiter"
+        update-types:
+          - minor
+          - patch
+      maven-routine:
+        applies-to: version-updates
         patterns:
           - "*"
+        exclude-patterns:
+          - "org.ow2.asm:*"
+          - "org.junit:junit-bom"
+          - "org.junit.jupiter:junit-jupiter"
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      github-actions:
+      github-actions-routine:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: npm
     directory: /preflight-desktop
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      desktop-npm-dependencies:
+      desktop-tauri:
+        applies-to: version-updates
+        patterns:
+          - "@tauri-apps/*"
+        update-types:
+          - minor
+          - patch
+      desktop-npm-routine:
+        applies-to: version-updates
         patterns:
           - "*"
+        exclude-patterns:
+          - "@tauri-apps/*"
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: npm
     directory: /report-intake
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      report-intake-npm-dependencies:
+      report-intake-cloudflare:
+        applies-to: version-updates
+        patterns:
+          - "@cloudflare/*"
+          - "wrangler"
+        update-types:
+          - minor
+          - patch
+      report-intake-npm-routine:
+        applies-to: version-updates
         patterns:
           - "*"
+        exclude-patterns:
+          - "@cloudflare/*"
+          - "wrangler"
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: cargo
     directory: /preflight-desktop/src-tauri
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      desktop-cargo-dependencies:
+      desktop-tauri-rust:
+        applies-to: version-updates
+        patterns:
+          - "tauri"
+          - "tauri-*"
+        update-types:
+          - minor
+          - patch
+      desktop-cargo-routine:
+        applies-to: version-updates
         patterns:
           - "*"
+        exclude-patterns:
+          - "tauri"
+          - "tauri-*"
+        update-types:
+          - minor
+          - patch
