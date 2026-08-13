@@ -9,6 +9,7 @@
 /preflight-desktop/scripts/*updater* @teamleaderleo
 /preflight-desktop/scripts/candidate-crypt* @teamleaderleo
 /preflight-desktop/src-tauri/tauri.conf.json @teamleaderleo
+/preflight-desktop/src-tauri/src/updates.rs @teamleaderleo
 
 # Private support-report intake and its deployment boundary.
 /report-intake/ @teamleaderleo
