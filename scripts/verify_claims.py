@@ -57,6 +57,7 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
     identifiers: set[str] = set()
     accepted = 0
     publications_checked = 0
+    mentions_checked = 0
     assertions_checked = 0
 
     for index, raw in enumerate(claims):
@@ -110,6 +111,9 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
         publications = raw.get("publishedIn")
         if not isinstance(publications, list) or not publications:
             raise ClaimError(f"{claim_id} publishedIn must contain at least one path")
+        mentions = raw.get("mentionedIn", [])
+        if not isinstance(mentions, list):
+            raise ClaimError(f"{claim_id} mentionedIn must be a list")
         seconds = format(float(result["seconds"]), "g")
         mod_count = profile["modCount"]
         mod_pattern = re.compile(rf"(?<!\d){mod_count}(?:-mod|\s+mods?)(?!\d)", re.IGNORECASE)
@@ -121,11 +125,16 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
             if not mod_pattern.search(text):
                 raise ClaimError(f"{publication} no longer carries {claim_id} {mod_count}-mod scope")
             publications_checked += 1
+        for mention in mentions:
+            path = repository_path(root, required_string(mention, f"{claim_id} mention"))
+            text = path.read_text(encoding="utf-8")
+            if seconds not in text:
+                raise ClaimError(f"{mention} no longer mentions {claim_id} result {seconds}")
+            mentions_checked += 1
 
         if status == "accepted":
             accepted += 1
-            if not required_string(evidence.get("runId"), f"{claim_id} evidence.runId"):
-                raise ClaimError(f"{claim_id} accepted evidence needs a run ID")
+            required_string(evidence.get("runId"), f"{claim_id} evidence.runId")
             required_string(evidence.get("condition"), f"{claim_id} evidence.condition")
 
     return {
@@ -133,6 +142,7 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
         "acceptedClaims": accepted,
         "evidenceAssertionsChecked": assertions_checked,
         "publicationsChecked": publications_checked,
+        "mentionsChecked": mentions_checked,
     }
 
 
