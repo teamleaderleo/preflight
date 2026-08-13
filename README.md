@@ -32,11 +32,12 @@ logic.
 | --- | ---: | --- |
 | Observed early high | **~101s** | Worst case seen on the development installation |
 | Initial five-run baseline | **88.13s** | Median of five unaccelerated launches |
-| Current warm record | **15.88s** | Fastest accepted launch on the later 83-mod profile |
+| Best validated warm gate | **15.88s** | Best validated result on the later 83-mod profile |
 
 These are chronological reference points from one M5 MacBook Air running Starsector 0.98a-RC8 and
 the game's bundled x86-64 Java runtime through Rosetta. The latest production gates were 16.66
-seconds cold, 16.28 seconds warm, and 15.88 seconds warm. The record retained all 42 transformed
+seconds cold, 16.28 seconds warm, and 15.88 seconds warm. Current whole-launch run-to-run spread on
+the reviewed machine is roughly ±0.6 seconds. The 15.88-second gate retained all 42 transformed
 class-cache hits, 15,469 prepared texture and pixel-conversion hits, healthy adapters, and no
 adapter decline or failure.
 
