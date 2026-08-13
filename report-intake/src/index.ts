@@ -339,13 +339,18 @@ function publicOrigin(env: IntakeEnv): string {
   } catch {
     throw new Error("PUBLIC_ORIGIN must be an absolute HTTPS origin");
   }
+  // The placeholder check reads the hostname rather than the origin. `url.origin` carries the
+  // port, so `https://reports.example.invalid:8443` does not end with ".invalid" and a
+  // misconfigured candidate would have been accepted. A trailing root dot names the same host.
+  const hostname = url.hostname.replace(/\.$/, "").toLowerCase();
   if (url.protocol !== "https:"
       || url.username
       || url.password
       || url.pathname !== "/"
       || url.search
       || url.hash
-      || url.origin.endsWith(".invalid")) {
+      || hostname === "invalid"
+      || hostname.endsWith(".invalid")) {
     throw new Error("PUBLIC_ORIGIN must be a configured absolute HTTPS origin");
   }
   return url.origin;
