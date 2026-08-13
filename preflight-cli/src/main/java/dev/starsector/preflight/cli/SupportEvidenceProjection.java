@@ -56,7 +56,7 @@ final class SupportEvidenceProjection {
         for (Map<String, Object> source : sourceRecords) {
             LinkedHashMap<String, Object> fields = new LinkedHashMap<>();
             flatten(source, new ArrayList<>(), fields, 0);
-            records.add(Map.of("fields", Map.copyOf(fields)));
+            records.add(Map.of("fields", new LinkedHashMap<>(fields)));
         }
         Map<String, Object> envelope = new LinkedHashMap<>();
         envelope.put("format", FORMAT);
