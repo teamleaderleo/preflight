@@ -51,8 +51,10 @@
       ],
       "publishedIn": [
         "README.md",
-        "docs/release-readiness.md",
         "docs/optimization-history.md"
+      ],
+      "mentionedIn": [
+        "docs/release-readiness.md"
       ],
       "releaseCandidate": false,
       "supersedes": [],
