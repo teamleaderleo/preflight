@@ -4,7 +4,6 @@ import {
   GaugeIcon,
   LayersIcon,
   MoonIcon,
-  RefreshIcon,
   SettingsIcon,
   SparklesIcon,
   SunIcon,
@@ -23,11 +22,9 @@ interface DesktopShellProps {
   isReady: boolean;
   updateAvailable: boolean;
   engineVersion: string;
-  refreshDisabled: boolean;
   theme: ThemePreference;
   children: ReactNode;
   onPageChange: (page: Page) => void;
-  onRefresh: () => void;
   onThemeChange: (theme: ThemePreference) => void;
 }
 
@@ -38,11 +35,9 @@ export function DesktopShell({
   isReady,
   updateAvailable,
   engineVersion,
-  refreshDisabled,
   theme,
   children,
   onPageChange,
-  onRefresh,
   onThemeChange,
 }: DesktopShellProps) {
   const homeActive = page === "home" || page === "launch";
@@ -102,9 +97,6 @@ export function DesktopShell({
               <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>
               <button className={theme === "dark" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use dark theme" aria-label="Use dark theme" aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><MoonIcon /></button>
             </div>
-            <button className="icon-button" type="button" onClick={onRefresh} title="Refresh installation and mod status" aria-label="Refresh installation status" disabled={status === "loading" || refreshDisabled}>
-              <RefreshIcon className={status === "loading" ? "spin" : ""} />
-            </button>
           </div>
         </header>
         <div key={page} ref={pageViewport} className={`page-viewport page-viewport--${page}`}>{children}</div>
