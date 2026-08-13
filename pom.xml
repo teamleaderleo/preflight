@@ -137,8 +137,15 @@
                 <!-- SelfAssignment misfires on compact record constructor normalization
                      (component = Objects.requireNonNull(component, ...)), which this codebase
                      uses pervasively. Surface everything else as advisory warnings so an
-                     opt-in analysis run reports findings instead of failing on false positives. -->
-                <arg>-Xplugin:ErrorProne -Xep:SelfAssignment:OFF -XepAllErrorsAsWarnings</arg>
+                     opt-in analysis run reports findings instead of failing on false positives.
+
+                     StringCaseLocaleUsage and DefaultCharset are the exceptions, and they are
+                     errors. Both name a difference between this Mac and the Windows and Linux
+                     machines the project ships to: case folding that changes meaning under the
+                     player's locale, and a charset that is whatever the running JVM decided.
+                     Neither shows up by running the tests here. The tree has no violation of
+                     either, so this rejects new ones without deferring old ones. -->
+                <arg>-Xplugin:ErrorProne -Xep:SelfAssignment:OFF -XepAllErrorsAsWarnings -Xep:StringCaseLocaleUsage:ERROR -Xep:DefaultCharset:ERROR</arg>
                 <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
                 <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
                 <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>

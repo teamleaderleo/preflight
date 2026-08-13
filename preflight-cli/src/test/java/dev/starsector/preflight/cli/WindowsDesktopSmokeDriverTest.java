@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,7 +27,7 @@ final class WindowsDesktopSmokeDriverTest {
         assertTrue(script.contains("$process.MainWindowHandle"));
         assertTrue(script.contains("GetWindowRect($hwnd"));
         assertTrue(script.contains("test body"));
-        assertFalse(script.toLowerCase().contains("starsector"));
+        assertFalse(script.toLowerCase(Locale.ROOT).contains("starsector"));
         assertFalse(script.contains("GetProcessesByName"));
         assertFalse(script.contains("AppActivate"));
     }
@@ -63,7 +64,7 @@ final class WindowsDesktopSmokeDriverTest {
         assertTrue(commands.scripts().stream().anyMatch(script ->
                 script.contains("keybd_event(87,0,2")));
         assertTrue(commands.scripts().stream().allMatch(script ->
-                !script.toLowerCase().contains("starsector")));
+                !script.toLowerCase(Locale.ROOT).contains("starsector")));
     }
 
     private static final class FakeCommands implements DesktopCommandExecutor {
