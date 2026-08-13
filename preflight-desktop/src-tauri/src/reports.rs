@@ -189,31 +189,25 @@ pub(crate) async fn send_run_report(
     tracker: State<'_, OperationCoordinator>,
     report: ReportUploadInput,
 ) -> Result<ReportReceipt, NativeCommandError> {
-    let origin = configured_report_origin().map_err(|message| {
-        NativeCommandError::new("report-intake-unavailable", message, false)
-    })?;
-    let archive = validated_report_archive(&report).map_err(|message| {
-        NativeCommandError::new("report-archive-invalid", message, false)
-    })?;
+    let origin = configured_report_origin()
+        .map_err(|message| NativeCommandError::new("report-intake-unavailable", message, false))?;
+    let archive = validated_report_archive(&report)
+        .map_err(|message| NativeCommandError::new("report-archive-invalid", message, false))?;
     let client = report_client().map_err(|message| {
         NativeCommandError::new("report-transport-unavailable", message, true)
     })?;
     let id = NEXT_REPORT_UPLOAD_ID.fetch_add(1, Ordering::Relaxed);
     let (cancel, cancel_receiver) = watch::channel(false);
     {
-        let mut running = tracker
-            .0
-            .lock()
-            .map_err(|_| {
-                NativeCommandError::new(
-                    "operation-state-unavailable",
-                    "The report upload tracker is unavailable.",
-                    true,
-                )
-            })?;
-        refuse_update_install(&running).map_err(|message| {
-            NativeCommandError::new("operation-conflict", message, true)
+        let mut running = tracker.0.lock().map_err(|_| {
+            NativeCommandError::new(
+                "operation-state-unavailable",
+                "The report upload tracker is unavailable.",
+                true,
+            )
         })?;
+        refuse_update_install(&running)
+            .map_err(|message| NativeCommandError::new("operation-conflict", message, true))?;
         if running.report_upload.is_some() {
             return Err(NativeCommandError::new(
                 "report-upload-active",
