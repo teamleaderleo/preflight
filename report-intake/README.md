@@ -64,10 +64,12 @@ non-secret binding configuration are checked in so a deployment is reviewable an
    mutating intake requests to sixty per minute for a client address in one Cloudflare location.
    These are permissive abuse brakes rather than exact accounting counters
    ([Rate Limiting API](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)).
-   The SQLite Durable Object binding is the exact boundary: each accepted grant reserves its
-   declared bytes against a 500 MiB ceiling in the UTC day's own object. A grant isn't refunded if
-   the client abandons it, keeping the accounting conservative. Each daily object deletes its own
-   storage after 32 days, so old counters don't accumulate indefinitely.
+   The SQLite Durable Object binding is the exact boundary: each new case leases its declared bytes
+   against a 500 MiB ceiling in the UTC day's own object for the short upload-grant window. An
+   active upload extends that lease while its bounded archive is verified. Expired or explicitly
+   deleted uncommitted leases are reclaimed; an accepted archive becomes committed usage and stays
+   charged even if the report is later deleted. Each daily object deletes its own storage after 32
+   days, so old counters don't accumulate indefinitely.
 
 6. Deploy and verify `/healthz`, the lifecycle rule, and the rate-limiting bindings before placing the
    intake origin in a release build:
