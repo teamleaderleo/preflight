@@ -10,6 +10,7 @@ import {
   RUN_FILES,
 } from "./protocol";
 import { sha256Hex } from "./crypto";
+import { validateSupportEvidence } from "./support-evidence";
 
 type IncludedEntry = { entry: string; bytes: number; sha256: string };
 
@@ -81,7 +82,12 @@ export async function verifyDiagnosticBundle(archive: Uint8Array): Promise<Verif
   let contentBytes = 0;
   for (const name of evidence) {
     const bytes = files.get(name)!;
-    validateEvidenceText(name, decodeUtf8(bytes, name));
+    const filename = name.slice(name.lastIndexOf("/") + 1);
+    try {
+      validateSupportEvidence(filename, decodeUtf8(bytes, name));
+    } catch (error) {
+      throw new Error(`${name} was rejected by the support evidence schema: ${message(error)}`);
+    }
     const entry = declared.get(name);
     if (!entry || entry.bytes !== bytes.byteLength || entry.sha256 !== await sha256Hex(bytes)) {
       throw new Error(`manifest.json doesn't match ${name}`);
@@ -99,36 +105,6 @@ export async function verifyDiagnosticBundle(archive: Uint8Array): Promise<Verif
     contentBytes,
     evidenceEntries: evidence.length,
   };
-}
-
-function validateEvidenceText(name: string, text: string): void {
-  if (name.endsWith(".json")) {
-    let value: unknown;
-    try {
-      value = JSON.parse(text);
-    } catch (error) {
-      throw new Error(`${name} is not valid JSON: ${message(error)}`);
-    }
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error(`${name} must be a JSON object`);
-    }
-    return;
-  }
-  if (!name.endsWith(".jsonl")) throw new Error(`${name} has an unsupported text format`);
-  const lines = text.split(/\r?\n/);
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    if (!line.trim()) continue;
-    let value: unknown;
-    try {
-      value = JSON.parse(line);
-    } catch (error) {
-      throw new Error(`${name} line ${index + 1} is not valid JSON: ${message(error)}`);
-    }
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error(`${name} line ${index + 1} must be a JSON object`);
-    }
-  }
 }
 
 function validateManifest(value: Record<string, unknown>): { runs: Set<number>; benchmarks: Set<number> } {
