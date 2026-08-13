@@ -114,6 +114,21 @@ class JvmMemorySettingsTest {
                 () -> JvmMemorySettings.update(root, target, 5000, temporary.resolve("backups")));
     }
 
+    /**
+     * With no install root there is nothing to resolve a launcher against, and this used to
+     * dereference the null and hand the user the NullPointerException's own message:
+     * {@code Cannot invoke "java.nio.file.Path.toAbsolutePath()" because "installRoot" is null}.
+     */
+    @Test
+    void saysWhatIsMissingRatherThanReportingItsOwnNullPointer() {
+        JvmMemorySettings.Snapshot snapshot = JvmMemorySettings.inspect(null);
+
+        assertFalse(snapshot.available());
+        assertEquals(
+                "No Starsector installation was found. Set STARSECTOR_HOME or use --game.",
+                snapshot.reason());
+    }
+
     private static LaunchTarget target(Path root, Path launcher) {
         return new LaunchTarget(
                 root.toAbsolutePath().normalize(),
