@@ -38,7 +38,10 @@ public final class SyntheticLauncher {
             if (Files.isRegularFile(complete)) {
                 String response = Files.readString(complete);
                 if (!"ok\n".equals(response)) {
-                    throw new IllegalStateException("Recording stop failed: " + response.trim());
+                    // Quoted so a partially published acknowledgement reads as one, instead of
+                    // arriving as a failure message with nothing after the colon.
+                    throw new IllegalStateException(
+                            "Recording stop failed: \"" + response.trim() + "\"");
                 }
                 System.out.println("recording-stop-complete:ok");
                 return;
