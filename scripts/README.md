@@ -54,15 +54,15 @@ Numbers to sanity-check a result against, all on the game-log-start to main-menu
   (`docs/evidence/2026-08-01-*`).
 - `fast`, fastest warm launch: **15.88s**, from the 2026-08-06 gates (16.66 / 16.28 / 15.88).
 
-**A probe reads about a second slower than a gate**, because the gates do not carry
-`--startup-phase-probe` and probing is not free: a `--mode fast` probe measured 16.91s against that
-15.88s record. Adjust before calling a probe result a regression.
+A probe result is only worth comparing to those if the run itself was clean: the machine cooled,
+and nothing else on it. A probe run minutes after the previous launch, on a machine also running a
+dev server and a browser, reads slower — that is the run, not the instrument.
 
 The phase probe's own `elapsedMillis` is anchored at agent premain, which is neither end of the
 log-clock interval. Do not put the two side by side.
 
-All of these are launch times with the profile already prepared. Building that profile is
-`preflight prepare`, a separate one-off command — not a cost hiding inside a cold launch.
+All of these are launch times. Building the profile is `preflight prepare`, a separate one-off
+command, and is not part of them.
 | `run-gameplay-pilot.sh [--game DIR] [--label NAME]` | One combat pilot with every beta probe on. Needs a human: load a campaign, open a simulation, raise the DP cap, deploy capitals, fight three to five minutes, exit normally. Reports which exact adapters applied and what their paths cost. |
 
 ## Read what a launch produced
