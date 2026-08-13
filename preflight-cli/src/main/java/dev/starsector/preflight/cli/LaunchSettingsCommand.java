@@ -66,7 +66,10 @@ final class LaunchSettingsCommand {
                 || antialiasing != null || uiScale != null || battleSize != null || memoryMiB != null)) {
             throw new IllegalArgumentException("Use `launch-settings set` to change settings");
         }
-        Path installRoot = game == null ? null : InstallRoot.resolve(game);
+        // Without --game this used to give up rather than look, so `preflight launch-settings` on a
+        // machine with a perfectly discoverable installation reported every battle-size limit as
+        // null and no heap setting at all. InstallRoot.resolve already falls back to discovery.
+        Path installRoot = InstallRoot.resolve(game);
         Limits limits = Limits.read(installRoot);
         GameLaunchPreferences.Store store = GameLaunchPreferences.installed();
         GameLaunchPreferences.Snapshot existing = GameLaunchPreferences.read(store);

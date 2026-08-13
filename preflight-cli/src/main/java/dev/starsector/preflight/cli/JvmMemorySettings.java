@@ -37,6 +37,12 @@ final class JvmMemorySettings {
     }
 
     static Snapshot inspect(Path installRoot) {
+        // Discovery can name a launcher while the caller still has no root to resolve it against.
+        // Saying so beats the NullPointerException message this used to hand the user.
+        if (installRoot == null) {
+            return Snapshot.unavailable(
+                    "No Starsector installation was found. Set STARSECTOR_HOME or use --game.");
+        }
         try {
             DiscoveryResult discovery = StarsectorDiscovery.discover(
                     Platform.current(),
