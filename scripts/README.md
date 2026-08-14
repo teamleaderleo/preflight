@@ -102,6 +102,7 @@ Each of these is a refusal, not a report: they exist to stop something reaching 
 | `generate-release-sboms.sh OUTPUT_DIR` | Write the release SBOMs. |
 | `assemble-core-release.sh OUTPUT_DIR SBOM_DIR` | Assemble the core release from a build and its SBOMs. |
 | `download-private-candidate.sh RUN_ID [DEST]` | Fetch a private signed candidate produced by a workflow run. |
+| `preflight-desktop/scripts/exercise-package-lifecycle.mjs OLDER NEWER` | Install a package, upgrade it, roll it back, and remove it. Dispatch the `Package lifecycle` workflow rather than running this by hand — it needs two built versions. See [the rehearsal](../docs/package-lifecycle-rehearsal.md). |
 
 ## Self-hosted runner
 
