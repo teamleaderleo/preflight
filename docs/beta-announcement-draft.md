@@ -130,8 +130,10 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
 - Reviewed game version: **0.98a-RC8**. Other versions get fewer shortcuts, not a broken game.
 - Disk use: **about 4.5 GB** for a large profile. That's one measured profile (83 mods) on the
   default Balanced texture storage, so treat it as the ballpark rather than a number for your
-  install. The Fastest setting stores textures uncompressed and took about 3 GB more on that same
-  profile.
+  install — two cold preparations of that profile came out at 4.53 GB and 4.76 GB. The Fastest
+  setting stores textures uncompressed and took 10.03 GB on the same profile, so it costs about
+  5.3 GB more, not a little more. Both preparations took the same time to build, so Fastest is
+  trading disk for launch speed rather than for a quicker setup.
 - First preparation took 3 minutes 21 seconds on that same 83-mod profile, nearly all of it
   spent building textures. After that it's reused, and launches don't pay it again. That was one
   run on my machine with the game's files already warm in the OS cache, so a genuine first run on a

@@ -39,10 +39,39 @@ Options were the defaults: 4 workers, 256 MiB, `balanced` texture storage, paral
 The finished cache directory holds **4.76 GB** for this one profile, against a predicted 4.91 GB of
 additional bytes. The announcement's "about 4.5 GB" is the right ballpark for one prepared profile.
 
+This is the second observation of that footprint, not the first: [prepare.md](../prepare.md) and
+[performance-storage-tradeoffs.md](../performance-storage-tradeoffs.md) already record an observed
+~4.53 GB. Tonight's is 4.76 GB — about 230 MB higher, on a profile whose mods have changed since.
+The upper bound both documents cite, 11.74 GB, is exactly what tonight's plan predicted. Two
+observations roughly a quarter of a gigabyte apart is a reason to quote the figure as a ballpark
+rather than to pick whichever is newer.
+
 The development machine's own cache is **11.16 GB**, but that is not the same measurement: it has
 accumulated several profiles and texture-storage policies across months of experiments. A reader
 sizing their disk wants the 4.76 GB figure, and the difference between the two is the reason the
 app ships preview-first cleanup.
+
+## Fastest storage, same profile, same conditions
+
+A second cold preparation into a second empty cache directory, identical except for
+`--texture-storage fastest`:
+
+| | Balanced (default) | Fastest |
+| --- | ---: | ---: |
+| cache directory on disk | 4.76 GB | **10.03 GB** |
+| unique texture blob bytes | 2,255,699,674 | 5,334,811,814 |
+| texture stage | 195.28s | 200.84s |
+| wall clock | 200.77s | 205.19s |
+| blobs built | 30,638 | 30,638 |
+
+**Fastest costs 5.27 GB more on disk, not the "about 3 GB" the announcement claimed.** The 3 GB
+figure matches the difference in *texture blob bytes* alone — 5.33 GB against 2.26 GB is 3.08 GB —
+but the pack is stored uncompressed under `fastest` as well, and what a reader sizing a disk sees is
+the whole cache directory. The announcement has been corrected to the directory figure.
+
+The two runs took 200.77s and 205.19s, a 4.4s spread on one run each. That is not enough to claim
+`fastest` prepares faster or slower; on this profile the storage choice bought disk, not
+preparation time. What it is meant to buy is launch time, which these runs did not measure.
 
 ## What this does not say
 
