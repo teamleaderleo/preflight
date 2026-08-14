@@ -284,7 +284,10 @@ public final class PreflightCli {
                 "  The default stop is a request the game's JVM can act on, so its shutdown hooks"
                         + " run and the run report is finished rather than truncated. --force ends"
                         + " a process that ignored it."));
-        usage.put("doctor", List.of("preflight doctor [--game <path>] [--launcher <path>]"));
+        usage.put("doctor", List.of(
+                "preflight doctor [--game <path>] [--launcher <path>] [--no-scan]",
+                "    Reports discovery, then whether the next launch would be accelerated.",
+                "    --no-scan omits the decoded-texture working-set summary; `scan` reports it in full."));
         usage.put("launch-settings", List.of(
                 "preflight launch-settings [--game <path>] [--json]",
                 "preflight launch-settings set [--game <path>] [--resolution WIDTHxHEIGHT]"

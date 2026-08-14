@@ -146,7 +146,7 @@ describe("battle size presets", () => {
 describe("storage group labels", () => {
   it("explains the categories the engine reports", () => {
     expect(storageGroupLabel("acceleration").label).toBe("Prepared game data");
-    expect(storageGroupLabel("evidence").detail).toMatch(/Reports page/);
+    expect(storageGroupLabel("evidence").detail).toMatch(/Benchmark page/);
     expect(storageGroupLabel("configuration").label).toBe("Profiles and backups");
     expect(storageGroupLabel("application").label).toBe("Preflight itself");
   });

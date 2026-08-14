@@ -46,6 +46,58 @@ struct RunStateEvent {
     detail: Option<String>,
 }
 
+/// The only web addresses Preflight will ask the operating system to open.
+///
+/// A general "open this URL" command is a webview's most useful gadget if it is ever made to run
+/// something it shouldn't, and Preflight has no need for one: every outbound link in the interface
+/// is a fixed destination decided here, at build time. The frontend names a key, not a URL, so
+/// there is nothing to inject.
+const PROJECT_LINKS: [(&str, &str); 4] = [
+    ("project", "https://github.com/teamleaderleo/preflight"),
+    (
+        "getting-started",
+        "https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md",
+    ),
+    (
+        "privacy",
+        "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
+    ),
+    (
+        "report-issue",
+        "https://github.com/teamleaderleo/preflight/issues/new",
+    ),
+];
+
+#[tauri::command]
+fn open_project_link(link: String) -> Result<(), String> {
+    let url = PROJECT_LINKS
+        .iter()
+        .find(|(key, _)| *key == link)
+        .map(|(_, url)| *url)
+        .ok_or_else(|| format!("Unknown Preflight link: {link}"))?;
+    let mut command = if cfg!(target_os = "macos") {
+        let mut command = std::process::Command::new("open");
+        command.arg(url);
+        command
+    } else if cfg!(target_os = "windows") {
+        // `start` is a shell builtin, and its first quoted argument is taken as the window title.
+        let mut command = std::process::Command::new("cmd");
+        command.args(["/C", "start", "", url]);
+        command
+    } else {
+        let mut command = std::process::Command::new("xdg-open");
+        command.arg(url);
+        command
+    };
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Could not open {url}: {error}"))
+}
+
 #[tauri::command]
 fn get_operation_state(
     tracker: State<'_, OperationCoordinator>,
@@ -312,6 +364,7 @@ pub fn run() {
             delete_profile,
             start_game,
             get_operation_state,
+            open_project_link,
             get_preparation_plan,
             start_preparation,
             cancel_preparation

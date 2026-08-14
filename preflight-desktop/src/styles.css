@@ -827,6 +827,18 @@ h2 {
   opacity: 0.68;
 }
 
+/*
+ * Opacity alone left a disabled primary button reading as live: a saturated fill at 0.68 over a dark
+ * surface still looks like the thing to press, and pressing it does nothing, which reads as broken
+ * rather than not-yet. Draining the fill and the shadow says "not now" before it is clicked.
+ */
+.button--primary:disabled {
+  color: var(--ink-faint);
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
 .button--primary {
   color: white;
   background: var(--action);
@@ -3394,4 +3406,60 @@ footer {
   .page-viewport--home {
     overflow-y: auto;
   }
+}
+
+.settings-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  margin-top: 3px;
+}
+
+.settings-toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-support);
+}
+
+.privacy-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 14px;
+  padding-left: 18px;
+  font-size: var(--text-support);
+  color: var(--ink-soft);
+}
+
+.privacy-facts strong {
+  color: var(--ink);
+}
+
+.privacy-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setup-diagnostics__label {
+  margin: 12px 0 4px;
+  font-size: var(--text-support);
+}
+
+.setup-diagnostics__paths {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }

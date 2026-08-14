@@ -156,6 +156,39 @@ test("preparation started on Home remains visible and can be stopped safely", as
   game.mockRestore();
 });
 
+/**
+ * A launcher that will not launch is the one failure it cannot have. Refused preparation used to
+ * replace the launch control outright, which sent the player back to the original shortcut.
+ */
+test("a refused preparation still leaves a way to launch the game", async () => {
+  const user = userEvent.setup();
+  const cold = cacheSnapshot({ profiles: [] });
+  const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cold);
+  const plan = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue({
+    ...basePlan,
+    safeToPrepare: false,
+    refusalReason: "Preparation needs more room than this disk has.",
+    usableBytes: 2 * 1024 ** 3,
+  });
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+  render(<App />);
+
+  const launch = await screen.findByRole("button", { name: "Launch without preparing" });
+  expect(screen.getByText(/runs at its ordinary speed/)).toBeInTheDocument();
+  await user.click(launch);
+
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
+  expect(preparation).not.toHaveBeenCalled();
+
+  cache.mockRestore();
+  plan.mockRestore();
+  preparation.mockRestore();
+  game.mockRestore();
+});
+
 test("a cold profile cannot prepare when the conservative disk bound does not fit", async () => {
   const cold = cacheSnapshot({ profiles: [] });
   const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
@@ -486,8 +519,11 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-audio"]');
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
-  expect(screen.getByText("Free space needed")).toBeInTheDocument();
-  expect(await screen.findByText("Up to 11.6 GB")).toBeInTheDocument();
+  expect(screen.getByText("Free space to start")).toBeInTheDocument();
+  expect(await screen.findByText("11.6 GB")).toBeInTheDocument();
+  // The bound and the predicted cost differ by roughly three times, so the bound has to say it is
+  // a bound rather than an amount the profile will consume.
+  expect(screen.getByText("Safety bound checked before writing, not the amount used.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
   const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });

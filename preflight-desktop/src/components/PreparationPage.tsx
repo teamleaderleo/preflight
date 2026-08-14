@@ -45,7 +45,7 @@ const storageGroups: Record<string, { label: string; detail: string }> = {
   },
   evidence: {
     label: "Reports and recordings",
-    detail: "Launch timings, benchmarks, and diagnostics kept for the Reports page.",
+    detail: "Launch timings, benchmarks, and diagnostics kept for the Benchmark page.",
   },
   configuration: {
     label: "Profiles and backups",
@@ -170,7 +170,13 @@ export function PreparationPage({
         </div>
         <div className="storage-summary-row">
           <div><strong className="storage-total">{cache ? formatBytes(cache.total.bytes) : "—"}</strong><span className="storage-files">{cache ? `${cache.total.files.toLocaleString()} files` : "Reading cache…"}</span></div>
-          <div><span>Free space needed</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? `Up to ${formatBytes(preparationPlan.requiredFreeBytes)}` : "—"}</strong></div>
+          {/*
+            * These two figures sit a card apart and differ by roughly three times, which read as a
+            * contradiction until each said what it was: one is what preparation expects to write,
+            * the other is the conservative bound it refuses below. Naming the bound as a bound stops
+            * it being read as a standing disk requirement.
+            */}
+          <div><span>Free space to start</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Safety bound checked before writing, not the amount used.</small></div>
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (
@@ -189,7 +195,7 @@ export function PreparationPage({
               return <div key={group.id}><span>{label}</span><strong>{formatBytes(group.bytes)}</strong>{detail ? <small>{detail}</small> : null}</div>;
             })}
             {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Under Preflight’s folder but not in a known category.</small></div> : null}
-            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>Estimated one-off cost for the current mod list, on top of the total above.</small></div>
+            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>Estimated one-off cost for the current mod list, on top of the total above. Preparation refuses to start unless the larger safety bound fits.</small></div>
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space left where Preflight stores its data, right now.</small></div>
           </div>
         </details>
@@ -214,12 +220,12 @@ export function PreparationPage({
           <section>
             <h2>Texture storage</h2>
             <label className={`choice-card ${textureStorage === "balanced" ? "choice-card--selected" : ""}`}>
-              <input type="radio" name="texture-storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} disabled={operationBlocked} />
+              <input type="radio" name="texture-storage" aria-label="Balanced texture storage" checked={textureStorage === "balanced"} onChange={() => setTextureStorage("balanced")} disabled={operationBlocked} />
               <span><strong>Balanced</strong><small>Lossless LZ4; raw only when compression doesn’t help</small></span>
               <b>Default</b>
             </label>
             <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
-              <input type="radio" name="texture-storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
+              <input type="radio" name="texture-storage" aria-label="Fastest texture storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
               <span><strong>Fastest</strong><small>Several GB more for a small startup gain</small></span>
             </label>
           </section>

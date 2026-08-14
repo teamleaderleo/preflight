@@ -12,6 +12,10 @@ metadata once after Preflight is ready. The user can also ask it to check again 
 The default public feed is the Preflight release metadata hosted by GitHub Releases; a build may use
 a different HTTPS endpoint only when that endpoint was selected at compile time.
 
+Settings discloses this check and turns it off. With **Check for updates automatically** cleared,
+the startup check does not run and the manual button beside it is the only one that does. The
+preference is stored locally and sends nothing when it changes.
+
 An update check requests release metadata only. It doesn't send a diagnostics ZIP, enabled-mod list,
 benchmark result, machine name, email address, account identifier, or persistent Preflight client
 identifier. The service serving the configured endpoint necessarily receives ordinary network

@@ -5,6 +5,23 @@ import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage } from "./uiFormat";
 
+const AUTOMATIC_UPDATE_CHECK_STORAGE_KEY = "preflight.automaticUpdateChecks";
+
+/**
+ * Whether Preflight may check for updates on its own.
+ *
+ * The check is the only request a packaged build makes without being asked, and until it could be
+ * turned off there was nowhere to say so truthfully. It stays on by default -- a launcher that
+ * silently goes stale is worse -- but the setting exists, is disclosed, and is honoured.
+ */
+function savedAutomaticUpdateChecks(): boolean {
+  try {
+    return window.localStorage.getItem(AUTOMATIC_UPDATE_CHECK_STORAGE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
 export function useSignedUpdates(
   readyForBackgroundCheck: boolean,
   installBlocked: boolean,
@@ -16,6 +33,18 @@ export function useSignedUpdates(
   const [updateProgress, setUpdateProgress] = useState<UpdateProgressEvent | null>(null);
   const [updateError, setUpdateError] = useState("");
   const updateChecked = useRef(false);
+  const [automaticUpdateChecks, setAutomaticUpdateChecks] = useState(savedAutomaticUpdateChecks);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        AUTOMATIC_UPDATE_CHECK_STORAGE_KEY,
+        automaticUpdateChecks ? "on" : "off",
+      );
+    } catch {
+      // The choice still holds for this session when persistent storage is unavailable.
+    }
+  }, [automaticUpdateChecks]);
 
   const checkUpdates = useCallback(async (showResult = false) => {
     if (updateChecking || updateInstalling) return;
@@ -41,10 +70,11 @@ export function useSignedUpdates(
   }, [announce, updateChecking, updateInstalling]);
 
   useEffect(() => {
-    if (!isDesktopHost() || !readyForBackgroundCheck || updateChecked.current) return;
+    if (!isDesktopHost() || !automaticUpdateChecks || !readyForBackgroundCheck) return;
+    if (updateChecked.current) return;
     updateChecked.current = true;
     void checkUpdates(false);
-  }, [checkUpdates, readyForBackgroundCheck]);
+  }, [automaticUpdateChecks, checkUpdates, readyForBackgroundCheck]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -104,6 +134,8 @@ export function useSignedUpdates(
     updateInstalling,
     updateProgress,
     updateStatus,
+    automaticUpdateChecks,
+    setAutomaticUpdateChecks,
     checkUpdates,
     installSignedUpdate,
   };
