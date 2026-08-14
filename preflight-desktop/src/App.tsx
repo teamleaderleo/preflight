@@ -179,7 +179,9 @@ export default function App() {
     refreshInstallation: refresh,
     setStatus,
   });
-  const diagnostics = useDiagnosticsReport(page === "reports", announceSupport);
+  // Settings states what this build sends, and that sentence depends on whether an intake origin
+  // was compiled in, so the status is fetched for either page rather than only where it is sent.
+  const diagnostics = useDiagnosticsReport(page === "reports" || page === "settings", announceSupport);
   const launcher = useLauncherSettings(
     snapshot?.selected?.installRoot,
     page === "home" || page === "launch",
@@ -459,6 +461,7 @@ export default function App() {
             messageTone={settingsNotice?.tone ?? "info"}
             operationBlocked={operationBlocked}
             updates={updates}
+            reportIntake={diagnostics.reportIntake}
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             onReviewRemoval={(scope) => void removal.review(scope)}
