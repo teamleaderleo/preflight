@@ -88,6 +88,28 @@ class VerifyClaimsTest(unittest.TestCase):
         with self.assertRaisesRegex(verify_claims.ClaimError, "no longer mentions"):
             verify_claims.validate_claims(self.root)
 
+    def test_accepts_a_published_number_rounded_from_its_evidence(self):
+        self.evidence.write_text(
+            self.evidence.read_text(encoding="utf-8") + "GraphicsLib compact replay -4.821s\n",
+            encoding="utf-8",
+        )
+        (self.root / "README.md").write_text(
+            "83-mod development result: 15.88 seconds\n"
+            "**4.82s removed from the measured sequence**\n",
+            encoding="utf-8",
+        )
+        report = verify_claims.validate_claims(self.root)
+        self.assertEqual(1, report["publishedSecondsChecked"])
+
+    def test_rejects_a_published_number_with_no_evidence(self):
+        (self.root / "README.md").write_text(
+            "83-mod development result: 15.88 seconds\n"
+            "**Preflight reaches 9.12 seconds on a 120-mod profile.**\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(verify_claims.ClaimError, "no retained evidence"):
+            verify_claims.validate_claims(self.root)
+
     def test_rejects_evidence_path_escape(self):
         self.claim["evidence"]["path"] = "../outside.md"
         self.write_claims()
