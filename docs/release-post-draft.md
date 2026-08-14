@@ -37,11 +37,13 @@ game-owned preferences.
 ## Important beta limits
 
 - Real-game coverage: **[MACOS / WINDOWS / LINUX MATRIX]**.
-- Reviewed game version: **[VERSION]**. Unknown versions decline individual optimizations; a major
+- Reviewed game version: **0.98a-RC8**. Unknown versions decline individual optimizations; a major
   launcher/layout change may still require a Preflight update.
 - Reviewed mod-specific adapters: **[LIST]**. “Not listed” doesn't mean incompatible; no specific
   acceleration is claimed for that mod.
-- Disk use: **[BALANCED RANGE]** for the test profile; Fastest is optional and larger.
+- Disk use: **about 4.5 GB observed** on the reviewed 83-mod profile under the default Balanced
+  texture storage, against a 4.91 GB prediction. One profile, so it is a ballpark rather than a
+  requirement. Fastest is optional and took about 3 GB more on the same corpus.
 - Package trust: OS-unsigned macOS/Windows packages, SHA-256 manifests, signature-verified in-app
   updates, and **[TESTED PLATFORM WARNING INSTRUCTIONS]**.
 
