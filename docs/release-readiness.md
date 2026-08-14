@@ -52,11 +52,13 @@ still inside the release boundary below.
   disposable installation and removal, that synthetic contract, and game/mod/save retention without
   launching Starsector. Ubuntu ARM64 can run its portable source
   half, but can't validate the published x86-64 Linux package. Windows and Linux still need a
-  completed hosted run of those checks, along with update/rollback and hosted-candidate completion.
+  completed hosted run of those checks, along with hosted-candidate completion.
   Update and rollback are no longer hand-driven work: the dispatch-only
   [package lifecycle rehearsal](package-lifecycle-rehearsal.md) builds two versions on each hosted
   runner and checks the upgrade, a byte-identical rollback, and separately owned data across every
-  step. It has not been dispatched yet, so this box stays open until a hosted run is recorded.
+  step. Its [first hosted run](evidence/2026-08-14-package-lifecycle-first-hosted-run.md) passed on
+  Linux, Windows, and macOS on 2026-08-14. This box stays open for the remaining hosted-candidate
+  work; update and rollback are no longer the gap.
   The first-beta checksum, warning, install, and removal instructions
   are now documented for every package. A manual private
   candidate path now exercises the real signing credentials and complete three-platform artifact
