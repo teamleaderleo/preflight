@@ -1,6 +1,6 @@
 # Package lifecycle rehearsal
 
-**Status:** implemented; no hosted run recorded yet
+**Status:** implemented; first hosted run passed on all three platforms, 2026-08-14
 
 Desktop CI installs each platform's package, verifies the engine inside it, and removes it. That is
 a player's first install. This rehearsal covers their second one — the upgrade written over a tree
@@ -21,6 +21,11 @@ driven by hand on the development Mac. Windows and Linux had none.
    directories.
 
 It builds twice per runner, so it is not part of ordinary CI. Dispatch it for a release candidate.
+
+The first hosted run is recorded in
+[the first hosted lifecycle run](evidence/2026-08-14-package-lifecycle-first-hosted-run.md): all
+three platforms installed, upgraded, rolled back byte-identically, and removed, with the planted
+cache, evidence, game, mod, and save fixtures untouched throughout.
 
 ## What it checks
 

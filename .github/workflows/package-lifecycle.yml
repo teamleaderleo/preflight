@@ -116,15 +116,18 @@ jobs:
             join("preflight-desktop", "scripts", "exercise-package-lifecycle.mjs"),
             join(lifecycle, "older"),
             join(lifecycle, "newer"),
-            join(lifecycle, "report.json"),
+            // The report is written into the workspace, not beside the bundles. `hashFiles` only
+            // sees paths under the workspace, so a report in the runner's temp directory made the
+            // upload step below skip silently and the first hosted run kept no artifact at all.
+            join(process.env.GITHUB_WORKSPACE, "lifecycle-report", "report.json"),
           ], { stdio: "inherit" });
           if (result.error) throw result.error;
           if (result.status !== 0) process.exit(result.status ?? 1);
 
       - name: Publish the lifecycle report
-        if: always() && hashFiles(format('{0}/lifecycle/report.json', runner.temp)) != ''
+        if: always() && hashFiles('lifecycle-report/report.json') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: package-lifecycle-${{ matrix.system }}
-          path: ${{ runner.temp }}/lifecycle/report.json
+          path: lifecycle-report/report.json
           if-no-files-found: error
