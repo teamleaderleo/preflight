@@ -9,6 +9,7 @@ import {
   sendRunReport,
 } from "./bridge";
 import { nativeCommandError } from "./nativeErrors";
+import { REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
 import type {
   DiagnosticsExport,
   ReportIntakeStatus,
@@ -19,8 +20,6 @@ import type {
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage, localDateStamp } from "./uiFormat";
-
-const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 
 function savedRunReportReceipt(): ReportReceipt | null {
   try {
@@ -272,6 +271,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     announce("Receipt dismissed. Its local deletion authorization was removed.");
   };
 
+  const clearReportReceipt = () => {
+    setReportReceipt(null);
+  };
+
   const removeRunReport = async () => {
     if (!reportReceipt || reportDeleting) return;
     setReportDeleting(true);
@@ -299,6 +302,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     reportReview,
     reportUploadedBytes,
     reportUploading,
+    clearReportReceipt,
     copyRunReportReceipt,
     dismissRunReportReceipt,
     removeRunReport,

@@ -114,21 +114,36 @@ pub(crate) fn refuse_update_install(state: &OperationState) -> Result<(), String
     }
 }
 
+pub(crate) fn refuse_report_upload_for_removal(state: &OperationState) -> Result<(), String> {
+    if state.report_upload.is_some() {
+        Err(
+            "Wait for the run report upload to finish or cancel it before removing Preflight data."
+                .to_string(),
+        )
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn update_install_refuses_active_report_upload() {
+    fn state_with_report_upload() -> OperationState {
         let (cancel, _receiver) = watch::channel(false);
-        let operations = Mutex::new(OperationState {
+        OperationState {
             report_upload: Some(ReportUploadProcess {
                 id: 7,
                 total_bytes: 1024,
                 cancel,
             }),
             ..OperationState::default()
-        });
+        }
+    }
+
+    #[test]
+    fn update_install_refuses_active_report_upload() {
+        let operations = Mutex::new(state_with_report_upload());
 
         let error = begin_update_install(&operations)
             .err()
@@ -139,5 +154,22 @@ mod tests {
             "Wait for the run report upload to finish or cancel it before installing an update."
         );
         assert!(!operations.lock().unwrap().update_installing);
+    }
+
+    #[test]
+    fn removal_refuses_active_report_upload() {
+        let state = state_with_report_upload();
+
+        assert_eq!(
+            refuse_report_upload_for_removal(&state).unwrap_err(),
+            "Wait for the run report upload to finish or cancel it before removing Preflight data."
+        );
+    }
+
+    #[test]
+    fn ordinary_update_guard_still_allows_report_upload_as_a_read_only_neighbor() {
+        let state = state_with_report_upload();
+
+        assert!(refuse_update_install(&state).is_ok());
     }
 }

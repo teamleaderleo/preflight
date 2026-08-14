@@ -1,16 +1,14 @@
 import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
+import { clearPreflightLocalStorage } from "./desktopStorage";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
-import {
-  DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
-  OPTIMIZATION_PRESET_STORAGE_KEY,
-} from "./useOptimizationPolicy";
 
 export function useRemoval(
   platform: DesktopSnapshot["platform"] | undefined,
   announce: Announce,
   clearCache: () => void,
   clearProfiles: () => void,
+  clearReportReceipt: () => void = () => undefined,
 ) {
   const [plan, setPlan] = useState<RemovalPlan | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,11 +47,12 @@ export function useRemoval(
     try {
       const result = await applyRemoval(scope);
       if (currentRequest !== request.current) return;
+      let localStorageFailures: string[] = [];
       if (scope === "all-data") {
-        try { window.localStorage.removeItem(OPTIMIZATION_PRESET_STORAGE_KEY); } catch { /* already removed on disk */ }
-        try { window.localStorage.removeItem(DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY); } catch { /* already removed on disk */ }
+        localStorageFailures = clearPreflightLocalStorage();
         clearCache();
         clearProfiles();
+        clearReportReceipt();
       }
       setPlan(null);
       const platformStep = platform === "windows"
@@ -61,7 +60,14 @@ export function useRemoval(
         : platform === "linux"
           ? "Remove this desktop package with the package manager that installed it."
           : "Move this desktop app to the Trash when you’re ready.";
-      announce(`${result.files.toLocaleString()} Preflight-owned files removed. ${platformStep}`, "success");
+      if (localStorageFailures.length > 0) {
+        announce(
+          `${result.files.toLocaleString()} Preflight-owned files were removed, but the desktop could not clear ${localStorageFailures.length} local preference value${localStorageFailures.length === 1 ? "" : "s"}. ${platformStep}`,
+          "warning",
+        );
+      } else {
+        announce(`${result.files.toLocaleString()} Preflight-owned files removed. ${platformStep}`, "success");
+      }
     } catch (error) {
       if (currentRequest === request.current) announce(String(error), "error");
     } finally {

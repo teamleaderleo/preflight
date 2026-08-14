@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
+import {
+  DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
+  OPTIMIZATION_PRESET_STORAGE_KEY,
+} from "./desktopStorage";
 import type { OptimizationDomain, OptimizationPreset } from "./types";
 
-export const OPTIMIZATION_PRESET_STORAGE_KEY = "preflight.optimizationPreset";
-export const DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY = "preflight.disabledOptimizationDomains";
+export {
+  DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
+  OPTIMIZATION_PRESET_STORAGE_KEY,
+} from "./desktopStorage";
 
 function savedOptimizationPreset(): OptimizationPreset {
   try {

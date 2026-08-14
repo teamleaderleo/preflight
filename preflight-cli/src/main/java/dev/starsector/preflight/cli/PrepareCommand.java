@@ -103,6 +103,24 @@ final class PrepareCommand {
         }
         try (OperationLease ignored = ownership.lease()) {
             PreparationFaultInjection.afterLeaseAcquired();
+            if (plannedResourceBuild != null) {
+                plannedResourceBuild = ResourceIndexBuilder.build(target.installRoot());
+                storagePlan = PreparationStoragePlanner.plan(
+                        plannedResourceBuild.index(), cache, options.textureStorage(), options.workers());
+                System.err.printf(
+                        Locale.ROOT,
+                        "prepare: storage-plan revalidated under ownership safe=%s predicted=%d upper=%d usable=%d durationMs=%.3f%n",
+                        storagePlan.safeToPrepare(),
+                        storagePlan.predictedAdditionalBytes(),
+                        storagePlan.upperBoundAdditionalBytes(),
+                        storagePlan.usableBytes(),
+                        storagePlan.durationNanos() / 1_000_000.0);
+                if (!storagePlan.safeToPrepare()) {
+                    System.err.println("Preflight refused preparation after ownership recheck: "
+                            + storagePlan.refusalReason());
+                    return 6;
+                }
+            }
             return prepareOwned(options, target, cache, plannedResourceBuild, storagePlan);
         }
     }
@@ -174,10 +192,11 @@ final class PrepareCommand {
                         diagnostics.add("Existing resource index was replaced: " + message(error));
                     }
                 }
-                if (!artifactHit) {
+                PreparationFaultInjection.beforeResourceValidation();
+                ResourceIndexValidator.Result validation = ResourceIndexValidator.validate(selected);
+                if (validation.valid() && !artifactHit) {
                     ResourceIndexIO.write(output, selected);
                 }
-                ResourceIndexValidator.Result validation = ResourceIndexValidator.validate(selected);
                 Map<String, Object> details = new LinkedHashMap<>();
                 details.put("file", output.toAbsolutePath().normalize());
                 details.put("artifactHit", artifactHit);
@@ -194,8 +213,10 @@ final class PrepareCommand {
                 resourceStage = validation.valid()
                         ? Stage.success(details, System.nanoTime() - stageStarted)
                         : Stage.failed(details, List.of("Resource index validation failed"), System.nanoTime() - stageStarted);
-                resourceIndex = selected;
-                resourceIndexPath = output.toAbsolutePath().normalize();
+                if (validation.valid()) {
+                    resourceIndex = selected;
+                    resourceIndexPath = output.toAbsolutePath().normalize();
+                }
             } catch (Exception error) {
                 resourceStage = Stage.failed(error);
             }
@@ -214,8 +235,10 @@ final class PrepareCommand {
             classpathResult = runReportedClasspathStage(target.installRoot(), cache, options);
         }
         Stage classpathStage = classpathResult.stage();
-        classpathIndex = classpathResult.index();
-        classpathIndexPath = classpathResult.path();
+        if ("SUCCESS".equals(classpathStage.status())) {
+            classpathIndex = classpathResult.index();
+            classpathIndexPath = classpathResult.path();
+        }
 
         stages.put("census", census.toMap());
         allEnabledStagesSuccessful &= census.successful();
@@ -336,7 +359,13 @@ final class PrepareCommand {
         stageStarted("lookup-verification");
         Stage verificationStage;
         if (options.verifyLookups()) {
-            if (resourceIndex == null && classpathIndex == null) {
+            boolean resourcePrerequisiteFailed = options.resourceIndex() && resourceIndex == null;
+            boolean classpathPrerequisiteFailed = options.classpath() && classpathIndex == null;
+            if (resourcePrerequisiteFailed || classpathPrerequisiteFailed) {
+                verificationStage = Stage.skipped(
+                        "Every enabled prepared index must pass validation before lookup verification");
+                allEnabledStagesSuccessful = false;
+            } else if (resourceIndex == null && classpathIndex == null) {
                 verificationStage = Stage.skipped("No prepared indexes were available for lookup verification");
                 allEnabledStagesSuccessful = false;
             } else {
