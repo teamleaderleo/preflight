@@ -9,7 +9,8 @@ have Starsector installed and some mods.
 
 ## 1. Download
 
-Grab the package for your system from **[RELEASE URL]**:
+Grab the package for your system from the
+**[latest release](https://github.com/teamleaderleo/preflight/releases/latest)**:
 
 | System | File |
 | --- | --- |

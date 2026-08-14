@@ -7,9 +7,11 @@ Blog-length piece on how Preflight works. Every number here traces to a retained
 
 ## Making a heavily modded Starsector start in 16 seconds instead of 88
 
-Starsector with 83 mods took about a minute and a half to reach the main menu on my machine. The
-five-run median was 88.13 seconds, and the worst run was around 101. It now reaches the menu in
-15.88 seconds warm.
+Heavily modded Starsector took about a minute and a half to reach the main menu on my machine: a
+five-run median of 88.13 seconds on a 77-mod profile, with a worst observed run around 101. It now
+reaches the menu in 15.88 seconds warm on the 83-mod profile I have run since. The two ends are a
+chronological progression on one development install, not a controlled before/after on one profile
+— the mod list grew while the work was going on.
 
 Almost none of that came from clever code. It came from noticing that the game does the same
 expensive work every single launch, and that nearly all of it is work whose inputs haven't changed
@@ -22,12 +24,21 @@ while.
 
 An early profile showed a 4.8–5.9 second gap before resource loading that I spent real time trying
 to explain. It turned out to be a clock-origin artifact — two timestamps from different origins
-being subtracted. There was no gap. A later pass found the harness itself was contributing an
-18-second error that had gone unnoticed for a month, because the measurement was self-consistent:
-every run agreed with every other run, and all of them were wrong together.
+being subtracted. There was no gap.
 
-Self-consistency is not correctness. What fixed it was checking the harness against the game's own
-artifacts — its logs, its bytecode — instead of against my own model of what it must be doing.
+The more expensive one was the benchmark harness. It started its clock on the first timestamped log
+line that appeared after it took its snapshot, and the game's launcher writes into the same log the
+game does. Whether the launcher's lines had been flushed by that moment decided whether the first
+fifth of loading landed inside the measured interval or outside it. So the results split into two
+modes about 18 seconds apart, with nothing about the run predicting which mode it landed in, and I
+recorded that split as an unexplained property of the game for a couple of weeks. It was a property
+of my stopwatch. Recovering each launch's interval from the game's own log — no harness involved —
+showed the low mode understating by 14–18 seconds: startup was ~92s, not the ~75s I had been
+quoting.
+
+What fixed it was checking the harness against the game's own artifacts — its logs, its bytecode —
+instead of against my own model of what it must be doing. The lesson generalizes past this bug: a
+measurement that only ever agrees with itself has told you nothing.
 
 So the ordering that worked was: measure, distrust the measurement, verify it against something
 external, *then* optimize. Every number below is from a retained report with its exact conditions,
@@ -106,8 +117,9 @@ A sample, because these are the ones that actually cost time:
 - A stop-acknowledgement was written with a plain file write, which creates and truncates before
   writing. A reader polling for the file could catch it existing and empty, and conclude the
   operation had failed. The fix is the standard one — write to a temporary sibling, then rename.
-  A test that polls tightly while publishing 2,000 acknowledgements saw about 140 empty reads
-  before the change and none after.
+  A test that polls tightly while publishing the acknowledgement 2,000 times sees hundreds of empty
+  reads against the plain write and none against the rename. The count moves with the machine and
+  the run; the zero doesn't.
 - Launcher discovery resolved a filename candidate that, on a case-insensitive filesystem, matched
   a *directory* of the same name, and the discovered path came back with the wrong spelling.
 - A test server set its listener non-blocking to poll for a deadline; on BSD-derived systems the
@@ -130,7 +142,17 @@ people trust and one they uninstall.
 
 ---
 
-**Numbers to verify before publishing:** the 101 / 88.13 / 15.88 progression and its conditions,
-every row of both tables, the 2,000-publication flake figure, and the "18-second error" claim —
-that last one is from working notes rather than a retained report, so it needs a citation or it
-should come out.
+**Where each number came from**
+
+| Claim | Source |
+| --- | --- |
+| 101s worst case, 88.13s five-run median, 15.88s warm | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md), [claims.json](claims.json) |
+| 88.13s was measured on 77 mods; 15.88s on 83 | [29% campaign](evidence/2026-08-01-twenty-nine-percent-when-they-compose.md), [lazy fleet members](evidence/2026-08-06-codex-lazy-fleet-members.md) |
+| 4.8–5.9s pre-resource gap was a clock-origin artifact | [Save-descriptor memo](evidence/2026-08-06-main-menu-save-descriptor-memo.md) |
+| Two modes ~18s apart; low mode understated by 14–18s; ~92s not ~75s | [The bimodality was the anchor](evidence/2026-08-01-the-bimodality-was-the-anchor.md) |
+| Every row of both tables | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md) |
+| 2,000 publications, zero torn reads after the rename | `RecordingStopControllerTest.everyObservedAcknowledgementIsComplete` |
+
+Still to fill before publishing: the release URL and a link target for the writeup itself. The
+per-boundary tables are development-profile results on one machine, and the piece should keep
+saying so wherever it quotes them.

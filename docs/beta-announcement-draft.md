@@ -21,13 +21,14 @@ Hello! I've been working on this for a while and it's ready for other people to 
 made peace with staring at the loading screen for a minute or two, this is for you. It does the
 slow repetitive startup work once, keeps the result, and reuses it every launch after that.
 
-On my 83-mod development profile, startup went from a **~101-second worst case to a 15.88-second
-warm launch**. The five-run median before any of this was 88.13 seconds. That's my Mac, my mods,
-my hardware — yours will differ, which is why the app includes a benchmark that runs one normal
-launch and one Preflight launch on your machine and shows you both numbers. Trust that one over
-mine.
+On my development install, startup went from a **~101-second worst case to a 15.88-second warm
+launch**. The five-run median before any of this started was 88.13 seconds, on a 77-mod profile;
+the 15.88 is the 83-mod profile I run now. That's my Mac, my mods, my hardware, and a mod list that
+grew along the way — yours will differ, which is why the app includes a benchmark that runs one
+normal launch and one Preflight launch on your machine and shows you both numbers. Trust that one
+over mine.
 
-**Download:** [RELEASE URL]
+**Download:** https://github.com/teamleaderleo/preflight/releases/latest
 
 ### It's a beta, and here's exactly why
 
@@ -118,9 +119,13 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
 
 ### Known limits
 
-- Real-game testing so far: **macOS only**.
-- Reviewed game version: **[VERSION]**.
-- Disk use: about **[BALANCED RANGE]** for a large profile. There's a faster, larger option.
+- Real-game testing so far: **macOS only** — and **Apple silicon only**. There is no Intel Mac
+  package in this beta.
+- Reviewed game version: **0.98a-RC8**. Other versions get fewer shortcuts, not a broken game.
+- Disk use: **about 4.5 GB** for a large profile. That's one measured profile (83 mods) on the
+  default Balanced texture storage, so treat it as the ballpark rather than a number for your
+  install. The Fastest setting stores textures uncompressed and took about 3 GB more on that same
+  profile.
 - First preparation takes a couple of minutes on a big mod list. After that it's reused.
 
 ---
@@ -128,11 +133,12 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
 **Shorter version for Discord / a Reddit comment:**
 
 > Preflight is a free open-source launcher that makes heavily modded Starsector start much faster —
-> it prepares the slow startup work once and reuses it. On my 83-mod profile that took startup from
-> ~101s at worst to 15.88s warm; the app has a benchmark so you can measure your own.
+> it prepares the slow startup work once and reuses it. On my development install that took startup
+> from ~101s at worst to 15.88s warm; the app has a benchmark so you can measure your own.
 >
 > It doesn't modify the game, mods, or saves, and anything it doesn't recognize it just skips, so an
 > unknown version means less speedup rather than a broken game.
 >
 > It's beta because I only have a Mac and can't test the Windows/Linux builds on real hardware.
-> Bug reports very welcome. [RELEASE URL]
+> Windows, Linux, and Apple silicon Macs only for now — no Intel Mac build yet.
+> Bug reports very welcome. https://github.com/teamleaderleo/preflight/releases/latest

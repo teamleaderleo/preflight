@@ -101,12 +101,14 @@ Reddit tables render inconsistently on old.reddit, so use a list. Both accept Ma
 Checksums, source, and release notes: <https://github.com/teamleaderleo/preflight/releases/latest>
 ```
 
-### Open question: Intel Macs
+### Intel Macs: not in the beta
 
 The desktop matrix builds macOS on `macos-latest`, which is Apple silicon, so the only macOS asset
-is `Preflight-macOS-arm64.dmg`. An Intel Mac user following any of the links above gets a package
-that will not run. Either add an `x86_64` macOS matrix entry, or say plainly in the download list
-and the announcement that macOS means Apple silicon for the beta.
+is `Preflight-macOS-arm64.dmg`. An Intel Mac user who follows a macOS link gets a package that will
+not run, so every macOS link has to be labelled **Apple silicon** and the announcement's known-limits
+list has to say there is no Intel build. That is the decision for the beta: no `x86_64` macOS matrix
+entry, and the gap stated rather than papered over. Adding the entry later is a matrix change, not a
+code change, so nothing here forecloses it.
 
 A manually dispatched Distribution workflow currently produces the same files as private workflow
 artifacts without creating a release. Desktop packages contain their own minimal Java runtime and
