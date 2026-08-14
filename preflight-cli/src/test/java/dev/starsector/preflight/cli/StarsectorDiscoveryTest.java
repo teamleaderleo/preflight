@@ -84,7 +84,10 @@ class StarsectorDiscoveryTest {
         String note = String.join("\n", result.diagnostics());
         assertTrue(note.contains("Searched " + present.getParent()), note);
         assertTrue(note.contains("Searched " + home.resolve(".local/share/starsector") + " (not present)"), note);
-        assertTrue(note.contains("/opt/starsector (not present)"), note);
+        // The Linux standard roots are absolute POSIX paths, and this test also runs on Windows,
+        // where an absolute path picks up the current drive. Compare against what the platform makes
+        // of it rather than the spelling the discovery source happens to use.
+        assertTrue(note.contains("Searched " + Path.of("/opt/starsector").toAbsolutePath().normalize()), note);
         assertTrue(note.contains("(no launcher in it)"), note);
     }
 
