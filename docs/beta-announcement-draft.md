@@ -132,7 +132,10 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
   default Balanced texture storage, so treat it as the ballpark rather than a number for your
   install. The Fastest setting stores textures uncompressed and took about 3 GB more on that same
   profile.
-- First preparation takes a couple of minutes on a big mod list. After that it's reused.
+- First preparation took 3 minutes 21 seconds on that same 83-mod profile, nearly all of it
+  spent building textures. After that it's reused, and launches don't pay it again. That was one
+  run on my machine with the game's files already warm in the OS cache, so a genuine first run on a
+  cold machine will be somewhat slower.
 
 ---
 
