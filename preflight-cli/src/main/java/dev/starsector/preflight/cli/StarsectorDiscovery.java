@@ -359,6 +359,7 @@ final class StarsectorDiscovery {
         EXACT_LAUNCHER_NAMES.stream()
                 .sorted()
                 .map(normalized::resolve)
+                .filter(Files::isRegularFile)
                 .forEach(roots::add);
         for (String relative : List.of(
                 "Starsector",
