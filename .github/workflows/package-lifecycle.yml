@@ -1,0 +1,117 @@
+name: Package lifecycle
+
+# The install-and-remove exercise in Desktop CI covers a player's first install. This covers their
+# second one: an upgrade written over a tree already in use, and the rollback that puts the earlier
+# version back. macOS rehearsed that by hand; Windows and Linux never have.
+#
+# It is dispatch-only because it builds the desktop package twice on every runner. Ordinary changes
+# don't need it — release candidates do.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lifecycle:
+    name: Lifecycle / ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            system: linux
+            bundles: deb
+          - name: Windows
+            os: windows-latest
+            system: windows
+            bundles: nsis
+          - name: macOS
+            os: macos-latest
+            system: macos
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-build-jdk
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install frontend dependencies
+        working-directory: preflight-desktop
+        run: npm ci
+
+      - name: Build the version a player already has
+        working-directory: preflight-desktop
+        run: |
+          npm run engine:prepare
+          npm run desktop:clean
+          npx tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Set the earlier build aside
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/lifecycle"
+          mv preflight-desktop/src-tauri/target/release/bundle "$RUNNER_TEMP/lifecycle/older"
+
+      # The rehearsal version's notes are committed, so this moves every version string through the
+      # ordinary release path instead of letting the workflow write its own placeholder. The change
+      # lives in the runner's checkout and is never committed or tagged.
+      - name: Move the working tree to the rehearsal version
+        working-directory: preflight-desktop
+        run: node scripts/set-release-version.mjs 0.1.1-rehearsal
+
+      - name: Build the version they are upgrading to
+        working-directory: preflight-desktop
+        run: |
+          npm run engine:prepare
+          npm run desktop:clean
+          npx tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Collect the later build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv preflight-desktop/src-tauri/target/release/bundle "$RUNNER_TEMP/lifecycle/newer"
+
+      - name: Install, upgrade, roll back, and remove
+        working-directory: preflight-desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/exercise-package-lifecycle.mjs \
+            "$RUNNER_TEMP/lifecycle/older" \
+            "$RUNNER_TEMP/lifecycle/newer" | tee "$RUNNER_TEMP/lifecycle/report.json"
+
+      - name: Publish the lifecycle report
+        if: always() && hashFiles(format('{0}/lifecycle/report.json', runner.temp)) != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-lifecycle-${{ matrix.system }}
+          path: ${{ runner.temp }}/lifecycle/report.json
+          if-no-files-found: error
