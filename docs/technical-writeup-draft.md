@@ -9,9 +9,16 @@ Blog-length piece on how Preflight works. Every number here traces to a retained
 
 Heavily modded Starsector took about a minute and a half to reach the main menu on my machine: a
 five-run median of 88.13 seconds on a 77-mod profile, with a worst observed run around 101. It now
-reaches the menu in 15.88 seconds warm on the 83-mod profile I have run since. The two ends are a
-chronological progression on one development install, not a controlled before/after on one profile
-— the mod list grew while the work was going on.
+reaches the menu in 15.88 seconds warm on the 83-mod profile I have run since. Those two ends are a
+chronological progression on one development install rather than a controlled before/after — the
+mod list grew while the work was going on.
+
+So I went back and measured both sides again on the same profile, in one sitting, alternating
+between them so that nothing about the machine could line up with one side. Five launches of the
+game's own launcher with no Preflight involved: a median of 89.00 seconds. Five launches of the
+preset an installed Preflight runs: 15.53s. The same 83 mods, the same hardware and the same clock
+on both sides, with 240 seconds of cooling before every launch so none of them started warmer than
+the last.
 
 Almost none of that came from clever code. It came from noticing that the game does the same
 expensive work every single launch, and that nearly all of it is work whose inputs haven't changed
@@ -148,6 +155,7 @@ people trust and one they uninstall.
 | --- | --- |
 | 101s worst case, 88.13s five-run median, 15.88s warm | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md), [claims.json](claims.json) |
 | 88.13s was measured on 77 mods; 15.88s on 83 | [29% campaign](evidence/2026-08-01-twenty-nine-percent-when-they-compose.md), [lazy fleet members](evidence/2026-08-06-codex-lazy-fleet-members.md) |
+| 89.00s vanilla and 15.53s `fast`, same 83-mod profile, one interleaved session | [Controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md) |
 | 4.8–5.9s pre-resource gap was a clock-origin artifact | [Save-descriptor memo](evidence/2026-08-06-main-menu-save-descriptor-memo.md) |
 | Two modes ~18s apart; low mode understated by 14–18s; ~92s not ~75s | [The bimodality was the anchor](evidence/2026-08-01-the-bimodality-was-the-anchor.md) |
 | Every row of both tables | [Scorecard](evidence/2026-08-02-accumulated-startup-scorecard.md) |
