@@ -53,6 +53,7 @@ class VerifyClaimsTest(unittest.TestCase):
             "supersedes": [],
             "supersededBy": None,
         }
+        self.published_numbers = []
         self.write_claims()
 
     def tearDown(self):
@@ -60,7 +61,11 @@ class VerifyClaimsTest(unittest.TestCase):
 
     def write_claims(self):
         (self.root / "docs/claims.json").write_text(
-            json.dumps({"format": verify_claims.FORMAT, "claims": [self.claim]}),
+            json.dumps({
+                "format": verify_claims.FORMAT,
+                "claims": [self.claim],
+                "publishedNumbers": self.published_numbers,
+            }),
             encoding="utf-8",
         )
 
@@ -88,11 +93,13 @@ class VerifyClaimsTest(unittest.TestCase):
         with self.assertRaisesRegex(verify_claims.ClaimError, "no longer mentions"):
             verify_claims.validate_claims(self.root)
 
-    def test_accepts_a_published_number_rounded_from_its_evidence(self):
-        self.evidence.write_text(
-            self.evidence.read_text(encoding="utf-8") + "GraphicsLib compact replay -4.821s\n",
-            encoding="utf-8",
-        )
+    def test_accepts_a_reviewed_published_number(self):
+        self.published_numbers = [{
+            "value": "4.82",
+            "evidence": "docs/evidence/result.md",
+            "note": "4.821s, GraphicsLib compact replay",
+        }]
+        self.write_claims()
         (self.root / "README.md").write_text(
             "83-mod development result: 15.88 seconds\n"
             "**4.82s removed from the measured sequence**\n",
@@ -101,13 +108,23 @@ class VerifyClaimsTest(unittest.TestCase):
         report = verify_claims.validate_claims(self.root)
         self.assertEqual(1, report["publishedSecondsChecked"])
 
-    def test_rejects_a_published_number_with_no_evidence(self):
+    def test_rejects_a_published_number_nobody_reviewed(self):
         (self.root / "README.md").write_text(
             "83-mod development result: 15.88 seconds\n"
             "**Preflight reaches 9.12 seconds on a 120-mod profile.**\n",
             encoding="utf-8",
         )
-        with self.assertRaisesRegex(verify_claims.ClaimError, "no retained evidence"):
+        with self.assertRaisesRegex(verify_claims.ClaimError, "accounts for"):
+            verify_claims.validate_claims(self.root)
+
+    def test_rejects_a_reviewed_number_whose_evidence_is_missing(self):
+        self.published_numbers = [{
+            "value": "9.12",
+            "evidence": "docs/evidence/never-written.md",
+            "note": "unsupported",
+        }]
+        self.write_claims()
+        with self.assertRaisesRegex(verify_claims.ClaimError, "does not exist"):
             verify_claims.validate_claims(self.root)
 
     def test_rejects_evidence_path_escape(self):
