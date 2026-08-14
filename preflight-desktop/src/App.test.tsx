@@ -1036,3 +1036,31 @@ test("a reviewed removal cannot be applied while the game is running", async () 
   expect(await screen.findByRole("button", { name: "Remove all Preflight data" })).toBeDisabled();
   game.mockRestore();
 });
+
+/**
+ * Settings tells a wary player what this build sends. A build with no intake origin compiled in
+ * cannot send a report at all, and describing the send flow there anyway would advertise a feature
+ * it doesn't have while understating a privacy position that is stronger, not weaker.
+ */
+test("the privacy panel describes the build's actual sending ability", async () => {
+  const user = userEvent.setup();
+  const unconfigured = vi.spyOn(bridge, "getReportIntakeStatus").mockResolvedValue({
+    configured: false,
+    origin: null,
+    reason: "Run-report sending isn't configured in this build.",
+  });
+
+  const { unmount } = render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Settings" }));
+  expect(await screen.findByText(/can’t send support reports at all|can't send support reports at all/))
+    .toBeInTheDocument();
+  expect(screen.queryByText(/gives you a receipt you can use to delete it/)).not.toBeInTheDocument();
+  unmount();
+
+  unconfigured.mockResolvedValue({ configured: true, origin: "https://reports.invalid", reason: null });
+  render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Settings" }));
+  expect(await screen.findByText(/gives you a receipt you can use to delete it/)).toBeInTheDocument();
+
+  unconfigured.mockRestore();
+});

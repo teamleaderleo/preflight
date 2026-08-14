@@ -3,7 +3,7 @@ import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { NoticeTone, RemovalPlan, RemovalScope } from "../types";
+import type { NoticeTone, RemovalPlan, RemovalScope, ReportIntakeStatus } from "../types";
 
 type UpdateState = ReturnType<typeof useSignedUpdates>;
 
@@ -12,6 +12,7 @@ interface SettingsPageProps {
   messageTone: NoticeTone;
   operationBlocked: boolean;
   updates: UpdateState;
+  reportIntake: ReportIntakeStatus | null;
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   onReviewRemoval: (scope: RemovalScope) => void;
@@ -24,6 +25,7 @@ export function SettingsPage({
   messageTone,
   operationBlocked,
   updates,
+  reportIntake,
   removalPlan,
   removalBusy,
   onReviewRemoval,
@@ -87,8 +89,20 @@ export function SettingsPage({
           <div className="card__heading"><div><h2>Preflight and your data</h2></div><ShieldIcon className="settings-check" /></div>
           <ul className="privacy-facts">
             <li><strong>No telemetry, no analytics, no accounts.</strong> Nothing is sent because you launched a game, prepared a profile, or ran a benchmark.</li>
-            <li><strong>Two things leave this machine, both listed here.</strong> The update check above asks a fixed release address for version metadata. A support report is sent only when you choose to send one.</li>
-            <li><strong>Support reports are shown before they go.</strong> Preflight lists every included and excluded file, its size and checksum, and gives you a receipt you can use to delete it afterwards.</li>
+            {/*
+              * A build without a configured intake cannot send a report at all, and the Benchmark
+              * page already says so where the button would be. Describing the send flow here anyway
+              * would advertise a feature this build doesn't have -- and understate the actual
+              * privacy position, which in that case is stronger, not weaker.
+              */}
+            {reportIntake && !reportIntake.configured ? (
+              <li><strong>One thing leaves this machine.</strong> The update check above asks a fixed release address for version metadata. This build can't send support reports at all, so that check is the only request Preflight makes. Diagnostics still export to a file you share yourself.</li>
+            ) : (
+              <>
+                <li><strong>Two things leave this machine, both listed here.</strong> The update check above asks a fixed release address for version metadata. A support report is sent only when you choose to send one.</li>
+                <li><strong>Support reports are shown before they go.</strong> Preflight lists every included and excluded file, its size and checksum, and gives you a receipt you can use to delete it afterwards.</li>
+              </>
+            )}
             <li><strong>Saves, mods, screenshots, and game files are never included</strong> in anything Preflight sends or removes.</li>
           </ul>
           <div className="privacy-links">
