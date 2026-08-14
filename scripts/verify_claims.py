@@ -11,6 +11,8 @@ from pathlib import Path, PurePosixPath
 FORMAT = "preflight-claims-v1"
 STATUSES = {"accepted", "rejected", "superseded", "diagnostic", "exploratory"}
 PUBLIC_ELIGIBILITY = {"development-context-only", "candidate", "not-public"}
+BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
+SECONDS = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)\s*(?:s\b|seconds?\b)", re.IGNORECASE)
 
 
 class ClaimError(ValueError):
@@ -41,6 +43,51 @@ def required_string(value: object, name: str) -> str:
     return value
 
 
+def measured_seconds(root: Path) -> list[float]:
+    """Every second value retained under docs/evidence/, at the precision it was written."""
+    values: list[float] = []
+    for path in sorted((root / "docs/evidence").rglob("*.md")):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        values.extend(float(match.group(1)) for match in SECONDS.finditer(text))
+    return values
+
+
+def verify_published_seconds(root: Path, publications: dict[str, Path]) -> int:
+    """
+    The index checks that each claim's number is still published. This checks the other
+    direction, which is the one that lets an unbacked number in: a bold number in a
+    publication is a headline claim, so somebody has to have measured it.
+
+    Compare at the publication's own precision rather than by text. The README rounds the
+    GraphicsLib replay's 4.821s to 4.82s, and that is the same measurement, not a new one.
+    """
+    measured = measured_seconds(root)
+    checked = 0
+    for publication, path in sorted(publications.items()):
+        claimed = {
+            number.group(1)
+            for emphasis in BOLD.finditer(path.read_text(encoding="utf-8"))
+            for number in SECONDS.finditer(emphasis.group(1))
+        }
+        unbacked = sorted(
+            (
+                value
+                for value in claimed
+                if not any(
+                    round(second, len(value.partition(".")[2])) == float(value)
+                    for second in measured
+                )
+            ),
+            key=float,
+        )
+        if unbacked:
+            raise ClaimError(
+                f"{publication} publishes second values with no retained evidence: {unbacked}"
+            )
+        checked += len(claimed)
+    return checked
+
+
 def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, int]:
     root = root.resolve()
     claims_file = claims_file or root / "docs/claims.json"
@@ -55,6 +102,7 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
         raise ClaimError("claim index must contain at least one claim")
 
     identifiers: set[str] = set()
+    published_files: dict[str, Path] = {}
     accepted = 0
     publications_checked = 0
     mentions_checked = 0
@@ -124,6 +172,7 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
                 raise ClaimError(f"{publication} no longer carries {claim_id} result {seconds}")
             if not mod_pattern.search(text):
                 raise ClaimError(f"{publication} no longer carries {claim_id} {mod_count}-mod scope")
+            published_files[publication] = path
             publications_checked += 1
         for mention in mentions:
             path = repository_path(root, required_string(mention, f"{claim_id} mention"))
@@ -143,6 +192,7 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
         "evidenceAssertionsChecked": assertions_checked,
         "publicationsChecked": publications_checked,
         "mentionsChecked": mentions_checked,
+        "publishedSecondsChecked": verify_published_seconds(root, published_files),
     }
 
 
