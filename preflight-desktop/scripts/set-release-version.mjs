@@ -61,18 +61,19 @@ export function setReleaseVersion(repository, version) {
     "Cargo.lock desktop package version",
   ));
 
-  updates.set(rootPomPath, replaceOne(
+  updates.set(rootPomPath, replaceInSection(
     rootPom,
-    /<version>\s*[^<\s]+\s*<\/version>/,
-    `<version>${version}</version>`,
+    projectCoordinateSection(rootPom, "pom.xml"),
+    version,
     "root Maven project version",
   ));
   for (const match of rootPom.matchAll(/<module>\s*([^<\s]+)\s*<\/module>/g)) {
     const modulePomPath = resolve(repository, match[1], "pom.xml");
-    updates.set(modulePomPath, replaceOne(
-      readFileSync(modulePomPath, "utf8"),
-      /<version>\s*[^<\s]+\s*<\/version>/,
-      `<version>${version}</version>`,
+    const modulePom = readFileSync(modulePomPath, "utf8");
+    updates.set(modulePomPath, replaceInSection(
+      modulePom,
+      parentSection(modulePom, `${match[1]}/pom.xml`),
+      version,
       `${match[1]} parent version`,
     ));
   }
@@ -88,6 +89,51 @@ export function setReleaseVersion(repository, version) {
     }
   }
   return [...updates.keys()];
+}
+
+/**
+ * The span of a POM that holds the project's own version, and nothing else that looks like one.
+ *
+ * A POM is full of `<version>` elements — dependencies, plugins, enforcer ranges — and every one of
+ * them is a wrong answer. Searching the whole file found ten in this project's root POM and refused
+ * to touch any of them, so the version bump every release depends on could not run at all.
+ *
+ * Maven's own rule is that the project's coordinates are direct children of `<project>`, written
+ * before any of the sections that carry other people's versions. That is the span taken here. If a
+ * POM is ever reordered so the version moves after one of those sections, this finds nothing and
+ * says so, which is the behaviour worth keeping from the original: refuse rather than guess.
+ */
+export function projectCoordinateSection(pom, source) {
+  const boundary = pom.search(
+    /<(dependencies|dependencyManagement|build|profiles|modules|reporting|distributionManagement)>/,
+  );
+  const head = boundary === -1 ? pom : pom.slice(0, boundary);
+  if (!/<artifactId>/.test(head)) {
+    throw new Error(`${source} declares no project artifactId before its first versioned section`);
+  }
+  return { text: head, start: 0 };
+}
+
+/**
+ * The `<parent>` block of a module POM, which is where its inherited version lives.
+ *
+ * A module also names versions for its own dependencies. Those belong to whoever published them and
+ * must not move with a Preflight release.
+ */
+export function parentSection(pom, source) {
+  const match = pom.match(/<parent>[\s\S]*?<\/parent>/);
+  if (!match) throw new Error(`${source} has no parent block to take its version from`);
+  return { text: match[0], start: match.index };
+}
+
+function replaceInSection(pom, section, version, label) {
+  const replaced = replaceOne(
+    section.text,
+    /<version>\s*[^<\s]+\s*<\/version>/,
+    `<version>${version}</version>`,
+    label,
+  );
+  return pom.slice(0, section.start) + replaced + pom.slice(section.start + section.text.length);
 }
 
 function replaceOne(value, pattern, replacement, label) {
