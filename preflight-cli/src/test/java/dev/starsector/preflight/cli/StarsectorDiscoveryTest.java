@@ -8,7 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -64,6 +66,44 @@ class StarsectorDiscoveryTest {
         assertNull(result.selected());
         assertTrue(String.join(" ", result.diagnostics()).contains("STARSECTOR_HOME"),
                 result.diagnostics().toString());
+    }
+
+    /**
+     * "Not found in the usual locations" is the answer to a question nobody asked. Someone opens
+     * that note to find out whether their own install is somewhere unusual, which needs the list.
+     */
+    @Test
+    void aFailedSearchNamesEveryPlaceItLooked() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("home"));
+        Path present = Files.createDirectories(home.resolve("Games/Starsector"));
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.LINUX, home, temporaryDirectory.resolve("nowhere"), Map.of(), null, null);
+
+        assertNull(result.selected());
+        String note = String.join("\n", result.diagnostics());
+        assertTrue(note.contains("Searched " + present.getParent()), note);
+        assertTrue(note.contains("Searched " + home.resolve(".local/share/starsector") + " (not present)"), note);
+        assertTrue(note.contains("/opt/starsector (not present)"), note);
+        assertTrue(note.contains("(no launcher in it)"), note);
+    }
+
+    /**
+     * Standard roots that differ only by case are one directory where the filesystem says so, and
+     * the list is for reading: printing the same place twice is what makes it hard to scan.
+     */
+    @Test
+    void searchedLocationsDoNotRepeatOneDirectoryUnderTwoSpellings() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("home"));
+        Files.createDirectories(home.resolve("Games/starsector"));
+
+        DiscoveryResult result = StarsectorDiscovery.discover(
+                Platform.LINUX, home, temporaryDirectory.resolve("nowhere"), Map.of(), null, null);
+
+        List<String> searched = result.diagnostics().stream()
+                .filter(diagnostic -> diagnostic.startsWith("Searched "))
+                .toList();
+        assertEquals(searched.size(), Set.copyOf(searched).size(), searched.toString());
     }
 
     @Test

@@ -12,6 +12,7 @@ import type {
   LaunchSettings,
   LaunchSettingsUpdate,
   NoticeTone,
+  OptimizationPreset,
   UpdateStatus,
 } from "../types";
 
@@ -38,6 +39,7 @@ interface HomePageProps {
   messageTone: NoticeTone;
   isReady: boolean;
   needsPreparation: boolean;
+  optimizationPreset: OptimizationPreset;
   preparation: PreparationState;
   profilesState: ProfilesState;
   updateStatus: UpdateStatus | null;
@@ -51,6 +53,7 @@ interface HomePageProps {
   onLauncherChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onChooseInstall: () => void;
   onPrimaryLaunch: () => void;
+  onLaunchWithoutPreparing: () => void;
   onSaveLauncherSettings: () => void;
   retryLabel: string;
   onRetry: () => void;
@@ -66,6 +69,7 @@ export function HomePage({
   messageTone,
   isReady,
   needsPreparation,
+  optimizationPreset,
   preparation,
   profilesState,
   updateStatus,
@@ -79,6 +83,7 @@ export function HomePage({
   onLauncherChange,
   onChooseInstall,
   onPrimaryLaunch,
+  onLaunchWithoutPreparing,
   onSaveLauncherSettings,
   retryLabel,
   onRetry,
@@ -113,6 +118,15 @@ export function HomePage({
   const cacheBoundaryUnsafe = cacheHealth?.status === "unsafe";
   const cacheIdentityUnknown = cacheHealth?.status === "unknown";
   const cacheInspectionBlocked = cacheBoundaryUnsafe || cacheIdentityUnknown;
+  const searchedLocations = (snapshot?.diagnostics ?? [])
+    .filter((diagnostic) => diagnostic.startsWith("Searched "))
+    .map((diagnostic) => diagnostic.slice("Searched ".length));
+  // Discovery is shared with the command line and says so when it fails: "use --game/--launcher".
+  // There is no command line here, and the folder picker above is that same fix already offered, so
+  // the flag advice is dropped rather than shown to someone who cannot act on it.
+  const setupDiagnostics = (snapshot?.diagnostics ?? [])
+    .filter((diagnostic) => !diagnostic.startsWith("Searched "))
+    .filter((diagnostic) => !diagnostic.includes("--game") && !diagnostic.includes("--launcher"));
   const statusLabel = status === "launching"
     ? "Opening Starsector"
     : status === "running"
@@ -129,14 +143,22 @@ export function HomePage({
               ? "First launch setup"
               : needsPreparation
                 ? "This mod setup needs preparation"
-                : "Ready";
+                : optimizationPreset === "off"
+                  ? "Optimizations off"
+                  : `${optimizationPreset === "recommended" ? "Recommended" : "Conservative"} optimizations · prepared`;
 
   return (
     <>
       <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {flightPlot}
-          {status !== "ready" || preparing || needsPreparation || !isReady ? (
+          {/*
+            * The settled state used to render no chip at all, which left the main screen of a
+            * performance launcher saying nothing about whether the next launch would be a fast one.
+            * "Ready" was never the interesting part; which preset is on, and that this mod setup is
+            * prepared, is what the button is about to act on.
+            */}
+          {isReady || status !== "ready" || preparing || needsPreparation ? (
             <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
               {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
               {statusLabel}
@@ -165,6 +187,23 @@ export function HomePage({
                 {cacheNeedsRepair && !preparing && !cacheRepairing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => onNavigate("prepare")}>Repair details</button>
                 ) : null}
+                {/*
+                  * Preflight is a launcher first. A refused preparation used to leave the game with no
+                  * way to start from here at all, which is the one outcome a launcher cannot have: the
+                  * user goes and finds the original shortcut instead. Launching unprepared is already
+                  * a supported path -- every missing artifact falls back to the game's own loader --
+                  * so the escape hatch is the ordinary launch, offered where it is needed.
+                  */}
+                {(storageBlocked || cacheInspectionBlocked) && !preparing && !cacheRepairing ? (
+                  <button
+                    className="button button--quiet launch-console__stop"
+                    type="button"
+                    onClick={onLaunchWithoutPreparing}
+                    disabled={operationBlocked || status === "launching" || status === "running"}
+                  >
+                    Launch without preparing
+                  </button>
+                ) : null}
               </>
             ) : (
               <button className="button button--primary" type="button" onClick={onChooseInstall} disabled={status === "loading" || operationBlocked}><FolderIcon />Choose game folder</button>
@@ -183,6 +222,9 @@ export function HomePage({
                     ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}; ${formatBytes(preparationPlan.requiredFreeBytes)} must be free; ${formatBytes(preparationPlan.usableBytes)} is available. Starsector and its mods stay where they are.`
                     : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
                 : "Preparation is disabled for this troubleshooting launch."}</span>
+              {storageBlocked || cacheInspectionBlocked
+                ? <span>Starsector can still be launched without preparing. That launch runs at its ordinary speed and changes nothing on disk.</span>
+                : null}
             </div>
           ) : null}
         </div>
@@ -297,10 +339,22 @@ export function HomePage({
           <button type="button" className="text-button" onClick={onChooseInstall} aria-label="Change Starsector installation" disabled={operationBlocked}>Change <ArrowIcon /></button>
         </div>
       </section> : null}
+      {/*
+        * The engine reports where it looked as well as that it failed. Both belong here: the reason
+        * anyone opens this is to work out whether their own install is somewhere unusual, and that
+        * cannot be answered without the list of places that were already ruled out.
+        */}
       {!isReady && snapshot?.diagnostics.length ? (
         <details className="setup-diagnostics">
           <summary>Why wasn’t Starsector found?</summary>
-          <ul>{snapshot.diagnostics.map((diagnostic) => <li key={diagnostic}>{diagnostic}</li>)}</ul>
+          {setupDiagnostics.length > 0 ? <ul>{setupDiagnostics.map((diagnostic) => <li key={diagnostic}>{diagnostic}</li>)}</ul> : null}
+          {searchedLocations.length > 0 ? (
+            <>
+              <p className="setup-diagnostics__label">Preflight looked in these places:</p>
+              <ul className="setup-diagnostics__paths">{searchedLocations.map((location) => <li key={location}>{location}</li>)}</ul>
+              <p className="setup-diagnostics__label">If your installation isn’t one of these, choose its folder above.</p>
+            </>
+          ) : null}
         </details>
       ) : null}
     </>

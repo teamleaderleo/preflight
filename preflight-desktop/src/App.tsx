@@ -192,6 +192,13 @@ export default function App() {
       ? preparation.repairAndPrepare(true)
       : needsPreparation ? prepare(true) : launch());
   };
+  // The one outcome a launcher cannot have is refusing to launch. Preparation can be refused --
+  // no disk, an unverifiable cache boundary -- and the game still has to start, so this skips
+  // preparation and launches: missing artifacts fall back to the game's own loader by design.
+  const launchWithoutPreparing = async () => {
+    if (launcher.dirty && !(await launcher.save())) return;
+    await launch();
+  };
   const removal = useRemoval(
     snapshot?.platform,
     announceRemoval,
@@ -392,7 +399,9 @@ export default function App() {
             theme={theme.resolved}
             onLauncherChange={launcher.changeDraft}
             onChooseInstall={() => void chooseInstall()}
+            optimizationPreset={optimizationPreset}
             onPrimaryLaunch={() => void primaryLaunch()}
+            onLaunchWithoutPreparing={() => void launchWithoutPreparing()}
             onSaveLauncherSettings={() => void launcher.save()}
             retryLabel={retryLabel}
             onRetry={retryFailedOperation}

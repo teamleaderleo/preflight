@@ -118,7 +118,12 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
         ...previewSnapshot,
         ready: false,
         selected: null,
-        diagnostics: ["No supported Starsector launcher was found in the usual locations."],
+        diagnostics: [
+          "No launcher found. Set STARSECTOR_HOME or use --game/--launcher.",
+          "Searched /Applications/Starsector.app (not present)",
+          "Searched ~/Applications/Starsector.app (not present)",
+          "Searched ~/Games/Starsector.app (no launcher in it)",
+        ],
       };
     }
     return previewSnapshot;
@@ -666,6 +671,30 @@ export async function applyRemoval(scope: RemovalScope): Promise<RemovalPlan> {
   if (!isDesktopHost()) return { ...(await getRemovalPlan(scope)), applied: true };
   return invoke<RemovalPlan>("apply_removal", { scope });
 }
+
+export type ProjectLink = "project" | "getting-started" | "privacy" | "report-issue";
+
+/**
+ * Opens one of Preflight's own pages in the system browser.
+ *
+ * The host takes a key rather than a URL and holds the addresses itself, so nothing reachable from
+ * the page can widen what this opens. In the browser preview there is no host, and a new tab is the
+ * honest equivalent.
+ */
+export async function openProjectLink(link: ProjectLink): Promise<void> {
+  if (!isDesktopHost()) {
+    window.open(PREVIEW_PROJECT_LINKS[link], "_blank", "noopener,noreferrer");
+    return;
+  }
+  await invoke<void>("open_project_link", { link });
+}
+
+const PREVIEW_PROJECT_LINKS: Record<ProjectLink, string> = {
+  project: "https://github.com/teamleaderleo/preflight",
+  "getting-started": "https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md",
+  privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
+  "report-issue": "https://github.com/teamleaderleo/preflight/issues/new",
+};
 
 export async function checkForUpdate(): Promise<UpdateStatus> {
   if (!isDesktopHost()) {

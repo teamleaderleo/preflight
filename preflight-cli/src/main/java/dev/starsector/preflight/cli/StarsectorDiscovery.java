@@ -66,6 +66,7 @@ final class StarsectorDiscovery {
         LaunchTarget selected = candidates.isEmpty() ? null : candidates.get(0);
         if (selected == null) {
             diagnostics.add(nothingFound(platform, explicitGame));
+            diagnostics.addAll(searchedLocations(roots));
         } else if (candidates.size() > 1 && candidates.get(1).score() == selected.score()) {
             diagnostics.add("Multiple launchers received the same score; selected the lexicographically first path. Use --launcher to override.");
         }
@@ -94,6 +95,34 @@ final class StarsectorDiscovery {
         }
         return "No Starsector launcher under " + game + ". Expected " + expectedLaunchers(platform)
                 + " there, or a folder containing one. Use --launcher to name a launcher directly.";
+    }
+
+    /**
+     * Where discovery looked, said once per place, so a failure can be checked rather than guessed at.
+     *
+     * <p>"Not found in the usual locations" answers nobody: the reason to ask is to learn whether
+     * your own installation is somewhere unusual, and that needs the list. Each entry says whether
+     * the directory was even there, because a path that does not exist and a path that exists
+     * without a launcher in it are different problems.
+     *
+     * <p>Several standard roots differ only by case. On a case-insensitive filesystem they are one
+     * directory and listing both prints the same place twice; on a case-sensitive one they are two
+     * places and folding them would hide a path that really was searched. Identity therefore comes
+     * from {@link Path#toRealPath} where the directory exists and the filesystem can answer, and
+     * from the literal path where it does not.
+     */
+    private static List<String> searchedLocations(Set<Path> roots) {
+        Set<Path> seen = new LinkedHashSet<>();
+        List<String> lines = new ArrayList<>();
+        for (Path root : roots) {
+            Path normalized = root.toAbsolutePath().normalize();
+            boolean present = Files.exists(normalized);
+            if (!seen.add(canonicalIdentity(normalized))) {
+                continue;
+            }
+            lines.add("Searched " + normalized + (present ? " (no launcher in it)" : " (not present)"));
+        }
+        return lines;
     }
 
     /** What an installation looks like here, so the note says what to go and check for. */

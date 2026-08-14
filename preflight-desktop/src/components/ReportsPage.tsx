@@ -71,7 +71,15 @@ export function ReportsPage({
             <h2>Startup benchmark</h2>
             <InfoTip label="About the benchmark">Opens Starsector twice and times each launch at the main menu: first without Preflight optimizations, then with them. Preflight closes only the exact process it started.</InfoTip>
           </div>
-          <p>{isReady ? "Normal launch versus Preflight, timed at the main menu." : "Choose Starsector on Home before running the benchmark."}</p>
+          {/*
+            * What this does used to live only in the tooltip beside the heading, so the one sentence
+            * that explains why the game is about to open by itself was reachable by hover alone. A
+            * benchmark that drives the machine unattended for minutes says so before it is started.
+            */}
+          <p>{isReady
+            ? "Opens Starsector twice — once without Preflight, once with it — and times each at the main menu. Preflight closes only the process it started."
+            : "Choose Starsector on Home before running the benchmark."}</p>
+          {isReady ? <small>Expect several minutes. Starsector opens and closes on its own; leave the machine alone while it runs.</small> : null}
           {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
         </div>
         <div className="benchmark-card__actions">

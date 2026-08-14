@@ -371,9 +371,63 @@ final class RunCommand {
                 options.launcher());
         printDiscovery(discovery);
         if (discovery.selected() != null) {
-            printProfileVramSummary(discovery.selected());
+            printLaunchReadiness(options);
+            if (options.scan()) {
+                printProfileVramSummary(discovery.selected());
+            }
         }
         return discovery.selected() == null ? 3 : 0;
+    }
+
+    /**
+     * Whether the next launch would be accelerated, and what is missing when it would not.
+     *
+     * <p>Doctor is the command someone runs after installing to find out whether this thing is
+     * working. Discovery alone does not answer that: a found launcher with no prepared data
+     * launches at vanilla speed, and nothing in the discovery block says so. Each line is a fact
+     * with a fix beside it when it is not the wanted one.
+     */
+    private static void printLaunchReadiness(CommandLine options) {
+        PreflightHome home = PreflightHome.current();
+        CacheCommand.CurrentProfile profile = CacheCommand.currentProfile(options.game(), options.launcher());
+        CacheHealth.Report health = CacheHealth.inspect(home, profile.fingerprint(), profile.diagnostic());
+        boolean prepared = "ready".equals(health.status());
+
+        System.out.println();
+        System.out.println("Launch readiness:");
+        if (profile.fingerprint() == null) {
+            System.out.println("  mod setup       unreadable  " + profile.diagnostic());
+        } else {
+            System.out.println("  mod setup       identified  profile " + profile.fingerprint().substring(0, 16));
+        }
+        System.out.println("  prepared data   " + switch (health.status()) {
+            case "ready" -> "ready       this profile's artifacts are present and valid";
+            case "cold" -> "none        run `preflight prepare` to build it";
+            case "repair-needed" -> "damaged     run `preflight prepare` to rebuild it";
+            case "unsafe" -> "unsafe      " + firstIssue(health);
+            case "unknown" -> "unknown     " + firstIssue(health);
+            default -> health.status() + "     " + firstIssue(health);
+        });
+        for (PreflightHome.Integration integration : home.reportedIntegrations()) {
+            System.out.println("  " + pad(integration.label()) + (integration.present() ? "installed   " : "absent      ")
+                    + integration.path());
+        }
+        System.out.println();
+        System.out.println(prepared
+                ? "Next launch is accelerated. `preflight run` uses the prepared artifacts above."
+                : "Next launch runs at ordinary speed until preparation completes.");
+        if (options.scan()) {
+            System.out.println("Texture working-set scan follows; `--no-scan` skips it.");
+        }
+    }
+
+    private static String firstIssue(CacheHealth.Report health) {
+        return health.issues().isEmpty() ? "" : health.issues().get(0).summary();
+    }
+
+    private static String pad(String label) {
+        String trimmed = label.length() > 15 ? label.substring(0, 15) : label;
+        return trimmed + " ".repeat(16 - trimmed.length());
     }
 
     /**
