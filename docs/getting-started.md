@@ -14,8 +14,10 @@ Grab the package for your system from **[RELEASE URL]**:
 | System | File |
 | --- | --- |
 | Windows | `Preflight-Windows-x86_64.exe` |
-| macOS | `Preflight-macOS-arm64.dmg` |
+| macOS (Apple silicon) | `Preflight-macOS-arm64.dmg` |
 | Linux | `Preflight-Linux-x86_64.AppImage` or the `.deb` |
+
+There is no Intel Mac build in the beta.
 
 Each package has a `SHA256SUMS-<platform>-<architecture>.txt` beside it if you want to check the
 download before opening it.

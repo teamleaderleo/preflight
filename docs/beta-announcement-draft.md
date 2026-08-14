@@ -5,6 +5,12 @@ The formal version with the full claim scaffolding is in [release-post-draft.md]
 
 Replace every bracketed field before posting.
 
+**The Starsector forum takes BBCode, not Markdown.** Pasting this there renders literal asterisks
+and broken link syntax. Ready-to-paste download blocks for the forum, Reddit and the README are in
+[downloads.md](downloads.md#release-day-link-kit), and the prose needs the same conversion:
+`**bold**` becomes `[b]bold[/b]`, `## Heading` becomes `[size=14pt][b]Heading[/b][/size]`, and
+`[text](url)` becomes `[url=url]text[/url]`.
+
 ---
 
 ## Preflight — a launcher that makes heavily modded Starsector start a lot faster

@@ -43,6 +43,71 @@ GitHub records a download count for each attached release asset. The README may 
 through a small badge; it should be labelled **release downloads**, since it counts asset requests
 rather than unique people or installations.
 
+## Release-day link kit
+
+`preflight-desktop/scripts/collect-bundles.mjs` renames every native package to
+`Preflight-<platform>-<architecture>.<extension>` before upload, so the links below resolve as soon
+as a release attaches those assets and keep resolving for every release after it. Write these, never
+a versioned URL — a versioned link in a forum post is wrong the moment you ship again.
+
+One canonical link for anything that needs a single destination, because it carries the packages,
+the checksums, and the notes together:
+
+```
+https://github.com/teamleaderleo/preflight/releases/latest
+```
+
+### README
+
+```markdown
+[![release downloads](https://img.shields.io/github/downloads/teamleaderleo/preflight/total?label=release%20downloads)](https://github.com/teamleaderleo/preflight/releases/latest)
+
+### Download
+
+| | |
+| --- | --- |
+| **Windows** | [Preflight-Windows-x86_64.exe](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Windows-x86_64.exe) |
+| **macOS** (Apple silicon) | [Preflight-macOS-arm64.dmg](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-macOS-arm64.dmg) |
+| **Linux** | [.AppImage](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Linux-x86_64.AppImage) · [.deb](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Linux-x86_64.deb) |
+
+Checksums and every other artifact are on the [latest release](https://github.com/teamleaderleo/preflight/releases/latest).
+New here? [Getting started](docs/getting-started.md) is the whole path from download to a faster launch.
+```
+
+### Starsector forum
+
+The forum runs SMF, which takes BBCode rather than Markdown — pasting the Markdown post there
+renders literal asterisks and bare link syntax. Keep a BBCode copy of the announcement.
+
+```bbcode
+[b]Download[/b]
+
+[list]
+[li][url=https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Windows-x86_64.exe]Windows (.exe installer)[/url][/li]
+[li][url=https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-macOS-arm64.dmg]macOS, Apple silicon (.dmg)[/url][/li]
+[li][url=https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Linux-x86_64.AppImage]Linux (.AppImage)[/url] or [url=https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Linux-x86_64.deb].deb[/url][/li]
+[/list]
+
+Checksums and source: [url=https://github.com/teamleaderleo/preflight/releases/latest]github.com/teamleaderleo/preflight[/url]
+```
+
+### Reddit and Discord
+
+Reddit tables render inconsistently on old.reddit, so use a list. Both accept Markdown links.
+
+```markdown
+**Download** — [Windows](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Windows-x86_64.exe) · [macOS (Apple silicon)](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-macOS-arm64.dmg) · [Linux AppImage](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Linux-x86_64.AppImage) · [.deb](https://github.com/teamleaderleo/preflight/releases/latest/download/Preflight-Linux-x86_64.deb)
+
+Checksums, source, and release notes: <https://github.com/teamleaderleo/preflight/releases/latest>
+```
+
+### Open question: Intel Macs
+
+The desktop matrix builds macOS on `macos-latest`, which is Apple silicon, so the only macOS asset
+is `Preflight-macOS-arm64.dmg`. An Intel Mac user following any of the links above gets a package
+that will not run. Either add an `x86_64` macOS matrix entry, or say plainly in the download list
+and the announcement that macOS means Apple silicon for the beta.
+
 A manually dispatched Distribution workflow currently produces the same files as private workflow
 artifacts without creating a release. Desktop packages contain their own minimal Java runtime and
 don't require a system JDK. They also contain the project license, third-party notices, privacy
