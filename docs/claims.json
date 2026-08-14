@@ -60,5 +60,52 @@
       "supersedes": [],
       "supersededBy": null
     }
+  ],
+  "publishedNumbers": [
+    {
+      "value": "101",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "initial five-run baseline, high end"
+    },
+    {
+      "value": "88.13",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "initial five-run baseline median"
+    },
+    {
+      "value": "25.53",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "25.530s, prepared textures and prefetch bypass"
+    },
+    {
+      "value": "7.44",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "upper end of 7.066-7.435s, AshLib repeated ship JSON"
+    },
+    {
+      "value": "4.82",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "4.821s, GraphicsLib compact auto-generation replay"
+    },
+    {
+      "value": "2.7",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "~2.700s net, merged variant JSON"
+    },
+    {
+      "value": "4.8",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "2.000 + 1.100 + 1.700, merged weapon, projectile and ship-hull JSON"
+    },
+    {
+      "value": "1.613",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "cache identity construction, before"
+    },
+    {
+      "value": "0.452",
+      "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
+      "note": "cache identity construction, after"
+    }
   ]
 }

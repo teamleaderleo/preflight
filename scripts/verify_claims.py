@@ -43,48 +43,58 @@ def required_string(value: object, name: str) -> str:
     return value
 
 
-def measured_seconds(root: Path) -> list[float]:
-    """Every second value retained under docs/evidence/, at the precision it was written."""
-    values: list[float] = []
-    for path in sorted((root / "docs/evidence").rglob("*.md")):
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        values.extend(float(match.group(1)) for match in SECONDS.finditer(text))
-    return values
+def approved_numbers(root: Path, payload: dict) -> set[str]:
+    """
+    The numbers a maintainer has looked at and accepted, each naming where it came from.
+
+    A published number is usually not a copy of a measured one. The README's `~4.8s net
+    combined` is the sum of three scorecard rows, `1.613s -> 0.452s` is a before/after pair
+    whose difference is a fourth, and `7.44s` is the top of a range. No rule derives those,
+    so this does not try: a person decides, and the entry records the decision and its
+    source so a reader can go and check it.
+    """
+    entries = payload.get("publishedNumbers", [])
+    if not isinstance(entries, list):
+        raise ClaimError("publishedNumbers must be a list")
+    approved: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ClaimError("each publishedNumbers entry must be an object")
+        value = required_string(entry.get("value"), "publishedNumbers value")
+        if not SECONDS.fullmatch(f"{value}s"):
+            raise ClaimError(f"publishedNumbers value is not a second value: {value}")
+        repository_path(
+            root,
+            required_string(entry.get("evidence"), f"publishedNumbers {value} evidence"),
+            prefix="docs/evidence/",
+        )
+        required_string(entry.get("note"), f"publishedNumbers {value} note")
+        approved.add(value)
+    return approved
 
 
-def verify_published_seconds(root: Path, publications: dict[str, Path]) -> int:
+def verify_published_seconds(
+    publications: dict[str, Path], approved: set[str], claimed_results: set[str]
+) -> int:
     """
     The index checks that each claim's number is still published. This checks the other
-    direction, which is the one that lets an unbacked number in: a bold number in a
-    publication is a headline claim, so somebody has to have measured it.
-
-    Compare at the publication's own precision rather than by text. The README rounds the
-    GraphicsLib replay's 4.821s to 4.82s, and that is the same measurement, not a new one.
+    direction, which is what lets an unbacked number in: a bold number in a publication is a
+    headline claim, so it has to be one somebody accepted.
     """
-    measured = measured_seconds(root)
     checked = 0
     for publication, path in sorted(publications.items()):
-        claimed = {
+        published = {
             number.group(1)
             for emphasis in BOLD.finditer(path.read_text(encoding="utf-8"))
             for number in SECONDS.finditer(emphasis.group(1))
         }
-        unbacked = sorted(
-            (
-                value
-                for value in claimed
-                if not any(
-                    round(second, len(value.partition(".")[2])) == float(value)
-                    for second in measured
-                )
-            ),
-            key=float,
-        )
-        if unbacked:
+        unapproved = sorted(published - approved - claimed_results, key=float)
+        if unapproved:
             raise ClaimError(
-                f"{publication} publishes second values with no retained evidence: {unbacked}"
+                f"{publication} publishes second values that no claim or reviewed entry "
+                f"accounts for: {unapproved}"
             )
-        checked += len(claimed)
+        checked += len(published)
     return checked
 
 
@@ -103,6 +113,7 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
 
     identifiers: set[str] = set()
     published_files: dict[str, Path] = {}
+    claimed_results: set[str] = set()
     accepted = 0
     publications_checked = 0
     mentions_checked = 0
@@ -163,6 +174,7 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
         if not isinstance(mentions, list):
             raise ClaimError(f"{claim_id} mentionedIn must be a list")
         seconds = format(float(result["seconds"]), "g")
+        claimed_results.add(seconds)
         mod_count = profile["modCount"]
         mod_pattern = re.compile(rf"(?<!\d){mod_count}(?:-mod|\s+mods?)(?!\d)", re.IGNORECASE)
         for publication in publications:
@@ -192,7 +204,9 @@ def validate_claims(root: Path, claims_file: Path | None = None) -> dict[str, in
         "evidenceAssertionsChecked": assertions_checked,
         "publicationsChecked": publications_checked,
         "mentionsChecked": mentions_checked,
-        "publishedSecondsChecked": verify_published_seconds(root, published_files),
+        "publishedSecondsChecked": verify_published_seconds(
+            published_files, approved_numbers(root, payload), claimed_results
+        ),
     }
 
 
