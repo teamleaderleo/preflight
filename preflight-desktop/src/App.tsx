@@ -192,7 +192,13 @@ export default function App() {
       ? preparation.repairAndPrepare(true)
       : needsPreparation ? prepare(true) : launch());
   };
-  const removal = useRemoval(snapshot?.platform, announceRemoval, clearCache, clearProfiles);
+  const removal = useRemoval(
+    snapshot?.platform,
+    announceRemoval,
+    clearCache,
+    clearProfiles,
+    diagnostics.clearReportReceipt,
+  );
   const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announceUpdates);
   const { updateStatus } = updates;
 
@@ -267,6 +273,7 @@ export default function App() {
     || cleanup.busy
     || launcher.saving
     || profilesState.profileBusy
+    || diagnostics.reportUploading
     || removal.busy
     || updates.updateInstalling;
   /**
@@ -313,11 +320,20 @@ export default function App() {
               ? { reason: "Saving game settings", owner: "launch" as Page }
               : profilesState.profileBusy
                 ? { reason: "Updating the saved mod profile", owner: "profiles" as Page }
-                : removal.busy
-                  ? { reason: "Reviewing or removing Preflight data", owner: "settings" as Page }
-                  : updates.updateInstalling
-                    ? { reason: "Installing the verified Preflight update", owner: "settings" as Page }
-                    : null;
+                : diagnostics.reportUploading
+                  ? {
+                    reason: diagnostics.reportFinalizing
+                      ? "Finishing the signed run-report receipt"
+                      : diagnostics.reportCancelling
+                        ? "Stopping the run report upload"
+                        : "Sending the run report",
+                    owner: "reports" as Page,
+                  }
+                  : removal.busy
+                    ? { reason: "Reviewing or removing Preflight data", owner: "settings" as Page }
+                    : updates.updateInstalling
+                      ? { reason: "Installing the verified Preflight update", owner: "settings" as Page }
+                      : null;
   const retryFailedOperation = () => {
     if (retryIntent?.kind === "launch") {
       void primaryLaunch();

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { THEME_STORAGE_KEY } from "./desktopStorage";
+
+export { THEME_STORAGE_KEY } from "./desktopStorage";
 
 export type ThemePreference = "system" | "light" | "dark";
 type ResolvedTheme = Exclude<ThemePreference, "system">;
-
-export const THEME_STORAGE_KEY = "preflight.theme";
 
 function savedPreference(): ThemePreference {
   const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
