@@ -19,7 +19,9 @@ test("the lifecycle rehearsal builds two versions and installs the earlier one f
   const exercise = workflow.indexOf("exercise-package-lifecycle.mjs");
   assert.ok(earlier > 0 && move > earlier && later > move && exercise > later,
     "the rehearsal must build, move the version, build again, then exercise");
-  assert.match(workflow, /"\$RUNNER_TEMP\/lifecycle\/older" \\\n\s+"\$RUNNER_TEMP\/lifecycle\/newer"/);
+  // Handing the two directories over in the wrong order would rehearse a downgrade first and call
+  // it an upgrade, so the argument order is pinned rather than left to the reader.
+  assert.match(workflow, /join\(lifecycle, "older"\),\n\s+join\(lifecycle, "newer"\),/);
 });
 
 test("the rehearsal stays dispatch-only and asks for no write authority", () => {

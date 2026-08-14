@@ -361,11 +361,21 @@ function capture(command, args) {
 }
 
 function main() {
-  const [, , olderDirectory, newerDirectory] = process.argv;
+  const [, , olderDirectory, newerDirectory, reportPath] = process.argv;
   if (!olderDirectory || !newerDirectory) {
-    throw new Error("Usage: node exercise-package-lifecycle.mjs <older-bundle-directory> <newer-bundle-directory>");
+    throw new Error(
+      "Usage: node exercise-package-lifecycle.mjs <older-bundle-directory> <newer-bundle-directory> [report.json]",
+    );
   }
-  console.log(JSON.stringify(exercisePackageLifecycle(olderDirectory, newerDirectory), null, 2));
+  const json = `${JSON.stringify(exercisePackageLifecycle(olderDirectory, newerDirectory), null, 2)}\n`;
+  // Written here rather than piped, so the caller never needs a shell. The Windows runner's bash is
+  // MSYS, and handing it the runner's own backslash paths is a way to lose a two-build run to
+  // path translation rather than to anything the rehearsal was meant to find.
+  if (reportPath) {
+    mkdirSync(dirname(resolve(reportPath)), { recursive: true });
+    writeFileSync(resolve(reportPath), json);
+  }
+  process.stdout.write(json);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
