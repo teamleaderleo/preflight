@@ -291,6 +291,7 @@ test("setup keeps a single installation action and hides unavailable ready-state
 
   expect(await screen.findByRole("heading", { name: "Setup", level: 1 })).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Choose game folder" })).toHaveLength(1);
+  expect(screen.getByText("Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.")).toBeVisible();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
 
@@ -574,6 +575,8 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(screen.getByRole("radio", { name: "Recommended optimizations" })).toBeChecked();
   await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
   expect(screen.getByRole("radio", { name: "Conservative optimizations" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Use Preflight optimizations" }).closest("label"))
+    .toHaveTextContent("Compatibility");
   expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: /Prepared textures/ })).toBeChecked();
   expect(screen.getByRole("checkbox", { name: /Prepared audio/ })).toBeChecked();
@@ -1037,8 +1040,9 @@ test("both recovery routes reach help without expanding anything", async () => {
  * came here for. Each fix on this page has to land on the control that performs it, or the page
  * is a list of advice with no way to take it.
  */
-test("help offers a fix before it offers a support file", async () => {
+test("help performs its fixes instead of only pointing at other pages", async () => {
   const user = userEvent.setup();
+  const snapshot = vi.spyOn(bridge, "getSnapshot");
   render(<App />);
 
   await screen.findByText("Ready");
@@ -1046,8 +1050,9 @@ test("help offers a fix before it offers a support file", async () => {
   await screen.findByRole("heading", { name: "Try this first", level: 2 });
 
   await user.click(screen.getByRole("button", { name: "Turn off" }));
-  expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
-  expect(screen.getByRole("checkbox", { name: "Use Preflight optimizations" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
+  expect(screen.getByText("Optimizations off")).toBeVisible();
+  expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off");
 
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Time it" }));
@@ -1055,7 +1060,26 @@ test("help offers a fix before it offers a support file", async () => {
 
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Change it" }));
-  expect(await screen.findByRole("button", { name: "Change Starsector installation" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
+  await waitFor(() => expect(snapshot).toHaveBeenCalledWith("/Applications/Starsector"));
+
+  snapshot.mockRestore();
+});
+
+test("primary navigation marks only the current destination", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Ready");
+  const home = screen.getByRole("button", { name: "Home" });
+  const help = screen.getByRole("button", { name: "Help" });
+  expect(home).toHaveAttribute("aria-current", "page");
+  expect(help).not.toHaveAttribute("aria-current");
+
+  await user.click(help);
+  expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(help).toHaveAttribute("aria-current", "page");
+  expect(home).not.toHaveAttribute("aria-current");
 });
 
 test("a verified available update still waits for install confirmation", async () => {

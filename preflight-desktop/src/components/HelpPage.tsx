@@ -13,6 +13,9 @@ interface HelpPageProps {
   message: string;
   messageTone: NoticeTone;
   diagnostics: DiagnosticsState;
+  operationBlocked: boolean;
+  onTurnOffOptimizations: () => void;
+  onChooseInstall: () => void;
   onNavigate: (page: Page) => void;
 }
 
@@ -27,7 +30,15 @@ interface HelpPageProps {
  * worked. Every fix below is already a supported path in this app, so the page leads with them
  * and the file comes after.
  */
-export function HelpPage({ message, messageTone, diagnostics, onNavigate }: HelpPageProps) {
+export function HelpPage({
+  message,
+  messageTone,
+  diagnostics,
+  operationBlocked,
+  onTurnOffOptimizations,
+  onChooseInstall,
+  onNavigate,
+}: HelpPageProps) {
   const {
     diagnosticsBusy,
     diagnosticsExport,
@@ -61,7 +72,7 @@ export function HelpPage({ message, messageTone, diagnostics, onNavigate }: Help
               <strong>Starsector won’t open, or closes straight away</strong>
               <p>Turn optimizations off, then launch. The game starts exactly as it does without Preflight, and nothing you have prepared is thrown away.</p>
             </div>
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")}>Turn off<ArrowIcon /></button>
+            <button className="button button--quiet button--compact" type="button" onClick={onTurnOffOptimizations} disabled={operationBlocked}>Turn off<ArrowIcon /></button>
           </li>
           <li>
             <div>
@@ -75,7 +86,7 @@ export function HelpPage({ message, messageTone, diagnostics, onNavigate }: Help
               <strong>Preflight is using the wrong copy of the game</strong>
               <p>Point it at the folder you actually play from. Your mods, saves, and settings are read from there and are never moved.</p>
             </div>
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("home")}>Change it<ArrowIcon /></button>
+            <button className="button button--quiet button--compact" type="button" onClick={onChooseInstall} disabled={operationBlocked}>Change it<ArrowIcon /></button>
           </li>
         </ul>
       </section>

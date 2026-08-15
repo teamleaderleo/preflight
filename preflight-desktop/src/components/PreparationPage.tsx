@@ -172,7 +172,7 @@ export function PreparationPage({
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />
-          <span>{optimizationPreset === "off" ? "Off" : "On"}</span>
+          <span>{optimizationPreset === "off" ? "Off" : optimizationPreset === "conservative" ? "Compatibility" : "On"}</span>
         </label>
       </section>
 

@@ -183,7 +183,7 @@ export function HomePage({
             * The one-off cost and the fact that the game is left alone are both answers people
             * look for before handing an unsigned program their game folder.
             */}
-          {!isReady && status !== "loading" ? <p className="setup-next">Preflight then prepares your mods once, which takes a few minutes, and launches the game from here every time after that. Starsector, your mods, and your saves are read where they are and never moved.</p> : null}
+          {!isReady && status !== "loading" ? <p className="setup-next">Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.</p> : null}
           <div className="launch-console__actions">
             {isReady ? (
               <>

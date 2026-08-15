@@ -491,6 +491,15 @@ export default function App() {
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}
             diagnostics={diagnostics}
+            operationBlocked={operationBlocked}
+            onTurnOffOptimizations={() => {
+              setOptimizationPreset("off");
+              setPage("home");
+            }}
+            onChooseInstall={() => {
+              setPage("home");
+              void chooseInstall();
+            }}
             onNavigate={setPage}
           />
         ) : (
