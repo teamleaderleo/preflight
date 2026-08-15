@@ -235,6 +235,20 @@ final class EvidenceCommand {
                 summary.launches(), summary.first());
         out.printf(Locale.ROOT, "    %,d finished cleanly, %,d with fatal log evidence%n",
                 summary.completed(), summary.fatal());
+        Playtime.Summary playtime = playtime(home);
+        if (playtime.launches() > 0) {
+            out.printf(Locale.ROOT, "    %s played, longest session %s%n",
+                    Playtime.human(playtime.totalMillis()),
+                    Playtime.human(playtime.longestSessionMillis()));
+        }
+    }
+
+    private static Playtime.Summary playtime(PreflightHome home) {
+        try {
+            return Playtime.of(LaunchLedger.read(home));
+        } catch (IOException unreadable) {
+            return Playtime.of(List.of());
+        }
     }
 
     private static Map<String, Object> historyValues(PreflightHome home) {
@@ -254,6 +268,16 @@ final class EvidenceCommand {
         values.put("fatal", summary.fatal());
         values.put("first", summary.first());
         values.put("last", summary.last());
+        Playtime.Summary playtime = playtime(home);
+        Map<String, Object> played = new LinkedHashMap<>();
+        played.put("totalMillis", playtime.totalMillis());
+        played.put("longestSessionMillis", playtime.longestSessionMillis());
+        played.put("averageMillis", playtime.averageMillis());
+        played.put("launches", playtime.launches());
+        played.put("launchesWithoutDuration", playtime.recorded() - playtime.launches());
+        played.put("first", playtime.first());
+        played.put("last", playtime.last());
+        values.put("playtime", played);
         return values;
     }
 
