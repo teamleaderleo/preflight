@@ -32,6 +32,8 @@ final class JvmMemorySettings {
     private static final DateTimeFormatter BACKUP_TIME = DateTimeFormatter
             .ofPattern("uuuuMMdd-HHmmss-SSS")
             .withZone(ZoneOffset.UTC);
+    private static final Pattern BACKUP_FILE = Pattern.compile(
+            "\\d{8}-\\d{6}-\\d{3}-[0-9a-f]{8}-[A-Za-z0-9._-]+");
 
     private JvmMemorySettings() {
     }
@@ -278,11 +280,13 @@ final class JvmMemorySettings {
     }
 
     private static Path writeBackup(Path directory, Path source, byte[] original) throws IOException {
-        Files.createDirectories(directory);
+        directory = SafetyArtifactRetention.requireRealDirectory(directory);
         String safeName = source.getFileName().toString().replaceAll("[^A-Za-z0-9._-]", "_");
         Path backup = directory.resolve(BACKUP_TIME.format(Instant.now()) + "-"
                 + UUID.randomUUID().toString().substring(0, 8) + "-" + safeName);
         Files.write(backup, original, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        SafetyArtifactRetention.retainNewest(
+                directory, BACKUP_FILE, SafetyArtifactRetention.MAX_BACKUPS_PER_DIRECTORY);
         return backup.toAbsolutePath().normalize();
     }
 

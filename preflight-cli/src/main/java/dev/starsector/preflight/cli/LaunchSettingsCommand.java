@@ -31,6 +31,8 @@ final class LaunchSettingsCommand {
             .withZone(ZoneOffset.UTC);
     private static final Pattern INTEGER_SETTING = Pattern.compile(
             "[\\\"']?(minBattleSize|defaultBattleSize|maxBattleSize|maxAASamples)[\\\"']?\\s*:\\s*(\\d+)");
+    private static final Pattern BACKUP_FILE = Pattern.compile(
+            "\\d{8}-\\d{6}-\\d{3}-[0-9a-f]{8}\\.json");
 
     private LaunchSettingsCommand() {
     }
@@ -192,8 +194,8 @@ final class LaunchSettingsCommand {
     }
 
     private static Path writeBackup(GameLaunchPreferences.Backup backup) throws IOException {
-        Path directory = PreflightHome.current().launcherPreferenceBackups();
-        Files.createDirectories(directory);
+        Path directory = SafetyArtifactRetention.requireRealDirectory(
+                PreflightHome.current().launcherPreferenceBackups());
         Path destination = directory.resolve(
                 BACKUP_TIME.format(Instant.now()) + "-" + UUID.randomUUID().toString().substring(0, 8) + ".json");
         Files.writeString(
@@ -202,6 +204,8 @@ final class LaunchSettingsCommand {
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW,
                 StandardOpenOption.WRITE);
+        SafetyArtifactRetention.retainNewest(
+                directory, BACKUP_FILE, SafetyArtifactRetention.MAX_BACKUPS_PER_DIRECTORY);
         return destination.toAbsolutePath().normalize();
     }
 

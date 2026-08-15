@@ -101,6 +101,25 @@ class JvmMemorySettingsTest {
     }
 
     @Test
+    void boundsAutomaticLauncherFileBackups() throws Exception {
+        Path root = temporary.resolve("bounded-game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("bounded-backups");
+        Files.createDirectories(root);
+        Files.writeString(launcher, "#!/bin/sh\nexec java -Xms4g -Xmx4g game.Main\n");
+        LaunchTarget target = target(root, launcher);
+
+        for (int index = 0; index < SafetyArtifactRetention.MAX_BACKUPS_PER_DIRECTORY + 5; index++) {
+            int memoryMiB = index % 2 == 0 ? 6144 : 4096;
+            assertTrue(JvmMemorySettings.update(root, target, memoryMiB, backups).changed());
+        }
+
+        try (var files = Files.list(backups)) {
+            assertEquals(SafetyArtifactRetention.MAX_BACKUPS_PER_DIRECTORY, files.count());
+        }
+    }
+
+    @Test
     void rejectsOutOfRangeAndUnalignedHeapRequests() throws Exception {
         Path root = temporary.resolve("game");
         Path launcher = root.resolve("starsector.sh");
