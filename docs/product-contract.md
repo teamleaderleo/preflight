@@ -43,7 +43,15 @@ There are three distinct kinds of change:
    `mods/enabled_mods.json`. The launch-settings surface writes only Starsector's existing
    `resolution`, `fullscreen`, `sound`, `numAASamples`, `screenScale`, and `gameplaySettings`
    preferences after backing up the prior selected values. The registration serial is never read
-   into that backup or exposed to the desktop interface.
+   into that backup or exposed to the desktop interface. An explicit memory change can update the
+   heap flag in one unambiguous launcher-owned `vmparams` file inside the selected installation;
+   Preflight saves the exact original file and refuses ambiguous layouts.
+
+Each desktop package includes a
+[machine-checked capability receipt](capability-receipt.md) for this boundary. It names the exact
+engine JAR and source revision, every renderer-to-native command, fixed link and compiled network
+endpoint, the allowed write families, and the child-process families. Package verification refuses
+an altered receipt or an unreviewed change to the source files that own these capabilities.
 
 ## Update and mod drift
 

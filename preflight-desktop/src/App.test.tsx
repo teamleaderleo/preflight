@@ -1127,6 +1127,7 @@ test("the privacy panel describes the build's actual sending ability", async () 
   await user.click(await screen.findByRole("button", { name: "Settings" }));
   expect(await screen.findByText(/Support ZIPs stay on this computer/))
     .toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "What Preflight can access" })).toBeEnabled();
   expect(screen.queryByText(/sent only after you review it/)).not.toBeInTheDocument();
   unmount();
 

@@ -184,7 +184,10 @@ identity gates or original-code fallback in the candidate:
   release pipeline now assembles the legal/privacy files, path-correct checksums, and five validated
   target-specific SBOMs. The final verifier also pins every updater URL to either the exact GitHub
   release tag matching the manifest version or the inert private-candidate origin; arbitrary HTTPS
-  hosts, another tag, and mixed modes fail. Publication and final release notes remain gated. See
+  hosts, another tag, and mixed modes fail. Each platform now emits a capability receipt that binds
+  the reviewed native/write/network boundary to the exact package hashes, and the complete-release
+  verifier requires the same clean source revision and capability statement on all three systems.
+  Publication and final release notes remain gated. See
   [the updater release origin boundary](evidence/2026-08-09-updater-release-origin-boundary.md).
 - [ ] Verify that no Starsector, mod, save, activation, or other third-party proprietary content is
   present in packages, diagnostics fixtures, screenshots, or source history. Core release archives

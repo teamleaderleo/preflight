@@ -689,7 +689,7 @@ export async function applyRemoval(scope: RemovalScope): Promise<RemovalPlan> {
   return invoke<RemovalPlan>("apply_removal", { scope });
 }
 
-export type ProjectLink = "project" | "getting-started" | "privacy" | "report-issue";
+export type ProjectLink = "project" | "getting-started" | "privacy" | "capabilities" | "report-issue";
 
 /**
  * Opens one of Preflight's own pages in the system browser.
@@ -710,6 +710,7 @@ const PREVIEW_PROJECT_LINKS: Record<ProjectLink, string> = {
   project: "https://github.com/teamleaderleo/preflight",
   "getting-started": "https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md",
   privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
+  capabilities: "https://github.com/teamleaderleo/preflight/blob/main/docs/capability-receipt.md",
   "report-issue": "https://github.com/teamleaderleo/preflight/issues/new",
 };
 

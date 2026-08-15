@@ -169,7 +169,8 @@ export function verifyExtractedPayload(root, engineOptions = {}) {
   const engineDirectories = entries.filter((entry) => {
     if (!entry.details.isDirectory() || basename(entry.path).toLowerCase() !== "engine") return false;
     const names = new Set(readdirSync(entry.path));
-    return ["bundle.json", "legal", "preflight.jar", "runtime", "scenarios"].every((name) => names.has(name));
+    return ["bundle.json", "capability-receipt.json", "legal", "preflight.jar", "runtime", "scenarios"]
+      .every((name) => names.has(name));
   });
   if (engineDirectories.length !== 1) {
     throw new Error(`Extracted package must contain exactly one bounded engine; found ${engineDirectories.length}`);
