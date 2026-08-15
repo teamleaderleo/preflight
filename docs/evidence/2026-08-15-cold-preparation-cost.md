@@ -94,6 +94,32 @@ The two runs took 200.77s and 205.19s, a 4.4s spread on one run each. That is no
 `fastest` prepares faster or slower; on this profile the storage choice bought disk, not
 preparation time. What it is meant to buy is launch time, which these runs did not measure.
 
+## Preparation with textures skipped
+
+A third cold preparation of the same profile, `--no-textures`, into a third empty cache:
+
+| | Balanced | `--no-textures` |
+| --- | ---: | ---: |
+| cache directory on disk | 4.76 GB | **10.9 MB** |
+| wall clock | 200.77s | 5.57s |
+| tool's own measure | 197.80s | 5.35s |
+
+Stages that still ran: census 3,474.9ms, resource-index 1,302.9ms, classpath-index 1,143.4ms,
+spec-store-identity 1,872.4ms. Textures and lookup-verification were skipped. `readiness` is
+identical between this run and the full one on every field, including
+`cacheArtifactsPrepared: true`.
+
+So the entire disk cost and 97% of the time is the texture stage, and a user who wants Preflight's
+metadata work without the texture store can have it for about eleven megabytes. `--no-resource-index`
+and `--no-classpath` narrow it further.
+
+**What that costs at launch is not measured here.** The prepared-texture path is where the 25.53s
+attributed to prepared textures and prefetch bypass came from, but that figure comes from a
+different campaign, and subtracting it from this one would be arithmetic rather than a measurement.
+A textures-free launch has not been timed. Doing it properly needs a campaign against a cache
+prepared this way, and the harness would want a flag to stop it re-preparing the textures it was
+told to skip.
+
 ## What this does not say
 
 **The game's files were warm.** Eleven launches ran on this machine in the two hours before this

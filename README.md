@@ -59,20 +59,26 @@ The development measurements and their context are collected in
 
 ## What it costs to run
 
-Measured on that same 83-mod profile with the default Balanced storage:
+These are two different numbers and it matters which one you're asking about:
+
+| | On the 83-mod profile |
+| --- | ---: |
+| **Space it takes up** — what the cache occupies, for as long as you keep it | **4.76 GB** |
+| **Space it needs free** — checked once before it writes anything, then released | **12.92 GB** |
+
+The second is not consumed. It's a precondition. Preparation refuses to begin unless the worst case
+fits: every texture failing to compress and landing uncompressed, in both the loose store and the
+pack, plus a 10% reserve. That bound is a guarantee rather than an estimate, which is why it sits so
+far above the 4.76 GB actually produced — it would rather tell you no than fill your disk and give
+up partway. A drive with 8 GB free is refused even though the finished cache would have fitted.
+
+The rest of the picture:
 
 | | |
 | --- | ---: |
-| Prepared cache on disk | **4.76 GB** |
-| Free space it wants before it will start | **12.92 GB** |
 | One-time preparation | 3 minutes 21 seconds |
 | While preparing | 4 worker threads, capped at 256 MiB |
 | Same profile on Fastest storage instead | **10.03 GB** |
-
-The free-space figure is much larger than the cache because preparation refuses to begin unless a
-conservative upper bound — every texture at raw size, pack duplication, metadata — plus a 10%
-reserve fits. It will not start work it might not be able to finish, so a disk with 6 GB free is
-told no rather than filled up and abandoned partway.
 
 **Both disk and preparation time track how much decoded art your mods have, not how many mods you
 run.** Nearly all of the 3m21s was the texture stage. A 40-mod profile heavy on high-resolution
@@ -88,6 +94,28 @@ java -jar preflight-cli/target/preflight.jar prepare --plan --json
 
 That command is read-only. Balanced is the default because it stores less; Fastest keeps pixels
 uncompressed and trades roughly 5.3 GB more disk on this profile for a faster texture path.
+
+### If you'd rather it took almost no space
+
+Prepared textures are the whole of the disk cost and almost the whole of the preparation time. They
+can be skipped, and the rest of the preparation still happens:
+
+```bash
+java -jar preflight-cli/target/preflight.jar prepare --no-textures
+```
+
+On the same 83-mod profile that produced **10.9 MB** in 5.6 seconds, against 4.76 GB and 3m21s. It
+still builds the enabled-profile census, the resource index, the classpath index, and the SpecStore
+identity — the parts that address the plateau where vanilla rebuilds variants, weapons, projectiles,
+hulls, and campaign rules as text on every launch.
+
+What it gives up is the prepared-texture path, which is where the 25.53 seconds in the section above
+came from. `--no-resource-index` and `--no-classpath` narrow it further.
+
+**The launch time of a textures-free cache has not been measured.** The disk and preparation figures
+here are measured; what a launch costs without prepared textures is arithmetic from a different
+campaign, and arithmetic is not a measurement. Treat the trade as "skip the 25-second component,
+keep the rest" and check it with the built-in benchmark on your own install.
 
 ## What Preflight handles
 

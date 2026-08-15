@@ -279,6 +279,16 @@
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Whole cache directory produced by the same cold preparation of the same profile with --texture-storage fastest."
+    },
+    {
+      "type": "storage",
+      "value": "10.9",
+      "unit": "MB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
+      "derivation": "Whole cache directory produced by a cold `prepare --no-textures` of the same 83-mod profile; the texture stage is the entire remainder of the 4.76 GB Balanced footprint."
     }
   ]
 }
