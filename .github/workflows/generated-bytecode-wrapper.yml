@@ -49,7 +49,7 @@ jobs:
         uses: ./.github/actions/run-focused-maven
         with:
           modules: preflight-core,preflight-synthetic-startup
-          unit-tests: GeneratedBytecodeContextEvidenceTest,GeneratedBytecodeCacheWrapperTest,GeneratedBytecodeCacheSafetyTest,SyntheticGeneratedBytecodeCrossProcessTest
+          unit-tests: GeneratedBytecodeContextEvidenceTest,GeneratedBytecodeCacheWrapperTest,GeneratedBytecodeCacheSafetyTest,GeneratedBytecodePackPropertyTest,SyntheticGeneratedBytecodeCrossProcessTest
           goal: test
           log-file: generated-bytecode-wrapper-maven.log
       - name: Upload focused logs
