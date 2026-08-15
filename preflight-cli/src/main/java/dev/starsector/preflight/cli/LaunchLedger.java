@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -133,11 +134,14 @@ final class LaunchLedger {
 
     static <T> T withExclusiveLock(PreflightHome home, IoOperation<T> operation)
             throws IOException {
-        Path history = historyDirectory(home, true);
-        Path lockFile = history.resolve(".launches.lock");
-        requireRegularFileIfPresent(lockFile, "Launch-history lock");
         JVM_LOCK.lock();
         try {
+            // Directory creation is part of the same critical section. Keeping it before the JVM
+            // lock let two first-ever records race: one created history and the other reported the
+            // newly existing path as an error before either reached the file lock.
+            Path history = historyDirectory(home, true);
+            Path lockFile = history.resolve(".launches.lock");
+            requireRegularFileIfPresent(lockFile, "Launch-history lock");
             try (FileChannel channel = FileChannel.open(
                             lockFile,
                             StandardOpenOption.CREATE,
@@ -178,7 +182,12 @@ final class LaunchLedger {
         Path history = realRoot.resolve("history");
         if (!Files.exists(history, LinkOption.NOFOLLOW_LINKS)) {
             if (!create) return null;
-            Files.createDirectory(history);
+            try {
+                Files.createDirectory(history);
+            } catch (FileAlreadyExistsException createdByAnotherProcess) {
+                // Another Preflight process can win between the no-follow existence check and the
+                // create. The type and containment checks below decide whether its result is safe.
+            }
         }
         requireDirectory(history, "Launch-history directory");
         Path realHistory = history.toRealPath();
