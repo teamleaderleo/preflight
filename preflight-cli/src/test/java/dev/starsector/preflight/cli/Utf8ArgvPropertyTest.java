@@ -2,7 +2,6 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,7 +29,7 @@ class Utf8ArgvPropertyTest {
                 for (int index = 1; index < encoded.length; index++) {
                     assertTrue(
                             encoded[index].chars().allMatch(Utf8ArgvPropertyTest::isUrlSafeBase64Character),
-                            () -> "encoded argument was not URL-safe Base64: " + encoded[index]);
+                            "encoded argument was not URL-safe Base64: " + encoded[index]);
                 }
             }
         }
@@ -39,7 +38,7 @@ class Utf8ArgvPropertyTest {
     @Test
     void seededCorruptPayloadsRejectDeterministically() {
         Random random = new Random(SEED ^ 0x434f_5252_5550_54L);
-        char[] invalid = {'!', '*', ' ', ':', '/', '='};
+        char[] invalid = {'!', '*', ' ', ':', '/', '\\'};
         for (int iteration = 0; iteration < 500; iteration++) {
             String corrupt = randomAscii(random, 1 + random.nextInt(24))
                     + invalid[random.nextInt(invalid.length)]
