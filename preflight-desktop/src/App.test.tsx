@@ -83,7 +83,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   expect(screen.queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
 
   cache.mockRestore();
   preparation.mockRestore();
@@ -127,7 +127,7 @@ test("repairs only the reviewed profile before rebuilding and launching", async 
   await user.click(screen.getByRole("button", { name: "Repair and launch" }));
   await waitFor(() => expect(repair).toHaveBeenCalledWith("/Applications/Starsector", "preview-profile"));
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
 
   health.mockRestore();
   repair.mockRestore();
@@ -186,7 +186,7 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   expect(screen.getByText(/Minimal uses a few megabytes/)).toBeInTheDocument();
   await user.click(launch);
 
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
   expect(preparation).not.toHaveBeenCalled();
 
   cache.mockRestore();
@@ -495,7 +495,7 @@ test("the primary action saves edited game settings before launching", async () 
     ...baseline,
     preferences: { ...baseline.preferences, battleSize: 300 },
   });
-  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
+  await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));
   update.mockRestore();
   game.mockRestore();
 });
@@ -613,11 +613,51 @@ test("advanced domain selections are validated on restore and reach the typed la
     "/Applications/Starsector",
     "recommended",
     ["prepared-textures"],
+    "minimize",
   ));
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-textures"]');
 
   game.mockRestore();
+});
+
+test("after-launch behavior defaults to minimize and remains an explicit setting", async () => {
+  const user = userEvent.setup();
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+  render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Settings" }));
+  const behavior = await screen.findByRole("combobox", { name: "Preflight window" });
+  expect(behavior).toHaveValue("minimize");
+  await user.selectOptions(behavior, "keep");
+  await user.click(screen.getByRole("button", { name: "Home" }));
+  await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+  await waitFor(() => expect(game).toHaveBeenCalledWith(
+    "/Applications/Starsector",
+    "recommended",
+    [],
+    "keep",
+  ));
+  expect(window.localStorage.getItem("preflight.afterLaunchBehavior")).toBe("keep");
+  game.mockRestore();
+});
+
+test("a restored running window offers graceful stop before force stop", async () => {
+  const user = userEvent.setup();
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+  const stop = vi.spyOn(bridge, "stopGame")
+    .mockResolvedValueOnce({ inspected: 1, stopped: 0, stillRunning: 1, skipped: 0, forced: false })
+    .mockResolvedValueOnce({ inspected: 1, stopped: 1, stillRunning: 0, skipped: 0, forced: true });
+
+  render(<App />);
+  await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
+  await user.click(await screen.findByRole("button", { name: "Stop Starsector" }));
+  expect(await screen.findByRole("button", { name: "Force stop Starsector" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Force stop Starsector" }));
+  await waitFor(() => expect(stop).toHaveBeenNthCalledWith(1, false));
+  await waitFor(() => expect(stop).toHaveBeenNthCalledWith(2, true));
+  game.mockRestore();
+  stop.mockRestore();
 });
 
 test("storage totals disclose data outside the active cache categories", async () => {

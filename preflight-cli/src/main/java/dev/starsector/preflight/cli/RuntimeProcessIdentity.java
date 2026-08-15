@@ -86,6 +86,16 @@ final class RuntimeProcessIdentity {
         return pid;
     }
 
+    boolean attachable() {
+        ProcessHandle process = ProcessHandle.of(pid).orElse(null);
+        Instant liveStartedAt = process == null ? null : process.info().startInstant().orElse(null);
+        return "running".equals(state)
+                && process != null
+                && process.isAlive()
+                && startedAt != null
+                && startedAt.equals(liveStartedAt);
+    }
+
     Path source() {
         return source;
     }

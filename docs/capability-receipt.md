@@ -11,7 +11,8 @@ The short version:
   memory file only after an explicit user action. Those paths are bounded, rechecked, and backed up.
 - It doesn't write saves, game JARs, mod archives, game assets, or activation data.
 - It launches its bundled Java engine and the Starsector launcher the user selected. The UI and
-  network don't supply arbitrary shell commands.
+  network don't supply arbitrary shell commands. Stopping a frozen launch requires the recorded
+  process ID and matching start time, so a reused ID or unrelated Starsector process is left alone.
 - Ordinary preparation and launch send no telemetry. Update checks use the fixed signed-update URL
   in the receipt. A support ZIP is uploaded only after the user confirms it, and only when that
   release was compiled with the exact HTTPS intake origin shown in the receipt.

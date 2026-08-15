@@ -54,6 +54,9 @@ interface HomePageProps {
   onChooseInstall: () => void;
   onPrimaryLaunch: () => void;
   onLaunchWithoutPreparing: () => void;
+  stoppingGame: boolean;
+  forceStopAvailable: boolean;
+  onStopGame: () => void;
   onSaveLauncherSettings: () => void;
   retryLabel: string;
   onRetry: () => void;
@@ -85,6 +88,9 @@ export function HomePage({
   onChooseInstall,
   onPrimaryLaunch,
   onLaunchWithoutPreparing,
+  stoppingGame,
+  forceStopAvailable,
+  onStopGame,
   onSaveLauncherSettings,
   retryLabel,
   onRetry,
@@ -207,6 +213,16 @@ export function HomePage({
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
                     {preparationCancelling ? "Stopping…" : "Stop safely"}
+                  </button>
+                ) : null}
+                {status === "running" ? (
+                  <button
+                    className={`button ${forceStopAvailable ? "button--danger" : "button--quiet"} launch-console__stop`}
+                    type="button"
+                    onClick={onStopGame}
+                    disabled={stoppingGame}
+                  >
+                    {stoppingGame ? "Stopping…" : forceStopAvailable ? "Force stop Starsector" : "Stop Starsector"}
                   </button>
                 ) : null}
                 {cacheNeedsRepair && !preparing && !cacheRepairing ? (

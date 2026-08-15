@@ -161,6 +161,11 @@ impl EngineCommand {
         self
     }
 
+    pub(crate) fn env<K: AsRef<OsStr>, V: AsRef<OsStr>>(&mut self, key: K, value: V) -> &mut Self {
+        self.inner.env(key, value);
+        self
+    }
+
     /// Runs the engine and gives up on it after `budget`.
     ///
     /// `Command::output()` waits for the child forever. That is the right shape for the paths that

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import desktopPackage from "../package.json";
 import type {
+  AfterLaunchBehavior,
   CacheHealth,
   CacheRepair,
   CacheSnapshot,
@@ -26,6 +27,7 @@ import type {
   ReportIntakeStatus,
   ReportReceipt,
   RunStarted,
+  StopGameResult,
   UpdateStatus,
 } from "./types";
 
@@ -211,12 +213,21 @@ export async function startGame(
   game: string,
   optimizationPreset: OptimizationPreset,
   disabledOptimizationDomains: OptimizationDomain[],
+  afterLaunchBehavior: AfterLaunchBehavior,
 ): Promise<RunStarted> {
   if (!isDesktopHost()) {
     await new Promise((resolve) => window.setTimeout(resolve, 350));
     return { pid: 4242 };
   }
-  return invoke<RunStarted>("start_game", { game, optimizationPreset, disabledOptimizationDomains });
+  return invoke<RunStarted>("start_game", { game, optimizationPreset, disabledOptimizationDomains, afterLaunchBehavior });
+}
+
+export async function stopGame(force = false): Promise<StopGameResult> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 200));
+    return { inspected: 1, stopped: 1, stillRunning: 0, skipped: 0, forced: force };
+  }
+  return invoke<StopGameResult>("stop_game", { force });
 }
 
 export async function getCache(game: string): Promise<CacheSnapshot> {

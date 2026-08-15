@@ -1481,6 +1481,37 @@ h2 {
   gap: 16px;
 }
 
+.launch-behavior-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
+  align-items: center;
+  gap: 28px;
+  padding-block: 18px;
+}
+
+.launch-behavior-card h2,
+.launch-behavior-card p {
+  margin: 0;
+}
+
+.launch-behavior-card p {
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+}
+
+.launch-behavior-field {
+  display: grid;
+  grid-template-columns: 1fr 150px;
+  gap: 4px 16px;
+  padding: 0;
+  border: 0;
+}
+
+.launch-behavior-field small {
+  grid-column: 1 / -1;
+}
+
 .settings-overview > :only-child {
   grid-column: 1 / -1;
 }

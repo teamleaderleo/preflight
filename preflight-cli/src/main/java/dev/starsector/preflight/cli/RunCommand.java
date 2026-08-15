@@ -241,7 +241,12 @@ final class RunCommand {
             }
             builder.environment().put("PREFLIGHT_RUN_DIR", runDirectory.toString());
 
-            childOutput = ChildProcessOutput.run(builder, console);
+            try (DesktopRunEvents desktopEvents = DesktopRunEvents.watch(
+                    adapterReport.resolveSibling("runtime-process.json"),
+                    System.getenv(),
+                    System.err)) {
+                childOutput = ChildProcessOutput.run(builder, console);
+            }
             launcherExitCode = childOutput.exitCode();
             lifecycleEvidence = StarsectorRunLogEvidence.inspect(logSnapshot, childOutput);
             exitCode = StarsectorRunLogEvidence.effectiveExitCode(launcherExitCode, lifecycleEvidence);

@@ -79,6 +79,12 @@ After that first run, the big button simply starts Starsector. Resolution, battl
 antialiasing, UI scale, fullscreen, and sound sit beside it, so you don't need the vanilla launcher
 for the usual settings.
 
+Once the actual game process is running, Preflight minimizes by default. Restore it if you want to
+see the run status or stop a frozen game. **Stop Starsector** first requests a normal shutdown so
+the run report can finish; force stop appears only if that exact process doesn't respond. Settings
+also lets Preflight stay open or quit after launch. Playtime and run evidence continue recording
+in every mode.
+
 ![Preflight ready to launch an 83-mod profile](images/walkthrough-ready.png)
 
 ## 7. Optional: measure it
