@@ -50,8 +50,13 @@ variance is small.
 
 Numbers to sanity-check a result against, all on the game-log-start to main-menu clock:
 
-- `vanilla`, reviewed 83-mod profile: **88.13s** and **88.49s** medians, five runs each
-  (`docs/evidence/2026-08-01-*`).
+- `vanilla` and `fast` on the **same** 83-mod profile, interleaved in one session: **89.00s** and
+  **15.53s** medians, five runs each, ranges 2.93s and 0.60s
+  (`docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md`). Compare a new result against
+  this pair first — it is the only one where both conditions share a profile and a sitting.
+- `vanilla`, earlier **77-mod** profile: **88.13s** and **88.49s** medians, five runs each
+  (`docs/evidence/2026-08-01-*`). These predate six added mods, so they are not a baseline for the
+  83-mod profile above.
 - `fast`, fastest warm launch: **15.88s**, from the 2026-08-06 gates (16.66 / 16.28 / 15.88).
 
 Those are clean-machine numbers: cooled, with nothing else running. A launch measured on a busy

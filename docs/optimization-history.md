@@ -1,16 +1,15 @@
-# From 101 seconds to 15.88: what changed in Starsector's loading path
+# From 101 seconds to 15.25: what changed in Starsector's loading path
 
 **Status:** publication spine; performance claims link to retained evidence
 
 **Profile:** Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, bundled x86-64 Zulu 17 under Rosetta
 
-**Updated:** 2026-08-13
+**Updated:** 2026-08-15
 
-The development installation's observed worst case reached roughly 101 seconds, and its established
-initial five-run baseline centered on 88.13 seconds. The best validated warm gate so far is
-15.88 seconds on the later 83-mod profile. **101 seconds to 15.88 seconds** is the chronological
-headline; 88.13 seconds supplies the repeatable baseline context. The final package still needs its
-own benchmark pass.
+The development installation's observed worst case reached roughly 101 seconds. In the latest
+same-profile campaign, ordinary launches had an 89.00-second median and Preflight launches had a
+15.53-second median; the fastest reached 15.25 seconds. **101 seconds to 15.25 seconds** is the
+chronological headline. The final package still needs its own benchmark pass.
 
 The [experiment ledger](experiment-ledger.md) records accepted, rejected, diagnostic, and deferred
 branches. The [performance and storage reference](performance-storage-tradeoffs.md) collects the
@@ -52,6 +51,15 @@ entered the working stack.
 | Collapsed texture/loading pipeline | 18.01 / 18.04s |
 | Loading-screen redraw and title-tail work | 17.09 / 16.68s, then 16.21s |
 | Current production gates | 16.66 / 16.28 / **15.88s** |
+| Controlled same-profile campaign | **15.53s** against **89.00s** vanilla |
+
+The last row is not another waypoint in this chronology; it is a different kind of measurement. Every
+row above it compares against the 88.13-second median taken on a **77-mod** profile, while the gates
+that follow were measured after the mod list grew to 83. The 2026-08-15 campaign ran both conditions
+against that same 83-mod profile, interleaved inside every round with 240 seconds of cooling before
+each launch: five accepted runs each, none excluded, medians 89.00s and 15.53s. It is the first
+before/after here that does not span a profile change. See
+[the controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md).
 
 The 15.88-second validated gate retained 42/42 transformed-class cache hits, 15,469 prepared-texture
 and pixel-conversion hits, active adapter health, and no adapter decline or failure. It is the best

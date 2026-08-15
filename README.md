@@ -6,19 +6,17 @@ then launches the same game and mod profile with those results ready to use.**
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
 
-> **Release-candidate preparation.** Public downloads aren't available yet. The remaining technical
-> work is a hosted three-platform candidate, its exact-package benchmark, and final install/update/
-> removal checks. Windows and Linux real-game runs determine how broadly the first beta can claim
-> support; Fractal Softworks' requested guidance remains a separate publication decision. The
-> current checklist is in [Release readiness](docs/release-readiness.md).
+> **Release candidate.** Public downloads are coming after the packaged Windows, macOS, and Linux
+> builds finish their final checks. Progress is tracked in [Release readiness](docs/release-readiness.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-home-dark.png">
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**101 seconds → 15.88 seconds on an 83-mod development installation.** The initial five-run median
-was 88.13 seconds.
+**101 seconds → 15.25 seconds on an 83-mod development installation.** In the latest same-session
+comparison, five ordinary launches had an 89.00-second median and five Preflight launches had a
+15.53-second median.
 
 Preflight found much of Starsector's heavily modded startup time in work whose answer was already
 determined by the game build, enabled mod order, and resource files. It prepares those answers once,
@@ -31,11 +29,21 @@ logic.
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
 | Observed early high | **~101s** | Worst case seen on the development installation |
-| Initial five-run baseline | **88.13s** | Median of five unaccelerated launches |
-| Best validated warm gate | **15.88s** | Best validated result on the later 83-mod profile |
+| Initial five-run baseline | **88.13s** | Median of five unaccelerated launches, on the earlier 77-mod profile |
+| Earlier validated warm gate | **15.88s** | Previous production gate on the later 83-mod profile |
+| Controlled baseline, one session | **89.00s** | Median of five vanilla launches, interleaved with the row below |
+| Controlled result, one session | **15.53s** | Median of five `--fast` launches in that same session |
+| Fastest run in that controlled session | **15.25s** | Fastest of the five accelerated launches |
 
-These are chronological reference points from one M5 MacBook Air running Starsector 0.98a-RC8 and
-the game's bundled x86-64 Java runtime through Rosetta. The latest production gates were 16.66
+The first three rows are chronological reference points, measured months apart: the 88.13-second
+median was taken on a 77-mod profile, before the mod list grew to the 83 it is now. The last two
+rows are one controlled campaign instead — both conditions on the same profile, shuffled inside
+every round with 240 seconds of cooling before each launch, five accepted runs each and none
+excluded. That pair is **73.47s** apart, or **82.55%**. All five accelerated runs fell below the
+earlier 15.88-second gate; the fastest reached 15.25 seconds.
+
+All of it is one M5 MacBook Air running Starsector 0.98a-RC8 and the game's bundled x86-64 Java
+runtime through Rosetta. The latest production gates were 16.66
 seconds cold, 16.28 seconds warm, and 15.88 seconds warm. Current whole-launch run-to-run spread on
 the reviewed machine is roughly ±0.6 seconds. The 15.88-second gate retained all 42 transformed
 class-cache hits, 15,469 prepared texture and pixel-conversion hits, healthy adapters, and no
@@ -45,6 +53,23 @@ Hardware, mods, storage, cache warmth, memory pressure, translation, and tempera
 result. Preflight's benchmark lets each installation measure its own normal and accelerated launch.
 The development measurements and their context are collected in
 [Optimization history](docs/optimization-history.md).
+
+## Disk and preparation
+
+Preflight calculates the requirement before it writes and refuses before a preparation could fill
+the disk. If the default doesn't fit, the app offers a large **Prepare with minimal disk** button.
+
+| Mode | Finished cache on this 83-mod profile | One-time preparation |
+| --- | ---: | ---: |
+| **Balanced** (default) | **4.76 GB** | 3m21s |
+| **Minimal disk** | **10.9 MB** | 5.6s |
+| **Fastest** | **10.03 GB** | More disk for a small texture-path gain |
+
+Balanced needed **12.92 GB** free before starting because the safety check assumes a worst-case build;
+that larger number isn't the finished cache size. Actual costs depend on the artwork in the enabled
+mods, and the app calculates them for the current profile. Minimal skips prepared textures while
+keeping the smaller startup indexes and caches. The measurements and CLI controls are in
+[Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md).
 
 ## What Preflight handles
 

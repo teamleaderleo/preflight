@@ -53,9 +53,7 @@
         "README.md",
         "docs/optimization-history.md"
       ],
-      "mentionedIn": [
-        "docs/release-readiness.md"
-      ],
+      "mentionedIn": [],
       "releaseCandidate": false,
       "supersedes": [],
       "supersededBy": null
@@ -97,6 +95,7 @@
         "condition": "fast"
       },
       "evidenceAssertions": [
+        "15.25s",
         "15.53s",
         "89.00s",
         "73.47s",
@@ -107,8 +106,10 @@
         "preparationMillis"
       ],
       "publishedIn": [
+        "README.md",
         "docs/technical-writeup-draft.md",
-        "docs/beta-announcement-draft.md"
+        "docs/beta-announcement-draft.md",
+        "docs/optimization-history.md"
       ],
       "mentionedIn": [],
       "releaseCandidate": false,
@@ -117,6 +118,17 @@
     }
   ],
   "publishedQuantities": [
+    {
+      "type": "seconds",
+      "value": "15.25",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/optimization-history.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
+      "derivation": "Fastest of five accepted accelerated launches in the controlled interleaved campaign."
+    },
     {
       "type": "seconds",
       "value": "101",
@@ -237,6 +249,56 @@
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Human-reviewed single-profile disk ballpark, supported by the 4.53 GB earlier observation and 4.76 GB cold preparation measurement."
+    },
+    {
+      "type": "count",
+      "value": "77",
+      "unit": "mod",
+      "publishedIn": [
+        "docs/optimization-history.md"
+      ],
+      "evidence": "docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md",
+      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published as a headline because the gates after it were measured on 83 mods, and the difference is what makes the older rows a chronology rather than a before/after."
+    },
+    {
+      "type": "storage",
+      "value": "4.76",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
+      "derivation": "Whole cache directory produced by one cold Balanced preparation of the 83-mod profile into an empty cache. Second observation of this footprint; an earlier one recorded about 4.53 GB."
+    },
+    {
+      "type": "storage",
+      "value": "12.92",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
+      "derivation": "Free space Balanced preparation requires before it will begin: the 11,744,225,102-byte conservative upper bound plus its 10% safety reserve, from the read-only plan for that profile."
+    },
+    {
+      "type": "storage",
+      "value": "10.03",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
+      "derivation": "Whole cache directory produced by the same cold preparation of the same profile with --texture-storage fastest."
+    },
+    {
+      "type": "storage",
+      "value": "10.9",
+      "unit": "MB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
+      "derivation": "Whole cache directory produced by a cold `prepare --no-textures` of the same 83-mod profile; the texture stage is the entire remainder of the 4.76 GB Balanced footprint."
     }
   ]
 }

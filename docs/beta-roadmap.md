@@ -96,7 +96,7 @@ claims. Linux starts with X11; Wayland limitations remain explicit.
 ## 6. Benchmark the release candidate — after candidate freeze
 
 Run the built-in normal-versus-Preflight benchmark on the exact candidate and retain its receipt.
-Publish that result beside the established **101 seconds → 15.88 seconds** development progression.
+Publish that result beside the established **101 seconds → 15.25 seconds** development progression.
 An alternating multi-run campaign remains available when it answers a useful follow-up question; it
 isn't required to make the existing progression real.
 
