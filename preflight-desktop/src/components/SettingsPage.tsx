@@ -106,6 +106,7 @@ export function SettingsPage({
           </ul>
           <div className="privacy-links">
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("privacy")}>Full privacy statement</button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("capabilities")}>What Preflight can access</button>
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("project")}>Source code</button>
           </div>
         </section>

@@ -114,6 +114,7 @@ test("native commands and fixed links are derived from host code", () => {
   assert.equal(commands[0], [...commands].sort()[0]);
   assert.equal(new Set(commands).size, commands.length);
   assert.deepEqual(extractProjectLinks(nativeSource), {
+    capabilities: "https://github.com/teamleaderleo/preflight/blob/main/docs/capability-receipt.md",
     "getting-started": "https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md",
     privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
     project: "https://github.com/teamleaderleo/preflight",

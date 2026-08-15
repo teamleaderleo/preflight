@@ -52,7 +52,7 @@ struct RunStateEvent {
 /// something it shouldn't, and Preflight has no need for one: every outbound link in the interface
 /// is a fixed destination decided here, at build time. The frontend names a key, not a URL, so
 /// there is nothing to inject.
-const PROJECT_LINKS: [(&str, &str); 4] = [
+const PROJECT_LINKS: [(&str, &str); 5] = [
     ("project", "https://github.com/teamleaderleo/preflight"),
     (
         "getting-started",
@@ -61,6 +61,10 @@ const PROJECT_LINKS: [(&str, &str); 4] = [
     (
         "privacy",
         "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
+    ),
+    (
+        "capabilities",
+        "https://github.com/teamleaderleo/preflight/blob/main/docs/capability-receipt.md",
     ),
     (
         "report-issue",
