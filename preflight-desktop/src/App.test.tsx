@@ -675,7 +675,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
 
   await screen.findByText("Ready");
   expect(await screen.findByLabelText("Mod profile")).toHaveValue("Main campaign");
-  await user.click(screen.getByRole("button", { name: "Manage mod sets" }));
+  await user.click(screen.getByRole("button", { name: "Manage profiles" }));
 
   expect(await screen.findByRole("heading", { name: "Mods", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Main campaign")).toBeInTheDocument();
@@ -1000,6 +1000,32 @@ test("both recovery routes reach help without expanding anything", async () => {
 
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Make a support file" })).toBeVisible();
+});
+
+/*
+ * A support file is what the maintainer wants; it is not what somebody whose game will not start
+ * came here for. Each fix on this page has to land on the control that performs it, or the page
+ * is a list of advice with no way to take it.
+ */
+test("help offers a fix before it offers a support file", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await screen.findByRole("heading", { name: "Try this first", level: 2 });
+
+  await user.click(screen.getByRole("button", { name: "Turn off" }));
+  expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: "Use Preflight optimizations" })).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  expect(await screen.findByRole("heading", { name: "Benchmark", level: 1 })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await user.click(await screen.findByRole("button", { name: "Change it" }));
+  expect(await screen.findByRole("button", { name: "Change Starsector installation" })).toBeVisible();
 });
 
 test("a verified available update still waits for install confirmation", async () => {

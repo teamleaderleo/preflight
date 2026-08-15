@@ -1,4 +1,5 @@
-import { CheckIcon, FolderIcon, ShieldIcon } from "../icons";
+import { ArrowIcon, CheckIcon, FolderIcon, ShieldIcon } from "../icons";
+import type { Page } from "./DesktopShell";
 import type { useDiagnosticsReport } from "../useDiagnosticsReport";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
@@ -12,6 +13,7 @@ interface HelpPageProps {
   message: string;
   messageTone: NoticeTone;
   diagnostics: DiagnosticsState;
+  onNavigate: (page: Page) => void;
 }
 
 /*
@@ -19,8 +21,13 @@ interface HelpPageProps {
  * accordion underneath the benchmark -- a page named after a measurement instrument that a
  * player has no reason to open. It is a destination now, so the failure card, Settings, and the
  * navigation all lead to the same place rather than to a panel that has to be expanded first.
+ *
+ * The support file is what the maintainer needs, not what the player came for. Somebody whose
+ * game will not start wants it to start; making a ZIP is the fallback for when nothing here
+ * worked. Every fix below is already a supported path in this app, so the page leads with them
+ * and the file comes after.
  */
-export function HelpPage({ message, messageTone, diagnostics }: HelpPageProps) {
+export function HelpPage({ message, messageTone, diagnostics, onNavigate }: HelpPageProps) {
   const {
     diagnosticsBusy,
     diagnosticsExport,
@@ -46,11 +53,38 @@ export function HelpPage({ message, messageTone, diagnostics }: HelpPageProps) {
     <div className="settings-page help-page">
       <NoticeBanner message={reportError && message.includes(reportError) ? "" : message} tone={messageTone} />
 
+      <section className="card fixes-card">
+        <h2>Try this first</h2>
+        <ul className="fixes-list">
+          <li>
+            <div>
+              <strong>Starsector won’t open, or closes straight away</strong>
+              <p>Turn optimizations off, then launch. The game starts exactly as it does without Preflight, and nothing you have prepared is thrown away.</p>
+            </div>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")}>Turn off<ArrowIcon /></button>
+          </li>
+          <li>
+            <div>
+              <strong>It doesn’t feel any faster</strong>
+              <p>The first launch after changing mods rebuilds prepared data, so that one is slow. The next one is the fast one. You can time both to be sure.</p>
+            </div>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("benchmark")}>Time it<ArrowIcon /></button>
+          </li>
+          <li>
+            <div>
+              <strong>Preflight is using the wrong copy of the game</strong>
+              <p>Point it at the folder you actually play from. Your mods, saves, and settings are read from there and are never moved.</p>
+            </div>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("home")}>Change it<ArrowIcon /></button>
+          </li>
+        </ul>
+      </section>
+
       <section className="card support-card">
         <div className="support-card__main">
           <div>
             <div className="heading-with-info">
-              <h2>{diagnosticsExport ? "Your support file is ready" : "Something going wrong?"}</h2>
+              <h2>{diagnosticsExport ? "Your support file is ready" : "Still stuck?"}</h2>
               <InfoTip label="About the support file">Collects bounded, redacted run and benchmark details. Game files, mods, saves, logs, screenshots, audio, caches, and personal paths stay out.</InfoTip>
             </div>
             <p>{diagnosticsExport

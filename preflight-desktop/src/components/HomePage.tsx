@@ -163,12 +163,27 @@ export function HomePage({
       <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {flightPlot}
-          <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
-            {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
-            {statusLabel}
-          </div>
+          {/*
+            * Before an installation is chosen the heading below already says "Installation
+            * required" in longer words, and the chip said it again directly above it. A chip is
+            * worth a line when it carries something the heading does not; here it only made the
+            * screen look busier than the one decision it asks for.
+            */}
+          {isReady || status === "loading" ? (
+            <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
+              {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
+              {statusLabel}
+            </div>
+          ) : null}
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
+          {/*
+            * Nothing on this screen used to say what happens after the folder is chosen, so the
+            * first thing Preflight ever asks of somebody is a decision with no stated consequence.
+            * The one-off cost and the fact that the game is left alone are both answers people
+            * look for before handing an unsigned program their game folder.
+            */}
+          {!isReady && status !== "loading" ? <p className="setup-next">Preflight then prepares your mods once, which takes a few minutes, and launches the game from here every time after that. Starsector, your mods, and your saves are read where they are and never moved.</p> : null}
           <div className="launch-console__actions">
             {isReady ? (
               <>
@@ -333,7 +348,7 @@ export function HomePage({
             {activeProfile ? (
               <button className="text-button" type="button" onClick={() => { beginRename(activeProfile.name); onNavigate("mods"); }} disabled={profileBusy || operationBlocked}>Rename</button>
             ) : null}
-            <button className="text-button" type="button" onClick={() => onNavigate("mods")} disabled={!isReady}>Manage mod sets <ArrowIcon /></button>
+            <button className="text-button" type="button" onClick={() => onNavigate("mods")} disabled={!isReady}>Manage profiles <ArrowIcon /></button>
           </div>
         </div>
         <div className="home-fact">

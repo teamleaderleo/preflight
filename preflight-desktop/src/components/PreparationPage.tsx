@@ -147,7 +147,17 @@ export function PreparationPage({
             <h2>Optimizations</h2>
             <InfoTip label="About Preflight optimizations">Preflight applies only transformations reviewed for the exact game and mod build. A fingerprint mismatch keeps the original code.</InfoTip>
           </div>
-          {optimizationPreset === "conservative" ? <p>Compatibility mode is enabled for the next launch.</p> : null}
+          {/*
+            * The switch stated its own position and nothing else, so the page named Speed opened
+            * on a control whose consequence was written down only in the tooltip beside it. Both
+            * positions are legitimate choices -- off is the first thing to try when the game
+            * misbehaves -- and each says what the next launch will do.
+            */}
+          <p>{optimizationPreset === "off"
+            ? "Starsector will launch exactly as it does without Preflight. Prepared data is kept, so turning this back on costs nothing."
+            : optimizationPreset === "conservative"
+              ? "Compatibility mode: startup caches only, with the game’s original code. Slower than Recommended, and the next thing to try if Recommended misbehaves."
+              : "Preflight prepares your mods once, then reuses that work to start the game faster."}</p>
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />

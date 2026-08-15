@@ -463,6 +463,12 @@ h2 {
   line-height: 1.55;
 }
 
+.launch-console__primary > p.setup-next {
+  max-width: 52ch;
+  margin-top: -8px;
+  font-size: var(--text-support);
+}
+
 .launch-console__actions {
   display: flex;
   align-items: center;
@@ -2985,7 +2991,8 @@ footer {
 
   .help-card__main,
   .support-card__main,
-  .prove-card__main {
+  .prove-card__main,
+  .fixes-list li {
     align-items: stretch;
     flex-direction: column;
   }
@@ -3435,6 +3442,14 @@ footer {
     padding-bottom: 21px;
   }
 
+  .fixes-card {
+    padding: 16px 20px;
+  }
+
+  .fixes-list li {
+    padding: 10px 0;
+  }
+
   .preflight-summary-card {
     padding-top: 16px;
     padding-bottom: 16px;
@@ -3539,11 +3554,53 @@ footer {
 
 .support-card,
 .help-links-card,
+.fixes-card,
 .prove-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 24px;
+}
+
+.fixes-card h2 {
+  margin: 0;
+}
+
+.fixes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fixes-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.fixes-list li > div {
+  min-width: 0;
+}
+
+.fixes-list strong {
+  display: block;
+  color: var(--ink);
+}
+
+.fixes-list p {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+}
+
+.fixes-list .button {
+  flex: 0 0 auto;
 }
 
 .help-card__main,

@@ -464,6 +464,7 @@ export default function App() {
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}
             diagnostics={diagnostics}
+            onNavigate={setPage}
           />
         ) : (
           <SettingsPage

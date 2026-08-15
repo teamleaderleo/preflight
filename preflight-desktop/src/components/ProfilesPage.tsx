@@ -48,7 +48,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
             <span className="field-note">{profilesLoading ? "Checking…" : `${profiles?.profiles.length ?? 0} saved`}</span>
           </div>
           <div className="profile-list">
-            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><span>Save the current setup to add it here.</span></div> : null}
+            {!profilesLoading && profiles?.profiles.length === 0 ? <div className="profile-empty"><span>A profile remembers which mods are enabled, so you can switch between sets without turning them on one by one. Save your current mods to make the first one.</span></div> : null}
             {(profiles?.profiles ?? []).map((profile) => (
               <article className={`profile-card ${profile.active ? "profile-card--active" : ""}`} key={profile.name}>
                 <div className="profile-card__copy">
@@ -90,7 +90,7 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
         </section>
 
         <section className="card profile-save-card">
-          <div className="heading-with-info"><h2>Save this mod setup</h2><InfoTip label="What saving a profile does">Only the enabled-mod list and load order are saved. Mod files stay where they are.</InfoTip></div>
+          <div className="heading-with-info"><h2>Save the current mods as a profile</h2><InfoTip label="What saving a profile does">Only the enabled-mod list and load order are saved. Mod files stay where they are.</InfoTip></div>
           <label htmlFor="profile-name">Profile name</label>
           <input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. Main campaign" maxLength={96} />
           <button className="button button--primary" type="button" disabled={!profileName.trim() || profileBusy} onClick={() => void saveCurrentProfile()}>Save profile</button>
