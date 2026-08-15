@@ -2,12 +2,16 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -82,6 +86,68 @@ class LaunchLedgerBackfillTest {
         LaunchLedger.Entry entry = LaunchLedger.read(home).get(0);
         assertEquals(null, entry.elapsedMillis());
         assertEquals(0, Playtime.of(List.of(entry)).launches(), "no duration, no hours");
+    }
+
+    @Test
+    void simultaneousBackfillsCannotDuplicateARecordedLaunch() throws Exception {
+        PreflightHome home = new PreflightHome(root, List.of());
+        writeRun("20260719-072149-398-aaaaaaaa", "2026-07-19T07:21:49Z", "2026-07-19T09:21:49Z");
+        ExecutorService tasks = Executors.newFixedThreadPool(2);
+        try {
+            List<Integer> results = tasks.invokeAll(List.of(
+                            (Callable<Integer>) () -> LaunchLedgerBackfill.runOnce(home),
+                            () -> LaunchLedgerBackfill.runOnce(home)))
+                    .stream()
+                    .map(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception error) {
+                            throw new AssertionError(error);
+                        }
+                    })
+                    .toList();
+            assertEquals(1, results.stream().mapToInt(Integer::intValue).sum());
+        } finally {
+            tasks.shutdownNow();
+        }
+        assertEquals(1, LaunchLedger.read(home).size());
+    }
+
+    @Test
+    void aSymlinkedBackfillMarkerCannotRedirectWritesOutsidePreflight() throws IOException {
+        PreflightHome home = new PreflightHome(root.resolve("home"), List.of());
+        Files.createDirectories(LaunchLedger.path(home).getParent());
+        Path outside = root.resolve("outside-marker");
+        Files.writeString(outside, "outside stays unchanged\n", StandardCharsets.UTF_8);
+        try {
+            Files.createSymbolicLink(LaunchLedgerBackfill.marker(home), outside);
+        } catch (UnsupportedOperationException | SecurityException | IOException error) {
+            assumeTrue(false, "Symbolic links aren't available in this test environment: " + error);
+        }
+        writeRun("20260719-072149-398-aaaaaaaa", "2026-07-19T07:21:49Z", "2026-07-19T09:21:49Z");
+
+        assertEquals(0, LaunchLedgerBackfill.runOnce(home));
+        assertEquals("outside stays unchanged\n", Files.readString(outside));
+        assertEquals(0, LaunchLedger.read(home).size());
+    }
+
+    @Test
+    void aSymlinkedRunDirectoryIsNotImported() throws IOException {
+        PreflightHome home = new PreflightHome(root.resolve("home"), List.of());
+        Path outside = root.resolve("outside-run");
+        Files.createDirectories(outside);
+        Files.writeString(outside.resolve("run.json"),
+                "{\"started\":\"2026-07-19T07:21:49Z\",\"ended\":\"2026-07-19T09:21:49Z\",\"outcome\":\"COMPLETED\"}",
+                StandardCharsets.UTF_8);
+        Path runs = Files.createDirectories(home.runs());
+        try {
+            Files.createSymbolicLink(runs.resolve("redirected"), outside);
+        } catch (UnsupportedOperationException | SecurityException | IOException error) {
+            assumeTrue(false, "Symbolic links aren't available in this test environment: " + error);
+        }
+
+        assertEquals(0, LaunchLedgerBackfill.runOnce(home));
+        assertEquals(0, LaunchLedger.read(home).size());
     }
 
     /** The fields a real run.json carries, in the shape RunCommand writes them. */

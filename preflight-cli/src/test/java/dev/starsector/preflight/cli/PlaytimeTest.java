@@ -33,6 +33,8 @@ class PlaytimeTest {
         assertEquals(60 * 60_000L, summary.totalMillis());
         assertEquals(1, summary.launches());
         assertEquals(2, summary.recorded());
+        assertEquals(1, summary.sessionsWithoutDuration());
+        assertEquals(0, summary.ignoredAttempts());
     }
 
     @Test
@@ -46,6 +48,20 @@ class PlaytimeTest {
     }
 
     @Test
+    void aFailedAttemptIsHistoryRatherThanPlaytime() {
+        Playtime.Summary summary = Playtime.of(List.of(
+                launch("2026-08-01T10:00:00Z", 15_000L, "LAUNCH_FAILED"),
+                launch("2026-08-01T11:00:00Z", 60 * 60_000L, "COMPLETED"),
+                launch("2026-08-01T12:00:00Z", 20_000L, "FUTURE_UNKNOWN_OUTCOME")));
+
+        assertEquals(60 * 60_000L, summary.totalMillis());
+        assertEquals(1, summary.launches());
+        assertEquals(3, summary.recorded());
+        assertEquals(0, summary.sessionsWithoutDuration());
+        assertEquals(2, summary.ignoredAttempts());
+    }
+
+    @Test
     void durationsReadTheWaySomebodyWouldSayThem() {
         assertEquals("42s", Playtime.human(42_000));
         assertEquals("1 minute", Playtime.human(60_000));
@@ -56,11 +72,15 @@ class PlaytimeTest {
     }
 
     private static LaunchLedger.Entry launch(String started, Long elapsedMillis) {
+        return launch(started, elapsedMillis, "COMPLETED");
+    }
+
+    private static LaunchLedger.Entry launch(String started, Long elapsedMillis, String outcome) {
         return new LaunchLedger.Entry(
                 LaunchIdentity.imported(Instant.parse(started), "run-directory"),
                 Instant.parse(started),
                 elapsedMillis,
-                "COMPLETED",
+                outcome,
                 0,
                 false,
                 "recommended",

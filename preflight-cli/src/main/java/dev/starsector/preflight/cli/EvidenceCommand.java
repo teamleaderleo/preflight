@@ -278,7 +278,9 @@ final class EvidenceCommand {
         played.put("longestSessionMillis", playtime.longestSessionMillis());
         played.put("averageMillis", playtime.averageMillis());
         played.put("launches", playtime.launches());
-        played.put("launchesWithoutDuration", playtime.recorded() - playtime.launches());
+        played.put("sessionsWithoutDuration", playtime.sessionsWithoutDuration());
+        played.put("ignoredAttempts", playtime.ignoredAttempts());
+        played.put("ledgerEntries", playtime.recorded());
         played.put("first", playtime.first());
         played.put("last", playtime.last());
         values.put("playtime", played);
