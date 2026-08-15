@@ -55,3 +55,15 @@ was `<version>0.1.0</version>`. Fixed in
 The report artifacts from this run were lost: the upload step's `hashFiles` guard pointed at the
 runner's temp directory, which `hashFiles` cannot see, so it skipped silently on all three. The
 figures above are read from the job logs. The workflow now writes the report inside the workspace.
+
+## The artifact fix, confirmed
+
+[Run 31828207874](https://github.com/teamleaderleo/preflight/actions/runs/31828207874) on 2026-08-15,
+`main` at `f6c52574`, uploaded `package-lifecycle-linux`, `-windows` and `-macos` — 303, 306 and 304
+bytes. So the workspace-relative `hashFiles` guard resolves, and the rehearsal now keeps its own
+report instead of leaving the numbers in job logs.
+
+That run repeated the table above rather than adding to it: same packages, same 0.1.0 →
+0.1.1-rehearsal move, byte-identical rollback on all three, and 130 / 173 / 131 owned files removed
+on Linux / Windows / macOS. Two runs, one condition — it says the exercise is repeatable, not that
+the numbers generalize past hosted runners.
