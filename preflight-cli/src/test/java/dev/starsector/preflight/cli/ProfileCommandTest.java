@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,7 +90,7 @@ final class ProfileCommandTest {
         assertEquals(2, ProfileCommand.activate(
                 fixture.home(), fixture.game(), "alpha only", true, true, stream(refused)));
 
-        assertEquals(externallyEdited, Files.readAllBytes(fixture.enabled()));
+        assertArrayEquals(externallyEdited, Files.readAllBytes(fixture.enabled()));
         String refusalJson = refused.toString(StandardCharsets.UTF_8);
         assertTrue(refusalJson.contains("\"sourceChanged\":true"));
         assertTrue(refusalJson.contains("\"reviewChanged\":true"));
@@ -120,7 +121,7 @@ final class ProfileCommandTest {
         assertEquals(2, ProfileCommand.activate(
                 fixture.home(), fixture.game(), "alpha only", true, true, stream(refused)));
 
-        assertEquals(before, Files.readAllBytes(fixture.enabled()));
+        assertArrayEquals(before, Files.readAllBytes(fixture.enabled()));
         String json = refused.toString(StandardCharsets.UTF_8);
         assertTrue(json.contains("\"reviewChanged\":true"));
         assertTrue(json.contains("\"sourceChanged\":false"));
