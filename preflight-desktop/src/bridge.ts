@@ -42,7 +42,8 @@ export type BrowserPreviewScenario =
   | "profile-mismatch"
   | "benchmark-unavailable"
   | "update-error"
-  | "report-error";
+  | "report-error"
+  | "run-failure";
 
 const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "ready",
@@ -53,6 +54,7 @@ const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "benchmark-unavailable",
   "update-error",
   "report-error",
+  "run-failure",
 ]);
 
 export function browserPreviewScenario(): BrowserPreviewScenario {
@@ -188,6 +190,20 @@ export async function startDesktopSmoke(game: string): Promise<RunStarted> {
 export async function cancelDesktopSmoke(): Promise<boolean> {
   if (!isDesktopHost()) return true;
   return invoke<boolean>("cancel_desktop_smoke");
+}
+
+/*
+ * The run-failure card is the app's recovery path, and it is driven by a desktop-only `run-state`
+ * event -- so until this scenario existed it could not be opened in the browser preview and no
+ * test could reach it. The one screen a player sees on their worst day was the one screen nobody
+ * could look at.
+ */
+export function previewRunFailure(): { summary: string; detail?: string } | null {
+  if (isDesktopHost() || browserPreviewScenario() !== "run-failure") return null;
+  return {
+    summary: "Starsector stopped before reaching the main menu.",
+    detail: "java.lang.RuntimeException: preview failure detail",
+  };
 }
 
 export async function startGame(

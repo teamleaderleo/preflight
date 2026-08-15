@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   getSnapshot,
   isDesktopHost,
+  previewRunFailure,
   startGame,
 } from "./bridge";
 import { DesktopShell, type Page } from "./components/DesktopShell";
@@ -11,7 +12,8 @@ import { HomePage } from "./components/HomePage";
 import { NoticeBanner } from "./components/NoticeBanner";
 import { PreparationPage } from "./components/PreparationPage";
 import { ProfilesPage } from "./components/ProfilesPage";
-import { ReportsPage } from "./components/ReportsPage";
+import { BenchmarkPage } from "./components/BenchmarkPage";
+import { HelpPage } from "./components/HelpPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { WorkflowLockNotice } from "./components/WorkflowLockNotice";
 import { useDesktopAutomation } from "./useDesktopAutomation";
@@ -37,9 +39,10 @@ import type {
 
 function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: boolean, needsPreparation: boolean): string {
   if (page === "launch") return "Game settings";
-  if (page === "prepare") return preparing ? "Preparing…" : "Preflight";
-  if (page === "reports") return "Benchmark";
-  if (page === "profiles") return "Profiles";
+  if (page === "speed") return preparing ? "Preparing…" : "Speed";
+  if (page === "benchmark") return "Benchmark";
+  if (page === "mods") return "Mods";
+  if (page === "help") return "Help";
   if (page === "settings") return "Settings";
   if (preparing) return "Preparing…";
   if (status === "loading") return "Finding Starsector…";
@@ -60,9 +63,8 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
   const [status, setStatus] = useState<AppStatus>("loading");
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
-  const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
+  const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [page, setPage] = useState<Page>("home");
-  const [reportsView, setReportsView] = useState<"benchmark" | "support">("benchmark");
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
   const announceGame = useCallback((message: string, tone?: NoticeTone) => announceNotice("game", message, tone), [announceNotice]);
@@ -143,7 +145,7 @@ export default function App() {
   }, [announceGame, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
-    page === "prepare",
+    page === "speed",
     optimizationPreset,
     launch,
     announcePreparation,
@@ -159,7 +161,7 @@ export default function App() {
   } = preparation;
   const profilesState = useProfiles(
     snapshot?.selected?.installRoot,
-    page === "home" || page === "profiles",
+    page === "home" || page === "mods",
     refresh,
     refreshCache,
     announceProfiles,
@@ -182,7 +184,7 @@ export default function App() {
   });
   // Settings states what this build sends, and that sentence depends on whether an intake origin
   // was compiled in, so the status is fetched for either page rather than only where it is sent.
-  const diagnostics = useDiagnosticsReport(page === "reports" || page === "settings", announceSupport);
+  const diagnostics = useDiagnosticsReport(page === "help" || page === "settings", announceSupport);
   const launcher = useLauncherSettings(
     snapshot?.selected?.installRoot,
     page === "home" || page === "launch",
@@ -329,7 +331,7 @@ export default function App() {
             : launcher.saving
               ? { reason: "Saving game settings", owner: "launch" as Page }
               : profilesState.profileBusy
-                ? { reason: "Updating the saved mod profile", owner: "profiles" as Page }
+                ? { reason: "Updating the saved mod profile", owner: "mods" as Page }
                 : diagnostics.reportUploading
                   ? {
                     reason: diagnostics.reportFinalizing
@@ -337,7 +339,7 @@ export default function App() {
                       : diagnostics.reportCancelling
                         ? "Stopping the run report upload"
                         : "Sending the run report",
-                    owner: "reports" as Page,
+                    owner: "help" as Page,
                   }
                   : removal.busy
                     ? { reason: "Reviewing or removing Preflight data", owner: "settings" as Page }
@@ -360,19 +362,10 @@ export default function App() {
   const launchNotice = latestNotice(["installation", "game-settings"]);
   const preparationNotice = latestNotice(["installation", "preparation", "cache"]);
   const profilesNotice = latestNotice(["installation", "profiles"]);
-  const reportsNotice = latestNotice(["installation", "benchmark", "support"]);
+  const benchmarkNotice = latestNotice(["installation", "benchmark"]);
+  const helpNotice = latestNotice(["installation", "support"]);
   const settingsNotice = latestNotice(["installation", "updates", "removal"]);
-  const navigate = (nextPage: Page) => {
-    if (nextPage === "reports") setReportsView("benchmark");
-    setPage(nextPage);
-  };
-  const openSupport = () => {
-    setReportsView("support");
-    setPage("reports");
-  };
-  const title = page === "reports" && reportsView === "support"
-    ? "Support"
-    : pageTitle(page, status, preparing, isReady, needsPreparation);
+  const title = pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
     <DesktopShell
       page={page}
@@ -382,7 +375,7 @@ export default function App() {
       updateAvailable={Boolean(updateStatus?.available)}
       engineVersion={snapshot?.engineVersion ?? "…"}
       theme={theme.preference}
-      onPageChange={navigate}
+      onPageChange={setPage}
       onThemeChange={theme.setPreference}
     >
         {activeOperation && page !== activeOperation.owner ? (
@@ -420,7 +413,7 @@ export default function App() {
             onRetry={retryFailedOperation}
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
-            onNavigate={navigate}
+            onNavigate={setPage}
           />
         ) : page === "launch" ? (
           <>
@@ -437,7 +430,7 @@ export default function App() {
               onSave={() => void launcher.save()}
             />
           </>
-        ) : page === "prepare" ? (
+        ) : page === "speed" ? (
           <PreparationPage
             message={preparationNotice?.message ?? ""}
             messageTone={preparationNotice?.tone ?? "info"}
@@ -453,18 +446,23 @@ export default function App() {
             onReviewCleanup={() => void cleanup.review()}
             onCleanCache={() => void cleanup.clean()}
             onDismissCleanup={cleanup.dismiss}
+            onOpenBenchmark={() => setPage("benchmark")}
           />
-        ) : page === "profiles" ? (
+        ) : page === "mods" ? (
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
-        ) : page === "reports" ? (
-          <ReportsPage
-            message={reportsNotice?.message ?? ""}
-            messageTone={reportsNotice?.tone ?? "info"}
+        ) : page === "benchmark" ? (
+          <BenchmarkPage
+            message={benchmarkNotice?.message ?? ""}
+            messageTone={benchmarkNotice?.tone ?? "info"}
             status={status}
             isReady={isReady}
             preparing={preparing}
-            view={reportsView}
             automation={automation}
+          />
+        ) : page === "help" ? (
+          <HelpPage
+            message={helpNotice?.message ?? ""}
+            messageTone={helpNotice?.tone ?? "info"}
             diagnostics={diagnostics}
           />
         ) : (
@@ -476,7 +474,7 @@ export default function App() {
             reportIntake={diagnostics.reportIntake}
             removalPlan={removal.plan}
             removalBusy={removal.busy}
-            onOpenSupport={openSupport}
+            onOpenHelp={() => setPage("help")}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}

@@ -1,4 +1,4 @@
-import { FolderIcon, ShieldIcon } from "../icons";
+import { LifebuoyIcon, ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
@@ -15,7 +15,7 @@ interface SettingsPageProps {
   reportIntake: ReportIntakeStatus | null;
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
-  onOpenSupport: () => void;
+  onOpenHelp: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
   onRemove: () => void;
@@ -29,7 +29,7 @@ export function SettingsPage({
   reportIntake,
   removalPlan,
   removalBusy,
-  onOpenSupport,
+  onOpenHelp,
   onReviewRemoval,
   onDismissRemoval,
   onRemove,
@@ -114,12 +114,8 @@ export function SettingsPage({
 
       <section className="card help-card">
         <div className="help-card__main">
-          <div><h2>Need help?</h2><p>Create a redacted support ZIP you can inspect, send, or attach to an issue.</p></div>
-          <button className="button button--primary button--support" type="button" onClick={onOpenSupport}><FolderIcon />Get support</button>
-        </div>
-        <div className="privacy-links">
-          <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
-          <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>
+          <div><h2>Something going wrong?</h2><p>Help has the support file, the getting-started guide, and the issue tracker.</p></div>
+          <button className="button button--primary button--support" type="button" onClick={onOpenHelp}><LifebuoyIcon />Open Help</button>
         </div>
       </section>
 

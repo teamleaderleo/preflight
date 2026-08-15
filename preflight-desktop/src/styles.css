@@ -1577,15 +1577,6 @@ h2 {
   margin-top: 0;
 }
 
-.support-tools__body {
-  display: grid;
-  gap: 18px;
-}
-
-.support-tools__body > .diagnostics-action {
-  padding: 0;
-}
-
 .support-contents {
   border-top: 1px solid var(--line);
 }
@@ -2992,7 +2983,9 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .help-card__main {
+  .help-card__main,
+  .support-card__main,
+  .prove-card__main {
     align-items: stretch;
     flex-direction: column;
   }
@@ -3456,7 +3449,18 @@ footer {
   gap: 8px;
 }
 
-.help-card__main {
+.support-card,
+.help-links-card,
+.prove-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+}
+
+.help-card__main,
+.support-card__main,
+.prove-card__main {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3465,13 +3469,34 @@ footer {
 }
 
 .help-card__main h2,
-.help-card__main p {
+.help-card__main p,
+.support-card__main h2,
+.support-card__main p,
+.prove-card__main h2,
+.prove-card__main p {
   margin: 0;
 }
 
-.help-card__main p {
+.help-card__main p,
+.support-card__main p,
+.prove-card__main p {
   margin-top: 5px;
   color: var(--ink-soft);
+}
+
+.support-card__main > div:first-child {
+  min-width: 0;
+}
+
+.support-card__main small {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+}
+
+.prove-card__main .button {
+  flex: 0 0 auto;
 }
 
 .button--support {

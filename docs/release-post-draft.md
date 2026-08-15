@@ -64,8 +64,8 @@ Preflight data** separately previews and deletes only Preflight-owned caches and
 - Known issues and compatibility matrix: **[LINK]**
 - Source and releases: **[LINK]**
 
-If something fails, choose **Get support**, then **Create support ZIP**. Sending is a separate action
-after the ZIP disclosure. Include the case ID in **[SUPPORT THREAD / ISSUE TEMPLATE]**. Reports are
+If something fails, open **Help** and choose **Make a support file**. Sending is a separate action
+after the file's disclosure. Include the case ID in **[SUPPORT THREAD / ISSUE TEMPLATE]**. Reports are
 retained for **[RETENTION]** and can be deleted using **[DELETION PROCESS]**.
 
 Preflight is an independent project and **[FINAL APPROVED DISCLAIMER]**.

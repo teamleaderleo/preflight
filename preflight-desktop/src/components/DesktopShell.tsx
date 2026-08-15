@@ -1,8 +1,8 @@
 import type { AppStatus } from "../types";
 import {
   HomeIcon,
-  GaugeIcon,
   LayersIcon,
+  LifebuoyIcon,
   MoonIcon,
   SettingsIcon,
   SparklesIcon,
@@ -13,7 +13,19 @@ import type { ThemePreference } from "../useTheme";
 import Logo from "../Logo";
 import { useEffect, useRef, type ReactNode } from "react";
 
-export type Page = "home" | "launch" | "prepare" | "reports" | "profiles" | "settings";
+/*
+ * Destinations are named for the errand a player arrives with, not for the part of this
+ * repository that serves it. The previous set spent three of five primary slots on internal
+ * vocabulary -- a page called "Preflight" inside Preflight, a "Benchmark" instrument nobody
+ * arrives wanting to run, and "Profiles", which means accounts in most software a player has
+ * used. Recovery, the errand behind every "it won't start", was an accordion under the
+ * instrument.
+ *
+ * `benchmark` deliberately has no nav item. It is load-bearing for the project's own claims and
+ * still reachable from Speed, where someone asking "is this actually doing anything" is already
+ * standing. `launch` works the same way, from Home.
+ */
+export type Page = "home" | "launch" | "speed" | "mods" | "benchmark" | "help" | "settings";
 
 interface DesktopShellProps {
   page: Page;
@@ -41,7 +53,7 @@ export function DesktopShell({
   onThemeChange,
 }: DesktopShellProps) {
   const homeActive = page === "home" || page === "launch";
-  const benchmarkActive = page === "reports" && title === "Benchmark";
+  const speedActive = page === "speed" || page === "benchmark";
   const pageViewport = useRef<HTMLDivElement>(null);
   const pageTitle = useRef<HTMLHeadingElement>(null);
   const previousPage = useRef(page);
@@ -71,14 +83,14 @@ export function DesktopShell({
           <button className={`nav__item ${homeActive ? "nav__item--active" : ""}`} type="button" title="Home" aria-current={homeActive ? "page" : undefined} onClick={() => onPageChange("home")}>
             <HomeIcon /><span>Home</span>
           </button>
-          <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" title="Preflight" aria-current={page === "prepare" ? "page" : undefined} onClick={() => onPageChange("prepare")} disabled={!isReady}>
-            <SparklesIcon /><span>Preflight</span>
+          <button className={`nav__item ${speedActive ? "nav__item--active" : ""}`} type="button" title="Speed" aria-current={speedActive ? "page" : undefined} onClick={() => onPageChange("speed")} disabled={!isReady}>
+            <SparklesIcon /><span>Speed</span>
           </button>
-          <button className={`nav__item ${benchmarkActive ? "nav__item--active" : ""}`} type="button" title="Benchmark" aria-current={benchmarkActive ? "page" : undefined} onClick={() => onPageChange("reports")}>
-            <GaugeIcon /><span>Benchmark</span>
+          <button className={`nav__item ${page === "mods" ? "nav__item--active" : ""}`} type="button" title="Mods" aria-current={page === "mods" ? "page" : undefined} onClick={() => onPageChange("mods")} disabled={!isReady}>
+            <LayersIcon /><span>Mods</span>
           </button>
-          <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" title="Profiles" aria-current={page === "profiles" ? "page" : undefined} onClick={() => onPageChange("profiles")} disabled={!isReady}>
-            <LayersIcon /><span>Profiles</span>
+          <button className={`nav__item ${page === "help" ? "nav__item--active" : ""}`} type="button" title="Help" aria-current={page === "help" ? "page" : undefined} onClick={() => onPageChange("help")}>
+            <LifebuoyIcon /><span>Help</span>
           </button>
         </nav>
         <div className="sidebar__footer">
