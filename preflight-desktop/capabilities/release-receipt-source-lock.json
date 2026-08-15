@@ -12,7 +12,7 @@
     "preflight-desktop/src-tauri/src/automation.rs": "ceac2219ac93eb6b83d3aa0a7860bb4353f1921140a8bfc5495af0eb75f5cbff",
     "preflight-desktop/src-tauri/src/desktop_automation_bridge.rs": "2e61931a7b6072989dc4b73a5895ef09339ba322d9936b3c4ec05c942ab6e6e1",
     "preflight-desktop/src-tauri/src/engine.rs": "d9817b0976a97d7f9ce0c4695f8d8b61dd80484a20150b963317e7281c1eeb4c",
-    "preflight-desktop/src-tauri/src/lib.rs": "7f686e80c8acf91b6cdc5da4c95ad5adfef6e2fcd250624d440a0a6992dbab92",
+    "preflight-desktop/src-tauri/src/lib.rs": "b007807592abd3b974b831070c21cb32000cbfb923eceadb360f43209422861d",
     "preflight-desktop/src-tauri/src/preparation.rs": "d6aac6c856cf810709bce2ea09043863d8aff8c73ebab3a3fe6a7a2a9e0aaf00",
     "preflight-desktop/src-tauri/src/report_transport.rs": "4ce1ace2b2ccfdca1a48bfd147faa110a94d1c6b3b9e1516d925cf9f6da50b16",
     "preflight-desktop/src-tauri/src/reports.rs": "6c164cf691774be53deff4c32710dd861aac4739b7b42cbbefd3300e702b4001",
