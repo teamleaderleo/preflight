@@ -57,6 +57,7 @@ class PlaytimeTest {
 
     private static LaunchLedger.Entry launch(String started, Long elapsedMillis) {
         return new LaunchLedger.Entry(
+                LaunchIdentity.imported(Instant.parse(started), "run-directory"),
                 Instant.parse(started),
                 elapsedMillis,
                 "COMPLETED",

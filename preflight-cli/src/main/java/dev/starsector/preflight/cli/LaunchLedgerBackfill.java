@@ -70,21 +70,20 @@ final class LaunchLedgerBackfill {
         if (!Files.isDirectory(runs, LinkOption.NOFOLLOW_LINKS)) {
             return List.of();
         }
+        // Keyed by launch id, not by directory name: a named trace directory is reused across
+        // runs, so the name identifies a place rather than a launch.
         Set<String> known = new HashSet<>();
         for (LaunchLedger.Entry entry : LaunchLedger.read(home)) {
-            if (entry.runDirectory() != null) {
-                known.add(entry.runDirectory());
+            if (entry.launchId() != null) {
+                known.add(entry.launchId());
             }
         }
         List<LaunchLedger.Entry> found = new ArrayList<>();
         try (var children = Files.list(runs)) {
             for (Path directory : children.filter(Files::isDirectory).toList()) {
                 String name = directory.getFileName().toString();
-                if (known.contains(name)) {
-                    continue;
-                }
                 LaunchLedger.Entry entry = read(directory, name);
-                if (entry != null) {
+                if (entry != null && !known.contains(entry.launchId())) {
                     found.add(entry);
                 }
             }
@@ -114,6 +113,7 @@ final class LaunchLedgerBackfill {
         boolean fatal = lifecycle instanceof Map<?, ?> evidence
                 && Boolean.TRUE.equals(evidence.get("fatalDetected"));
         return new LaunchLedger.Entry(
+                LaunchIdentity.imported(started, name),
                 started,
                 ended == null ? null : Duration.between(started, ended).toMillis(),
                 values.get("outcome") instanceof String outcome ? outcome : null,

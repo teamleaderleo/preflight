@@ -101,4 +101,32 @@ class LaunchLedgerBackfillTest {
                         + "\"59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702\"}",
                 StandardCharsets.UTF_8);
     }
+
+    @Test
+    void aReimportRecognisesTheSameLaunchRatherThanCountingItTwice() throws IOException {
+        // The directory name does not identify a launch -- a named trace directory is reused across
+        // runs, and eleven rows collided that way on a real machine. The id is derived from what the
+        // run recorded, so re-reading the same directory yields the same launch.
+        PreflightHome home = new PreflightHome(root, List.of());
+        writeRun("20260719-072149-398-aaaaaaaa", "2026-07-19T07:21:49Z", "2026-07-19T09:21:49Z");
+        LaunchLedgerBackfill.runOnce(home);
+        String firstId = LaunchLedger.read(home).get(0).launchId();
+
+        Files.delete(LaunchLedgerBackfill.marker(home));
+        LaunchLedgerBackfill.runOnce(home);
+
+        List<LaunchLedger.Entry> entries = LaunchLedger.read(home);
+        assertEquals(1, entries.size());
+        assertEquals(firstId, entries.get(0).launchId(), "the same past launch keeps its name");
+    }
+
+    @Test
+    void twoDifferentLaunchesSharingADirectoryNameAreTwoLaunches() {
+        String morning = LaunchIdentity.imported(
+                java.time.Instant.parse("2026-08-15T09:00:00Z"), "failed-trace");
+        String evening = LaunchIdentity.imported(
+                java.time.Instant.parse("2026-08-15T21:00:00Z"), "failed-trace");
+
+        assertTrue(!morning.equals(evening), "same place, different launches");
+    }
 }

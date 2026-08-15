@@ -192,6 +192,7 @@ final class LaunchLedger {
      *     kept as its own bucket rather than folded into any named set.
      */
     record Entry(
+            String launchId,
             Instant started,
             Long elapsedMillis,
             String outcome,
@@ -209,6 +210,7 @@ final class LaunchLedger {
         Map<String, Object> toMap() {
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("format", FORMAT);
+            values.put("launchId", launchId);
             values.put("started", started);
             values.put("elapsedMillis", elapsedMillis);
             values.put("outcome", outcome);
@@ -246,6 +248,13 @@ final class LaunchLedger {
                 return null;
             }
             return new Entry(
+                    // Rows written before launches had ids get one derived from what they do have,
+                    // so an old ledger and a re-import agree on which launch is which.
+                    values.get("launchId") instanceof String id && !id.isBlank()
+                            ? id
+                            : LaunchIdentity.imported(
+                                    started,
+                                    values.get("runDirectory") instanceof String d ? d : null),
                     started,
                     values.get("elapsedMillis") instanceof Number elapsed ? elapsed.longValue() : null,
                     values.get("outcome") instanceof String outcome ? outcome : null,

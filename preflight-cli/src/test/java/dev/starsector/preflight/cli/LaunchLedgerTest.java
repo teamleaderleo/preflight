@@ -168,6 +168,7 @@ class LaunchLedgerTest {
 
     private static LaunchLedger.Entry entry(String started, String outcome, boolean fatal) {
         return new LaunchLedger.Entry(
+                LaunchIdentity.imported(Instant.parse(started), "run-directory"),
                 Instant.parse(started),
                 15_250L,
                 outcome,
