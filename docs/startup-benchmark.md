@@ -212,10 +212,30 @@ scripts/run-startup-benchmark.sh --rounds 5              # default
 scripts/run-startup-benchmark.sh --conditions vanilla,enabled
 scripts/run-startup-benchmark.sh --resume ~/.starsector-preflight/benchmarks/20260730-...
 scripts/run-startup-benchmark.sh --skip-warmup           # only if you just settled one
+scripts/run-startup-benchmark.sh --engine /Applications/Preflight.app
 ```
 
+## Measuring a release candidate rather than the checkout
+
+By default the harness builds this checkout and measures the JAR it produced. That is what a
+development campaign wants and it is what every published number so far has measured, but it is
+not the release candidate: nothing about the resulting evidence distinguishes checkout bytes from
+shipped bytes.
+
+`--engine PATH` measures the engine a candidate actually carries. `PATH` may be a runnable
+`preflight.jar`, an installed or extracted Preflight (a `.app`, or any directory holding
+`engine/preflight.jar`), and resolution is a short list of reviewed package layouts rather than a
+search. In this mode the checkout is never built and never consulted — an unresolvable `--engine`
+refuses the campaign instead of falling back. A packaged engine's `bundle.json` pins its exact JAR
+SHA-256 and length and retains its `sourceVersion`; the package verifier checks the same fields.
+`--engine-sha256` can impose an additional independently recorded expected digest.
+
+A session records which of the two it measured and refuses to resume as the other, so a candidate
+campaign cannot be continued against a checkout build.
+
 Each session writes to `~/.starsector-preflight/benchmarks/<timestamp>/`:
-`identity.json` (repository head, JAR hash, hardware, OS, Java, profile fingerprint, seed),
+`identity.json` (repository head, engine source/path/version, JAR hash, hardware, OS, Java,
+profile fingerprint, seed),
 `results.jsonl` (one line per launch), `benchmark-summary.json`, and a per-run directory
 holding the JFR recording, profile census, detector output, and log snapshots.
 

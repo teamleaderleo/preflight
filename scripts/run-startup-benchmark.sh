@@ -27,8 +27,15 @@ UNATTENDED_WAS_SET=false
 COOLDOWN_WAS_SET=false
 GAME_OPTION_WAS_SET=false
 ROOT=""
+ENGINE=""
+ENGINE_WAS_SET=false
+ENGINE_SHA256=""
+ENGINE_SOURCE=checkout
+ENGINE_VERSION=""
+MANIFEST_JAR_SHA=""
 
-JAR="$PWD/preflight-cli/target/preflight.jar"
+CHECKOUT_JAR="$PWD/preflight-cli/target/preflight.jar"
+JAR="$CHECKOUT_JAR"
 DETECTOR="$PWD/scripts/starsector_log_ready_detector.py"
 REPORTER="$PWD/scripts/starsector_benchmark_report.py"
 
@@ -66,6 +73,16 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       Conflicting explicit arguments or code/environment drift are rejected.
   --skip-warmup       Skip the discarded settling launch (only if you just ran one).
   --game PATH         Starsector installation (default /Applications/Starsector.app).
+  --engine PATH       Measure the engine a release candidate actually carries instead of
+                      building this checkout. PATH is a runnable preflight.jar, an installed
+                      or extracted Preflight (a .app, or any directory holding
+                      engine/preflight.jar), and the checkout build is not consulted at all:
+                      there is no fallback to preflight-cli/target/preflight.jar. Without it
+                      a campaign measures checkout bytes and says so, which makes it
+                      development evidence rather than a release-candidate result.
+  --engine-sha256 HEX Additionally require the resolved engine to hash to this SHA-256.
+                      Packaged engines are already pinned by the bundle.json beside them;
+                      this accepts an independently recorded expected digest as well.
   -h, --help          Show this message.
 
 Conditions:
@@ -138,6 +155,8 @@ while [[ $# -gt 0 ]]; do
         --resume) SESSION="$2"; shift 2 ;;
         --skip-warmup) SKIP_WARMUP=true; shift ;;
         --game) GAME="$2"; GAME_OPTION_WAS_SET=true; shift 2 ;;
+        --engine) ENGINE="$2"; ENGINE_WAS_SET=true; shift 2 ;;
+        --engine-sha256) ENGINE_SHA256="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -154,6 +173,18 @@ fi
 if [[ ! "$SEED" =~ ^[0-9]+$ ]]; then
     echo "SEED must be a non-negative integer." >&2
     exit 2
+fi
+if [[ -n "$ENGINE_SHA256" && "$ENGINE_WAS_SET" != true ]]; then
+    echo "--engine-sha256 describes a candidate engine, so it requires --engine." >&2
+    exit 2
+fi
+if [[ -n "$ENGINE_SHA256" && ! "$ENGINE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "--engine-sha256 must be a 64-character hex SHA-256." >&2
+    exit 2
+fi
+if [[ "$ENGINE_WAS_SET" == true ]]; then
+    [[ -n "$ENGINE" ]] || { echo "--engine needs a path." >&2; exit 2; }
+    ENGINE_SOURCE=candidate
 fi
 
 for command in git java mvn jq python3 shasum; do
@@ -181,6 +212,10 @@ if [[ -n "$SESSION" ]]; then
     RECORDED_CACHE="$(jq -er '.cache' "$SESSION_CONFIG")"
     RECORDED_SEED="$(jq -er '.seed' "$SESSION_CONFIG")"
     RECORDED_PROTOCOL="$(jq -er '.protocol' "$SESSION_CONFIG")"
+    # Version 1 sessions predate --engine, so their engine was necessarily the checkout build.
+    # That is a fact about the format rather than an assumption about the session.
+    RECORDED_ENGINE_SOURCE="$(jq -er '.engineSource // "checkout"' "$SESSION_CONFIG")"
+    RECORDED_ENGINE="$(jq -er '.engine // ""' "$SESSION_CONFIG")"
 
     if [[ "$CONDITIONS_WERE_SET" == true && "$CONDITIONS" != "$RECORDED_CONDITIONS" ]]; then
         bad "--conditions conflicts with this session: $CONDITIONS != $RECORDED_CONDITIONS"
@@ -207,6 +242,18 @@ if [[ -n "$SESSION" ]]; then
         bad "SEED conflicts with this session: $SEED != $RECORDED_SEED"
         exit 2
     fi
+    # A candidate session must be resumed against the same candidate. Resuming it without
+    # --engine would build the checkout, and the identity check would then reject the session
+    # for a reason that reads like unrelated code drift.
+    if [[ "$ENGINE_WAS_SET" == true && "$ENGINE" != "$RECORDED_ENGINE" ]]; then
+        bad "--engine conflicts with this session: $ENGINE != ${RECORDED_ENGINE:-the checkout build}"
+        exit 2
+    fi
+    if [[ "$ENGINE_WAS_SET" != true && "$RECORDED_ENGINE_SOURCE" == candidate ]]; then
+        bad "This session measured a release candidate engine, not the checkout."
+        bad "Resume it with --engine '$RECORDED_ENGINE'."
+        exit 2
+    fi
 
     CONDITIONS="$RECORDED_CONDITIONS"
     UNATTENDED="$RECORDED_UNATTENDED"
@@ -214,6 +261,8 @@ if [[ -n "$SESSION" ]]; then
     GAME="$RECORDED_GAME"
     CACHE="$RECORDED_CACHE"
     SEED="$RECORDED_SEED"
+    ENGINE="$RECORDED_ENGINE"
+    ENGINE_SOURCE="$RECORDED_ENGINE_SOURCE"
 fi
 
 [[ -f pom.xml ]] || { bad "Run this from the Preflight repository root."; exit 1; }
@@ -242,12 +291,93 @@ fi
 RESULTS="$ROOT/results.jsonl"
 touch "$RESULTS"
 
-banner "== Building the checkout =="
-mvn -q -DskipTests package
-[[ -f "$JAR" ]] || { bad "Runnable JAR was not produced: $JAR"; exit 1; }
+# A release-candidate campaign has to execute the bytes the candidate ships. Resolution is a
+# short list of reviewed layouts rather than a search, and it never falls back to the checkout
+# build: a candidate campaign that quietly measured preflight-cli/target/preflight.jar would be
+# indistinguishable in its own evidence from one that did not.
+resolve_engine() {
+    local requested="$1" candidate
+    if [[ -f "$requested" ]]; then
+        [[ "$requested" == *.jar ]] || return 1
+        printf '%s\n' "$requested"
+        return 0
+    fi
+    [[ -d "$requested" ]] || return 1
+    for candidate in \
+            "$requested/engine/preflight.jar" \
+            "$requested/Contents/Resources/engine/preflight.jar" \
+            "$requested"/*.app/Contents/Resources/engine/preflight.jar \
+            "$requested"/usr/lib/*/engine/preflight.jar \
+            "$requested"/lib/*/engine/preflight.jar; do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [[ "$ENGINE_SOURCE" == candidate ]]; then
+    banner "== Using the release candidate engine =="
+    JAR="$(resolve_engine "$ENGINE")" || {
+        bad "No Preflight engine under: $ENGINE"
+        bad "Expected a preflight.jar, an installed Preflight.app, or a directory holding"
+        bad "engine/preflight.jar. Refusing to fall back to the checkout build."
+        exit 1
+    }
+    JAR="$(cd "$(dirname "$JAR")" && pwd)/$(basename "$JAR")"
+    # A packaged engine ships a manifest beside it. The package boundary verifies this same
+    # digest before publication; checking it here binds the campaign to those packaged bytes.
+    ENGINE_MANIFEST="$(dirname "$JAR")/bundle.json"
+    if [[ -f "$ENGINE_MANIFEST" ]]; then
+        ENGINE_VERSION="$(jq -er '.sourceVersion // ""' "$ENGINE_MANIFEST" 2>/dev/null || echo "")"
+        MANIFEST_JAR_BYTES="$(jq -er '.jarBytes // empty' "$ENGINE_MANIFEST" 2>/dev/null || echo "")"
+        MANIFEST_JAR_SHA="$(jq -er '.jarSha256 // empty' "$ENGINE_MANIFEST" 2>/dev/null || echo "")"
+        RESOLVED_JAR_BYTES="$(wc -c < "$JAR" | tr -d ' ')"
+        if [[ -n "$MANIFEST_JAR_BYTES" && "$MANIFEST_JAR_BYTES" != "$RESOLVED_JAR_BYTES" ]]; then
+            bad "This engine does not match the bundle manifest packaged beside it."
+            bad "  $ENGINE_MANIFEST records jarBytes=$MANIFEST_JAR_BYTES"
+            bad "  $JAR is $RESOLVED_JAR_BYTES bytes"
+            exit 1
+        fi
+        if [[ ! "$MANIFEST_JAR_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+            bad "The bundle manifest beside this engine has no valid JAR digest."
+            exit 1
+        fi
+    fi
+else
+    banner "== Building the checkout =="
+    mvn -q -DskipTests package
+    JAR="$CHECKOUT_JAR"
+    [[ -f "$JAR" ]] || { bad "Runnable JAR was not produced: $JAR"; exit 1; }
+fi
 JAR_SHA="$(shasum -a 256 "$JAR" | awk '{print $1}')"
+if [[ -n "$MANIFEST_JAR_SHA" && "$JAR_SHA" != "$MANIFEST_JAR_SHA" ]]; then
+    bad "This engine does not match the JAR digest in its bundle manifest."
+    bad "  manifest: $MANIFEST_JAR_SHA"
+    bad "  resolved: $JAR_SHA  ($JAR)"
+    exit 1
+fi
+if [[ -n "$ENGINE_SHA256" ]]; then
+    EXPECTED_ENGINE_SHA="$(tr '[:upper:]' '[:lower:]' <<< "$ENGINE_SHA256")"
+    if [[ "$(tr '[:upper:]' '[:lower:]' <<< "$JAR_SHA")" != "$EXPECTED_ENGINE_SHA" ]]; then
+        bad "This engine is not the one --engine-sha256 named."
+        bad "  expected: $EXPECTED_ENGINE_SHA"
+        bad "  resolved: $JAR_SHA  ($JAR)"
+        exit 1
+    fi
+fi
 REPOSITORY_HEAD="$(git rev-parse HEAD)"
-note "repository HEAD: $REPOSITORY_HEAD"
+if [[ "$ENGINE_SOURCE" == candidate ]]; then
+    note "harness HEAD:    $REPOSITORY_HEAD (the checkout driving this campaign, not the engine's source)"
+    note "engine:          $JAR"
+    if [[ -n "$ENGINE_VERSION" ]]; then
+        note "engine version:  $ENGINE_VERSION"
+    fi
+else
+    note "repository HEAD: $REPOSITORY_HEAD"
+    note "engine:          the checkout build -- development evidence, not a release candidate"
+fi
 note "preflight.jar:   $JAR_SHA"
 
 LAUNCHER="$(java -jar "$JAR" doctor --game "$GAME" 2>/dev/null | awk '/^Selected: /{print substr($0, 11); exit}')"
@@ -323,9 +453,12 @@ else
         --argjson cooldownSeconds "$COOLDOWN_SECONDS" \
         --argjson seed "$SEED" \
         --arg scenarioId "$SCENARIO_ID" \
-        '{version: 1, game: $game, cache: $cache, conditions: $conditions,
+        --arg engineSource "$ENGINE_SOURCE" \
+        --arg engine "$ENGINE" \
+        '{version: 2, game: $game, cache: $cache, conditions: $conditions,
           protocol: $protocol, unattended: $unattended, cooldownSeconds: $cooldownSeconds,
-          seed: $seed, scenarioId: $scenarioId}' > "$ROOT/session-config.json"
+          seed: $seed, scenarioId: $scenarioId,
+          engineSource: $engineSource, engine: $engine}' > "$ROOT/session-config.json"
 fi
 
 scan_fingerprint() {
@@ -408,10 +541,12 @@ if [[ -n "$SESSION" ]]; then
             --arg hardware "$HARDWARE" \
             --arg os "$OS_VERSION" \
             --arg java "$JAVA_VERSION" \
+            --arg engineSource "$ENGINE_SOURCE" \
             '.repositoryHead == $head and .preflightJarSha256 == $jar
              and .game == $game and .launcher == $launcher
              and .profileFingerprint == $profile and .scenarioId == $scenario
-             and .hardware == $hardware and .os == $os and .java == $java' \
+             and .hardware == $hardware and .os == $os and .java == $java
+             and (.engineSource // "checkout") == $engineSource' \
             "$ROOT/identity.json" >/dev/null; then
         bad "Code, game, profile, machine, OS, or Java identity drifted since this session began."
         bad "Refusing to combine unlike launches. Start a new benchmark session."
@@ -422,6 +557,9 @@ cat > "$ROOT/identity.json" <<IDENTITY
 {
   "repositoryHead": "$REPOSITORY_HEAD",
   "preflightJarSha256": "$JAR_SHA",
+  "engineSource": "$ENGINE_SOURCE",
+  "enginePath": $(jq -Rs 'rtrimstr("\n")' <<< "$JAR"),
+  "engineVersion": $(jq -Rs 'rtrimstr("\n") | if . == "" then null else . end' <<< "$ENGINE_VERSION"),
   "game": "$GAME",
   "launcher": "$LAUNCHER",
   "profileFingerprint": "$EXPECTED_FINGERPRINT",

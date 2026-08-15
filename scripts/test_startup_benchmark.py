@@ -148,6 +148,112 @@ class ResilienceTest(unittest.TestCase):
         self.assertIn("Refusing to combine unlike launches", SCRIPT_TEXT)
 
 
+class CandidateEngineTest(unittest.TestCase):
+    """A release-candidate campaign has to execute the candidate's own engine. The failure this
+    guards against is silent: a run that fell back to preflight-cli/target/preflight.jar produces
+    evidence identical in shape to one that did not, so the fallback cannot be allowed to exist."""
+
+    def resolve(self, argument: str) -> tuple[int, str]:
+        body = re.search(r"resolve_engine\(\) \{(?P<body>.*?)\n\}", SCRIPT_TEXT, re.DOTALL)
+        self.assertIsNotNone(body, "resolve_engine not found")
+        script = (
+            "set -uo pipefail\n"
+            f'resolve_engine() {{{body.group("body")}\n}}\n'
+            f'resolve_engine "{argument}"\n'
+        )
+        result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+        return result.returncode, result.stdout.strip()
+
+    def layouts(self, directory: Path) -> None:
+        for relative in (
+            # macOS bundle, and the same bundle seen from a mounted disk image.
+            "app/Preflight.app/Contents/Resources/engine/preflight.jar",
+            "dmg/Preflight.app/Contents/Resources/engine/preflight.jar",
+            # Windows NSIS install root and a Linux package payload.
+            "nsis/engine/preflight.jar",
+            "deb/usr/lib/Preflight/engine/preflight.jar",
+            "appimage/lib/preflight/engine/preflight.jar",
+            "loose/preflight.jar",
+        ):
+            target = directory / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"engine")
+        (directory / "empty").mkdir()
+        (directory / "wrong-suffix").mkdir()
+        (directory / "wrong-suffix" / "preflight.zip").write_bytes(b"engine")
+
+    def test_every_reviewed_package_layout_resolves_to_its_engine(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            self.layouts(directory)
+            for requested, expected in (
+                ("app/Preflight.app", "app/Preflight.app/Contents/Resources/engine/preflight.jar"),
+                ("dmg", "dmg/Preflight.app/Contents/Resources/engine/preflight.jar"),
+                ("nsis", "nsis/engine/preflight.jar"),
+                ("deb", "deb/usr/lib/Preflight/engine/preflight.jar"),
+                ("appimage", "appimage/lib/preflight/engine/preflight.jar"),
+                ("loose/preflight.jar", "loose/preflight.jar"),
+            ):
+                code, resolved = self.resolve(str(directory / requested))
+                self.assertEqual(0, code, requested)
+                self.assertEqual(str(directory / expected), resolved)
+
+    def test_anything_it_cannot_identify_is_refused_rather_than_guessed(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            self.layouts(directory)
+            for requested in ("empty", "wrong-suffix/preflight.zip", "absent"):
+                code, resolved = self.resolve(str(directory / requested))
+                self.assertEqual(1, code, requested)
+                self.assertEqual("", resolved)
+
+    def test_candidate_mode_builds_nothing_and_has_no_checkout_fallback(self):
+        branch = re.search(
+            r'if \[\[ "\$ENGINE_SOURCE" == candidate \]\]; then(?P<body>.*?)\nelse\n(?P<checkout>.*?)\nfi\n'
+            r'JAR_SHA=',
+            SCRIPT_TEXT, re.DOTALL,
+        )
+        self.assertIsNotNone(branch, "engine resolution branch not found")
+        self.assertNotIn("mvn", branch.group("body"))
+        self.assertNotIn("CHECKOUT_JAR", branch.group("body"))
+        self.assertIn("Refusing to fall back to the checkout build", branch.group("body"))
+        # The checkout branch is the only place the checkout JAR is ever selected.
+        self.assertIn("mvn -q -DskipTests package", branch.group("checkout"))
+        self.assertIn('JAR="$CHECKOUT_JAR"', branch.group("checkout"))
+
+    def test_a_named_digest_is_enforced_against_the_resolved_engine(self):
+        self.assertIn("This engine is not the one --engine-sha256 named.", SCRIPT_TEXT)
+        self.assertIn("--engine-sha256 describes a candidate engine, so it requires --engine.",
+                      SCRIPT_TEXT)
+        self.assertIn("--engine-sha256 must be a 64-character hex SHA-256.", SCRIPT_TEXT)
+
+    def test_a_packaged_engine_is_checked_against_the_manifest_beside_it(self):
+        self.assertIn("does not match the bundle manifest packaged beside it", SCRIPT_TEXT)
+        self.assertIn('MANIFEST_JAR_BYTES="$(jq -er \'.jarBytes // empty\'', SCRIPT_TEXT)
+        self.assertIn('MANIFEST_JAR_SHA="$(jq -er \'.jarSha256 // empty\'', SCRIPT_TEXT)
+        self.assertIn("does not match the JAR digest in its bundle manifest", SCRIPT_TEXT)
+
+    def test_the_session_records_and_rebinds_its_engine(self):
+        self.assertIn('engineSource: $engineSource, engine: $engine', SCRIPT_TEXT)
+        self.assertIn('"engineSource": "$ENGINE_SOURCE"', SCRIPT_TEXT)
+        self.assertIn('and (.engineSource // "checkout") == $engineSource', SCRIPT_TEXT)
+        self.assertIn("This session measured a release candidate engine, not the checkout.",
+                      SCRIPT_TEXT)
+
+    def test_sessions_written_before_engine_selection_still_resume(self):
+        # Version 1 sessions could only ever have been checkout builds; the default is a fact
+        # about the format, not a guess about the session.
+        self.assertIn("jq -er '.engineSource // \"checkout\"'", SCRIPT_TEXT)
+        self.assertIn("{version: 2,", SCRIPT_TEXT)
+
+    def test_a_checkout_campaign_says_it_is_development_evidence(self):
+        self.assertIn(
+            'note "engine:          the checkout build -- development evidence, '
+            'not a release candidate"',
+            SCRIPT_TEXT,
+        )
+
+
 class ReportTest(unittest.TestCase):
     def test_medians_and_delta_are_measured_against_vanilla(self):
         summary = report.summarize(runs(
@@ -897,10 +1003,6 @@ class RecordedShapeTest(unittest.TestCase):
                              summary["conditions"]["vanilla"]["exclusionReasons"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class UnattendedPromptTest(unittest.TestCase):
     """The prompts must not need an operator that --unattended promises is not there.
 
@@ -950,3 +1052,7 @@ class UnattendedPromptTest(unittest.TestCase):
         self.assertEqual(
             1, len(prompts),
             "only confirm() itself may call `read -r -p`; found: " + repr(prompts))
+
+
+if __name__ == "__main__":
+    unittest.main()
