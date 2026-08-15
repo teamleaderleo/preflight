@@ -20,11 +20,12 @@ final class DiagnosticBundleTest {
     Path directory;
 
     @Test
-    void exportsOnlyAllowlistedSanitizedBoundedText() throws Exception {
+    void exportsOnlyAllowlistedProjectedBoundedSupportFields() throws Exception {
         PreflightHome home = home();
         Path run = Files.createDirectories(home.runs().resolve("latest-run"));
         Files.writeString(run.resolve("run.json"),
-                "{\"path\":\"" + json(home.root().toString()) + "/runs/latest-run\"}");
+                "{\"path\":\"" + json(home.root().toString()) + "/runs/latest-run\","
+                        + "\"status\":\"finished\",\"secret\":\"do-not-export\"}");
         Files.writeString(run.resolve("adapter-health.json"), "{\"active\":true}");
         Files.writeString(run.resolve("runtime-state.json"), "{\"state\":\"stopped\"}");
         Files.writeString(run.resolve("runtime-frame-report.json"), "{\"averageFps\":60}");
@@ -55,10 +56,31 @@ final class DiagnosticBundleTest {
         assertFalse(entries.containsKey("runs/1/console.txt"));
         assertFalse(entries.containsKey("runs/1/startup.jfr"));
         assertFalse(entries.containsKey("benchmarks/1/mystery.json"));
-        assertFalse(entries.get("runs/1/run.json").contains(home.root().toString()));
-        assertTrue(entries.get("runs/1/run.json").contains("<home>"));
+        String runEvidence = entries.get("runs/1/run.json");
+        assertTrue(runEvidence.contains(SupportEvidenceProjection.FORMAT), runEvidence);
+        assertTrue(runEvidence.contains("status"), runEvidence);
+        assertTrue(runEvidence.contains("finished"), runEvidence);
+        assertFalse(runEvidence.contains("path"), runEvidence);
+        assertFalse(runEvidence.contains(home.root().toString()), runEvidence);
+        assertFalse(runEvidence.contains("do-not-export"), runEvidence);
+        assertTrue(entries.get("benchmarks/1/results.jsonl").contains("16.28"));
         assertTrue(entries.get("manifest.json").contains("exceeds the 512 KiB per-file limit"));
         assertFalse(entries.values().stream().anyMatch(text -> text.contains("SECRET_TOKEN")));
+    }
+
+    @Test
+    void malformedAllowlistedEvidenceIsSkippedInsteadOfCopied() throws Exception {
+        PreflightHome home = home();
+        Path run = Files.createDirectories(home.runs().resolve("malformed-run"));
+        Files.writeString(run.resolve("runtime-state.json"), "{not-json-secret}");
+        Path output = directory.resolve("malformed.zip");
+
+        DiagnosticBundle.export(home, EvidenceRetention.inventory(home), output, 1, 0, false);
+
+        Map<String, String> entries = entries(output);
+        assertFalse(entries.containsKey("runs/1/runtime-state.json"));
+        assertTrue(entries.get("manifest.json").contains("did not match the bounded support evidence schema"));
+        assertFalse(entries.values().stream().anyMatch(text -> text.contains("not-json-secret")));
     }
 
     @Test

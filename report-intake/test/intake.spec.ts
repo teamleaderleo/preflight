@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import worker from "../src/index";
 import { sha256Hex } from "../src/crypto";
 import type { DailyReportQuota } from "../src/daily-quota";
-import { BUNDLE_FORMAT, PROTOCOL_VERSION, ZIP_CONTENT_TYPE } from "../src/protocol";
+import {
+  BUNDLE_FORMAT,
+  PROTOCOL_VERSION,
+  SUPPORT_EVIDENCE_FORMAT,
+  ZIP_CONTENT_TYPE,
+} from "../src/protocol";
 import { runCanary } from "../scripts/canary.mjs";
 
 type TestEnv = Env & { REPORT_SIGNING_KEY: string };
@@ -129,35 +134,22 @@ describe("private report intake", () => {
     expect((await env.REPORTS.list()).objects).toHaveLength(0);
   });
 
-  it("rejects malformed JSON evidence before storing it", async () => {
-    const archive = await bundle({ "runs/1/run.json": strToU8('{"state":') });
+  it("rejects malformed support evidence before storing it", async () => {
+    const archive = await bundle({ "runs/1/run.json": strToU8('{"format":') });
     const grant = await createGrant(archive);
 
     const response = await upload(grant, archive);
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
-      error: expect.stringContaining("runs/1/run.json is not valid JSON"),
+      error: expect.stringContaining("support evidence is not valid JSON"),
     });
     expect((await env.REPORTS.list()).objects).toHaveLength(0);
   });
 
-  it("rejects non-object JSON evidence before storing it", async () => {
-    const archive = await bundle({ "runs/1/run.json": strToU8('"untrusted text"') });
-    const grant = await createGrant(archive);
-
-    const response = await upload(grant, archive);
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({
-      error: expect.stringContaining("runs/1/run.json must be a JSON object"),
-    });
-    expect((await env.REPORTS.list()).objects).toHaveLength(0);
-  });
-
-  it("rejects malformed JSON Lines evidence before storing it", async () => {
+  it("rejects the old raw evidence object before storing it", async () => {
     const archive = await bundle({
-      "benchmarks/1/results.jsonl": strToU8('{"status":"accepted"}\nnot-json\n'),
+      "runs/1/run.json": strToU8('{"state":"stopped","secret":"raw-private-field"}'),
     });
     const grant = await createGrant(archive);
 
@@ -165,7 +157,74 @@ describe("private report intake", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
-      error: expect.stringContaining("benchmarks/1/results.jsonl line 2 is not valid JSON"),
+      error: expect.stringContaining("unsupported envelope"),
+    });
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("rejects an unknown field inside an otherwise valid support envelope", async () => {
+    const archive = await bundle({
+      "runs/1/run.json": supportEvidence("run.json", {
+        state: "stopped",
+        secret: "private-field",
+      }),
+    });
+    const grant = await createGrant(archive);
+
+    const response = await upload(grant, archive);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("unsupported field secret"),
+    });
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("rejects an absolute path even under an allowed support field", async () => {
+    const archive = await bundle({
+      "runs/1/runtime-state.json": supportEvidence("runtime-state.json", {
+        state: "/home/example/private",
+      }),
+    }, false);
+    const grant = await createGrant(archive);
+
+    const response = await upload(grant, archive);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("absolute-path-looking value at state"),
+    });
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("rejects oversized strings inside support evidence", async () => {
+    const archive = await bundle({
+      "runs/1/runtime-state.json": supportEvidence("runtime-state.json", {
+        reason: "x".repeat(513),
+      }),
+    }, false);
+    const grant = await createGrant(archive);
+
+    const response = await upload(grant, archive);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("invalid string value at reason"),
+    });
+    expect((await env.REPORTS.list()).objects).toHaveLength(0);
+  });
+
+  it("rejects raw JSON Lines evidence before storing it", async () => {
+    const archive = await bundle({
+      "benchmarks/1/results.jsonl": strToU8('{"status":"accepted"}\n{"seconds":15.88}\n'),
+    });
+    const grant = await createGrant(archive);
+
+    const response = await upload(grant, archive);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining("support evidence is not valid JSON"),
     });
     expect((await env.REPORTS.list()).objects).toHaveLength(0);
   });
@@ -381,6 +440,14 @@ function quotaFor(name: string): DurableObjectStub<DailyReportQuota> {
   return env.DAILY_REPORT_QUOTA.getByName(name);
 }
 
+function supportEvidence(source: string, fields: Record<string, unknown>): Uint8Array {
+  return strToU8(JSON.stringify({
+    format: SUPPORT_EVIDENCE_FORMAT,
+    source,
+    records: [{ fields }],
+  }));
+}
+
 function quotaDayFromToken(token: string): string {
   const payload = token.split(".", 1)[0].replaceAll("-", "+").replaceAll("_", "/");
   const padded = payload + "=".repeat((4 - payload.length % 4) % 4);
@@ -394,7 +461,7 @@ async function bundle(
   includeDefaultEvidence = true,
 ): Promise<Uint8Array> {
   const evidence: Record<string, Uint8Array> = includeDefaultEvidence
-    ? { "runs/1/run.json": strToU8('{"state":"stopped"}\n') }
+    ? { "runs/1/run.json": supportEvidence("run.json", { state: "stopped" }) }
     : {};
   Object.assign(evidence, additions);
   const included = await Promise.all(Object.entries(evidence).map(async ([entry, bytes]) => ({

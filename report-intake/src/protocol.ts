@@ -1,5 +1,6 @@
 export const PROTOCOL_VERSION = 1;
 export const BUNDLE_FORMAT = "starsector-preflight-diagnostics-v1";
+export const SUPPORT_EVIDENCE_FORMAT = "starsector-preflight-support-evidence-v1";
 export const ZIP_CONTENT_TYPE = "application/zip";
 
 export const MAX_FILE_BYTES = 512 * 1024;
@@ -8,6 +9,32 @@ export const MAX_ARCHIVE_ENTRIES = 512;
 export const MAX_MANIFEST_BYTES = 512 * 1024;
 export const MAX_README_BYTES = 64 * 1024;
 export const MAX_PRODUCT_VERSION_LENGTH = 128;
+export const MAX_SUPPORT_RECORDS = 2_048;
+export const MAX_SUPPORT_FIELDS_PER_RECORD = 512;
+export const MAX_SUPPORT_STRING_CHARS = 512;
+export const MAX_SUPPORT_FIELD_PATH_CHARS = 256;
+
+export const SUPPORT_EVIDENCE_SEGMENTS = new Set([
+  "active", "adapter", "adapterHealth", "adapters", "architecture", "available",
+  "averageFps", "battleSize", "benchmark", "benchmarks", "bytes", "cache", "cacheHit",
+  "cacheHits", "cacheMiss", "cacheMisses", "channels", "classCount", "configured",
+  "containedFailure", "containedFailures", "count", "counts", "cpu", "createdAt",
+  "current", "decline", "declined", "declineCount", "delta", "disabledOptimizationDomains",
+  "domain", "domains", "durationMs", "enabled", "enabledMods", "engineVersion", "entries",
+  "entryCount", "failure", "failures", "failureCount", "finishedAt", "format", "fps",
+  "frame", "frames", "fullscreen", "gameVersion", "height", "hit", "hits", "identity",
+  "identitySha256", "id", "improvementPercent", "kind", "launch", "launches", "maximum",
+  "measurementOnly", "memoryMiB", "metrics", "minimum", "miss", "misses", "modCount",
+  "modId", "modIds", "mods", "name", "observations", "optimized", "optimizationPreset",
+  "phase", "platform", "preparedAudio", "preparedTextures", "preset", "process",
+  "processToMainMenuMs", "profile", "profileFingerprint", "protocolVersion", "providerCount",
+  "providers", "reason", "recommended", "resolution", "result", "results", "runtime",
+  "seconds", "sha256", "size", "sound", "startedAt", "state", "status", "success",
+  "successful", "summary", "timing", "timings", "total", "transformedClassCount",
+  "transformedClasses", "uiScale", "version", "width", "antialiasing",
+  "antialiasingSamples", "pixelConversions", "productVersion", "ready", "sampleCount",
+  "samples", "selected", "storage", "totalBytes", "type", "value", "values",
+]);
 
 export const RUN_FILES = new Set([
   "adapter-analysis.json",
