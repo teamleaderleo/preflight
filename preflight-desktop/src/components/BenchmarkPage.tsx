@@ -13,6 +13,7 @@ interface BenchmarkPageProps {
   status: AppStatus;
   isReady: boolean;
   preparing: boolean;
+  operationBlocked: boolean;
   automation: AutomationState;
 }
 
@@ -27,6 +28,7 @@ export function BenchmarkPage({
   status,
   isReady,
   preparing,
+  operationBlocked,
   automation,
 }: BenchmarkPageProps) {
   const {
@@ -40,7 +42,11 @@ export function BenchmarkPage({
     runDesktopAutomation,
     stopDesktopAutomation,
   } = automation;
-  const benchmarkBlocked = !isReady || preparing || status === "launching" || status === "running";
+  const benchmarkBlocked = !isReady
+    || preparing
+    || operationBlocked
+    || status === "launching"
+    || status === "running";
   return (
     <div className="settings-page benchmark-page">
       <NoticeBanner message={message} tone={messageTone} />
