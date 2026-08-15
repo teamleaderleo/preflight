@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/actions/run-focused-maven/**'
+      - '.github/workflows/generated-bytecode-wrapper.yml'
       - 'preflight-core/src/main/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-core/src/test/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-synthetic-startup/src/main/java/dev/starsector/preflight/synthetic/SyntheticGeneratedBytecode*.java'
@@ -17,6 +18,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - '.github/actions/run-focused-maven/**'
+      - '.github/workflows/generated-bytecode-wrapper.yml'
       - 'preflight-core/src/main/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-core/src/test/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-synthetic-startup/src/main/java/dev/starsector/preflight/synthetic/SyntheticGeneratedBytecode*.java'
