@@ -16,7 +16,7 @@ test("the drafting surface supports explicit themes while motion preferences rem
 });
 
 test("navigation motion stays brief and the home illustration is structural", () => {
-  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 180ms/s);
+  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 120ms/s);
   expect(styles).toContain("@keyframes workspace-enter");
   expect(styles).toContain("@keyframes flight-plot-in");
   expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
@@ -68,6 +68,10 @@ test("supporting copy stays legible while dense evidence remains compact", () =>
   expect(styles).toMatch(/\.report-facts strong,[\s\S]*?font-size:\s*13px;/);
   expect(styles).toMatch(/\.optimization-domain small\s*\{[^}]*font-size:\s*var\(--text-support\);/s);
   expect(styles).toMatch(/\.optimization-domain-card\s*\{[^}]*display:\s*flex;[^}]*padding:\s*24px;/s);
+});
+
+test("the sidebar mark keeps the app artwork legible at icon size", () => {
+  expect(styles).toMatch(/\.brand__mark\s*\{[^}]*width:\s*44px;[^}]*border-radius:\s*10px;/s);
 });
 
 test("focus and pointer targets cover every native desktop control", () => {

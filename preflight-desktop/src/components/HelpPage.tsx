@@ -89,7 +89,7 @@ export function HelpPage({ message, messageTone, diagnostics, onNavigate }: Help
             </div>
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Make a file describing what Preflight did, so a problem can be looked at. You can open it and read it first."}</p>
+              : "Make a redacted file describing what Preflight did. You can review it first."}</p>
             <small>It stays on this computer. Nothing is sent unless you choose to send it.</small>
           </div>
           <div className="report-actions">
@@ -191,7 +191,7 @@ export function HelpPage({ message, messageTone, diagnostics, onNavigate }: Help
           * The issue path says what to bring. Without it people paste raw logs into a public
           * thread, which is both less useful than the support file and worse for their privacy.
           */}
-        <p>Opening an issue? Attach the support file, or quote the case number if you sent one. There is no need to paste logs.</p>
+        <p>Attach the support file to an issue, or quote the case number. Don’t paste logs.</p>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>

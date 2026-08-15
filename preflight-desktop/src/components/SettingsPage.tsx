@@ -70,14 +70,14 @@ export function SettingsPage({
             {updateStatus?.available ? <button className="button button--primary" type="button" onClick={() => void installSignedUpdate()} disabled={updateInstalling || operationBlocked}>{updateInstalling ? "Installing…" : "Install and restart"}</button> : null}
           </div>
           {updateStatus?.available ? <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small> : null}
-          <small>Release signatures are checked before installation. A failed check leaves the current version untouched.</small>
+          <small>Updates are verified before installation. A failed check leaves this version untouched.</small>
           <label className="settings-toggle">
             <input
               type="checkbox"
               checked={automaticUpdateChecks}
               onChange={(event) => setAutomaticUpdateChecks(event.target.checked)}
             />
-            <span>Check for updates automatically<small>Asks the release feed for version metadata when Preflight starts. Turning this off leaves the button above as the only check.</small></span>
+            <span>Check for updates automatically<small>Checks the release feed when Preflight starts.</small></span>
           </label>
         </section>
 
@@ -115,7 +115,7 @@ export function SettingsPage({
 
       <section className="card help-card">
         <div className="help-card__main">
-          <div><h2>Something going wrong?</h2><p>Help has the support file, the getting-started guide, and the issue tracker.</p></div>
+          <div><h2>Something going wrong?</h2><p>Support files, setup help, and the issue tracker are in Help.</p></div>
           <button className="button button--primary button--support" type="button" onClick={onOpenHelp}><LifebuoyIcon />Open Help</button>
         </div>
       </section>

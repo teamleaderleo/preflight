@@ -149,7 +149,7 @@ button {
   flex: 0 0 auto;
   width: 44px;
   border: 1px solid rgba(113, 139, 195, 0.24);
-  border-radius: 5px;
+  border-radius: 10px;
 }
 
 .brand__type {
@@ -163,21 +163,6 @@ button {
   font-size: 19px;
   font-weight: 700;
   letter-spacing: 0.035em;
-}
-
-/*
- * "for Starsector" is the only place the app states its subject, so it stays -- but at 11px with
- * uppercase tracking it broke over two lines in the sidebar, which reads as a layout accident
- * rather than a subtitle. Sentence case at 10px fits on one, and the nowrap keeps it that way
- * rather than letting a wider font stack quietly reintroduce the break.
- */
-.brand__type small {
-  font-family: var(--font-data);
-  color: var(--ink-soft);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
 }
 
 .nav {
@@ -260,7 +245,7 @@ button {
   padding: 0 5px 2px 0;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
-  animation: workspace-enter 180ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: workspace-enter 120ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .page-viewport--home {
