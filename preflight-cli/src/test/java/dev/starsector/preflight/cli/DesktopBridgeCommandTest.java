@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -35,6 +37,39 @@ class DesktopBridgeCommandTest {
         assertEquals(launcher.toAbsolutePath().normalize(), selected.get("launcher"));
         assertFalse(selected.containsKey("command"), selected.toString());
         assertNull(snapshot.get("lastRun"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> playtime = (Map<String, Object>) snapshot.get("playtime");
+        assertEquals(true, playtime.get("readable"));
+        assertEquals(0, playtime.get("launches"));
+    }
+
+    @Test
+    void snapshotCarriesTheDurablePlaytimeTotal() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("history-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("history-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        PreflightHome preflightHome = PreflightHome.resolve(Platform.MAC, home, Map.of());
+        assertNull(LaunchLedger.record(preflightHome, new LaunchLedger.Entry(
+                "launch-1",
+                Instant.parse("2026-08-16T00:00:00Z"),
+                90 * 60_000L,
+                "COMPLETED",
+                0,
+                false,
+                "recommended",
+                List.of(),
+                "run-directory",
+                "profile")));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> playtime = (Map<String, Object>) snapshot.get("playtime");
+
+        assertEquals(true, playtime.get("readable"));
+        assertEquals(90 * 60_000L, playtime.get("totalMillis"));
+        assertEquals(1, playtime.get("launches"));
+        assertEquals("2026-08-16T00:00:00Z", playtime.get("first").toString());
     }
 
     @Test

@@ -284,7 +284,8 @@ final class DesktopBridgeCommand {
             Path explicitLauncher) throws IOException {
         DiscoveryResult discovery = StarsectorDiscovery.discover(
                 platform, home, currentDirectory, environment, explicitGame, explicitLauncher);
-        Path preflightHome = home.resolve(".starsector-preflight").toAbsolutePath().normalize();
+        PreflightHome desktopHome = PreflightHome.resolve(platform, home, environment);
+        Path preflightHome = desktopHome.root();
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("protocol", PROTOCOL_VERSION);
@@ -299,6 +300,33 @@ final class DesktopBridgeCommand {
         result.put("preflightHome", preflightHome);
         result.put("cachePresent", Files.isDirectory(preflightHome.resolve("cache")));
         result.put("lastRun", lastRun(preflightHome.resolve("runs")));
+        result.put("playtime", playtime(desktopHome));
+        return result;
+    }
+
+    private static Map<String, Object> playtime(PreflightHome home) {
+        LaunchLedgerBackfill.runOnce(home);
+        Map<String, Object> result = new LinkedHashMap<>();
+        try {
+            Playtime.Summary summary = Playtime.of(LaunchLedger.read(home));
+            result.put("readable", true);
+            result.put("totalMillis", summary.totalMillis());
+            result.put("longestSessionMillis", summary.longestSessionMillis());
+            result.put("averageMillis", summary.averageMillis());
+            result.put("launches", summary.launches());
+            result.put("sessionsWithoutDuration", summary.sessionsWithoutDuration());
+            result.put("first", summary.first());
+            result.put("last", summary.last());
+        } catch (IOException unreadable) {
+            result.put("readable", false);
+            result.put("totalMillis", 0);
+            result.put("longestSessionMillis", 0);
+            result.put("averageMillis", 0);
+            result.put("launches", 0);
+            result.put("sessionsWithoutDuration", 0);
+            result.put("first", null);
+            result.put("last", null);
+        }
         return result;
     }
 

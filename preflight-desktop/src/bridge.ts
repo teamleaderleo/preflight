@@ -84,6 +84,16 @@ const previewSnapshot: DesktopSnapshot = {
   preflightHome: "~/.starsector-preflight",
   cachePresent: false,
   lastRun: null,
+  playtime: {
+    readable: true,
+    totalMillis: 186.4 * 3_600_000,
+    longestSessionMillis: 7.2 * 3_600_000,
+    averageMillis: 2.4 * 3_600_000,
+    launches: 78,
+    sessionsWithoutDuration: 1,
+    first: "2026-05-02T08:14:00Z",
+    last: "2026-08-15T22:31:00Z",
+  },
 };
 
 const previewProfiles: NamedProfile[] = [

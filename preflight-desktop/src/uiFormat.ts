@@ -17,6 +17,15 @@ export function formatMemory(memoryMiB: number): string {
   return `${Number.isInteger(gibibytes) ? gibibytes : gibibytes.toFixed(1)} GB`;
 }
 
+/** A compact cockpit-style total: precise enough to be useful, never falsely exact. */
+export function formatPlaytime(totalMillis: number): string {
+  const safeMillis = Math.max(0, totalMillis);
+  const hours = safeMillis / 3_600_000;
+  if (hours >= 10) return `${Math.round(hours).toLocaleString()}h`;
+  if (hours >= 1) return `${hours.toFixed(1)}h`;
+  return `${Math.round(safeMillis / 60_000)}m`;
+}
+
 export function shortPath(path: string): string {
   const normalized = path.replaceAll("\\", "/");
   const parts = normalized.split("/").filter(Boolean);

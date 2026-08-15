@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cleanUserMessage, errorMessage, failedRunSummary, localDateStamp } from "./uiFormat";
+import { cleanUserMessage, errorMessage, failedRunSummary, formatPlaytime, localDateStamp } from "./uiFormat";
 
 describe("errorMessage", () => {
   test("keeps user-facing failures free of JavaScript's Error prefix", () => {
@@ -20,6 +20,15 @@ describe("errorMessage", () => {
 describe("localDateStamp", () => {
   test("uses the operator’s calendar date instead of UTC", () => {
     expect(localDateStamp(new Date(2026, 7, 12, 0, 5))).toBe("2026-08-12");
+  });
+});
+
+describe("formatPlaytime", () => {
+  test("keeps the lifetime total compact and deliberately coarse", () => {
+    expect(formatPlaytime(35 * 60_000)).toBe("35m");
+    expect(formatPlaytime(90 * 60_000)).toBe("1.5h");
+    expect(formatPlaytime(1_204 * 3_600_000)).toBe("1,204h");
+    expect(formatPlaytime(-1)).toBe("0m");
   });
 });
 

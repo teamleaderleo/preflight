@@ -80,6 +80,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   // compact summary still names both rather than presenting two unexplained disk figures.
   expect(screen.getByText(/uses about .* free required; .* available/))
     .toBeInTheDocument();
+  expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
   expect(screen.queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
@@ -666,7 +667,7 @@ test("the explicit running preview locks every launch setting", async () => {
   render(<App />);
 
   expect(await screen.findByRole("button", { name: "Stop Starsector" })).toBeEnabled();
-  expect(screen.getByRole("combobox", { name: "Home resolution" })).toBeDisabled();
+  expect(await screen.findByRole("combobox", { name: "Home resolution" })).toBeDisabled();
   expect(screen.getByRole("spinbutton", { name: "Home battle size" })).toBeDisabled();
   expect(screen.getByRole("combobox", { name: "Home game memory" })).toBeDisabled();
   expect(screen.getByRole("combobox", { name: "Home antialiasing" })).toBeDisabled();
