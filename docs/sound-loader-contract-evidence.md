@@ -2,7 +2,7 @@
 
 Issue #75 requires one read-only evidence pass before the installed-JOrbis equivalence harness can be designed against Starsector's own wrapper object contract.
 
-The collector emits `adapter-sound-loader-contract.json` beside `adapter.json` during `--adapter-probe` and `--adapter` sessions. It observes loaded classes only and retains these exact internal names:
+The collector emits `adapter-sound-loader-contract.json` beside `adapter.json` during `--adapter-probe` and `--adapter` sessions, when the pass carries a finding. Collecting the routine ones too — which is what this protocol wants — needs `PREFLIGHT_FULL_EVIDENCE=1` in the environment of the launch. It observes loaded classes only and retains these exact internal names:
 
 - `sound/J`
 - `sound/F`

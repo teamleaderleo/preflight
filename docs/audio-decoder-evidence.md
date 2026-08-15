@@ -6,7 +6,7 @@ This evidence step is read-only. It does not decode or replace audio, does not m
 
 ## Decoder identity report
 
-A normal `--adapter-probe` launch writes `adapter-audio-decoder-signatures.json` beside `adapter.json`. The report observes only classes that were actually loaded during that process and whose internal names begin with one of these bounded prefixes:
+A normal `--adapter-probe` launch writes `adapter-audio-decoder-signatures.json` beside `adapter.json` when the report carries a finding; set `PREFLIGHT_FULL_EVIDENCE=1` in the launch's environment to collect it every time, which is what this protocol assumes. The report observes only classes that were actually loaded during that process and whose internal names begin with one of these bounded prefixes:
 
 - `org/newdawn/slick/openal/`
 - `com/jcraft/jorbis/`

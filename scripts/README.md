@@ -49,6 +49,14 @@ from heat alone, ten times the effect it was trying to measure. `--cooldown-seco
 launches so each starts from the same thermal state. Held at a steady temperature, run-to-run
 variance is small.
 
+**Set `PREFLIGHT_FULL_EVIDENCE=1` when you want the per-seam contract reports from every launch.**
+`adapter-sound-loader-contract.json` and its four siblings are written only when they carry a
+finding — a contained failure, a truncated record, or a bytecode identity the adapter did not
+recognize — because on a player's machine they were around 400 KB per launch of documents nothing
+reads. That is the wrong default for a campaign: a launch that found nothing is itself the evidence
+when the question is whether a change altered what a seam observes. `adapter.json`,
+`adapter-health.json`, `summary.json`, and the phase reports are unaffected.
+
 Numbers to sanity-check a result against, all on the game-log-start to main-menu clock:
 
 - `vanilla` and `fast` on the **same** 83-mod profile, interleaved in one session: **89.00s** and

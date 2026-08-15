@@ -52,6 +52,8 @@ adapter-audio-decoder-signatures.json
 
 `adapter-code-loader-signatures.json` retains exact bounded Janino and compiler-loader identities. `adapter-audio-decoder-signatures.json` retains exact bounded JOrbis, Jogg, and Slick OpenAL identities that were actually loaded. Both are evidence reports only; neither creates an allowlist or enables a cache path. See [audio decoder evidence collection](audio-decoder-evidence.md) for the real-install protocol.
 
+These two, together with `adapter-sound-loader-contract.json`, `adapter-texture-loader-contract.json`, and `adapter-janino-loader-contract.json`, are written **when they carry a finding** — a contained failure, a truncated record, or a bytecode identity the adapter did not recognize. A launch where every seam matched writes the same document as the launch before it, and on a player's machine that is around 400 KB per launch of copies nothing reads. Set `PREFLIGHT_FULL_EVIDENCE=1` (or `-Dpreflight.evidence.full=true`) to keep the routine ones as well, which is what collecting a series wants: a run that found nothing is itself the evidence when the question is whether a change altered what a seam observes.
+
 Use an explicit installation or launcher when automatic discovery needs help:
 
 ```bash
