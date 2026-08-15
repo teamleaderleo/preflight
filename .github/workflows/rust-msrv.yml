@@ -1,0 +1,57 @@
+name: Rust MSRV
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'preflight-desktop/src-tauri/Cargo.toml'
+      - 'preflight-desktop/src-tauri/Cargo.lock'
+      - 'preflight-desktop/src-tauri/src/**'
+      - 'preflight-desktop/src-tauri/build.rs'
+      - '.github/workflows/rust-msrv.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'preflight-desktop/src-tauri/Cargo.toml'
+      - 'preflight-desktop/src-tauri/Cargo.lock'
+      - 'preflight-desktop/src-tauri/src/**'
+      - 'preflight-desktop/src-tauri/build.rs'
+      - '.github/workflows/rust-msrv.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.85.0
+
+      - name: Assert declared compiler version
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version
+          [[ "$(rustc --version)" == rustc\ 1.85.0\ * ]]
+
+      - name: Install Linux desktop dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Test native host at declared MSRV
+        run: cargo test --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml
