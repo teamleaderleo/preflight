@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/actions/run-focused-maven/**'
       - 'preflight-core/src/main/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-core/src/test/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-synthetic-startup/src/main/java/dev/starsector/preflight/synthetic/SyntheticGeneratedBytecode*.java'
@@ -15,6 +16,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
+      - '.github/actions/run-focused-maven/**'
       - 'preflight-core/src/main/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-core/src/test/java/dev/starsector/preflight/core/GeneratedBytecode*.java'
       - 'preflight-synthetic-startup/src/main/java/dev/starsector/preflight/synthetic/SyntheticGeneratedBytecode*.java'
@@ -44,17 +46,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-build-jdk
       - name: Run generated-bytecode wrapper tests
-        shell: bash
-        run: |
-          set +e
-          mvn --batch-mode --no-transfer-progress \
-            -pl preflight-core,preflight-synthetic-startup -am \
-            -Dtest=GeneratedBytecodeContextEvidenceTest,GeneratedBytecodeCacheWrapperTest,GeneratedBytecodeCacheSafetyTest,SyntheticGeneratedBytecodeCrossProcessTest \
-            -Dsurefire.failIfNoSpecifiedTests=false \
-            test > generated-bytecode-wrapper-maven.log 2>&1
-          status=$?
-          cat generated-bytecode-wrapper-maven.log
-          exit $status
+        uses: ./.github/actions/run-focused-maven
+        with:
+          modules: preflight-core,preflight-synthetic-startup
+          unit-tests: GeneratedBytecodeContextEvidenceTest,GeneratedBytecodeCacheWrapperTest,GeneratedBytecodeCacheSafetyTest,SyntheticGeneratedBytecodeCrossProcessTest
+          goal: test
+          log-file: generated-bytecode-wrapper-maven.log
       - name: Upload focused logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
