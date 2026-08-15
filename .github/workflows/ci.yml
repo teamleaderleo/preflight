@@ -25,17 +25,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  operator-checks:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/setup-build-jdk
       - name: Validate operator runners
-        if: runner.os != 'Windows'
         run: |
           bash -n build/ci/starsector-preflight-ci-v1
           python3 scripts/test_vps_runner_boundary.py
@@ -56,6 +54,16 @@ jobs:
           python3 -m py_compile scripts/starsector_critical_path.py
           python3 scripts/test_starsector_critical_path.py
           python3 scripts/test_starsector_gameplay_hotspots.py
+
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
       - name: Verify
         run: mvn --batch-mode --no-transfer-progress verify
       - name: Verify real runnable JAR boundary
