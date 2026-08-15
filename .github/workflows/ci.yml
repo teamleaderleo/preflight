@@ -66,8 +66,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-build-jdk
-      - name: Verify
-        run: mvn --batch-mode --no-transfer-progress verify
+      - name: Verify with pinned Maven Wrapper
+        if: runner.os != 'Windows'
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Verify with pinned Maven Wrapper
+        if: runner.os == 'Windows'
+        run: .\mvnw.cmd --batch-mode --no-transfer-progress verify
       - name: Verify real runnable JAR boundary
         if: runner.os != 'Windows'
         run: python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); import verify_release_boundary as v; v.validate_jar_bytes(Path('preflight-cli/target/preflight.jar').read_bytes())"
