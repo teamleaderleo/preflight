@@ -1,7 +1,9 @@
-import { ArrowIcon, GaugeIcon, RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
+import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
+import { SpeedScoreboard } from "./SpeedScoreboard";
 import { resourcePresets, storagePlanApplies, type usePreparation } from "../usePreparation";
+import type { SpeedStanding } from "../useSpeedRecord";
 import { formatBytes } from "../uiFormat";
 import type { CacheCleanupPlan, NoticeTone, OptimizationDomain, OptimizationPreset } from "../types";
 
@@ -73,6 +75,7 @@ interface PreparationPageProps {
   cleanupPlan: CacheCleanupPlan | null;
   cleanupBusy: boolean;
   operationBlocked: boolean;
+  speedStanding: SpeedStanding;
   onOptimizationPresetChange: (preset: OptimizationPreset) => void;
   onOptimizationDomainChange: (domain: OptimizationDomain, enabled: boolean) => void;
   onReviewCleanup: () => void;
@@ -91,6 +94,7 @@ export function PreparationPage({
   cleanupPlan,
   cleanupBusy,
   operationBlocked,
+  speedStanding,
   onOptimizationPresetChange,
   onOptimizationDomainChange,
   onReviewCleanup,
@@ -126,6 +130,13 @@ export function PreparationPage({
   return (
     <div className="prepare-page">
       <NoticeBanner message={message} tone={messageTone} />
+
+      {/*
+        * "Prove it" is a real errand and a rare one, so the benchmark is reached from here rather
+        * than from a primary navigation slot. It leads the page because the result of having done
+        * it is the one thing this page is named after and used to be missing entirely.
+        */}
+      <SpeedScoreboard standing={speedStanding} isReady={isReady} onOpenBenchmark={onOpenBenchmark} />
 
       {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
         <section className="card run-recovery cache-recovery" aria-label="Prepared data repair">
@@ -212,21 +223,6 @@ export function PreparationPage({
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space left where Preflight stores its data, right now.</small></div>
           </div>
         </details>
-      </section>
-
-      {/*
-        * "Prove it" is a real errand and a rare one, so the benchmark is here rather than in a
-        * primary navigation slot: someone reading this page is already asking whether any of it
-        * does anything.
-        */}
-      <section className="card prove-card">
-        <div className="prove-card__main">
-          <div>
-            <h2>Does this actually help?</h2>
-            <p>Compare a normal launch with Preflight on this mod list.</p>
-          </div>
-          <button className="button button--quiet" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure it<ArrowIcon /></button>
-        </div>
       </section>
 
       <details className="card settings-disclosure preflight-advanced">

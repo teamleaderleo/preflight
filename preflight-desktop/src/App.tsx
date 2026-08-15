@@ -25,6 +25,7 @@ import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
+import { useSpeedRecord } from "./useSpeedRecord";
 import { useTheme } from "./useTheme";
 import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
@@ -95,6 +96,8 @@ export default function App() {
   const setInstallationStatus = useCallback((next: AppStatus) => {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
   }, []);
+  const speedStanding = useSpeedRecord();
+  const { countFastLaunch, rememberBenchmark } = speedStanding;
   /**
    * `background` is for a re-read nobody asked for. A foreground refresh is allowed to say it is
    * working and to report that it failed; a background one must not, because the page is already
@@ -136,13 +139,16 @@ export default function App() {
     try {
       await startGame(game, optimizationPreset, disabledOptimizationDomains);
       setStatus("running");
+      // Only a launch that started, and that had the optimizations the benchmark measured, is
+      // worth anything against a measured saving. A refused or unoptimized launch saved nothing.
+      if (optimizationPreset !== "off") countFastLaunch();
       announceGame("Starsector is running. Preflight will return here when it exits.", "success");
     } catch (error) {
       setStatus("error");
       setRetryIntent({ kind: "launch" });
       announceGame(String(error), "error");
     }
-  }, [announceGame, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
+  }, [announceGame, countFastLaunch, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
     page === "speed",
@@ -213,6 +219,12 @@ export default function App() {
   );
   const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announceUpdates);
   const { updateStatus } = updates;
+  // A measurement that costs several minutes of the machine to itself is written down the moment
+  // it lands, rather than living only in the event that delivered it.
+  const { desktopBenchmarkComparison } = automation;
+  useEffect(() => {
+    rememberBenchmark(desktopBenchmarkComparison);
+  }, [desktopBenchmarkComparison, rememberBenchmark]);
 
   useEffect(() => {
     void refresh();
@@ -441,6 +453,7 @@ export default function App() {
             cleanupPlan={cleanup.plan}
             cleanupBusy={cleanup.busy}
             operationBlocked={operationBlocked}
+            speedStanding={speedStanding}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
             onReviewCleanup={() => void cleanup.review()}
