@@ -79,8 +79,9 @@ keeping the smaller startup indexes and caches. The measurements and CLI control
   tracks which adapters ran, declined, or failed.
 - **Profiles.** Named mod profiles retain their own identities and prepared data. Switching a
   profile previews the exact `enabled_mods.json` change and saves a backup.
-- **Storage.** The desktop app calculates a conservative disk requirement before writing, shows
-  current use, and previews cleanup before anything is removed.
+- **Storage.** The desktop app calculates a conservative disk requirement before writing, separates
+  prepared data from old reports, and previews cleanup before anything is removed. Cleanup keeps the
+  current and saved profiles fast.
 - **Game settings.** Resolution, fullscreen, sound, antialiasing, UI scale, RAM, and battle size are
   available beside the launch button.
 - **Evidence.** The benchmark compares a normal launch with Preflight. A separate support ZIP

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applyCacheCleanup, getCacheCleanup } from "./bridge";
-import type { Announce, CacheCleanupPlan } from "./types";
+import { applyCacheCleanup, applyEvidenceCleanup, getCacheCleanup, getEvidenceCleanup } from "./bridge";
+import type { Announce, CacheCleanupPlan, EvidenceCleanupPlan } from "./types";
 import { formatBytes } from "./uiFormat";
+
+export interface StorageCleanupPlan {
+  cache: CacheCleanupPlan;
+  evidence: EvidenceCleanupPlan;
+  bytes: number;
+  files: number;
+}
 
 export function useCacheCleanup(
   game: string | undefined,
@@ -9,7 +16,7 @@ export function useCacheCleanup(
   refreshCache: () => Promise<void>,
   invalidatePreparationPlan: () => void,
 ) {
-  const [plan, setPlan] = useState<CacheCleanupPlan | null>(null);
+  const [plan, setPlan] = useState<StorageCleanupPlan | null>(null);
   const [planGame, setPlanGame] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
@@ -32,15 +39,24 @@ export function useCacheCleanup(
     busyRef.current = true;
     setBusy(true);
     try {
-      const next = await getCacheCleanup(expectedGame);
+      const [cache, evidence] = await Promise.all([
+        getCacheCleanup(expectedGame),
+        getEvidenceCleanup(),
+      ]);
       if (currentRequest !== request.current || currentGame.current !== expectedGame) return;
+      const next = {
+        cache,
+        evidence,
+        bytes: cache.bytes + evidence.bytes,
+        files: cache.files + evidence.files,
+      };
       setPlan(next);
       setPlanGame(expectedGame);
-      announce(next.safe
+      announce(cache.safe
         ? next.files === 0
-          ? "There’s no unused acceleration data to clean up."
+          ? "There’s no old Preflight data to clean up."
           : "Cleanup is ready to review. Nothing has been removed."
-        : next.refusals[0] ?? "Preflight couldn’t prove that cleanup was safe.");
+        : cache.refusals[0] ?? "Preflight couldn’t prove that cleanup was safe.");
     } catch (error) {
       if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
     } finally {
@@ -54,20 +70,36 @@ export function useCacheCleanup(
   const clean = useCallback(async () => {
     const expectedGame = game;
     const reviewedPlan = planGame === game ? plan : null;
-    if (!expectedGame || !reviewedPlan?.safe || reviewedPlan.files === 0 || busyRef.current) return;
+    if (!expectedGame || !reviewedPlan?.cache.safe || reviewedPlan.files === 0 || busyRef.current) return;
     const currentRequest = ++request.current;
     busyRef.current = true;
     setBusy(true);
+    let freedBytes = 0;
+    let freedFiles = 0;
     try {
-      const result = await applyCacheCleanup(expectedGame);
+      if (reviewedPlan.cache.files > 0) {
+        const cacheResult = await applyCacheCleanup(expectedGame);
+        freedBytes += cacheResult.bytes;
+        freedFiles += cacheResult.files;
+      }
+      if (reviewedPlan.evidence.files > 0) {
+        const evidenceResult = await applyEvidenceCleanup();
+        freedBytes += evidenceResult.removedBytes;
+        freedFiles += evidenceResult.files;
+      }
       if (currentRequest !== request.current || currentGame.current !== expectedGame) return;
       setPlan(null);
       setPlanGame(null);
-      announce(`Freed ${formatBytes(result.bytes)} across ${result.files.toLocaleString()} unused files. The current and named profiles stay warm.`, "success");
+      announce(`Freed ${formatBytes(freedBytes)} across ${freedFiles.toLocaleString()} old files. Current and saved profiles stay fast.`, "success");
       await refreshCache();
       if (currentRequest === request.current && currentGame.current === expectedGame) invalidatePreparationPlan();
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (currentRequest === request.current && currentGame.current === expectedGame) {
+        announce(freedBytes > 0
+          ? `Freed ${formatBytes(freedBytes)}, then cleanup stopped: ${String(error)}`
+          : String(error), "error");
+        await refreshCache();
+      }
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;

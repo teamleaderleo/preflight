@@ -5,6 +5,7 @@ import type {
   CacheRepair,
   CacheSnapshot,
   CacheCleanupPlan,
+  EvidenceCleanupPlan,
   DesktopSnapshot,
   DiagnosticsExport,
   DesktopSmokeProbe,
@@ -661,6 +662,38 @@ export async function applyCacheCleanup(game: string): Promise<CacheCleanupPlan>
     return { ...(await getCacheCleanup(game)), applied: true };
   }
   return invoke<CacheCleanupPlan>("apply_cache_cleanup", { game });
+}
+
+export async function getEvidenceCleanup(): Promise<EvidenceCleanupPlan> {
+  if (!isDesktopHost()) {
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+    return {
+      format: "starsector-preflight-evidence-prune-v1",
+      applied: false,
+      keepRuns: 10,
+      keepBenchmarks: 5,
+      bytes: 3_221_225_472,
+      files: 2_846,
+      removedBytes: 0,
+      sessions: Array.from({ length: 47 }, (_, index) => ({
+        kind: index < 35 ? "run" as const : "benchmark" as const,
+        name: `old-session-${index + 1}`,
+        path: `~/.starsector-preflight/evidence/old-session-${index + 1}`,
+        bytes: 1,
+        files: 1,
+        modifiedMillis: 1,
+      })),
+    };
+  }
+  return invoke<EvidenceCleanupPlan>("get_evidence_cleanup");
+}
+
+export async function applyEvidenceCleanup(): Promise<EvidenceCleanupPlan> {
+  if (!isDesktopHost()) {
+    const plan = await getEvidenceCleanup();
+    return { ...plan, applied: true, removedBytes: plan.bytes };
+  }
+  return invoke<EvidenceCleanupPlan>("apply_evidence_cleanup");
 }
 
 export async function getRemovalPlan(scope: RemovalScope): Promise<RemovalPlan> {
