@@ -5,11 +5,13 @@
 
 # Release artifacts, updater signing, and candidate metadata.
 /.github/workflows/distribution.yml @teamleaderleo
+/.github/workflows/publish-release.yml @teamleaderleo
 /.github/workflows/release-metadata.yml @teamleaderleo
 /preflight-desktop/scripts/*updater* @teamleaderleo
 /preflight-desktop/scripts/candidate-crypt* @teamleaderleo
 /preflight-desktop/src-tauri/tauri.conf.json @teamleaderleo
 /preflight-desktop/src-tauri/src/updates.rs @teamleaderleo
+/scripts/verify_release_boundary.py @teamleaderleo
 
 # Private support-report intake and its deployment boundary.
 /report-intake/ @teamleaderleo
