@@ -14,6 +14,14 @@ const publication = normalizedWorkflowText(
 const desktopCi = normalizedWorkflowText(
   readFileSync(resolve(repository, ".github/workflows/desktop-ci.yml"), "utf8"),
 );
+const normalTauriConfig = readFileSync(
+  resolve(repository, "preflight-desktop/src-tauri/tauri.conf.json"),
+  "utf8",
+);
+const ciTauriConfig = readFileSync(
+  resolve(repository, "preflight-desktop/src-tauri/tauri.ci.conf.json"),
+  "utf8",
+);
 
 export function normalizedWorkflowText(value) {
   return value.replaceAll("\r\n", "\n");
@@ -101,25 +109,39 @@ test("signed candidates require updater credentials, release validation and the 
   assert.doesNotMatch(workflow, /PREFLIGHT_UPDATER_ENDPOINT/);
 });
 
-test("desktop CI builds one engine and keeps validation out of the platform package matrix", () => {
-  const engine = desktopJob("engine", "validate");
+test("desktop CI builds one engine and one frontend before native packaging", () => {
+  const engine = desktopJob("engine", "frontend");
+  const frontend = desktopJob("frontend", "validate");
   const validate = desktopJob("validate", "package");
   const packageJob = desktopJob("package");
 
   assert.match(engine, /Build bounded engine JAR once/);
   assert.match(engine, /actions\/upload-artifact@/);
-  assert.match(validate, /needs: engine/);
-  assert.match(validate, /npm audit --omit=dev/);
-  assert.match(validate, /npm test/);
+
+  assert.match(frontend, /needs: engine/);
+  assert.match(frontend, /npm audit --omit=dev/);
+  assert.match(frontend, /npm test/);
+  assert.match(frontend, /npm run test:release:prepared/);
+  assert.match(frontend, /npm run build/);
+  assert.match(frontend, /frontend-dist-manifest\.mjs write dist frontend-dist\.json/);
+  assert.match(frontend, /name: preflight-desktop-frontend-\$\{\{ github\.run_id \}\}/);
+  assert.match(frontend, /actions\/upload-artifact@/);
+
+  assert.match(validate, /needs: \[engine, frontend\]/);
   assert.match(validate, /cargo fmt --check/);
   assert.match(validate, /cargo test --locked/);
   assert.match(validate, /cargo clippy --locked/);
+  assert.doesNotMatch(validate, /npm audit --omit=dev|npm test|npm run test:release:prepared|npm run build/);
 
-  assert.match(packageJob, /needs: \[engine, scope\]/);
+  assert.match(packageJob, /needs: \[engine, scope, frontend\]/);
   assert.match(packageJob, /if: needs\.scope\.outputs\.package == 'true'/);
-  assert.match(packageJob, /actions\/download-artifact@/);
-  assert.match(packageJob, /engine:prepare:verified/);
-  assert.doesNotMatch(packageJob, /npm audit --omit=dev|npm test|cargo fmt --check|cargo test --locked|cargo clippy --locked/);
+  assert.match(packageJob, /name: preflight-desktop-frontend-\$\{\{ github\.run_id \}\}/);
+  assert.match(packageJob, /frontend-dist-manifest\.mjs[\s\\]+verify preflight-desktop\/dist preflight-desktop\/frontend-dist\.json/);
+  assert.match(packageJob, /--config src-tauri\/tauri\.ci\.conf\.json/);
+  assert.doesNotMatch(packageJob, /npm audit --omit=dev|npm test|npm run test:release:prepared|npm run build|cargo fmt --check|cargo test --locked|cargo clippy --locked/);
+
+  assert.match(normalTauriConfig, /"beforeBuildCommand": "npm run build"/);
+  assert.match(ciTauriConfig, /"beforeBuildCommand": ""/);
 });
 
 test("every native package job exercises install, automation contracts and both removal scopes", () => {
