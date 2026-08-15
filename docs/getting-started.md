@@ -108,6 +108,10 @@ To reclaim space while keeping Preflight, choose **Free space** on Home. The rev
 current and saved profiles ready, keeps a small recent set of reports and benchmarks, and removes
 older unreachable data. Nothing is removed until you confirm the measured plan.
 
+Routine reports don't accumulate indefinitely: while the desktop is open and idle, Preflight keeps
+the 10 newest launch reports and 5 newest benchmarks automatically. **Free space** remains useful
+for inspecting prepared-data cleanup or retrying maintenance that couldn't run earlier.
+
 Two separate choices, both preview-first:
 
 - **App only** — removes Preflight and leaves the prepared caches, in case you reinstall.

@@ -116,6 +116,10 @@ player chooses **Free space**. It shows acceleration and evidence separately, co
 plans into one review, and recalculates each plan before deletion. Current and named profiles remain
 reachable; Starsector, mods, saves, and settings are outside both cleanup roots.
 
+The same evidence retention runs quietly once the desktop is ready and idle. Failure is nonblocking
+and doesn't loop; the explicit review is the visible retry path. Prepared-profile eviction stays
+preview-first because removing it trades disk space for later preparation time.
+
 ## Resource use during preparation
 
 Preparation hashes resources, decodes media, compresses selected textures, and builds indexes.

@@ -17,6 +17,7 @@ import { HelpPage } from "./components/HelpPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { WorkflowLockNotice } from "./components/WorkflowLockNotice";
 import { useDesktopAutomation } from "./useDesktopAutomation";
+import { useAutomaticMaintenance } from "./useAutomaticMaintenance";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
@@ -328,6 +329,7 @@ export default function App() {
     || diagnostics.reportUploading
     || removal.busy
     || updates.updateInstalling;
+  useAutomaticMaintenance(status === "ready" && isReady && !operationBlocked);
   /**
    * The snapshot describes files on disk: which installation is selected, whether it is usable,
    * and whether a prepared cache exists. Preflight already re-reads it on start, after a launch,
