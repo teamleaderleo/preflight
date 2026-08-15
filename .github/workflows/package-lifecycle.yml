@@ -4,8 +4,8 @@ name: Package lifecycle
 # second one: an upgrade written over a tree already in use, and the rollback that puts the earlier
 # version back. macOS rehearsed that by hand; Windows and Linux never have.
 #
-# It is dispatch-only because it builds the desktop package twice on every runner. Ordinary changes
-# don't need it — release candidates do.
+# It is dispatch-only because it still builds two native package versions on every runner. The Java
+# engines and frontend are built once before the platform matrix so each OS packages the same inputs.
 
 on:
   workflow_dispatch:
@@ -18,8 +18,104 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  engines:
+    name: Build lifecycle engine versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-build-jdk
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Build the installed-version engine once
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests clean package
+          python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); import verify_release_boundary as v; v.validate_jar_bytes(Path('preflight-cli/target/preflight.jar').read_bytes())"
+          mkdir -p lifecycle-engines/current
+          cp preflight-cli/target/preflight.jar lifecycle-engines/current/preflight.jar
+
+      - name: Move engine sources to the rehearsal version
+        working-directory: preflight-desktop
+        run: node scripts/set-release-version.mjs 0.1.1-rehearsal
+
+      - name: Build the rehearsal-version engine once
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests clean package
+          python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); import verify_release_boundary as v; v.validate_jar_bytes(Path('preflight-cli/target/preflight.jar').read_bytes())"
+          mkdir -p lifecycle-engines/rehearsal
+          cp preflight-cli/target/preflight.jar lifecycle-engines/rehearsal/preflight.jar
+
+      - name: Preserve both verified engine versions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-lifecycle-engines-${{ github.run_id }}
+          path: lifecycle-engines
+          if-no-files-found: error
+          retention-days: 1
+
+  frontend:
+    name: Build lifecycle frontend once
+    needs: engines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-build-jdk
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: preflight-desktop
+        run: npm ci
+
+      - name: Download verified lifecycle engines
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preflight-lifecycle-engines-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-lifecycle-engines
+
+      - name: Stage installed-version engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          cp "$RUNNER_TEMP/preflight-lifecycle-engines/current/preflight.jar" preflight-cli/target/preflight.jar
+
+      - name: Test and build lifecycle frontend once
+        working-directory: preflight-desktop
+        shell: bash
+        run: |
+          npm run engine:prepare:verified
+          npm test
+          npm run test:release:prepared
+          npm run build
+          node scripts/frontend-dist-manifest.mjs write dist frontend-dist.json
+          node scripts/frontend-dist-manifest.mjs verify dist frontend-dist.json
+
+      - name: Preserve verified lifecycle frontend
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-lifecycle-frontend-${{ github.run_id }}
+          path: |
+            preflight-desktop/dist
+            preflight-desktop/frontend-dist.json
+          if-no-files-found: error
+          retention-days: 1
+
   lifecycle:
     name: Lifecycle / ${{ matrix.name }}
+    needs: [engines, frontend]
     strategy:
       fail-fast: false
       matrix:
@@ -61,16 +157,47 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Install frontend dependencies
+      - name: Install frontend tooling
         working-directory: preflight-desktop
         run: npm ci
 
+      - name: Download verified lifecycle engines
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preflight-lifecycle-engines-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-lifecycle-engines
+
+      - name: Download verified lifecycle frontend
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preflight-lifecycle-frontend-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-lifecycle-frontend
+
+      - name: Stage and verify lifecycle frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf preflight-desktop/dist
+          cp -R "$RUNNER_TEMP/preflight-lifecycle-frontend/dist" preflight-desktop/dist
+          cp "$RUNNER_TEMP/preflight-lifecycle-frontend/frontend-dist.json" preflight-desktop/frontend-dist.json
+          node preflight-desktop/scripts/frontend-dist-manifest.mjs \
+            verify preflight-desktop/dist preflight-desktop/frontend-dist.json
+
+      - name: Stage installed-version engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          cp "$RUNNER_TEMP/preflight-lifecycle-engines/current/preflight.jar" preflight-cli/target/preflight.jar
+
       - name: Build the version a player already has
         working-directory: preflight-desktop
+        shell: bash
         run: |
-          npm run engine:prepare
+          npm run engine:prepare:verified
           npm run desktop:clean
-          npx tauri build --bundles ${{ matrix.bundles }}
+          npx tauri build --bundles ${{ matrix.bundles }} --config src-tauri/tauri.ci.conf.json
+          node scripts/frontend-dist-manifest.mjs verify dist frontend-dist.json
 
       # These steps run under node rather than a shell. The Windows runner's bash is MSYS, and its
       # path translation of the runner's own backslash directories is a way to lose a two-build run
@@ -91,12 +218,20 @@ jobs:
         working-directory: preflight-desktop
         run: node scripts/set-release-version.mjs 0.1.1-rehearsal
 
+      - name: Stage rehearsal-version engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/preflight-lifecycle-engines/rehearsal/preflight.jar" preflight-cli/target/preflight.jar
+
       - name: Build the version they are upgrading to
         working-directory: preflight-desktop
+        shell: bash
         run: |
-          npm run engine:prepare
+          npm run engine:prepare:verified
           npm run desktop:clean
-          npx tauri build --bundles ${{ matrix.bundles }}
+          npx tauri build --bundles ${{ matrix.bundles }} --config src-tauri/tauri.ci.conf.json
+          node scripts/frontend-dist-manifest.mjs verify dist frontend-dist.json
 
       - name: Collect the later build
         shell: node {0}
