@@ -43,22 +43,28 @@ final class LaunchLedgerBackfill {
      */
     static int runOnce(PreflightHome home) {
         try {
-            if (Files.exists(marker(home), LinkOption.NOFOLLOW_LINKS)) {
-                return 0;
-            }
-            List<LaunchLedger.Entry> imported = collect(home);
-            for (LaunchLedger.Entry entry : imported) {
-                if (LaunchLedger.record(home, entry) != null) {
-                    // Writing failed; leave the marker off so a later run can finish the job.
+            return LaunchLedger.withExclusiveLock(home, () -> {
+                Path marker = LaunchLedger.historyDirectory(home, true)
+                        .resolve("backfilled-from-runs");
+                LaunchLedger.requireRegularFileIfPresent(marker, "Launch-history backfill marker");
+                if (Files.exists(marker, LinkOption.NOFOLLOW_LINKS)) {
                     return 0;
                 }
-            }
-            Files.writeString(
-                    marker(home),
-                    "Imported " + imported.size() + " launches from run directories at "
-                            + Instant.now() + System.lineSeparator(),
-                    StandardCharsets.UTF_8);
-            return imported.size();
+                List<LaunchLedger.Entry> imported = collect(home);
+                for (LaunchLedger.Entry entry : imported) {
+                    LaunchLedger.appendUnlocked(home, entry);
+                }
+                Files.writeString(
+                        marker,
+                        "Imported " + imported.size() + " launches from run directories at "
+                                + Instant.now() + System.lineSeparator(),
+                        StandardCharsets.UTF_8,
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                        java.nio.file.StandardOpenOption.WRITE,
+                        LinkOption.NOFOLLOW_LINKS);
+                return imported.size();
+            });
         } catch (IOException | RuntimeException bestEffort) {
             return 0;
         }
@@ -73,14 +79,16 @@ final class LaunchLedgerBackfill {
         // Keyed by launch id, not by directory name: a named trace directory is reused across
         // runs, so the name identifies a place rather than a launch.
         Set<String> known = new HashSet<>();
-        for (LaunchLedger.Entry entry : LaunchLedger.read(home)) {
+        for (LaunchLedger.Entry entry : LaunchLedger.readUnlocked(home)) {
             if (entry.launchId() != null) {
                 known.add(entry.launchId());
             }
         }
         List<LaunchLedger.Entry> found = new ArrayList<>();
         try (var children = Files.list(runs)) {
-            for (Path directory : children.filter(Files::isDirectory).toList()) {
+            for (Path directory : children
+                    .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .toList()) {
                 String name = directory.getFileName().toString();
                 LaunchLedger.Entry entry = read(directory, name);
                 if (entry != null && !known.contains(entry.launchId())) {

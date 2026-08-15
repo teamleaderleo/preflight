@@ -3,6 +3,8 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -14,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * One line per launch, kept after the launch's evidence is gone.
@@ -42,6 +45,7 @@ final class LaunchLedger {
      * the end anybody asks about.
      */
     static final int MAX_ENTRIES = 10_000;
+    private static final ReentrantLock JVM_LOCK = new ReentrantLock();
 
     private LaunchLedger() {
     }
@@ -57,16 +61,10 @@ final class LaunchLedger {
      */
     static String record(PreflightHome home, Entry entry) {
         try {
-            Path path = writablePath(home);
-            Files.writeString(
-                    path,
-                    Json.object(entry.toMap()) + System.lineSeparator(),
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE,
-                    StandardOpenOption.APPEND,
-                    LinkOption.NOFOLLOW_LINKS);
-            trim(path);
+            withExclusiveLock(home, () -> {
+                appendUnlocked(home, entry);
+                return null;
+            });
             return null;
         } catch (IOException | RuntimeException error) {
             String message = error.getMessage();
@@ -99,6 +97,26 @@ final class LaunchLedger {
 
     /** Every readable line, oldest first. Unreadable lines are skipped, not fatal. */
     static List<Entry> read(PreflightHome home) throws IOException {
+        if (historyDirectory(home, false) == null) {
+            return List.of();
+        }
+        return withExclusiveLock(home, () -> readUnlocked(home));
+    }
+
+    static void appendUnlocked(PreflightHome home, Entry entry) throws IOException {
+        Path path = writablePath(home);
+        Files.writeString(
+                path,
+                Json.object(entry.toMap()) + System.lineSeparator(),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.APPEND,
+                LinkOption.NOFOLLOW_LINKS);
+        trim(path);
+    }
+
+    static List<Entry> readUnlocked(PreflightHome home) throws IOException {
         Path path = readablePath(home);
         if (path == null) {
             return List.of();
@@ -113,15 +131,53 @@ final class LaunchLedger {
         return List.copyOf(entries);
     }
 
+    static <T> T withExclusiveLock(PreflightHome home, IoOperation<T> operation)
+            throws IOException {
+        Path history = historyDirectory(home, true);
+        Path lockFile = history.resolve(".launches.lock");
+        requireRegularFileIfPresent(lockFile, "Launch-history lock");
+        JVM_LOCK.lock();
+        try {
+            try (FileChannel channel = FileChannel.open(
+                            lockFile,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.WRITE,
+                            LinkOption.NOFOLLOW_LINKS);
+                    FileLock ignored = channel.lock()) {
+                return operation.run();
+            }
+        } finally {
+            JVM_LOCK.unlock();
+        }
+    }
+
     private static Path writablePath(PreflightHome home) throws IOException {
+        Path history = historyDirectory(home, true);
+        Path ledger = history.resolve("launches.jsonl");
+        requireRegularFileIfPresent(ledger, "Launch history");
+        return ledger;
+    }
+
+    private static Path readablePath(PreflightHome home) throws IOException {
+        Path history = historyDirectory(home, false);
+        if (history == null) return null;
+        Path ledger = history.resolve("launches.jsonl");
+        if (!Files.exists(ledger, LinkOption.NOFOLLOW_LINKS)) return null;
+        requireRegularFileIfPresent(ledger, "Launch history");
+        return ledger;
+    }
+
+    static Path historyDirectory(PreflightHome home, boolean create) throws IOException {
         Path root = home.root().toAbsolutePath().normalize();
         if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+            if (!create) return null;
             Files.createDirectories(root);
         }
         requireDirectory(root, "Preflight home");
         Path realRoot = root.toRealPath();
         Path history = realRoot.resolve("history");
         if (!Files.exists(history, LinkOption.NOFOLLOW_LINKS)) {
+            if (!create) return null;
             Files.createDirectory(history);
         }
         requireDirectory(history, "Launch-history directory");
@@ -129,27 +185,7 @@ final class LaunchLedger {
         if (!realHistory.getParent().equals(realRoot)) {
             throw new IOException("Launch-history directory escapes the Preflight home");
         }
-        Path ledger = realHistory.resolve("launches.jsonl");
-        requireLedgerIfPresent(ledger);
-        return ledger;
-    }
-
-    private static Path readablePath(PreflightHome home) throws IOException {
-        Path root = home.root().toAbsolutePath().normalize();
-        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) return null;
-        requireDirectory(root, "Preflight home");
-        Path realRoot = root.toRealPath();
-        Path history = realRoot.resolve("history");
-        if (!Files.exists(history, LinkOption.NOFOLLOW_LINKS)) return null;
-        requireDirectory(history, "Launch-history directory");
-        Path realHistory = history.toRealPath();
-        if (!realHistory.getParent().equals(realRoot)) {
-            throw new IOException("Launch-history directory escapes the Preflight home");
-        }
-        Path ledger = realHistory.resolve("launches.jsonl");
-        if (!Files.exists(ledger, LinkOption.NOFOLLOW_LINKS)) return null;
-        requireLedgerIfPresent(ledger);
-        return ledger;
+        return realHistory;
     }
 
     private static void requireDirectory(Path directory, String label) throws IOException {
@@ -159,12 +195,17 @@ final class LaunchLedger {
         }
     }
 
-    private static void requireLedgerIfPresent(Path ledger) throws IOException {
-        if (Files.exists(ledger, LinkOption.NOFOLLOW_LINKS)
-                && (Files.isSymbolicLink(ledger)
-                || !Files.isRegularFile(ledger, LinkOption.NOFOLLOW_LINKS))) {
-            throw new IOException("Launch history isn't a regular file: " + ledger);
+    static void requireRegularFileIfPresent(Path file, String label) throws IOException {
+        if (Files.exists(file, LinkOption.NOFOLLOW_LINKS)
+                && (Files.isSymbolicLink(file)
+                || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS))) {
+            throw new IOException(label + " isn't a regular file: " + file);
         }
+    }
+
+    @FunctionalInterface
+    interface IoOperation<T> {
+        T run() throws IOException;
     }
 
     /** What a history says when you ask it how things have been going. */

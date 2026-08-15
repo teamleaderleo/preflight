@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -41,6 +42,25 @@ class LaunchLedgerTest {
         assertEquals(1, summary.fatal());
         assertEquals(Instant.parse("2026-08-16T00:00:00Z"), summary.first());
         assertEquals(Instant.parse("2026-08-16T02:00:00Z"), summary.last());
+    }
+
+    @Test
+    void concurrentRecordsPreserveEveryLaunch() throws Exception {
+        PreflightHome home = new PreflightHome(root, List.of());
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> LaunchLedger.record(
+                    home, entry("2026-08-16T00:00:00Z", "COMPLETED", false)));
+            var second = executor.submit(() -> LaunchLedger.record(
+                    home, entry("2026-08-16T01:00:00Z", "COMPLETED", false)));
+
+            assertNull(first.get());
+            assertNull(second.get());
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals(2, read(home).size());
     }
 
     @Test

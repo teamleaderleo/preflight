@@ -28,14 +28,21 @@ final class Playtime {
         long totalMillis = 0;
         long longestMillis = 0;
         int counted = 0;
+        int sessionsWithoutDuration = 0;
+        int ignoredAttempts = 0;
         Instant first = null;
         Instant last = null;
         for (LaunchLedger.Entry entry : entries) {
+            if (!isGameSession(entry.outcome())) {
+                ignoredAttempts++;
+                continue;
+            }
             Long elapsed = entry.elapsedMillis();
             if (elapsed == null || elapsed < 0) {
                 // A launch whose end was never recorded -- killed process, lost power -- has no
                 // duration to add. It still happened, so it is not dropped from the ledger; it is
                 // simply not counted toward a total that claims to be time played.
+                sessionsWithoutDuration++;
                 continue;
             }
             totalMillis += elapsed;
@@ -49,7 +56,24 @@ final class Playtime {
                 last = ended;
             }
         }
-        return new Summary(totalMillis, longestMillis, counted, entries.size(), first, last);
+        return new Summary(
+                totalMillis,
+                longestMillis,
+                counted,
+                entries.size(),
+                sessionsWithoutDuration,
+                ignoredAttempts,
+                first,
+                last);
+    }
+
+    /** Outcomes set only after the Starsector child process started and returned. */
+    private static boolean isGameSession(String outcome) {
+        if (outcome == null) return false;
+        return switch (outcome) {
+            case "COMPLETED", "FATAL_LOG_EVIDENCE", "LAUNCHER_EXIT_NONZERO", "PREFLIGHT_FAILED" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -77,13 +101,15 @@ final class Playtime {
 
     /**
      * @param launches launches with a recorded duration
-     * @param recorded launches in the ledger, including any without one
+     * @param recorded all ledger entries, including failed attempts and sessions without an end
      */
     record Summary(
             long totalMillis,
             long longestSessionMillis,
             int launches,
             int recorded,
+            int sessionsWithoutDuration,
+            int ignoredAttempts,
             Instant first,
             Instant last) {
 
