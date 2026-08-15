@@ -473,6 +473,7 @@ mod tests {
                 total_bytes: 4_096,
                 cancel: report_cancel,
             }),
+            update_checking: false,
             update_installing: true,
             exit_after_cleanup: true,
         }));
@@ -727,6 +728,7 @@ mod tests {
                 total_bytes: 1_024,
                 cancel: report_cancel,
             }),
+            update_checking: false,
             update_installing: false,
             exit_after_cleanup: false,
         };

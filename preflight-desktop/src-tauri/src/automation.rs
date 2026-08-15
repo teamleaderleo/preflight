@@ -1,5 +1,8 @@
 use crate::engine::{READ_BUDGET, bundled_resource_file};
-use crate::operations::{DesktopSmokeProcess, OperationCoordinator, refuse_update_install};
+use crate::operations::{
+    DesktopSmokeProcess, OperationCoordinator, refuse_report_upload_for_benchmark,
+    refuse_update_install,
+};
 use crate::{
     EnginePaths, RunStarted, canonical_game_directory, child_error, read_tail, take_deferred_exit,
 };
@@ -130,6 +133,7 @@ pub(crate) fn start_desktop_smoke(
         .lock()
         .map_err(|_| "The launch tracker is unavailable.".to_string())?;
     refuse_update_install(&running)?;
+    refuse_report_upload_for_benchmark(&running)?;
     if running.game.is_some() {
         return Err("Starsector is already running through Preflight.".to_string());
     }
