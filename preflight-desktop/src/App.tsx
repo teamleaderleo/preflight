@@ -453,6 +453,10 @@ export default function App() {
             onRetry={retryFailedOperation}
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
+            onOpenStorage={() => {
+              setPage("speed");
+              void cleanup.review();
+            }}
             onNavigate={setPage}
           />
         ) : page === "launch" ? (

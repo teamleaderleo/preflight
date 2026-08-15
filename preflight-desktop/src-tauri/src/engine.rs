@@ -855,6 +855,69 @@ fn cache_cleanup_json(app: &AppHandle, game: &str, apply: bool) -> Result<Value,
         .map_err(|error| format!("Preflight returned an unreadable cleanup plan: {error}"))
 }
 
+const RETAINED_RUN_EVIDENCE: &str = "10";
+const RETAINED_BENCHMARK_EVIDENCE: &str = "5";
+
+#[tauri::command]
+pub(crate) fn get_evidence_cleanup(app: AppHandle) -> Result<Value, String> {
+    evidence_cleanup_json(&app, false)
+}
+
+#[tauri::command]
+pub(crate) fn apply_evidence_cleanup(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+) -> Result<Value, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The process tracker is unavailable.".to_string())?;
+    refuse_update_install(&running)?;
+    if running.game.is_some() {
+        return Err("Close Starsector before cleaning old reports.".to_string());
+    }
+    if running.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before cleaning old reports.".to_string(),
+        );
+    }
+    let result = evidence_cleanup_json(&app, true);
+    drop(running);
+    result
+}
+
+fn evidence_cleanup_json(app: &AppHandle, apply: bool) -> Result<Value, String> {
+    let paths = EnginePaths::resolve(app)?;
+    let mut command = paths.command();
+    configure_evidence_cleanup_command(&mut command, apply);
+    let output = command
+        .output_within(MUTATION_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not plan old-report cleanup",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout).map_err(|error| {
+        format!("Preflight returned an unreadable old-report cleanup plan: {error}")
+    })
+}
+
+pub(crate) fn configure_evidence_cleanup_command(command: &mut EngineCommand, apply: bool) {
+    command
+        .arg("evidence")
+        .arg("prune")
+        .arg("--keep-runs")
+        .arg(RETAINED_RUN_EVIDENCE)
+        .arg("--keep-benchmarks")
+        .arg(RETAINED_BENCHMARK_EVIDENCE)
+        .arg("--json");
+    if apply {
+        command.arg("--yes");
+    }
+}
+
 pub(crate) fn validate_removal_scope(scope: &str) -> Result<(), String> {
     match scope {
         "launcher" | "all-data" => Ok(()),

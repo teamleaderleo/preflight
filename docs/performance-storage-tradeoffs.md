@@ -110,6 +110,12 @@ Storage should be presented in user-relevant categories:
 only after reachability is complete. Unknown profiles, unreadable manifests, damaged packs, and
 identity ambiguity retain data instead of guessing.
 
+Launch reports and benchmark sessions have a separate retention plan because deleting them cannot
+affect launch speed. The desktop keeps the 10 newest launch reports and 5 newest benchmarks when a
+player chooses **Free space**. It shows acceleration and evidence separately, combines both safe
+plans into one review, and recalculates each plan before deletion. Current and named profiles remain
+reachable; Starsector, mods, saves, and settings are outside both cleanup roots.
+
 ## Resource use during preparation
 
 Preparation hashes resources, decodes media, compresses selected textures, and builds indexes.

@@ -21,10 +21,10 @@ use automation::{
     start_desktop_smoke,
 };
 use engine::{
-    EnginePaths, activate_profile, apply_cache_cleanup, apply_removal, canonical_game_directory,
-    delete_profile, export_diagnostics, get_cache, get_cache_cleanup, get_cache_health,
-    get_launch_settings, get_profiles, get_removal_plan, get_snapshot, rename_profile,
-    repair_cache, save_profile, update_launch_settings,
+    EnginePaths, activate_profile, apply_cache_cleanup, apply_evidence_cleanup, apply_removal,
+    canonical_game_directory, delete_profile, export_diagnostics, get_cache, get_cache_cleanup,
+    get_cache_health, get_evidence_cleanup, get_launch_settings, get_profiles, get_removal_plan,
+    get_snapshot, rename_profile, repair_cache, save_profile, update_launch_settings,
 };
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
 use preparation::{cancel_preparation, get_preparation_plan, start_preparation};
@@ -357,6 +357,8 @@ pub fn run() {
             repair_cache,
             get_cache_cleanup,
             apply_cache_cleanup,
+            get_evidence_cleanup,
+            apply_evidence_cleanup,
             get_removal_plan,
             apply_removal,
             check_for_update,
@@ -418,9 +420,9 @@ mod tests {
         desktop_smoke_outcome,
     };
     use crate::engine::{
-        EngineCommand, LaunchSettingsInput, configure_cache_health_command, diagnostic_output_path,
-        validate_cache_repair_state, validate_launch_settings, validate_profile_mutation_state,
-        validate_removal_scope,
+        EngineCommand, LaunchSettingsInput, configure_cache_health_command,
+        configure_evidence_cleanup_command, diagnostic_output_path, validate_cache_repair_state,
+        validate_launch_settings, validate_profile_mutation_state, validate_removal_scope,
     };
     use crate::operations::{
         DesktopSmokeProcess, OperationCoordinator, OperationState, PreparationProcess,
@@ -644,6 +646,29 @@ mod tests {
             ],
             repair.arguments()
         );
+    }
+
+    #[test]
+    fn evidence_cleanup_keeps_recent_sessions_and_requires_an_explicit_apply() {
+        let mut review = EngineCommand::for_test("preflight-engine");
+        configure_evidence_cleanup_command(&mut review, false);
+        assert_eq!(
+            vec![
+                "evidence",
+                "prune",
+                "--keep-runs",
+                "10",
+                "--keep-benchmarks",
+                "5",
+                "--json"
+            ],
+            review.arguments()
+        );
+
+        let mut apply = EngineCommand::for_test("preflight-engine");
+        configure_evidence_cleanup_command(&mut apply, true);
+        let arguments = apply.arguments();
+        assert_eq!(Some("--yes"), arguments.last().map(String::as_str));
     }
 
     #[test]
