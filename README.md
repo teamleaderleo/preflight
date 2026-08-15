@@ -183,9 +183,9 @@ array raw and trades disk space for less decode CPU.
 
 On the 83-mod development profile, Balanced reduced the texture pack from 5.34 GB to 2.26 GB. Ten
 fresh-JVM replays measured the exact startup access order at 1,137ms for Balanced and 691ms for
-Fastest. The raw texture representation itself is about 3.08 GB larger, and a later cold preparation
+Fastest. The raw texture representation itself is about **3.08 GB** larger, and a later cold preparation
 measured the complete cache directories at about 4.76 GB for Balanced and 10.03 GB for Fastest — a
-roughly 5.27 GB whole-cache difference on that profile. The exact replay seam improved by about
+roughly **5.27 GB** whole-cache difference on that profile. The exact replay seam improved by about
 446ms; whole-launch impact varies with the machine and profile.
 
 Preparation calculates decoded texture size, deduplication, reusable blobs, pack duplication, a
