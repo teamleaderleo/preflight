@@ -1,0 +1,42 @@
+name: Java reproducibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.java'
+      - 'pom.xml'
+      - '*/pom.xml'
+      - 'mvnw'
+      - '.mvn/wrapper/maven-wrapper.properties'
+      - 'scripts/verify_java_reproducibility.sh'
+      - '.github/workflows/java-reproducibility.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '**/*.java'
+      - 'pom.xml'
+      - '*/pom.xml'
+      - 'mvnw'
+      - '.mvn/wrapper/maven-wrapper.properties'
+      - 'scripts/verify_java_reproducibility.sh'
+      - '.github/workflows/java-reproducibility.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Build twice and compare release artifacts
+        run: bash scripts/verify_java_reproducibility.sh
