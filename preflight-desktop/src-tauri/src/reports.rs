@@ -19,6 +19,27 @@ pub(crate) struct ReportIntakeStatus {
     reason: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NativeCommandError {
+    pub(crate) code: &'static str,
+    pub(crate) message: String,
+    pub(crate) retryable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) detail: Option<String>,
+}
+
+impl NativeCommandError {
+    fn new(code: &'static str, message: impl Into<String>, retryable: bool) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            retryable,
+            detail: None,
+        }
+    }
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReportUploadStateEvent {
@@ -133,6 +154,22 @@ pub(crate) enum ReportUploadError {
     Failed(String),
 }
 
+fn upload_outcome_error(error: ReportUploadError) -> NativeCommandError {
+    match error {
+        ReportUploadError::Cancelled => NativeCommandError::new(
+            "report-upload-cancelled",
+            "Run report upload was cancelled.",
+            true,
+        ),
+        ReportUploadError::Failed(detail) => {
+            // `Failed` currently includes transport errors, server/protocol rejection, receipt
+            // integrity failure, and uncertain cleanup. Until those outcomes are typed separately,
+            // the native contract cannot promise that repeating the same disclosed ZIP is useful.
+            NativeCommandError::new("report-upload-failed", detail, false)
+        }
+    }
+}
+
 #[tauri::command]
 pub(crate) fn get_report_intake_status() -> ReportIntakeStatus {
     match configured_report_origin() {
@@ -154,20 +191,32 @@ pub(crate) async fn send_run_report(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,
     report: ReportUploadInput,
-) -> Result<ReportReceipt, String> {
-    let origin = configured_report_origin()?;
-    let archive = validated_report_archive(&report)?;
-    let client = report_client()?;
+) -> Result<ReportReceipt, NativeCommandError> {
+    let origin = configured_report_origin()
+        .map_err(|message| NativeCommandError::new("report-intake-unavailable", message, false))?;
+    let archive = validated_report_archive(&report)
+        .map_err(|message| NativeCommandError::new("report-archive-invalid", message, false))?;
+    let client = report_client().map_err(|message| {
+        NativeCommandError::new("report-transport-unavailable", message, true)
+    })?;
     let id = NEXT_REPORT_UPLOAD_ID.fetch_add(1, Ordering::Relaxed);
     let (cancel, cancel_receiver) = watch::channel(false);
     {
-        let mut running = tracker
-            .0
-            .lock()
-            .map_err(|_| "The report upload tracker is unavailable.".to_string())?;
-        refuse_update_install(&running)?;
+        let mut running = tracker.0.lock().map_err(|_| {
+            NativeCommandError::new(
+                "operation-state-unavailable",
+                "The report upload tracker is unavailable.",
+                true,
+            )
+        })?;
+        refuse_update_install(&running)
+            .map_err(|message| NativeCommandError::new("operation-conflict", message, true))?;
         if running.report_upload.is_some() {
-            return Err("A run report is already being sent.".to_string());
+            return Err(NativeCommandError::new(
+                "report-upload-active",
+                "A run report is already being sent.",
+                true,
+            ));
         }
         running.report_upload = Some(ReportUploadProcess {
             id,
@@ -224,10 +273,7 @@ pub(crate) async fn send_run_report(
     if should_exit {
         app.exit(0);
     }
-    outcome.map_err(|error| match error {
-        ReportUploadError::Cancelled => "Run report upload was cancelled.".to_string(),
-        ReportUploadError::Failed(detail) => detail,
-    })
+    outcome.map_err(upload_outcome_error)
 }
 
 #[tauri::command]
@@ -261,4 +307,31 @@ pub(crate) fn cancel_run_report(
 pub(crate) async fn delete_run_report(deletion: ReportDeletion) -> Result<bool, String> {
     let origin = configured_report_origin()?;
     perform_report_deletion(report_client()?, origin, deletion).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ReportUploadError, upload_outcome_error};
+
+    #[test]
+    fn cancellation_has_a_stable_machine_readable_error_code() {
+        let error = upload_outcome_error(ReportUploadError::Cancelled);
+        assert_eq!(
+            serde_json::json!({
+                "code": "report-upload-cancelled",
+                "message": "Run report upload was cancelled.",
+                "retryable": true
+            }),
+            serde_json::to_value(error).unwrap()
+        );
+    }
+
+    #[test]
+    fn generic_upload_failure_does_not_overclaim_recovery_semantics() {
+        let error = upload_outcome_error(ReportUploadError::Failed("receipt mismatch".to_string()));
+        let value = serde_json::to_value(error).unwrap();
+        assert_eq!("report-upload-failed", value["code"]);
+        assert_eq!("receipt mismatch", value["message"]);
+        assert_eq!(false, value["retryable"]);
+    }
 }
