@@ -24,6 +24,14 @@ function job(name, nextName) {
   return workflow.slice(start, end);
 }
 
+function desktopJob(name, nextName) {
+  const start = desktopCi.indexOf(`\n  ${name}:\n`);
+  assert.notEqual(start, -1, `missing desktop CI ${name} job`);
+  const end = nextName ? desktopCi.indexOf(`\n  ${nextName}:\n`, start + 1) : desktopCi.length;
+  assert.notEqual(end, -1, `missing desktop CI ${nextName} job after ${name}`);
+  return desktopCi.slice(start, end);
+}
+
 test("workflow structure checks use stable line endings on Windows", () => {
   assert.equal(normalizedWorkflowText("jobs:\r\n  candidate:\r\n"), "jobs:\n  candidate:\n");
 });
@@ -69,6 +77,26 @@ test("signed candidates require updater credentials, release validation and the 
   assert.match(desktop, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
   assert.match(desktop, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
   assert.doesNotMatch(workflow, /PREFLIGHT_UPDATER_ENDPOINT/);
+});
+
+test("desktop CI builds one engine and keeps validation out of the platform package matrix", () => {
+  const engine = desktopJob("engine", "validate");
+  const validate = desktopJob("validate", "package");
+  const packageJob = desktopJob("package");
+
+  assert.match(engine, /Build bounded engine JAR once/);
+  assert.match(engine, /actions\/upload-artifact@/);
+  assert.match(validate, /needs: engine/);
+  assert.match(validate, /npm audit --omit=dev/);
+  assert.match(validate, /npm test/);
+  assert.match(validate, /cargo fmt --check/);
+  assert.match(validate, /cargo test --locked/);
+  assert.match(validate, /cargo clippy --locked/);
+
+  assert.match(packageJob, /needs: engine/);
+  assert.match(packageJob, /actions\/download-artifact@/);
+  assert.match(packageJob, /engine:prepare:verified/);
+  assert.doesNotMatch(packageJob, /npm audit --omit=dev|npm test|cargo fmt --check|cargo test --locked|cargo clippy --locked/);
 });
 
 test("every native package job exercises install, automation contracts and both removal scopes", () => {
