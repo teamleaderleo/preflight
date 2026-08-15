@@ -119,6 +119,8 @@ test("native commands and fixed links are derived from host code", () => {
     privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
     project: "https://github.com/teamleaderleo/preflight",
     "report-issue": "https://github.com/teamleaderleo/preflight/issues/new",
-    support: "https://www.patreon.com/cw/teamleaderleo",
+    "tip-coffee": "https://buymeacoffee.com/teamleaderleo",
+    "tip-kofi": "https://ko-fi.com/teamleaderleo",
+    "tip-patreon": "https://www.patreon.com/cw/teamleaderleo",
   });
 });

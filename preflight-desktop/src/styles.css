@@ -2782,16 +2782,21 @@ h2 {
 
 footer {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 16px;
   padding: 13px 4px 0;
   color: var(--ink-faint);
   font-size: 12px;
 }
 
+/* Faint by default and underlined only on approach: present, never soliciting. */
 .footer__links {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
+  min-width: 0;
 }
 
 .footer__links button {
@@ -2808,12 +2813,14 @@ footer {
   text-decoration: underline;
   text-decoration-color: transparent;
   text-underline-offset: 3px;
+  opacity: 0.72;
   cursor: pointer;
 }
 
 .footer__links button:hover,
 .footer__links button:focus-visible {
   color: var(--ink-soft);
+  opacity: 1;
   text-decoration-color: currentColor;
 }
 
