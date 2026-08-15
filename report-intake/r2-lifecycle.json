@@ -1,0 +1,9 @@
+{
+  "format": "preflight-r2-lifecycle-v1",
+  "bucket": "preflight-reports",
+  "rule": {
+    "id": "delete-accepted-reports",
+    "prefix": "accepted/",
+    "expireDays": 14
+  }
+}
