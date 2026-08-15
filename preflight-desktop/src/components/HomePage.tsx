@@ -147,9 +147,9 @@ export function HomePage({
               : firstSetup
               ? "First launch setup"
               : needsPreparation
-                ? "This mod setup needs preparation"
+                ? "Preparation needed"
                 : optimizationPreset === "off"
-                  ? "Optimizations off — this launch won’t be faster"
+                  ? "Optimizations off"
                   : "Fast launch ready";
   /*
    * The chip is always shown in the settled state, and says which of the two launches the button
@@ -219,20 +219,20 @@ export function HomePage({
           {isReady && (preparing || needsPreparation || !profilePrepared) ? (
             <div className="launch-console__note">
               <span>{preparing
-                ? `${preparationPhaseLabel ?? "Preparing this mod setup"} · Starsector will open automatically. Finished work stays reusable if you stop.`
+                ? `${preparationPhaseLabel ?? "Preparing"} · Starsector opens automatically. Finished work stays reusable if you stop.`
                 : cacheNeedsRepair
-                  ? "Preflight will remove only the damaged prepared artifacts, rebuild this mod setup, and then open Starsector. Game files, mods, and saves stay unchanged."
+                  ? "Damaged prepared data will be rebuilt. Game files, mods, and saves stay unchanged."
                 : needsPreparation
                 ? !storagePlanApplies(textureStorage)
-                  ? `Minimal preparation uses a few megabytes. Starsector opens automatically when it’s ready.`
+                  ? "Minimal preparation uses a few megabytes. Starsector opens when it’s ready."
                   : preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare
-                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} keeps about ${formatBytes(preparationPlan.predictedAdditionalBytes)} on disk. It needs ${formatBytes(preparationPlan.requiredFreeBytes)} free to build that safely, and you have ${formatBytes(preparationPlan.usableBytes)}. Starsector and its mods stay where they are.`
+                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}. ${formatBytes(preparationPlan.requiredFreeBytes)} free required; ${formatBytes(preparationPlan.usableBytes)} available.`
                     : preparationPlan
                       ? `Full preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available. Minimal uses a few megabytes.`
                       : "Storage must be calculated before preparation."
-                : "Preparation is disabled for this troubleshooting launch."}</span>
+                : "Optimizations are off for this launch."}</span>
               {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this cache alone.</span> : null}
             </div>
           ) : null}

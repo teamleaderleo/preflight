@@ -182,7 +182,7 @@ export function PreparationPage({
             * the other is the conservative bound it refuses below. Naming the bound as a bound stops
             * it being read as a standing disk requirement.
             */}
-          <div><span>Free space needed to start</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Preflight won’t start below this. It keeps far less than this once it finishes.</small></div>
+          <div><span>Free space needed to start</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Finished data uses much less.</small></div>
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (
@@ -220,7 +220,7 @@ export function PreparationPage({
       </section>
 
       <details className="card settings-disclosure preflight-advanced">
-        <summary><span><strong>Advanced controls</strong><small>Turn parts off, trade disk for speed, cap what preparation uses</small></span></summary>
+        <summary><span><strong>Advanced controls</strong><small>Disk, speed, and resource limits</small></span></summary>
         <div className="settings-disclosure__body preflight-advanced__body">
           <section>
             <h2>Launch policy</h2>

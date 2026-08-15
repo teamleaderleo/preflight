@@ -57,9 +57,9 @@ export function BenchmarkPage({
             * benchmark that drives the machine unattended for minutes says so before it is started.
             */}
           <p>{isReady
-            ? "Opens Starsector twice — once without Preflight, once with it — and times each at the main menu. Preflight closes only the process it started."
+            ? "Runs Starsector twice — normal, then Preflight — and times each at the main menu."
             : "Choose Starsector on Home before running the benchmark."}</p>
-          {isReady ? <small>Expect several minutes. Starsector opens and closes on its own; leave the machine alone while it runs.</small> : null}
+          {isReady ? <small>Expect several minutes. Starsector opens and closes on its own.</small> : null}
           {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
         </div>
         <div className="benchmark-card__actions">
