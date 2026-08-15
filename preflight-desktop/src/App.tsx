@@ -66,6 +66,8 @@ export default function App() {
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [page, setPage] = useState<Page>("home");
+  const [choosingInstall, setChoosingInstall] = useState(false);
+  const choosingInstallRef = useRef(false);
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
   const announceGame = useCallback((message: string, tone?: NoticeTone) => announceNotice("game", message, tone), [announceNotice]);
@@ -289,23 +291,35 @@ export default function App() {
     };
   }, [announceGame, countFastLaunch, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
-  const chooseInstall = async () => {
-    if (!isDesktopHost()) {
-      await refresh("/Applications/Starsector");
-      return;
-    }
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "Choose your Starsector folder",
-    });
-    if (typeof selected === "string") {
-      await refresh(selected);
+  const chooseInstall = async (): Promise<boolean> => {
+    if (choosingInstallRef.current) return false;
+    choosingInstallRef.current = true;
+    setChoosingInstall(true);
+    try {
+      if (!isDesktopHost()) {
+        return refresh("/Applications/Starsector");
+      }
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Choose your Starsector folder",
+      });
+      if (typeof selected === "string") {
+        return refresh(selected);
+      }
+      return false;
+    } catch (error) {
+      announceInstallation(`Couldn’t open the folder picker. ${String(error)}`, "error");
+      return false;
+    } finally {
+      choosingInstallRef.current = false;
+      setChoosingInstall(false);
     }
   };
 
   const operationBlocked = preparing
     || cacheRepairing
+    || choosingInstall
     || status === "launching"
     || status === "running"
     || cleanup.busy
@@ -492,13 +506,12 @@ export default function App() {
             messageTone={helpNotice?.tone ?? "info"}
             diagnostics={diagnostics}
             operationBlocked={operationBlocked}
-            onTurnOffOptimizations={() => {
-              setOptimizationPreset("off");
-              setPage("home");
-            }}
+            optimizationPreset={optimizationPreset}
+            onTurnOffOptimizations={() => setOptimizationPreset("off")}
             onChooseInstall={() => {
-              setPage("home");
-              void chooseInstall();
+              void chooseInstall().then((changed) => {
+                if (changed) setPage("home");
+              });
             }}
             onNavigate={setPage}
           />

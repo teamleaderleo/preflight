@@ -1,5 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { listen } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/plugin-dialog";
 import App from "./App";
 import { failedRunSummary } from "./uiFormat";
 import { isCurrentProfilePrepared } from "./usePreparation";
@@ -1042,7 +1044,6 @@ test("both recovery routes reach help without expanding anything", async () => {
  */
 test("help performs its fixes instead of only pointing at other pages", async () => {
   const user = userEvent.setup();
-  const snapshot = vi.spyOn(bridge, "getSnapshot");
   render(<App />);
 
   await screen.findByText("Ready");
@@ -1050,20 +1051,68 @@ test("help performs its fixes instead of only pointing at other pages", async ()
   await screen.findByRole("heading", { name: "Try this first", level: 2 });
 
   await user.click(screen.getByRole("button", { name: "Turn off" }));
+  expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(screen.getByText("Optimizations are off for the next launch. Prepared data stays in place.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Go to launch" })).toBeEnabled();
+  await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
+
+  await user.click(screen.getByRole("button", { name: "Go to launch" }));
   expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Optimizations off")).toBeVisible();
-  expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off");
 
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Time it" }));
   expect(await screen.findByRole("heading", { name: "Benchmark", level: 1 })).toBeInTheDocument();
+});
 
+test("cancelling an installation change stays in Help and a valid change returns Home", async () => {
+  const user = userEvent.setup();
+  const desktopHost = vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  const nativeListen = vi.mocked(listen).mockResolvedValue(() => undefined);
+  const cancelledPicker = deferred<string | null>();
+  const folderPicker = vi.mocked(open)
+    .mockReturnValueOnce(cancelledPicker.promise)
+    .mockResolvedValueOnce("/Applications/Starsector");
+  const snapshot = vi.spyOn(bridge, "getSnapshot");
+  render(<App />);
+
+  await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Change it" }));
+  await waitFor(() => expect(folderPicker).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole("button", { name: "Change it" })).toBeDisabled();
+  cancelledPicker.resolve(null);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Change it" })).toBeEnabled());
+  expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Change it" }));
   expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
   await waitFor(() => expect(snapshot).toHaveBeenCalledWith("/Applications/Starsector"));
 
+  desktopHost.mockRestore();
+  nativeListen.mockReset();
+  folderPicker.mockReset();
   snapshot.mockRestore();
+});
+
+test("a folder-picker failure stays in context and explains the failure", async () => {
+  const user = userEvent.setup();
+  const desktopHost = vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  const nativeListen = vi.mocked(listen).mockResolvedValue(() => undefined);
+  const folderPicker = vi.mocked(open).mockRejectedValue(new Error("picker unavailable"));
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await user.click(await screen.findByRole("button", { name: "Change it" }));
+
+  expect(await screen.findByText(/Couldn’t open the folder picker.*picker unavailable/)).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Change it" })).toBeEnabled();
+
+  desktopHost.mockRestore();
+  nativeListen.mockReset();
+  folderPicker.mockReset();
 });
 
 test("primary navigation marks only the current destination", async () => {
