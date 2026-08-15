@@ -79,11 +79,17 @@ final class CacheFootprint {
             Path directory = home.root().resolve(category.getKey());
             Usage usage = usage(directory);
             if (usage.files() > 0 || Files.exists(directory)) {
+                // Only evidence is broken down. Acceleration categories are content-hashed blobs
+                // whose file names are hashes, so grouping by name would produce one row per file
+                // and say nothing; what matters there is the total, and that it is deliberate.
                 entries.add(new Entry(
                         category.getKey(),
                         category.getValue().group(),
                         category.getValue().description(),
-                        usage));
+                        usage,
+                        "evidence".equals(category.getValue().group())
+                                ? artifacts(directory)
+                                : List.of()));
                 counted = Math.addExact(counted, usage.bytes());
             }
         }
@@ -162,6 +168,64 @@ final class CacheFootprint {
         }
     }
 
+    /**
+     * What a category is made of, by artifact rather than by folder.
+     *
+     * <p>Categories answer what a directory is <em>for</em>. That is the question that let #471
+     * sit here for months: {@code runs} was modeled, described accurately as per-launch evidence,
+     * and so a megabyte per launch of documents nothing read looked exactly like the thing the
+     * category said it was. A total cannot notice that its contents stopped being used.
+     *
+     * <p>Evidence directories hold one directory per session and the same file names inside each,
+     * so grouping by file name and summing across sessions turns "3.4 GB of runs" into "315 copies
+     * of this, 76 MB" -- which is a sentence somebody can disagree with.
+     *
+     * <p>Bounded to {@link #ARTIFACT_LIMIT} names with the rest summed into one remainder, so a
+     * directory of uniquely-named files cannot make this report unbounded.
+     */
+    private static final int ARTIFACT_LIMIT = 12;
+
+    static List<Artifact> artifacts(Path directory) throws IOException {
+        if (!Files.isDirectory(directory)) {
+            return List.of();
+        }
+        Map<String, long[]> byName = new TreeMap<>();
+        Files.walkFileTree(directory, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                if (attributes.isRegularFile()) {
+                    long[] totals = byName.computeIfAbsent(
+                            file.getFileName().toString(), name -> new long[2]);
+                    totals[0] = totals[0] + attributes.size();
+                    totals[1] = totals[1] + 1;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException failure) {
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        List<Artifact> all = new ArrayList<>(byName.size());
+        byName.forEach((name, totals) -> all.add(new Artifact(name, totals[0], totals[1])));
+        all.sort(Comparator.comparingLong(Artifact::bytes).reversed()
+                .thenComparing(Artifact::name));
+        if (all.size() <= ARTIFACT_LIMIT) {
+            return List.copyOf(all);
+        }
+        List<Artifact> bounded = new ArrayList<>(all.subList(0, ARTIFACT_LIMIT));
+        long bytes = 0;
+        long files = 0;
+        for (Artifact artifact : all.subList(ARTIFACT_LIMIT, all.size())) {
+            bytes = Math.addExact(bytes, artifact.bytes());
+            files = Math.addExact(files, artifact.files());
+        }
+        bounded.add(new Artifact(
+                "(" + (all.size() - ARTIFACT_LIMIT) + " other names)", bytes, files));
+        return List.copyOf(bounded);
+    }
+
     static Usage usage(Path directory) throws IOException {
         if (!Files.isDirectory(directory)) {
             return new Usage(0, 0);
@@ -206,7 +270,12 @@ final class CacheFootprint {
     private record Category(String group, String description) {
     }
 
-    record Entry(String path, String group, String description, Usage usage) {
+    record Entry(
+            String path, String group, String description, Usage usage, List<Artifact> artifacts) {
+    }
+
+    /** One file name, summed across every session directory in a category. */
+    record Artifact(String name, long bytes, long files) {
     }
 
     record Profile(
