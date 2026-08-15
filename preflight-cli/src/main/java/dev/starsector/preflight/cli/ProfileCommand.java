@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Named enabled-mod profiles with preview-first, backed-up activation. */
 final class ProfileCommand {
@@ -29,6 +30,9 @@ final class ProfileCommand {
     private static final String LIST_FORMAT = "starsector-preflight-profile-list-v1";
     private static final String ACTIVATION_REVIEW_FORMAT = "starsector-preflight-profile-activation-review-v1";
     private static final Duration ACTIVATION_REVIEW_MAX_AGE = Duration.ofMinutes(30);
+    private static final Pattern PROFILE_BACKUP_FILE = Pattern.compile(
+            "(?:enabled_mods|deleted-profile)-\\d+-.*\\.json");
+    private static final Pattern ACTIVATION_REVIEW_FILE = Pattern.compile("[0-9a-f]{64}\\.json");
 
     private ProfileCommand() {
     }
@@ -322,12 +326,13 @@ final class ProfileCommand {
     }
 
     private static Path backupProfile(PreflightHome home, SavedProfile profile) throws IOException {
-        Files.createDirectories(home.profileBackups());
+        Path directory = SafetyArtifactRetention.requireRealDirectory(home.profileBackups());
         Path backup = Files.createTempFile(
-                home.profileBackups(),
+                directory,
                 "deleted-profile-" + Instant.now().toEpochMilli() + "-",
                 ".json");
         Files.copy(profile.file(), backup, StandardCopyOption.REPLACE_EXISTING);
+        retainProfileBackups(home);
         return backup.toAbsolutePath().normalize();
     }
 
@@ -522,6 +527,7 @@ final class ProfileCommand {
         review.put("sourceStateSha256", sourceStateSha256);
         review.put("reviewedAt", Instant.now().toString());
         atomicWrite(target, Json.object(review) + System.lineSeparator());
+        pruneActivationReviews(home);
     }
 
     private static ActivationReview readActivationReview(
@@ -572,13 +578,29 @@ final class ProfileCommand {
     }
 
     private static Path backup(PreflightHome home, byte[] original) throws IOException {
-        Files.createDirectories(home.profileBackups());
+        Path directory = SafetyArtifactRetention.requireRealDirectory(home.profileBackups());
         Path target = Files.createTempFile(
-                home.profileBackups(),
+                directory,
                 "enabled_mods-" + Instant.now().toEpochMilli() + "-",
                 ".json");
         Files.write(target, original);
+        retainProfileBackups(home);
         return target.toAbsolutePath().normalize();
+    }
+
+    private static void retainProfileBackups(PreflightHome home) throws IOException {
+        SafetyArtifactRetention.retainNewest(
+                home.profileBackups(),
+                PROFILE_BACKUP_FILE,
+                SafetyArtifactRetention.MAX_BACKUPS_PER_DIRECTORY);
+    }
+
+    private static void pruneActivationReviews(PreflightHome home) throws IOException {
+        Path directory = home.state().resolve("profile-activation-reviews");
+        SafetyArtifactRetention.deleteOlderThan(
+                directory, ACTIVATION_REVIEW_FILE, Instant.now().minus(ACTIVATION_REVIEW_MAX_AGE));
+        SafetyArtifactRetention.retainNewest(
+                directory, ACTIVATION_REVIEW_FILE, SafetyArtifactRetention.MAX_ACTIVATION_REVIEWS);
     }
 
     private static boolean replaceIfUnchanged(Path target, byte[] expected, byte[] replacement)
@@ -612,8 +634,8 @@ final class ProfileCommand {
 
     private static void atomicWrite(Path target, String value) throws IOException {
         Path absolute = target.toAbsolutePath().normalize();
-        Files.createDirectories(absolute.getParent());
-        Path staged = Files.createTempFile(absolute.getParent(), ".preflight-profile-", ".json");
+        Path parent = SafetyArtifactRetention.requireRealDirectory(absolute.getParent());
+        Path staged = Files.createTempFile(parent, ".preflight-profile-", ".json");
         try {
             Files.writeString(staged, value, StandardCharsets.UTF_8);
             moveReplace(staged, absolute);

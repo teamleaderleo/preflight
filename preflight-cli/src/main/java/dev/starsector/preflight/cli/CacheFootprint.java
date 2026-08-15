@@ -57,6 +57,11 @@ final class CacheFootprint {
             Map.entry("benchmarks", evidence("recorded benchmark scenarios")),
             Map.entry("profiles", configuration("named enabled-mod profiles")),
             Map.entry("profile-backups", configuration("enabled-mod backups from profile activation")),
+            Map.entry("launcher-preference-backups", configuration(
+                    "launcher preference snapshots from explicit settings changes")),
+            Map.entry("launcher-file-backups", configuration(
+                    "exact launcher-file snapshots from explicit memory changes")),
+            Map.entry("state", configuration("operation coordination and reviewed actions")),
             Map.entry("bin", application("the installed copy of preflight.jar"))));
 
     private CacheFootprint() {
