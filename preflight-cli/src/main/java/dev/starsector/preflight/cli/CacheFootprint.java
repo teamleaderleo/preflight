@@ -55,6 +55,8 @@ final class CacheFootprint {
             Map.entry("runs", evidence(
                     "per-launch evidence: adapter reports, phase timings, recordings")),
             Map.entry("benchmarks", evidence("recorded benchmark scenarios")),
+            Map.entry("history", history(
+                    "bounded launch history retained after diagnostic evidence is pruned")),
             Map.entry("profiles", configuration("named enabled-mod profiles")),
             Map.entry("profile-backups", configuration("enabled-mod backups from profile activation")),
             Map.entry("launcher-preference-backups", configuration(
@@ -111,6 +113,10 @@ final class CacheFootprint {
 
     private static Category evidence(String description) {
         return new Category("evidence", description);
+    }
+
+    private static Category history(String description) {
+        return new Category("history", description);
     }
 
     private static Category configuration(String description) {
