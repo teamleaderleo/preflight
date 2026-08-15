@@ -74,10 +74,11 @@ test("the default cold-profile action prepares with balanced settings and then l
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  // What the cache keeps and what building it demands be free are different numbers, and a reader
-  // deciding whether they have room needs to be able to tell which is which.
-  expect(screen.getByText(/keeps about .* on disk\. It needs .* free to build that safely/))
+  // What the cache keeps and what building it demands be free are different numbers, and the
+  // compact summary still names both rather than presenting two unexplained disk figures.
+  expect(screen.getByText(/uses about .* free required; .* available/))
     .toBeInTheDocument();
+  expect(screen.queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
@@ -120,7 +121,7 @@ test("repairs only the reviewed profile before rebuilding and launching", async 
   expect(await screen.findByText("Prepared data needs repair")).toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Repair and launch" })).toHaveLength(1);
   expect(screen.getByRole("button", { name: "Repair details" })).toBeEnabled();
-  expect(screen.getByText(/remove only the damaged prepared artifacts/)).toBeInTheDocument();
+  expect(screen.getByText(/Damaged prepared data will be rebuilt/)).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Repair and launch" }));
   await waitFor(() => expect(repair).toHaveBeenCalledWith("/Applications/Starsector", "preview-profile"));
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
@@ -146,7 +147,7 @@ test("preparation started on Home remains visible and can be stopped safely", as
   await waitFor(() => expect(action).toBeEnabled());
   await user.click(action);
   expect(await screen.findByRole("button", { name: "Stop safely" })).toBeEnabled();
-  expect(screen.getByText(/Starsector will open automatically/)).toBeInTheDocument();
+  expect(screen.getByText(/Starsector opens automatically/)).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Stop safely" }));
   expect(cancel).toHaveBeenCalledOnce();
   pending.resolve({ pid: 4243 });
@@ -585,7 +586,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(await screen.findByText("11.6 GB")).toBeInTheDocument();
   // The bound and the predicted cost differ by roughly three times, so the bound has to say it is
   // a bound rather than an amount the profile will consume.
-  expect(screen.getByText("Preflight won’t start below this. It keeps far less than this once it finishes.")).toBeInTheDocument();
+  expect(screen.getByText("Finished data uses much less.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
   const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });
