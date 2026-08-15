@@ -65,10 +65,6 @@ jobs:
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk
         with:
-          # The package carries a jlinked runtime built by whichever JDK is on the builder, so
-          # this line decides which Java reaches players. Stated here rather than inherited from
-          # the action's default, where changing it for an unrelated reason would quietly change
-          # what ships.
           java-version: '17'
 
       - name: Set up Node
@@ -151,16 +147,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux
-            # Tauri's AppImage toolchain targets 22.04; it also gives the package an older
-            # glibc compatibility floor than the moving ubuntu-latest runner.
-            os: ubuntu-22.04
-            bundles: deb,appimage
           - name: macOS
             os: macos-latest
             bundles: dmg
-            # Tauri's updater archive is emitted by the app target, while the installable
-            # package remains the DMG. Building both keeps their payloads verifiably identical.
             update_bundles: dmg,app
           - name: Windows
             os: windows-latest
@@ -174,10 +163,6 @@ jobs:
       - name: Set up Java 17
         uses: ./.github/actions/setup-build-jdk
         with:
-          # The package carries a jlinked runtime built by whichever JDK is on the builder, so
-          # this line decides which Java reaches players. Stated here rather than inherited from
-          # the action's default, where changing it for an unrelated reason would quietly change
-          # what ships.
           java-version: '17'
 
       - name: Set up Node
@@ -189,17 +174,6 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
-
-      - name: Install Linux desktop dependencies
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
 
       - name: Install frontend dependencies
         working-directory: preflight-desktop
@@ -252,12 +226,12 @@ jobs:
         run: npm run engine:verify
 
       - name: Build native desktop package
-        if: runner.os != 'Linux' && !startsWith(github.ref, 'refs/tags/v') && !inputs.signed_candidate
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') && !inputs.signed_candidate }}
         working-directory: preflight-desktop
         run: npx tauri build --bundles ${{ matrix.bundles }}
 
       - name: Build update-enabled native desktop package
-        if: runner.os != 'Linux' && (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate)
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
         working-directory: preflight-desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -266,40 +240,9 @@ jobs:
           PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: npx tauri build --bundles ${{ matrix.update_bundles }} --config src-tauri/target/release-updater-config.json
 
-      - name: Build Linux Debian package
-        if: runner.os == 'Linux'
-        working-directory: preflight-desktop
-        env:
-          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
-        run: npx tauri build --bundles deb
-
-      - name: Build Linux AppImage
-        if: runner.os == 'Linux' && !startsWith(github.ref, 'refs/tags/v') && !inputs.signed_candidate
-        working-directory: preflight-desktop
-        env:
-          # linuxdeploy scans the bundled jlink runtime as part of the AppDir. Its dependency
-          # resolver does not infer the JVM's private server directory, so expose the existing
-          # libjvm.so while it validates those ELF files.
-          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
-        run: npx tauri bundle --verbose --bundles appimage
-
-      - name: Build update-enabled Linux AppImage
-        if: runner.os == 'Linux' && (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate)
-        working-directory: preflight-desktop
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
-          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
-        run: npx tauri bundle --verbose --bundles appimage --config src-tauri/target/release-updater-config.json
-
       - name: Verify extracted native package contents
         working-directory: preflight-desktop
         env:
-          # The first public beta is distributed without paid Apple/Windows publisher
-          # identities. Tauri's separate, free update signature remains mandatory.
           PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE: 'false'
           PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate }}
         run: npm run desktop:verify-package
@@ -347,10 +290,206 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  desktop-linux:
+    name: Desktop / Linux compatibility
+    needs: distribution
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:jammy-20260627@sha256:0d7799fb1b4e200a24c11fc575a7e11ecb6501ff6eec649226fad40bd6501c64
+    defaults:
+      run:
+        shell: bash
+    env:
+      PREFLIGHT_LINUX_BUILDER_IMAGE: ubuntu:jammy-20260627@sha256:0d7799fb1b4e200a24c11fc575a7e11ecb6501ff6eec649226fad40bd6501c64
+      PREFLIGHT_LINUX_MAX_GLIBC: '2.35'
+    steps:
+      - name: Bootstrap pinned Linux builder
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+            binutils \
+            build-essential \
+            ca-certificates \
+            curl \
+            file \
+            git \
+            libappindicator3-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            patchelf \
+            pkg-config \
+            python3 \
+            unzip \
+            xz-utils
+
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 17
+        uses: ./.github/actions/setup-build-jdk
+        with:
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - name: Install frontend dependencies
+        working-directory: preflight-desktop
+        run: npm ci
+
+      - name: Download verified engine JAR
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: preflight-release-core-${{ github.run_id }}
+          path: ${{ runner.temp }}/preflight-verified-core
+
+      - name: Stage verified engine JAR
+        if: ${{ !inputs.signed_candidate }}
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          cp "$RUNNER_TEMP/preflight-verified-core/preflight.jar" preflight-cli/target/preflight.jar
+
+      - name: Decrypt and stage private-candidate engine JAR
+        if: inputs.signed_candidate
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-cli/target
+          node preflight-desktop/scripts/candidate-crypt.mjs decrypt \
+            "$RUNNER_TEMP/preflight-verified-core/preflight.jar.pfcandidate" \
+            preflight-cli/target/preflight.jar
+
+      - name: Test frontend and prepare desktop engine
+        working-directory: preflight-desktop
+        run: |
+          npm run engine:prepare:verified
+          npm test
+          npm run test:release:prepared
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Write verified updater configuration
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+        run: node scripts/write-updater-config.mjs src-tauri/target/release-updater-config.json
+
+      - name: Reverify bounded desktop engine
+        working-directory: preflight-desktop
+        run: npm run engine:verify
+
+      - name: Build Linux Debian package
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
+        run: npx tauri build --bundles deb
+
+      - name: Build Linux AppImage
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') && !inputs.signed_candidate }}
+        working-directory: preflight-desktop
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
+        run: npx tauri bundle --verbose --bundles appimage
+
+      - name: Build update-enabled Linux AppImage
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
+        working-directory: preflight-desktop
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
+        run: npx tauri bundle --verbose --bundles appimage --config src-tauri/target/release-updater-config.json
+
+      - name: Verify extracted native package contents
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_REQUIRE_PLATFORM_SIGNATURE: 'false'
+          PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate }}
+        run: npm run desktop:verify-package
+
+      - name: Exercise native installation and removal
+        working-directory: preflight-desktop
+        run: npm run desktop:exercise-install
+
+      - name: Verify packaged GLIBC compatibility floor
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_linux_glibc_floor.py \
+            --bundle preflight-desktop/src-tauri/target/release/bundle \
+            --max-glibc "$PREFLIGHT_LINUX_MAX_GLIBC" \
+            --report linux-builder/glibc-floor.json
+          python3 scripts/write_linux_builder_provenance.py \
+            --image "$PREFLIGHT_LINUX_BUILDER_IMAGE" \
+            --max-glibc "$PREFLIGHT_LINUX_MAX_GLIBC" \
+            --glibc-report linux-builder/glibc-floor.json \
+            --output linux-builder/provenance.json
+
+      - name: Collect native package and checksum
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATE_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate }}
+        run: npm run desktop:collect
+
+      - name: Preserve Linux compatibility provenance
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-linux-builder-provenance-${{ github.run_id }}
+          path: linux-builder/*.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Encrypt private-candidate desktop artifacts
+        if: inputs.signed_candidate
+        working-directory: preflight-desktop
+        env:
+          PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD: ${{ secrets.PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir candidate-desktop
+          while IFS= read -r -d '' file; do
+            name="$(basename "$file")"
+            node scripts/candidate-crypt.mjs \
+              encrypt "$file" "candidate-desktop/${name}.pfcandidate"
+          done < <(find desktop-dist -maxdepth 1 -type f -print0)
+
+      - name: Upload Linux desktop package
+        if: ${{ !inputs.signed_candidate }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-release-Linux-${{ github.run_id }}
+          path: preflight-desktop/desktop-dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload encrypted private-candidate Linux package
+        if: inputs.signed_candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: preflight-release-Linux-${{ github.run_id }}
+          path: preflight-desktop/candidate-desktop/*.pfcandidate
+          if-no-files-found: error
+          retention-days: 14
+
   candidate:
     name: Assemble private signed candidate
     if: github.event_name == 'workflow_dispatch' && inputs.signed_candidate
-    needs: [distribution, desktop]
+    needs: [distribution, desktop, desktop-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -422,7 +561,7 @@ jobs:
   publish:
     name: Stage complete verified draft release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [distribution, desktop]
+    needs: [distribution, desktop, desktop-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write

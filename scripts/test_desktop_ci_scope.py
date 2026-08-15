@@ -12,6 +12,8 @@ def test_package_sensitive_paths():
         "preflight-desktop/src-tauri/src/lib.rs",
         "preflight-desktop/scripts/verify-native-package.mjs",
         "preflight-desktop/package-lock.json",
+        "scripts/verify_linux_glibc_floor.py",
+        "scripts/write_linux_builder_provenance.py",
     ):
         assert scope.needs_package_matrix([path]), path
 
