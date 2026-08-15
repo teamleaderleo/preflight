@@ -25,6 +25,18 @@ source lock covers the native host and Java files that own writes and child proc
 those boundaries changes, package verification fails until the capability review is deliberately
 updated.
 
+Accepting such a change is one command, run after reading the diff it is accepting:
+
+```
+npm run capabilities:review --prefix preflight-desktop
+```
+
+It rewrites the digests using the same normalization the verifier applies, so a CRLF checkout
+cannot produce a digest CI disagrees with, and prints which boundary moved. `-- --check` reports
+drift and exits non-zero without writing anything. The review is still a human step: the command
+does the arithmetic, and the changed digest lands in the diff for a reviewer to approve, the same
+way a dependency lockfile does.
+
 `bundle.json` pins the receipt's byte length and SHA-256. The receipt pins the engine JAR's SHA-256.
 Each platform also publishes a `CAPABILITIES-<platform>-<architecture>.json` receipt that binds the
 same statement to the byte length and SHA-256 of every installer, package, update archive, and

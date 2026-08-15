@@ -15,10 +15,23 @@ import {
 const repositoryRoot = resolve(import.meta.dirname, "..", "..");
 const engineJar = join(repositoryRoot, "preflight-cli", "target", "preflight.jar");
 const nativeSource = readFileSync(join(repositoryRoot, "preflight-desktop", "src-tauri", "src", "lib.rs"), "utf8");
+const bridgeSource = readFileSync(join(repositoryRoot, "preflight-desktop", "src", "bridge.ts"), "utf8");
 const sourceLock = JSON.parse(readFileSync(
   join(repositoryRoot, "preflight-desktop", "capabilities", "release-receipt-source-lock.json"),
   "utf8",
 ));
+
+/*
+ * The browser preview cannot call the native command, so it keeps its own copy of the link table.
+ * Nothing compared the two: the preview could send someone to a different address than the shipped
+ * app for the same button, and the first evidence would have been a person following the wrong one.
+ * Neither table is authoritative over the other here -- they simply have to agree.
+ */
+test("the preview link table matches the native one it stands in for", () => {
+  const native = extractProjectLinks(nativeSource);
+  const preview = extractPreviewProjectLinks(bridgeSource);
+  assert.deepEqual(preview, native);
+});
 
 test("release capability receipt binds the renderer, filesystem, process, and network surfaces", () => {
   const receipt = buildCapabilityReceipt({
@@ -124,3 +137,15 @@ test("native commands and fixed links are derived from host code", () => {
     "tip-patreon": "https://www.patreon.com/cw/teamleaderleo",
   });
 });
+
+/** Reads `PREVIEW_PROJECT_LINKS` out of bridge.ts, accepting bare or quoted keys. */
+function extractPreviewProjectLinks(source) {
+  const body = source.match(/const PREVIEW_PROJECT_LINKS:[^=]*= \{([\s\S]*?)\n\};/)?.[1];
+  if (!body) throw new Error("Could not find the preview project-link table");
+  const links = {};
+  for (const match of body.matchAll(/(?:"([a-z0-9-]+)"|([a-z0-9-]+))\s*:\s*"(https:\/\/[^"\s]+)"/g)) {
+    links[match[1] ?? match[2]] = match[3];
+  }
+  if (Object.keys(links).length === 0) throw new Error("The preview project-link table parsed empty");
+  return links;
+}
