@@ -167,7 +167,7 @@ jobs:
         run: echo "version=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Cargo downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -177,7 +177,7 @@ jobs:
             desktop-cargo-downloads-${{ runner.os }}-
 
       - name: Cache Rust validation build state
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: preflight-desktop/src-tauri/target/debug
           key: desktop-rust-validate-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('preflight-desktop/src-tauri/Cargo.lock', 'preflight-desktop/src-tauri/Cargo.toml') }}
@@ -251,7 +251,7 @@ jobs:
         run: echo "version=$(rustc -V | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Cargo downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -261,7 +261,7 @@ jobs:
             desktop-cargo-downloads-${{ runner.os }}-
 
       - name: Cache Rust package build state
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             preflight-desktop/src-tauri/target/release
