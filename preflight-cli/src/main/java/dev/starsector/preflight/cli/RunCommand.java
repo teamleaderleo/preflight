@@ -4,6 +4,7 @@ import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -347,6 +348,26 @@ final class RunCommand {
                         console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
+            }
+            // The run directory answers "what happened during this launch" and is worth a megabyte
+            // for a few days. This is the part still worth keeping afterwards, at a couple of
+            // hundred bytes, so retention does not have to choose between forgetting last month and
+            // carrying last month's diagnostics.
+            String ledgerProblem = LaunchLedger.record(PreflightHome.current(), new LaunchLedger.Entry(
+                    started,
+                    ended == null ? null : Duration.between(started, ended).toMillis(),
+                    outcome,
+                    exitCode,
+                    lifecycleEvidence != null && lifecycleEvidence.fatalDetected(),
+                    options.optimizationPreset().optionValue(),
+                    options.disabledOptimizationDomains().stream()
+                            .map(OptimizationDomain::optionValue)
+                            .sorted()
+                            .toList(),
+                    runDirectory.getFileName().toString()));
+            if (ledgerProblem != null) {
+                System.err.println("Preflight could not record this launch in its history: "
+                        + ledgerProblem);
             }
         }
     }
