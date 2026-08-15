@@ -273,7 +273,7 @@ public final class PreflightCli {
                 "  --plan is read-only. Every real preparation refuses before writing when its"
                         + " conservative upper bound and safety reserve do not fit."));
         usage.put("stop", List.of(
-                "preflight stop [--dry-run] [--force] [--timeout-seconds <n>] [--json]",
+                "preflight stop [--pid <process-id>] [--dry-run] [--force] [--timeout-seconds <n>] [--json]",
                 "  Stops a Starsector process Preflight started. `preflight run` stays attached"
                         + " until the game exits and never stops it, so a launch driven by hand"
                         + " can outlive its wrapper and hold several GB and a GPU context.",

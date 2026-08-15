@@ -211,7 +211,7 @@ export function PreparationPage({
       <section className="card storage-card storage-card--compact">
         <div className="card__heading">
           <div>
-            <div className="heading-with-info"><h2>Storage</h2><InfoTip label="About Preflight storage">Prepared files are reused by any mod set that matches, so a second set of mods usually costs far less than the first. Cleanup is shown before it runs and never touches game files, mods, saves, or settings.</InfoTip></div>
+            <div className="heading-with-info"><h2>Storage</h2><InfoTip label="About Preflight storage">Prepared files are shared across matching mod sets. Above 12 GB, Preflight quietly removes data that no current or saved profile needs. Game files, mods, saves, and settings are never touched.</InfoTip></div>
           </div>
           <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading || operationBlocked}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
         </div>

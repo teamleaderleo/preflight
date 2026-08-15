@@ -169,7 +169,7 @@ export function HomePage({
 
   return (
     <>
-      <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+      <section className={`launch-console card launch-console--${status} ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {flightPlot}
           {/*
@@ -178,7 +178,7 @@ export function HomePage({
             * worth a line when it carries something the heading does not; here it only made the
             * screen look busier than the one decision it asks for.
             */}
-          {isReady || status === "loading" ? (
+          {(isReady || status === "loading") && status !== "running" && status !== "launching" ? (
             <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
               {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
               {statusLabel}

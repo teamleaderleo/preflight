@@ -41,6 +41,7 @@ export interface StopGameResult {
 export interface OperationSnapshot {
   format: "preflight-operation-state-v1";
   gamePid: number | null;
+  gameRecovered: boolean;
   desktopSmokePid: number | null;
   desktopSmokeRunDirectory: string | null;
   preparationPid: number | null;

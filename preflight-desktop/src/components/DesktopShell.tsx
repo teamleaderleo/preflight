@@ -116,16 +116,9 @@ export function DesktopShell({
         <div key={page} ref={pageViewport} className={`page-viewport page-viewport--${page}`}>{children}</div>
         <footer>
           <span>Preflight {engineVersion}</span>
-          {/*
-            * Quiet, unlabelled, and at the very bottom, which is where mod authors put this and
-            * where it belongs. Preflight is free and stays free, so a sentence about supporting
-            * development would be asking for something the app does not need in order to work --
-            * the platform names alone say what the links are.
-            */}
+          {/* Quiet and optional, at the very bottom rather than in the launch flow. */}
           <span className="footer__links">
-            <button type="button" onClick={() => void openProjectLink("tip-coffee")}>Buy me a coffee</button>
-            <button type="button" onClick={() => void openProjectLink("tip-kofi")}>Ko-fi</button>
-            <button type="button" onClick={() => void openProjectLink("tip-patreon")}>Patreon</button>
+            <button type="button" onClick={() => void openProjectLink("tip-patreon")}>Support on Patreon</button>
           </span>
           <span>Unofficial · Not affiliated with Fractal Softworks</span>
         </footer>

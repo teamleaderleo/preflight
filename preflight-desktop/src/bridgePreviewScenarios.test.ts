@@ -27,18 +27,21 @@ test("unknown browser scenarios fail back to the normal ready preview", async ()
   expect((await getSnapshot()).ready).toBe(true);
 });
 
+test("running is an explicit preview state", () => {
+  useScenario("running");
+  expect(browserPreviewScenario()).toBe("running");
+});
+
 test("every quiet support link has one fixed destination", async () => {
   const opened = vi.spyOn(window, "open").mockImplementation(() => null);
   const destinations = {
-    "tip-coffee": "https://buymeacoffee.com/teamleaderleo",
-    "tip-kofi": "https://ko-fi.com/teamleaderleo",
     "tip-patreon": "https://www.patreon.com/cw/teamleaderleo",
   } as const;
   for (const [link, url] of Object.entries(destinations)) {
     await openProjectLink(link as keyof typeof destinations);
     expect(opened).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
   }
-  expect(opened).toHaveBeenCalledTimes(3);
+  expect(opened).toHaveBeenCalledTimes(Object.keys(destinations).length);
   opened.mockRestore();
 });
 

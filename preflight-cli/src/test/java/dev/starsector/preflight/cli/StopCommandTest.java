@@ -92,6 +92,22 @@ class StopCommandTest {
         assertEquals(List.of(), StopCommand.recordedRuns(runs));
     }
 
+    @Test
+    void scopesAStopToTheExactRequestedProcess() throws Exception {
+        writeRecord("20260813-000008", 424244, Instant.now(), "running");
+        writeRecord("20260813-000009", 424245, Instant.now(), "running");
+
+        List<RuntimeProcessIdentity> records = StopCommand.recordedRuns(runs);
+
+        assertEquals(
+                List.of(424244L),
+                StopCommand.selectPid(records, 424244L).stream()
+                        .map(RuntimeProcessIdentity::pid)
+                        .toList());
+        assertEquals(List.of(), StopCommand.selectPid(records, 999999L));
+        assertEquals(records, StopCommand.selectPid(records, null));
+    }
+
     private void writeRecord(String directory, long pid, Instant startedAt, String state)
             throws IOException {
         Path folder = runs.resolve(directory);
