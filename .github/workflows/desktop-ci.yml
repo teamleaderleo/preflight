@@ -125,7 +125,7 @@ jobs:
 
   package:
     name: Package / ${{ matrix.os }}
-    needs: [engine, validate]
+    needs: engine
     strategy:
       fail-fast: false
       matrix:
