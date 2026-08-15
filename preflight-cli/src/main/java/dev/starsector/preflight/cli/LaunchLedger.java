@@ -171,14 +171,26 @@ final class LaunchLedger {
     static Summary summarize(List<Entry> entries) {
         long completed = entries.stream().filter(Entry::succeeded).count();
         long fatal = entries.stream().filter(Entry::fatalDetected).count();
-        Instant first = entries.isEmpty() ? null : entries.get(0).started();
-        Instant last = entries.isEmpty() ? null : entries.get(entries.size() - 1).started();
+        // By timestamp, not by position. The file is appended to in the order launches finish,
+        // which is chronological right up until a backfill writes months of older launches onto the
+        // end of it -- and then the first line is the newest row in the file. Reading "recorded
+        // since" off line one produced today's date on a history going back to July.
+        Instant first = entries.stream().map(Entry::started).min(Instant::compareTo).orElse(null);
+        Instant last = entries.stream().map(Entry::started).max(Instant::compareTo).orElse(null);
         return new Summary(entries.size(), completed, fatal, first, last);
     }
 
     record Summary(int launches, long completed, long fatal, Instant first, Instant last) {
     }
 
+    /**
+     * @param profileFingerprint which mod set this launch ran, when the launch resolved one.
+     *     Playtime totalled across every profile answers "how long have I played Starsector"; the
+     *     same total split by fingerprint answers "how long have I played <em>this</em>", which for
+     *     somebody who keeps several mod sets is the more interesting of the two. Null when a
+     *     launch did not resolve a profile, which is normal for an unaccelerated launch, and is
+     *     kept as its own bucket rather than folded into any named set.
+     */
     record Entry(
             Instant started,
             Long elapsedMillis,
@@ -187,7 +199,8 @@ final class LaunchLedger {
             boolean fatalDetected,
             String optimizationPreset,
             List<String> disabledOptimizationDomains,
-            String runDirectory) {
+            String runDirectory,
+            String profileFingerprint) {
 
         boolean succeeded() {
             return "COMPLETED".equals(outcome) && !fatalDetected;
@@ -204,6 +217,7 @@ final class LaunchLedger {
             values.put("optimizationPreset", optimizationPreset);
             values.put("disabledOptimizationDomains", disabledOptimizationDomains);
             values.put("runDirectory", runDirectory);
+            values.put("profileFingerprint", profileFingerprint);
             return values;
         }
 
@@ -239,7 +253,10 @@ final class LaunchLedger {
                     Boolean.TRUE.equals(values.get("fatalDetected")),
                     values.get("optimizationPreset") instanceof String preset ? preset : null,
                     strings(values.get("disabledOptimizationDomains")),
-                    values.get("runDirectory") instanceof String directory ? directory : null);
+                    values.get("runDirectory") instanceof String directory ? directory : null,
+                    // Absent on rows written before profiles were recorded. A missing fingerprint
+                    // is its own bucket, not a reason to discard an otherwise good launch.
+                    values.get("profileFingerprint") instanceof String profile ? profile : null);
         }
 
         private static Instant instant(Object value) {

@@ -221,6 +221,9 @@ final class EvidenceCommand {
      * record that a launch happened outlives the megabyte of diagnostics it produced.
      */
     private static void reportHistory(PreflightHome home, PrintStream out) {
+        // Off the launch path on purpose: importing past runs walks every run directory, which is
+        // cheap once and pointless before every game. Reading the history is the natural moment.
+        LaunchLedgerBackfill.runOnce(home);
         LaunchLedger.Summary summary;
         try {
             summary = LaunchLedger.summarize(LaunchLedger.read(home));
@@ -252,6 +255,7 @@ final class EvidenceCommand {
     }
 
     private static Map<String, Object> historyValues(PreflightHome home) {
+        LaunchLedgerBackfill.runOnce(home);
         Map<String, Object> values = new LinkedHashMap<>();
         LaunchLedger.Summary summary;
         try {

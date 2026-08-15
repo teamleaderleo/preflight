@@ -175,10 +175,27 @@ class LaunchLedgerTest {
                 fatal,
                 "recommended",
                 List.of(),
-                "20260816-000000-000-abcdef01");
+                "20260816-000000-000-abcdef01",
+                null);
     }
 
     private static String line(String started, String outcome, boolean fatal) {
         return dev.starsector.preflight.core.Json.object(entry(started, outcome, fatal).toMap());
+    }
+
+    @Test
+    void theSpanIsReadFromTimestampsRatherThanFromLinePositions() {
+        // A backfill appends older launches onto the end of the file, so the first line stops being
+        // the earliest row. Reading the span off line one reported today's date for a history that
+        // went back a month.
+        PreflightHome home = new PreflightHome(root, List.of());
+        LaunchLedger.record(home, entry("2026-08-15T17:00:00Z", "COMPLETED", false));
+        LaunchLedger.record(home, entry("2026-07-19T07:00:00Z", "COMPLETED", false));
+        LaunchLedger.record(home, entry("2026-08-01T12:00:00Z", "COMPLETED", false));
+
+        LaunchLedger.Summary summary = LaunchLedger.summarize(read(home));
+
+        assertEquals(Instant.parse("2026-07-19T07:00:00Z"), summary.first());
+        assertEquals(Instant.parse("2026-08-15T17:00:00Z"), summary.last());
     }
 }

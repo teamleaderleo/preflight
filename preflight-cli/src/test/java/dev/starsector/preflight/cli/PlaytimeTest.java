@@ -64,6 +64,7 @@ class PlaytimeTest {
                 false,
                 "recommended",
                 List.of(),
-                "run-directory");
+                "run-directory",
+                null);
     }
 }

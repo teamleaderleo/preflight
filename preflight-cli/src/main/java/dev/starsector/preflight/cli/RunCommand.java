@@ -364,7 +364,8 @@ final class RunCommand {
                             .map(OptimizationDomain::optionValue)
                             .sorted()
                             .toList(),
-                    runDirectory.getFileName().toString()));
+                    runDirectory.getFileName().toString(),
+                    textureContext == null ? null : textureContext.profileFingerprint()));
             if (ledgerProblem != null) {
                 System.err.println("Preflight could not record this launch in its history: "
                         + ledgerProblem);
