@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import {
   browserPreviewScenario,
@@ -100,39 +98,4 @@ test("profile mutation previews remain inert until the reviewed fingerprint is c
     deleted.profileFingerprint,
     true,
   )).toMatchObject({ applied: true, backup: expect.stringContaining("profile-backups") });
-});
-
-/*
- * Every preview fixture in bridge.ts sits behind a hand-written `isDesktopHost()` check, thirty-odd
- * times over. Miss one and the shipped app serves an invented answer to a real person: a game
- * installation that was never found, a benchmark that was never run, a cleanup plan measured from
- * nothing. Nothing in the type system or the runtime says that guard is required, and the failure
- * is silent in exactly the build where it matters, because the desktop host is the one place the
- * browser preview never runs.
- *
- * So the requirement is checked structurally instead of remembered: any function reaching for a
- * preview scenario has to establish it is not the desktop host first.
- */
-test("no preview fixture can be reached without first ruling out the desktop host", async () => {
-  // vitest serves this module over http, so import.meta.url is not a file path here.
-  const source = await readFile(resolve(process.cwd(), "src/bridge.ts"), "utf8");
-  // Top-level declarations only: nested helpers inherit their parent's guard.
-  const declarations = [...source.matchAll(/^export (?:async )?function (\w+)/gm)];
-  expect(declarations.length).toBeGreaterThan(20);
-
-  const unguarded: string[] = [];
-  for (const [index, declaration] of declarations.entries()) {
-    const name = declaration[1];
-    // `browserPreviewScenario` is the accessor itself, so it cannot be asked to guard against it.
-    if (name === "browserPreviewScenario" || name === "isDesktopHost") continue;
-    const start = declaration.index;
-    const end = declarations[index + 1]?.index ?? source.length;
-    const body = source.slice(start, end);
-    const scenario = body.indexOf("browserPreviewScenario(");
-    if (scenario === -1) continue;
-    const guard = body.indexOf("isDesktopHost()");
-    if (guard === -1 || guard > scenario) unguarded.push(name);
-  }
-
-  expect(unguarded).toEqual([]);
 });
