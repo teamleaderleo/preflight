@@ -1,4 +1,4 @@
-import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
+import { ArrowIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
 import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
@@ -150,22 +150,23 @@ export function HomePage({
                 ? "This mod setup needs preparation"
                 : optimizationPreset === "off"
                   ? "Optimizations off"
-                  : `${optimizationPreset === "recommended" ? "Recommended" : "Conservative"} optimizations · prepared`;
+                  : "Ready";
+  const showStatus = !isReady
+    || status !== "ready"
+    || preparing
+    || needsPreparation
+    || cacheNeedsRepair
+    || cacheInspectionBlocked
+    || optimizationPreset === "off";
 
   return (
     <>
       <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {flightPlot}
-          {/*
-            * The settled state used to render no chip at all, which left the main screen of a
-            * performance launcher saying nothing about whether the next launch would be a fast one.
-            * "Ready" was never the interesting part; which preset is on, and that this mod setup is
-            * prepared, is what the button is about to act on.
-            */}
-          {isReady || status !== "ready" || preparing || needsPreparation ? (
+          {showStatus ? (
             <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
-              {isReady && !needsPreparation ? <CheckIcon /> : <SparklesIcon />}
+              <SparklesIcon />
               {statusLabel}
             </div>
           ) : null}

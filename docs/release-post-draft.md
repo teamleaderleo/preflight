@@ -13,8 +13,9 @@ texture, data, generated-code, and audio work ahead of the game launch, then reu
 for the same game and ordered mod profile.
 
 On the 83-mod development profile, startup progressed from a roughly **101-second worst case to a
-15.88-second fastest warm launch**. The initial five-run median was 88.13 seconds. The final
-candidate recorded **[CANDIDATE BENCHMARK RESULT]** on **[GAME VERSION / HARDWARE / RUNTIME]**.
+15.25-second fastest launch**. In the latest same-session comparison, five ordinary launches had an
+89.00-second median and five Preflight launches had a 15.53-second median. The final candidate
+recorded **[CANDIDATE BENCHMARK RESULT]** on **[GAME VERSION / HARDWARE / RUNTIME]**.
 Your result will depend on your mods, hardware, storage, cache warmth, memory pressure, and
 temperature, so the app includes the same normal-versus-Preflight benchmark.
 
@@ -31,7 +32,7 @@ game-owned preferences.
 - Reviewed campaign/combat shortcuts behind the same exact adapter boundary.
 - Current cache disk use, preview-first cleanup, and clean removal.
 - Existing Starsector display, sound, UI-scale, antialiasing, and battle-size settings.
-- An optional, consent-based run report containing bounded diagnostics—never saves, game/mod assets,
+- An optional, consent-based support ZIP containing bounded diagnostics—never saves, game/mod assets,
   screenshots, audio, JFR recordings, or arbitrary logs.
 
 ## Important beta limits
@@ -41,9 +42,9 @@ game-owned preferences.
   launcher/layout change may still require a Preflight update.
 - Reviewed mod-specific adapters: **[LIST]**. “Not listed” doesn't mean incompatible; no specific
   acceleration is claimed for that mod.
-- Disk use: **about 4.5 GB observed** on the reviewed 83-mod profile under the default Balanced
-  texture storage, against a 4.91 GB prediction. One profile, so it is a ballpark rather than a
-  requirement. Fastest is optional and took about 3 GB more on the same corpus.
+- Disk use on the reviewed 83-mod profile: **4.76 GB** for the default Balanced preparation,
+  **10.9 MB** for Minimal disk, and **10.03 GB** for optional Fastest. The app calculates the current
+  profile before writing and offers Minimal automatically when the default doesn't fit.
 - Package trust: OS-unsigned macOS/Windows packages, SHA-256 manifests, signature-verified in-app
   updates, and **[TESTED PLATFORM WARNING INSTRUCTIONS]**.
 
@@ -63,8 +64,8 @@ Preflight data** separately previews and deletes only Preflight-owned caches and
 - Known issues and compatibility matrix: **[LINK]**
 - Source and releases: **[LINK]**
 
-If something fails, choose **Send run report** only after reviewing its disclosure. Include the case
-ID in **[SUPPORT THREAD / ISSUE TEMPLATE]**. Reports are retained for **[RETENTION]** and can be
-deleted using **[DELETION PROCESS]**.
+If something fails, choose **Get support**, then **Create support ZIP**. Sending is a separate action
+after the ZIP disclosure. Include the case ID in **[SUPPORT THREAD / ISSUE TEMPLATE]**. Reports are
+retained for **[RETENTION]** and can be deleted using **[DELETION PROCESS]**.
 
 Preflight is an independent project and **[FINAL APPROVED DISCLAIMER]**.

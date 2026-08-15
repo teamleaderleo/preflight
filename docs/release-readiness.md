@@ -99,7 +99,7 @@ still inside the release boundary below.
   report that their channel is disabled, Linux package installs stay with their package manager,
   and no update surprise-installs. The native host admits one installation at a time, refuses
   concurrent checks and mutations, and releases that state on every failed or changed offer.
-- [x] Add **Send run report** using the bounded diagnostics export, with disclosure, ZIP digest and
+- [x] Add voluntary support ZIP sending using the bounded diagnostics export, with disclosure, ZIP digest and
   size, consent, progress, cancel/retry, case receipt, retention deadline, and deletion instructions.
   The private receiving service, local Java-export interoperability check, and desktop
   consent/upload/cancel/receipt/delete path are complete.

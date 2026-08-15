@@ -273,6 +273,7 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getByText(/^83 mods · saved /)).toBeInTheDocument();
   expect(screen.queryByText(/Named by you/)).not.toBeInTheDocument();
   expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Recommended optimizations/)).not.toBeInTheDocument();
   expect(screen.queryByText(/Prepared ·/)).not.toBeInTheDocument();
   expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
 });
@@ -966,6 +967,23 @@ test("verified updates are explicit and explain when a build has no update chann
   expect(screen.queryByRole("button", { name: "Install and restart" })).not.toBeInTheDocument();
 });
 
+test("Settings opens the support tools directly", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  const supportButton = await screen.findByRole("button", { name: "Get support" });
+  expect(supportButton).toBeVisible();
+
+  await user.click(supportButton);
+
+  expect(await screen.findByRole("heading", { name: "Support", level: 1 })).toBeInTheDocument();
+  const support = screen.getByText("Support", { selector: "strong" }).closest("details");
+  expect(support).toHaveAttribute("open");
+  expect(screen.getByRole("button", { name: "Create support ZIP" })).toBeVisible();
+});
+
 test("a verified available update still waits for install confirmation", async () => {
   const user = userEvent.setup();
   const install = vi.spyOn(bridge, "installUpdate").mockResolvedValue();
@@ -1089,15 +1107,15 @@ test("the privacy panel describes the build's actual sending ability", async () 
 
   const { unmount } = render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText(/can’t send support reports at all|can't send support reports at all/))
+  expect(await screen.findByText(/Support ZIPs stay on this computer/))
     .toBeInTheDocument();
-  expect(screen.queryByText(/gives you a receipt you can use to delete it/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/sent only after you review it/)).not.toBeInTheDocument();
   unmount();
 
   unconfigured.mockResolvedValue({ configured: true, origin: "https://reports.invalid", reason: null });
   render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText(/gives you a receipt you can use to delete it/)).toBeInTheDocument();
+  expect(await screen.findByText(/sent only after you review it and press Send/)).toBeInTheDocument();
 
   unconfigured.mockRestore();
 });

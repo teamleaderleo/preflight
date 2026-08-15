@@ -32,15 +32,15 @@ key. On Linux it is available to the AppImage build; other Linux packages, inclu
 defer updates to the package manager used to install them. The standalone JAR has no desktop
 background updater.
 
-## Voluntary run reports
+## Voluntary support ZIPs
 
 The desktop build can save a diagnostics ZIP chosen by the user. A build compiled with the private
-intake origin also exposes **Send run report**. Nothing is sent until the user opens its review,
-sees the fixed inclusion and exclusion boundary, exact entries, finished ZIP byte count and
-SHA-256, and confirms the send. Ordinary development and source builds omit the origin, so sending
-is disabled while local export remains available.
+intake origin also enables sending. Nothing is sent until the user chooses **Get support**, creates
+the ZIP, opens its review, sees the fixed inclusion and exclusion boundary, exact entries, finished
+byte count and SHA-256, and confirms the send. Ordinary development and source builds omit the
+origin, so sending is disabled while local export remains available.
 
-### What a run report contains
+### What a support ZIP contains
 
 The report is the same bounded ZIP produced by `preflight evidence export`. It contains a disclosure,
 a manifest, and allowlisted JSON or JSONL evidence from selected launch runs and benchmark sessions.

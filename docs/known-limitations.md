@@ -22,10 +22,11 @@ That keeps updates runnable; it can also mean a newly updated installation recei
 until its new identity is reviewed. Preflight can't guarantee that the original game or a mod is
 free of its own defects.
 
-The 15.88-second launch is a warm record from the development machine, not an expected result for
-every system. Mod count and content, cache warmth, CPU, translation, storage, memory pressure, and
-temperature all affect startup and frame time. The built-in benchmark lets each installation record
-its own normal and accelerated launch; the final package will retain the same result before release.
+The 15.25-second launch is the fastest run from the current development comparison, not an expected
+result for every system. Mod count and content, cache warmth, CPU, translation, storage, memory
+pressure, and temperature all affect startup and frame time. The built-in benchmark lets each
+installation record its own normal and accelerated launch; the final package will retain the same
+result before release.
 
 Preparation uses additional disk space. Balanced stores exact lossless LZ4 data and keeps raw data
 when compression barely helps; Fastest keeps every upload-ready pixel array raw and can use several
@@ -49,9 +50,9 @@ Azeri it already fails to match ids containing an `I`; the index in front of it 
 instead of resolving what the game would decline. The detail for both is in
 [Java runtime support](java-runtime-support.md).
 
-There is no automatic report or crash upload. **Send run report** exists only in a build configured
-for the private intake and still requires review and confirmation for each ZIP. Ordinary builds can
-save the same bounded diagnostics ZIP locally.
+There is no automatic report or crash upload. A configured build can send a support ZIP only after
+the user creates it, reviews it, and confirms the send. Ordinary builds can save the same bounded
+ZIP locally.
 
 There is no remote runtime kill switch. If a reviewed adapter is implicated, select **Off /
 troubleshooting** and follow the [rollback and incident path](rollback.md). An updated package is
