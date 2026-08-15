@@ -56,6 +56,13 @@ jobs:
           python3 scripts/test_starsector_gameplay_hotspots.py
           python3 -m py_compile scripts/desktop_ci_scope.py scripts/test_desktop_ci_scope.py
           python3 scripts/test_desktop_ci_scope.py
+          bash -n scripts/run-startup-benchmark.sh
+          python3 scripts/test_startup_benchmark.py
+          python3 -m py_compile scripts/starsector_log_load_times.py
+          python3 scripts/test_starsector_log_load_times.py
+          python3 scripts/test_verify_linux_glibc_floor.py
+          # This list is written by hand, so an unreferenced suite reports nothing. Keep this last.
+          python3 scripts/test_operator_checks_coverage.py
 
   verify:
     strategy:
