@@ -347,6 +347,24 @@ export interface CacheCleanupPlan {
   removalsTruncated: boolean;
 }
 
+export interface EvidenceCleanupPlan {
+  format: "starsector-preflight-evidence-prune-v1";
+  applied: boolean;
+  keepRuns: number;
+  keepBenchmarks: number;
+  bytes: number;
+  files: number;
+  removedBytes: number;
+  sessions: Array<{
+    kind: "run" | "benchmark";
+    name: string;
+    path: string;
+    bytes: number;
+    files: number;
+    modifiedMillis: number;
+  }>;
+}
+
 export type RemovalScope = "launcher" | "all-data";
 
 export interface RemovalPlan {

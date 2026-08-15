@@ -59,6 +59,7 @@ interface HomePageProps {
   onRetry: () => void;
   runFailure: { summary: string; detail?: string } | null;
   onDismissRunFailure: () => void;
+  onOpenStorage: () => void;
   onNavigate: (page: Page) => void;
 }
 
@@ -89,6 +90,7 @@ export function HomePage({
   onRetry,
   runFailure,
   onDismissRunFailure,
+  onOpenStorage,
   onNavigate,
 }: HomePageProps) {
   const {
@@ -113,6 +115,7 @@ export function HomePage({
     && (preparationPlanLoading || !preparationPlan);
   const { profiles, profilesLoading, profileBusy, beginRename, reviewProfile } = profilesState;
   const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
+  const accelerationBytes = cache?.groups.find((group) => group.id === "acceleration")?.bytes ?? 0;
   // Nothing to pick between until there is somewhere to switch to, so the card stays plain text.
   const switchable = (profiles?.profiles ?? []).filter((profile) => !profile.active && profile.canActivate);
   const firstSetup = needsPreparation && (cache?.profiles.length ?? 0) === 0 && !snapshot?.lastRun;
@@ -352,9 +355,9 @@ export function HomePage({
           </div>
         </div>
         <div className="home-fact">
-          <span>Disk used</span>
-          <strong>{cacheLoading ? "Reading…" : cache ? formatBytes(cache.total.bytes) : "Unavailable"}</strong>
-          <button className="text-button" type="button" onClick={() => onNavigate("speed")} disabled={!isReady}>Storage <ArrowIcon /></button>
+          <span>Prepared data</span>
+          <strong>{cacheLoading ? "Reading…" : cache ? formatBytes(accelerationBytes) : "Unavailable"}</strong>
+          <button className="text-button" type="button" onClick={onOpenStorage} disabled={!isReady}>Free space <ArrowIcon /></button>
         </div>
         <div className="home-fact home-fact--installation">
           <span>Installation</span>

@@ -3,9 +3,10 @@ import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { SpeedScoreboard } from "./SpeedScoreboard";
 import { resourcePresets, storagePlanApplies, type usePreparation } from "../usePreparation";
+import type { StorageCleanupPlan } from "../useCacheCleanup";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { formatBytes } from "../uiFormat";
-import type { CacheCleanupPlan, NoticeTone, OptimizationDomain, OptimizationPreset } from "../types";
+import type { NoticeTone, OptimizationDomain, OptimizationPreset } from "../types";
 
 export const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -72,7 +73,7 @@ interface PreparationPageProps {
   optimizationPreset: OptimizationPreset;
   disabledOptimizationDomains: OptimizationDomain[];
   preparation: PreparationState;
-  cleanupPlan: CacheCleanupPlan | null;
+  cleanupPlan: StorageCleanupPlan | null;
   cleanupBusy: boolean;
   operationBlocked: boolean;
   speedStanding: SpeedStanding;
@@ -130,6 +131,25 @@ export function PreparationPage({
   return (
     <div className="prepare-page">
       <NoticeBanner message={message} tone={messageTone} />
+
+      {cleanupPlan ? (
+        <section className="card cleanup-review" aria-label="Cache cleanup review">
+          <div className="activation-review__heading">
+            <div><p className="eyebrow">Cleanup review</p><h2>{cleanupPlan.files === 0 ? "Everything here is still useful" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
+            <button className="text-button" type="button" onClick={onDismissCleanup} disabled={cleanupBusy}>Close</button>
+          </div>
+          {!cleanupPlan.cache.safe ? <p className="activation-warning">{cleanupPlan.cache.refusals.join(" ")}</p> : null}
+          <p className="cleanup-summary">Keeps the current profile, saved profiles, {cleanupPlan.evidence.keepRuns} recent launch reports, and {cleanupPlan.evidence.keepBenchmarks} benchmarks. Game files, mods, saves, and settings aren’t touched.</p>
+          <div className="cleanup-groups">
+            {cleanupPlan.cache.bytes > 0 ? <div><span>Unused prepared data</span><strong>{formatBytes(cleanupPlan.cache.bytes)} · {cleanupPlan.cache.files.toLocaleString()} files</strong></div> : null}
+            {cleanupPlan.evidence.bytes > 0 ? <div><span>Old reports and benchmarks</span><strong>{formatBytes(cleanupPlan.evidence.bytes)} · {cleanupPlan.evidence.files.toLocaleString()} files</strong></div> : null}
+          </div>
+          <div className="activation-review__footer">
+            <span><ShieldIcon /> Cleanup is recalculated before anything is removed.</span>
+            <button className="button button--primary" type="button" onClick={onCleanCache} disabled={!cleanupPlan.cache.safe || cleanupPlan.files === 0 || cleanupBusy || operationBlocked}>{cleanupBusy ? "Cleaning…" : cleanupPlan.files === 0 ? "Nothing to remove" : `Free ${formatBytes(cleanupPlan.bytes)}`}</button>
+          </div>
+        </section>
+      ) : null}
 
       {/*
         * "Prove it" is a real errand and a rare one, so the benchmark is reached from here rather
@@ -196,7 +216,8 @@ export function PreparationPage({
           <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading || operationBlocked}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
         </div>
         <div className="storage-summary-row">
-          <div><strong className="storage-total">{cache ? formatBytes(cache.total.bytes) : "—"}</strong><span className="storage-files">{cache ? `${cache.total.files.toLocaleString()} files` : "Reading cache…"}</span></div>
+          <div><strong className="storage-total">{cache ? formatBytes(cache.groups.find((group) => group.id === "acceleration")?.bytes ?? 0) : "—"}</strong><span className="storage-files">Prepared data</span></div>
+          <div><span>Reports and benchmarks</span><strong>{cache ? formatBytes(cache.groups.find((group) => group.id === "evidence")?.bytes ?? 0) : "—"}</strong><small>Old sessions can be removed without slowing launches.</small></div>
           {/*
             * These two figures sit a card apart and differ by roughly three times, which read as a
             * contradiction until each said what it was: one is what preparation expects to write,
@@ -285,21 +306,6 @@ export function PreparationPage({
         </div>
       </details>
 
-      {cleanupPlan ? (
-        <section className="card cleanup-review" aria-label="Cache cleanup review">
-          <div className="activation-review__heading">
-            <div><p className="eyebrow">Cleanup review</p><h2>{cleanupPlan.files === 0 ? "Everything here is still useful" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
-            <button className="text-button" type="button" onClick={onDismissCleanup} disabled={cleanupBusy}>Close</button>
-          </div>
-          {!cleanupPlan.safe ? <p className="activation-warning">{cleanupPlan.refusals.join(" ")}</p> : null}
-          <p className="cleanup-summary">Preflight will keep the current profile and {Math.max(0, cleanupPlan.survivingProfileFingerprints.length - 1).toLocaleString()} named profile{cleanupPlan.survivingProfileFingerprints.length === 2 ? "" : "s"}. Game files, mods, saves, settings, and diagnostic evidence aren’t part of this cleanup.</p>
-          {cleanupPlan.groups.length > 0 ? <div className="cleanup-groups">{cleanupPlan.groups.map((group) => <div key={group.reason}><span>{group.reason.replaceAll("-", " ")}</span><strong>{formatBytes(group.bytes)} · {group.files.toLocaleString()} files</strong></div>)}</div> : null}
-          <div className="activation-review__footer">
-            <span><ShieldIcon /> The plan is recalculated under the shared operation lock before deletion.</span>
-            <button className="button button--danger" type="button" onClick={onCleanCache} disabled={!cleanupPlan.safe || cleanupPlan.files === 0 || cleanupBusy || operationBlocked}>{cleanupBusy ? "Cleaning…" : cleanupPlan.files === 0 ? "Nothing to remove" : `Remove ${cleanupPlan.files.toLocaleString()} files`}</button>
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

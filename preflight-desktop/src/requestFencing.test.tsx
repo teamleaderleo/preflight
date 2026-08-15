@@ -416,7 +416,7 @@ test("a cleanup preview belongs only to the installation that produced it", asyn
   });
   await waitFor(() => expect(cleanup).toHaveBeenCalledWith("/game-b"));
   await act(async () => second.resolve({ ...baseline, bytes: 42, files: 1 }));
-  await waitFor(() => expect(result.current.plan?.bytes).toBe(42));
+  await waitFor(() => expect(result.current.plan?.cache.bytes).toBe(42));
   expect(announce).toHaveBeenCalledWith("Cleanup is ready to review. Nothing has been removed.");
   cleanup.mockRestore();
 });

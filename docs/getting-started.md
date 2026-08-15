@@ -68,6 +68,11 @@ which phase it's on and can be cancelled at any point without leaving anything h
 Expect a couple of minutes on a large profile. This is the work you're moving off every future
 launch.
 
+Preflight isn't linking or rewriting the installation. It reads the game build, enabled mods, and
+the files those mods contribute, gives that exact combination an identity, then writes reusable
+answers under its own data folder. A different combination gets a different identity. If the check
+can't be completed, Preflight leaves the prepared data alone and still offers a normal-speed launch.
+
 ## 6. Launch
 
 After that first run, the big button simply starts Starsector. Resolution, battle size, RAM,
@@ -98,6 +103,10 @@ separate, explicit choice. It never includes saves, game or mod assets, screensh
 arbitrary logs. A failed launch offers the same page directly from the card that reports it.
 
 ## Removing it
+
+To reclaim space while keeping Preflight, choose **Free space** on Home. The review keeps the
+current and saved profiles ready, keeps a small recent set of reports and benchmarks, and removes
+older unreachable data. Nothing is removed until you confirm the measured plan.
 
 Two separate choices, both preview-first:
 

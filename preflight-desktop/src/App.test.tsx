@@ -570,7 +570,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Storage" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
 
   expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
   await user.click(screen.getByText("Advanced controls"));
@@ -586,7 +586,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(screen.getByRole("checkbox", { name: /Prepared audio/ })).not.toBeChecked();
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-audio"]');
-  expect(screen.getByText("4.50 GB")).toBeInTheDocument();
+  expect(screen.getAllByText("3.50 GB").length).toBeGreaterThan(0);
   expect(screen.getByText("Free space needed to start")).toBeInTheDocument();
   expect(await screen.findByText("11.6 GB")).toBeInTheDocument();
   // The bound and the predicted cost differ by roughly three times, so the bound has to say it is
@@ -629,7 +629,9 @@ test("storage totals disclose data outside the active cache categories", async (
 
   render(<App />);
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Storage" }));
+  expect(screen.getByText("Prepared data")).toBeInTheDocument();
+  expect(screen.queryByText("Disk used")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Free space" }));
   await user.click(await screen.findByText("Storage details"));
 
   expect(await screen.findByText("Anything else")).toBeInTheDocument();
@@ -643,15 +645,14 @@ test("cache cleanup is previewed before unused artifacts are removed", async () 
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Storage" }));
-  await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
+  await user.click(screen.getByRole("button", { name: "Free space" }));
 
-  expect(await screen.findByRole("heading", { name: "Free 1.72 GB?" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Free 4.72 GB?" })).toBeInTheDocument();
   expect(screen.getByText("Cleanup review")).toBeInTheDocument();
-  const apply = screen.getByRole("button", { name: "Remove 8,914 files" });
+  const apply = screen.getByRole("button", { name: "Free 4.72 GB" });
   expect(apply).toBeEnabled();
   await user.click(apply);
-  expect(await screen.findByText(/Freed 1.72 GB across 8,914 unused files/)).toBeInTheDocument();
+  expect(await screen.findByText(/Freed 4.72 GB across 11,760 old files/)).toBeInTheDocument();
 });
 
 test("launch settings mirror vanilla display and battle controls", async () => {
