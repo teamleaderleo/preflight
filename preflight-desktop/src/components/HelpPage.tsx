@@ -5,7 +5,7 @@ import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { NoticeTone } from "../types";
+import type { NoticeTone, OptimizationPreset } from "../types";
 
 type DiagnosticsState = ReturnType<typeof useDiagnosticsReport>;
 
@@ -14,6 +14,7 @@ interface HelpPageProps {
   messageTone: NoticeTone;
   diagnostics: DiagnosticsState;
   operationBlocked: boolean;
+  optimizationPreset: OptimizationPreset;
   onTurnOffOptimizations: () => void;
   onChooseInstall: () => void;
   onNavigate: (page: Page) => void;
@@ -35,6 +36,7 @@ export function HelpPage({
   messageTone,
   diagnostics,
   operationBlocked,
+  optimizationPreset,
   onTurnOffOptimizations,
   onChooseInstall,
   onNavigate,
@@ -70,9 +72,13 @@ export function HelpPage({
           <li>
             <div>
               <strong>Starsector won’t open, or closes straight away</strong>
-              <p>Turn optimizations off, then launch. The game starts exactly as it does without Preflight, and nothing you have prepared is thrown away.</p>
+              <p>{optimizationPreset === "off"
+                ? "Optimizations are off for the next launch. Prepared data stays in place."
+                : "Turn optimizations off, then launch. Starsector starts normally, and prepared data stays in place."}</p>
             </div>
-            <button className="button button--quiet button--compact" type="button" onClick={onTurnOffOptimizations} disabled={operationBlocked}>Turn off<ArrowIcon /></button>
+            {optimizationPreset === "off"
+              ? <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("home")}>Go to launch<ArrowIcon /></button>
+              : <button className="button button--quiet button--compact" type="button" onClick={onTurnOffOptimizations} disabled={operationBlocked}>Turn off<ArrowIcon /></button>}
           </li>
           <li>
             <div>
