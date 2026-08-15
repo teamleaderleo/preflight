@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -115,6 +116,46 @@ class LaunchLedgerTest {
         String problem = LaunchLedger.record(home, entry("2026-08-16T00:00:00Z", "COMPLETED", false));
 
         assertFalse(problem == null || problem.isBlank(), "the reason should be reportable");
+    }
+
+    @Test
+    void aSymlinkedHistoryCannotRedirectLaunchDataOutsidePreflight() throws IOException {
+        PreflightHome home = new PreflightHome(root.resolve("home"), List.of());
+        Files.createDirectories(home.root());
+        Path outside = root.resolve("outside");
+        Files.createDirectories(outside);
+        Path externalLedger = outside.resolve("launches.jsonl");
+        Files.writeString(externalLedger, "outside data stays unchanged\n", StandardCharsets.UTF_8);
+        try {
+            Files.createSymbolicLink(home.root().resolve("history"), outside);
+        } catch (UnsupportedOperationException | SecurityException | IOException error) {
+            assumeTrue(false, "Symbolic links aren't available in this test environment: " + error);
+        }
+
+        String problem = LaunchLedger.record(
+                home, entry("2026-08-16T00:00:00Z", "COMPLETED", false));
+
+        assertFalse(problem == null || problem.isBlank());
+        assertEquals("outside data stays unchanged\n", Files.readString(externalLedger));
+    }
+
+    @Test
+    void aSymlinkedLedgerCannotRedirectLaunchDataOutsidePreflight() throws IOException {
+        PreflightHome home = new PreflightHome(root.resolve("home"), List.of());
+        Files.createDirectories(LaunchLedger.path(home).getParent());
+        Path externalLedger = root.resolve("outside-ledger.jsonl");
+        Files.writeString(externalLedger, "outside data stays unchanged\n", StandardCharsets.UTF_8);
+        try {
+            Files.createSymbolicLink(LaunchLedger.path(home), externalLedger);
+        } catch (UnsupportedOperationException | SecurityException | IOException error) {
+            assumeTrue(false, "Symbolic links aren't available in this test environment: " + error);
+        }
+
+        String problem = LaunchLedger.record(
+                home, entry("2026-08-16T00:00:00Z", "COMPLETED", false));
+
+        assertFalse(problem == null || problem.isBlank());
+        assertEquals("outside data stays unchanged\n", Files.readString(externalLedger));
     }
 
     private List<LaunchLedger.Entry> read(PreflightHome home) {

@@ -3,8 +3,11 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,18 +57,15 @@ final class LaunchLedger {
      */
     static String record(PreflightHome home, Entry entry) {
         try {
-            Path path = path(home);
-            Path parent = path.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
+            Path path = writablePath(home);
             Files.writeString(
                     path,
                     Json.object(entry.toMap()) + System.lineSeparator(),
                     StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE,
                     StandardOpenOption.WRITE,
-                    StandardOpenOption.APPEND);
+                    StandardOpenOption.APPEND,
+                    LinkOption.NOFOLLOW_LINKS);
             trim(path);
             return null;
         } catch (IOException | RuntimeException error) {
@@ -81,16 +81,26 @@ final class LaunchLedger {
             return;
         }
         List<String> kept = lines.subList(lines.size() - MAX_ENTRIES, lines.size());
-        Path temporary = path.resolveSibling(
-                path.getFileName() + ".tmp-" + ProcessHandle.current().pid());
-        Files.write(temporary, kept, StandardCharsets.UTF_8);
-        Files.move(temporary, path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        Path temporary = Files.createTempFile(path.getParent(), ".launches-", ".tmp");
+        boolean moved = false;
+        try {
+            Files.write(temporary, kept, StandardCharsets.UTF_8);
+            try {
+                Files.move(temporary, path,
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+            moved = true;
+        } finally {
+            if (!moved) Files.deleteIfExists(temporary);
+        }
     }
 
     /** Every readable line, oldest first. Unreadable lines are skipped, not fatal. */
     static List<Entry> read(PreflightHome home) throws IOException {
-        Path path = path(home);
-        if (!Files.isRegularFile(path)) {
+        Path path = readablePath(home);
+        if (path == null) {
             return List.of();
         }
         List<Entry> entries = new ArrayList<>();
@@ -101,6 +111,60 @@ final class LaunchLedger {
             }
         }
         return List.copyOf(entries);
+    }
+
+    private static Path writablePath(PreflightHome home) throws IOException {
+        Path root = home.root().toAbsolutePath().normalize();
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+            Files.createDirectories(root);
+        }
+        requireDirectory(root, "Preflight home");
+        Path realRoot = root.toRealPath();
+        Path history = realRoot.resolve("history");
+        if (!Files.exists(history, LinkOption.NOFOLLOW_LINKS)) {
+            Files.createDirectory(history);
+        }
+        requireDirectory(history, "Launch-history directory");
+        Path realHistory = history.toRealPath();
+        if (!realHistory.getParent().equals(realRoot)) {
+            throw new IOException("Launch-history directory escapes the Preflight home");
+        }
+        Path ledger = realHistory.resolve("launches.jsonl");
+        requireLedgerIfPresent(ledger);
+        return ledger;
+    }
+
+    private static Path readablePath(PreflightHome home) throws IOException {
+        Path root = home.root().toAbsolutePath().normalize();
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) return null;
+        requireDirectory(root, "Preflight home");
+        Path realRoot = root.toRealPath();
+        Path history = realRoot.resolve("history");
+        if (!Files.exists(history, LinkOption.NOFOLLOW_LINKS)) return null;
+        requireDirectory(history, "Launch-history directory");
+        Path realHistory = history.toRealPath();
+        if (!realHistory.getParent().equals(realRoot)) {
+            throw new IOException("Launch-history directory escapes the Preflight home");
+        }
+        Path ledger = realHistory.resolve("launches.jsonl");
+        if (!Files.exists(ledger, LinkOption.NOFOLLOW_LINKS)) return null;
+        requireLedgerIfPresent(ledger);
+        return ledger;
+    }
+
+    private static void requireDirectory(Path directory, String label) throws IOException {
+        if (Files.isSymbolicLink(directory)
+                || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException(label + " isn't a regular directory: " + directory);
+        }
+    }
+
+    private static void requireLedgerIfPresent(Path ledger) throws IOException {
+        if (Files.exists(ledger, LinkOption.NOFOLLOW_LINKS)
+                && (Files.isSymbolicLink(ledger)
+                || !Files.isRegularFile(ledger, LinkOption.NOFOLLOW_LINKS))) {
+            throw new IOException("Launch history isn't a regular file: " + ledger);
+        }
     }
 
     /** What a history says when you ask it how things have been going. */
