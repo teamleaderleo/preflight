@@ -1,4 +1,4 @@
-import { ArrowIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
+import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
 import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
@@ -149,27 +149,24 @@ export function HomePage({
               : needsPreparation
                 ? "This mod setup needs preparation"
                 : optimizationPreset === "off"
-                  ? "Optimizations off"
-                  : "Ready";
-  const showStatus = !isReady
-    || status !== "ready"
-    || preparing
-    || needsPreparation
-    || cacheNeedsRepair
-    || cacheInspectionBlocked
-    || optimizationPreset === "off";
+                  ? "Optimizations off — this launch won’t be faster"
+                  : "Ready — this launch will be the fast one";
+  /*
+   * The chip is always shown in the settled state, and says which of the two launches the button
+   * is about to perform. "Ready" alone is the page title's job. Whether the next launch is the
+   * fast one is the single piece of status a performance launcher owes its main screen, and it is
+   * the only thing here that a player cannot find out by looking at the game.
+   */
 
   return (
     <>
       <section className={`launch-console card ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
           {flightPlot}
-          {showStatus ? (
-            <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
-              <SparklesIcon />
-              {statusLabel}
-            </div>
-          ) : null}
+          <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
+            {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
+            {statusLabel}
+          </div>
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
           <div className="launch-console__actions">
@@ -182,7 +179,7 @@ export function HomePage({
                   onClick={storageBlocked
                     ? () => void prepare(true, "minimal")
                     : cacheInspectionBlocked
-                      ? () => onNavigate("prepare")
+                      ? () => onNavigate("speed")
                       : onPrimaryLaunch}
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
@@ -195,7 +192,7 @@ export function HomePage({
                   </button>
                 ) : null}
                 {cacheNeedsRepair && !preparing && !cacheRepairing ? (
-                  <button className="button button--quiet launch-console__stop" type="button" onClick={() => onNavigate("prepare")}>Repair details</button>
+                  <button className="button button--quiet launch-console__stop" type="button" onClick={() => onNavigate("speed")}>Repair details</button>
                 ) : null}
                 {/*
                   * Preflight is a launcher first. A refused preparation used to leave the game with no
@@ -276,7 +273,7 @@ export function HomePage({
             {cacheHealth.issues.length > 1 ? <small>{cacheHealth.issues.length - 1} more issue{cacheHealth.issues.length === 2 ? "" : "s"} found.</small> : null}
           </div>
           <div className="run-recovery__actions">
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("prepare")} disabled={cacheRepairing}>Details</button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("speed")} disabled={cacheRepairing}>Details</button>
           </div>
         </section>
       ) : null}
@@ -295,7 +292,7 @@ export function HomePage({
           </div>
           <div className="run-recovery__actions">
             <button className="button button--primary button--compact" type="button" onClick={onPrimaryLaunch} disabled={operationBlocked}>Relaunch</button>
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("reports")}>Support tools</button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("help")}>Get help</button>
             <button className="button button--quiet button--compact" type="button" onClick={onDismissRunFailure}>Dismiss</button>
           </div>
         </section>
@@ -314,7 +311,7 @@ export function HomePage({
                 const name = event.target.value;
                 if (!name || name === activeProfile?.name) return;
                 void reviewProfile(name);
-                onNavigate("profiles");
+                onNavigate("mods");
               }}
             >
               {activeProfile ? null : <option value="">{`Not saved · ${profiles?.enabledMods.length.toLocaleString() ?? 0} enabled mods`}</option>}
@@ -334,15 +331,15 @@ export function HomePage({
                 : "The current mod list couldn’t be read"}</small>
           <div className="home-fact__links">
             {activeProfile ? (
-              <button className="text-button" type="button" onClick={() => { beginRename(activeProfile.name); onNavigate("profiles"); }} disabled={profileBusy || operationBlocked}>Rename</button>
+              <button className="text-button" type="button" onClick={() => { beginRename(activeProfile.name); onNavigate("mods"); }} disabled={profileBusy || operationBlocked}>Rename</button>
             ) : null}
-            <button className="text-button" type="button" onClick={() => onNavigate("profiles")} disabled={!isReady}>Manage profiles <ArrowIcon /></button>
+            <button className="text-button" type="button" onClick={() => onNavigate("mods")} disabled={!isReady}>Manage mod sets <ArrowIcon /></button>
           </div>
         </div>
         <div className="home-fact">
-          <span>Preflight data</span>
+          <span>Disk used</span>
           <strong>{cacheLoading ? "Reading…" : cache ? formatBytes(cache.total.bytes) : "Unavailable"}</strong>
-          <button className="text-button" type="button" onClick={() => onNavigate("prepare")} disabled={!isReady}>Storage <ArrowIcon /></button>
+          <button className="text-button" type="button" onClick={() => onNavigate("speed")} disabled={!isReady}>Storage <ArrowIcon /></button>
         </div>
         <div className="home-fact home-fact--installation">
           <span>Installation</span>

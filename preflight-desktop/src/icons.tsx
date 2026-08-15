@@ -122,6 +122,16 @@ export function ShieldIcon(props: IconProps) {
   );
 }
 
+export function LifebuoyIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3.6" />
+      <path d="m5.6 5.6 3.9 3.9M18.4 5.6l-3.9 3.9M18.4 18.4l-3.9-3.9M5.6 18.4l3.9-3.9" />
+    </svg>
+  );
+}
+
 export function GaugeIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

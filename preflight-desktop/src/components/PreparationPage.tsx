@@ -1,4 +1,4 @@
-import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
+import { ArrowIcon, GaugeIcon, RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { resourcePresets, storagePlanApplies, type usePreparation } from "../usePreparation";
@@ -78,6 +78,7 @@ interface PreparationPageProps {
   onReviewCleanup: () => void;
   onCleanCache: () => void;
   onDismissCleanup: () => void;
+  onOpenBenchmark: () => void;
 }
 
 export function PreparationPage({
@@ -95,6 +96,7 @@ export function PreparationPage({
   onReviewCleanup,
   onCleanCache,
   onDismissCleanup,
+  onOpenBenchmark,
 }: PreparationPageProps) {
   const {
     cache,
@@ -168,7 +170,7 @@ export function PreparationPage({
       <section className="card storage-card storage-card--compact">
         <div className="card__heading">
           <div>
-            <div className="heading-with-info"><h2>Storage</h2><InfoTip label="About Preflight storage">Prepared data is content-addressed and reused by matching mod profiles. Cleanup is previewed and never includes game files, mods, saves, or settings.</InfoTip></div>
+            <div className="heading-with-info"><h2>Storage</h2><InfoTip label="About Preflight storage">Prepared files are reused by any mod set that matches, so a second set of mods usually costs far less than the first. Cleanup is shown before it runs and never touches game files, mods, saves, or settings.</InfoTip></div>
           </div>
           <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading || operationBlocked}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
         </div>
@@ -180,7 +182,7 @@ export function PreparationPage({
             * the other is the conservative bound it refuses below. Naming the bound as a bound stops
             * it being read as a standing disk requirement.
             */}
-          <div><span>Free space to start</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Safety bound checked before writing, not the amount used.</small></div>
+          <div><span>Free space needed to start</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Preflight won’t start below this. It keeps far less than this once it finishes.</small></div>
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (
@@ -195,15 +197,30 @@ export function PreparationPage({
               const { label, detail } = storageGroupLabel(group.id);
               return <div key={group.id}><span>{label}</span><strong>{formatBytes(group.bytes)}</strong>{detail ? <small>{detail}</small> : null}</div>;
             })}
-            {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Under Preflight’s folder but not in a known category.</small></div> : null}
-            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>Estimated one-off cost for the current mod list, on top of the total above. Preparation refuses to start unless the larger safety bound fits.</small></div>
+            {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Anything else</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>In Preflight’s folder, in no category above.</small></div> : null}
+            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>A one-off cost for the current mod list, on top of the total above. Preflight won’t start unless the larger figure above fits.</small></div>
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space left where Preflight stores its data, right now.</small></div>
           </div>
         </details>
       </section>
 
+      {/*
+        * "Prove it" is a real errand and a rare one, so the benchmark is here rather than in a
+        * primary navigation slot: someone reading this page is already asking whether any of it
+        * does anything.
+        */}
+      <section className="card prove-card">
+        <div className="prove-card__main">
+          <div>
+            <h2>Does this actually help?</h2>
+            <p>Time your own game with and without Preflight, on this machine and this mod list.</p>
+          </div>
+          <button className="button button--quiet" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure it<ArrowIcon /></button>
+        </div>
+      </section>
+
       <details className="card settings-disclosure preflight-advanced">
-        <summary><span><strong>Advanced controls</strong><small>Compatibility, cache storage, and preparation resources</small></span></summary>
+        <summary><span><strong>Advanced controls</strong><small>Turn parts off, trade disk for speed, cap what preparation uses</small></span></summary>
         <div className="settings-disclosure__body preflight-advanced__body">
           <section>
             <h2>Launch policy</h2>

@@ -246,8 +246,8 @@ test("the Preflight page offers the same direct minimal-disk recovery", async ()
   expect(homeAction).toBeEnabled();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(preparation).not.toHaveBeenCalled();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Preflight" }));
-  expect(await screen.findByRole("heading", { name: "Preflight", level: 1 })).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Speed" }));
+  expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
   await screen.findByText(reason);
   const action = await screen.findByRole("button", { name: "Prepare with minimal disk" });
   await userEvent.setup().click(action);
@@ -293,9 +293,16 @@ test("setup keeps a single installation action and hides unavailable ready-state
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
-  expect(screen.getByText("Choose Starsector on Home before running the benchmark.")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Run benchmark" })).toBeDisabled();
+  // Nothing that needs an installation is offered before there is one -- a destination whose
+  // only message is "go back to Home" is a dead end wearing a nav item.
+  expect(screen.getByRole("button", { name: "Speed" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Mods" })).toBeDisabled();
+  // Help is the exception on purpose: someone whose installation cannot be found is exactly the
+  // person who needs it, and it is the one destination that works without one.
+  expect(screen.getByRole("button", { name: "Help" })).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Make a support file" })).toBeEnabled();
 
   snapshot.mockRestore();
 });
@@ -317,6 +324,21 @@ test("a failed launch is an alert and retries the launch operation", async () =>
   game.mockRestore();
 });
 
+test("a failed launch offers help, and help is one click away from making the file", async () => {
+  // The failure card is the route a player takes when the game will not start. It used to land on
+  // the benchmark page with the support panel collapsed, which is where that errand went to die.
+  const user = userEvent.setup();
+  window.history.replaceState(null, "", "/?scenario=run-failure");
+  render(<App />);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Starsector stopped before reaching the main menu.");
+  await user.click(screen.getByRole("button", { name: "Get help" }));
+
+  expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Make a support file" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Benchmark", level: 1 })).not.toBeInTheDocument();
+});
+
 test("blocks installation and preparation mutations while the game is running", async () => {
   const user = userEvent.setup();
   const game = vi.spyOn(bridge, "startGame").mockImplementation(() => new Promise(() => undefined));
@@ -326,7 +348,7 @@ test("blocks installation and preparation mutations while the game is running", 
   await waitFor(() => expect(game).toHaveBeenCalled());
   expect(screen.getByRole("button", { name: "Change Starsector installation" })).toBeDisabled();
 
-  await user.click(screen.getByRole("button", { name: "Preflight" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
   expect(await screen.findByText("Opening Starsector. Other changes wait until it finishes.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "View progress" })).toBeEnabled();
   await user.click(await screen.findByText("Advanced controls"));
@@ -397,7 +419,8 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
   const { container } = render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  await user.click(await screen.findByRole("button", { name: "Measure it" }));
   const viewport = container.querySelector<HTMLElement>(".page-viewport");
   expect(viewport).not.toBeNull();
   if (!viewport) return;
@@ -420,7 +443,8 @@ test("keyboard users can skip navigation and receive the new workspace heading",
   await user.tab();
   expect(screen.getByRole("link", { name: "Skip to workspace" })).toHaveFocus();
 
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  await user.click(await screen.findByRole("button", { name: "Measure it" }));
   const heading = await screen.findByRole("heading", { name: "Benchmark", level: 1 });
   expect(heading).toHaveFocus();
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
@@ -529,7 +553,7 @@ test("navigation resets the previous workflow scroll position", async () => {
   await screen.findByText("Ready");
   document.documentElement.scrollTop = 240;
   document.body.scrollTop = 240;
-  await user.click(screen.getByRole("button", { name: "Profiles" }));
+  await user.click(screen.getByRole("button", { name: "Mods" }));
 
   await waitFor(() => {
     expect(document.documentElement.scrollTop).toBe(0);
@@ -544,7 +568,7 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Storage" }));
 
-  expect(await screen.findByRole("heading", { name: "Preflight", level: 1 })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
   await user.click(screen.getByText("Advanced controls"));
   expect(screen.getByRole("radio", { name: "Recommended optimizations" })).toBeChecked();
   await user.click(screen.getByRole("radio", { name: "Conservative optimizations" }));
@@ -557,11 +581,11 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-audio"]');
   expect(screen.getByText("4.50 GB")).toBeInTheDocument();
-  expect(screen.getByText("Free space to start")).toBeInTheDocument();
+  expect(screen.getByText("Free space needed to start")).toBeInTheDocument();
   expect(await screen.findByText("11.6 GB")).toBeInTheDocument();
   // The bound and the predicted cost differ by roughly three times, so the bound has to say it is
   // a bound rather than an amount the profile will consume.
-  expect(screen.getByText("Safety bound checked before writing, not the amount used.")).toBeInTheDocument();
+  expect(screen.getByText("Preflight won’t start below this. It keeps far less than this once it finishes.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
   const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });
@@ -602,7 +626,7 @@ test("storage totals disclose data outside the active cache categories", async (
   await user.click(screen.getByRole("button", { name: "Storage" }));
   await user.click(await screen.findByText("Storage details"));
 
-  expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
+  expect(await screen.findByText("Anything else")).toBeInTheDocument();
   expect(screen.getByText("512 B")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "About Preflight storage" })).toBeInTheDocument();
   cache.mockRestore();
@@ -651,9 +675,9 @@ test("profiles are preview-first and show the exact switch before applying", asy
 
   await screen.findByText("Ready");
   expect(await screen.findByLabelText("Mod profile")).toHaveValue("Main campaign");
-  await user.click(screen.getByRole("button", { name: "Manage profiles" }));
+  await user.click(screen.getByRole("button", { name: "Manage mod sets" }));
 
-  expect(await screen.findByRole("heading", { name: "Profiles", level: 1 })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Mods", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Main campaign")).toBeInTheDocument();
   expect(screen.getByText("Active")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Current" })).not.toBeInTheDocument();
@@ -704,7 +728,7 @@ test("a profile with missing mods explains the problem without showing a dead sw
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Profiles" }));
+  await user.click(screen.getByRole("button", { name: "Mods" }));
   expect(await screen.findByText("Missing: graphicslib")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Switch…" })).not.toBeInTheDocument();
 });
@@ -716,7 +740,7 @@ test("named profiles can be renamed or deleted only after an exact review", asyn
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Profiles" }));
+  await user.click(screen.getByRole("button", { name: "Mods" }));
   const mainCampaign = (await screen.findByText("Main campaign")).closest("article");
   expect(mainCampaign).not.toBeNull();
   if (!mainCampaign) return;
@@ -769,28 +793,25 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Help" }));
 
-  expect(await screen.findByRole("heading", { name: "Benchmark", level: 1 })).toBeInTheDocument();
-  const support = screen.getByText("Support").closest("details");
-  expect(support).not.toHaveAttribute("open");
-  await user.click(screen.getByText("Support"));
-  await user.click(screen.getByText("What’s in the ZIP?"));
-  expect(screen.getByText("Useful metadata only")).toBeInTheDocument();
-  expect(screen.getByText("Game and personal data")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Create support ZIP" }));
+  expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  await user.click(screen.getByText("What goes in it?"));
+  expect(screen.getByText("Details about the run")).toBeInTheDocument();
+  expect(screen.getByText("Your game and your data")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Make a support file" }));
 
-  expect(await screen.findByText("Support ZIP ready")).toBeInTheDocument();
+  expect(await screen.findByText("Your support file is ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
   await user.click(await screen.findByRole("button", { name: "Review send" }));
 
-  expect(await screen.findByRole("heading", { name: "Send this exact ZIP?" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Send this exact file?" })).toBeInTheDocument();
   expect(screen.getByText("4bd6db450a131978b8f8b79d5f08d6e75670ba7e75288bb50f9a742a6d996d8d")).toBeInTheDocument();
   expect(screen.getByText("Included entries (3)")).toBeInTheDocument();
   expect(screen.getByText("runs/1/run.json")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Send this exact ZIP" }));
+  await user.click(screen.getByRole("button", { name: "Send this exact file" }));
 
-  expect(await screen.findByRole("heading", { name: /Run report ed6ca0c8/ })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: /Case ed6ca0c8/ })).toBeInTheDocument();
   expect(screen.getByText(/was accepted/)).toBeInTheDocument();
   await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).not.toBeNull());
   await user.click(screen.getByRole("button", { name: "Delete uploaded report" }));
@@ -820,10 +841,11 @@ test("restores an unexpired report deletion receipt after restart", async () => 
 
   render(<App />);
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Help" }));
 
-  expect(await screen.findByRole("heading", { name: `Run report ${caseId}` })).toBeInTheDocument();
-  expect(screen.getByText(/keeps this deletion receipt on this computer/)).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: `Case ${caseId}` })).toBeInTheDocument();
+  expect(screen.getByText(/keeps the deletion receipt on this computer/)).toBeInTheDocument();
+  expect(screen.getByText(/Quote this case number in an issue instead of pasting logs/)).toBeInTheDocument();
 });
 
 test("discards an expired local report deletion receipt", async () => {
@@ -849,7 +871,7 @@ test("discards an expired local report deletion receipt", async () => {
 
   await screen.findByText("Ready");
   expect(window.localStorage.getItem("preflight.reportReceipt")).toBeNull();
-  expect(screen.queryByRole("heading", { name: `Run report ${caseId}` })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: `Case ${caseId}` })).not.toBeInTheDocument();
 });
 
 test("an unconfigured build keeps local export available and refuses report sending", async () => {
@@ -862,13 +884,12 @@ test("an unconfigured build keeps local export available and refuses report send
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
-  await user.click(screen.getByText("Support"));
-  await user.click(await screen.findByRole("button", { name: "Create support ZIP" }));
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await user.click(await screen.findByRole("button", { name: "Make a support file" }));
 
   expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Review send" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Create another ZIP" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Make another one" })).toBeEnabled();
   intake.mockRestore();
 });
 
@@ -878,14 +899,13 @@ test("a failed report send keeps one recovery alert and the local ZIP", async ()
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
-  await user.click(screen.getByText("Support"));
-  await user.click(await screen.findByRole("button", { name: "Create support ZIP" }));
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  await user.click(await screen.findByRole("button", { name: "Make a support file" }));
   await user.click(await screen.findByRole("button", { name: "Review send" }));
-  await user.click(screen.getByRole("button", { name: "Send this exact ZIP" }));
+  await user.click(screen.getByRole("button", { name: "Send this exact file" }));
 
   const alert = await screen.findByRole("alert");
-  expect(alert).toHaveTextContent("Report wasn’t sent");
+  expect(alert).toHaveTextContent("It wasn’t sent");
   expect(alert).toHaveTextContent("preview report service");
   expect(alert).toHaveTextContent("still on this computer");
   expect(screen.getAllByText(/preview report service/)).toHaveLength(1);
@@ -899,7 +919,8 @@ test("the benchmark checks its packaged startup contract and launches without a 
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  await user.click(await screen.findByRole("button", { name: "Measure it" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(probe).toHaveBeenCalledOnce();
@@ -919,7 +940,8 @@ test("a running benchmark exposes cooperative cancellation", async () => {
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  await user.click(await screen.findByRole("button", { name: "Measure it" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Stop benchmark" }));
 
@@ -944,7 +966,8 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  await user.click(await screen.findByRole("button", { name: "Measure it" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(await screen.findByText("A packaged startup benchmark scenario is missing.")).toBeInTheDocument();
@@ -967,21 +990,16 @@ test("verified updates are explicit and explain when a build has no update chann
   expect(screen.queryByRole("button", { name: "Install and restart" })).not.toBeInTheDocument();
 });
 
-test("Settings opens the support tools directly", async () => {
+test("both recovery routes reach help without expanding anything", async () => {
   const user = userEvent.setup();
   render(<App />);
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Settings" }));
-  const supportButton = await screen.findByRole("button", { name: "Get support" });
-  expect(supportButton).toBeVisible();
+  await user.click(await screen.findByRole("button", { name: "Open Help" }));
 
-  await user.click(supportButton);
-
-  expect(await screen.findByRole("heading", { name: "Support", level: 1 })).toBeInTheDocument();
-  const support = screen.getByText("Support", { selector: "strong" }).closest("details");
-  expect(support).toHaveAttribute("open");
-  expect(screen.getByRole("button", { name: "Create support ZIP" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Make a support file" })).toBeVisible();
 });
 
 test("a verified available update still waits for install confirmation", async () => {

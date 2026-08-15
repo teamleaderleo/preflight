@@ -90,9 +90,10 @@ declines and the original code runs. A future Starsector release can still need 
 
 There's also a global switch that turns every runtime change off, and the game still launches.
 
-If you want to report something, the app can build a support ZIP. It shows you the exact contents,
-the exclusions, the size, and the checksum before anything is sent, and sending is a separate,
-explicit choice. It never includes saves, game or mod assets, screenshots, audio, or arbitrary logs.
+If something goes wrong, open **Help**. It can build a support file that shows you the exact
+contents, the exclusions, the size, and the checksum before anything is sent, and sending is a
+separate, explicit choice. It never includes saves, game or mod assets, screenshots, audio, or
+arbitrary logs. A failed launch offers the same page directly from the card that reports it.
 
 ## Removing it
 
