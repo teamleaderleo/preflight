@@ -52,8 +52,11 @@ struct RunStateEvent {
 /// something it shouldn't, and Preflight has no need for one: every outbound link in the interface
 /// is a fixed destination decided here, at build time. The frontend names a key, not a URL, so
 /// there is nothing to inject.
-const PROJECT_LINKS: [(&str, &str); 6] = [
+const PROJECT_LINKS: [(&str, &str); 8] = [
     ("project", "https://github.com/teamleaderleo/preflight"),
+    ("tip-coffee", "https://buymeacoffee.com/teamleaderleo"),
+    ("tip-kofi", "https://ko-fi.com/teamleaderleo"),
+    ("tip-patreon", "https://www.patreon.com/cw/teamleaderleo"),
     (
         "getting-started",
         "https://github.com/teamleaderleo/preflight/blob/main/docs/getting-started.md",
@@ -70,7 +73,6 @@ const PROJECT_LINKS: [(&str, &str); 6] = [
         "report-issue",
         "https://github.com/teamleaderleo/preflight/issues/new",
     ),
-    ("support", "https://www.patreon.com/cw/teamleaderleo"),
 ];
 
 #[tauri::command]
@@ -705,8 +707,16 @@ mod tests {
     #[test]
     fn outbound_support_is_a_fixed_destination() {
         assert_eq!(
+            Ok("https://buymeacoffee.com/teamleaderleo"),
+            project_link_url("tip-coffee")
+        );
+        assert_eq!(
+            Ok("https://ko-fi.com/teamleaderleo"),
+            project_link_url("tip-kofi")
+        );
+        assert_eq!(
             Ok("https://www.patreon.com/cw/teamleaderleo"),
-            project_link_url("support")
+            project_link_url("tip-patreon")
         );
         assert_eq!(
             Err("Unknown Preflight link: https://example.com".to_string()),
