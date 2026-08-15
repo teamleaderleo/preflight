@@ -662,9 +662,9 @@ test("a benchmark cannot be queued behind an active cleanup", async () => {
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Storage" }));
+  await user.click(screen.getByRole("button", { name: "Free space" }));
   await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
-  await user.click(await screen.findByRole("button", { name: "Remove 8,914 files" }));
+  await user.click(await screen.findByRole("button", { name: "Free 4.72 GB" }));
   await user.click(screen.getByRole("button", { name: "Speed" }));
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
 
