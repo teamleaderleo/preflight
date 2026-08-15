@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,8 @@ class GeneratedBytecodePackPropertyTest {
             GeneratedBytecodePack left = buildPack(
                     context, alpha, beta, includeBetaRequest, alphaSeesBeta, betaSeesAlpha, false);
             GeneratedBytecodePack right = buildPack(
-                    context.toUpperCase(), alpha, beta, includeBetaRequest, alphaSeesBeta, betaSeesAlpha, true);
+                    context.toUpperCase(Locale.ROOT),
+                    alpha, beta, includeBetaRequest, alphaSeesBeta, betaSeesAlpha, true);
 
             byte[] leftBytes = GeneratedBytecodePack.toBytes(left);
             byte[] rightBytes = GeneratedBytecodePack.toBytes(right);
