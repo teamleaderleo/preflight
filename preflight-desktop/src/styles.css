@@ -2803,6 +2803,32 @@ footer {
   font-size: 12px;
 }
 
+.footer__links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer__links button {
+  appearance: none;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.footer__links button:hover,
+.footer__links button:focus-visible {
+  color: var(--ink-soft);
+  text-decoration-color: currentColor;
+}
+
 .spin {
   animation: spin 900ms linear infinite;
 }
@@ -3399,6 +3425,12 @@ footer {
   }
 
   footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .footer__links {
     align-items: flex-start;
     flex-direction: column;
     gap: 3px;

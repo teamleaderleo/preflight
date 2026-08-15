@@ -52,7 +52,7 @@ struct RunStateEvent {
 /// something it shouldn't, and Preflight has no need for one: every outbound link in the interface
 /// is a fixed destination decided here, at build time. The frontend names a key, not a URL, so
 /// there is nothing to inject.
-const PROJECT_LINKS: [(&str, &str); 5] = [
+const PROJECT_LINKS: [(&str, &str); 6] = [
     ("project", "https://github.com/teamleaderleo/preflight"),
     (
         "getting-started",
@@ -70,15 +70,12 @@ const PROJECT_LINKS: [(&str, &str); 5] = [
         "report-issue",
         "https://github.com/teamleaderleo/preflight/issues/new",
     ),
+    ("support", "https://www.patreon.com/cw/teamleaderleo"),
 ];
 
 #[tauri::command]
 fn open_project_link(link: String) -> Result<(), String> {
-    let url = PROJECT_LINKS
-        .iter()
-        .find(|(key, _)| *key == link)
-        .map(|(_, url)| *url)
-        .ok_or_else(|| format!("Unknown Preflight link: {link}"))?;
+    let url = project_link_url(&link)?;
     let mut command = if cfg!(target_os = "macos") {
         let mut command = std::process::Command::new("open");
         command.arg(url);
@@ -100,6 +97,14 @@ fn open_project_link(link: String) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|error| format!("Could not open {url}: {error}"))
+}
+
+fn project_link_url(link: &str) -> Result<&'static str, String> {
+    PROJECT_LINKS
+        .iter()
+        .find(|(key, _)| *key == link)
+        .map(|(_, url)| *url)
+        .ok_or_else(|| format!("Unknown Preflight link: {link}"))
 }
 
 #[tauri::command]
@@ -402,8 +407,8 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        begin_exit_cleanup, read_tail, snapshot_operation_state, take_deferred_exit,
-        validate_optimization_domains, validate_optimization_preset,
+        begin_exit_cleanup, project_link_url, read_tail, snapshot_operation_state,
+        take_deferred_exit, validate_optimization_domains, validate_optimization_preset,
     };
     use crate::automation::{
         DESKTOP_SMOKE_CANCELLATION_FILE, desktop_benchmark_comparison,
@@ -673,17 +678,40 @@ mod tests {
 
     #[test]
     fn paired_benchmark_exposes_only_a_complete_available_comparison() {
-        let passed = br#"{"protocol":1,"launch":{"format":"starsector-preflight-desktop-benchmark-v1","status":"passed","complete":true,"comparison":{"available":true,"metrics":{"averageFps":{"measurementOnly":30.0,"optimized":45.0}}}}}"#;
+        let passed = format!(
+            r#"{{"protocol":1,"launch":{{"format":"starsector-preflight-desktop-benchmark-v1","status":"passed","complete":true,"identity":{{"measuredRun":{{"profileFingerprint":"{}","sha256":"{}"}}}},"comparison":{{"available":true,"metrics":{{"averageFps":{{"measurementOnly":30.0,"optimized":45.0}}}}}}}}}}"#,
+            "ab".repeat(32),
+            "cd".repeat(32)
+        );
         assert_eq!(
             Some(serde_json::json!({
                 "available": true,
-                "metrics": {"averageFps": {"measurementOnly": 30.0, "optimized": 45.0}}
+                "metrics": {"averageFps": {"measurementOnly": 30.0, "optimized": 45.0}},
+                "identity": {
+                    "profileFingerprint": "ab".repeat(32),
+                    "benchmarkIdentitySha256": "cd".repeat(32),
+                }
             })),
-            desktop_benchmark_comparison(passed)
+            desktop_benchmark_comparison(passed.as_bytes())
         );
 
         let partial = br#"{"protocol":1,"launch":{"format":"starsector-preflight-desktop-benchmark-v1","status":"failed","complete":false,"comparison":{"available":true}}}"#;
         assert_eq!(None, desktop_benchmark_comparison(partial));
+
+        let unbound = br#"{"protocol":1,"launch":{"format":"starsector-preflight-desktop-benchmark-v1","status":"passed","complete":true,"comparison":{"available":true,"metrics":{}}}}"#;
+        assert_eq!(None, desktop_benchmark_comparison(unbound));
+    }
+
+    #[test]
+    fn outbound_support_is_a_fixed_destination() {
+        assert_eq!(
+            Ok("https://www.patreon.com/cw/teamleaderleo"),
+            project_link_url("support")
+        );
+        assert_eq!(
+            Err("Unknown Preflight link: https://example.com".to_string()),
+            project_link_url("https://example.com")
+        );
     }
 
     #[test]

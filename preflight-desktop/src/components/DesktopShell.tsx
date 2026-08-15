@@ -1,4 +1,5 @@
 import type { AppStatus } from "../types";
+import { openProjectLink } from "../bridge";
 import {
   HomeIcon,
   LayersIcon,
@@ -115,7 +116,10 @@ export function DesktopShell({
         <div key={page} ref={pageViewport} className={`page-viewport page-viewport--${page}`}>{children}</div>
         <footer>
           <span>Preflight {engineVersion}</span>
-          <span>Unofficial · Not affiliated with Fractal Softworks</span>
+          <span className="footer__links">
+            <button type="button" onClick={() => void openProjectLink("support")}>Support development</button>
+            <span>Unofficial · Not affiliated with Fractal Softworks</span>
+          </span>
         </footer>
       </main>
     </div>

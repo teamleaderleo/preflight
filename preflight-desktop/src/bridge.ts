@@ -689,7 +689,7 @@ export async function applyRemoval(scope: RemovalScope): Promise<RemovalPlan> {
   return invoke<RemovalPlan>("apply_removal", { scope });
 }
 
-export type ProjectLink = "project" | "getting-started" | "privacy" | "capabilities" | "report-issue";
+export type ProjectLink = "project" | "getting-started" | "privacy" | "capabilities" | "report-issue" | "support";
 
 /**
  * Opens one of Preflight's own pages in the system browser.
@@ -712,6 +712,7 @@ const PREVIEW_PROJECT_LINKS: Record<ProjectLink, string> = {
   privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
   capabilities: "https://github.com/teamleaderleo/preflight/blob/main/docs/capability-receipt.md",
   "report-issue": "https://github.com/teamleaderleo/preflight/issues/new",
+  support: "https://www.patreon.com/cw/teamleaderleo",
 };
 
 export async function checkForUpdate(): Promise<UpdateStatus> {

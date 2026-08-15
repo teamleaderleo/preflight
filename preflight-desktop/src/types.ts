@@ -72,6 +72,10 @@ export interface DesktopBenchmarkMetric {
 export interface DesktopBenchmarkComparison {
   available: boolean;
   metrics: Record<string, DesktopBenchmarkMetric>;
+  identity?: {
+    profileFingerprint: string;
+    benchmarkIdentitySha256: string;
+  };
   context?: {
     measurementOnly?: DesktopBenchmarkRuntimeContext | null;
     optimized?: DesktopBenchmarkRuntimeContext | null;

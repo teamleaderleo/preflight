@@ -17,6 +17,8 @@ import type { DesktopBenchmarkComparison } from "./types";
  */
 export interface SpeedRecord {
   version: 1;
+  profileFingerprint: string;
+  benchmarkIdentitySha256: string;
   measurementOnlyMs: number;
   optimizedMs: number;
   recordedAt: string;
@@ -33,12 +35,16 @@ export interface SpeedStanding {
   /** Normal launch divided by optimized launch: the "3.4x faster" figure. */
   multiplier: number | null;
   rememberBenchmark: (comparison: DesktopBenchmarkComparison | null) => void;
-  countFastLaunch: () => void;
+  countFastLaunch: (profileFingerprint: string | null) => void;
   forget: () => void;
 }
 
 function isFiniteAbove(value: unknown, floor: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > floor;
+}
+
+function isSha256(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
 }
 
 export function readSpeedRecord(storage: Storage = window.localStorage): SpeedRecord | null {
@@ -49,6 +55,8 @@ export function readSpeedRecord(storage: Storage = window.localStorage): SpeedRe
     // A zero or negative duration cannot produce a multiplier, and a stored record that would
     // divide by zero is worse than no record at all.
     const usable = parsed.version === 1
+      && isSha256(parsed.profileFingerprint)
+      && isSha256(parsed.benchmarkIdentitySha256)
       && isFiniteAbove(parsed.measurementOnlyMs, 0)
       && isFiniteAbove(parsed.optimizedMs, 0)
       && typeof parsed.recordedAt === "string"
@@ -89,9 +97,17 @@ export function useSpeedRecord(): SpeedStanding {
 
   const rememberBenchmark = useCallback((comparison: DesktopBenchmarkComparison | null) => {
     const metric = comparison?.available ? comparison.metrics.processToMainMenuMs : undefined;
-    if (!metric || !isFiniteAbove(metric.measurementOnly, 0) || !isFiniteAbove(metric.optimized, 0)) return;
+    const identity = comparison?.identity;
+    if (!metric
+      || !identity
+      || !isSha256(identity.profileFingerprint)
+      || !isSha256(identity.benchmarkIdentitySha256)
+      || !isFiniteAbove(metric.measurementOnly, 0)
+      || !isFiniteAbove(metric.optimized, 0)) return;
     setRecord((previous) => ({
       version: 1,
+      profileFingerprint: identity.profileFingerprint,
+      benchmarkIdentitySha256: identity.benchmarkIdentitySha256,
       measurementOnlyMs: metric.measurementOnly,
       optimizedMs: metric.optimized,
       recordedAt: new Date().toISOString(),
@@ -100,8 +116,10 @@ export function useSpeedRecord(): SpeedStanding {
     }));
   }, []);
 
-  const countFastLaunch = useCallback(() => {
-    setRecord((previous) => previous ? { ...previous, fastLaunches: previous.fastLaunches + 1 } : previous);
+  const countFastLaunch = useCallback((profileFingerprint: string | null) => {
+    setRecord((previous) => previous?.profileFingerprint === profileFingerprint
+      ? { ...previous, fastLaunches: previous.fastLaunches + 1 }
+      : previous);
   }, []);
 
   const forget = useCallback(() => setRecord(null), []);

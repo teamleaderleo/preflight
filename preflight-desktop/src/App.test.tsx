@@ -420,7 +420,7 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   const viewport = container.querySelector<HTMLElement>(".page-viewport");
   expect(viewport).not.toBeNull();
   if (!viewport) return;
@@ -444,7 +444,7 @@ test("keyboard users can skip navigation and receive the new workspace heading",
   expect(screen.getByRole("link", { name: "Skip to workspace" })).toHaveFocus();
 
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   const heading = await screen.findByRole("heading", { name: "Benchmark", level: 1 });
   expect(heading).toHaveFocus();
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
@@ -920,7 +920,7 @@ test("the benchmark checks its packaged startup contract and launches without a 
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(probe).toHaveBeenCalledOnce();
@@ -941,7 +941,7 @@ test("a running benchmark exposes cooperative cancellation", async () => {
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Stop benchmark" }));
 
@@ -967,7 +967,7 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
 
   expect(await screen.findByText("A packaged startup benchmark scenario is missing.")).toBeInTheDocument();
@@ -982,32 +982,29 @@ test("an unavailable startup benchmark reports the packaged-contract failure wit
  * The measurement costs several minutes of the machine to itself, and it used to be discarded the
  * moment the app closed. Keeping it is the whole point of having taken it.
  */
-test("a measured benchmark becomes the scoreboard and outlives the run that produced it", async () => {
+test("a measured benchmark becomes the scoreboard and survives reopening Preflight", async () => {
   const user = userEvent.setup();
-  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
   const first = render(<App />);
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
-  expect(await screen.findByText("How much faster?")).toBeInTheDocument();
+  expect(await screen.findByText("Your startup")).toBeInTheDocument();
 
-  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
+  await screen.findByText("Startup benchmark finished in browser preview.");
   await user.click(screen.getByRole("button", { name: "Speed" }));
 
   expect(await screen.findByText("5.5")).toBeInTheDocument();
-  expect(screen.getByText(/1m 12s a launch/)).toBeInTheDocument();
+  expect(screen.getByText(/1m 12s saved per launch/)).toBeInTheDocument();
   first.unmount();
 
   render(<App />);
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Launch Starsector" }));
-  await waitFor(() => expect(game).toHaveBeenCalled());
   await user.click(screen.getByRole("button", { name: "Speed" }));
 
   expect(await screen.findByText("5.5")).toBeInTheDocument();
-  expect(screen.getByText(/across 1 fast launch\b/)).toBeInTheDocument();
-  game.mockRestore();
+  expect(screen.getByText(/1m 12s saved per launch/)).toBeInTheDocument();
 });
 
 test("verified updates are explicit and explain when a build has no update channel", async () => {

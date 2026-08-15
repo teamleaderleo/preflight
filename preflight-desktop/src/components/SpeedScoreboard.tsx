@@ -43,13 +43,13 @@ export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedSco
     return (
       <section className="card scoreboard scoreboard--unmeasured" aria-label="Startup speed">
         <div className="scoreboard__headline">
-          <p className="eyebrow">How much faster?</p>
-          <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">?</strong>
+          <p className="eyebrow">Your startup</p>
+          <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">?×</strong>
         </div>
         <div className="scoreboard__body">
-          <p>Preflight has never been timed on this computer, so there is no honest number to put here.</p>
-          <p className="scoreboard__prompt">One measured run opens Starsector twice and times both. It takes a few minutes and needs the machine to itself — after that this is a number, and it stays one.</p>
-          <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Time it<ArrowIcon /></button>
+          <strong>See what Preflight saves.</strong>
+          <p className="scoreboard__prompt">Opens Starsector twice and compares the result.</p>
+          <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
         </div>
       </section>
     );
@@ -59,7 +59,7 @@ export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedSco
   return (
     <section className="card scoreboard" aria-label="Startup speed">
       <div className="scoreboard__headline">
-        <p className="eyebrow">Startup on this computer</p>
+        <p className="eyebrow">Measured on this computer</p>
         <strong className="scoreboard__figure">
           {multiplier.toFixed(1)}<span>× faster</span>
         </strong>
@@ -74,13 +74,13 @@ export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedSco
           {record.fastLaunches > 0 || record.bankedSavedMs > 0 ? (
             <>
               <strong>{formatSavedTotal(totalSavedMs)}</strong>
-              <span>not spent staring at a loading screen, across {record.fastLaunches.toLocaleString()} fast launch{record.fastLaunches === 1 ? "" : "es"}.</span>
-              <small>An estimate: launches counted here, times the saving measured above.</small>
+              <span>saved across {record.fastLaunches.toLocaleString()} matching launch{record.fastLaunches === 1 ? "" : "es"}.</span>
+              <small>Estimated from the measured saving above.</small>
             </>
           ) : (
             <>
-              <strong>{formatDuration(record.measurementOnlyMs - record.optimizedMs)} a launch</strong>
-              <span>from here on. This total grows every time you launch from Preflight.</span>
+              <strong>{formatDuration(record.measurementOnlyMs - record.optimizedMs)} saved per launch</strong>
+              <span>Launches on this measured mod setup grow the total.</span>
             </>
           )}
         </div>
