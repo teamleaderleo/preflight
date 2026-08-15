@@ -8,6 +8,9 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const workflow = normalizedWorkflowText(
   readFileSync(resolve(repository, ".github/workflows/distribution.yml"), "utf8"),
 );
+const publication = normalizedWorkflowText(
+  readFileSync(resolve(repository, ".github/workflows/publish-release.yml"), "utf8"),
+);
 const desktopCi = normalizedWorkflowText(
   readFileSync(resolve(repository, ".github/workflows/desktop-ci.yml"), "utf8"),
 );
@@ -36,7 +39,7 @@ test("workflow structure checks use stable line endings on Windows", () => {
   assert.equal(normalizedWorkflowText("jobs:\r\n  candidate:\r\n"), "jobs:\n  candidate:\n");
 });
 
-test("private signed candidates have no publication authority or release command", () => {
+test("private candidates and pushed tags cannot authorize public publication", () => {
   const header = workflow.slice(0, workflow.indexOf("\njobs:\n"));
   const candidate = job("candidate", "publish");
   const publish = job("publish");
@@ -56,8 +59,27 @@ test("private signed candidates have no publication authority or release command
   assert.match(publish, /if: startsWith\(github\.ref, 'refs\/tags\/v'\)/);
   assert.match(publish, /permissions:\n      contents: write/);
   assert.match(publish, /gh release create/);
+  assert.match(publish, /--draft/);
   assert.match(publish, /--notes-file "docs\/releases\/\$\{version\}\.md"/);
-  assert.doesNotMatch(publish, /--generate-notes/);
+  assert.doesNotMatch(publish, /--generate-notes|gh release edit|--draft=false/);
+});
+
+test("manual publication reuses and revalidates the exact tagged draft", () => {
+  assert.match(publication, /workflow_dispatch:/);
+  assert.match(publication, /distribution_run_id:/);
+  assert.match(publication, /permissions:\n  contents: write\n  actions: read/);
+  assert.match(publication, /actions\/runs\/\$DISTRIBUTION_RUN_ID/);
+  assert.match(publication, /run\.get\("name"\) != "Distribution"/);
+  assert.match(publication, /run\.get\("head_sha"\) != tag_sha/);
+  assert.match(publication, /release\.get\("draft"\) is not True/);
+  assert.match(publication, /preflight-complete-release-\$DISTRIBUTION_RUN_ID/);
+  assert.match(publication, /gh release download "\$RELEASE_TAG"/);
+  assert.match(publication, /Draft assets differ from the verified Distribution artifact/);
+  assert.match(publication, /verify_complete_release\.py --release draft-release/);
+  assert.match(publication, /Draft release changed during publication verification/);
+  assert.match(publication, /Release tag moved during publication verification/);
+  assert.match(publication, /gh release edit "\$RELEASE_TAG".*--draft=false/);
+  assert.doesNotMatch(publication, /mvn .*verify|tauri build|cargo build|npm run build/);
 });
 
 test("signed candidates require updater credentials, release validation and the reviewed intake origin", () => {
