@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  activateProfile,
   deleteProfile,
   getProfiles,
   renameProfile,
   saveProfile,
 } from "./bridge";
+import {
+  activateReviewedProfile,
+  type ReviewedProfileActivationPlan,
+} from "./profileActivationBridge";
 import type {
   Announce,
-  ProfileActivationPlan,
   ProfileList,
   ProfileMutationPlan,
 } from "./types";
@@ -24,7 +26,7 @@ export function useProfiles(
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
-  const [activationPlan, setActivationPlan] = useState<ProfileActivationPlan | null>(null);
+  const [activationPlan, setActivationPlan] = useState<ReviewedProfileActivationPlan | null>(null);
   const [activationPlanGame, setActivationPlanGame] = useState<string | null>(null);
   const [mutationPlan, setMutationPlan] = useState<ProfileMutationPlan | null>(null);
   const [mutationPlanGame, setMutationPlanGame] = useState<string | null>(null);
@@ -115,7 +117,7 @@ export function useProfiles(
     busyRef.current = true;
     setProfileBusy(true);
     try {
-      const plan = await activateProfile(expectedGame, name, false);
+      const plan = await activateReviewedProfile(expectedGame, name, false);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       setMutationPlan(null);
       setMutationPlanGame(null);
@@ -208,11 +210,22 @@ export function useProfiles(
     busyRef.current = true;
     setProfileBusy(true);
     try {
-      const result = await activateProfile(expectedGame, reviewedPlan.name, true);
+      const result = await activateReviewedProfile(expectedGame, reviewedPlan.name, true);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       await Promise.all([refreshInstallation(expectedGame), refreshProfiles(), refreshCache()]);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
-      if (!result.canActivate) {
+      if (result.reviewChanged) {
+        setActivationPlan(result);
+        setActivationPlanGame(expectedGame);
+        announce(
+          result.sourceChanged
+            ? "The current mod selection changed since you reviewed this switch. Review the updated changes, then apply again."
+            : result.profileChanged
+              ? "The saved profile changed since you reviewed this switch. Review the updated changes, then apply again."
+              : "This profile switch needs a fresh review. Review the updated changes, then apply again.",
+          "warning",
+        );
+      } else if (!result.canActivate) {
         setActivationPlan(result);
         setActivationPlanGame(expectedGame);
         announce(result.missingMods.length

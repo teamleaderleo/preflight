@@ -52,7 +52,12 @@ final class ProfileCommandTest {
         assertEquals(0, ProfileCommand.activate(
                 fixture.home(), fixture.game(), "alpha only", false, true, stream(preview)));
         assertEquals(List.of("beta"), enabled(fixture.enabled()));
-        assertTrue(preview.toString(StandardCharsets.UTF_8).contains("\"applied\":false"));
+        String previewJson = preview.toString(StandardCharsets.UTF_8);
+        assertTrue(previewJson.contains("\"applied\":false"));
+        assertTrue(previewJson.contains("\"sourceChanged\":false"));
+        assertTrue(previewJson.contains("\"reviewChanged\":false"));
+        String sourceStateSha256 = JsonText.string(previewJson, "sourceStateSha256");
+        assertTrue(sourceStateSha256.matches("[0-9a-f]{64}"));
 
         ByteArrayOutputStream applied = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.activate(
@@ -63,6 +68,64 @@ final class ProfileCommandTest {
             Path backup = backups.findFirst().orElseThrow();
             assertEquals(List.of("beta"), enabled(backup));
         }
+    }
+
+    @Test
+    void activationRefusesWhenEnabledModsChangedAfterPreview() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "alpha only", false, stream(new ByteArrayOutputStream())));
+        Files.writeString(fixture.enabled(), "{\"enabledMods\":[\"beta\"]}");
+
+        ByteArrayOutputStream preview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.activate(
+                fixture.home(), fixture.game(), "alpha only", false, true, stream(preview)));
+        String reviewedState = JsonText.string(
+                preview.toString(StandardCharsets.UTF_8), "sourceStateSha256");
+
+        byte[] externallyEdited = "{\"enabledMods\":[]}".getBytes(StandardCharsets.UTF_8);
+        Files.write(fixture.enabled(), externallyEdited);
+        ByteArrayOutputStream refused = new ByteArrayOutputStream();
+        assertEquals(2, ProfileCommand.activate(
+                fixture.home(), fixture.game(), "alpha only", true, true, stream(refused)));
+
+        assertEquals(externallyEdited, Files.readAllBytes(fixture.enabled()));
+        String refusalJson = refused.toString(StandardCharsets.UTF_8);
+        assertTrue(refusalJson.contains("\"sourceChanged\":true"));
+        assertTrue(refusalJson.contains("\"reviewChanged\":true"));
+        assertTrue(refusalJson.contains("\"applied\":false"));
+        String refreshedState = JsonText.string(refusalJson, "sourceStateSha256");
+        assertTrue(refreshedState.matches("[0-9a-f]{64}"));
+        assertFalse(refreshedState.equals(reviewedState));
+        assertFalse(Files.exists(fixture.home().profileBackups()));
+
+        // The refusal is the fresh plan now in front of the caller. Confirming that exact updated
+        // plan can proceed, proving the conflict is recoverable instead of leaving a poisoned token.
+        ByteArrayOutputStream retried = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.activate(
+                fixture.home(), fixture.game(), "alpha only", true, true, stream(retried)));
+        assertEquals(List.of("alpha"), enabled(fixture.enabled()));
+        assertTrue(retried.toString(StandardCharsets.UTF_8).contains("\"applied\":true"));
+    }
+
+    @Test
+    void activationWithoutAReviewRefusesWithoutWriting() throws Exception {
+        Fixture fixture = fixture(List.of("alpha"));
+        assertEquals(0, ProfileCommand.save(
+                fixture.home(), fixture.game(), "alpha only", false, stream(new ByteArrayOutputStream())));
+        byte[] before = "{\"enabledMods\":[\"beta\"]}".getBytes(StandardCharsets.UTF_8);
+        Files.write(fixture.enabled(), before);
+
+        ByteArrayOutputStream refused = new ByteArrayOutputStream();
+        assertEquals(2, ProfileCommand.activate(
+                fixture.home(), fixture.game(), "alpha only", true, true, stream(refused)));
+
+        assertEquals(before, Files.readAllBytes(fixture.enabled()));
+        String json = refused.toString(StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"reviewChanged\":true"));
+        assertTrue(json.contains("\"sourceChanged\":false"));
+        assertTrue(json.contains("\"applied\":false"));
+        assertFalse(Files.exists(fixture.home().profileBackups()));
     }
 
     @Test
@@ -88,6 +151,7 @@ final class ProfileCommandTest {
         Fixture fixture = fixture(List.of("alpha"));
         assertEquals(0, ProfileCommand.save(
                 fixture.home(), fixture.game(), "valid", false, stream(new ByteArrayOutputStream())));
+        Files.createDirectories(fixture.home().profiles());
         Files.writeString(fixture.home().profiles().resolve("broken.json"), "not json");
 
         ProfileCommand.RetainedFingerprints retained =
