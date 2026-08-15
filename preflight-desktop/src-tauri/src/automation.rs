@@ -331,7 +331,28 @@ pub(crate) fn desktop_benchmark_comparison(stdout: &[u8]) -> Option<Value> {
     if comparison.get("available").and_then(Value::as_bool) != Some(true) {
         return None;
     }
-    Some(comparison.clone())
+    let measured_run = launch.get("identity")?.get("measuredRun")?;
+    let profile_fingerprint = measured_run.get("profileFingerprint")?.as_str()?;
+    let benchmark_identity_sha256 = measured_run.get("sha256")?.as_str()?;
+    if !is_lower_sha256(profile_fingerprint) || !is_lower_sha256(benchmark_identity_sha256) {
+        return None;
+    }
+    let mut comparison = comparison.clone();
+    comparison.as_object_mut()?.insert(
+        "identity".to_string(),
+        serde_json::json!({
+            "profileFingerprint": profile_fingerprint,
+            "benchmarkIdentitySha256": benchmark_identity_sha256,
+        }),
+    );
+    Some(comparison)
+}
+
+fn is_lower_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 pub(crate) fn desktop_smoke_cancellation_outcome(

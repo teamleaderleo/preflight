@@ -136,6 +136,10 @@ export function useDesktopAutomation({
         setDesktopSmokeRunDirectory("~/.starsector-preflight/runs/desktop-smoke-preview");
         setDesktopBenchmarkComparison({
           available: true,
+          identity: {
+            profileFingerprint: "12".repeat(32),
+            benchmarkIdentitySha256: "ab".repeat(32),
+          },
           metrics: {
             processToMainMenuMs: { measurementOnly: 88_130, optimized: 15_880, delta: -72_250, improvementPercent: 81.98 },
           },

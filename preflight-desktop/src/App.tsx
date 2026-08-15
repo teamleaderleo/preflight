@@ -25,6 +25,7 @@ import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
 import { useRemoval } from "./useRemoval";
 import { useSignedUpdates } from "./useSignedUpdates";
+import { useSpeedRecord } from "./useSpeedRecord";
 import { useTheme } from "./useTheme";
 import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
@@ -95,6 +96,10 @@ export default function App() {
   const setInstallationStatus = useCallback((next: AppStatus) => {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
   }, []);
+  const speedStanding = useSpeedRecord();
+  const { countFastLaunch, rememberBenchmark } = speedStanding;
+  const currentProfileFingerprint = useRef<string | null>(null);
+  const countWhenFinished = useRef<{ pid: number; profileFingerprint: string } | null>(null);
   /**
    * `background` is for a re-read nobody asked for. A foreground refresh is allowed to say it is
    * working and to report that it failed; a background one must not, because the page is already
@@ -134,10 +139,19 @@ export default function App() {
     setRetryIntent(null);
     announceGame("Opening Starsector…");
     try {
-      await startGame(game, optimizationPreset, disabledOptimizationDomains);
+      const started = await startGame(game, optimizationPreset, disabledOptimizationDomains);
       setStatus("running");
+      const fingerprint = currentProfileFingerprint.current;
+      // The benchmark's optimized half uses the complete recommended path. Other presets still
+      // launch safely, but they do not inherit a number they did not measure.
+      countWhenFinished.current = optimizationPreset === "recommended"
+        && disabledOptimizationDomains.length === 0
+        && fingerprint
+        ? { pid: started.pid, profileFingerprint: fingerprint }
+        : null;
       announceGame("Starsector is running. Preflight will return here when it exits.", "success");
     } catch (error) {
+      countWhenFinished.current = null;
       setStatus("error");
       setRetryIntent({ kind: "launch" });
       announceGame(String(error), "error");
@@ -159,6 +173,7 @@ export default function App() {
     prepare,
     refreshCache,
   } = preparation;
+  currentProfileFingerprint.current = preparation.cache?.currentProfileFingerprint ?? null;
   const profilesState = useProfiles(
     snapshot?.selected?.installRoot,
     page === "home" || page === "mods",
@@ -213,6 +228,12 @@ export default function App() {
   );
   const updates = useSignedUpdates(status === "ready", preparing || status === "launching" || status === "running", announceUpdates);
   const { updateStatus } = updates;
+  // A measurement that costs several minutes of the machine to itself is written down the moment
+  // it lands, rather than living only in the event that delivered it.
+  const { desktopBenchmarkComparison } = automation;
+  useEffect(() => {
+    rememberBenchmark(desktopBenchmarkComparison);
+  }, [desktopBenchmarkComparison, rememberBenchmark]);
 
   useEffect(() => {
     void refresh();
@@ -223,6 +244,11 @@ export default function App() {
     let stopReconciliation: () => void = () => undefined;
     const stopListening = listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "finished") {
+        const pendingCount = countWhenFinished.current;
+        countWhenFinished.current = null;
+        if (payload.success && pendingCount?.pid === payload.pid) {
+          countFastLaunch(pendingCount.profileFingerprint);
+        }
         setStatus(snapshot?.ready ? "ready" : "setup");
         const outcome = payload.success
           ? "Starsector closed normally. The run report is ready."
@@ -261,7 +287,7 @@ export default function App() {
       stopListening();
       stopReconciliation();
     };
-  }, [announceGame, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+  }, [announceGame, countFastLaunch, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async () => {
     if (!isDesktopHost()) {
@@ -441,6 +467,7 @@ export default function App() {
             cleanupPlan={cleanup.plan}
             cleanupBusy={cleanup.busy}
             operationBlocked={operationBlocked}
+            speedStanding={speedStanding}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
             onReviewCleanup={() => void cleanup.review()}
@@ -464,6 +491,16 @@ export default function App() {
             message={helpNotice?.message ?? ""}
             messageTone={helpNotice?.tone ?? "info"}
             diagnostics={diagnostics}
+            operationBlocked={operationBlocked}
+            onTurnOffOptimizations={() => {
+              setOptimizationPreset("off");
+              setPage("home");
+            }}
+            onChooseInstall={() => {
+              setPage("home");
+              void chooseInstall();
+            }}
+            onNavigate={setPage}
           />
         ) : (
           <SettingsPage

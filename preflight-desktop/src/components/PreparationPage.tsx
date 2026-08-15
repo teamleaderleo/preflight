@@ -1,7 +1,9 @@
-import { ArrowIcon, GaugeIcon, RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
+import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
+import { SpeedScoreboard } from "./SpeedScoreboard";
 import { resourcePresets, storagePlanApplies, type usePreparation } from "../usePreparation";
+import type { SpeedStanding } from "../useSpeedRecord";
 import { formatBytes } from "../uiFormat";
 import type { CacheCleanupPlan, NoticeTone, OptimizationDomain, OptimizationPreset } from "../types";
 
@@ -73,6 +75,7 @@ interface PreparationPageProps {
   cleanupPlan: CacheCleanupPlan | null;
   cleanupBusy: boolean;
   operationBlocked: boolean;
+  speedStanding: SpeedStanding;
   onOptimizationPresetChange: (preset: OptimizationPreset) => void;
   onOptimizationDomainChange: (domain: OptimizationDomain, enabled: boolean) => void;
   onReviewCleanup: () => void;
@@ -91,6 +94,7 @@ export function PreparationPage({
   cleanupPlan,
   cleanupBusy,
   operationBlocked,
+  speedStanding,
   onOptimizationPresetChange,
   onOptimizationDomainChange,
   onReviewCleanup,
@@ -127,6 +131,13 @@ export function PreparationPage({
     <div className="prepare-page">
       <NoticeBanner message={message} tone={messageTone} />
 
+      {/*
+        * "Prove it" is a real errand and a rare one, so the benchmark is reached from here rather
+        * than from a primary navigation slot. It leads the page because the result of having done
+        * it is the one thing this page is named after and used to be missing entirely.
+        */}
+      <SpeedScoreboard standing={speedStanding} isReady={isReady} onOpenBenchmark={onOpenBenchmark} />
+
       {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
         <section className="card run-recovery cache-recovery" aria-label="Prepared data repair">
           <div>
@@ -147,11 +158,21 @@ export function PreparationPage({
             <h2>Optimizations</h2>
             <InfoTip label="About Preflight optimizations">Preflight applies only transformations reviewed for the exact game and mod build. A fingerprint mismatch keeps the original code.</InfoTip>
           </div>
-          {optimizationPreset === "conservative" ? <p>Compatibility mode is enabled for the next launch.</p> : null}
+          {/*
+            * The switch stated its own position and nothing else, so the page named Speed opened
+            * on a control whose consequence was written down only in the tooltip beside it. Both
+            * positions are legitimate choices -- off is the first thing to try when the game
+            * misbehaves -- and each says what the next launch will do.
+            */}
+          <p>{optimizationPreset === "off"
+            ? "Starsector will launch exactly as it does without Preflight. Prepared data is kept, so turning this back on costs nothing."
+            : optimizationPreset === "conservative"
+              ? "Compatibility mode: startup caches only, with the game’s original code. Slower than Recommended, and the next thing to try if Recommended misbehaves."
+              : "Preflight prepares your mods once, then reuses that work to start the game faster."}</p>
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />
-          <span>{optimizationPreset === "off" ? "Off" : "On"}</span>
+          <span>{optimizationPreset === "off" ? "Off" : optimizationPreset === "conservative" ? "Compatibility" : "On"}</span>
         </label>
       </section>
 
@@ -202,21 +223,6 @@ export function PreparationPage({
             <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space left where Preflight stores its data, right now.</small></div>
           </div>
         </details>
-      </section>
-
-      {/*
-        * "Prove it" is a real errand and a rare one, so the benchmark is here rather than in a
-        * primary navigation slot: someone reading this page is already asking whether any of it
-        * does anything.
-        */}
-      <section className="card prove-card">
-        <div className="prove-card__main">
-          <div>
-            <h2>Does this actually help?</h2>
-            <p>Compare a normal launch with Preflight on this mod list.</p>
-          </div>
-          <button className="button button--quiet" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure it<ArrowIcon /></button>
-        </div>
       </section>
 
       <details className="card settings-disclosure preflight-advanced">

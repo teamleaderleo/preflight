@@ -454,6 +454,12 @@ h2 {
   line-height: 1.55;
 }
 
+.launch-console__primary > p.setup-next {
+  max-width: 52ch;
+  margin-top: -8px;
+  font-size: var(--text-support);
+}
+
 .launch-console__actions {
   display: flex;
   align-items: center;
@@ -2776,10 +2782,46 @@ h2 {
 
 footer {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 16px;
   padding: 13px 4px 0;
   color: var(--ink-faint);
   font-size: 12px;
+}
+
+/* Faint by default and underlined only on approach: present, never soliciting. */
+.footer__links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.footer__links button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -10px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  opacity: 0.72;
+  cursor: pointer;
+}
+
+.footer__links button:hover,
+.footer__links button:focus-visible {
+  color: var(--ink-soft);
+  opacity: 1;
+  text-decoration-color: currentColor;
 }
 
 .spin {
@@ -2976,7 +3018,7 @@ footer {
 
   .help-card__main,
   .support-card__main,
-  .prove-card__main {
+  .fixes-list li {
     align-items: stretch;
     flex-direction: column;
   }
@@ -3382,6 +3424,12 @@ footer {
     flex-direction: column;
     gap: 3px;
   }
+
+  .footer__links {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3426,6 +3474,14 @@ footer {
     padding-bottom: 21px;
   }
 
+  .fixes-card {
+    padding: 16px 20px;
+  }
+
+  .fixes-list li {
+    padding: 10px 0;
+  }
+
   .preflight-summary-card {
     padding-top: 16px;
     padding-bottom: 16px;
@@ -3436,12 +3492,9 @@ footer {
     padding-bottom: 10px;
   }
 
-  .prove-card {
-    padding: 16px 20px;
-  }
-
-  .prove-card__main {
-    margin-bottom: 0;
+  .scoreboard {
+    gap: 20px;
+    padding: 18px 22px;
   }
 
   .preflight-advanced > summary {
@@ -3528,18 +3581,201 @@ footer {
   gap: 8px;
 }
 
+/*
+ * The scoreboard is the payoff for a measurement that costs the machine several minutes, so it is
+ * allowed to be the loudest thing on its page. The multiplier is set in the display face at a size
+ * nothing else here uses, because the number is the point.
+ */
+.scoreboard {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) 1fr;
+  gap: 28px;
+  padding: 26px 28px;
+  overflow: hidden;
+}
+
+.scoreboard__headline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scoreboard__headline .eyebrow {
+  margin: 0;
+}
+
+.scoreboard__figure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: clamp(44px, 6vw, 68px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.scoreboard__figure span {
+  font-family: var(--font-body);
+  font-size: var(--text-support);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
+.scoreboard__figure--unknown {
+  color: var(--ink-soft);
+  opacity: 0.55;
+}
+
+.scoreboard__split {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+  font-family: var(--font-data);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.scoreboard__split span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scoreboard__split small {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.scoreboard__split svg {
+  margin-bottom: 3px;
+  opacity: 0.5;
+}
+
+.scoreboard__split--won {
+  color: var(--ink);
+}
+
+.scoreboard__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.scoreboard__body p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.scoreboard__prompt {
+  font-size: var(--text-support);
+}
+
+.scoreboard__total strong {
+  display: block;
+  font-size: 21px;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.scoreboard__total span {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-soft);
+}
+
+.scoreboard__total small {
+  display: block;
+  margin-top: 8px;
+  font-size: var(--text-support);
+  color: var(--ink-soft);
+  opacity: 0.8;
+}
+
+.scoreboard__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.scoreboard__actions small {
+  font-size: var(--text-support);
+  color: var(--ink-soft);
+}
+
+.scoreboard--unmeasured {
+  grid-template-columns: minmax(120px, 0.4fr) 1fr;
+  align-items: center;
+}
+
+.scoreboard--unmeasured .button {
+  align-self: flex-start;
+}
+
 .support-card,
 .help-links-card,
-.prove-card {
+.fixes-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 24px;
 }
 
+.fixes-card h2 {
+  margin: 0;
+}
+
+.fixes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fixes-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.fixes-list li > div {
+  min-width: 0;
+}
+
+.fixes-list strong {
+  display: block;
+  color: var(--ink);
+}
+
+.fixes-list p {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: var(--text-support);
+}
+
+.fixes-list .button {
+  flex: 0 0 auto;
+}
+
 .help-card__main,
-.support-card__main,
-.prove-card__main {
+.support-card__main {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3550,15 +3786,12 @@ footer {
 .help-card__main h2,
 .help-card__main p,
 .support-card__main h2,
-.support-card__main p,
-.prove-card__main h2,
-.prove-card__main p {
+.support-card__main p {
   margin: 0;
 }
 
 .help-card__main p,
-.support-card__main p,
-.prove-card__main p {
+.support-card__main p {
   margin-top: 5px;
   color: var(--ink-soft);
 }
@@ -3572,10 +3805,6 @@ footer {
   margin-top: 8px;
   color: var(--ink-soft);
   font-size: var(--text-support);
-}
-
-.prove-card__main .button {
-  flex: 0 0 auto;
 }
 
 .button--support {
