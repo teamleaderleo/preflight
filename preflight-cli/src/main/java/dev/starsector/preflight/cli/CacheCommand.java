@@ -485,6 +485,15 @@ final class CacheCommand {
                     CacheFootprint.humanBytes(entry.usage().bytes()),
                     entry.usage().files(),
                     entry.description());
+            // Evidence directories repeat the same file names once per session, so the per-name
+            // totals are what somebody can actually judge: not "runs is large" but "this one
+            // document is here 315 times".
+            for (CacheFootprint.Artifact artifact : entry.artifacts()) {
+                out.printf(Locale.ROOT, "    %-42s %10s  %7d files%n",
+                        artifact.name(),
+                        CacheFootprint.humanBytes(artifact.bytes()),
+                        artifact.files());
+            }
         }
         if (footprint.uncategorizedBytes() > 0) {
             out.printf(Locale.ROOT, "  %-32s %10s%n",
@@ -514,6 +523,13 @@ final class CacheCommand {
             value.put("description", entry.description());
             value.put("bytes", entry.usage().bytes());
             value.put("files", entry.usage().files());
+            value.put("artifacts", entry.artifacts().stream().map(artifact -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name", artifact.name());
+                row.put("bytes", artifact.bytes());
+                row.put("files", artifact.files());
+                return row;
+            }).toList());
             return value;
         }).toList();
         Map<String, long[]> groupTotals = new LinkedHashMap<>();

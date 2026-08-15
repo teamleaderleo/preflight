@@ -128,6 +128,7 @@ class CacheCommandTest {
         Files.createDirectories(home.cache().resolve("manifests"));
         Files.createDirectories(home.cache().resolve("packs"));
         Files.createDirectories(home.runs());
+        Files.createDirectories(home.root().resolve("history"));
         Files.writeString(home.cache().resolve("resource-indexes").resolve(current + ".spfi"),
                 "current-index");
         Files.writeString(home.cache().resolve("manifests").resolve(current + ".spfm"),
@@ -136,6 +137,7 @@ class CacheCommandTest {
                 "retained-index");
         Files.writeString(home.cache().resolve("packs").resolve(current + ".spfp"), "pack");
         Files.writeString(home.runs().resolve("adapter.json"), "evidence");
+        Files.writeString(home.root().resolve("history").resolve("launches.jsonl"), "launch");
         Files.writeString(home.root().resolve("future-cache-format"), "future");
 
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -158,9 +160,13 @@ class CacheCommandTest {
         assertTrue(categories.stream().anyMatch(category -> "cache/packs".equals(category.get("path"))
                 && "acceleration".equals(category.get("group"))
                 && ((Number) category.get("files")).longValue() == 1));
+        assertTrue(categories.stream().anyMatch(category -> "history".equals(category.get("path"))
+                && "history".equals(category.get("group"))
+                && ((Number) category.get("files")).longValue() == 1));
         List<Map<String, Object>> groups = (List<Map<String, Object>>) report.get("groups");
         assertTrue(groups.stream().anyMatch(group -> "acceleration".equals(group.get("id"))));
         assertTrue(groups.stream().anyMatch(group -> "evidence".equals(group.get("id"))));
+        assertTrue(groups.stream().anyMatch(group -> "history".equals(group.get("id"))));
         assertEquals(6L, ((Number) report.get("uncategorizedBytes")).longValue());
 
         List<Map<String, Object>> profiles =

@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -200,6 +201,7 @@ final class EvidenceCommand {
             report.put("files", inventory.files());
             report.put("runs", sessions(inventory.runs()));
             report.put("benchmarks", sessions(inventory.benchmarks()));
+            report.put("history", historyValues(home));
             out.println(Json.object(report));
             return 0;
         }
@@ -207,8 +209,80 @@ final class EvidenceCommand {
                 CacheFootprint.humanBytes(inventory.bytes()), inventory.files());
         out.printf(Locale.ROOT, "  %,d launch runs%n", inventory.runs().size());
         out.printf(Locale.ROOT, "  %,d benchmark sessions%n", inventory.benchmarks().size());
+        reportHistory(home, out);
         out.println("Acceleration caches are separate and are never removed by this command.");
         return 0;
+    }
+
+    /**
+     * The launch history, which pruning does not touch.
+     *
+     * <p>Printed beside the evidence totals because it is the reason those totals can be small: the
+     * record that a launch happened outlives the megabyte of diagnostics it produced.
+     */
+    private static void reportHistory(PreflightHome home, PrintStream out) {
+        // Off the launch path on purpose: importing past runs walks every run directory, which is
+        // cheap once and pointless before every game. Reading the history is the natural moment.
+        LaunchLedgerBackfill.runOnce(home);
+        LaunchLedger.Summary summary;
+        try {
+            summary = LaunchLedger.summarize(LaunchLedger.read(home));
+        } catch (IOException unreadable) {
+            out.println("  launch history unreadable: " + unreadable.getMessage());
+            return;
+        }
+        if (summary.launches() == 0) {
+            return;
+        }
+        out.printf(Locale.ROOT, "  %,d launches recorded since %s, kept after pruning%n",
+                summary.launches(), summary.first());
+        out.printf(Locale.ROOT, "    %,d finished cleanly, %,d with fatal log evidence%n",
+                summary.completed(), summary.fatal());
+        Playtime.Summary playtime = playtime(home);
+        if (playtime.launches() > 0) {
+            out.printf(Locale.ROOT, "    %s played, longest session %s%n",
+                    Playtime.human(playtime.totalMillis()),
+                    Playtime.human(playtime.longestSessionMillis()));
+        }
+    }
+
+    private static Playtime.Summary playtime(PreflightHome home) {
+        try {
+            return Playtime.of(LaunchLedger.read(home));
+        } catch (IOException unreadable) {
+            return Playtime.of(List.of());
+        }
+    }
+
+    private static Map<String, Object> historyValues(PreflightHome home) {
+        LaunchLedgerBackfill.runOnce(home);
+        Map<String, Object> values = new LinkedHashMap<>();
+        LaunchLedger.Summary summary;
+        try {
+            summary = LaunchLedger.summarize(LaunchLedger.read(home));
+        } catch (IOException unreadable) {
+            values.put("readable", false);
+            values.put("problem", unreadable.getMessage());
+            return values;
+        }
+        values.put("readable", true);
+        values.put("path", LaunchLedger.path(home));
+        values.put("launches", summary.launches());
+        values.put("completed", summary.completed());
+        values.put("fatal", summary.fatal());
+        values.put("first", summary.first());
+        values.put("last", summary.last());
+        Playtime.Summary playtime = playtime(home);
+        Map<String, Object> played = new LinkedHashMap<>();
+        played.put("totalMillis", playtime.totalMillis());
+        played.put("longestSessionMillis", playtime.longestSessionMillis());
+        played.put("averageMillis", playtime.averageMillis());
+        played.put("launches", playtime.launches());
+        played.put("launchesWithoutDuration", playtime.recorded() - playtime.launches());
+        played.put("first", playtime.first());
+        played.put("last", playtime.last());
+        values.put("playtime", played);
+        return values;
     }
 
     static int prune(

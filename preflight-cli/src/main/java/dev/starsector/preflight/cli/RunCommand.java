@@ -4,6 +4,7 @@ import dev.starsector.preflight.core.Json;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -211,6 +212,12 @@ final class RunCommand {
                 : CompletableFuture.completedFuture(null);
 
         Instant started = Instant.now();
+        // Wall clock labels the launch; the monotonic clock measures it. Instant.now() twice is a
+        // subtraction of two readings that NTP or a user is free to move underneath us, and it can
+        // come back short, long, or negative -- across a session long enough to be worth counting,
+        // a correction landing mid-session is exactly when it would happen. nanoTime cannot move.
+        long startedNanos = System.nanoTime();
+        Long measuredElapsedMillis = null;
         Instant ended = null;
         Integer exitCode = null;
         Integer launcherExitCode = null;
@@ -339,6 +346,7 @@ final class RunCommand {
             throw error;
         } finally {
             ended = Instant.now();
+            measuredElapsedMillis = Duration.ofNanos(System.nanoTime() - startedNanos).toMillis();
             try {
                 writeMetadata(
                         metadata, target, command, runIdentity, started, ended, exitCode, launcherExitCode, outcome,
@@ -347,6 +355,28 @@ final class RunCommand {
                         console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
             } catch (IOException error) {
                 System.err.println("Preflight could not finalize run metadata: " + message(error));
+            }
+            // The run directory answers "what happened during this launch" and is worth a megabyte
+            // for a few days. This is the part still worth keeping afterwards, at a couple of
+            // hundred bytes, so retention does not have to choose between forgetting last month and
+            // carrying last month's diagnostics.
+            String ledgerProblem = LaunchLedger.record(PreflightHome.current(), new LaunchLedger.Entry(
+                    LaunchIdentity.fresh(),
+                    started,
+                    measuredElapsedMillis,
+                    outcome,
+                    exitCode,
+                    lifecycleEvidence != null && lifecycleEvidence.fatalDetected(),
+                    options.optimizationPreset().optionValue(),
+                    options.disabledOptimizationDomains().stream()
+                            .map(OptimizationDomain::optionValue)
+                            .sorted()
+                            .toList(),
+                    runDirectory.getFileName().toString(),
+                    textureContext == null ? null : textureContext.profileFingerprint()));
+            if (ledgerProblem != null) {
+                System.err.println("Preflight could not record this launch in its history: "
+                        + ledgerProblem);
             }
         }
     }
