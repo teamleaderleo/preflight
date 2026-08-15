@@ -84,10 +84,9 @@ anyone else's.
 
 ## If something goes wrong
 
-Preflight is built to fail quietly rather than break your game. Every optimization is pinned to the
-exact game and mod code it was reviewed against; if what it finds doesn't match, it declines and the
-original code runs. An unknown Starsector version means fewer optimizations apply, not a broken
-install.
+Preflight doesn't rewrite game or mod archives or save files. Every optimization is pinned to the
+exact game and mod code it was reviewed against; if what it finds doesn't match, that optimization
+declines and the original code runs. A future Starsector release can still need a Preflight update.
 
 There's also a global switch that turns every runtime change off, and the game still launches.
 
