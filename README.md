@@ -17,8 +17,10 @@ then launches the same game and mod profile with those results ready to use.**
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**101 seconds → 15.88 seconds on an 83-mod development installation.** The initial five-run median
-was 88.13 seconds.
+**89.00 seconds → 15.53 seconds on an 83-mod development installation**, five runs of each condition
+measured in one interleaved session. Earlier chronological reference points on the same machine ran
+from a ~101-second worst case to a 15.88-second best validated warm gate, against an initial
+88.13-second five-run median.
 
 Preflight found much of Starsector's heavily modded startup time in work whose answer was already
 determined by the game build, enabled mod order, and resource files. It prepares those answers once,
@@ -31,11 +33,21 @@ logic.
 | Reference point | Main-menu time | Meaning |
 | --- | ---: | --- |
 | Observed early high | **~101s** | Worst case seen on the development installation |
-| Initial five-run baseline | **88.13s** | Median of five unaccelerated launches |
+| Initial five-run baseline | **88.13s** | Median of five unaccelerated launches, on the earlier 77-mod profile |
 | Best validated warm gate | **15.88s** | Best validated result on the later 83-mod profile |
+| Controlled baseline, one session | **89.00s** | Median of five vanilla launches, interleaved with the row below |
+| Controlled result, one session | **15.53s** | Median of five `--fast` launches in that same session |
 
-These are chronological reference points from one M5 MacBook Air running Starsector 0.98a-RC8 and
-the game's bundled x86-64 Java runtime through Rosetta. The latest production gates were 16.66
+The first three rows are chronological reference points, measured months apart: the 88.13-second
+median was taken on a 77-mod profile, before the mod list grew to the 83 it is now. The last two
+rows are one controlled campaign instead — both conditions on the same profile, shuffled inside
+every round with 240 seconds of cooling before each launch, five accepted runs each and none
+excluded. That pair is **73.47s** apart, or **82.55%**. All five accelerated runs in it fell below
+the 15.88-second gate above, on the same clock; one campaign on one night does not separate a
+faster build from a quieter machine.
+
+All of it is one M5 MacBook Air running Starsector 0.98a-RC8 and the game's bundled x86-64 Java
+runtime through Rosetta. The latest production gates were 16.66
 seconds cold, 16.28 seconds warm, and 15.88 seconds warm. Current whole-launch run-to-run spread on
 the reviewed machine is roughly ±0.6 seconds. The 15.88-second gate retained all 42 transformed
 class-cache hits, 15,469 prepared texture and pixel-conversion hits, healthy adapters, and no

@@ -107,8 +107,10 @@
         "preparationMillis"
       ],
       "publishedIn": [
+        "README.md",
         "docs/technical-writeup-draft.md",
-        "docs/beta-announcement-draft.md"
+        "docs/beta-announcement-draft.md",
+        "docs/optimization-history.md"
       ],
       "mentionedIn": [],
       "releaseCandidate": false,
@@ -237,6 +239,16 @@
       ],
       "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
       "derivation": "Human-reviewed single-profile disk ballpark, supported by the 4.53 GB earlier observation and 4.76 GB cold preparation measurement."
+    },
+    {
+      "type": "count",
+      "value": "77",
+      "unit": "mod",
+      "publishedIn": [
+        "docs/optimization-history.md"
+      ],
+      "evidence": "docs/evidence/2026-08-01-twenty-nine-percent-when-they-compose.md",
+      "derivation": "Profile size behind the 88.13-second baseline chronology, read from that campaign's install header. Published as a headline because the gates after it were measured on 83 mods, and the difference is what makes the older rows a chronology rather than a before/after."
     }
   ]
 }

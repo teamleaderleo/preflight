@@ -52,6 +52,15 @@ entered the working stack.
 | Collapsed texture/loading pipeline | 18.01 / 18.04s |
 | Loading-screen redraw and title-tail work | 17.09 / 16.68s, then 16.21s |
 | Current production gates | 16.66 / 16.28 / **15.88s** |
+| Controlled same-profile campaign | **15.53s** against **89.00s** vanilla |
+
+The last row is not another waypoint in this chronology; it is a different kind of measurement. Every
+row above it compares against the 88.13-second median taken on a **77-mod** profile, while the gates
+that follow were measured after the mod list grew to 83. The 2026-08-15 campaign ran both conditions
+against that same 83-mod profile, interleaved inside every round with 240 seconds of cooling before
+each launch: five accepted runs each, none excluded, medians 89.00s and 15.53s. It is the first
+before/after here that does not span a profile change. See
+[the controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md).
 
 The 15.88-second validated gate retained 42/42 transformed-class cache hits, 15,469 prepared-texture
 and pixel-conversion hits, active adapter health, and no adapter decline or failure. It is the best
