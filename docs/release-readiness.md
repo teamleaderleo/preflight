@@ -13,7 +13,7 @@ still inside the release boundary below.
 | Desktop product | First-run, preparation, profiles, settings, updates, reports, cleanup, and removal implemented |
 | Package lifecycle | Local macOS candidate passes; complete hosted three-platform candidate pending |
 | Real-game coverage | Development macOS profile exercised; Windows and Linux runs pending |
-| Performance record | **101s → 15.88s** established; packaged benchmark still to run |
+| Performance record | **101s → 15.88s** established; a controlled 89.00s/15.53s pair now measured on one profile; packaged benchmark still to run |
 | Publication | No public release until the candidate and publication decision are accepted |
 
 ## Blocking before public distribution
@@ -68,7 +68,13 @@ still inside the release boundary below.
   equivalence and bundled-runtime smoke verification. See the
   [signed macOS lifecycle evidence](evidence/2026-08-08-signed-update-rollback-rehearsal.md).
 - [ ] Run the startup benchmark on the exact release candidate and publish those results beside the
-  **101 seconds → 15.88 seconds** development progression.
+  **101 seconds → 15.88 seconds** development progression. This one cannot be closed by running
+  anything today: `scripts/run-startup-benchmark.sh` hardcodes
+  `JAR="$PWD/preflight-cli/target/preflight.jar"` and has no packaged-engine mode, so every campaign
+  so far has measured the checkout rather than a built package. The
+  [controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md) of 2026-08-15 did
+  close the *other* half of this item — a same-profile vanilla baseline against the shipped preset,
+  89.00s versus 15.53s — but it too ran the checkout jar. Closing the box needs harness work first.
 
 ## Blocking product work
 
