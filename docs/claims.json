@@ -116,51 +116,117 @@
       "supersededBy": null
     }
   ],
-  "publishedNumbers": [
+  "publishedQuantities": [
     {
+      "type": "seconds",
       "value": "101",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/optimization-history.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "initial five-run baseline, high end"
+      "derivation": "Initial accepted chronology high end, human-reviewed from the retained scorecard."
     },
     {
+      "type": "seconds",
       "value": "88.13",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "initial five-run baseline median"
+      "derivation": "Initial five-run unaccelerated baseline median."
     },
     {
+      "type": "seconds",
       "value": "25.53",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "25.530s, prepared textures and prefetch bypass"
+      "derivation": "25.530 seconds removed by the reviewed prepared-texture and prefetch-bypass composition."
     },
     {
+      "type": "seconds",
       "value": "7.44",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "upper end of 7.066-7.435s, AshLib repeated ship JSON"
+      "derivation": "Human-reviewed upper end of the 7.066-7.435 second AshLib callback range."
     },
     {
+      "type": "seconds",
       "value": "4.82",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "4.821s, GraphicsLib compact auto-generation replay"
+      "derivation": "Rounded from the reviewed 4.821 second GraphicsLib compact replay result."
     },
     {
+      "type": "seconds",
       "value": "2.7",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "~2.700s net, merged variant JSON"
+      "derivation": "Human-reviewed rounded net effect for merged variant JSON."
     },
     {
+      "type": "seconds",
       "value": "4.8",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "2.000 + 1.100 + 1.700, merged weapon, projectile and ship-hull JSON"
+      "derivation": "Human-reviewed 2.000 + 1.100 + 1.700 second combined weapon, projectile, and hull JSON result."
     },
     {
+      "type": "seconds",
       "value": "1.613",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "cache identity construction, before"
+      "derivation": "Reviewed cache-identity construction time before the shared identity change."
     },
     {
+      "type": "seconds",
       "value": "0.452",
+      "unit": "s",
+      "publishedIn": [
+        "README.md"
+      ],
       "evidence": "docs/evidence/2026-08-02-accumulated-startup-scorecard.md",
-      "note": "cache identity construction, after"
+      "derivation": "Reviewed cache-identity construction time after the shared identity change."
+    },
+    {
+      "type": "storage",
+      "value": "3.08",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
+      "derivation": "Human-reviewed difference between 5.33 GB and 2.26 GB of texture blob bytes; this is the texture representation delta, not whole-cache disk use."
+    },
+    {
+      "type": "storage",
+      "value": "5.27",
+      "unit": "GB",
+      "publishedIn": [
+        "README.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
+      "derivation": "Human-reviewed whole-cache directory difference between 10.03 GB Fastest and 4.76 GB Balanced on the same profile."
     }
   ]
 }
