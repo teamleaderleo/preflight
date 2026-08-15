@@ -11,7 +11,7 @@ The Linux package jobs run on a maintained GitHub-hosted Linux machine, but the 
 inside this pinned official Ubuntu Jammy image:
 
 ```text
-ubuntu:jammy-20260627@sha256:0d7799fb1b4e200a24c11fc575a7e11ecb6501ff6eec649226fad40bd6501c64
+ubuntu:jammy-20260627@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8
 ```
 
 The digest is part of the reviewed release workflow. Updating the image is a release-boundary change,
