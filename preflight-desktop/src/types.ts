@@ -105,6 +105,13 @@ export interface DesktopBenchmarkRuntimeContext {
   memoryAvailablePercent: number | null;
 }
 
+/**
+ * What preparation is asked to build. `balanced` and `fastest` choose how prepared textures are
+ * stored; `minimal` skips them, which is the whole of the disk cost. A plan only ever describes the
+ * two that build textures — `minimal` has nothing to plan.
+ */
+export type TextureStorage = "balanced" | "fastest" | "minimal";
+
 export interface PreparationStoragePlan {
   format: "preflight-preparation-storage-plan-v1";
   profileFingerprint: string;

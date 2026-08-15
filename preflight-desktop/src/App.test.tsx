@@ -74,7 +74,10 @@ test("the default cold-profile action prepares with balanced settings and then l
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  expect(screen.getByText(/must be free/)).toBeInTheDocument();
+  // What the cache keeps and what building it demands be free are different numbers, and a reader
+  // deciding whether they have room needs to be able to tell which is which.
+  expect(screen.getByText(/keeps about .* on disk\. It needs .* free to build that safely/))
+    .toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
@@ -176,8 +179,8 @@ test("a refused preparation still leaves a way to launch the game", async () => 
 
   render(<App />);
 
-  const launch = await screen.findByRole("button", { name: "Launch without preparing" });
-  expect(screen.getByText(/runs at its ordinary speed/)).toBeInTheDocument();
+  const launch = await screen.findByRole("button", { name: "Launch at normal speed" });
+  expect(screen.getByText(/Minimal uses a few megabytes/)).toBeInTheDocument();
   await user.click(launch);
 
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
@@ -189,7 +192,41 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   game.mockRestore();
 });
 
-test("a cold profile cannot prepare when the conservative disk bound does not fit", async () => {
+/**
+ * Refusing is correct — the bound is a guarantee — but a refusal with no way forward is where a
+ * player who is simply short of disk gives up. Textures are the whole of the footprint, so the
+ * smaller preparation is a real answer rather than a consolation, and it must be offered here
+ * without the storage plan that minimal storage has no way to produce.
+ */
+test("a refused preparation offers the preparation that barely uses disk", async () => {
+  const user = userEvent.setup();
+  const cold = cacheSnapshot({ profiles: [] });
+  const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cold);
+  const plan = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue({
+    ...basePlan,
+    safeToPrepare: false,
+    refusalReason: "Preparation needs more room than this disk has.",
+    usableBytes: 2 * 1024 ** 3,
+  });
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+  render(<App />);
+
+  const action = await screen.findByRole("button", { name: "Prepare with minimal disk" });
+  await user.click(action);
+
+  await waitFor(() => expect(preparation)
+    .toHaveBeenCalledWith("/Applications/Starsector", "minimal", 4, 256));
+
+  cache.mockRestore();
+  plan.mockRestore();
+  preparation.mockRestore();
+  game.mockRestore();
+});
+
+test("the Preflight page offers the same direct minimal-disk recovery", async () => {
   const cold = cacheSnapshot({ profiles: [] });
   const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
   const reason = "Preparation needs up to 11.0 GB plus a 1.0 GB reserve; only 2.0 GB is available.";
@@ -204,18 +241,18 @@ test("a cold profile cannot prepare when the conservative disk bound does not fi
 
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Review storage" });
-  await screen.findByText(reason);
-  expect(action).toBeEnabled();
+  const homeAction = await screen.findByRole("button", { name: "Prepare with minimal disk" });
+  expect(screen.getByText(/Full preparation needs .* free/)).toBeInTheDocument();
+  expect(homeAction).toBeEnabled();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(preparation).not.toHaveBeenCalled();
-  await userEvent.setup().click(action);
+  await userEvent.setup().click(screen.getByRole("button", { name: "Preflight" }));
   expect(await screen.findByRole("heading", { name: "Preflight", level: 1 })).toBeInTheDocument();
-  await userEvent.setup().click(screen.getByText("Advanced controls"));
-  await userEvent.setup().click(screen.getByRole("radio", { name: /Fastest/ }));
-  const useBalanced = await screen.findByRole("button", { name: "Use Balanced storage" });
-  await userEvent.setup().click(useBalanced);
-  expect(screen.getByRole("radio", { name: /Balanced/ })).toBeChecked();
+  await screen.findByText(reason);
+  const action = await screen.findByRole("button", { name: "Prepare with minimal disk" });
+  await userEvent.setup().click(action);
+  await waitFor(() => expect(preparation)
+    .toHaveBeenCalledWith("/Applications/Starsector", "minimal", 4, 256));
 
   cache.mockRestore();
   plan.mockRestore();

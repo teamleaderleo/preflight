@@ -68,8 +68,7 @@ pub(crate) fn start_preparation(
         .arg("prepare")
         .arg("--game")
         .arg(directory)
-        .arg("--texture-storage")
-        .arg(texture_storage)
+        .args(texture_storage_args(&texture_storage))
         .arg("--workers")
         .arg(workers.to_string())
         .arg("--memory-mb")
@@ -139,6 +138,12 @@ pub(crate) fn get_preparation_plan(
     let directory = canonical_game_directory(&game)?;
     validate_texture_storage(&texture_storage)?;
     validate_workers(workers)?;
+    // `prepare --plan` describes the texture store, and refuses outright when texture preparation
+    // is off. Callers skip the plan for minimal storage rather than gating on one; saying so here
+    // keeps that a stated contract instead of an engine error surfaced to the user.
+    if texture_storage == MINIMAL_STORAGE {
+        return Err("Minimal storage prepares no textures, so it has no storage plan.".to_string());
+    }
     let paths = EnginePaths::resolve(&app)?;
     let output = paths
         .command()
@@ -163,11 +168,26 @@ pub(crate) fn get_preparation_plan(
         .map_err(|error| format!("Preflight returned an unreadable storage plan: {error}"))
 }
 
+/// `minimal` prepares everything except textures. It is not a texture format, so it is spelled as
+/// `--no-textures` rather than as a `--texture-storage` value, and the engine has no plan for it.
+const MINIMAL_STORAGE: &str = "minimal";
+
 fn validate_texture_storage(texture_storage: &str) -> Result<(), String> {
-    if texture_storage == "balanced" || texture_storage == "fastest" {
+    if texture_storage == "balanced"
+        || texture_storage == "fastest"
+        || texture_storage == MINIMAL_STORAGE
+    {
         Ok(())
     } else {
-        Err("Texture storage must be balanced or fastest.".to_string())
+        Err("Texture storage must be balanced, fastest, or minimal.".to_string())
+    }
+}
+
+fn texture_storage_args(texture_storage: &str) -> Vec<&str> {
+    if texture_storage == MINIMAL_STORAGE {
+        vec!["--no-textures"]
+    } else {
+        vec!["--texture-storage", texture_storage]
     }
 }
 
@@ -303,7 +323,8 @@ fn append_tail(tail: &mut Vec<u8>, bytes: &[u8], limit: usize) {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_preparation_progress, validate_memory, validate_texture_storage, validate_workers,
+        parse_preparation_progress, texture_storage_args, validate_memory,
+        validate_texture_storage, validate_workers,
     };
 
     #[test]
@@ -323,6 +344,7 @@ mod tests {
     fn preparation_inputs_are_bounded() {
         assert!(validate_texture_storage("balanced").is_ok());
         assert!(validate_texture_storage("fastest").is_ok());
+        assert!(validate_texture_storage("minimal").is_ok());
         assert!(validate_texture_storage("compact").is_err());
         assert!(validate_workers(1).is_ok());
         assert!(validate_workers(64).is_ok());
@@ -331,5 +353,20 @@ mod tests {
         assert!(validate_memory(65_536).is_ok());
         assert!(validate_memory(15).is_err());
         assert!(validate_memory(65_537).is_err());
+    }
+
+    #[test]
+    fn minimal_storage_is_spelled_as_skipping_textures() {
+        // `minimal` is a Preflight-side name for "prepare everything but textures". The engine has
+        // no such texture-storage value, so passing it through as one would fail the preparation.
+        assert_eq!(vec!["--no-textures"], texture_storage_args("minimal"));
+        assert_eq!(
+            vec!["--texture-storage", "balanced"],
+            texture_storage_args("balanced")
+        );
+        assert_eq!(
+            vec!["--texture-storage", "fastest"],
+            texture_storage_args("fastest")
+        );
     }
 }

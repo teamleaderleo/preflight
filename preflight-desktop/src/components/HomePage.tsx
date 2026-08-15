@@ -3,7 +3,7 @@ import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
-import type { usePreparation } from "../usePreparation";
+import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import type { useProfiles } from "../useProfiles";
 import { formatBytes, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
 import type {
@@ -104,8 +104,13 @@ export function HomePage({
     preparing,
     profilePrepared,
     textureStorage,
+    prepare,
     stopPreparation,
   } = preparation;
+  // Minimal storage prepares no textures, so there is no plan and nothing to gate on. Without this
+  // the launch button stays disabled forever on the one setting a short-of-space user would pick.
+  const awaitingStoragePlan = storagePlanApplies(textureStorage)
+    && (preparationPlanLoading || !preparationPlan);
   const { profiles, profilesLoading, profileBusy, beginRename, reviewProfile } = profilesState;
   const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
   // Nothing to pick between until there is somewhere to switch to, so the card stays plain text.
@@ -173,11 +178,15 @@ export function HomePage({
                   key={theme}
                   className="button button--primary button--launch"
                   type="button"
-                  onClick={storageBlocked || cacheInspectionBlocked ? () => onNavigate("prepare") : onPrimaryLaunch}
-                  disabled={preparing || cacheRepairing || (!storageBlocked && (operationBlocked || status === "loading" || status === "error" || cacheLoading || (needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && (preparationPlanLoading || !preparationPlan))))}
+                  onClick={storageBlocked
+                    ? () => void prepare(true, "minimal")
+                    : cacheInspectionBlocked
+                      ? () => onNavigate("prepare")
+                      : onPrimaryLaunch}
+                  disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Review storage" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with minimal disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
@@ -201,7 +210,7 @@ export function HomePage({
                     onClick={onLaunchWithoutPreparing}
                     disabled={operationBlocked || status === "launching" || status === "running"}
                   >
-                    Launch without preparing
+                    Launch at normal speed
                   </button>
                 ) : null}
               </>
@@ -216,15 +225,17 @@ export function HomePage({
                 : cacheNeedsRepair
                   ? "Preflight will remove only the damaged prepared artifacts, rebuild this mod setup, and then open Starsector. Game files, mods, and saves stay unchanged."
                 : needsPreparation
-                ? preparationPlanLoading
+                ? !storagePlanApplies(textureStorage)
+                  ? `Minimal preparation uses a few megabytes. Starsector opens automatically when it’s ready.`
+                  : preparationPlanLoading
                   ? "Inspecting this mod setup and calculating a safe disk requirement…"
                   : preparationPlan?.safeToPrepare
-                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} uses about ${formatBytes(preparationPlan.predictedAdditionalBytes)}; ${formatBytes(preparationPlan.requiredFreeBytes)} must be free; ${formatBytes(preparationPlan.usableBytes)} is available. Starsector and its mods stay where they are.`
-                    : preparationPlan?.refusalReason ?? "Storage must be calculated before preparation."
+                    ? `${firstSetup ? "Initial setup" : "Preparation needed"} · ${textureStorage === "balanced" ? "Balanced" : "Fastest"} keeps about ${formatBytes(preparationPlan.predictedAdditionalBytes)} on disk. It needs ${formatBytes(preparationPlan.requiredFreeBytes)} free to build that safely, and you have ${formatBytes(preparationPlan.usableBytes)}. Starsector and its mods stay where they are.`
+                    : preparationPlan
+                      ? `Full preparation needs ${formatBytes(preparationPlan.requiredFreeBytes)} free; ${formatBytes(preparationPlan.usableBytes)} is available. Minimal uses a few megabytes.`
+                      : "Storage must be calculated before preparation."
                 : "Preparation is disabled for this troubleshooting launch."}</span>
-              {storageBlocked || cacheInspectionBlocked
-                ? <span>Starsector can still be launched without preparing. That launch runs at its ordinary speed and changes nothing on disk.</span>
-                : null}
+              {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this cache alone.</span> : null}
             </div>
           ) : null}
         </div>

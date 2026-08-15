@@ -16,11 +16,23 @@ import type {
   PreparationProgressEvent,
   PreparationStateEvent,
   PreparationStoragePlan,
+  TextureStorage,
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 
-export type TextureStorage = "balanced" | "fastest";
+export type { TextureStorage } from "./types";
+
+/**
+ * `minimal` prepares everything except textures, which is the whole of the disk cost and almost all
+ * of the time. It has no storage plan to show: the engine skips the space gate entirely for a
+ * textures-free preparation, and `prepare --plan` refuses to describe one.
+ */
+export function storagePlanApplies(
+  storage: TextureStorage,
+): storage is Exclude<TextureStorage, "minimal"> {
+  return storage !== "minimal";
+}
 
 export const resourcePresets = {
   gentle: { workers: 2, memoryMib: 128, label: "Low" },
@@ -127,6 +139,7 @@ export function usePreparation(
     const cacheReady = game && cacheInstallRoot === game && !cacheLoading;
     const shouldPlan = cacheReady
       && optimizationPreset !== "off"
+      && storagePlanApplies(textureStorage)
       && (showStoragePlan || !profilePrepared);
     if (!game || !shouldPlan) {
       setPreparationPlanEnvelope(null);
@@ -161,22 +174,33 @@ export function usePreparation(
     };
   }, [announce, cacheInstallRoot, cacheLoading, game, optimizationPreset, profilePrepared, resources.workers, showStoragePlan, textureStorage]);
 
-  const runPreparation = async (launchWhenReady = false, forcePlan = false) => {
+  const runPreparation = async (
+    launchWhenReady = false,
+    forcePlan = false,
+    requestedStorage: TextureStorage = textureStorage,
+  ) => {
     if (!game) return;
     try {
-      let plan = forcePlan ? null : preparationPlan;
-      if (!plan) {
+      // A textures-free preparation writes about eleven megabytes of metadata. The engine refuses
+      // to plan one and runs it without the space gate, so asking for a plan here would fail the
+      // preparation on the one setting a user picks precisely because they are short of room.
+      if (requestedStorage !== textureStorage) {
+        setTextureStorage(requestedStorage);
+        setPreparationPlanEnvelope(null);
+      }
+      let plan = forcePlan || !storagePlanApplies(requestedStorage) ? null : preparationPlan;
+      if (!plan && storagePlanApplies(requestedStorage)) {
         setPreparationPlanLoading(true);
-        plan = await getPreparationPlan(game, textureStorage, resources.workers);
+        plan = await getPreparationPlan(game, requestedStorage, resources.workers);
         setPreparationPlanEnvelope({
           game,
           profileFingerprint: plan.profileFingerprint,
-          textureStorage,
+          textureStorage: requestedStorage,
           workers: resources.workers,
           plan,
         });
       }
-      if (!plan.safeToPrepare) {
+      if (plan && !plan.safeToPrepare) {
         announce(plan.refusalReason ?? "Preparation was refused because its storage requirement could not be bounded safely.", "warning");
         return;
       }
@@ -188,7 +212,7 @@ export function usePreparation(
       announce(launchWhenReady
         ? "Preparing the exact current profile. Starsector will open when it’s ready."
         : "Preparing the exact current profile… You can leave this window open.");
-      await startPreparation(game, textureStorage, resources.workers, resources.memoryMib);
+      await startPreparation(game, requestedStorage, resources.workers, resources.memoryMib);
       if (!isDesktopHost()) {
         setPreparing(false);
         announce("Preview preparation complete.", "success");
@@ -207,7 +231,10 @@ export function usePreparation(
     }
   };
 
-  const prepare = async (launchWhenReady = false) => runPreparation(launchWhenReady, false);
+  const prepare = async (
+    launchWhenReady = false,
+    requestedStorage: TextureStorage = textureStorage,
+  ) => runPreparation(launchWhenReady, false, requestedStorage);
 
   const repairAndPrepare = async (launchWhenReady = false) => {
     if (!game || cacheRepairing) return;
