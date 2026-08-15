@@ -86,14 +86,14 @@ final class CacheCommand {
                 System.err.println("preflight cache health: --yes, --keep-named, and --expected-profile aren't valid");
                 return 2;
             }
-            return health(home, current, currentProfile.diagnostic(), json, System.out);
+            return health(home, currentProfile, json, System.out);
         }
         if (repair) {
             if (keepNamed) {
                 System.err.println("preflight cache repair: --keep-named isn't valid");
                 return 2;
             }
-            return repair(home, game, launcher, current, expectedProfile, confirmed, json, System.out);
+            return repair(home, game, launcher, currentProfile, expectedProfile, confirmed, json, System.out);
         }
         if (confirmed || keepNamed || expectedProfile != null) {
             System.err.println("preflight cache: --yes, --keep-named, and --expected-profile require repair or prune");
@@ -116,8 +116,21 @@ final class CacheCommand {
             String identityDiagnostic,
             boolean json,
             PrintStream out) {
+        return health(home, new CurrentProfile(
+                currentFingerprint, identityDiagnostic, null, null), json, out);
+    }
+
+    private static int health(
+            PreflightHome home,
+            CurrentProfile currentProfile,
+            boolean json,
+            PrintStream out) {
         CacheHealth.Report report = CacheHealth.inspect(
-                home, currentFingerprint, identityDiagnostic);
+                home,
+                currentProfile.fingerprint(),
+                currentProfile.diagnostic(),
+                currentProfile.audioBuild(),
+                currentProfile.audioDecoder());
         if (json) {
             out.println(Json.object(CacheHealth.json(report)));
         } else if ("ready".equals(report.status())) {
@@ -144,7 +157,7 @@ final class CacheCommand {
             PreflightHome home,
             Path game,
             Path launcher,
-            String inspectedFingerprint,
+            CurrentProfile inspectedProfile,
             String expectedFingerprint,
             boolean confirmed,
             boolean json,
@@ -154,17 +167,28 @@ final class CacheCommand {
             OperationLease.Acquisition ownership = OperationLease.acquire(
                     home, "repairing-current-cache", null);
             try (OperationLease ignored = ownership.lease()) {
-                String ownedFingerprint = currentFingerprint(game, launcher);
+                CurrentProfile ownedProfile = currentProfile(game, launcher);
+                String ownedFingerprint = ownedProfile.fingerprint();
                 if (expectedFingerprint != null
                         && !expectedFingerprint.equals(ownedFingerprint)) {
                     repair = new CacheHealth.Repair(false, false, "profile-changed",
                             ownedFingerprint, 0, 0, List.of());
                 } else {
-                    repair = CacheHealth.repair(home, ownedFingerprint, true);
+                    repair = CacheHealth.repair(
+                            home,
+                            ownedFingerprint,
+                            true,
+                            ownedProfile.audioBuild(),
+                            ownedProfile.audioDecoder());
                 }
             }
         } else {
-            repair = CacheHealth.repair(home, inspectedFingerprint, false);
+            repair = CacheHealth.repair(
+                    home,
+                    inspectedProfile.fingerprint(),
+                    false,
+                    inspectedProfile.audioBuild(),
+                    inspectedProfile.audioDecoder());
         }
         if (json) {
             out.println(Json.object(CacheHealth.json(repair)));
@@ -656,18 +680,32 @@ final class CacheCommand {
                         .filter(value -> !value.isBlank())
                         .reduce((left, right) -> left + " " + right)
                         .orElse("No readable Starsector installation was found.");
-                return new CurrentProfile(null, detail);
+                return new CurrentProfile(null, detail, null, null);
             }
             String fingerprint = ResourceIndexBuilder.build(
                     target.installRoot()).index().profileFingerprint();
-            return new CurrentProfile(fingerprint, null);
+            try {
+                List<Path> gameJars = PrepareAudioCommand.jars(target.installRoot());
+                return new CurrentProfile(
+                        fingerprint,
+                        null,
+                        PrepareAudioCommand.starsectorBuildIdentity(gameJars),
+                        PrepareAudioCommand.decoderPolicyIdentity(gameJars));
+            } catch (Exception audioIdentityUnreadable) {
+                // Cache inventory and profile selection remain useful even if a future game layout
+                // makes prepared-audio compatibility impossible to prove. CacheHealth reports that
+                // uncertainty instead of calling the audio ready or deleting it.
+                return new CurrentProfile(fingerprint, null, null, null);
+            }
         } catch (Exception unreadable) {
             return new CurrentProfile(
                     null,
                     "The current mod setup couldn't be identified: "
                             + boundedDiagnostic(unreadable.getMessage() == null
                                     ? unreadable.getClass().getSimpleName()
-                                    : unreadable.getMessage()));
+                                    : unreadable.getMessage()),
+                    null,
+                    null);
         }
     }
 
@@ -676,7 +714,11 @@ final class CacheCommand {
         return normalized.length() <= 1_000 ? normalized : normalized.substring(0, 997) + "...";
     }
 
-    record CurrentProfile(String fingerprint, String diagnostic) {
+    record CurrentProfile(
+            String fingerprint,
+            String diagnostic,
+            String audioBuild,
+            String audioDecoder) {
     }
 
     private static String requireValue(String[] args, int index, String option) {

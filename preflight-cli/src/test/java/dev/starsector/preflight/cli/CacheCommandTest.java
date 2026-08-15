@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import dev.starsector.preflight.core.PreparedAudioCache;
+import dev.starsector.preflight.core.PreparedAudioManifest;
+import dev.starsector.preflight.core.PreparedAudioManifestIO;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.TextureManifest;
@@ -80,6 +83,56 @@ class CacheCommandTest {
         assertFalse(repair.safe());
         assertFalse(repair.applied());
         assertEquals(0, repair.files());
+    }
+
+    @Test
+    void cacheHealthRejectsPreparedAudioThatLaunchWouldReject() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "a".repeat(64);
+        String currentBuild = "b".repeat(64);
+        String staleBuild = "c".repeat(64);
+        String decoder = "d".repeat(64);
+        Path index = ResourceIndexIO.directory(home.cache()).resolve(profile + ".spfi");
+        Path textureManifest = TextureManifestIO.directory(home.cache()).resolve(profile + ".spfm");
+        ResourceIndexIO.write(index, new ResourceIndex(
+                profile,
+                List.of(new ResourceIndex.Root("core", Path.of("core"), true)),
+                Map.of()));
+        TextureManifestIO.write(textureManifest, new TextureManifest(profile, Map.of()));
+        Path audioManifest = PreparedAudioCache.manifestDirectory(home.cache())
+                .resolve(profile + ".spam");
+        PreparedAudioManifestIO.write(audioManifest, new PreparedAudioManifest(
+                profile, staleBuild, decoder, Map.of()));
+
+        CacheHealth.Report unverifiable = CacheHealth.inspect(home, profile);
+        assertEquals("unknown", unverifiable.status());
+        assertEquals(List.of(), unverifiable.targets());
+
+        CacheHealth.Report current = CacheHealth.inspect(
+                home, profile, null, staleBuild, decoder);
+        assertEquals("ready", current.status());
+        assertEquals(List.of(), current.targets());
+
+        CacheHealth.Report staleDecoder = CacheHealth.inspect(
+                home, profile, null, staleBuild, "e".repeat(64));
+        assertEquals("repair-needed", staleDecoder.status());
+        assertEquals("prepared-audio-manifest", staleDecoder.issues().get(0).artifact());
+        assertTrue(staleDecoder.issues().get(0).summary().contains("different decoder policy"));
+
+        CacheHealth.Report stale = CacheHealth.inspect(
+                home, profile, null, currentBuild, decoder);
+        assertEquals("repair-needed", stale.status());
+        assertEquals("prepared-audio-manifest", stale.issues().get(0).artifact());
+        assertTrue(stale.issues().get(0).summary().contains("different Starsector build"));
+
+        CacheHealth.Repair repaired = CacheHealth.repair(
+                home, profile, true, currentBuild, decoder);
+        assertTrue(repaired.safe());
+        assertTrue(repaired.applied());
+        assertEquals("ready", repaired.status());
+        assertFalse(Files.exists(audioManifest));
+        assertTrue(Files.exists(index));
+        assertTrue(Files.exists(textureManifest));
     }
 
     @Test

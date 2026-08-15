@@ -29,6 +29,15 @@ final class CacheHealth {
     }
 
     static Report inspect(PreflightHome home, String profile, String identityDiagnostic) {
+        return inspect(home, profile, identityDiagnostic, null, null);
+    }
+
+    static Report inspect(
+            PreflightHome home,
+            String profile,
+            String identityDiagnostic,
+            String expectedAudioBuild,
+            String expectedAudioDecoder) {
         if (profile == null) {
             String summary = identityDiagnostic == null || identityDiagnostic.isBlank()
                     ? "Preflight couldn't derive the current profile from this installation."
@@ -111,7 +120,14 @@ final class CacheHealth {
             }
         }
 
-        if (exists(audio)) {
+        boolean audioCompatibilityUnknown = false;
+        if (exists(audio) && (expectedAudioBuild == null || expectedAudioDecoder == null)) {
+            audioCompatibilityUnknown = true;
+            issues.add(new Issue(
+                    "prepared-audio-compatibility",
+                    "Prepared audio is present, but its Starsector and decoder identities couldn't be verified.",
+                    audio));
+        } else if (exists(audio)) {
             try {
                 if (!regularFile(audio)) {
                     throw new IOException("prepared-audio manifest isn't a regular cache file");
@@ -120,23 +136,48 @@ final class CacheHealth {
                 if (!profile.equals(prepared.profileFingerprintSha256())) {
                     throw new IOException("prepared-audio profile identity differs");
                 }
+                if (expectedAudioBuild != null
+                        && !expectedAudioBuild.equals(prepared.starsectorBuildSha256())) {
+                    throw new IOException("prepared audio belongs to a different Starsector build");
+                }
+                if (expectedAudioDecoder != null
+                        && !expectedAudioDecoder.equals(prepared.decoderPolicyIdentitySha256())) {
+                    throw new IOException("prepared audio belongs to a different decoder policy");
+                }
             } catch (Exception error) {
                 issues.add(new Issue(
                         "prepared-audio-manifest",
-                        "Prepared audio metadata is unreadable: " + message(error),
+                        "Prepared audio metadata is incompatible or unreadable: " + message(error),
                         audio));
                 targets.add(target("prepared-audio-manifest", audio));
             }
         }
 
-        String status = !issues.isEmpty()
-                ? "repair-needed"
-                : indexPresent && manifestPresent ? "ready" : "cold";
+        String status;
+        if (audioCompatibilityUnknown) {
+            status = "unknown";
+        } else if (!issues.isEmpty()) {
+            status = "repair-needed";
+        } else if (indexPresent && manifestPresent) {
+            status = "ready";
+        } else {
+            status = "cold";
+        }
         return new Report(status, profile, List.copyOf(issues), List.copyOf(targets));
     }
 
     static Repair repair(PreflightHome home, String profile, boolean apply) throws IOException {
-        Report report = inspect(home, profile);
+        return repair(home, profile, apply, null, null);
+    }
+
+    static Repair repair(
+            PreflightHome home,
+            String profile,
+            boolean apply,
+            String expectedAudioBuild,
+            String expectedAudioDecoder) throws IOException {
+        Report report = inspect(
+                home, profile, null, expectedAudioBuild, expectedAudioDecoder);
         if ("unknown".equals(report.status()) || "unsafe".equals(report.status())) {
             return new Repair(false, false, report.status(), profile, 0, 0, List.of());
         }
@@ -163,7 +204,8 @@ final class CacheHealth {
                 removedFiles++;
             }
         }
-        Report after = inspect(home, profile);
+        Report after = inspect(
+                home, profile, null, expectedAudioBuild, expectedAudioDecoder);
         return new Repair(!"unsafe".equals(after.status()), true, after.status(), profile,
                 removedBytes, removedFiles, report.targets());
     }
