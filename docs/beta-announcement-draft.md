@@ -151,7 +151,7 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
 
 > Preflight is a free open-source launcher that makes heavily modded Starsector start much faster —
 > it prepares the slow startup work once and reuses it. On my development install that took startup
-> from ~101s at worst to 15.88s warm; the app has a benchmark so you can measure your own.
+> from ~101s at worst to as fast as 15.25s; the app has a benchmark so you can measure your own.
 >
 > It doesn't modify the game, mods, or saves, and anything it doesn't recognize it just skips, so an
 > unknown version means less speedup rather than a broken game.

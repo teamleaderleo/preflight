@@ -45,6 +45,13 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.home-overview\s*\{[^}]*grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-width: 780px\)[\s\S]*?\.brand,[\s\S]*?\.nav,[\s\S]*?\.sidebar__footer\s*\{[^}]*flex-shrink:\s*0;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.main\s*\{[^}]*padding-top:\s*20px;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page\s*\{[^}]*gap:\s*10px;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.settings-page\s*\{[^}]*gap:\s*10px;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.settings-page \.removal-card\s*\{[^}]*margin-top:\s*0;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.help-page :is\(\.support-card, \.help-links-card\)\s*\{[^}]*padding-top:\s*21px;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prove-card__main\s*\{[^}]*margin-bottom:\s*0;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.home-fact > small\s*\{[^}]*display:\s*none;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
 });
 

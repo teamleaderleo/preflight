@@ -3405,8 +3405,96 @@ footer {
 }
 
 @media (max-height: 720px) and (min-width: 1001px) {
+  .main {
+    padding-top: 20px;
+    padding-bottom: 14px;
+  }
+
+  .topbar {
+    margin-bottom: 14px;
+  }
+
   .page-viewport--home {
     overflow-y: auto;
+  }
+
+  .prepare-page {
+    gap: 10px;
+  }
+
+  .settings-page {
+    gap: 10px;
+  }
+
+  .settings-page .removal-card {
+    margin-top: 0;
+  }
+
+  .help-page :is(.support-card, .help-links-card) {
+    padding-top: 21px;
+    padding-bottom: 21px;
+  }
+
+  .preflight-summary-card {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .storage-card--compact {
+    padding-top: 12px;
+    padding-bottom: 10px;
+  }
+
+  .prove-card {
+    padding: 16px 20px;
+  }
+
+  .prove-card__main {
+    margin-bottom: 0;
+  }
+
+  .preflight-advanced > summary {
+    min-height: 56px;
+  }
+
+  .launch-console--configured .launch-console__primary {
+    padding: 16px 28px;
+  }
+
+  .launch-console--configured .quick-control--resolution {
+    padding: 9px 24px;
+  }
+
+  .launch-console--configured :where(.quick-control--battle-size, .quick-control--memory, .quick-control--antialiasing, .quick-control--ui-scale) {
+    padding-top: 9px;
+    padding-bottom: 10px;
+  }
+
+  .launch-console--configured .quick-settings__toggles {
+    padding-top: 4px;
+    padding-bottom: 8px;
+  }
+
+  .home-overview {
+    margin-top: 10px;
+  }
+
+  .home-fact {
+    gap: 3px;
+    padding: 13px 18px;
+  }
+
+  .home-fact > small {
+    display: none;
+  }
+
+  .home-fact .text-button,
+  .home-fact__links {
+    margin-top: 3px;
+  }
+
+  footer {
+    padding-top: 8px;
   }
 }
 

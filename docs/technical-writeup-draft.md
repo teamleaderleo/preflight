@@ -5,7 +5,7 @@ Blog-length piece on how Preflight works. Every number here traces to a retained
 
 ---
 
-## Making a heavily modded Starsector start in 16 seconds instead of 88
+## Making a heavily modded Starsector start in 15 seconds instead of 89
 
 Heavily modded Starsector took about a minute and a half to reach the main menu on my machine: a
 five-run median of 88.13 seconds on a 77-mod profile, with a worst observed run around 101. It now

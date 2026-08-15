@@ -32,12 +32,42 @@ REVIEWED_OVERSIZED_BLOBS = {
 # alongside the blob id makes accidental truncation or substitution obvious and
 # lets the history audit accept only the reviewed image bytes.
 REVIEWED_DOCUMENTATION_IMAGES = {
-    "docs/images/desktop-home-dark.png": (61_109, "6b8308d1b71cb8e85a350bfb6d31956c51556ee5"),
-    "docs/images/desktop-home-light.png": (64_418, "1c4517a2161186f34a79ea9fffa66db79f28f167"),
-    "docs/images/desktop-profiles-light.png": (59_424, "b206041df4ee61123b3a6a47b492270bbcae4ac6"),
-    "docs/images/walkthrough-benchmark.png": (56_692, "69fb4cf05512f189151cf1e0f58085a6be6162fe"),
-    "docs/images/walkthrough-ready.png": (61_105, "7e413e9e2e55678192dd4c9f5a04673fc20f4cfa"),
-    "docs/images/walkthrough-setup.png": (50_674, "f41cfd715b7129a3439e3d3deb9e8886d52e90fd"),
+    "docs/images/desktop-home-dark.png": frozenset(
+        {
+            (61_109, "6b8308d1b71cb8e85a350bfb6d31956c51556ee5"),
+            (56_247, "ca01e532a00e804e5cca00c6f85028ab81b0fbdb"),
+        }
+    ),
+    "docs/images/desktop-home-light.png": frozenset(
+        {
+            (64_418, "1c4517a2161186f34a79ea9fffa66db79f28f167"),
+            (62_880, "a042bb65181efe99c41e2f7132a96f6ec8ca9c4e"),
+        }
+    ),
+    "docs/images/desktop-profiles-light.png": frozenset(
+        {
+            (59_424, "b206041df4ee61123b3a6a47b492270bbcae4ac6"),
+            (56_409, "4402dd545b806b5667f442e7370bfa3b3f3f8cf9"),
+        }
+    ),
+    "docs/images/walkthrough-benchmark.png": frozenset(
+        {
+            (56_692, "69fb4cf05512f189151cf1e0f58085a6be6162fe"),
+            (56_508, "b36aa4e523f1f850179093388f5ea38a18deb066"),
+        }
+    ),
+    "docs/images/walkthrough-ready.png": frozenset(
+        {
+            (61_105, "7e413e9e2e55678192dd4c9f5a04673fc20f4cfa"),
+            (56_016, "e8676673464db9e897c831e69813bb08d7bb83c4"),
+        }
+    ),
+    "docs/images/walkthrough-setup.png": frozenset(
+        {
+            (50_674, "f41cfd715b7129a3439e3d3deb9e8886d52e90fd"),
+            (49_295, "2922b4b63d94ac7a3f1eaca5adc886914199deb1"),
+        }
+    ),
 }
 FORBIDDEN_SEGMENTS = frozenset({"activation", "mods", "saves", "screenshots"})
 FORBIDDEN_BASENAMES = frozenset(
@@ -134,10 +164,10 @@ def git_blob_sha1(data: bytes) -> str:
 
 
 def reviewed_documentation_image(name: str, data: bytes) -> bool:
-    fingerprint = REVIEWED_DOCUMENTATION_IMAGES.get(name)
-    if fingerprint is None:
+    fingerprints = REVIEWED_DOCUMENTATION_IMAGES.get(name, frozenset())
+    if not fingerprints:
         return False
-    return (len(data), git_blob_sha1(data)) == fingerprint
+    return (len(data), git_blob_sha1(data)) in fingerprints
 
 
 def git(repository: Path, *args: str, input_data: bytes | None = None) -> bytes:

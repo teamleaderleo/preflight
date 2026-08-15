@@ -69,12 +69,14 @@ still inside the release boundary below.
   [signed macOS lifecycle evidence](evidence/2026-08-08-signed-update-rollback-rehearsal.md).
 - [ ] Run the startup benchmark on the exact release candidate and publish those results beside the
   **101 seconds → 15.25 seconds** development progression. This one cannot be closed by running
-  anything today: `scripts/run-startup-benchmark.sh` hardcodes
-  `JAR="$PWD/preflight-cli/target/preflight.jar"` and has no packaged-engine mode, so every campaign
-  so far has measured the checkout rather than a built package. The
+  a checkout campaign: `scripts/run-startup-benchmark.sh --engine PATH` now resolves only a reviewed
+  packaged-engine layout, verifies the adjacent `bundle.json` length and SHA-256, records the
+  candidate identity, and refuses to fall back to `preflight-cli/target/preflight.jar`. Every
+  published campaign so far still measured checkout bytes, so the exact-candidate pair itself
+  remains to run. The
   [controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md) of 2026-08-15 did
   close the *other* half of this item — a same-profile vanilla baseline against the shipped preset,
-  89.00s versus 15.53s — but it too ran the checkout jar. Closing the box needs harness work first.
+  89.00s versus 15.53s — but it too ran the checkout jar.
 
 ## Blocking product work
 
