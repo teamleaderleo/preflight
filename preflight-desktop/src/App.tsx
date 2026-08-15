@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   getSnapshot,
+  getOperationState,
+  browserPreviewScenario,
   isDesktopHost,
   previewRunFailure,
   startGame,
@@ -65,7 +67,8 @@ interface RunFailure {
 export default function App() {
   const theme = useTheme();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | null>(null);
-  const [status, setStatus] = useState<AppStatus>("loading");
+  const [status, setStatus] = useState<AppStatus>(() =>
+    !isDesktopHost() && browserPreviewScenario() === "running" ? "running" : "loading");
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
   const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
@@ -73,6 +76,7 @@ export default function App() {
   const [choosingInstall, setChoosingInstall] = useState(false);
   const [stoppingGame, setStoppingGame] = useState(false);
   const [forceStopAvailable, setForceStopAvailable] = useState(false);
+  const [restoringOperation, setRestoringOperation] = useState(() => isDesktopHost());
   const choosingInstallRef = useRef(false);
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
@@ -280,6 +284,50 @@ export default function App() {
 
   useEffect(() => {
     if (!isDesktopHost()) return;
+    let cancelled = false;
+    let recoveredGameActive = false;
+    let stopRecoveredGameReconciliation: () => void = () => undefined;
+    void getOperationState(true).then((operation) => {
+      if (!cancelled && operation.gamePid !== null) {
+        setStatus("running");
+        announceGame("Reconnected to the running Starsector game.", "success");
+        if (operation.gameRecovered) {
+          recoveredGameActive = true;
+          stopRecoveredGameReconciliation = startOperationReconciliation({
+            read: () => getOperationState(true),
+            apply: (current) => {
+              if (current.gamePid !== null) return;
+              recoveredGameActive = false;
+              setStoppingGame(false);
+              setForceStopAvailable(false);
+              setMaintenanceEpoch((epoch) => epoch + 1);
+              setStatus("ready");
+              void refresh().then((refreshed) => {
+                if (refreshed) announceGame("Starsector closed. The run report is ready.", "success");
+              });
+            },
+            isActive: () => recoveredGameActive,
+            onError: (error) => announceGame(`Couldn’t refresh the running game: ${error}`, "warning"),
+            intervalMs: 2_000,
+          });
+        }
+      }
+    }).catch((error) => {
+      if (!cancelled) {
+        announceGame(`Couldn’t check for a previous Starsector launch: ${error}`, "warning");
+      }
+    }).finally(() => {
+      if (!cancelled) setRestoringOperation(false);
+    });
+    return () => {
+      cancelled = true;
+      recoveredGameActive = false;
+      stopRecoveredGameReconciliation();
+    };
+  }, [announceGame, refresh]);
+
+  useEffect(() => {
+    if (!isDesktopHost()) return;
     let stopReconciliation: () => void = () => undefined;
     const stopListening = listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "running") {
@@ -366,6 +414,7 @@ export default function App() {
   const operationBlocked = preparing
     || cacheRepairing
     || choosingInstall
+    || restoringOperation
     || status === "launching"
     || status === "running"
     || cleanup.busy
@@ -374,9 +423,18 @@ export default function App() {
     || diagnostics.reportUploading
     || removal.busy
     || updates.updateInstalling;
+  const refreshAfterAutomaticCacheCleanup = useCallback(() => {
+    void refreshCache();
+    invalidatePreparationPlan();
+  }, [invalidatePreparationPlan, refreshCache]);
   useAutomaticMaintenance(
     status === "ready" && isReady && !operationBlocked,
     maintenanceEpoch,
+    {
+      game: snapshot?.selected?.installRoot,
+      cacheBytes: preparation.cache?.total.bytes,
+      onCacheCleaned: refreshAfterAutomaticCacheCleanup,
+    },
   );
   /**
    * The snapshot describes files on disk: which installation is selected, whether it is usable,

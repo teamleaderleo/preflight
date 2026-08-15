@@ -38,6 +38,7 @@ final class StopCommand {
         boolean json = false;
         boolean force = false;
         boolean dryRun = false;
+        Long requestedPid = null;
         int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
         for (int index = offset; index < args.length; index++) {
             String argument = args[index];
@@ -45,13 +46,20 @@ final class StopCommand {
                 case "--json" -> json = true;
                 case "--force" -> force = true;
                 case "--dry-run" -> dryRun = true;
+                case "--pid" -> {
+                    if (requestedPid != null) {
+                        throw new IllegalArgumentException("--pid was supplied more than once");
+                    }
+                    requestedPid = positivePid(requireValue(args, ++index, argument), argument);
+                }
                 case "--timeout-seconds" -> timeoutSeconds =
                         positive(requireValue(args, ++index, argument), argument);
                 default -> throw new IllegalArgumentException("Unknown option: " + argument);
             }
         }
 
-        List<RuntimeProcessIdentity> records = recordedRuns(PreflightHome.current().runs());
+        List<RuntimeProcessIdentity> records = selectPid(
+                recordedRuns(PreflightHome.current().runs()), requestedPid);
         List<Map<String, Object>> stopped = new ArrayList<>();
         List<Map<String, Object>> skipped = new ArrayList<>();
         for (RuntimeProcessIdentity record : records) {
@@ -112,6 +120,12 @@ final class StopCommand {
             }
         }
         return records;
+    }
+
+    static List<RuntimeProcessIdentity> selectPid(
+            List<RuntimeProcessIdentity> records, Long requestedPid) {
+        if (requestedPid == null) return records;
+        return records.stream().filter(record -> record.pid() == requestedPid).toList();
     }
 
     private static Map<String, Object> stop(
@@ -193,6 +207,19 @@ final class StopCommand {
         }
         if (parsed <= 0) {
             throw new IllegalArgumentException(option + " must be greater than zero");
+        }
+        return parsed;
+    }
+
+    private static long positivePid(String value, String option) {
+        long parsed;
+        try {
+            parsed = Long.parseLong(value.trim());
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException(option + " must be a positive process ID");
+        }
+        if (parsed <= 0) {
+            throw new IllegalArgumentException(option + " must be a positive process ID");
         }
         return parsed;
     }

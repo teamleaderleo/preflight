@@ -660,6 +660,22 @@ test("a restored running window offers graceful stop before force stop", async (
   stop.mockRestore();
 });
 
+test("the explicit running preview locks every launch setting", async () => {
+  window.history.replaceState(null, "", "/?scenario=running");
+
+  render(<App />);
+
+  expect(await screen.findByRole("button", { name: "Stop Starsector" })).toBeEnabled();
+  expect(screen.getByRole("combobox", { name: "Home resolution" })).toBeDisabled();
+  expect(screen.getByRole("spinbutton", { name: "Home battle size" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Home game memory" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Home antialiasing" })).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Home UI size" })).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: "Home fullscreen" })).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: "Home sound" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /All settings/ })).toBeDisabled();
+});
+
 test("storage totals disclose data outside the active cache categories", async () => {
   const user = userEvent.setup();
   const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cacheSnapshot({

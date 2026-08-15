@@ -39,6 +39,7 @@ declare global {
 
 export type BrowserPreviewScenario =
   | "ready"
+  | "running"
   | "setup"
   | "low-disk"
   | "cache-repair"
@@ -50,6 +51,7 @@ export type BrowserPreviewScenario =
 
 const browserPreviewScenarios = new Set<BrowserPreviewScenario>([
   "ready",
+  "running",
   "setup",
   "low-disk",
   "cache-repair",
@@ -137,11 +139,12 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
 }
 
-export async function getOperationState(): Promise<OperationSnapshot> {
+export async function getOperationState(includeDurable = false): Promise<OperationSnapshot> {
   if (!isDesktopHost()) {
     return {
       format: "preflight-operation-state-v1",
-      gamePid: null,
+      gamePid: includeDurable && browserPreviewScenario() === "running" ? 4242 : null,
+      gameRecovered: includeDurable && browserPreviewScenario() === "running",
       desktopSmokePid: null,
       desktopSmokeRunDirectory: null,
       preparationPid: null,
@@ -150,7 +153,7 @@ export async function getOperationState(): Promise<OperationSnapshot> {
       updateInstalling: false,
     };
   }
-  return invoke<OperationSnapshot>("get_operation_state");
+  return invoke<OperationSnapshot>("get_operation_state", { includeDurable });
 }
 
 export async function getDesktopSmokeProbe(): Promise<DesktopSmokeProbe> {
@@ -733,7 +736,7 @@ export async function applyRemoval(scope: RemovalScope): Promise<RemovalPlan> {
   return invoke<RemovalPlan>("apply_removal", { scope });
 }
 
-export type ProjectLink = "project" | "getting-started" | "privacy" | "capabilities" | "report-issue" | "tip-coffee" | "tip-kofi" | "tip-patreon";
+export type ProjectLink = "project" | "getting-started" | "privacy" | "capabilities" | "report-issue" | "tip-patreon";
 
 /**
  * Opens one of Preflight's own pages in the system browser.
@@ -756,8 +759,6 @@ const PREVIEW_PROJECT_LINKS: Record<ProjectLink, string> = {
   privacy: "https://github.com/teamleaderleo/preflight/blob/main/docs/privacy.md",
   capabilities: "https://github.com/teamleaderleo/preflight/blob/main/docs/capability-receipt.md",
   "report-issue": "https://github.com/teamleaderleo/preflight/issues/new",
-  "tip-coffee": "https://buymeacoffee.com/teamleaderleo",
-  "tip-kofi": "https://ko-fi.com/teamleaderleo",
   "tip-patreon": "https://www.patreon.com/cw/teamleaderleo",
 };
 

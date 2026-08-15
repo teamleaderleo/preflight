@@ -116,9 +116,10 @@ player chooses **Free space**. It shows acceleration and evidence separately, co
 plans into one review, and recalculates each plan before deletion. Current and named profiles remain
 reachable; Starsector, mods, saves, and settings are outside both cleanup roots.
 
-The same evidence retention runs quietly once the desktop is ready and idle. Failure is nonblocking
-and doesn't loop; the explicit review is the visible retry path. Prepared-profile eviction stays
-preview-first because removing it trades disk space for later preparation time.
+The same evidence retention runs quietly once the desktop is ready and idle. When the complete
+cache grows beyond 12 GiB, the desktop also applies the fail-closed prune plan once: current and
+named profiles survive, shared blobs remain reachable, and an unsafe or incomplete plan removes
+nothing. Failure is nonblocking and doesn't loop; the explicit review is the visible retry path.
 
 ## Resource use during preparation
 

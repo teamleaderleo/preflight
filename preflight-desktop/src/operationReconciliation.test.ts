@@ -4,6 +4,7 @@ import type { OperationSnapshot } from "./types";
 const idle: OperationSnapshot = {
   format: "preflight-operation-state-v1",
   gamePid: null,
+  gameRecovered: false,
   desktopSmokePid: null,
   desktopSmokeRunDirectory: null,
   preparationPid: null,

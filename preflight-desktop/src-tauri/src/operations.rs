@@ -6,6 +6,7 @@ use tokio::sync::watch;
 #[derive(Default)]
 pub(crate) struct OperationState {
     pub(crate) game: Option<u32>,
+    pub(crate) game_recovered: bool,
     pub(crate) desktop_smoke: Option<DesktopSmokeProcess>,
     pub(crate) preparation: Option<PreparationProcess>,
     pub(crate) report_upload: Option<ReportUploadProcess>,
@@ -35,6 +36,7 @@ pub(crate) struct ReportUploadProcess {
 pub(crate) struct OperationSnapshot {
     pub(crate) format: &'static str,
     pub(crate) game_pid: Option<u32>,
+    pub(crate) game_recovered: bool,
     pub(crate) desktop_smoke_pid: Option<u32>,
     pub(crate) desktop_smoke_run_directory: Option<String>,
     pub(crate) preparation_pid: Option<u32>,
@@ -48,6 +50,7 @@ impl OperationSnapshot {
         Self {
             format: "preflight-operation-state-v1",
             game_pid: state.game,
+            game_recovered: state.game_recovered,
             desktop_smoke_pid: state.desktop_smoke.as_ref().map(|process| process.pid),
             desktop_smoke_run_directory: state
                 .desktop_smoke

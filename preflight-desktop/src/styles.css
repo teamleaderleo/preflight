@@ -431,6 +431,27 @@ h2 {
   stroke-width: 1.4;
 }
 
+.launch-console--launching .flight-plot,
+.launch-console--running .flight-plot {
+  opacity: 0.5;
+}
+
+.launch-console--launching .flight-plot__route,
+.launch-console--running .flight-plot__route {
+  stroke-dasharray: 10 8;
+  animation: flight-route 1.5s linear infinite;
+}
+
+.launch-console--running .flight-plot__craft {
+  animation: flight-craft 1.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.launch-console--running .button--launch {
+  box-shadow: 0 0 0 1px rgba(92, 217, 188, 0.32), 0 12px 28px rgba(7, 20, 43, 0.3);
+}
+
 .flight-plot circle {
   fill: var(--paper-solid);
   stroke: currentColor;
@@ -2886,6 +2907,14 @@ footer {
     opacity: 0.3;
     transform: translate3d(0, 0, 0);
   }
+}
+
+@keyframes flight-route {
+  to { stroke-dashoffset: -36; }
+}
+
+@keyframes flight-craft {
+  50% { transform: translate3d(2px, -2px, 0) scale(1.08); }
 }
 
 @keyframes spin {
