@@ -53,5 +53,13 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      - name: Provide compile-time engine resource
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight-desktop/src-tauri/target/engine
+          printf 'MSRV compile-time resource placeholder\n' \
+            > preflight-desktop/src-tauri/target/engine/msrv-placeholder.txt
+
       - name: Test native host at declared MSRV
         run: cargo test --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml
