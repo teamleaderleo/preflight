@@ -150,7 +150,7 @@ export function HomePage({
                 ? "This mod setup needs preparation"
                 : optimizationPreset === "off"
                   ? "Optimizations off — this launch won’t be faster"
-                  : "Ready — this launch will be the fast one";
+                  : "Fast launch ready";
   /*
    * The chip is always shown in the settled state, and says which of the two launches the button
    * is about to perform. "Ready" alone is the page title's job. Whether the next launch is the

@@ -93,12 +93,16 @@ claims. Linux starts with X11; Wayland limitations remain explicit.
 
 **Exit:** each platform claim says whether its evidence came from hosted, emulated, or native work.
 
-## 6. Benchmark the release candidate — after candidate freeze
+## 6. Benchmark the release candidate — harness ready
 
 Run the built-in normal-versus-Preflight benchmark on the exact candidate and retain its receipt.
 Publish that result beside the established **101 seconds → 15.25 seconds** development progression.
 An alternating multi-run campaign remains available when it answers a useful follow-up question; it
 isn't required to make the existing progression real.
+
+The operator harness can now take that exact packaged engine, verify its adjacent manifest and
+SHA-256, bind the session to it, and refuse a checkout fallback. The remaining action is the paired
+run after the candidate revision is frozen.
 
 **Exit:** the exact distributed package has a retained benchmark result and the development record
 keeps its stated machine and profile context.

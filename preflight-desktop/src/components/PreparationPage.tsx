@@ -147,7 +147,7 @@ export function PreparationPage({
             <h2>Optimizations</h2>
             <InfoTip label="About Preflight optimizations">Preflight applies only transformations reviewed for the exact game and mod build. A fingerprint mismatch keeps the original code.</InfoTip>
           </div>
-          <p>{optimizationPreset === "off" ? "Starsector will launch without Preflight’s runtime optimizations." : optimizationPreset === "conservative" ? "Compatibility mode is enabled for the next launch." : "Enabled for the next launch."}</p>
+          {optimizationPreset === "conservative" ? <p>Compatibility mode is enabled for the next launch.</p> : null}
         </div>
         <label className="simple-switch">
           <input type="checkbox" aria-label="Use Preflight optimizations" checked={optimizationPreset !== "off"} onChange={(event) => onOptimizationPresetChange(event.target.checked ? "recommended" : "off")} disabled={operationBlocked} />
@@ -213,7 +213,7 @@ export function PreparationPage({
         <div className="prove-card__main">
           <div>
             <h2>Does this actually help?</h2>
-            <p>Time your own game with and without Preflight, on this machine and this mod list.</p>
+            <p>Compare a normal launch with Preflight on this mod list.</p>
           </div>
           <button className="button button--quiet" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure it<ArrowIcon /></button>
         </div>

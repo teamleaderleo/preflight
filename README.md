@@ -104,10 +104,10 @@ and sound can be changed beside it.
 ![Preflight ready to launch an 83-mod profile](docs/images/walkthrough-ready.png)
 
 The optional benchmark runs a normal launch and a Preflight launch, then compares their main-menu
-times. Support ZIPs are separate: Preflight shows their contents, exclusions, size, and checksum
-before anything can be sent.
+times. Help is a separate destination: Preflight shows a support ZIP's contents, exclusions, size,
+and checksum before anything can be sent.
 
-![Preflight benchmark and support controls](docs/images/walkthrough-benchmark.png)
+![Preflight startup benchmark](docs/images/walkthrough-benchmark.png)
 
 ## Compatibility and containment
 

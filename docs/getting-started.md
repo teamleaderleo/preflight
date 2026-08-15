@@ -50,16 +50,17 @@ change your mod list.
 
 ![Preflight asking for a Starsector installation](images/walkthrough-setup.png)
 
-## 4. Leave the defaults alone
+## 4. Prepare and launch
 
-**Recommended** and **Balanced** are the defaults and are what you want. Recommended enables the
-reviewed set of optimizations; Balanced trades some disk for speed without going overboard.
+Click **Prepare and launch**. Preflight automatically uses the reviewed optimizations and its normal
+storage choice, then opens Starsector when preparation finishes. You don't need to choose a mode.
 
 Before it writes anything, Preflight calculates how much disk the prepared data will need and
 refuses to start if the conservative estimate wouldn't leave at least 1 GiB free. On the 83-mod
-profile used in development the finished cache was about 4.5 GB.
+profile used in development the finished cache was about 4.5 GB. If that doesn't fit, the same
+screen offers a much smaller preparation instead.
 
-## 5. Prepare, once
+## 5. Let the first preparation finish
 
 Preparation is the slow step, and it only happens when your game or mod profile changes. It shows
 which phase it's on and can be cancelled at any point without leaving anything half-written.
@@ -69,18 +70,19 @@ launch.
 
 ## 6. Launch
 
-The big button starts Starsector. Resolution, battle size, RAM, antialiasing, UI scale, fullscreen,
-and sound sit beside it, so you don't need the vanilla launcher for the usual settings.
+After that first run, the big button simply starts Starsector. Resolution, battle size, RAM,
+antialiasing, UI scale, fullscreen, and sound sit beside it, so you don't need the vanilla launcher
+for the usual settings.
 
 ![Preflight ready to launch an 83-mod profile](images/walkthrough-ready.png)
 
-## 7. Optional: see what it did for you
+## 7. Optional: measure it
 
 The built-in benchmark runs one normal launch and one Preflight launch and compares the time each
 took to reach the main menu. That's your number, on your machine, with your mods — more useful than
 anyone else's.
 
-![Preflight benchmark and support controls](images/walkthrough-benchmark.png)
+![Preflight startup benchmark](images/walkthrough-benchmark.png)
 
 ## If something goes wrong
 
