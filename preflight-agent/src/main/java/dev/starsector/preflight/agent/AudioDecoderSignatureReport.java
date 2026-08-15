@@ -94,6 +94,11 @@ final class AudioDecoderSignatureReport {
         }
     }
 
+    /** Whether this run observed nothing a reader would act on. See {@link AdapterRuntime}. */
+    synchronized boolean routine() {
+        return diagnostics.isEmpty() && !diagnosticsTruncated && !entriesTruncated;
+    }
+
     synchronized void write() throws IOException {
         Path parent = destination.getParent();
         if (parent != null) Files.createDirectories(parent);

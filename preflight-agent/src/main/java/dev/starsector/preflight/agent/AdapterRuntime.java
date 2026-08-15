@@ -363,6 +363,45 @@ final class AdapterRuntime {
         return truthy(property) || truthy(environmentValue);
     }
 
+    /**
+     * Whether to keep the per-seam evidence documents a launch produced even when they found
+     * nothing.
+     *
+     * <p>These four contract and signature reports are how an adapter seam is argued about: what
+     * bytecode was observed, which identity matched, what the transform declined to do. They cost
+     * around 400 KB of the roughly 940 KB a run directory holds, and nothing in the tree reads them
+     * back -- they are read by a person, after something went wrong. A launch where every seam
+     * matched writes the same document as the launch before it, so on a player's machine the
+     * routine copies are pure accumulation.
+     *
+     * <p>So the routine ones are skipped and the ones carrying a finding are always written: a
+     * containment diagnostic, a truncated record, or an identity the adapter did not recognize. A
+     * player who hits a real problem still has the evidence from the launch that hit it, which is
+     * the case these documents exist for and the one that cannot be reproduced afterwards.
+     *
+     * <p>Development sets this to keep the whole series, because a run that found nothing is itself
+     * the evidence when the question is whether a change altered what a seam observes.
+     */
+    static boolean fullEvidence(Map<String, String> environment, Properties properties) {
+        return truthy(properties.getProperty("preflight.evidence.full"))
+                || truthy(environment.get("PREFLIGHT_FULL_EVIDENCE"));
+    }
+
+    private interface EvidenceWrite {
+        void write() throws IOException;
+    }
+
+    private static void writeEvidence(
+            String label, boolean keepRoutineEvidence, boolean routine, EvidenceWrite write) {
+        if (routine && !keepRoutineEvidence) return;
+        try {
+            write.write();
+        } catch (IOException error) {
+            System.err.println(
+                    "[Preflight] Failed to write " + label + " report: " + error.getMessage());
+        }
+    }
+
     static Set<String> disabledPlans(Properties properties) {
         return disabledPlans(Map.of(), properties);
     }
@@ -521,31 +560,17 @@ final class AdapterRuntime {
             } catch (IOException error) {
                 System.err.println("[Preflight] Failed to write adapter report: " + error.getMessage());
             }
-            try {
-                codeLoaderReport.write();
-            } catch (IOException error) {
-                System.err.println("[Preflight] Failed to write code-loader signature report: " + error.getMessage());
-            }
-            try {
-                audioDecoderReport.write();
-            } catch (IOException error) {
-                System.err.println("[Preflight] Failed to write audio-decoder signature report: " + error.getMessage());
-            }
-            try {
-                soundLoaderReport.write();
-            } catch (IOException error) {
-                System.err.println("[Preflight] Failed to write sound-loader contract report: " + error.getMessage());
-            }
-            try {
-                textureLoaderReport.write();
-            } catch (IOException error) {
-                System.err.println("[Preflight] Failed to write texture-loader contract report: " + error.getMessage());
-            }
-            try {
-                janinoLoaderReport.write();
-            } catch (IOException error) {
-                System.err.println("[Preflight] Failed to write Janino-loader contract report: " + error.getMessage());
-            }
+            boolean keepRoutineEvidence = fullEvidence(System.getenv(), System.getProperties());
+            writeEvidence("code-loader signature", keepRoutineEvidence,
+                    codeLoaderReport.routine(), codeLoaderReport::write);
+            writeEvidence("audio-decoder signature", keepRoutineEvidence,
+                    audioDecoderReport.routine(), audioDecoderReport::write);
+            writeEvidence("sound-loader contract", keepRoutineEvidence,
+                    soundLoaderReport.routine(), soundLoaderReport::write);
+            writeEvidence("texture-loader contract", keepRoutineEvidence,
+                    textureLoaderReport.routine(), textureLoaderReport::write);
+            writeEvidence("Janino-loader contract", keepRoutineEvidence,
+                    janinoLoaderReport.routine(), janinoLoaderReport::write);
         }
     }
 }

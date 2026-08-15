@@ -759,6 +759,11 @@ final class RunCommand {
         values.put("textureCurrentIndexBuildMs", textureContext == null ? null : textureContext.indexBuildMillis());
         values.put("adapterKillSwitchProperty", "preflight.adapter.disabled");
         values.put("adapterKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER");
+        // Per-seam contract and signature reports are written when they carry a finding. Set either
+        // of these to keep the routine ones too, which is what development wants and a player's
+        // disk does not.
+        values.put("fullEvidenceProperty", "preflight.evidence.full");
+        values.put("fullEvidenceEnvironment", "PREFLIGHT_FULL_EVIDENCE");
         values.put("adapterPlanKillSwitchProperty", "preflight.adapter.disabledPlans");
         values.put("adapterPlanKillSwitchEnvironment", "PREFLIGHT_DISABLE_ADAPTER_PLANS");
         Files.writeString(path, Json.object(values) + System.lineSeparator());

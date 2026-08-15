@@ -124,6 +124,20 @@ final class BytecodeShapeReport {
         return shape != null;
     }
 
+    /**
+     * Whether this run observed nothing a reader would act on. See {@link AdapterRuntime}.
+     *
+     * <p>A seam whose identity never matched is not a finding here, tempting as it looks: this
+     * report does not record what it saw instead, so the document it writes says only
+     * {@code exactIdentityObserved: false}. That a target was not transformed is already in
+     * {@code adapter.json}, which is written every launch and which adapter health is derived from.
+     * The finding this report alone can carry is an identity that matched and then failed to
+     * analyze.
+     */
+    synchronized boolean routine() {
+        return diagnostics.isEmpty() && !captureFailed;
+    }
+
     synchronized void write() throws IOException {
         Path parent = destination.getParent();
         if (parent != null) {

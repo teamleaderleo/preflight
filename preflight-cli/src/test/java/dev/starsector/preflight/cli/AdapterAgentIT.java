@@ -111,6 +111,34 @@ class AdapterAgentIT {
     }
 
     @Test
+    void aLaunchWhereNothingWentWrongLeavesNoPerSeamEvidenceBehind() throws Exception {
+        // The same synthetic launch as above, without the collecting switch: this is what a player
+        // gets. `adapter.json` still lands, because that one is read -- adapter health is derived
+        // from it. The four per-seam documents are around 400 KB of a run directory and nothing in
+        // the tree reads them back, so a launch that found nothing writes none of them.
+        Path recording = temporaryDirectory.resolve("quiet.jfr");
+        Path adapterReport = temporaryDirectory.resolve("adapter.json");
+        String agentArguments = "dest64=" + encoded(recording)
+                + ",adapter=probe,adapterReport64=" + encoded(adapterReport);
+
+        ProcessResult result = launch(agentArguments, List.of(), false);
+
+        assertTrue(result.completed(), result.output());
+        assertEquals(0, result.exitCode(), result.output());
+        assertTrue(Files.isRegularFile(adapterReport), result.output());
+        for (String name : List.of(
+                "adapter-code-loader-signatures.json",
+                "adapter-janino-loader-contract.json",
+                "adapter-audio-decoder-signatures.json",
+                "adapter-sound-loader-contract.json",
+                "adapter-texture-loader-contract.json")) {
+            assertFalse(
+                    Files.exists(temporaryDirectory.resolve(name)),
+                    name + " was written by a launch that found nothing: " + result.output());
+        }
+    }
+
+    @Test
     void profilerOnlyLaunchDoesNotCreateAdapterReport() throws Exception {
         Path recording = temporaryDirectory.resolve("profile-only.jfr");
         Path adapterReport = temporaryDirectory.resolve("adapter.json");
@@ -176,11 +204,26 @@ class AdapterAgentIT {
     }
 
     private ProcessResult launch(String agentArguments, List<String> jvmArguments) throws Exception {
+        return launch(agentArguments, jvmArguments, true);
+    }
+
+    /**
+     * @param collectRoutineEvidence the synthetic launcher is a seam where nothing goes wrong, so
+     *     its per-seam contract reports are routine and a player's launch skips writing them. Most
+     *     of these tests are the packaged agent's end-to-end check that those documents are
+     *     produced at all, which is the collecting case.
+     */
+    private ProcessResult launch(
+            String agentArguments, List<String> jvmArguments, boolean collectRoutineEvidence)
+            throws Exception {
         Path java = Path.of(System.getProperty("java.home"), "bin", executable("java"));
         Path agent = Path.of("target", "preflight.jar").toAbsolutePath().normalize();
         Path testClasses = Path.of("target", "test-classes").toAbsolutePath().normalize();
         List<String> command = new ArrayList<>();
         command.add(java.toString());
+        if (collectRoutineEvidence) {
+            command.add("-Dpreflight.evidence.full=true");
+        }
         command.add("-javaagent:" + agent + "=" + agentArguments);
         command.addAll(jvmArguments);
         command.add("-cp");

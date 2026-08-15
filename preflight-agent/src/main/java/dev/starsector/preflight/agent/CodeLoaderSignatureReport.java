@@ -86,6 +86,18 @@ final class CodeLoaderSignatureReport {
         diagnostic(detail + ": " + message(error));
     }
 
+    /**
+     * Whether this run observed nothing a reader would act on.
+     *
+     * <p>The interesting content of a signature report is the part that says something went other
+     * than expected: a containment diagnostic, or a limit hit so hard the record is incomplete. The
+     * rest is the same list of Janino classes every launch of the same install produces, and
+     * writing it again per launch fills a player's disk with copies nothing reads.
+     */
+    synchronized boolean routine() {
+        return diagnostics.isEmpty() && !diagnosticsTruncated && !entriesTruncated;
+    }
+
     synchronized void write() throws IOException {
         Path parent = destination.getParent();
         if (parent != null) Files.createDirectories(parent);
