@@ -342,12 +342,12 @@ jobs:
     if: needs.scope.outputs.package == 'true'
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:jammy-20260627@sha256:0d7799fb1b4e200a24c11fc575a7e11ecb6501ff6eec649226fad40bd6501c64
+      image: ubuntu:jammy-20260627@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8
     defaults:
       run:
         shell: bash
     env:
-      PREFLIGHT_LINUX_BUILDER_IMAGE: ubuntu:jammy-20260627@sha256:0d7799fb1b4e200a24c11fc575a7e11ecb6501ff6eec649226fad40bd6501c64
+      PREFLIGHT_LINUX_BUILDER_IMAGE: ubuntu:jammy-20260627@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8
       PREFLIGHT_LINUX_MAX_GLIBC: '2.35'
     steps:
       - name: Bootstrap pinned Linux builder
