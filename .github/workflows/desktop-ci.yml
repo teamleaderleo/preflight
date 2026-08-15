@@ -349,6 +349,12 @@ jobs:
     env:
       PREFLIGHT_LINUX_BUILDER_IMAGE: ubuntu:jammy-20260627@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8
       PREFLIGHT_LINUX_MAX_GLIBC: '2.35'
+      # sun.jnu.encoding is derived from the locale and is documented as not settable on the JVM
+      # command line, so a bare container's default C locale makes every non-ASCII game path
+      # unrepresentable. The synthetic contract deliberately uses one. Real Linux desktops are
+      # UTF-8; this makes the builder match them rather than relaxing what Preflight accepts.
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
     steps:
       - name: Bootstrap pinned Linux builder
         run: |
