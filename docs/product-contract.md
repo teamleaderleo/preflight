@@ -174,8 +174,9 @@ before/after result. Advanced controls remain available without becoming prerequ
   uninstaller; a running app doesn't attempt to delete its own bundle.
 - A profile or game update selects new content identities. Old data remains removable through the
   same preview-first storage flow rather than accumulating invisibly forever.
-- “Send run report” is a deliberate action with disclosure, digest, progress, cancel/retry behavior,
-  a case receipt, retention information, and a deletion path. It isn't ambient telemetry.
+- Sending a support ZIP is a deliberate action after creation and review, with a digest, progress,
+  cancel/retry behavior, case receipt, retention information, and deletion path. It isn't ambient
+  telemetry.
 
 ## Operation lifecycle
 
