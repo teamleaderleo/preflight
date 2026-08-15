@@ -1,0 +1,213 @@
+name: Publish verified release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact draft release tag to publish, for example v0.1.0
+        required: true
+        type: string
+      distribution_run_id:
+        description: Successful Distribution run ID that created and verified the draft
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Reverify and publish existing draft
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      DISTRIBUTION_RUN_ID: ${{ inputs.distribution_run_id }}
+    steps:
+      - name: Check out exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - name: Validate tag and successful Distribution run
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" == v* ]] || { echo "::error::Publication requires an exact v* release tag"; exit 1; }
+          [[ "$DISTRIBUTION_RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::Distribution run ID must be numeric"; exit 1; }
+          node preflight-desktop/scripts/validate-release-version.mjs "$RELEASE_TAG"
+
+          tag_sha="$(git rev-parse "${RELEASE_TAG}^{}")"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DISTRIBUTION_RUN_ID" \
+            > "$RUNNER_TEMP/distribution-run.json"
+          python3 - "$RUNNER_TEMP/distribution-run.json" "$tag_sha" <<'PY'
+          import json
+          import sys
+
+          run = json.load(open(sys.argv[1], encoding="utf-8"))
+          tag_sha = sys.argv[2]
+          errors = []
+          if run.get("name") != "Distribution":
+              errors.append(f"run name is {run.get('name')!r}, expected 'Distribution'")
+          if run.get("path") != ".github/workflows/distribution.yml":
+              errors.append(f"workflow path is {run.get('path')!r}")
+          if run.get("event") != "push":
+              errors.append(f"run event is {run.get('event')!r}, expected 'push'")
+          if run.get("status") != "completed" or run.get("conclusion") != "success":
+              errors.append(
+                  f"run state is {run.get('status')!r}/{run.get('conclusion')!r}, expected completed/success"
+              )
+          if run.get("head_sha") != tag_sha:
+              errors.append(f"run head {run.get('head_sha')!r} does not match tag commit {tag_sha!r}")
+          if errors:
+              raise SystemExit("Refusing publication: " + "; ".join(errors))
+          PY
+
+      - name: Read and validate draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            > "$RUNNER_TEMP/draft-release-before.json"
+          version="${RELEASE_TAG#v}"
+          python3 - "$RUNNER_TEMP/draft-release-before.json" "docs/releases/${version}.md" "$RELEASE_TAG" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          release = json.load(open(sys.argv[1], encoding="utf-8"))
+          notes_path = Path(sys.argv[2])
+          tag = sys.argv[3]
+          errors = []
+          if release.get("tag_name") != tag:
+              errors.append(f"draft tag is {release.get('tag_name')!r}, expected {tag!r}")
+          if release.get("draft") is not True:
+              errors.append("release is not still a draft")
+          if release.get("name") != f"Preflight {tag}":
+              errors.append(f"release title is {release.get('name')!r}")
+          expected_notes = notes_path.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+          actual_notes = (release.get("body") or "").replace("\r\n", "\n").strip()
+          if actual_notes != expected_notes:
+              errors.append("draft release notes differ from the reviewed notes at the tag")
+          if not release.get("assets"):
+              errors.append("draft release has no assets")
+          if errors:
+              raise SystemExit("Refusing publication: " + "; ".join(errors))
+          PY
+
+      - name: Download originally verified release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir verified-release
+          gh run download "$DISTRIBUTION_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "preflight-complete-release-$DISTRIBUTION_RUN_ID" \
+            --dir verified-release
+
+      - name: Download current draft release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir draft-release
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir draft-release
+
+      - name: Match draft assets byte-for-byte to the verified artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - verified-release draft-release <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          import sys
+
+          def inventory(root_name):
+              root = Path(root_name)
+              if not root.is_dir():
+                  raise SystemExit(f"Missing release directory: {root}")
+              entries = list(root.iterdir())
+              invalid = [p.name for p in entries if p.is_symlink() or not p.is_file()]
+              if invalid:
+                  raise SystemExit(f"Unexpected non-file release entries in {root}: {invalid}")
+              return {
+                  p.name: (p.stat().st_size, sha256(p.read_bytes()).hexdigest())
+                  for p in entries
+              }
+
+          verified = inventory(sys.argv[1])
+          draft = inventory(sys.argv[2])
+          if verified != draft:
+              missing = sorted(set(verified) - set(draft))
+              added = sorted(set(draft) - set(verified))
+              changed = sorted(
+                  name for name in set(verified) & set(draft) if verified[name] != draft[name]
+              )
+              raise SystemExit(
+                  "Draft assets differ from the verified Distribution artifact: "
+                  f"missing={missing}, added={added}, changed={changed}"
+              )
+          print(f"Matched {len(verified)} release assets byte-for-byte")
+          PY
+          python3 scripts/verify_complete_release.py --release draft-release
+
+      - name: Recheck draft and tag immediately before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            > "$RUNNER_TEMP/draft-release-after.json"
+          python3 - "$RUNNER_TEMP/draft-release-before.json" "$RUNNER_TEMP/draft-release-after.json" <<'PY'
+          import json
+          import sys
+
+          def fingerprint(path):
+              release = json.load(open(path, encoding="utf-8"))
+              assets = sorted(
+                  (
+                      asset.get("id"),
+                      asset.get("name"),
+                      asset.get("size"),
+                      asset.get("digest"),
+                  )
+                  for asset in release.get("assets", [])
+              )
+              return (
+                  release.get("id"),
+                  release.get("tag_name"),
+                  release.get("draft"),
+                  release.get("name"),
+                  release.get("body"),
+                  release.get("updated_at"),
+                  assets,
+              )
+
+          before = fingerprint(sys.argv[1])
+          after = fingerprint(sys.argv[2])
+          if before != after:
+              raise SystemExit("Draft release changed during publication verification")
+          if after[2] is not True:
+              raise SystemExit("Release is no longer a draft")
+          PY
+
+          original_tag_sha="$(git rev-parse "${RELEASE_TAG}^{}")"
+          git fetch --force origin "refs/tags/$RELEASE_TAG"
+          current_tag_sha="$(git rev-parse 'FETCH_HEAD^{}')"
+          test "$current_tag_sha" = "$original_tag_sha" || {
+            echo "::error::Release tag moved during publication verification"
+            exit 1
+          }
+
+      - name: Publish verified draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .draft)" = "false"
