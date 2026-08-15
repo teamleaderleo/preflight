@@ -2,12 +2,20 @@ import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildCapabilityReceipt } from "./capability-receipt.mjs";
 
 const scriptsDirectory = dirname(fileURLToPath(import.meta.url));
 const desktopDirectory = resolve(scriptsDirectory, "..");
 const repositoryRoot = resolve(desktopDirectory, "..");
 
-const rootEntries = ["bundle.json", "legal", "preflight.jar", "runtime", "scenarios"];
+const rootEntries = [
+  "bundle.json",
+  "capability-receipt.json",
+  "legal",
+  "preflight.jar",
+  "runtime",
+  "scenarios",
+];
 const legalFiles = new Map([
   ["LICENSE", join(repositoryRoot, "LICENSE")],
   ["KNOWN_LIMITATIONS.md", join(repositoryRoot, "docs", "known-limitations.md")],
@@ -78,6 +86,8 @@ export function verifyEngineBoundary(
   assertRegularFile(manifestPath, "bundle manifest");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const expectedKeys = [
+    "capabilityReceiptBytes",
+    "capabilityReceiptSha256",
     "compression",
     "jarBytes",
     "jarSha256",
@@ -133,6 +143,33 @@ export function verifyEngineBoundary(
   }
   if (typeof manifest.sourceVersion !== "string" || manifest.sourceVersion.length === 0) {
     throw new Error("Desktop engine manifest has no source version");
+  }
+  const capabilityReceiptPath = join(engineDirectory, "capability-receipt.json");
+  assertRegularFile(capabilityReceiptPath, "release capability receipt");
+  const capabilityReceiptBytes = readFileSync(capabilityReceiptPath);
+  if (manifest.capabilityReceiptBytes !== capabilityReceiptBytes.length ||
+      !/^[a-f0-9]{64}$/.test(manifest.capabilityReceiptSha256) ||
+      manifest.capabilityReceiptSha256 !== createHash("sha256").update(capabilityReceiptBytes).digest("hex")) {
+    throw new Error("Desktop engine capability receipt differs from the bundle manifest");
+  }
+  const capabilityReceipt = JSON.parse(capabilityReceiptBytes.toString("utf8"));
+  const expectedCapabilityReceipt = buildCapabilityReceipt({
+    engineJarPath: join(engineDirectory, "preflight.jar"),
+    productVersion: manifest.sourceVersion,
+    sourceRevision: capabilityReceipt.sourceRevision,
+    sourceDirty: capabilityReceipt.sourceDirty,
+    environment: {
+      PREFLIGHT_UPDATER_ENDPOINT: capabilityReceipt.network?.updateEndpoint,
+      ...(capabilityReceipt.network?.updateConfigured
+        ? { PREFLIGHT_UPDATER_PUBLIC_KEY: "configured" }
+        : {}),
+      ...(capabilityReceipt.network?.reportIntakeOrigin === "disabled"
+        ? {}
+        : { PREFLIGHT_REPORT_INTAKE_ORIGIN: capabilityReceipt.network?.reportIntakeOrigin }),
+    },
+  });
+  if (stableJson(capabilityReceipt) !== stableJson(expectedCapabilityReceipt)) {
+    throw new Error("Desktop engine capability receipt differs from the reviewed boundary");
   }
   const actualRuntime = runtimeInventory(join(engineDirectory, "runtime"));
   const runtimeChanges = verifyRuntimeInventory(

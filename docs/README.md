@@ -14,6 +14,8 @@ archive. They answer different questions. This page is the shortest route to the
   reply-handling checklist.
 - [Product contract](product-contract.md) — exact modification, compatibility, preset, storage,
   update, and diagnostics boundaries.
+- [Packaged capability receipt](capability-receipt.md) — the machine-checked writes, child
+  processes, native commands, fixed links, and network endpoints in an exact package.
 - [Optimization history](optimization-history.md) — the readable, source-linked account from the
   roughly 101-second observed worst case through the 15.25-second warm record, with the latest
   same-profile medians at 89.00 seconds ordinary and 15.53 seconds accelerated.

@@ -207,6 +207,9 @@ jobs:
 
       - name: Test frontend and prepare desktop engine
         working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         shell: bash
         run: |
           npm run engine:prepare:verified
@@ -372,6 +375,9 @@ jobs:
 
       - name: Test frontend and prepare desktop engine
         working-directory: preflight-desktop
+        env:
+          PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ (startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate) && vars.PREFLIGHT_UPDATER_PUBLIC_KEY || '' }}
+          PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: |
           npm run engine:prepare:verified
           npm test

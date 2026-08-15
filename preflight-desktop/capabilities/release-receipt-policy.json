@@ -1,0 +1,64 @@
+{
+  "format": "preflight-capability-policy-v1",
+  "filesystem": {
+    "preflightOwned": [
+      {
+        "target": "Preflight's application-data root",
+        "purpose": "prepared caches, profiles, evidence, backups, configuration, and temporary files"
+      },
+      {
+        "target": "Preflight's installed launcher integration",
+        "purpose": "the command or shortcut installed and removed by explicit user action"
+      }
+    ],
+    "gameOwnedWrites": [
+      {
+        "target": "mods/enabled_mods.json",
+        "when": "the user confirms a named-profile switch",
+        "safety": "previewed, fingerprint-rechecked, backed up, and atomically replaced when the filesystem supports it"
+      },
+      {
+        "target": "Starsector launcher preferences",
+        "when": "the user applies resolution, fullscreen, sound, antialiasing, UI scale, or battle-size settings",
+        "safety": "the existing values are backed up before the bounded preference update"
+      },
+      {
+        "target": "the selected launcher's vmparams file",
+        "when": "the user applies a heap-memory change",
+        "safety": "ambiguous or out-of-installation files are refused; the exact file is backed up and replaced through a same-directory temporary file"
+      }
+    ],
+    "excluded": [
+      "save files",
+      "game JARs",
+      "mod archives",
+      "game assets",
+      "activation data"
+    ]
+  },
+  "processes": [
+    {
+      "family": "bundled Java engine",
+      "purpose": "run the fixed Preflight CLI commands selected by native host code"
+    },
+    {
+      "family": "selected original Starsector launcher or game",
+      "purpose": "launch the user's existing installation and stop only the process Preflight owns"
+    },
+    {
+      "family": "bounded desktop automation helper",
+      "purpose": "run an explicit local benchmark or smoke scenario with PID-scoped stop ownership"
+    },
+    {
+      "family": "operating-system URL opener",
+      "purpose": "open only the fixed documentation and support links recorded in this receipt"
+    }
+  ],
+  "arbitraryShellCommandsAccepted": false,
+  "network": {
+    "automaticTelemetry": false,
+    "ordinaryLaunchNetwork": false,
+    "reportUpload": "disabled unless a release is compiled with one reviewed HTTPS intake origin and the user explicitly confirms a support ZIP upload",
+    "updates": "a signed metadata request to the fixed HTTPS endpoint recorded in this receipt"
+  }
+}

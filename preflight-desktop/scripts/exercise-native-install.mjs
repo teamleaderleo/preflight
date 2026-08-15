@@ -432,7 +432,8 @@ function onlyPackagedEngine(root) {
   const engines = regularDirectories(root).filter((path) => {
     if (basename(path).toLowerCase() !== "engine") return false;
     const names = new Set(readdirSync(path));
-    return ["bundle.json", "preflight.jar", "runtime"].every((name) => names.has(name));
+    return ["bundle.json", "capability-receipt.json", "preflight.jar", "runtime"]
+      .every((name) => names.has(name));
   });
   if (engines.length !== 1) throw new Error(`Installed package must contain one engine; found ${engines.length}`);
   return engines[0];

@@ -15,6 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { runtimeInventory, verifyEngineBoundary } from "./engine-boundary.mjs";
+import { writeCapabilityReceipt } from "./capability-receipt.mjs";
 
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(desktopDirectory, "..");
@@ -98,6 +99,13 @@ const bundledJava = join(
 );
 run(bundledJava, ["-jar", join(engineDirectory, "preflight.jar"), "help"], repositoryRoot);
 
+const sourceVersion = readProjectVersion();
+const capabilityReceiptPath = join(engineDirectory, "capability-receipt.json");
+writeCapabilityReceipt(capabilityReceiptPath, {
+  engineJarPath: join(engineDirectory, "preflight.jar"),
+  productVersion: sourceVersion,
+});
+const capabilityReceipt = readFileSync(capabilityReceiptPath);
 const manifest = {
   modules,
   compression,
@@ -110,8 +118,10 @@ const manifest = {
   legalFiles: Object.fromEntries(
     legalSources.map(([source, name]) => [name, statSync(source).size]),
   ),
+  capabilityReceiptBytes: capabilityReceipt.length,
+  capabilityReceiptSha256: createHash("sha256").update(capabilityReceipt).digest("hex"),
   runtime: runtimeInventory(runtimeDirectory),
-  sourceVersion: readProjectVersion(),
+  sourceVersion,
 };
 writeFileSync(join(engineDirectory, "bundle.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 

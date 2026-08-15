@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 const desktopDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDirectory = join(desktopDirectory, "src-tauri", "target", "release", "bundle");
 const outputDirectory = join(desktopDirectory, "desktop-dist");
+const capabilityReceiptPath = join(desktopDirectory, "src-tauri", "target", "engine", "capability-receipt.json");
 const packageSuffixes = [
   ".appimage.sig",
   ".app.tar.gz.sig",
@@ -89,6 +90,45 @@ export function publicPackageName(source, platform = process.platform, architect
   return `Preflight-${platformLabel}-${architecture}${publicExtension}`;
 }
 
+export function artifactCapabilityReceipt(capabilityReceipt, artifacts, platform, architectureName) {
+  if (!capabilityReceipt || capabilityReceipt.format !== "preflight-release-capabilities-v1") {
+    throw new Error("Packaged engine has no valid capability receipt");
+  }
+  const reviewedArtifacts = [...artifacts]
+    .map(({ name, bytes, sha256 }) => ({ name, bytes, sha256 }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  if (reviewedArtifacts.length === 0 || reviewedArtifacts.some((artifact) =>
+    typeof artifact.name !== "string" || !artifact.name ||
+    !Number.isSafeInteger(artifact.bytes) || artifact.bytes <= 0 ||
+    !/^[a-f0-9]{64}$/.test(artifact.sha256))) {
+    throw new Error("Native package artifact identities are malformed");
+  }
+  return {
+    format: "preflight-release-artifact-capabilities-v1",
+    platform,
+    architecture: architectureName,
+    capabilityReceiptSha256: createHash("sha256")
+      .update(canonicalCapabilityReceipt(capabilityReceipt))
+      .digest("hex"),
+    capabilityReceipt,
+    artifacts: reviewedArtifacts,
+  };
+}
+
+export function canonicalCapabilityReceipt(value) {
+  return `${JSON.stringify(sortObjectKeys(value), null, 2)}\n`;
+}
+
+function sortObjectKeys(value) {
+  if (Array.isArray(value)) return value.map(sortObjectKeys);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, sortObjectKeys(child)]),
+  );
+}
+
 function packageExtension(source) {
   const sourceName = basename(source).toLowerCase();
   const extension = packageSuffixes.find((suffix) => sourceName.endsWith(suffix));
@@ -114,6 +154,7 @@ function main() {
 
   const usedNames = new Set();
   const checksums = [];
+  const artifactIdentities = [];
   for (const source of packages) {
     const name = publicPackageName(source);
     if (!usedNames.add(name)) throw new Error(`Two native packages have the same filename: ${name}`);
@@ -121,11 +162,24 @@ function main() {
     copyFileSync(source, destination);
     const digest = createHash("sha256").update(readFileSync(destination)).digest("hex");
     checksums.push(`${digest}  ${name}`);
+    artifactIdentities.push({ name, bytes: statSync(destination).size, sha256: digest });
   }
   checksums.sort();
   const checksumName = `SHA256SUMS-${process.platform}-${process.arch}.txt`;
   writeFileSync(join(outputDirectory, checksumName), `${checksums.join("\n")}\n`);
-  const expectedOutput = [...usedNames, checksumName].sort();
+  const capabilityReceipt = JSON.parse(readFileSync(capabilityReceiptPath, "utf8"));
+  const artifactReceiptName = `CAPABILITIES-${process.platform}-${process.arch}.json`;
+  const artifactReceipt = artifactCapabilityReceipt(
+    capabilityReceipt,
+    artifactIdentities,
+    process.platform,
+    process.arch,
+  );
+  writeFileSync(
+    join(outputDirectory, artifactReceiptName),
+    `${JSON.stringify(artifactReceipt, null, 2)}\n`,
+  );
+  const expectedOutput = [...usedNames, checksumName, artifactReceiptName].sort();
   const actualOutput = readdirSync(outputDirectory).sort();
   if (JSON.stringify(actualOutput) !== JSON.stringify(expectedOutput)) {
     throw new Error(`Desktop distribution files differ: expected ${expectedOutput}; got ${actualOutput}`);

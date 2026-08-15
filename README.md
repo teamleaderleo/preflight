@@ -131,7 +131,9 @@ full boundary is in the [Product contract](docs/product-contract.md), with curre
 
 Preflight was developed with help from ChatGPT/Codex and Claude. Leo reviews and publishes each
 release. The source and package checksums are public, nothing uploads automatically, and anything
-Preflight doesn't recognize uses Starsector's original code path.
+Preflight doesn't recognize uses Starsector's original code path. Every package also carries a
+[machine-checked capability receipt](docs/capability-receipt.md) listing its exact native commands,
+writes, child processes, fixed links, and network endpoints.
 
 ## Development quick start
 

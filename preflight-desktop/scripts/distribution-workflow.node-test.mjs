@@ -109,6 +109,10 @@ test("signed candidates require updater credentials, release validation and ever
     assert.match(platformJob, /path: preflight-desktop\/candidate-desktop\/\*\.pfcandidate/);
     assert.match(platformJob, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
     assert.match(platformJob, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
+    assert.match(
+      platformJob,
+      /Test frontend and prepare desktop engine[\s\S]*?PREFLIGHT_UPDATER_PUBLIC_KEY:[\s\S]*?PREFLIGHT_REPORT_INTAKE_ORIGIN:/,
+    );
   }
   assert.match(desktop, /update_bundles: dmg,app/);
   assert.match(desktop, /--bundles \$\{\{ matrix\.update_bundles \}\}/);

@@ -51,6 +51,24 @@ PLATFORM_CHECKSUMS = {
     ),
 }
 
+CAPABILITY_RECEIPTS = {
+    "CAPABILITIES-darwin-arm64.json": (
+        "darwin",
+        "arm64",
+        "SHA256SUMS-darwin-arm64.txt",
+    ),
+    "CAPABILITIES-linux-x64.json": (
+        "linux",
+        "x64",
+        "SHA256SUMS-linux-x64.txt",
+    ),
+    "CAPABILITIES-win32-x64.json": (
+        "win32",
+        "x64",
+        "SHA256SUMS-win32-x64.txt",
+    ),
+}
+
 UPDATER_PACKAGES = {
     "darwin-aarch64": "Preflight-macOS-arm64.app.tar.gz",
     "linux-x86_64": "Preflight-Linux-x86_64.AppImage",
@@ -65,6 +83,7 @@ COMPLETE_FILES = (
     core_boundary.DIST_FILES
     | DESKTOP_PACKAGES
     | frozenset(PLATFORM_CHECKSUMS)
+    | frozenset(CAPABILITY_RECEIPTS)
     | {"latest.json", "latest.json.sha256"}
 )
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
@@ -104,15 +123,121 @@ def validate_complete_release(directory: Path) -> dict[str, int | str]:
                     f"{manifest_name} checksum doesn't match: {package_name}"
                 )
 
+    capability_source_revision = validate_capability_receipts(directory)
     updater_platforms, updater_url_mode = validate_updater_manifest(directory)
     return {
         "releaseFiles": len(COMPLETE_FILES),
         "desktopPackages": len(DESKTOP_PACKAGES),
         "platformChecksumManifests": len(PLATFORM_CHECKSUMS),
+        "capabilityReceipts": len(CAPABILITY_RECEIPTS),
+        "capabilitySourceRevision": capability_source_revision,
         "updaterPlatforms": updater_platforms,
         "updaterUrlMode": updater_url_mode,
         "coreArchivePayloadFiles": core["archivePayloadFiles"],
     }
+
+
+def validate_capability_receipts(directory: Path) -> str:
+    common_receipt: dict | None = None
+    for receipt_name, (platform, architecture, checksum_name) in CAPABILITY_RECEIPTS.items():
+        try:
+            receipt = json.loads((directory / receipt_name).read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise CompleteReleaseError(f"{receipt_name} isn't valid UTF-8 JSON") from exc
+        expected_fields = {
+            "format",
+            "platform",
+            "architecture",
+            "capabilityReceiptSha256",
+            "capabilityReceipt",
+            "artifacts",
+        }
+        if not isinstance(receipt, dict) or set(receipt) != expected_fields:
+            raise CompleteReleaseError(f"{receipt_name} fields differ from the reviewed schema")
+        if (
+            receipt["format"] != "preflight-release-artifact-capabilities-v1"
+            or receipt["platform"] != platform
+            or receipt["architecture"] != architecture
+        ):
+            raise CompleteReleaseError(f"{receipt_name} identifies another release target")
+        capability = receipt["capabilityReceipt"]
+        if not isinstance(capability, dict):
+            raise CompleteReleaseError(f"{receipt_name} has no packaged capability statement")
+        encoded_capability = (
+            json.dumps(capability, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+        ).encode("utf-8")
+        if (
+            not isinstance(receipt["capabilityReceiptSha256"], str)
+            or receipt["capabilityReceiptSha256"]
+            != hashlib.sha256(encoded_capability).hexdigest()
+        ):
+            raise CompleteReleaseError(f"{receipt_name} capability digest doesn't match")
+        validate_packaged_capability(capability, receipt_name)
+        if common_receipt is None:
+            common_receipt = capability
+        elif capability != common_receipt:
+            raise CompleteReleaseError("platform packages carry different capability statements")
+
+        expected_packages = PLATFORM_CHECKSUMS[checksum_name]
+        artifacts = receipt["artifacts"]
+        if (
+            not isinstance(artifacts, list)
+            or len(artifacts) != len(expected_packages)
+            or {
+                item.get("name") for item in artifacts if isinstance(item, dict)
+            }
+            != set(expected_packages)
+        ):
+            raise CompleteReleaseError(f"{receipt_name} artifact set differs from {checksum_name}")
+        expected_digests = core_boundary.parse_checksums(
+            directory / checksum_name, expected_packages
+        )
+        for artifact in artifacts:
+            if not isinstance(artifact, dict) or set(artifact) != {"name", "bytes", "sha256"}:
+                raise CompleteReleaseError(f"{receipt_name} has a malformed artifact identity")
+            name = artifact["name"]
+            if (
+                not isinstance(artifact["bytes"], int)
+                or artifact["bytes"] <= 0
+                or artifact["bytes"] != (directory / name).stat().st_size
+                or artifact["sha256"] != expected_digests[name]
+                or artifact["sha256"] != sha256(directory / name)
+            ):
+                raise CompleteReleaseError(f"{receipt_name} artifact identity doesn't match: {name}")
+    if common_receipt is None:
+        raise CompleteReleaseError("complete release has no capability receipt")
+    return common_receipt["sourceRevision"]
+
+
+def validate_packaged_capability(capability: dict, receipt_name: str) -> None:
+    required = {
+        "format",
+        "productVersion",
+        "sourceRevision",
+        "sourceDirty",
+        "boundarySourceSha256",
+        "engineJarSha256",
+        "rendererBoundary",
+        "filesystem",
+        "processes",
+        "arbitraryShellCommandsAccepted",
+        "network",
+    }
+    if set(capability) != required or capability["format"] != "preflight-release-capabilities-v1":
+        raise CompleteReleaseError(f"{receipt_name} packaged capability fields differ")
+    if (
+        not isinstance(capability["sourceRevision"], str)
+        or not re.fullmatch(r"[a-f0-9]{40}", capability["sourceRevision"])
+        or capability["sourceDirty"] is not False
+        or not isinstance(capability["boundarySourceSha256"], str)
+        or not re.fullmatch(r"[a-f0-9]{64}", capability["boundarySourceSha256"])
+        or not isinstance(capability["engineJarSha256"], str)
+        or not re.fullmatch(r"[a-f0-9]{64}", capability["engineJarSha256"])
+        or capability["arbitraryShellCommandsAccepted"] is not False
+        or capability.get("network", {}).get("automaticTelemetry") is not False
+        or not capability.get("rendererBoundary", {}).get("nativeCommands")
+    ):
+        raise CompleteReleaseError(f"{receipt_name} packaged capability statement is unsafe")
 
 
 def validate_core_subset(directory: Path) -> dict[str, int]:
