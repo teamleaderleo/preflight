@@ -51,6 +51,27 @@ accumulated several profiles and texture-storage policies across months of exper
 sizing their disk wants the 4.76 GB figure, and the difference between the two is the reason the
 app ships preview-first cleanup.
 
+## Free space it demands before it will start
+
+Preparation refuses to begin unless a conservative upper bound plus a reserve fits, so the space a
+user needs free is much larger than the cache they end up with. From the read-only plans for this
+profile:
+
+| | Balanced | Fastest |
+| --- | ---: | ---: |
+| predicted additional bytes | 4,912,134,402 | 10,706,333,898 |
+| conservative upper bound | 11,744,225,102 | 10,806,997,194 |
+| safety reserve | 1,174,422,510 | 1,080,699,719 |
+| **free space required to start** | **12.92 GB** | 11.89 GB |
+| cache actually produced | 4.76 GB | 10.03 GB |
+
+The reserve is 10% of the upper bound in both cases.
+
+Balanced demands *more* free space than Fastest while producing a cache less than half the size.
+That is not a defect: Fastest stores raw upload-ready pixels, so its size is known almost exactly
+up front, while Balanced's bound has to assume every texture might compress to nothing useful and
+allow for pack duplication on top. The bound is what preparation refuses against, not the estimate.
+
 ## Fastest storage, same profile, same conditions
 
 A second cold preparation into a second empty cache directory, identical except for

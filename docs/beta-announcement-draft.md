@@ -134,6 +134,12 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
   setting stores textures uncompressed and took 10.03 GB on the same profile, so it costs about
   5.3 GB more, not a little more. Both preparations took the same time to build, so Fastest is
   trading disk for launch speed rather than for a quicker setup.
+- Free space you'll need before it starts is larger than what it keeps: about 12.9 GB on that
+  profile, for a cache that ends up at 4.76 GB. Preparation won't begin unless a worst-case bound
+  fits, so it says no up front instead of filling your disk and giving up halfway. It works the
+  exact figure out for your own profile and shows you before writing anything.
+- What drives both numbers is how much decoded art your mods have, not how many mods you run. A
+  smaller list of high-resolution sprite mods can cost more than a bigger list of light ones.
 - First preparation took 3 minutes 21 seconds on that same 83-mod profile, nearly all of it
   spent building textures. After that it's reused, and launches don't pay it again. That was one
   run on my machine with the game's files already warm in the OS cache, so a genuine first run on a

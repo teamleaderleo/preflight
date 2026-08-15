@@ -43,8 +43,7 @@ median was taken on a 77-mod profile, before the mod list grew to the 83 it is n
 rows are one controlled campaign instead — both conditions on the same profile, shuffled inside
 every round with 240 seconds of cooling before each launch, five accepted runs each and none
 excluded. That pair is **73.47s** apart, or **82.55%**. All five accelerated runs in it fell below
-the 15.88-second gate above, on the same clock; one campaign on one night does not separate a
-faster build from a quieter machine.
+the 15.88-second gate above, on the same clock.
 
 All of it is one M5 MacBook Air running Starsector 0.98a-RC8 and the game's bundled x86-64 Java
 runtime through Rosetta. The latest production gates were 16.66
@@ -57,6 +56,38 @@ Hardware, mods, storage, cache warmth, memory pressure, translation, and tempera
 result. Preflight's benchmark lets each installation measure its own normal and accelerated launch.
 The development measurements and their context are collected in
 [Optimization history](docs/optimization-history.md).
+
+## What it costs to run
+
+Measured on that same 83-mod profile with the default Balanced storage:
+
+| | |
+| --- | ---: |
+| Prepared cache on disk | **4.76 GB** |
+| Free space it wants before it will start | **12.92 GB** |
+| One-time preparation | 3 minutes 21 seconds |
+| While preparing | 4 worker threads, capped at 256 MiB |
+| Same profile on Fastest storage instead | **10.03 GB** |
+
+The free-space figure is much larger than the cache because preparation refuses to begin unless a
+conservative upper bound — every texture at raw size, pack duplication, metadata — plus a 10%
+reserve fits. It will not start work it might not be able to finish, so a disk with 6 GB free is
+told no rather than filled up and abandoned partway.
+
+**Both disk and preparation time track how much decoded art your mods have, not how many mods you
+run.** Nearly all of the 3m21s was the texture stage. A 40-mod profile heavy on high-resolution
+sprites can cost more than an 83-mod list of light ones, so treat the table as one real data point
+rather than a prediction for your install.
+
+You don't have to guess at yours. Preparation computes the exact predicted and upper-bound figures
+for your own profile before it writes anything, and the first-run screen shows them:
+
+```bash
+java -jar preflight-cli/target/preflight.jar prepare --plan --json
+```
+
+That command is read-only. Balanced is the default because it stores less; Fastest keeps pixels
+uncompressed and trades roughly 5.3 GB more disk on this profile for a faster texture path.
 
 ## What Preflight handles
 
