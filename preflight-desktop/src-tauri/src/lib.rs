@@ -1,5 +1,5 @@
-use serde::Serialize;
-use std::io::Read;
+use serde::{Deserialize, Serialize};
+use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, Stdio};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -44,6 +44,44 @@ struct RunStateEvent {
     pid: u32,
     success: Option<bool>,
     detail: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AfterLaunchBehavior {
+    Keep,
+    Minimize,
+    Quit,
+}
+
+impl AfterLaunchBehavior {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "keep" => Ok(Self::Keep),
+            "minimize" => Ok(Self::Minimize),
+            "quit" => Ok(Self::Quit),
+            _ => Err("After-launch behavior must be keep, minimize, or quit.".to_string()),
+        }
+    }
+}
+
+const DESKTOP_RUN_EVENT_PREFIX: &[u8] = b"PREFLIGHT_DESKTOP_EVENT ";
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DesktopRunEvent {
+    format: String,
+    state: String,
+    pid: u32,
+}
+
+#[derive(Clone, Serialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct StopGameResult {
+    inspected: usize,
+    stopped: usize,
+    still_running: usize,
+    skipped: usize,
+    forced: bool,
 }
 
 /// The only web addresses Preflight will ask the operating system to open.
@@ -131,11 +169,13 @@ fn start_game(
     game: String,
     optimization_preset: String,
     disabled_optimization_domains: Vec<String>,
+    after_launch_behavior: String,
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
     let optimization_preset = validate_optimization_preset(&optimization_preset)?;
     let disabled_optimization_domains =
         validate_optimization_domains(&disabled_optimization_domains)?;
+    let after_launch_behavior = AfterLaunchBehavior::parse(&after_launch_behavior)?;
     let paths = EnginePaths::resolve(&app)?;
 
     let mut running = tracker
@@ -162,6 +202,7 @@ fn start_game(
     for domain in disabled_optimization_domains {
         command.arg("--disable-optimization-domain").arg(domain);
     }
+    command.env("PREFLIGHT_DESKTOP_EVENTS", "stderr-v1");
     command.stderr(Stdio::piped());
     let child = command
         .spawn()
@@ -180,8 +221,92 @@ fn start_game(
         },
     );
 
-    watch_child(app, child);
+    watch_child(app, child, after_launch_behavior);
     Ok(RunStarted { pid })
+}
+
+#[tauri::command]
+fn stop_game(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    force: bool,
+) -> Result<StopGameResult, String> {
+    {
+        let running = tracker
+            .0
+            .lock()
+            .map_err(|_| "The launch tracker is unavailable.".to_string())?;
+        refuse_update_install(&running)?;
+    }
+
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    command.args(["stop", "--json", "--timeout-seconds", "20"]);
+    if force {
+        command.arg("--force");
+    }
+    let output = command
+        .output_within(engine::MUTATION_BUDGET)
+        .map_err(|error| format!("Could not ask Starsector to stop: {error}"))?;
+    // A non-zero stop result means an exact game process survived the graceful timeout. Its JSON
+    // is still the useful answer because it enables the explicit force-stop follow-up.
+    parse_stop_game_result(&output.stdout, force).map_err(|error| {
+        if output.status.success() {
+            error
+        } else {
+            child_error(&error, &output.stderr)
+        }
+    })
+}
+
+fn parse_stop_game_result(output: &[u8], forced: bool) -> Result<StopGameResult, String> {
+    let report: serde_json::Value = serde_json::from_slice(output)
+        .map_err(|error| format!("Preflight returned an unreadable stop result: {error}"))?;
+    if report.get("format").and_then(serde_json::Value::as_str)
+        != Some("starsector-preflight-stop-v1")
+    {
+        return Err("Preflight returned an unknown stop result.".to_string());
+    }
+    let inspected = report
+        .get("inspected")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| {
+            "Preflight's stop result omitted the inspected-process count.".to_string()
+        })?;
+    let entries = report
+        .get("stopped")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Preflight's stop result omitted its process outcomes.".to_string())?;
+    let stopped = entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry.get("result").and_then(serde_json::Value::as_str),
+                Some("stopped" | "forced" | "already-exited")
+            )
+        })
+        .count();
+    let still_running = entries
+        .iter()
+        .filter(|entry| {
+            entry.get("result").and_then(serde_json::Value::as_str) == Some("still-running")
+        })
+        .count();
+    let skipped = report
+        .get("skipped")
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::len)
+        .ok_or_else(|| {
+            "Preflight's stop result omitted its safely skipped processes.".to_string()
+        })?;
+    Ok(StopGameResult {
+        inspected,
+        stopped,
+        still_running,
+        skipped,
+        forced,
+    })
 }
 
 fn validate_optimization_preset(value: &str) -> Result<&str, String> {
@@ -212,14 +337,12 @@ fn validate_optimization_domains(values: &[String]) -> Result<Vec<&str>, String>
     Ok(validated)
 }
 
-fn watch_child(app: AppHandle, mut child: Child) {
+fn watch_child(app: AppHandle, mut child: Child, after_launch_behavior: AfterLaunchBehavior) {
     let pid = child.id();
     std::thread::spawn(move || {
-        let stderr = child
-            .stderr
-            .take()
-            .map(|mut stderr| read_tail(&mut stderr, 8 * 1024))
-            .unwrap_or_default();
+        let stderr = child.stderr.take().map_or_else(Vec::new, |stderr| {
+            read_run_stderr(&app, pid, stderr, 8 * 1024, after_launch_behavior)
+        });
         let status = child.wait();
         let success = status.as_ref().is_ok_and(|status| status.success());
         let detail = if success {
@@ -240,6 +363,70 @@ fn watch_child(app: AppHandle, mut child: Child) {
             },
         );
     });
+}
+
+fn read_run_stderr(
+    app: &AppHandle,
+    wrapper_pid: u32,
+    stderr: impl Read,
+    limit: usize,
+    after_launch_behavior: AfterLaunchBehavior,
+) -> Vec<u8> {
+    let mut reader = BufReader::new(stderr);
+    let mut line = Vec::new();
+    let mut tail = Vec::with_capacity(limit);
+    loop {
+        line.clear();
+        match reader.read_until(b'\n', &mut line) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {}
+        }
+        if parse_desktop_run_event(&line).is_some() {
+            let _ = app.emit(
+                "run-state",
+                RunStateEvent {
+                    state: "running",
+                    pid: wrapper_pid,
+                    success: None,
+                    detail: None,
+                },
+            );
+            match after_launch_behavior {
+                AfterLaunchBehavior::Keep => {}
+                AfterLaunchBehavior::Minimize => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.minimize();
+                    }
+                }
+                AfterLaunchBehavior::Quit => app.exit(0),
+            }
+            continue;
+        }
+        append_tail(&mut tail, &line, limit);
+    }
+    tail
+}
+
+fn parse_desktop_run_event(line: &[u8]) -> Option<u32> {
+    let json = line.strip_prefix(DESKTOP_RUN_EVENT_PREFIX)?;
+    let event: DesktopRunEvent = serde_json::from_slice(json).ok()?;
+    (event.format == "preflight-desktop-run-event-v1"
+        && event.state == "game-running"
+        && event.pid > 0)
+        .then_some(event.pid)
+}
+
+fn append_tail(tail: &mut Vec<u8>, bytes: &[u8], limit: usize) {
+    if bytes.len() >= limit {
+        tail.clear();
+        tail.extend_from_slice(&bytes[bytes.len() - limit..]);
+        return;
+    }
+    let overflow = tail.len().saturating_add(bytes.len()).saturating_sub(limit);
+    if overflow > 0 {
+        tail.drain(..overflow);
+    }
+    tail.extend_from_slice(bytes);
 }
 
 pub(crate) fn take_deferred_exit(running: &mut OperationState) -> bool {
@@ -376,6 +563,7 @@ pub fn run() {
             rename_profile,
             delete_profile,
             start_game,
+            stop_game,
             get_operation_state,
             open_project_link,
             get_preparation_plan,
@@ -411,7 +599,8 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        begin_exit_cleanup, project_link_url, read_tail, snapshot_operation_state,
+        AfterLaunchBehavior, append_tail, begin_exit_cleanup, parse_desktop_run_event,
+        parse_stop_game_result, project_link_url, read_tail, snapshot_operation_state,
         take_deferred_exit, validate_optimization_domains, validate_optimization_preset,
     };
     use crate::automation::{
@@ -465,6 +654,75 @@ mod tests {
         let mut stderr = Cursor::new(b"useful failure");
 
         assert_eq!(b"useful failure", read_tail(&mut stderr, 1024).as_slice());
+    }
+
+    #[test]
+    fn desktop_run_event_requires_the_exact_private_protocol() {
+        assert_eq!(
+            Some(73),
+            parse_desktop_run_event(
+                b"PREFLIGHT_DESKTOP_EVENT {\"format\":\"preflight-desktop-run-event-v1\",\"state\":\"game-running\",\"pid\":73}\n"
+            )
+        );
+        assert_eq!(None, parse_desktop_run_event(b"ordinary stderr\n"));
+        assert_eq!(
+            None,
+            parse_desktop_run_event(
+                b"PREFLIGHT_DESKTOP_EVENT {\"format\":\"preflight-desktop-run-event-v1\",\"state\":\"game-running\",\"pid\":0}\n"
+            )
+        );
+        assert_eq!(
+            None,
+            parse_desktop_run_event(
+                b"PREFLIGHT_DESKTOP_EVENT {\"format\":\"preflight-desktop-run-event-v1\",\"state\":\"game-running\",\"pid\":73,\"future\":true}\n"
+            )
+        );
+    }
+
+    #[test]
+    fn run_error_tail_stays_bounded_while_protocol_lines_are_removed() {
+        let mut tail = b"older".to_vec();
+        append_tail(&mut tail, b"-newer-and-longer", 12);
+        assert_eq!(b"r-and-longer", tail.as_slice());
+        append_tail(&mut tail, b"replacement", 6);
+        assert_eq!(b"cement", tail.as_slice());
+    }
+
+    #[test]
+    fn after_launch_behavior_is_a_closed_contract() {
+        assert_eq!(
+            AfterLaunchBehavior::Minimize,
+            AfterLaunchBehavior::parse("minimize").unwrap()
+        );
+        assert_eq!(
+            AfterLaunchBehavior::Keep,
+            AfterLaunchBehavior::parse("keep").unwrap()
+        );
+        assert_eq!(
+            AfterLaunchBehavior::Quit,
+            AfterLaunchBehavior::parse("quit").unwrap()
+        );
+        assert!(AfterLaunchBehavior::parse("hide-forever").is_err());
+    }
+
+    #[test]
+    fn stop_report_preserves_the_graceful_force_decision() {
+        let result = parse_stop_game_result(
+            br#"{"format":"starsector-preflight-stop-v1","inspected":3,"stopped":[{"result":"stopped"},{"result":"still-running"}],"skipped":[{"result":"skipped"}]}"#,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            super::StopGameResult {
+                inspected: 3,
+                stopped: 1,
+                still_running: 1,
+                skipped: 1,
+                forced: false,
+            },
+            result
+        );
+        assert!(parse_stop_game_result(br#"{"format":"future"}"#, false).is_err());
     }
 
     #[test]

@@ -3,6 +3,7 @@ export const OPTIMIZATION_PRESET_STORAGE_KEY = "preflight.optimizationPreset";
 export const DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY = "preflight.disabledOptimizationDomains";
 export const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
 export const SPEED_RECORD_STORAGE_KEY = "preflight.speedRecord";
+export const AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY = "preflight.afterLaunchBehavior";
 
 /** Every Preflight-owned value persisted in the desktop renderer/WebView localStorage. */
 export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
@@ -11,6 +12,7 @@ export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
   DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
   REPORT_RECEIPT_STORAGE_KEY,
   SPEED_RECORD_STORAGE_KEY,
+  AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY,
 ] as const);
 
 export interface LocalStorageRemoval {

@@ -28,6 +28,16 @@ export interface RunStarted {
   pid: number;
 }
 
+export type AfterLaunchBehavior = "minimize" | "keep" | "quit";
+
+export interface StopGameResult {
+  inspected: number;
+  stopped: number;
+  stillRunning: number;
+  skipped: number;
+  forced: boolean;
+}
+
 export interface OperationSnapshot {
   format: "preflight-operation-state-v1";
   gamePid: number | null;
@@ -257,7 +267,7 @@ export interface LaunchSettingsUpdate {
 }
 
 export interface RunStateEvent {
-  state: "started" | "cancelling" | "cancelled" | "finished";
+  state: "started" | "running" | "cancelling" | "cancelled" | "finished";
   pid: number;
   success?: boolean;
   detail?: string;

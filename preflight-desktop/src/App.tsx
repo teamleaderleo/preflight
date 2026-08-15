@@ -5,6 +5,7 @@ import {
   isDesktopHost,
   previewRunFailure,
   startGame,
+  stopGame,
 } from "./bridge";
 import { DesktopShell, type Page } from "./components/DesktopShell";
 import { GameSettingsPage } from "./components/GameSettingsPage";
@@ -18,6 +19,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { WorkflowLockNotice } from "./components/WorkflowLockNotice";
 import { useDesktopAutomation } from "./useDesktopAutomation";
 import { useAutomaticMaintenance } from "./useAutomaticMaintenance";
+import { useAfterLaunchBehavior } from "./useAfterLaunchBehavior";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
@@ -69,6 +71,8 @@ export default function App() {
   const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
   const [choosingInstall, setChoosingInstall] = useState(false);
+  const [stoppingGame, setStoppingGame] = useState(false);
+  const [forceStopAvailable, setForceStopAvailable] = useState(false);
   const choosingInstallRef = useRef(false);
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
@@ -87,6 +91,7 @@ export default function App() {
     setOptimizationPreset,
     setOptimizationDomainEnabled,
   } = useOptimizationPolicy();
+  const { afterLaunchBehavior, setAfterLaunchBehavior } = useAfterLaunchBehavior();
   const refreshRequest = useRef(0);
   /**
    * Whether the installation is usable and whether a game is running are two different facts
@@ -143,8 +148,16 @@ export default function App() {
     setRetryIntent(null);
     announceGame("Opening Starsector…");
     try {
-      const started = await startGame(game, optimizationPreset, disabledOptimizationDomains);
-      setStatus("running");
+      const started = await startGame(
+        game,
+        optimizationPreset,
+        disabledOptimizationDomains,
+        afterLaunchBehavior,
+      );
+      setForceStopAvailable(false);
+      // The desktop backend waits for an exact live game-JVM identity before publishing running.
+      // Browser previews have no native event stream, so they settle immediately.
+      if (!isDesktopHost()) setStatus("running");
       const fingerprint = currentProfileFingerprint.current;
       // The benchmark's optimized half uses the complete recommended path. Other presets still
       // launch safely, but they do not inherit a number they did not measure.
@@ -153,14 +166,36 @@ export default function App() {
         && fingerprint
         ? { pid: started.pid, profileFingerprint: fingerprint }
         : null;
-      announceGame("Starsector is running. Preflight will return here when it exits.", "success");
+      announceGame(isDesktopHost() ? "Waiting for Starsector…" : "Starsector is running.", "success");
     } catch (error) {
       countWhenFinished.current = null;
       setStatus("error");
       setRetryIntent({ kind: "launch" });
       announceGame(String(error), "error");
     }
-  }, [announceGame, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
+  }, [afterLaunchBehavior, announceGame, disabledOptimizationDomains, optimizationPreset, snapshot?.selected?.installRoot]);
+
+  const stopRunningGame = useCallback(async () => {
+    if (stoppingGame) return;
+    const force = forceStopAvailable;
+    setStoppingGame(true);
+    try {
+      const result = await stopGame(force);
+      if (result.stillRunning > 0 && !force) {
+        setForceStopAvailable(true);
+        announceGame("Starsector didn’t respond. Force stop is available.", "warning");
+      } else if (result.stillRunning > 0) {
+        announceGame("Starsector is still running. The run details are available in Help.", "error");
+      } else {
+        setForceStopAvailable(false);
+        announceGame(result.stopped > 0 ? "Stopping Starsector…" : "Starsector has already stopped.", "success");
+      }
+    } catch (error) {
+      announceGame(`Couldn’t stop Starsector safely: ${error}`, "error");
+    } finally {
+      setStoppingGame(false);
+    }
+  }, [announceGame, forceStopAvailable, stoppingGame]);
   const preparation = usePreparation(
     snapshot?.selected?.installRoot,
     page === "speed",
@@ -247,7 +282,14 @@ export default function App() {
     if (!isDesktopHost()) return;
     let stopReconciliation: () => void = () => undefined;
     const stopListening = listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
+      if (payload.state === "running") {
+        setStatus("running");
+        announceGame("Starsector is running.", "success");
+        return;
+      }
       if (payload.state === "finished") {
+        setStoppingGame(false);
+        setForceStopAvailable(false);
         setMaintenanceEpoch((current) => current + 1);
         const pendingCount = countWhenFinished.current;
         countWhenFinished.current = null;
@@ -456,6 +498,9 @@ export default function App() {
             optimizationPreset={optimizationPreset}
             onPrimaryLaunch={() => void primaryLaunch()}
             onLaunchWithoutPreparing={() => void launchWithoutPreparing()}
+            stoppingGame={stoppingGame}
+            forceStopAvailable={forceStopAvailable}
+            onStopGame={() => void stopRunningGame()}
             onSaveLauncherSettings={() => void launcher.save()}
             retryLabel={retryLabel}
             onRetry={retryFailedOperation}
@@ -537,6 +582,8 @@ export default function App() {
             reportIntake={diagnostics.reportIntake}
             removalPlan={removal.plan}
             removalBusy={removal.busy}
+            afterLaunchBehavior={afterLaunchBehavior}
+            onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onOpenHelp={() => setPage("help")}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}

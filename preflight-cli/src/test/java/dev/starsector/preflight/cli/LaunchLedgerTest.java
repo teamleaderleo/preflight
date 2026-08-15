@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -48,11 +49,23 @@ class LaunchLedgerTest {
     void concurrentRecordsPreserveEveryLaunch() throws Exception {
         PreflightHome home = new PreflightHome(root, List.of());
         var executor = Executors.newFixedThreadPool(2);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
         try {
-            var first = executor.submit(() -> LaunchLedger.record(
-                    home, entry("2026-08-16T00:00:00Z", "COMPLETED", false)));
-            var second = executor.submit(() -> LaunchLedger.record(
-                    home, entry("2026-08-16T01:00:00Z", "COMPLETED", false)));
+            var first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return LaunchLedger.record(
+                        home, entry("2026-08-16T00:00:00Z", "COMPLETED", false));
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return LaunchLedger.record(
+                        home, entry("2026-08-16T01:00:00Z", "COMPLETED", false));
+            });
+            ready.await();
+            start.countDown();
 
             assertNull(first.get());
             assertNull(second.get());

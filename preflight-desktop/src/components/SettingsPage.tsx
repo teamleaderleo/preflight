@@ -3,7 +3,7 @@ import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { formatBytes, shortPath } from "../uiFormat";
-import type { NoticeTone, RemovalPlan, RemovalScope, ReportIntakeStatus } from "../types";
+import type { AfterLaunchBehavior, NoticeTone, RemovalPlan, RemovalScope, ReportIntakeStatus } from "../types";
 
 type UpdateState = ReturnType<typeof useSignedUpdates>;
 
@@ -15,6 +15,8 @@ interface SettingsPageProps {
   reportIntake: ReportIntakeStatus | null;
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
+  afterLaunchBehavior: AfterLaunchBehavior;
+  onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onOpenHelp: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
@@ -29,6 +31,8 @@ export function SettingsPage({
   reportIntake,
   removalPlan,
   removalBusy,
+  afterLaunchBehavior,
+  onAfterLaunchBehaviorChange,
   onOpenHelp,
   onReviewRemoval,
   onDismissRemoval,
@@ -48,6 +52,29 @@ export function SettingsPage({
   return (
     <div className="settings-page">
       <NoticeBanner message={updateError === message ? "" : message} tone={messageTone} />
+      <section className="card launch-behavior-card">
+        <div>
+          <h2>After Starsector opens</h2>
+          <p>Preflight can stay one click away without covering the game.</p>
+        </div>
+        <label className="setting-field launch-behavior-field">
+          <span>Preflight window</span>
+          <select
+            aria-label="Preflight window"
+            value={afterLaunchBehavior}
+            onChange={(event) => onAfterLaunchBehaviorChange(event.target.value as AfterLaunchBehavior)}
+          >
+            <option value="minimize">Minimize</option>
+            <option value="keep">Keep open</option>
+            <option value="quit">Quit</option>
+          </select>
+          <small>{afterLaunchBehavior === "minimize"
+            ? "Restore it for logs or to stop Starsector."
+            : afterLaunchBehavior === "quit"
+              ? "Playtime still records with the window closed."
+              : "Useful while testing a setup."}</small>
+        </label>
+      </section>
       <div className="settings-overview">
         <section className="card update-card">
           <div className="card__heading">
