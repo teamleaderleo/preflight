@@ -510,6 +510,7 @@ export default function App() {
             status={status}
             isReady={isReady}
             preparing={preparing}
+            operationBlocked={operationBlocked}
             automation={automation}
           />
         ) : page === "help" ? (

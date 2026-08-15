@@ -120,18 +120,15 @@ pub(crate) fn start_desktop_smoke(
 ) -> Result<RunStarted, String> {
     let directory = canonical_game_directory(&game)?;
     let (measurement_scenario, optimized_scenario) = desktop_benchmark_scenarios(&app)?;
-    let run_directory = desktop_smoke_run_directory(&app)?;
-    fs::create_dir_all(&run_directory)
-        .map_err(|error| format!("Could not create the automated-test run folder: {error}"))?;
-    let run_directory = run_directory
-        .canonicalize()
-        .map_err(|error| format!("Could not open the automated-test run folder: {error}"))?;
     let paths = EnginePaths::resolve(&app)?;
 
-    let mut running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The launch tracker is unavailable.".to_string())?;
+    let mut running = tracker.0.try_lock().map_err(|error| match error {
+        std::sync::TryLockError::WouldBlock => {
+            "Wait for the current Preflight change to finish before running the benchmark."
+                .to_string()
+        }
+        std::sync::TryLockError::Poisoned(_) => "The launch tracker is unavailable.".to_string(),
+    })?;
     refuse_update_install(&running)?;
     refuse_report_upload_for_benchmark(&running)?;
     if running.game.is_some() {
@@ -142,6 +139,13 @@ pub(crate) fn start_desktop_smoke(
             "Wait for profile preparation to finish before running the automated test.".to_string(),
         );
     }
+
+    let run_directory = desktop_smoke_run_directory(&app)?;
+    fs::create_dir_all(&run_directory)
+        .map_err(|error| format!("Could not create the automated-test run folder: {error}"))?;
+    let run_directory = run_directory
+        .canonicalize()
+        .map_err(|error| format!("Could not open the automated-test run folder: {error}"))?;
 
     let mut command = paths.command();
     command

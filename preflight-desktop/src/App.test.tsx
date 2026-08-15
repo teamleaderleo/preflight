@@ -655,6 +655,23 @@ test("cache cleanup is previewed before unused artifacts are removed", async () 
   expect(await screen.findByText(/Freed 4.72 GB across 11,760 old files/)).toBeInTheDocument();
 });
 
+test("a benchmark cannot be queued behind an active cleanup", async () => {
+  const user = userEvent.setup();
+  const pending = deferred<Awaited<ReturnType<typeof bridge.applyCacheCleanup>>>();
+  const cleanup = vi.spyOn(bridge, "applyCacheCleanup").mockReturnValue(pending.promise);
+  render(<App />);
+
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Storage" }));
+  await user.click(await screen.findByRole("button", { name: "Review cleanup" }));
+  await user.click(await screen.findByRole("button", { name: "Remove 8,914 files" }));
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+  await user.click(await screen.findByRole("button", { name: "Measure speed" }));
+
+  expect(await screen.findByRole("button", { name: "Run benchmark" })).toBeDisabled();
+  cleanup.mockRestore();
+});
+
 test("launch settings mirror vanilla display and battle controls", async () => {
   const user = userEvent.setup();
   render(<App />);
