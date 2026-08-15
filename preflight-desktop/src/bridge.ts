@@ -18,6 +18,7 @@ import type {
   ProfileList,
   ProfileMutationPlan,
   PreparationStoragePlan,
+  TextureStorage,
   RemovalPlan,
   RemovalScope,
   ReportDeletion,
@@ -543,7 +544,7 @@ export async function deleteProfile(
 
 export async function startPreparation(
   game: string,
-  textureStorage: "balanced" | "fastest",
+  textureStorage: TextureStorage,
   workers: number,
   memoryMib: number,
 ): Promise<RunStarted> {
@@ -566,7 +567,7 @@ export async function cancelPreparation(): Promise<boolean> {
 
 export async function getPreparationPlan(
   game: string,
-  textureStorage: "balanced" | "fastest",
+  textureStorage: Exclude<TextureStorage, "minimal">,
   workers: number,
 ): Promise<PreparationStoragePlan> {
   if (!isDesktopHost()) {

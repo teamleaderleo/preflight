@@ -152,7 +152,7 @@ export function PreparationPage({
       {!profilePrepared || preparing ? <section className="card prepare-action">
         <div>
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : preparationPlan?.safeToPrepare ? "There’s room to prepare this profile" : "Preparation needs attention"}</strong>
-          <span>{preparing ? `${preparationPercent}% complete · finished artifacts stay reusable` : `${textureStorage === "balanced" ? "Balanced storage selected" : "Fastest raw storage selected"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
+          <span>{preparing ? `${preparationPercent}% complete · finished artifacts stay reusable` : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
           {preparing ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
         </div>
         <div className="prepare-actions">
@@ -227,6 +227,10 @@ export function PreparationPage({
             <label className={`choice-card ${textureStorage === "fastest" ? "choice-card--selected" : ""}`}>
               <input type="radio" name="texture-storage" aria-label="Fastest texture storage" checked={textureStorage === "fastest"} onChange={() => setTextureStorage("fastest")} disabled={operationBlocked} />
               <span><strong>Fastest</strong><small>Several GB more for a small startup gain</small></span>
+            </label>
+            <label className={`choice-card ${textureStorage === "minimal" ? "choice-card--selected" : ""}`}>
+              <input type="radio" name="texture-storage" aria-label="Minimal disk use" checked={textureStorage === "minimal"} onChange={() => setTextureStorage("minimal")} disabled={operationBlocked} />
+              <span><strong>Use almost no disk</strong><small>Skips prepared textures: megabytes instead of gigabytes, and a smaller speedup</small></span>
             </label>
           </section>
 

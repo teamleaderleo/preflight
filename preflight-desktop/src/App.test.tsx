@@ -74,7 +74,10 @@ test("the default cold-profile action prepares with balanced settings and then l
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  expect(screen.getByText(/must be free/)).toBeInTheDocument();
+  // What the cache keeps and what building it demands be free are different numbers, and a reader
+  // deciding whether they have room needs to be able to tell which is which.
+  expect(screen.getByText(/keeps about .* on disk\. It needs .* free to build that safely/))
+    .toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
@@ -182,6 +185,43 @@ test("a refused preparation still leaves a way to launch the game", async () => 
 
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", []));
   expect(preparation).not.toHaveBeenCalled();
+
+  cache.mockRestore();
+  plan.mockRestore();
+  preparation.mockRestore();
+  game.mockRestore();
+});
+
+/**
+ * Refusing is correct — the bound is a guarantee — but a refusal with no way forward is where a
+ * player who is simply short of disk gives up. Textures are the whole of the footprint, so the
+ * smaller preparation is a real answer rather than a consolation, and it must be offered here
+ * without the storage plan that minimal storage has no way to produce.
+ */
+test("a refused preparation offers the preparation that barely uses disk", async () => {
+  const user = userEvent.setup();
+  const cold = cacheSnapshot({ profiles: [] });
+  const basePlan = await bridge.getPreparationPlan("/Applications/Starsector", "balanced", 4);
+  const cache = vi.spyOn(bridge, "getCache").mockResolvedValue(cold);
+  const plan = vi.spyOn(bridge, "getPreparationPlan").mockResolvedValue({
+    ...basePlan,
+    safeToPrepare: false,
+    refusalReason: "Preparation needs more room than this disk has.",
+    usableBytes: 2 * 1024 ** 3,
+  });
+  const preparation = vi.spyOn(bridge, "startPreparation").mockResolvedValue({ pid: 4243 });
+  const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
+
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Use minimal disk instead" }));
+
+  const action = await screen.findByRole("button", { name: "Prepare and launch" });
+  await waitFor(() => expect(action).toBeEnabled());
+  await user.click(action);
+
+  await waitFor(() => expect(preparation)
+    .toHaveBeenCalledWith("/Applications/Starsector", "minimal", 4, 256));
 
   cache.mockRestore();
   plan.mockRestore();
