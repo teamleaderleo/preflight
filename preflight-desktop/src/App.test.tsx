@@ -273,6 +273,7 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getByText(/^83 mods · saved /)).toBeInTheDocument();
   expect(screen.queryByText(/Named by you/)).not.toBeInTheDocument();
   expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Recommended optimizations/)).not.toBeInTheDocument();
   expect(screen.queryByText(/Prepared ·/)).not.toBeInTheDocument();
   expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
 });
