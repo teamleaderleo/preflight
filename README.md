@@ -129,6 +129,10 @@ update can still require a Preflight update, so unknown versions aren't advertis
 full boundary is in the [Product contract](docs/product-contract.md), with current limitations in
 [Known limitations](docs/known-limitations.md).
 
+Preflight was developed with help from ChatGPT/Codex and Claude. Leo reviews and publishes each
+release. The source and package checksums are public, nothing uploads automatically, and anything
+Preflight doesn't recognize uses Starsector's original code path.
+
 ## Development quick start
 
 Public packages aren't available during the preview. Build the self-contained CLI and Java agent

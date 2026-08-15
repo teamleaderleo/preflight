@@ -41,6 +41,7 @@ export function DesktopShell({
   onThemeChange,
 }: DesktopShellProps) {
   const homeActive = page === "home" || page === "launch";
+  const benchmarkActive = page === "reports" && title === "Benchmark";
   const pageViewport = useRef<HTMLDivElement>(null);
   const pageTitle = useRef<HTMLHeadingElement>(null);
   const previousPage = useRef(page);
@@ -73,7 +74,7 @@ export function DesktopShell({
           <button className={`nav__item ${page === "prepare" ? "nav__item--active" : ""}`} type="button" title="Preflight" aria-current={page === "prepare" ? "page" : undefined} onClick={() => onPageChange("prepare")} disabled={!isReady}>
             <SparklesIcon /><span>Preflight</span>
           </button>
-          <button className={`nav__item ${page === "reports" ? "nav__item--active" : ""}`} type="button" title="Benchmark" aria-current={page === "reports" ? "page" : undefined} onClick={() => onPageChange("reports")}>
+          <button className={`nav__item ${benchmarkActive ? "nav__item--active" : ""}`} type="button" title="Benchmark" aria-current={benchmarkActive ? "page" : undefined} onClick={() => onPageChange("reports")}>
             <GaugeIcon /><span>Benchmark</span>
           </button>
           <button className={`nav__item ${page === "profiles" ? "nav__item--active" : ""}`} type="button" title="Profiles" aria-current={page === "profiles" ? "page" : undefined} onClick={() => onPageChange("profiles")} disabled={!isReady}>

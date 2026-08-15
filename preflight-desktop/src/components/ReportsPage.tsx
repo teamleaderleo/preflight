@@ -15,6 +15,7 @@ interface ReportsPageProps {
   status: AppStatus;
   isReady: boolean;
   preparing: boolean;
+  view: "benchmark" | "support";
   automation: AutomationState;
   diagnostics: DiagnosticsState;
 }
@@ -25,6 +26,7 @@ export function ReportsPage({
   status,
   isReady,
   preparing,
+  view,
   automation,
   diagnostics,
 }: ReportsPageProps) {
@@ -60,10 +62,61 @@ export function ReportsPage({
     submitRunReport,
   } = diagnostics;
   const benchmarkBlocked = !isReady || preparing || status === "launching" || status === "running";
+  const supportTools = (
+    <details
+      className="card settings-disclosure support-tools"
+      open={view === "support" ? true : undefined}
+    >
+      <summary><span><strong>Support</strong><small>Create a redacted ZIP for troubleshooting</small></span></summary>
+      <div className="settings-disclosure__body support-tools__body">
+        <section className="diagnostics-action">
+        <div>
+          <div className="heading-with-info">
+            <strong>{diagnosticsExport ? "Support ZIP ready" : "Support ZIP"}</strong>
+            <InfoTip label="About the support ZIP">Exports bounded, redacted run and benchmark metadata. Game files, mods, saves, logs, screenshots, audio, caches, and personal paths stay out.</InfoTip>
+          </div>
+          <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Create a redacted ZIP you can inspect or send."}</span>
+        </div>
+        <div className="report-actions">
+          <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
+            <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Create another ZIP" : "Create support ZIP"}
+          </button>
+          {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review send"}</button> : null}
+        </div>
+        </section>
+
+        <details className="settings-disclosure support-contents">
+          <summary><span><strong>What’s in the ZIP?</strong><small>Included and excluded data</small></span></summary>
+          <div className="settings-grid settings-disclosure__body">
+            <section className="diagnostics-card">
+              <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div><CheckIcon className="settings-check" /></div>
+              <ul>
+                <li>Run outcome, runtime, adapter health and timing summaries</li>
+                <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
+                <li>Benchmark identity, settings and result metadata</li>
+                <li>A manifest with every included or skipped file</li>
+              </ul>
+            </section>
+            <section className="diagnostics-card diagnostics-card--excluded">
+              <div className="card__heading"><div><p className="eyebrow">Excluded</p><h2>Game and personal data</h2></div><ShieldIcon className="settings-check" /></div>
+              <ul>
+                <li>Game, mod, save, texture, audio or bytecode contents</li>
+                <li>Acceleration caches, console logs and crash dumps</li>
+                <li>JFR recordings, screenshots, audio or unknown files</li>
+                <li>Symlinks or any source file larger than 512 KiB</li>
+              </ul>
+            </section>
+          </div>
+        </details>
+      </div>
+    </details>
+  );
 
   return (
-    <div className="settings-page">
+    <div className={`settings-page reports-page ${view === "support" ? "reports-page--support-first" : ""}`}>
       <NoticeBanner message={reportError && message.includes(reportError) ? "" : message} tone={messageTone} />
+
+      {view === "support" ? supportTools : null}
 
       <section className="card benchmark-card">
         <div>
@@ -108,50 +161,7 @@ export function ReportsPage({
         </section>
       ) : null}
 
-      <details className="card settings-disclosure support-tools">
-        <summary><span><strong>Support</strong><small>Create a redacted ZIP for troubleshooting</small></span></summary>
-        <div className="settings-disclosure__body support-tools__body">
-          <section className="diagnostics-action">
-          <div>
-            <div className="heading-with-info">
-              <strong>{diagnosticsExport ? "Support ZIP ready" : "Support ZIP"}</strong>
-              <InfoTip label="About the support ZIP">Exports bounded, redacted run and benchmark metadata. Game files, mods, saves, logs, screenshots, audio, caches, and personal paths stay out.</InfoTip>
-            </div>
-            <span>{diagnosticsExport ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}` : "Create a redacted ZIP you can inspect or send."}</span>
-          </div>
-          <div className="report-actions">
-            <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"}`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
-              <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Create another ZIP" : "Create support ZIP"}
-            </button>
-            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review send"}</button> : null}
-          </div>
-          </section>
-
-          <details className="settings-disclosure support-contents">
-            <summary><span><strong>What’s in the ZIP?</strong><small>Included and excluded data</small></span></summary>
-            <div className="settings-grid settings-disclosure__body">
-              <section className="diagnostics-card">
-                <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Useful metadata only</h2></div><CheckIcon className="settings-check" /></div>
-                <ul>
-                  <li>Run outcome, runtime, adapter health and timing summaries</li>
-                  <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
-                  <li>Benchmark identity, settings and result metadata</li>
-                  <li>A manifest with every included or skipped file</li>
-                </ul>
-              </section>
-              <section className="diagnostics-card diagnostics-card--excluded">
-                <div className="card__heading"><div><p className="eyebrow">Excluded</p><h2>Game and personal data</h2></div><ShieldIcon className="settings-check" /></div>
-                <ul>
-                  <li>Game, mod, save, texture, audio or bytecode contents</li>
-                  <li>Acceleration caches, console logs and crash dumps</li>
-                  <li>JFR recordings, screenshots, audio or unknown files</li>
-                  <li>Symlinks or any source file larger than 512 KiB</li>
-                </ul>
-              </section>
-            </div>
-          </details>
-        </div>
-      </details>
+      {view === "benchmark" ? supportTools : null}
 
       {diagnosticsExport && reportIntake && !reportIntake.configured ? <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "Run-report sending isn't configured in this build."} The ZIP remains available to inspect and share manually.</p> : null}
 

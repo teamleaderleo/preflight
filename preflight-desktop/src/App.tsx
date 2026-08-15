@@ -62,6 +62,7 @@ export default function App() {
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
   const [page, setPage] = useState<Page>("home");
+  const [reportsView, setReportsView] = useState<"benchmark" | "support">("benchmark");
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
   const announceGame = useCallback((message: string, tone?: NoticeTone) => announceNotice("game", message, tone), [announceNotice]);
@@ -361,7 +362,17 @@ export default function App() {
   const profilesNotice = latestNotice(["installation", "profiles"]);
   const reportsNotice = latestNotice(["installation", "benchmark", "support"]);
   const settingsNotice = latestNotice(["installation", "updates", "removal"]);
-  const title = pageTitle(page, status, preparing, isReady, needsPreparation);
+  const navigate = (nextPage: Page) => {
+    if (nextPage === "reports") setReportsView("benchmark");
+    setPage(nextPage);
+  };
+  const openSupport = () => {
+    setReportsView("support");
+    setPage("reports");
+  };
+  const title = page === "reports" && reportsView === "support"
+    ? "Support"
+    : pageTitle(page, status, preparing, isReady, needsPreparation);
   return (
     <DesktopShell
       page={page}
@@ -371,7 +382,7 @@ export default function App() {
       updateAvailable={Boolean(updateStatus?.available)}
       engineVersion={snapshot?.engineVersion ?? "…"}
       theme={theme.preference}
-      onPageChange={setPage}
+      onPageChange={navigate}
       onThemeChange={theme.setPreference}
     >
         {activeOperation && page !== activeOperation.owner ? (
@@ -409,7 +420,7 @@ export default function App() {
             onRetry={retryFailedOperation}
             runFailure={runFailure}
             onDismissRunFailure={() => setRunFailure(null)}
-            onNavigate={setPage}
+            onNavigate={navigate}
           />
         ) : page === "launch" ? (
           <>
@@ -452,6 +463,7 @@ export default function App() {
             status={status}
             isReady={isReady}
             preparing={preparing}
+            view={reportsView}
             automation={automation}
             diagnostics={diagnostics}
           />
@@ -464,6 +476,7 @@ export default function App() {
             reportIntake={diagnostics.reportIntake}
             removalPlan={removal.plan}
             removalBusy={removal.busy}
+            onOpenSupport={openSupport}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}

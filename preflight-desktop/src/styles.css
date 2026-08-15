@@ -2992,6 +2992,15 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .help-card__main {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .button--support {
+    width: 100%;
+  }
+
   .launch-save,
   .prepare-action {
     align-items: stretch;
@@ -3445,6 +3454,30 @@ footer {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.help-card__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 14px;
+}
+
+.help-card__main h2,
+.help-card__main p {
+  margin: 0;
+}
+
+.help-card__main p {
+  margin-top: 5px;
+  color: var(--ink-soft);
+}
+
+.button--support {
+  flex: 0 0 auto;
+  min-width: 210px;
+  min-height: 52px;
 }
 
 .setup-diagnostics__label {

@@ -1,4 +1,4 @@
-import { ShieldIcon } from "../icons";
+import { FolderIcon, ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
@@ -15,6 +15,7 @@ interface SettingsPageProps {
   reportIntake: ReportIntakeStatus | null;
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
+  onOpenSupport: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
   onRemove: () => void;
@@ -28,6 +29,7 @@ export function SettingsPage({
   reportIntake,
   removalPlan,
   removalBusy,
+  onOpenSupport,
   onReviewRemoval,
   onDismissRemoval,
   onRemove,
@@ -88,7 +90,7 @@ export function SettingsPage({
         <section className="card privacy-card">
           <div className="card__heading"><div><h2>Preflight and your data</h2></div><ShieldIcon className="settings-check" /></div>
           <ul className="privacy-facts">
-            <li><strong>No telemetry, no analytics, no accounts.</strong> Nothing is sent because you launched a game, prepared a profile, or ran a benchmark.</li>
+            <li><strong>No telemetry, analytics, or accounts.</strong></li>
             {/*
               * A build without a configured intake cannot send a report at all, and the Benchmark
               * page already says so where the button would be. Describing the send flow here anyway
@@ -96,14 +98,11 @@ export function SettingsPage({
               * privacy position, which in that case is stronger, not weaker.
               */}
             {reportIntake && !reportIntake.configured ? (
-              <li><strong>One thing leaves this machine.</strong> The update check above asks a fixed release address for version metadata. This build can't send support reports at all, so that check is the only request Preflight makes. Diagnostics still export to a file you share yourself.</li>
+              <li>Update checks request version metadata. Support ZIPs stay on this computer until you share one yourself.</li>
             ) : (
-              <>
-                <li><strong>Two things leave this machine, both listed here.</strong> The update check above asks a fixed release address for version metadata. A support report is sent only when you choose to send one.</li>
-                <li><strong>Support reports are shown before they go.</strong> Preflight lists every included and excluded file, its size and checksum, and gives you a receipt you can use to delete it afterwards.</li>
-              </>
+              <li>Update checks request version metadata. A support ZIP is sent only after you review it and press Send.</li>
             )}
-            <li><strong>Saves, mods, screenshots, and game files are never included</strong> in anything Preflight sends or removes.</li>
+            <li><strong>Saves, mods, screenshots, and game files stay out of support ZIPs.</strong></li>
           </ul>
           <div className="privacy-links">
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("privacy")}>Full privacy statement</button>
@@ -114,13 +113,14 @@ export function SettingsPage({
       </div>
 
       <section className="card help-card">
-        <div className="card__heading"><div><h2>Help and reporting</h2></div></div>
-        <p>Preflight is in beta. If something breaks, a report with the Preflight version in it is the fastest route to a fix.</p>
+        <div className="help-card__main">
+          <div><h2>Need help?</h2><p>Create a redacted support ZIP you can inspect, send, or attach to an issue.</p></div>
+          <button className="button button--primary button--support" type="button" onClick={onOpenSupport}><FolderIcon />Get support</button>
+        </div>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
-          <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Report a problem</button>
+          <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>
         </div>
-        <small>Links open in your browser. Preflight only ever opens its own pages.</small>
       </section>
 
       <details className="card settings-disclosure removal-card">
