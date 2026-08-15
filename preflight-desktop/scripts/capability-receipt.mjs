@@ -16,8 +16,8 @@ const tauriCapabilityPath = join(desktopDirectory, "src-tauri", "capabilities", 
 export function buildCapabilityReceipt({
   engineJarPath,
   productVersion,
-  sourceRevision = currentSourceRevision(),
-  sourceDirty = currentSourceDirty(),
+  sourceRevision,
+  sourceDirty,
   environment = process.env,
   sourceLock = readJson(sourceLockPath),
 } = {}) {
@@ -25,7 +25,9 @@ export function buildCapabilityReceipt({
   if (typeof productVersion !== "string" || !productVersion) {
     throw new Error("A capability receipt requires a product version");
   }
-  if (!/^[a-f0-9]{40}$/.test(sourceRevision)) {
+  const resolvedSourceRevision = sourceRevision ?? currentSourceRevision(environment);
+  const resolvedSourceDirty = sourceDirty ?? currentSourceDirty(environment);
+  if (!/^[a-f0-9]{40}$/.test(resolvedSourceRevision)) {
     throw new Error("Capability receipt source revision must be a 40-character Git SHA");
   }
   const sourceReview = verifySourceLock(sourceLock);
@@ -42,8 +44,8 @@ export function buildCapabilityReceipt({
   return {
     format: "preflight-release-capabilities-v1",
     productVersion,
-    sourceRevision,
-    sourceDirty: Boolean(sourceDirty),
+    sourceRevision: resolvedSourceRevision,
+    sourceDirty: Boolean(resolvedSourceDirty),
     boundarySourceSha256: sourceReview.digest,
     engineJarSha256: sha256(jar),
     rendererBoundary: {
@@ -87,7 +89,7 @@ export function verifySourceLock(lock, root = repositoryRoot) {
     if (!/^[a-f0-9]{64}$/.test(expected)) {
       throw new Error(`Invalid capability source digest: ${name}`);
     }
-    const data = readFileSync(join(root, name));
+    const data = normalizedSourceBytes(join(root, name));
     const actual = sha256(data);
     if (actual !== expected) {
       throw new Error(`Capability boundary changed without review: ${name}`);
@@ -159,21 +161,28 @@ function exactStringArray(value, label) {
   return [...value].sort();
 }
 
-function currentSourceRevision() {
-  const configured = process.env.PREFLIGHT_SOURCE_REVISION?.trim() || process.env.GITHUB_SHA?.trim();
+function currentSourceRevision(environment) {
+  const configured = environment.PREFLIGHT_SOURCE_REVISION?.trim() || environment.GITHUB_SHA?.trim();
   if (configured) return configured.toLowerCase();
   const result = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot, encoding: "utf8" });
   if (result.status !== 0) throw new Error("Could not identify the source revision");
   return result.stdout.trim().toLowerCase();
 }
 
-function currentSourceDirty() {
+function currentSourceDirty(environment) {
+  if (environment.GITHUB_ACTIONS === "true" && /^[a-fA-F0-9]{40}$/.test(environment.GITHUB_SHA ?? "")) {
+    return false;
+  }
   const result = spawnSync("git", ["status", "--porcelain", "--untracked-files=normal"], {
     cwd: repositoryRoot,
     encoding: "utf8",
   });
   if (result.status !== 0) throw new Error("Could not inspect the source checkout");
   return result.stdout.trim().length > 0;
+}
+
+function normalizedSourceBytes(path) {
+  return Buffer.from(readFileSync(path, "utf8").replaceAll("\r\n", "\n"), "utf8");
 }
 
 function readJson(path) {

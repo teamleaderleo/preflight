@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
@@ -76,6 +79,34 @@ test("source lock makes a capability-changing boundary edit explicit", () => {
   const first = Object.keys(changed.sources)[0];
   changed.sources[first] = "0".repeat(64);
   assert.throws(() => verifySourceLock(changed), /Capability boundary changed without review/);
+});
+
+test("source lock treats Git LF and Windows CRLF checkouts identically", async () => {
+  const root = await mkdtemp(join(tmpdir(), "preflight-capability-crlf-"));
+  try {
+    mkdirSync(join(root, "owned"));
+    writeFileSync(join(root, "owned", "boundary.txt"), "first\r\nsecond\r\n");
+    const expected = createHash("sha256").update("first\nsecond\n").digest("hex");
+    assert.equal(verifySourceLock({
+      format: "preflight-capability-source-lock-v1",
+      sources: { "owned/boundary.txt": expected },
+    }, root).files, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("GitHub Actions uses its immutable checkout identity without container Git ownership", () => {
+  const receipt = buildCapabilityReceipt({
+    engineJarPath: engineJar,
+    productVersion: "0.1.0",
+    environment: {
+      GITHUB_ACTIONS: "true",
+      GITHUB_SHA: "d".repeat(40),
+    },
+  });
+  assert.equal(receipt.sourceRevision, "d".repeat(40));
+  assert.equal(receipt.sourceDirty, false);
 });
 
 test("native commands and fixed links are derived from host code", () => {
