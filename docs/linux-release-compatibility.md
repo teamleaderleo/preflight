@@ -57,13 +57,15 @@ having its compatibility claim reconstructed from memory.
 
 ## Observed candidate floor
 
-The pinned-builder PR must complete a real Linux package build before this boundary is accepted. The
-measured `maximumObservedGlibc` from that run is recorded here before merge.
+The first pinned-builder package run completed on workflow run `31864866558`. Its retained
+`glibc-floor.json` recorded:
 
-**Observed package maximum:** pending the first pinned-builder package run.
+- `.deb`: maximum observed GLIBC 2.34 across 29 ELF files;
+- AppImage: maximum observed GLIBC 2.35 across 207 ELF files;
+- overall maximum observed GLIBC: **2.35**.
 
 This value describes the exact package binaries from that run. The policy ceiling remains 2.35 even
-when the current binaries happen to require an older symbol version.
+when a package happens to require an older symbol version.
 
 ## Support statement
 
