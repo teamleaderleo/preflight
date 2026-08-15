@@ -38,7 +38,14 @@ class ChildProcessOutputTest {
         assertEquals(console.toAbsolutePath().normalize(), result.file());
         assertTrue(Files.isRegularFile(console));
         assertTrue(result.truncated());
-        assertEquals(ChildProcessOutput.MAX_CAPTURE_BYTES, result.capturedBytes());
+        // The retained window now spends part of itself on the head and on the line naming what was
+        // dropped, so the assertion that matters is that the bound holds, not that it is hit exactly.
+        assertTrue(
+                result.capturedBytes() <= ChildProcessOutput.MAX_CAPTURE_BYTES,
+                "captured " + result.capturedBytes());
+        assertTrue(
+                result.capturedBytes() > ChildProcessOutput.MAX_CAPTURE_BYTES - 512,
+                "the window should still be nearly full: " + result.capturedBytes());
         assertTrue(result.totalBytes() > result.capturedBytes());
         assertEquals(result.capturedBytes(), Files.size(console));
         assertEquals(result.totalBytes(), streamed.size());
