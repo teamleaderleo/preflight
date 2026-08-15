@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decide whether a pull request needs the three-platform desktop package matrix."""
+"""Decide whether a pull request needs native desktop package jobs."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from collections.abc import Iterable
 PACKAGE_EXACT = {
     ".github/workflows/desktop-ci.yml",
     "pom.xml",
+    "scripts/verify_linux_glibc_floor.py",
+    "scripts/write_linux_builder_provenance.py",
 }
 PACKAGE_PREFIXES = (
     ".github/actions/setup-build-jdk/",

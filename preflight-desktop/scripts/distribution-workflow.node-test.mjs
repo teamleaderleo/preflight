@@ -22,6 +22,7 @@ const ciTauriConfig = readFileSync(
   resolve(repository, "preflight-desktop/src-tauri/tauri.ci.conf.json"),
   "utf8",
 );
+const linuxBuilderImage = "ubuntu:jammy-20260627@sha256:0d7799fb1b4e200a24c11fc575a7e11ecb6501ff6eec649226fad40bd6501c64";
 
 export function normalizedWorkflowText(value) {
   return value.replaceAll("\r\n", "\n");
@@ -90,9 +91,12 @@ test("manual publication reuses and revalidates the exact tagged draft", () => {
   assert.doesNotMatch(publication, /mvn .*verify|tauri build|cargo build|npm run build/);
 });
 
-test("signed candidates require updater credentials, release validation and the reviewed intake origin", () => {
+test("signed candidates require updater credentials, release validation and every platform", () => {
   const distribution = job("distribution", "desktop");
-  const desktop = job("desktop", "candidate");
+  const desktop = job("desktop", "desktop-linux");
+  const linux = job("desktop-linux", "candidate");
+  const candidate = job("candidate", "publish");
+  const publish = job("publish");
 
   assert.match(distribution, /if: startsWith\(github\.ref, 'refs\/tags\/v'\) \|\| inputs\.signed_candidate/);
   assert.match(distribution, /validate-release-version\.mjs "\$tag"/);
@@ -100,12 +104,16 @@ test("signed candidates require updater credentials, release validation and the 
   assert.match(distribution, /PREFLIGHT_REPORT_INTAKE_ORIGIN is required for a private signed candidate/);
   assert.match(distribution, /PREFLIGHT_CANDIDATE_ARCHIVE_PASSWORD must contain at least 32 characters/);
   assert.match(distribution, /path: candidate-core\/\*\.pfcandidate/);
-  assert.match(desktop, /Decrypt and stage private-candidate engine JAR/);
-  assert.match(desktop, /path: preflight-desktop\/candidate-desktop\/\*\.pfcandidate/);
+  for (const platformJob of [desktop, linux]) {
+    assert.match(platformJob, /Decrypt and stage private-candidate engine JAR/);
+    assert.match(platformJob, /path: preflight-desktop\/candidate-desktop\/\*\.pfcandidate/);
+    assert.match(platformJob, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
+    assert.match(platformJob, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
+  }
   assert.match(desktop, /update_bundles: dmg,app/);
   assert.match(desktop, /--bundles \$\{\{ matrix\.update_bundles \}\}/);
-  assert.match(desktop, /PREFLIGHT_UPDATE_RELEASE:.*inputs\.signed_candidate/);
-  assert.match(desktop, /PREFLIGHT_REPORT_INTAKE_ORIGIN:.*inputs\.signed_candidate/);
+  assert.match(candidate, /needs: \[distribution, desktop, desktop-linux\]/);
+  assert.match(publish, /needs: \[distribution, desktop, desktop-linux\]/);
   assert.doesNotMatch(workflow, /PREFLIGHT_UPDATER_ENDPOINT/);
 });
 
@@ -113,7 +121,8 @@ test("desktop CI builds one engine and one frontend before native packaging", ()
   const engine = desktopJob("engine", "frontend");
   const frontend = desktopJob("frontend", "validate");
   const validate = desktopJob("validate", "package");
-  const packageJob = desktopJob("package");
+  const packageJob = desktopJob("package", "package-linux");
+  const linux = desktopJob("package-linux");
 
   assert.match(engine, /Build bounded engine JAR once/);
   assert.match(engine, /actions\/upload-artifact@/);
@@ -134,14 +143,41 @@ test("desktop CI builds one engine and one frontend before native packaging", ()
   assert.doesNotMatch(validate, /npm audit --omit=dev|npm test|npm run test:release:prepared|npm run build/);
 
   assert.match(packageJob, /needs: \[engine, scope, frontend\]/);
-  assert.match(packageJob, /if: needs\.scope\.outputs\.package == 'true'/);
-  assert.match(packageJob, /name: preflight-desktop-frontend-\$\{\{ github\.run_id \}\}/);
+  assert.match(packageJob, /matrix:\n        os: \[macos-latest, windows-latest\]/);
   assert.match(packageJob, /frontend-dist-manifest\.mjs[\s\\]+verify preflight-desktop\/dist preflight-desktop\/frontend-dist\.json/);
   assert.match(packageJob, /--config src-tauri\/tauri\.ci\.conf\.json/);
-  assert.doesNotMatch(packageJob, /npm audit --omit=dev|npm test|npm run test:release:prepared|npm run build|cargo fmt --check|cargo test --locked|cargo clippy --locked/);
+  assert.doesNotMatch(packageJob, /ubuntu-latest|ubuntu-22\.04|Build Linux/);
+
+  assert.match(linux, /needs: \[engine, scope, frontend\]/);
+  assert.match(linux, /runs-on: ubuntu-latest/);
+  assert.match(linux, /container:\n      image: ubuntu:jammy-20260627@sha256:/);
+  assert.match(linux, /PREFLIGHT_LINUX_MAX_GLIBC: '2\.35'/);
+  assert.match(linux, /verify_linux_glibc_floor\.py/);
+  assert.match(linux, /write_linux_builder_provenance\.py/);
+  assert.match(linux, /preflight-linux-builder-provenance-\$\{\{ github\.run_id \}\}/);
+  assert.match(linux, /APPIMAGE_EXTRACT_AND_RUN: '1'/);
+  assert.doesNotMatch(linux, /npm test|npm run build|cargo test|cargo clippy/);
 
   assert.match(normalTauriConfig, /"beforeBuildCommand": "npm run build"/);
   assert.match(ciTauriConfig, /"beforeBuildCommand": ""/);
+});
+
+test("Linux release and CI packaging share one pinned compatibility boundary", () => {
+  const releaseLinux = job("desktop-linux", "candidate");
+  const ciLinux = desktopJob("package-linux");
+
+  assert.equal(workflow.includes("ubuntu-22.04"), false);
+  assert.equal(desktopCi.includes("ubuntu-22.04"), false);
+  for (const platformJob of [releaseLinux, ciLinux]) {
+    assert.match(platformJob, new RegExp(linuxBuilderImage.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(platformJob, /PREFLIGHT_LINUX_MAX_GLIBC: '2\.35'/);
+    assert.match(platformJob, /verify_linux_glibc_floor\.py/);
+    assert.match(platformJob, /write_linux_builder_provenance\.py/);
+    assert.match(platformJob, /APPIMAGE_EXTRACT_AND_RUN: '1'/);
+  }
+  assert.match(releaseLinux, /name: preflight-release-Linux-\$\{\{ github\.run_id \}\}/);
+  assert.match(releaseLinux, /name: preflight-linux-builder-provenance-\$\{\{ github\.run_id \}\}/);
+  assert.doesNotMatch(releaseLinux, /name: preflight-release-Linux-builder-provenance/);
 });
 
 test("every native package job exercises install, automation contracts and both removal scopes", () => {
