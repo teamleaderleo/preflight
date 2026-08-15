@@ -9,7 +9,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test("routine evidence is pruned once after the desktop becomes idle", async () => {
+test("routine evidence is pruned after startup and each completed launch", async () => {
   vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
   const apply = vi.spyOn(bridge, "applyEvidenceCleanup").mockResolvedValue({
     format: "starsector-preflight-evidence-prune-v1",
@@ -21,30 +21,38 @@ test("routine evidence is pruned once after the desktop becomes idle", async () 
     removedBytes: 0,
     sessions: [],
   });
-  const { rerender } = renderHook(({ enabled }) => useAutomaticMaintenance(enabled), {
-    initialProps: { enabled: false },
+  const { rerender } = renderHook(({ enabled, epoch }) => useAutomaticMaintenance(enabled, epoch), {
+    initialProps: { enabled: false, epoch: 0 },
   });
 
-  rerender({ enabled: true });
+  rerender({ enabled: true, epoch: 0 });
   await act(async () => vi.advanceTimersByTimeAsync(1_500));
   expect(apply).toHaveBeenCalledTimes(1);
 
-  rerender({ enabled: false });
-  rerender({ enabled: true });
+  rerender({ enabled: false, epoch: 0 });
+  rerender({ enabled: true, epoch: 0 });
   await act(async () => vi.advanceTimersByTimeAsync(1_500));
   expect(apply).toHaveBeenCalledTimes(1);
+
+  rerender({ enabled: true, epoch: 1 });
+  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  expect(apply).toHaveBeenCalledTimes(2);
 });
 
 test("maintenance failure stays silent and does not retry in a loop", async () => {
   vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
   const apply = vi.spyOn(bridge, "applyEvidenceCleanup").mockRejectedValue(new Error("busy"));
-  const { rerender } = renderHook(({ enabled }) => useAutomaticMaintenance(enabled), {
-    initialProps: { enabled: true },
+  const { rerender } = renderHook(({ enabled, epoch }) => useAutomaticMaintenance(enabled, epoch), {
+    initialProps: { enabled: true, epoch: 0 },
   });
 
   await act(async () => vi.advanceTimersByTimeAsync(1_500));
-  rerender({ enabled: false });
-  rerender({ enabled: true });
+  rerender({ enabled: false, epoch: 0 });
+  rerender({ enabled: true, epoch: 0 });
   await act(async () => vi.advanceTimersByTimeAsync(1_500));
   expect(apply).toHaveBeenCalledTimes(1);
+
+  rerender({ enabled: true, epoch: 1 });
+  await act(async () => vi.advanceTimersByTimeAsync(1_500));
+  expect(apply).toHaveBeenCalledTimes(2);
 });

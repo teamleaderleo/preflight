@@ -66,6 +66,7 @@ export default function App() {
   const [status, setStatus] = useState<AppStatus>("loading");
   const [retryIntent, setRetryIntent] = useState<{ kind: "discovery" | "installation" | "launch"; game?: string } | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(previewRunFailure);
+  const [maintenanceEpoch, setMaintenanceEpoch] = useState(0);
   const [page, setPage] = useState<Page>("home");
   const [choosingInstall, setChoosingInstall] = useState(false);
   const choosingInstallRef = useRef(false);
@@ -247,6 +248,7 @@ export default function App() {
     let stopReconciliation: () => void = () => undefined;
     const stopListening = listenWhileMounted<RunStateEvent>("run-state", ({ payload }) => {
       if (payload.state === "finished") {
+        setMaintenanceEpoch((current) => current + 1);
         const pendingCount = countWhenFinished.current;
         countWhenFinished.current = null;
         if (payload.success && pendingCount?.pid === payload.pid) {
@@ -274,6 +276,7 @@ export default function App() {
           }
           if (previousPid !== null && previousPid !== undefined) {
             previousPid = null;
+            setMaintenanceEpoch((current) => current + 1);
             setStatus(snapshot?.ready ? "ready" : "setup");
             void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
               if (refreshed) announceGame("Starsector closed. The exact outcome is available in run reports.", "warning");
@@ -329,7 +332,10 @@ export default function App() {
     || diagnostics.reportUploading
     || removal.busy
     || updates.updateInstalling;
-  useAutomaticMaintenance(status === "ready" && isReady && !operationBlocked);
+  useAutomaticMaintenance(
+    status === "ready" && isReady && !operationBlocked,
+    maintenanceEpoch,
+  );
   /**
    * The snapshot describes files on disk: which installation is selected, whether it is usable,
    * and whether a prepared cache exists. Preflight already re-reads it on start, after a launch,
