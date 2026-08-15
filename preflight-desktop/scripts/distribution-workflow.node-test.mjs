@@ -93,7 +93,8 @@ test("desktop CI builds one engine and keeps validation out of the platform pack
   assert.match(validate, /cargo test --locked/);
   assert.match(validate, /cargo clippy --locked/);
 
-  assert.match(packageJob, /needs: engine/);
+  assert.match(packageJob, /needs: \[engine, scope\]/);
+  assert.match(packageJob, /if: needs\.scope\.outputs\.package == 'true'/);
   assert.match(packageJob, /actions\/download-artifact@/);
   assert.match(packageJob, /engine:prepare:verified/);
   assert.doesNotMatch(packageJob, /npm audit --omit=dev|npm test|cargo fmt --check|cargo test --locked|cargo clippy --locked/);
