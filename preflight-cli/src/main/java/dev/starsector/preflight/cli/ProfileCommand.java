@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +27,8 @@ import java.util.Set;
 final class ProfileCommand {
     private static final String FORMAT = "starsector-preflight-profile-v1";
     private static final String LIST_FORMAT = "starsector-preflight-profile-list-v1";
+    private static final String ACTIVATION_REVIEW_FORMAT = "starsector-preflight-profile-activation-review-v1";
+    private static final Duration ACTIVATION_REVIEW_MAX_AGE = Duration.ofMinutes(30);
 
     private ProfileCommand() {
     }
@@ -358,10 +361,10 @@ final class ProfileCommand {
             PrintStream out) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
         SavedProfile profile = readProfile(profilePath(home, name));
-        if (!profile.name().equals(name)) {
-            throw new IOException("Named profile file does not match requested profile: " + name);
-        }
-        List<String> current = readEnabled(layout.enabledModsFile());
+        requireProfileName(profile, name);
+        byte[] sourceState = Files.readAllBytes(layout.enabledModsFile());
+        String sourceStateSha256 = Hashes.sha256(sourceState);
+        List<String> current = readEnabled(sourceState);
         Set<String> installed = installedModIds(layout.modsDirectory());
         List<String> missing = profile.enabledMods().stream().filter(id -> !installed.contains(id)).toList();
         List<String> enable = difference(profile.enabledMods(), current);
@@ -369,6 +372,13 @@ final class ProfileCommand {
         boolean sameInstall = profile.installRoot().equals(layout.installRoot());
         boolean active = current.equals(profile.enabledMods());
         boolean canActivate = sameInstall && missing.isEmpty();
+
+        ActivationReview review = confirmed ? readActivationReview(home, layout.installRoot(), name) : null;
+        boolean sourceChanged = confirmed && review != null
+                && !review.sourceStateSha256().equals(sourceStateSha256);
+        boolean profileChanged = confirmed && review != null
+                && !review.profileFingerprint().equals(profile.profileFingerprint());
+        boolean reviewChanged = confirmed && (review == null || sourceChanged || profileChanged);
 
         Map<String, Object> plan = new LinkedHashMap<>();
         plan.put("format", "starsector-preflight-profile-activation-v1");
@@ -382,24 +392,52 @@ final class ProfileCommand {
         plan.put("enable", enable);
         plan.put("disable", disable);
         plan.put("missingMods", missing);
+        plan.put("sourceStateSha256", sourceStateSha256);
+        plan.put("sourceChanged", sourceChanged);
+        plan.put("profileChanged", profileChanged);
+        plan.put("reviewChanged", reviewChanged);
 
-        if (!canActivate) {
+        if (!confirmed) {
+            if (canActivate && !active) {
+                writeActivationReview(home, layout.installRoot(), profile, sourceStateSha256);
+            } else {
+                deleteActivationReview(home, layout.installRoot(), name);
+            }
+            emitActivation(plan, json, out);
+            if (!json && canActivate && !active) {
+                out.println("Close Starsector, review this plan, then repeat with --yes to apply it.");
+            }
+            return canActivate ? 0 : 2;
+        }
+
+        if (reviewChanged) {
+            if (canActivate && !active) {
+                // The refused result is itself the fresh plan the caller now sees. Advance only
+                // this caller session's review token so an unrelated desktop process cannot bless
+                // another process's stale plan.
+                writeActivationReview(home, layout.installRoot(), profile, sourceStateSha256);
+            } else {
+                deleteActivationReview(home, layout.installRoot(), name);
+            }
             emitActivation(plan, json, out);
             return 2;
         }
-        if (!confirmed || active) {
+        if (!canActivate) {
+            deleteActivationReview(home, layout.installRoot(), name);
             emitActivation(plan, json, out);
-            if (!json && !active) {
-                out.println("Close Starsector, review this plan, then repeat with --yes to apply it.");
-            }
+            return 2;
+        }
+        if (active) {
+            deleteActivationReview(home, layout.installRoot(), name);
+            emitActivation(plan, json, out);
             return 0;
         }
 
-        byte[] original = Files.readAllBytes(layout.enabledModsFile());
-        Path backup = backup(home, original);
+        Path backup = backup(home, sourceState);
         byte[] replacement = (Json.object(Map.of("enabledMods", profile.enabledMods()))
                 + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
-        boolean atomicReplace = replaceIfUnchanged(layout.enabledModsFile(), original, replacement);
+        boolean atomicReplace = replaceIfUnchanged(layout.enabledModsFile(), sourceState, replacement);
+        deleteActivationReview(home, layout.installRoot(), name);
         plan.put("applied", true);
         plan.put("atomicReplace", atomicReplace);
         plan.put("backup", backup);
@@ -413,6 +451,16 @@ final class ProfileCommand {
             return;
         }
         out.println("Profile activation: " + plan.get("name"));
+        if (Boolean.TRUE.equals(plan.get("reviewChanged"))) {
+            if (Boolean.TRUE.equals(plan.get("sourceChanged"))) {
+                out.println("  refused: enabled_mods.json changed since this switch was reviewed; review it again.");
+            } else if (Boolean.TRUE.equals(plan.get("profileChanged"))) {
+                out.println("  refused: the saved profile changed since this switch was reviewed; review it again.");
+            } else {
+                out.println("  refused: no current review exists for this profile switch; review it again.");
+            }
+            return;
+        }
         if (!Boolean.TRUE.equals(plan.get("sameInstall"))) {
             out.println("  refused: profile belongs to " + plan.get("savedInstallRoot"));
             return;
@@ -439,6 +487,88 @@ final class ProfileCommand {
                     : "applied with a staged same-directory replacement";
             out.println("  " + method + "; backup: " + plan.get("backup"));
         }
+    }
+
+    private static Path activationReviewPath(PreflightHome home, Path installRoot, String name) {
+        String caller = callerIdentity();
+        String key = caller + "\n" + installRoot.toAbsolutePath().normalize() + "\n" + name;
+        return home.state()
+                .resolve("profile-activation-reviews")
+                .resolve(Hashes.sha256(key.getBytes(StandardCharsets.UTF_8)) + ".json")
+                .toAbsolutePath()
+                .normalize();
+    }
+
+    private static String callerIdentity() {
+        ProcessHandle parent = ProcessHandle.current().parent().orElse(null);
+        if (parent == null) {
+            return "unknown-parent";
+        }
+        String started = parent.info().startInstant().map(Instant::toString).orElse("unknown-start");
+        return parent.pid() + "@" + started;
+    }
+
+    private static void writeActivationReview(
+            PreflightHome home,
+            Path installRoot,
+            SavedProfile profile,
+            String sourceStateSha256) throws IOException {
+        Path target = activationReviewPath(home, installRoot, profile.name());
+        Map<String, Object> review = new LinkedHashMap<>();
+        review.put("format", ACTIVATION_REVIEW_FORMAT);
+        review.put("name", profile.name());
+        review.put("installRoot", installRoot.toAbsolutePath().normalize());
+        review.put("profileFingerprint", profile.profileFingerprint());
+        review.put("sourceStateSha256", sourceStateSha256);
+        review.put("reviewedAt", Instant.now().toString());
+        atomicWrite(target, Json.object(review) + System.lineSeparator());
+    }
+
+    private static ActivationReview readActivationReview(
+            PreflightHome home,
+            Path installRoot,
+            String name) throws IOException {
+        Path file = activationReviewPath(home, installRoot, name);
+        if (!Files.isRegularFile(file)) {
+            return null;
+        }
+        try {
+            String json = Files.readString(file, StandardCharsets.UTF_8);
+            if (!ACTIVATION_REVIEW_FORMAT.equals(JsonText.string(json, "format"))) {
+                return null;
+            }
+            String reviewedName = JsonText.string(json, "name");
+            String reviewedInstall = JsonText.string(json, "installRoot");
+            String profileFingerprint = JsonText.string(json, "profileFingerprint");
+            String sourceStateSha256 = JsonText.string(json, "sourceStateSha256");
+            String reviewedAtText = JsonText.string(json, "reviewedAt");
+            if (!name.equals(reviewedName)
+                    || reviewedInstall == null
+                    || !installRoot.toAbsolutePath().normalize().equals(
+                            Path.of(reviewedInstall).toAbsolutePath().normalize())
+                    || profileFingerprint == null
+                    || !profileFingerprint.matches("[0-9a-fA-F]{64}")
+                    || sourceStateSha256 == null
+                    || !sourceStateSha256.matches("[0-9a-fA-F]{64}")
+                    || reviewedAtText == null) {
+                return null;
+            }
+            Instant reviewedAt = Instant.parse(reviewedAtText);
+            Duration age = Duration.between(reviewedAt, Instant.now());
+            if (age.isNegative() || age.compareTo(ACTIVATION_REVIEW_MAX_AGE) > 0) {
+                return null;
+            }
+            return new ActivationReview(
+                    profileFingerprint.toLowerCase(Locale.ROOT),
+                    sourceStateSha256.toLowerCase(Locale.ROOT));
+        } catch (RuntimeException invalid) {
+            return null;
+        }
+    }
+
+    private static void deleteActivationReview(PreflightHome home, Path installRoot, String name)
+            throws IOException {
+        Files.deleteIfExists(activationReviewPath(home, installRoot, name));
     }
 
     private static Path backup(PreflightHome home, byte[] original) throws IOException {
@@ -567,7 +697,11 @@ final class ProfileCommand {
     }
 
     private static List<String> readEnabled(Path file) throws IOException {
-        String json = Files.readString(file, StandardCharsets.UTF_8);
+        return readEnabled(Files.readAllBytes(file));
+    }
+
+    private static List<String> readEnabled(byte[] bytes) {
+        String json = new String(bytes, StandardCharsets.UTF_8);
         List<String> enabled = JsonText.stringArray(json, "enabledMods");
         rejectDuplicateMods(enabled);
         return enabled;
@@ -676,6 +810,9 @@ final class ProfileCommand {
     }
 
     record RetainedFingerprints(Set<String> fingerprints, List<String> diagnostics) {
+    }
+
+    private record ActivationReview(String profileFingerprint, String sourceStateSha256) {
     }
 
     private record SavedProfile(
