@@ -2796,7 +2796,10 @@ footer {
 
 .footer__links button {
   appearance: none;
-  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -10px;
   padding: 0;
   border: 0;
   color: inherit;

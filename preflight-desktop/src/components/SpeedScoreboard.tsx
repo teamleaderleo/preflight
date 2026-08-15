@@ -56,6 +56,7 @@ export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedSco
   }
 
   const measuredOn = new Date(record.recordedAt);
+  const totalLaunches = record.bankedLaunches + record.fastLaunches;
   return (
     <section className="card scoreboard" aria-label="Startup speed">
       <div className="scoreboard__headline">
@@ -71,10 +72,10 @@ export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedSco
       </div>
       <div className="scoreboard__body">
         <div className="scoreboard__total">
-          {record.fastLaunches > 0 || record.bankedSavedMs > 0 ? (
+          {totalLaunches > 0 ? (
             <>
               <strong>{formatSavedTotal(totalSavedMs)}</strong>
-              <span>saved across {record.fastLaunches.toLocaleString()} matching launch{record.fastLaunches === 1 ? "" : "es"}.</span>
+              <span>saved across {totalLaunches.toLocaleString()} matching launch{totalLaunches === 1 ? "" : "es"}.</span>
               <small>Estimated from the measured saving above.</small>
             </>
           ) : (

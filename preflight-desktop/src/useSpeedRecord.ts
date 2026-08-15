@@ -16,13 +16,14 @@ import type { DesktopBenchmarkComparison } from "./types";
  * with a newer multiplier would make the number fiction.
  */
 export interface SpeedRecord {
-  version: 1;
+  version: 2;
   profileFingerprint: string;
   benchmarkIdentitySha256: string;
   measurementOnlyMs: number;
   optimizedMs: number;
   recordedAt: string;
   fastLaunches: number;
+  bankedLaunches: number;
   bankedSavedMs: number;
 }
 
@@ -54,13 +55,14 @@ export function readSpeedRecord(storage: Storage = window.localStorage): SpeedRe
     const parsed = JSON.parse(raw) as Partial<SpeedRecord>;
     // A zero or negative duration cannot produce a multiplier, and a stored record that would
     // divide by zero is worse than no record at all.
-    const usable = parsed.version === 1
+    const usable = parsed.version === 2
       && isSha256(parsed.profileFingerprint)
       && isSha256(parsed.benchmarkIdentitySha256)
       && isFiniteAbove(parsed.measurementOnlyMs, 0)
       && isFiniteAbove(parsed.optimizedMs, 0)
       && typeof parsed.recordedAt === "string"
       && isFiniteAbove(parsed.fastLaunches, -1)
+      && isFiniteAbove(parsed.bankedLaunches, -1)
       && isFiniteAbove(parsed.bankedSavedMs, -1);
     if (usable) return parsed as SpeedRecord;
     storage.removeItem(SPEED_RECORD_STORAGE_KEY);
@@ -105,13 +107,14 @@ export function useSpeedRecord(): SpeedStanding {
       || !isFiniteAbove(metric.measurementOnly, 0)
       || !isFiniteAbove(metric.optimized, 0)) return;
     setRecord((previous) => ({
-      version: 1,
+      version: 2,
       profileFingerprint: identity.profileFingerprint,
       benchmarkIdentitySha256: identity.benchmarkIdentitySha256,
       measurementOnlyMs: metric.measurementOnly,
       optimizedMs: metric.optimized,
       recordedAt: new Date().toISOString(),
       fastLaunches: 0,
+      bankedLaunches: (previous?.bankedLaunches ?? 0) + (previous?.fastLaunches ?? 0),
       bankedSavedMs: totalSavedMs(previous),
     }));
   }, []);

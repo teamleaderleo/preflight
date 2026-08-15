@@ -68,6 +68,7 @@ test("a newer measurement banks the total earned under the old one", () => {
 
   act(() => result.current.rememberBenchmark(comparison(40_000, 20_000)));
   expect(result.current.record?.bankedSavedMs).toBe(144_500);
+  expect(result.current.record?.bankedLaunches).toBe(2);
   expect(result.current.record?.fastLaunches).toBe(0);
   expect(result.current.totalSavedMs).toBe(144_500);
 
@@ -94,13 +95,14 @@ test("an unavailable or zero-duration comparison is not recorded", () => {
 
 test("a corrupted stored record is discarded rather than divided by", () => {
   window.localStorage.setItem(SPEED_RECORD_STORAGE_KEY, JSON.stringify({
-    version: 1,
+    version: 2,
     profileFingerprint: PROFILE,
     benchmarkIdentitySha256: BENCHMARK_IDENTITY,
     measurementOnlyMs: 88_130,
     optimizedMs: 0,
     recordedAt: "2026-07-02T10:00:00.000Z",
     fastLaunches: 4,
+    bankedLaunches: 0,
     bankedSavedMs: 0,
   }));
 

@@ -9,6 +9,7 @@ import {
   getPreparationPlan,
   getProfiles,
   getSnapshot,
+  openProjectLink,
   renameProfile,
 } from "./bridge";
 
@@ -24,6 +25,17 @@ test("unknown browser scenarios fail back to the normal ready preview", async ()
   useScenario("invented");
   expect(browserPreviewScenario()).toBe("ready");
   expect((await getSnapshot()).ready).toBe(true);
+});
+
+test("the quiet support link has one fixed destination", async () => {
+  const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+  await openProjectLink("support");
+  expect(opened).toHaveBeenCalledWith(
+    "https://www.patreon.com/cw/teamleaderleo",
+    "_blank",
+    "noopener,noreferrer",
+  );
+  opened.mockRestore();
 });
 
 test("setup, low-disk, and cache-repair previews expose safe failure states", async () => {
