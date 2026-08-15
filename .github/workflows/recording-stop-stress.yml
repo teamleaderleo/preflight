@@ -1,0 +1,63 @@
+name: flush=0 recording stop stress
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/recording-stop-stress.yml'
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: Number of fresh child-JVM stop attempts
+        required: false
+        default: '25'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    env:
+      ITERATIONS: ${{ github.event.inputs.iterations || '25' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+
+      - name: Repeat flush=0 live-stop integration test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/recording-stop-stress
+          for iteration in $(seq 1 "$ITERATIONS"); do
+            echo "=== flush=0 stop iteration $iteration/$ITERATIONS ==="
+            log="build/recording-stop-stress/iteration-${iteration}.log"
+            set +e
+            ./mvnw --batch-mode --no-transfer-progress \
+              -pl preflight-agent,preflight-cli -am \
+              -Dtest=AgentOptionsTest \
+              -Dit.test='AdapterAgentIT#flushZeroLiveStopRetainsTheStoppingEvent' \
+              -Dsurefire.failIfNoSpecifiedTests=false \
+              verify > "$log" 2>&1
+            status=$?
+            set -e
+            if (( status != 0 )); then
+              echo "flush=0 stop failed on iteration $iteration" >&2
+              tail -n 300 "$log" >&2
+              exit "$status"
+            fi
+          done
+          echo "Completed $ITERATIONS flush=0 stop iterations without failure."
+
+      - name: Upload stress logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: recording-stop-stress-${{ github.run_id }}
+          path: build/recording-stop-stress
+          if-no-files-found: warn
+          retention-days: 7
