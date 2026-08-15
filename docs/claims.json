@@ -59,6 +59,61 @@
       "releaseCandidate": false,
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "development-83-mod-controlled-vanilla-fast-20260815",
+      "status": "accepted",
+      "scope": "development",
+      "publicClaimEligibility": "development-context-only",
+      "gameBuild": "0.98a-RC8",
+      "profile": {
+        "description": "current 83-mod profile, both conditions interleaved in one session",
+        "modCount": 83
+      },
+      "environment": {
+        "platform": "macOS 26.6.1",
+        "hardware": "Apple M5",
+        "javaRuntime": "bundled Java 17.0.10 (64-bit), from the game's own launcher line"
+      },
+      "protocol": {
+        "id": "direct",
+        "document": "docs/startup-benchmark.md",
+        "measurement": "main-menu-time",
+        "clockBoundary": "direct unattended launch to main-menu marker"
+      },
+      "result": {
+        "seconds": 15.53
+      },
+      "baseline": {
+        "condition": "vanilla",
+        "seconds": 89.0,
+        "deltaSeconds": 73.47,
+        "improvementPercent": 82.55,
+        "permutationP": 0.048
+      },
+      "evidence": {
+        "path": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
+        "runId": "20260815-022348",
+        "condition": "fast"
+      },
+      "evidenceAssertions": [
+        "15.53s",
+        "89.00s",
+        "73.47s",
+        "82.55%",
+        "83 enabled mods",
+        "0.98a-RC8",
+        "20260815-022348",
+        "preparationMillis"
+      ],
+      "publishedIn": [
+        "docs/technical-writeup-draft.md",
+        "docs/beta-announcement-draft.md"
+      ],
+      "mentionedIn": [],
+      "releaseCandidate": false,
+      "supersedes": [],
+      "supersededBy": null
     }
   ],
   "publishedNumbers": [
