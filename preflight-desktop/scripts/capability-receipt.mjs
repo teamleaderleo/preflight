@@ -92,7 +92,11 @@ export function verifySourceLock(lock, root = repositoryRoot) {
     const data = normalizedSourceBytes(join(root, name));
     const actual = sha256(data);
     if (actual !== expected) {
-      throw new Error(`Capability boundary changed without review: ${name}`);
+      // The gate is the point; leaving the reader to hand-compute the replacement digest was not.
+      throw new Error(
+        `Capability boundary changed without review: ${name}\n`
+        + "Read the diff, then accept it with: npm run capabilities:review --prefix preflight-desktop",
+      );
     }
     aggregate.update(name);
     aggregate.update("\0");
