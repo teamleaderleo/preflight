@@ -53,9 +53,7 @@
         "README.md",
         "docs/optimization-history.md"
       ],
-      "mentionedIn": [
-        "docs/release-readiness.md"
-      ],
+      "mentionedIn": [],
       "releaseCandidate": false,
       "supersedes": [],
       "supersededBy": null
@@ -97,6 +95,7 @@
         "condition": "fast"
       },
       "evidenceAssertions": [
+        "15.25s",
         "15.53s",
         "89.00s",
         "73.47s",
@@ -119,6 +118,17 @@
     }
   ],
   "publishedQuantities": [
+    {
+      "type": "seconds",
+      "value": "15.25",
+      "unit": "s",
+      "publishedIn": [
+        "README.md",
+        "docs/optimization-history.md"
+      ],
+      "evidence": "docs/evidence/2026-08-15-controlled-vanilla-fast-campaign.md",
+      "derivation": "Fastest of five accepted accelerated launches in the controlled interleaved campaign."
+    },
     {
       "type": "seconds",
       "value": "101",

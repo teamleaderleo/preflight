@@ -10,11 +10,11 @@ Preflight follows a measurement-first sequence. Each optimization keeps the orig
 
 ## Current release program (2026-08-09)
 
-Startup reached roughly 101 seconds at the observed high end and centered on an 88.13-second
-five-run median. The current development profile has reached a 15.88-second warm record
-after clean 16.66-second cold and 16.28-second warm gates. The chronological headline is therefore
-**101 seconds to 15.88 seconds**. The final candidate needs its own packaged benchmark pass; that
-result will sit beside the development record.
+Startup reached roughly 101 seconds at the observed high end. In the latest same-profile campaign,
+ordinary launches had an 89.00-second median and Preflight launches had a 15.53-second median; the
+fastest reached 15.25 seconds. The chronological headline is **101 seconds to 15.25 seconds**. The
+final candidate needs its own packaged benchmark pass; that result will sit beside the development
+record.
 
 Release work now has priority over another narrow startup experiment:
 

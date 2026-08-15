@@ -4,7 +4,7 @@ Replace every bracketed field after release-candidate testing and the packaged b
 
 ## Headline
 
-Preflight public beta: heavily modded startup from a 101-second worst case to 15.88 seconds
+Preflight public beta: heavily modded startup from a 101-second worst case to 15.25 seconds
 
 ## Short version
 

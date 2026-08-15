@@ -21,14 +21,14 @@ Hello! I've been working on this for a while and it's ready for other people to 
 made peace with staring at the loading screen for a minute or two, this is for you. It does the
 slow repetitive startup work once, keeps the result, and reuses it every launch after that.
 
-On my development install, startup went from a **~101-second worst case to a 15.88-second warm
-launch**. The five-run median before any of this started was 88.13 seconds, on a 77-mod profile;
-the 15.88 is the 83-mod profile I run now.
+On my development install, startup went from a **~101-second worst case to a 15.25-second warm
+launch**.
 
 Because those two ends were measured months apart on different mod lists, I also measured both
 sides again in one sitting, on the same 83 mods, alternating between them: five launches with no
 Preflight at all came in at a median of 89.00 seconds, and five with the preset an installed
-launcher runs came in at 15.53. Same machine, same profile, same clock on both sides.
+launcher runs came in at 15.53, with the fastest at 15.25. Same machine, same profile, same clock
+on both sides.
 
 That's still my Mac, my mods, my hardware — yours will differ, which is why the app includes a
 benchmark that runs one normal launch and one Preflight launch on your machine and shows you both

@@ -15,8 +15,8 @@ archive. They answer different questions. This page is the shortest route to the
 - [Product contract](product-contract.md) — exact modification, compatibility, preset, storage,
   update, and diagnostics boundaries.
 - [Optimization history](optimization-history.md) — the readable, source-linked account from the
-  roughly 101-second observed worst case and 88.13-second five-run median through the
-  15.88-second warm record.
+  roughly 101-second observed worst case through the 15.25-second warm record, with the latest
+  same-profile medians at 89.00 seconds ordinary and 15.53 seconds accelerated.
 - [Experiment ledger](experiment-ledger.md) — every retained optimization family, including rejected,
   corrected, diagnostic, and deferred branches.
 - [Performance and storage tradeoffs](performance-storage-tradeoffs.md) — what Balanced, Fastest,

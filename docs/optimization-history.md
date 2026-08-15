@@ -1,16 +1,15 @@
-# From 101 seconds to 15.88: what changed in Starsector's loading path
+# From 101 seconds to 15.25: what changed in Starsector's loading path
 
 **Status:** publication spine; performance claims link to retained evidence
 
 **Profile:** Starsector 0.98a-RC8, 83 mods, M5 MacBook Air, bundled x86-64 Zulu 17 under Rosetta
 
-**Updated:** 2026-08-13
+**Updated:** 2026-08-15
 
-The development installation's observed worst case reached roughly 101 seconds, and its established
-initial five-run baseline centered on 88.13 seconds. The best validated warm gate so far is
-15.88 seconds on the later 83-mod profile. **101 seconds to 15.88 seconds** is the chronological
-headline; 88.13 seconds supplies the repeatable baseline context. The final package still needs its
-own benchmark pass.
+The development installation's observed worst case reached roughly 101 seconds. In the latest
+same-profile campaign, ordinary launches had an 89.00-second median and Preflight launches had a
+15.53-second median; the fastest reached 15.25 seconds. **101 seconds to 15.25 seconds** is the
+chronological headline. The final package still needs its own benchmark pass.
 
 The [experiment ledger](experiment-ledger.md) records accepted, rejected, diagnostic, and deferred
 branches. The [performance and storage reference](performance-storage-tradeoffs.md) collects the
