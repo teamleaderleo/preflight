@@ -1,4 +1,4 @@
-use crate::operations::{OperationCoordinator, begin_update_install, refuse_update_install};
+use crate::operations::{OperationCoordinator, begin_update_check, begin_update_install};
 use serde::Serialize;
 #[cfg(target_os = "linux")]
 use std::env;
@@ -96,13 +96,7 @@ pub(crate) async fn check_for_update(
     processes: State<'_, OperationCoordinator>,
     updates: State<'_, UpdateTracker>,
 ) -> Result<UpdateStatus, String> {
-    {
-        let running = processes
-            .0
-            .lock()
-            .map_err(|_| "The process tracker is unavailable.".to_string())?;
-        refuse_update_install(&running)?;
-    }
+    let _check = begin_update_check(&processes.0)?;
     if let Some(reason) = updater_platform_reason() {
         return Ok(updater_disabled(&app, reason));
     }

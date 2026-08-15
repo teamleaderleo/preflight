@@ -1,4 +1,6 @@
-use crate::operations::{OperationCoordinator, ReportUploadProcess, refuse_update_install};
+use crate::operations::{
+    OperationCoordinator, ReportUploadProcess, refuse_benchmark_for_report, refuse_update_install,
+};
 use crate::report_transport::{
     configured_report_origin, emit_report_state, perform_report_deletion, perform_report_upload,
     report_client, validated_report_archive,
@@ -211,6 +213,8 @@ pub(crate) async fn send_run_report(
         })?;
         refuse_update_install(&running)
             .map_err(|message| NativeCommandError::new("operation-conflict", message, true))?;
+        refuse_benchmark_for_report(&running)
+            .map_err(|message| NativeCommandError::new("operation-conflict", message, true))?;
         if running.report_upload.is_some() {
             return Err(NativeCommandError::new(
                 "report-upload-active",
@@ -304,7 +308,17 @@ pub(crate) fn cancel_run_report(
 }
 
 #[tauri::command]
-pub(crate) async fn delete_run_report(deletion: ReportDeletion) -> Result<bool, String> {
+pub(crate) async fn delete_run_report(
+    tracker: State<'_, OperationCoordinator>,
+    deletion: ReportDeletion,
+) -> Result<bool, String> {
+    {
+        let running = tracker
+            .0
+            .lock()
+            .map_err(|_| "The report upload tracker is unavailable.".to_string())?;
+        refuse_benchmark_for_report(&running)?;
+    }
     let origin = configured_report_origin()?;
     perform_report_deletion(report_client()?, origin, deletion).await
 }

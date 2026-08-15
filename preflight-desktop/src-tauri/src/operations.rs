@@ -9,6 +9,7 @@ pub(crate) struct OperationState {
     pub(crate) desktop_smoke: Option<DesktopSmokeProcess>,
     pub(crate) preparation: Option<PreparationProcess>,
     pub(crate) report_upload: Option<ReportUploadProcess>,
+    pub(crate) update_checking: bool,
     pub(crate) update_installing: bool,
     pub(crate) exit_after_cleanup: bool,
 }
@@ -66,6 +67,18 @@ impl OperationSnapshot {
 #[derive(Default)]
 pub(crate) struct OperationCoordinator(pub(crate) Mutex<OperationState>);
 
+pub(crate) struct UpdateCheckGuard<'a> {
+    operations: &'a Mutex<OperationState>,
+}
+
+impl Drop for UpdateCheckGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.operations.lock() {
+            state.update_checking = false;
+        }
+    }
+}
+
 pub(crate) struct UpdateInstallGuard<'a> {
     operations: &'a Mutex<OperationState>,
 }
@@ -76,6 +89,27 @@ impl Drop for UpdateInstallGuard<'_> {
             state.update_installing = false;
         }
     }
+}
+
+pub(crate) fn begin_update_check(
+    operations: &Mutex<OperationState>,
+) -> Result<UpdateCheckGuard<'_>, String> {
+    let mut state = operations
+        .lock()
+        .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    refuse_update_install(&state)?;
+    if state.desktop_smoke.is_some() {
+        return Err(
+            "Wait for the startup benchmark to finish or cancel it before checking for updates."
+                .to_string(),
+        );
+    }
+    if state.update_checking {
+        return Err("A Preflight update check is already running.".to_string());
+    }
+    state.update_checking = true;
+    drop(state);
+    Ok(UpdateCheckGuard { operations })
 }
 
 pub(crate) fn begin_update_install(
@@ -96,6 +130,11 @@ pub(crate) fn begin_update_install(
         return Err(
             "Wait for the run report upload to finish or cancel it before installing an update."
                 .to_string(),
+        );
+    }
+    if state.update_checking {
+        return Err(
+            "Wait for the current update check to finish before installing an update.".to_string(),
         );
     }
     if state.update_installing {
@@ -125,6 +164,32 @@ pub(crate) fn refuse_report_upload_for_removal(state: &OperationState) -> Result
     }
 }
 
+pub(crate) fn refuse_report_upload_for_benchmark(state: &OperationState) -> Result<(), String> {
+    if state.report_upload.is_some() {
+        return Err(
+            "Wait for the run report upload to finish or cancel it before running the startup benchmark."
+                .to_string(),
+        );
+    }
+    if state.update_checking {
+        return Err(
+            "Wait for the update check to finish before running the startup benchmark.".to_string(),
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn refuse_benchmark_for_report(state: &OperationState) -> Result<(), String> {
+    if state.desktop_smoke.is_some() {
+        Err(
+            "Wait for the startup benchmark to finish or cancel it before changing run reports."
+                .to_string(),
+        )
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,6 +201,17 @@ mod tests {
                 id: 7,
                 total_bytes: 1024,
                 cancel,
+            }),
+            ..OperationState::default()
+        }
+    }
+
+    fn state_with_benchmark() -> OperationState {
+        OperationState {
+            game: Some(41),
+            desktop_smoke: Some(DesktopSmokeProcess {
+                pid: 41,
+                run_directory: PathBuf::from("benchmark-run"),
             }),
             ..OperationState::default()
         }
@@ -157,12 +233,79 @@ mod tests {
     }
 
     #[test]
+    fn update_check_refuses_active_benchmark() {
+        let operations = Mutex::new(state_with_benchmark());
+
+        assert_eq!(
+            begin_update_check(&operations).err().unwrap(),
+            "Wait for the startup benchmark to finish or cancel it before checking for updates."
+        );
+        assert!(!operations.lock().unwrap().update_checking);
+    }
+
+    #[test]
+    fn update_check_guard_releases_ownership() {
+        let operations = Mutex::new(OperationState::default());
+        {
+            let _check = begin_update_check(&operations).expect("update check starts");
+            assert!(operations.lock().unwrap().update_checking);
+        }
+        assert!(!operations.lock().unwrap().update_checking);
+    }
+
+    #[test]
+    fn update_install_refuses_active_update_check() {
+        let operations = Mutex::new(OperationState {
+            update_checking: true,
+            ..OperationState::default()
+        });
+
+        assert_eq!(
+            begin_update_install(&operations).err().unwrap(),
+            "Wait for the current update check to finish before installing an update."
+        );
+    }
+
+    #[test]
     fn removal_refuses_active_report_upload() {
         let state = state_with_report_upload();
 
         assert_eq!(
             refuse_report_upload_for_removal(&state).unwrap_err(),
             "Wait for the run report upload to finish or cancel it before removing Preflight data."
+        );
+    }
+
+    #[test]
+    fn benchmark_refuses_active_report_upload() {
+        let state = state_with_report_upload();
+
+        assert_eq!(
+            refuse_report_upload_for_benchmark(&state).unwrap_err(),
+            "Wait for the run report upload to finish or cancel it before running the startup benchmark."
+        );
+    }
+
+    #[test]
+    fn benchmark_refuses_active_update_check() {
+        let state = OperationState {
+            update_checking: true,
+            ..OperationState::default()
+        };
+
+        assert_eq!(
+            refuse_report_upload_for_benchmark(&state).unwrap_err(),
+            "Wait for the update check to finish before running the startup benchmark."
+        );
+    }
+
+    #[test]
+    fn run_report_changes_refuse_active_benchmark() {
+        let state = state_with_benchmark();
+
+        assert_eq!(
+            refuse_benchmark_for_report(&state).unwrap_err(),
+            "Wait for the startup benchmark to finish or cancel it before changing run reports."
         );
     }
 
