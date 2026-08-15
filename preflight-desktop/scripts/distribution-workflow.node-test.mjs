@@ -22,7 +22,7 @@ const ciTauriConfig = readFileSync(
   resolve(repository, "preflight-desktop/src-tauri/tauri.ci.conf.json"),
   "utf8",
 );
-const linuxBuilderImage = "ubuntu:jammy-20260627@sha256:0d7799fb1b4e200a24c11fc575a7e11ecb6501ff6eec649226fad40bd6501c64";
+const linuxBuilderImage = "ubuntu:jammy-20260627@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8";
 
 export function normalizedWorkflowText(value) {
   return value.replaceAll("\r\n", "\n");
