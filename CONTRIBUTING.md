@@ -14,7 +14,7 @@ By contributing you agree that your contributions are licensed under the reposit
 For Java-only work:
 
 - JDK 17
-- Maven 3.9 or newer
+- the checked-in Maven Wrapper (`./mvnw` on macOS/Linux, `mvnw.cmd` on Windows), which downloads the reviewed Maven 3.9.16 distribution on first use
 
 For repository-wide desktop and report-intake verification, also install:
 
@@ -25,7 +25,13 @@ For repository-wide desktop and report-intake verification, also install:
 Run the Java verification suite:
 
 ```bash
-mvn verify
+./mvnw verify
+```
+
+On Windows Command Prompt or PowerShell, use:
+
+```text
+mvnw.cmd verify
 ```
 
 Before merging a change that crosses Java, desktop, packaging, or report-intake boundaries, run the repository-wide verification entrypoint:
@@ -42,8 +48,8 @@ Two opt-in Maven profiles are available and are intentionally kept out of the de
 build so an unrelated change never breaks on them:
 
 ```bash
-mvn -Panalysis verify   # Error Prone static analysis; reports findings as warnings
-mvn -Pcoverage verify   # JaCoCo coverage, reported under each module's target/site/jacoco
+./mvnw -Panalysis verify   # Error Prone static analysis; reports findings as warnings
+./mvnw -Pcoverage verify   # JaCoCo coverage, reported under each module's target/site/jacoco
 ```
 
 `-Panalysis` reports findings as advisory warnings rather than failing the build. The
