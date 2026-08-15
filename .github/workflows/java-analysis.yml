@@ -42,3 +42,27 @@ jobs:
           -Panalysis
           -DskipTests
           test-compile
+
+  coverage:
+    name: JaCoCo coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-build-jdk
+        with:
+          java-version: '17'
+      - name: Run tests with JaCoCo
+        run: >-
+          mvn --batch-mode --no-transfer-progress
+          -Pcoverage
+          verify
+      - name: Retain coverage reports
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: java-coverage-${{ github.run_id }}
+          path: |
+            */target/site/jacoco/jacoco.xml
+            */target/site/jacoco/jacoco.csv
+            */target/site/jacoco/index.html
+          if-no-files-found: error
+          retention-days: 14
