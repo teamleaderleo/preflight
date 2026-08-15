@@ -80,6 +80,7 @@ export function verifyEngineBoundary(
   const expectedKeys = [
     "compression",
     "jarBytes",
+    "jarSha256",
     "legalFiles",
     "measurementScenarioBytes",
     "modules",
@@ -101,6 +102,12 @@ export function verifyEngineBoundary(
   }
   if (manifest.jarBytes !== statSync(join(engineDirectory, "preflight.jar")).size) {
     throw new Error("Desktop engine manifest JAR size differs from the bundled JAR");
+  }
+  const actualJarSha256 = createHash("sha256")
+    .update(readFileSync(join(engineDirectory, "preflight.jar")))
+    .digest("hex");
+  if (!/^[a-f0-9]{64}$/.test(manifest.jarSha256) || manifest.jarSha256 !== actualJarSha256) {
+    throw new Error("Desktop engine manifest JAR digest differs from the bundled JAR");
   }
   const scenario = join(engineDirectory, "scenarios", "campaign-roam.json");
   if (manifest.smokeScenarioBytes !== statSync(scenario).size) {

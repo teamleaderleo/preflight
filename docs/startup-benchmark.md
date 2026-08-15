@@ -226,9 +226,9 @@ shipped bytes.
 `preflight.jar`, an installed or extracted Preflight (a `.app`, or any directory holding
 `engine/preflight.jar`), and resolution is a short list of reviewed package layouts rather than a
 search. In this mode the checkout is never built and never consulted — an unresolvable `--engine`
-refuses the campaign instead of falling back. Pass `--engine-sha256` from the candidate's own
-checksum manifest to pin the exact bytes; where a packaged engine ships a `bundle.json` beside it,
-its recorded length and `sourceVersion` are checked and retained too.
+refuses the campaign instead of falling back. A packaged engine's `bundle.json` pins its exact JAR
+SHA-256 and length and retains its `sourceVersion`; the package verifier checks the same fields.
+`--engine-sha256` can impose an additional independently recorded expected digest.
 
 A session records which of the two it measured and refuses to resume as the other, so a candidate
 campaign cannot be continued against a checkout build.

@@ -10,6 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -101,6 +102,7 @@ const manifest = {
   modules,
   compression,
   jarBytes: statSync(sourceJar).size,
+  jarSha256: createHash("sha256").update(readFileSync(sourceJar)).digest("hex"),
   smokeScenarioBytes: statSync(smokeScenario).size,
   measurementScenarioBytes: statSync(measurementScenario).size,
   startupScenarioBytes: statSync(startupScenario).size,

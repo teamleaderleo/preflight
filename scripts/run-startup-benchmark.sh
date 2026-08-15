@@ -32,6 +32,7 @@ ENGINE_WAS_SET=false
 ENGINE_SHA256=""
 ENGINE_SOURCE=checkout
 ENGINE_VERSION=""
+MANIFEST_JAR_SHA=""
 
 CHECKOUT_JAR="$PWD/preflight-cli/target/preflight.jar"
 JAR="$CHECKOUT_JAR"
@@ -79,9 +80,9 @@ Usage: scripts/run-startup-benchmark.sh [options]
                       there is no fallback to preflight-cli/target/preflight.jar. Without it
                       a campaign measures checkout bytes and says so, which makes it
                       development evidence rather than a release-candidate result.
-  --engine-sha256 HEX Require the resolved engine to hash to exactly this SHA-256. Take the
-                      value from the candidate's own checksum manifest, so the campaign
-                      cannot run against an engine the release never shipped.
+  --engine-sha256 HEX Additionally require the resolved engine to hash to this SHA-256.
+                      Packaged engines are already pinned by the bundle.json beside them;
+                      this accepts an independently recorded expected digest as well.
   -h, --help          Show this message.
 
 Conditions:
@@ -325,18 +326,22 @@ if [[ "$ENGINE_SOURCE" == candidate ]]; then
         exit 1
     }
     JAR="$(cd "$(dirname "$JAR")" && pwd)/$(basename "$JAR")"
-    # A packaged engine ships a manifest beside it. It records the engine's length but not its
-    # digest, so this catches a jar swapped in place inside an otherwise intact package and
-    # names the candidate; --engine-sha256 is still what pins the bytes.
+    # A packaged engine ships a manifest beside it. The package boundary verifies this same
+    # digest before publication; checking it here binds the campaign to those packaged bytes.
     ENGINE_MANIFEST="$(dirname "$JAR")/bundle.json"
     if [[ -f "$ENGINE_MANIFEST" ]]; then
         ENGINE_VERSION="$(jq -er '.sourceVersion // ""' "$ENGINE_MANIFEST" 2>/dev/null || echo "")"
         MANIFEST_JAR_BYTES="$(jq -er '.jarBytes // empty' "$ENGINE_MANIFEST" 2>/dev/null || echo "")"
+        MANIFEST_JAR_SHA="$(jq -er '.jarSha256 // empty' "$ENGINE_MANIFEST" 2>/dev/null || echo "")"
         RESOLVED_JAR_BYTES="$(wc -c < "$JAR" | tr -d ' ')"
         if [[ -n "$MANIFEST_JAR_BYTES" && "$MANIFEST_JAR_BYTES" != "$RESOLVED_JAR_BYTES" ]]; then
             bad "This engine does not match the bundle manifest packaged beside it."
             bad "  $ENGINE_MANIFEST records jarBytes=$MANIFEST_JAR_BYTES"
             bad "  $JAR is $RESOLVED_JAR_BYTES bytes"
+            exit 1
+        fi
+        if [[ ! "$MANIFEST_JAR_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+            bad "The bundle manifest beside this engine has no valid JAR digest."
             exit 1
         fi
     fi
@@ -347,6 +352,12 @@ else
     [[ -f "$JAR" ]] || { bad "Runnable JAR was not produced: $JAR"; exit 1; }
 fi
 JAR_SHA="$(shasum -a 256 "$JAR" | awk '{print $1}')"
+if [[ -n "$MANIFEST_JAR_SHA" && "$JAR_SHA" != "$MANIFEST_JAR_SHA" ]]; then
+    bad "This engine does not match the JAR digest in its bundle manifest."
+    bad "  manifest: $MANIFEST_JAR_SHA"
+    bad "  resolved: $JAR_SHA  ($JAR)"
+    exit 1
+fi
 if [[ -n "$ENGINE_SHA256" ]]; then
     EXPECTED_ENGINE_SHA="$(tr '[:upper:]' '[:lower:]' <<< "$ENGINE_SHA256")"
     if [[ "$(tr '[:upper:]' '[:lower:]' <<< "$JAR_SHA")" != "$EXPECTED_ENGINE_SHA" ]]; then

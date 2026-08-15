@@ -230,6 +230,8 @@ class CandidateEngineTest(unittest.TestCase):
     def test_a_packaged_engine_is_checked_against_the_manifest_beside_it(self):
         self.assertIn("does not match the bundle manifest packaged beside it", SCRIPT_TEXT)
         self.assertIn('MANIFEST_JAR_BYTES="$(jq -er \'.jarBytes // empty\'', SCRIPT_TEXT)
+        self.assertIn('MANIFEST_JAR_SHA="$(jq -er \'.jarSha256 // empty\'', SCRIPT_TEXT)
+        self.assertIn("does not match the JAR digest in its bundle manifest", SCRIPT_TEXT)
 
     def test_the_session_records_and_rebinds_its_engine(self):
         self.assertIn('engineSource: $engineSource, engine: $engine', SCRIPT_TEXT)
