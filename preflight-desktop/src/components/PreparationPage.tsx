@@ -1,7 +1,7 @@
 import { RefreshIcon, ShieldIcon, SparklesIcon } from "../icons";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
-import { resourcePresets, type usePreparation } from "../usePreparation";
+import { resourcePresets, storagePlanApplies, type usePreparation } from "../usePreparation";
 import { formatBytes } from "../uiFormat";
 import type { CacheCleanupPlan, NoticeTone, OptimizationDomain, OptimizationPreset } from "../types";
 
@@ -117,6 +117,10 @@ export function PreparationPage({
     setTextureStorage,
     stopPreparation,
   } = preparation;
+  const storageBlocked = storagePlanApplies(textureStorage)
+    && Boolean(preparationPlan && !preparationPlan.safeToPrepare);
+  const canPrepare = !storagePlanApplies(textureStorage)
+    || Boolean(preparationPlan?.safeToPrepare);
   return (
     <div className="prepare-page">
       <NoticeBanner message={message} tone={messageTone} />
@@ -151,13 +155,13 @@ export function PreparationPage({
 
       {!profilePrepared || preparing ? <section className="card prepare-action">
         <div>
-          <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : preparationPlan?.safeToPrepare ? "There’s room to prepare this profile" : "Preparation needs attention"}</strong>
-          <span>{preparing ? `${preparationPercent}% complete · finished artifacts stay reusable` : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
+          <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
+          <span>{preparing ? `${preparationPercent}% complete · finished artifacts stay reusable` : storageBlocked ? "Minimal preparation uses a few megabytes and still speeds up startup." : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
           {preparing ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
         </div>
         <div className="prepare-actions">
           {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
-          <button className="button button--primary" type="button" onClick={() => void prepare(false)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || !preparationPlan?.safeToPrepare}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : "Prepare current profile"}</button>
+          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with minimal disk" : "Prepare current profile"}</button>
         </div>
       </section> : null}
 
@@ -182,9 +186,6 @@ export function PreparationPage({
         {preparationPlan && !preparationPlan.safeToPrepare ? (
           <div className="storage-refusal">
             <p className="activation-warning">{preparationPlan.refusalReason}</p>
-            {textureStorage === "fastest" ? (
-              <button className="button button--quiet button--compact" type="button" onClick={() => setTextureStorage("balanced")} disabled={operationBlocked}>Use Balanced storage</button>
-            ) : null}
           </div>
         ) : null}
         <details className="storage-breakdown">
