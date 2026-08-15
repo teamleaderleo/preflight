@@ -23,10 +23,16 @@ slow repetitive startup work once, keeps the result, and reuses it every launch 
 
 On my development install, startup went from a **~101-second worst case to a 15.88-second warm
 launch**. The five-run median before any of this started was 88.13 seconds, on a 77-mod profile;
-the 15.88 is the 83-mod profile I run now. That's my Mac, my mods, my hardware, and a mod list that
-grew along the way — yours will differ, which is why the app includes a benchmark that runs one
-normal launch and one Preflight launch on your machine and shows you both numbers. Trust that one
-over mine.
+the 15.88 is the 83-mod profile I run now.
+
+Because those two ends were measured months apart on different mod lists, I also measured both
+sides again in one sitting, on the same 83 mods, alternating between them: five launches with no
+Preflight at all came in at a median of 89.00 seconds, and five with the preset an installed
+launcher runs came in at 15.53. Same machine, same profile, same clock on both sides.
+
+That's still my Mac, my mods, my hardware — yours will differ, which is why the app includes a
+benchmark that runs one normal launch and one Preflight launch on your machine and shows you both
+numbers. Trust that one over mine.
 
 **Download:** https://github.com/teamleaderleo/preflight/releases/latest
 
@@ -124,9 +130,14 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
 - Reviewed game version: **0.98a-RC8**. Other versions get fewer shortcuts, not a broken game.
 - Disk use: **about 4.5 GB** for a large profile. That's one measured profile (83 mods) on the
   default Balanced texture storage, so treat it as the ballpark rather than a number for your
-  install. The Fastest setting stores textures uncompressed and took about 3 GB more on that same
-  profile.
-- First preparation takes a couple of minutes on a big mod list. After that it's reused.
+  install — two cold preparations of that profile came out at 4.53 GB and 4.76 GB. The Fastest
+  setting stores textures uncompressed and took 10.03 GB on the same profile, so it costs about
+  5.3 GB more, not a little more. Both preparations took the same time to build, so Fastest is
+  trading disk for launch speed rather than for a quicker setup.
+- First preparation took 3 minutes 21 seconds on that same 83-mod profile, nearly all of it
+  spent building textures. After that it's reused, and launches don't pay it again. That was one
+  run on my machine with the game's files already warm in the OS cache, so a genuine first run on a
+  cold machine will be somewhat slower.
 
 ---
 
