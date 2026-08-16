@@ -118,10 +118,26 @@ edge count it prints is the check, and it has to match what the page reports.
 
 ## The fidelity knobs
 
-**Four of them are sliders on the page.** Detail, height, tier lift and interiors on/off move
-live, because they were each a number argued about in a commit message and they are quicker to
-settle by dragging. `contact-sheet.py` takes the same four as flags with the same defaults, so
-drag until it looks right and then pass what you settled on.
+**Six of them are sliders on the page**, because each was a number argued about in a commit
+message and they are quicker to settle by dragging. `contact-sheet.py` takes the same six as
+flags with the same defaults, so drag until it looks right and then pass what you settled on.
+
+| slider | what it does |
+| --- | --- |
+| `Outline` | how closely the silhouette follows the traced contour |
+| `Voids` | the same for holes — its own dial, because a flight deck is a twelfth the size of a hull and the same tolerance flattens it |
+| `Interiors` | the same for the raised blocks |
+| `Min block` | drops interior blocks below a share of the hull's area. Ranges to 35 % because a block runs from 3 % of a hull to 80 % of it, and a dial that cannot reach past the big ones cannot clear anything |
+| `Tier lift` | how high the interiors stand |
+| `Height` | plate thickness |
+
+One dial called "Detail" was wrong. An outline, a void and an interior block are three different
+sizes of thing, and a tolerance that reads well on a 200-point hull outline flattens a 12-point
+flight deck; driving all three off one number with fixed multipliers just hid that.
+
+`Min block` is the tracer's `MIN_AREA` done where it can be dragged — the contours are already
+in the page, so which of them are worth drawing is a decision the browser can make. Only the
+blur and where the light is cut genuinely need the sprite.
 
 That is why the page ships its shapes finely — 94 to 209 points rather than the 44 to 104 it
 draws at. **What is stored is not the fidelity, it is the ceiling on it**; the browser runs the

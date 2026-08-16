@@ -547,13 +547,25 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     return out.length>=floor?out:loop;
   }
 
-  /* The knobs. Everything here can move without the sprite; the blur, the area floor and
-     where the light is cut cannot, and stay in trace-hulls.py. */
-  var KNOB={detail:0.012, height:1, tiers:1, lift:1};
+  /* The knobs. One dial for "detail" was wrong: an outline, a void and an interior block are
+     three different sizes of thing, and a tolerance that reads well on a 200-point hull outline
+     flattens a 12-point flight deck. They get one each. Everything here can move without the
+     sprite; the blur and where the light is cut cannot, and stay in trace-hulls.py. */
+  var KNOB={outline:0.012, voids:0.006, inner:0.016, block:0.012, height:1, lift:1};
+
+  /* Shoelace, for dropping interior blocks below a size. This is the tracer's MIN_AREA done
+     where it can be dragged: the contours are already here, so which of them are worth
+     drawing is a decision the browser can make. */
+  function area(loop){
+    var a=0;
+    for(var i=0,m=loop.length,j=m-1;i<m;j=i++)
+      a+=(loop[j][0]*loop[i][1]-loop[i][0]*loop[j][1]);
+    return Math.abs(a/2);
+  }
 
   function build(hull){
     V=[];E=[];
-    var o=thin(hull.o,KNOB.detail,12), n=o.length, TH=hull.thick*KNOB.height;
+    var o=thin(hull.o,KNOB.outline,12), n=o.length, TH=hull.thick*KNOB.height;
 
     var wmax=0, zmin=1e9, zmax=-1e9, cz=0, cx=0;
     o.forEach(function(p){
@@ -578,7 +590,7 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
        other, so the Paragon's hole needs no special case. The outlines come off
        the sprite's alpha channel now rather than out of `bounds`, which is what
        removed the zero-width seam these used to have to detect and skip. */
-    var loops=[o].concat((hull.holes||[]).map(function(l){return thin(l,KNOB.detail*0.6,6);}));
+    var loops=[o].concat((hull.holes||[]).map(function(l){return thin(l,KNOB.voids,6);}));
     loops.forEach(function(loop,li){
       var m=loop.length, mid=[];
       loop.forEach(function(p){ mid.push(vert(p[1],0,p[0])); });
@@ -666,8 +678,10 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
        the boundary between hull and space, and these are the boundaries between one
        raised block and the next. Nothing here is typed in -- the shapes are the
        ship's own, which is the only reason they look like the ship. */
-    (KNOB.tiers?(hull.inner||[]):[]).forEach(function(tier){
-      var lift=tier[0]*KNOB.lift, loop=thin(tier[1],KNOB.detail*1.4,6), m=loop.length;
+    var hullArea=area(o);
+    (hull.inner||[]).forEach(function(tier){
+      if(area(tier[1])<KNOB.block*hullArea) return;
+      var lift=tier[0]*KNOB.lift, loop=thin(tier[1],KNOB.inner,6), m=loop.length;
       if(m<3) return;
       var ring=loop.map(function(p){
         return vert(p[1], halfHeight(p[0],p[1])+TH*0.95*lift, p[0]);
@@ -815,10 +829,14 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
   /* Sliders, not constants. Every one of these was a number argued about in a commit
      message at some point; they are quicker to settle by dragging. */
   var KNOBS=[
-    ["detail","Detail",0,0.045,0.001, function(v){return v?v.toFixed(3):"full";}],
-    ["height","Height",0.2,2.2,0.05,  function(v){return v.toFixed(2)+"\u00d7";}],
-    ["lift","Tier lift",0,1.8,0.05,   function(v){return v.toFixed(2)+"\u00d7";}],
-    ["tiers","Interiors",0,1,1,       function(v){return v?"on":"off";}]
+    ["outline","Outline",0,0.05,0.001, function(v){return v?v.toFixed(3):"full";}],
+    ["voids","Voids",0,0.03,0.001,     function(v){return v?v.toFixed(3):"full";}],
+    ["inner","Interiors",0,0.06,0.002, function(v){return v?v.toFixed(3):"full";}],
+    /* Blocks run from 3 % of a hull's area to 80 % of it, measured across the six, so the
+       range has to reach past the big ones for the knob to be able to clear anything. */
+    ["block","Min block",0,0.35,0.005, function(v){return v?(v*100).toFixed(1)+"%":"all";}],
+    ["lift","Tier lift",0,1.8,0.05,    function(v){return v.toFixed(2)+"\u00d7";}],
+    ["height","Height",0.2,2.2,0.05,   function(v){return v.toFixed(2)+"\u00d7";}]
   ];
   var knobBox=document.getElementById("knobs");
   KNOBS.forEach(function(k){

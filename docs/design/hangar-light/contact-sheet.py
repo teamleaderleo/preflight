@@ -1,7 +1,8 @@
 """Render every hull at every angle into one PNG, for judging them against each other.
 
     python3 contact-sheet.py [-o sheet.png] [--cell 260] [--sprites [GAME]]
-                             [--detail F] [--height F] [--lift F] [--tiers 0|1] [hull ...]
+                             [--outline F] [--voids F] [--inner F] [--block F]
+                             [--lift F] [--height F] [hull ...]
 
 `--sprites` puts each hull's actual sprite in the first column, read live from an installation.
 That column is the only thing that can tell you whether a hull is right -- comparing a render
@@ -9,7 +10,7 @@ against your own previous render just tells you what changed. **Its output is sc
 not go in the repository**, same rule as everywhere else here: the tracer reads an install, the
 repository holds only the simplified contour.
 
-The four knobs match the page's sliders and default to the same values, so the edge counts stay
+The six knobs match the page's sliders and default to the same values, so the edge counts stay
 a drift check. Drag them in the browser, then pass the ones you settled on here.
 
 The page is the renderer of record; this is a design aid. It reads the hull data straight out of
@@ -114,7 +115,16 @@ def hulls():
 
 # The page's slider defaults. The sheet has to agree with the page or the edge counts stop
 # being a drift check, so these are the same numbers and move together.
-KNOB = {"detail": 0.012, "height": 1.0, "lift": 1.0, "tiers": 1}
+KNOB = {"outline": 0.012, "voids": 0.006, "inner": 0.016,
+        "block": 0.012, "height": 1.0, "lift": 1.0}
+
+
+def area(loop):
+    """Shoelace. Which interior blocks are worth drawing is a size question, so it is a knob."""
+    a = 0.0
+    for i in range(len(loop)):
+        a += loop[i - 1][0] * loop[i][1] - loop[i][0] * loop[i - 1][1]
+    return abs(a / 2)
 
 
 _TRACER = None
@@ -142,7 +152,7 @@ def build(hull):
         V.append([x, y, z])
         return len(V) - 1
 
-    o = rdp_loop(hull["o"], KNOB["detail"], 12)
+    o = rdp_loop(hull["o"], KNOB["outline"], 12)
     TH = hull["thick"] * KNOB["height"]
     wmax = max(abs(p[1]) for p in o)
     zmin = min(p[0] for p in o)
@@ -154,7 +164,7 @@ def build(hull):
         rim = 1 - min(1.0, abs(x) / wmax) ** 2.6
         return TH * (0.55 + 0.45 * ends) * (0.10 + 0.90 * rim)
 
-    loops = [o] + [rdp_loop(l, KNOB["detail"] * 0.6, 6) for l in hull["holes"]]
+    loops = [o] + [rdp_loop(l, KNOB["voids"], 6) for l in hull["holes"]]
     for li, loop in enumerate(loops):
         m = len(loop)
         mid = [vert(p[1], 0, p[0]) for p in loop]
@@ -220,9 +230,12 @@ def build(hull):
     # contour of what the sprite lights above a threshold -- the boundary between one raised
     # block and the next, where the silhouette is the boundary between hull and space. Nothing
     # here is hand-typed; the shapes are the ship's own.
-    for lift, loop in (hull["inner"] if KNOB["tiers"] else []):
+    hull_area = area(o)
+    for lift, loop in hull["inner"]:
+        if area(loop) < KNOB["block"] * hull_area:
+            continue
         lift *= KNOB["lift"]
-        loop = rdp_loop(loop, KNOB["detail"] * 1.4, 6)
+        loop = rdp_loop(loop, KNOB["inner"], 6)
         m = len(loop)
         if m < 3:
             continue
@@ -546,7 +559,7 @@ def main(argv):
     if "-o" in argv:
         i = argv.index("-o")
         out, argv = argv[i + 1], argv[:i] + argv[i + 2:]
-    for name in ("detail", "height", "lift", "tiers"):
+    for name in ("outline", "voids", "inner", "block", "height", "lift"):
         flag = "--" + name
         if flag in argv:
             i = argv.index(flag)
