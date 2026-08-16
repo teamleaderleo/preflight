@@ -27,6 +27,15 @@ beforeEach(() => {
   vi.mocked(getWireframeHulls).mockReset();
 });
 
+test("pre-discovery state stays on the courier without requesting local hulls", () => {
+  const { result } = renderHook(() => useInstrumentHull(undefined, false));
+
+  expect(getWireframeHulls).not.toHaveBeenCalled();
+  expect(result.current.catalog).toBeNull();
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID]);
+  expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
+});
+
 test("loads the current installation only when a hull UI is visible and reuses that result", async () => {
   vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
   const { result, rerender } = renderHook(
