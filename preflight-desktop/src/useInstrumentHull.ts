@@ -58,7 +58,8 @@ export function useInstrumentHull(game?: string) {
         if (current) setCatalog(next);
       })
       .catch(() => {
-        if (current) setCatalog({ format: "preflight-wireframe-hulls-v1", hulls: [], skipped: 0 });
+        // Local hulls are cosmetic. Keep the same truthful courier fallback used before a catalog
+        // exists instead of turning a read failure into a successful-looking empty catalog.
       });
     return () => { current = false; };
   }, [game]);
