@@ -81,7 +81,7 @@ export function SettingsPage({
         <div className="preference-block instrument-hull-card">
           <div>
             <h2>Speed-page ship</h2>
-            <p>Use Preflight’s courier or a hull from this installation.</p>
+            <p>Choose the ship shown with your speed and playtime.</p>
           </div>
           <label className="setting-field preference-field">
             <span>Ship</span>
@@ -90,7 +90,6 @@ export function SettingsPage({
               value={instrumentHull.selectedId}
               onChange={(event) => instrumentHull.choose(event.target.value)}
             >
-              <option value="preflight-courier">Preflight courier</option>
               {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && hull.featured) ? (
                 <optgroup label="Familiar hulls">
                   {instrumentHull.hulls.filter((hull) => hull.id !== "preflight-courier" && hull.featured).map((hull) => (
@@ -105,8 +104,13 @@ export function SettingsPage({
                   ))}
                 </optgroup>
               ) : null}
+              <optgroup label="Fallback">
+                <option value="preflight-courier">Preflight courier</option>
+              </optgroup>
             </select>
-            <small>{instrumentHull.catalog ? `${instrumentHull.catalog.hulls.length.toLocaleString()} found` : "Using Preflight’s courier"}</small>
+            <small>{instrumentHull.catalog
+              ? `${instrumentHull.catalog.hulls.length.toLocaleString()} found`
+              : instrumentHull.catalogLoaded ? "Using fallback" : "Loading ships…"}</small>
           </label>
         </div>
       </section>

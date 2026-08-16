@@ -3,7 +3,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { getWireframeHulls } from "./bridge";
 import { INSTRUMENT_HULL_STORAGE_KEY } from "./desktopStorage";
 import type { WireframeHullCatalog } from "./types";
-import { ORIGINAL_HULL_ID, useInstrumentHull } from "./useInstrumentHull";
+import { DEFAULT_HULL_ID, ORIGINAL_HULL_ID, useInstrumentHull } from "./useInstrumentHull";
 
 vi.mock("./bridge", () => ({ getWireframeHulls: vi.fn() }));
 
@@ -19,6 +19,15 @@ const catalog: WireframeHullCatalog = {
     bounds: [{ x: 10, y: 0 }, { x: -5, y: 8 }, { x: -5, y: -8 }],
     engines: [],
     mounts: [],
+  }, {
+    id: DEFAULT_HULL_ID,
+    name: "Odyssey",
+    hullSize: "CAPITAL_SHIP",
+    style: "HIGH_TECH",
+    featured: true,
+    bounds: [{ x: 12, y: 0 }, { x: -6, y: 9 }, { x: -6, y: -9 }],
+    engines: [],
+    mounts: [],
   }],
 };
 
@@ -32,6 +41,7 @@ test("pre-discovery state stays on the courier without requesting local hulls", 
 
   expect(getWireframeHulls).not.toHaveBeenCalled();
   expect(result.current.catalog).toBeNull();
+  expect(result.current.catalogLoaded).toBe(false);
   expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID]);
   expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
 });
@@ -50,7 +60,8 @@ test("loads the current installation only when a hull UI is visible and reuses t
   rerender({ game: "/game", enabled: true });
   await waitFor(() => expect(result.current.catalog).toEqual(catalog));
   expect(getWireframeHulls).toHaveBeenCalledTimes(1);
-  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID, "hammerhead"]);
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID, "hammerhead", DEFAULT_HULL_ID]);
+  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
 
   rerender({ game: "/game", enabled: false });
   rerender({ game: "/game", enabled: true });
@@ -75,6 +86,7 @@ test("keeps the courier fallback when the local catalog cannot be read", async (
 
   await waitFor(() => expect(getWireframeHulls).toHaveBeenCalledWith("/game"));
   expect(result.current.catalog).toBeNull();
+  expect(result.current.catalogLoaded).toBe(true);
   expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID]);
   expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
 
@@ -94,13 +106,30 @@ test("restores and persists an available local hull", async () => {
   expect(window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY)).toBe(ORIGINAL_HULL_ID);
 });
 
-test("keeps the fallback when a saved hull disappeared", async () => {
-  window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, "missing-mod-hull");
+test("keeps an explicit courier choice after the local catalog loads", async () => {
+  window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, ORIGINAL_HULL_ID);
   vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
   const { result } = renderHook(() => useInstrumentHull("/game", true));
 
   await waitFor(() => expect(result.current.catalog).toEqual(catalog));
   expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
+});
+
+test("falls back to Odyssey when a saved hull disappeared", async () => {
+  window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, "missing-mod-hull");
+  vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
+  const { result } = renderHook(() => useInstrumentHull("/game", true));
+
+  await waitFor(() => expect(result.current.catalog).toEqual(catalog));
+  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+});
+
+test("uses the first featured hull when Odyssey is unavailable", async () => {
+  vi.mocked(getWireframeHulls).mockResolvedValue({ ...catalog, hulls: [catalog.hulls[0]] });
+  const { result } = renderHook(() => useInstrumentHull("/game", true));
+
+  await waitFor(() => expect(result.current.catalog).not.toBeNull());
+  expect(result.current.selectedId).toBe("hammerhead");
 });
 
 test("the bundled courier wins if an installation reuses its reserved id", async () => {
@@ -111,5 +140,5 @@ test("the bundled courier wins if an installation reuses its reserved id", async
   const { result } = renderHook(() => useInstrumentHull("/game", true));
 
   await waitFor(() => expect(result.current.catalog).not.toBeNull());
-  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID, "hammerhead"]);
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID, "hammerhead", DEFAULT_HULL_ID]);
 });

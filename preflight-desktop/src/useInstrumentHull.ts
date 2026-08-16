@@ -4,6 +4,7 @@ import { INSTRUMENT_HULL_STORAGE_KEY } from "./desktopStorage";
 import type { WireframeHull, WireframeHullCatalog } from "./types";
 
 export const ORIGINAL_HULL_ID = "preflight-courier";
+export const DEFAULT_HULL_ID = "odyssey";
 const CATALOG_IDLE_DELAY_MS = 160;
 
 /** The bundled fallback is original Preflight artwork and exists before Starsector is selected. */
@@ -43,11 +44,11 @@ interface CatalogState {
   catalog: WireframeHullCatalog | null;
 }
 
-function savedHullId(): string {
+function savedHullId(): string | null {
   try {
-    return window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY) || ORIGINAL_HULL_ID;
+    return window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY);
   } catch {
-    return ORIGINAL_HULL_ID;
+    return null;
   }
 }
 
@@ -55,7 +56,8 @@ function savedHullId(): string {
 export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   const [catalogState, setCatalogState] = useState<CatalogState | null>(null);
   const [selectedId, setSelectedId] = useState(savedHullId);
-  const catalog = catalogState && catalogState.game === game ? catalogState.catalog : null;
+  const catalogLoaded = catalogState !== null && catalogState.game === game;
+  const catalog = catalogLoaded ? catalogState.catalog : null;
 
   useEffect(() => {
     if (!game || !enabled || catalogState?.game === game) return;
@@ -85,7 +87,10 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     () => [ORIGINAL_HULL, ...(catalog?.hulls ?? []).filter((hull) => hull.id !== ORIGINAL_HULL_ID)],
     [catalog],
   );
-  const selected = hulls.find((hull) => hull.id === selectedId) ?? ORIGINAL_HULL;
+  const selected = hulls.find((hull) => hull.id === selectedId)
+    ?? hulls.find((hull) => hull.id === DEFAULT_HULL_ID)
+    ?? hulls.find((hull) => hull.featured && hull.id !== ORIGINAL_HULL_ID)
+    ?? ORIGINAL_HULL;
   const choose = (id: string) => {
     const next = hulls.some((hull) => hull.id === id) ? id : ORIGINAL_HULL_ID;
     try {
@@ -96,5 +101,5 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     setSelectedId(next);
   };
 
-  return { catalog, hulls, selected, selectedId: selected.id, choose };
+  return { catalog, catalogLoaded, hulls, selected, selectedId: selected.id, choose };
 }
