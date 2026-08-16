@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { checkForUpdate, installUpdate, isDesktopHost } from "./bridge";
+import { AUTOMATIC_UPDATE_CHECK_STORAGE_KEY } from "./desktopStorage";
 import type { Announce, UpdateProgressEvent, UpdateStatus } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage } from "./uiFormat";
-
-const AUTOMATIC_UPDATE_CHECK_STORAGE_KEY = "preflight.automaticUpdateChecks";
 
 /**
  * Whether Preflight may check for updates on its own.

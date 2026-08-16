@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import {
   AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY,
+  AUTOMATIC_UPDATE_CHECK_STORAGE_KEY,
   clearPreflightLocalStorage,
   DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
   OPTIMIZATION_PRESET_STORAGE_KEY,
@@ -19,6 +20,7 @@ describe("desktop storage ownership", () => {
       REPORT_RECEIPT_STORAGE_KEY,
       SPEED_RECORD_STORAGE_KEY,
       AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY,
+      AUTOMATIC_UPDATE_CHECK_STORAGE_KEY,
     ]);
     expect(new Set(PREFLIGHT_LOCAL_STORAGE_KEYS).size).toBe(PREFLIGHT_LOCAL_STORAGE_KEYS.length);
   });
