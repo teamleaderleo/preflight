@@ -47,10 +47,7 @@ final class IndexCommand {
         ResourceIndexBuilder.BuildResult result = ResourceIndexBuilder.build(target.installRoot());
         ResourceIndex index = result.index();
         Path output = options.output() == null
-                ? Path.of(System.getProperty("user.home"))
-                        .resolve(".starsector-preflight")
-                        .resolve("indexes")
-                        .resolve(index.profileFingerprint() + ".spfi")
+                ? defaultOutput(PreflightHome.current(), index)
                 : options.output().toAbsolutePath().normalize();
         ResourceIndexIO.write(output, index);
 
@@ -59,6 +56,13 @@ final class IndexCommand {
         summary.put("diagnostics", result.diagnostics());
         System.out.println(Json.object(summary));
         return 0;
+    }
+
+    static Path defaultOutput(PreflightHome home, ResourceIndex index) {
+        return ResourceIndexIO.directory(home.cache())
+                .resolve(index.profileFingerprint() + ".spfi")
+                .toAbsolutePath()
+                .normalize();
     }
 
     private static int inspect(Path indexFile) throws IOException {

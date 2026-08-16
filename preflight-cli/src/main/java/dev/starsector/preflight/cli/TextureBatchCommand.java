@@ -18,7 +18,7 @@ final class TextureBatchCommand {
     static int execute(String[] args, int offset) throws Exception {
         Options options = parse(args, offset);
         Path cacheDirectory = options.cacheDirectory() == null
-                ? Path.of(System.getProperty("user.home")).resolve(".starsector-preflight").resolve("cache")
+                ? PreflightHome.current().cache()
                 : options.cacheDirectory().toAbsolutePath().normalize();
 
         ResourceIndex sourceIndex;
@@ -42,7 +42,7 @@ final class TextureBatchCommand {
             }
             ResourceIndexBuilder.BuildResult built = ResourceIndexBuilder.build(target.installRoot());
             sourceIndex = built.index();
-            sourceIndexPath = cacheDirectory.resolve("indexes")
+            sourceIndexPath = ResourceIndexIO.directory(cacheDirectory)
                     .resolve(sourceIndex.profileFingerprint() + ".spfi");
             ResourceIndexIO.write(sourceIndexPath, sourceIndex);
         }

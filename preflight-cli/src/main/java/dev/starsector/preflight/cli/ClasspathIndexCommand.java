@@ -243,7 +243,7 @@ final class ClasspathIndexCommand {
     }
 
     private static Path defaultCacheDirectory() {
-        return Path.of(System.getProperty("user.home"), ".starsector-preflight", "cache");
+        return PreflightHome.current().cache();
     }
 
     private static Path inferCacheDirectory(Path profile) {
