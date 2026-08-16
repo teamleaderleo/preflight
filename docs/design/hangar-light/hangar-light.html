@@ -74,6 +74,9 @@ a{color:var(--gold-hi)}
 
 /* ---------- knobs ---------- */
 .knobs{display:flex;flex-direction:column;gap:9px}
+.knobs__tabs{display:flex;gap:6px;margin-bottom:2px}
+.knobs__tabs .chip{flex:1}
+.knobs__rule{height:1px;background:var(--rib);margin:3px 0 1px}
 .knobs label{
   display:grid;grid-template-columns:78px 1fr 42px;align-items:center;gap:10px;
   font-family:"B612",monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
@@ -547,15 +550,34 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     return out.length>=floor?out:loop;
   }
 
-  /* The knobs. One dial for "detail" was wrong: an outline, a void and an interior block are
-     three different sizes of thing, and a tolerance that reads well on a 200-point hull outline
-     flattens a 12-point flight deck. They get one each. Everything here can move without the
-     sprite; the blur and where the light is cut cannot, and stay in trace-hulls.py. */
-  var KNOB={outline:0.012, voids:0.006, inner:0.016, block:0.012, height:1, lift:1};
+  /* The knobs, in two groups that carry the same three controls.
 
-  /* Shoelace, for dropping interior blocks below a size. This is the tracer's MIN_AREA done
-     where it can be dragged: the contours are already here, so which of them are worth
-     drawing is a decision the browser can make. */
+     A hull is two families of closed loop: the OUTER ones, marched off the sprite's alpha --
+     the silhouette and the voids punched through it -- and the INNER ones, marched off its
+     lighting. They are found differently and they are different sizes, but once found they are
+     the same kind of thing, so they get the same dials and the panel toggles between them
+     rather than stacking six unrelated sliders.
+
+     Within a group the two axes are kept apart, because they are not the same question:
+
+       Smooth  -- granularity of the input. How much the traced contour is rounded before
+                  anything is decided about it. Cuts corners; does not remove points.
+       Min     -- granularity of the input. The smallest closed shape worth keeping at all.
+       Detail  -- fidelity of the output. How many points survive to be drawn.
+
+     Smoothing then simplifying is not the same as simplifying harder: one softens the shape
+     and keeps its extent, the other keeps the shape and drops its middles.
+
+     What still needs the sprite, and so stays in trace-hulls.py: the alpha cut that separates
+     hull from space, the blur and light cuts that separate one raised block from the next, and
+     the tier heights. Those decide what the loops ARE. Everything here decides how they draw. */
+  var KNOB={
+    outer:{detail:0.012, smooth:0, min:0.004},
+    inner:{detail:0.016, smooth:0, min:0.012},
+    height:1, lift:1
+  };
+
+  /* Shoelace, for dropping shapes below a size. */
   function area(loop){
     var a=0;
     for(var i=0,m=loop.length,j=m-1;i<m;j=i++)
@@ -563,9 +585,30 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     return Math.abs(a/2);
   }
 
+  /* Two passes of a weighted neighbour average round the closed loop. Corner cutting, so the
+     shape keeps its extent while its steps soften -- an Onslaught's trenches narrow rather
+     than vanishing, which is the difference between this and simplifying harder. */
+  function smooth(loop,w){
+    if(w<=0) return loop;
+    var cur=loop;
+    for(var pass=0;pass<2;pass++){
+      var next=[];
+      for(var i=0,m=cur.length;i<m;i++){
+        var a=cur[(i+m-1)%m], b=cur[i], c=cur[(i+1)%m];
+        next.push([b[0]*(1-w)+(a[0]+c[0])/2*w, b[1]*(1-w)+(a[1]+c[1])/2*w]);
+      }
+      cur=next;
+    }
+    return cur;
+  }
+
+  function shape(loop,k,floor){
+    return thin(smooth(loop,k.smooth),k.detail,floor);
+  }
+
   function build(hull){
     V=[];E=[];
-    var o=thin(hull.o,KNOB.outline,12), n=o.length, TH=hull.thick*KNOB.height;
+    var o=shape(hull.o,KNOB.outer,12), n=o.length, TH=hull.thick*KNOB.height;
 
     var wmax=0, zmin=1e9, zmax=-1e9, cz=0, cx=0;
     o.forEach(function(p){
@@ -590,7 +633,10 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
        other, so the Paragon's hole needs no special case. The outlines come off
        the sprite's alpha channel now rather than out of `bounds`, which is what
        removed the zero-width seam these used to have to detect and skip. */
-    var loops=[o].concat((hull.holes||[]).map(function(l){return thin(l,KNOB.voids,6);}));
+    var hullArea=area(o);
+    var loops=[o].concat((hull.holes||[]).filter(function(l){
+      return area(l)>=KNOB.outer.min*hullArea;
+    }).map(function(l){ return shape(l,KNOB.outer,6); }));
     loops.forEach(function(loop,li){
       var m=loop.length, mid=[];
       loop.forEach(function(p){ mid.push(vert(p[1],0,p[0])); });
@@ -678,10 +724,9 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
        the boundary between hull and space, and these are the boundaries between one
        raised block and the next. Nothing here is typed in -- the shapes are the
        ship's own, which is the only reason they look like the ship. */
-    var hullArea=area(o);
     (hull.inner||[]).forEach(function(tier){
-      if(area(tier[1])<KNOB.block*hullArea) return;
-      var lift=tier[0]*KNOB.lift, loop=thin(tier[1],KNOB.inner,6), m=loop.length;
+      if(area(tier[1])<KNOB.inner.min*hullArea) return;
+      var lift=tier[0]*KNOB.lift, loop=shape(tier[1],KNOB.inner,6), m=loop.length;
       if(m<3) return;
       var ring=loop.map(function(p){
         return vert(p[1], halfHeight(p[0],p[1])+TH*0.95*lift, p[0]);
@@ -828,33 +873,68 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
 
   /* Sliders, not constants. Every one of these was a number argued about in a commit
      message at some point; they are quicker to settle by dragging. */
-  var KNOBS=[
-    ["outline","Outline",0,0.05,0.001, function(v){return v?v.toFixed(3):"full";}],
-    ["voids","Voids",0,0.03,0.001,     function(v){return v?v.toFixed(3):"full";}],
-    ["inner","Interiors",0,0.06,0.002, function(v){return v?v.toFixed(3):"full";}],
-    /* Blocks run from 3 % of a hull's area to 80 % of it, measured across the six, so the
-       range has to reach past the big ones for the knob to be able to clear anything. */
-    ["block","Min block",0,0.35,0.005, function(v){return v?(v*100).toFixed(1)+"%":"all";}],
-    ["lift","Tier lift",0,1.8,0.05,    function(v){return v.toFixed(2)+"\u00d7";}],
-    ["height","Height",0.2,2.2,0.05,   function(v){return v.toFixed(2)+"\u00d7";}]
+  var GROUPS=[
+    ["outer","Outer", "silhouette and voids, off the sprite's alpha"],
+    ["inner","Inner", "raised blocks, off the sprite's lighting"]
   ];
-  var knobBox=document.getElementById("knobs");
-  KNOBS.forEach(function(k){
+  var DIALS=[
+    ["smooth","Smooth",0,0.9,0.02,   function(v){return v?v.toFixed(2):"none";}],
+    ["min","Min size",0,0.35,0.005,  function(v){return v?(v*100).toFixed(1)+"%":"all";}],
+    ["detail","Detail",0,0.06,0.001, function(v){return v?v.toFixed(3):"full";}]
+  ];
+  var FORM=[
+    ["lift","Tier lift",0,1.8,0.05,  function(v){return v.toFixed(2)+"\u00d7";}],
+    ["height","Height",0.2,2.2,0.05, function(v){return v.toFixed(2)+"\u00d7";}]
+  ];
+  var knobBox=document.getElementById("knobs"), picked="outer";
+
+  function slider(get,set,spec){
     var row=document.createElement("label"), name=document.createElement("span"),
         input=document.createElement("input"), out=document.createElement("output");
-    name.textContent=k[1];
-    input.type="range"; input.min=k[2]; input.max=k[3]; input.step=k[4];
-    input.value=KNOB[k[0]];
-    input.setAttribute("aria-label",k[1]);
-    out.textContent=k[5](KNOB[k[0]]);
+    name.textContent=spec[1];
+    input.type="range"; input.min=spec[2]; input.max=spec[3]; input.step=spec[4];
+    input.value=get(); input.setAttribute("aria-label",spec[1]);
+    out.textContent=spec[5](get());
     input.addEventListener("input",function(){
-      KNOB[k[0]]=parseFloat(input.value);
-      out.textContent=k[5](KNOB[k[0]]);
+      set(parseFloat(input.value));
+      out.textContent=spec[5](get());
       rebuild();
     });
     row.appendChild(name); row.appendChild(input); row.appendChild(out);
-    knobBox.appendChild(row);
-  });
+    return row;
+  }
+
+  function paintKnobs(){
+    knobBox.innerHTML="";
+    var tabs=document.createElement("div");
+    tabs.className="knobs__tabs"; tabs.setAttribute("role","group");
+    tabs.setAttribute("aria-label","Which shapes these dials apply to");
+    GROUPS.forEach(function(g){
+      var b=document.createElement("button");
+      b.type="button"; b.className="chip"; b.textContent=g[1]; b.title=g[2];
+      b.setAttribute("aria-pressed",String(g[0]===picked));
+      b.addEventListener("click",function(){ picked=g[0]; paintKnobs(); });
+      tabs.appendChild(b);
+    });
+    knobBox.appendChild(tabs);
+    DIALS.forEach(function(spec){
+      knobBox.appendChild(slider(
+        function(){ return KNOB[picked][spec[0]]; },
+        function(v){ KNOB[picked][spec[0]]=v; },
+        spec));
+    });
+    var rule=document.createElement("div");
+    rule.className="knobs__rule";
+    knobBox.appendChild(rule);
+    FORM.forEach(function(spec){
+      knobBox.appendChild(slider(
+        function(){ return KNOB[spec[0]]; },
+        function(v){ KNOB[spec[0]]=v; },
+        spec));
+    });
+  }
+  paintKnobs();
+
   function rebuild(){
     views.forEach(function(v){ v.geom=make(v.geom.key); v.dirty=true; });
   }

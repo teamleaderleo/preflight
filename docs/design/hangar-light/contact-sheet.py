@@ -1,7 +1,8 @@
 """Render every hull at every angle into one PNG, for judging them against each other.
 
     python3 contact-sheet.py [-o sheet.png] [--cell 260] [--sprites [GAME]]
-                             [--outline F] [--voids F] [--inner F] [--block F]
+                             [--outer-detail F] [--outer-smooth F] [--outer-min F]
+                             [--inner-detail F] [--inner-smooth F] [--inner-min F]
                              [--lift F] [--height F] [hull ...]
 
 `--sprites` puts each hull's actual sprite in the first column, read live from an installation.
@@ -10,7 +11,7 @@ against your own previous render just tells you what changed. **Its output is sc
 not go in the repository**, same rule as everywhere else here: the tracer reads an install, the
 repository holds only the simplified contour.
 
-The six knobs match the page's sliders and default to the same values, so the edge counts stay
+The eight knobs match the page's sliders and default to the same values, so the edge counts stay
 a drift check. Drag them in the browser, then pass the ones you settled on here.
 
 The page is the renderer of record; this is a design aid. It reads the hull data straight out of
@@ -115,8 +116,29 @@ def hulls():
 
 # The page's slider defaults. The sheet has to agree with the page or the edge counts stop
 # being a drift check, so these are the same numbers and move together.
-KNOB = {"outline": 0.012, "voids": 0.006, "inner": 0.016,
-        "block": 0.012, "height": 1.0, "lift": 1.0}
+# Two groups carrying the same three dials, matching the page. Within a group, `smooth` and
+# `min` are the granularity of the input -- how rounded the contour is and what is worth keeping
+# at all -- and `detail` is the fidelity of the output. Smoothing then simplifying is not the
+# same as simplifying harder: one softens the shape and keeps its extent, the other keeps the
+# shape and drops its middles.
+KNOB = {
+    "outer": {"detail": 0.012, "smooth": 0.0, "min": 0.004},
+    "inner": {"detail": 0.016, "smooth": 0.0, "min": 0.012},
+    "height": 1.0,
+    "lift": 1.0,
+}
+
+
+def smooth(loop, w):
+    """Two passes of a weighted neighbour average round the closed loop -- corner cutting."""
+    if w <= 0:
+        return loop
+    cur = loop
+    for _ in range(2):
+        m = len(cur)
+        cur = [[cur[i][k] * (1 - w) + (cur[i - 1][k] + cur[(i + 1) % m][k]) / 2 * w
+                for k in (0, 1)] for i in range(m)]
+    return cur
 
 
 def area(loop):
@@ -152,7 +174,10 @@ def build(hull):
         V.append([x, y, z])
         return len(V) - 1
 
-    o = rdp_loop(hull["o"], KNOB["outline"], 12)
+    def shape(loop, group, floor):
+        return rdp_loop(smooth(loop, KNOB[group]["smooth"]), KNOB[group]["detail"], floor)
+
+    o = shape(hull["o"], "outer", 12)
     TH = hull["thick"] * KNOB["height"]
     wmax = max(abs(p[1]) for p in o)
     zmin = min(p[0] for p in o)
@@ -164,7 +189,9 @@ def build(hull):
         rim = 1 - min(1.0, abs(x) / wmax) ** 2.6
         return TH * (0.55 + 0.45 * ends) * (0.10 + 0.90 * rim)
 
-    loops = [o] + [rdp_loop(l, KNOB["voids"], 6) for l in hull["holes"]]
+    hull_area = area(o)
+    loops = [o] + [shape(l, "outer", 6) for l in hull["holes"]
+                   if area(l) >= KNOB["outer"]["min"] * hull_area]
     for li, loop in enumerate(loops):
         m = len(loop)
         mid = [vert(p[1], 0, p[0]) for p in loop]
@@ -230,12 +257,11 @@ def build(hull):
     # contour of what the sprite lights above a threshold -- the boundary between one raised
     # block and the next, where the silhouette is the boundary between hull and space. Nothing
     # here is hand-typed; the shapes are the ship's own.
-    hull_area = area(o)
     for lift, loop in hull["inner"]:
-        if area(loop) < KNOB["block"] * hull_area:
+        if area(loop) < KNOB["inner"]["min"] * hull_area:
             continue
         lift *= KNOB["lift"]
-        loop = rdp_loop(loop, KNOB["inner"], 6)
+        loop = shape(loop, "inner", 6)
         m = len(loop)
         if m < 3:
             continue
@@ -559,7 +585,14 @@ def main(argv):
     if "-o" in argv:
         i = argv.index("-o")
         out, argv = argv[i + 1], argv[:i] + argv[i + 2:]
-    for name in ("outline", "voids", "inner", "block", "height", "lift"):
+    for group in ("outer", "inner"):
+        for dial in ("detail", "smooth", "min"):
+            flag = f"--{group}-{dial}"
+            if flag in argv:
+                i = argv.index(flag)
+                KNOB[group][dial] = float(argv[i + 1])
+                argv = argv[:i] + argv[i + 2:]
+    for name in ("height", "lift"):
         flag = "--" + name
         if flag in argv:
             i = argv.index(flag)

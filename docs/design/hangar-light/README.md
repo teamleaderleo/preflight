@@ -118,37 +118,43 @@ edge count it prints is the check, and it has to match what the page reports.
 
 ## The fidelity knobs
 
-**Six of them are sliders on the page**, because each was a number argued about in a commit
-message and they are quicker to settle by dragging. `contact-sheet.py` takes the same six as
-flags with the same defaults, so drag until it looks right and then pass what you settled on.
+**The page has the dials, in two groups that carry the same three controls.** A hull is two
+families of closed loop: the **outer** ones marched off the sprite's alpha — the silhouette and
+the voids punched through it — and the **inner** ones marched off its lighting. They are found
+differently and they are different sizes, but once found they are the same kind of thing, so
+they get the same dials and the panel toggles between them rather than stacking six unrelated
+sliders.
 
-| slider | what it does |
-| --- | --- |
-| `Outline` | how closely the silhouette follows the traced contour |
-| `Voids` | the same for holes — its own dial, because a flight deck is a twelfth the size of a hull and the same tolerance flattens it |
-| `Interiors` | the same for the raised blocks |
-| `Min block` | drops interior blocks below a share of the hull's area. Ranges to 35 % because a block runs from 3 % of a hull to 80 % of it, and a dial that cannot reach past the big ones cannot clear anything |
-| `Tier lift` | how high the interiors stand |
-| `Height` | plate thickness |
+| dial | axis | what it does |
+| --- | --- | --- |
+| `Smooth` | input | rounds the traced contour before anything is decided about it |
+| `Min size` | input | the smallest closed shape worth keeping, as a share of hull area |
+| `Detail` | output | how many points survive to be drawn |
 
-One dial called "Detail" was wrong. An outline, a void and an interior block are three different
+The two axes are kept apart because they are not the same question, and **smoothing then
+simplifying is not the same as simplifying harder**: one softens the shape and keeps its extent,
+the other keeps the shape and drops its middles. An Onslaught's prow trenches narrow under
+`Smooth` and stay put under `Detail`.
+
+`Tier lift` and `Height` sit below the rule as shared form controls — they apply to the whole
+hull, so they belong to neither group.
+
+Driving all three loop families off one `Detail` dial with fixed multipliers was the version
+before this, and it was wrong: an outline, a void and an interior block are three different
 sizes of thing, and a tolerance that reads well on a 200-point hull outline flattens a 12-point
-flight deck; driving all three off one number with fixed multipliers just hid that.
+flight deck.
 
-`Min block` is the tracer's `MIN_AREA` done where it can be dragged — the contours are already
-in the page, so which of them are worth drawing is a decision the browser can make. Only the
-blur and where the light is cut genuinely need the sprite.
+`contact-sheet.py` takes the same eight as flags — `--outer-detail`, `--inner-smooth` and so on
+— with the same defaults, so drag until it looks right and then pass what you settled on.
 
-That is why the page ships its shapes finely — 94 to 209 points rather than the 44 to 104 it
-draws at. **What is stored is not the fidelity, it is the ceiling on it**; the browser runs the
-same Douglas-Peucker again on the way in.
-
-The rest need the sprite, so they stay in `trace-hulls.py` and need a re-trace:
+What decides what the loops **are** still needs the sprite, so it stays in `trace-hulls.py` and
+needs a re-trace — the alpha cut that separates hull from space, the blur and light cuts that
+separate one raised block from the next, and the tier heights:
 
 | knob | what it does |
 | --- | --- |
 | `OUTER_EPS` | the ceiling on outline fidelity, in sprite pixels — the slider works down from it |
-| `HOLE_EPS` | the same for voids, tighter — a void is small, so a given tolerance eats more of it |
+| `HOLE_EPS` | the ceiling for voids, tighter — a void is small, so a given tolerance eats more of it |
 | `BLUR` | how hard the lighting is smoothed before the interiors are cut out of it |
 | `MIN_AREA` | the smallest interior block worth drawing |
 | `TIER_EPS` | how closely an interior contour follows its blurred blob |
