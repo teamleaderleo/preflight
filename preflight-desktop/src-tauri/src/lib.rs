@@ -883,6 +883,7 @@ mod tests {
                 total_bytes: 4_096,
                 cancel: report_cancel,
             }),
+            diagnostics_exporting: true,
             update_checking: false,
             update_installing: true,
             exit_after_cleanup: true,
@@ -906,6 +907,7 @@ mod tests {
             value
         );
         assert!(value.get("exitAfterCleanup").is_none());
+        assert!(value.get("diagnosticsExporting").is_none());
     }
 
     #[test]
@@ -1186,6 +1188,7 @@ mod tests {
                 total_bytes: 1_024,
                 cancel: report_cancel,
             }),
+            diagnostics_exporting: false,
             update_checking: false,
             update_installing: false,
             exit_after_cleanup: false,

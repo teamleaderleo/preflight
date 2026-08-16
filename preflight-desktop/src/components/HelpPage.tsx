@@ -110,7 +110,7 @@ export function HelpPage({
             <small>It stays on this computer. Nothing is sent unless you choose to send it.</small>
           </div>
           <div className="report-actions">
-            <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void saveDiagnostics()} disabled={diagnosticsBusy || reportUploading}>
+            <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
               <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
             </button>
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review send"}</button> : null}

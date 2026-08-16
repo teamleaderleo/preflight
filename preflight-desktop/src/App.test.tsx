@@ -1024,6 +1024,9 @@ test("a running benchmark exposes cooperative cancellation", async () => {
   await user.click(screen.getByRole("button", { name: "Speed" }));
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
+  await user.click(screen.getByRole("button", { name: "Help" }));
+  expect(await screen.findByRole("button", { name: "Make a support file" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Open Benchmark" }));
   await user.click(await screen.findByRole("button", { name: "Stop benchmark" }));
 
   expect(cancel).toHaveBeenCalledOnce();
