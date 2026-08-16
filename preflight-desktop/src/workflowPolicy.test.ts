@@ -28,13 +28,13 @@ describe("blockingWorkflow", () => {
 
   test.each([
     ["preparation", { preparing: true, preparationPercent: 42 }, "home", "Preparing this mod setup · 42% complete"],
-    ["cache repair", { cacheRepairing: true }, "prepare", "Repairing prepared data for this mod setup"],
+    ["cache repair", { cacheRepairing: true }, "speed", "Repairing prepared data for this mod setup"],
     ["installation picker", { choosingInstall: true }, "home", "Choosing the Starsector installation"],
     ["startup recovery", { restoringOperation: true }, "home", "Checking for a previous Starsector launch"],
     ["benchmark", { desktopSmokeRunning: true }, "benchmark", "Running the startup benchmark"],
     ["launch", { status: "launching" }, "home", "Opening Starsector"],
     ["game", { status: "running" }, "home", "Starsector is running"],
-    ["cleanup", { cleanupBusy: true }, "prepare", "Reviewing or cleaning prepared data"],
+    ["cleanup", { cleanupBusy: true }, "speed", "Reviewing or cleaning prepared data"],
     ["settings write", { launcherSaving: true }, "launch", "Saving game settings"],
     ["profile mutation", { profileBusy: true }, "mods", "Updating the saved mod profile"],
     ["support export", { diagnosticsBusy: true }, "help", "Creating a support file"],
