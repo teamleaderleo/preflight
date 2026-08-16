@@ -11,9 +11,11 @@ describe("errorMessage", () => {
     expect(errorMessage("Error:   ")).toBe("Something went wrong.");
   });
 
-  test("removes an embedded JavaScript error label from a complete notice", () => {
+  test("removes embedded JavaScript error labels from complete notices", () => {
     expect(cleanUserMessage("Couldn’t use this folder. Error: launcher missing"))
       .toBe("Couldn’t use this folder: launcher missing");
+    expect(cleanUserMessage("Couldn’t stop Starsector safely: Error: access denied"))
+      .toBe("Couldn’t stop Starsector safely: access denied");
   });
 });
 

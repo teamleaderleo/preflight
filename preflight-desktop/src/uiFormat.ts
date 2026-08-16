@@ -40,7 +40,7 @@ export function errorMessage(error: unknown): string {
 
 export function cleanUserMessage(message: string): string {
   return message
-    .replace(/\.\s+Error:\s*/gi, ": ")
+    .replace(/[.:]\s+Error:\s*/gi, ": ")
     .replace(/(^|[!?]\s+)Error:\s*/gi, "$1")
     .trim();
 }
