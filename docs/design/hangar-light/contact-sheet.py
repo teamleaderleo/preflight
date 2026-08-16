@@ -557,6 +557,10 @@ def main(argv):
     if "-o" in argv:
         i = argv.index("-o")
         out, argv = argv[i + 1], argv[:i] + argv[i + 2:]
+    if "--plan" in argv:
+        # Sprite, relief and plan only, big. The three that can be compared like for like.
+        argv.remove("--plan")
+        del ANGLES[1:]
     if "--cell" in argv:
         i = argv.index("--cell")
         cell, argv = int(argv[i + 1]), argv[:i] + argv[i + 2:]

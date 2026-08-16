@@ -117,10 +117,23 @@ thing a flat sprite says about where a third axis would go. Posterising it unblu
 work — the bands chase the greebling, which sits at every tone. Blurred, it is a map of where a
 line is worth drawing at all, and where the answer is nothing.
 
-It has already overruled a hand-written lane. The Odyssey carried a second deck on its port
-shoulder, on the theory that the shoulder was the feature the hull is bent around. The relief
-says that shoulder is a **well**: the Odyssey is a spine ship with pods hung off it and the pods
-are recessed. The lane was inventing structure the artwork does not have, and it is gone.
+The relief has rewritten three of the six, and in both directions:
+
+- **Odyssey** carried a second deck on its port shoulder, written on the theory that the
+  shoulder is the feature the hull is bent around. The relief says that shoulder is a **well** —
+  the Odyssey is a spine ship with its pods hung off it, recessed. Lane deleted. Its one
+  remaining lane also stopped bulging amidships, because the lit spine is near-constant width.
+- **Onslaught**'s outer lanes used to stop where the prongs merge. Wrong: each prong is the
+  forward end of a **broadside block** that carries on past the quarter, lit as a mass of its
+  own with a trough between it and the central dome. All three lanes now run the ship's length,
+  which is what the three-mass relief has been saying all along.
+- **Paragon** gained the two **stern pods**, which are lit as separate masses rather than as
+  part of the body, and its ring lanes moved outboard. The bright band on that ring runs along
+  its *outer* edge; centred on the arm they split the difference between ring and hole and
+  landed on neither.
+
+The pattern in all three: a lane was where a lane seemed reasonable, and the relief had an
+opinion.
 
 **Pass `--sprites` and compare against the artwork, not against your own last render.** A render
 next to a render only tells you what changed. Next to the sprite it told us immediately that
