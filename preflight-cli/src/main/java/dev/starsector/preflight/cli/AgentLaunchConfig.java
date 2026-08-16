@@ -209,7 +209,81 @@ final class AgentLaunchConfig {
         Builder adapterPlanScope(AdapterPlanScope value) { adapterPlanScope = Objects.requireNonNull(value); return this; }
 
         AgentLaunchConfig build() {
+            validate();
             return new AgentLaunchConfig(this);
+        }
+
+        private void validate() {
+            if (adapterPlanScope == null) {
+                throw new IllegalArgumentException("Adapter plan scope is required");
+            }
+            if ((janinoBytecodeCache == null) != (janinoBytecodeContext == null)) {
+                throw new IllegalArgumentException(
+                        "Janino bytecode cache and compilation context must be supplied together");
+            }
+            requireEnabledAdapter(
+                    janinoBytecodeCache != null,
+                    "Janino bytecode cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    mergedReadCache != null,
+                    "Merged read cache requires the enabled adapter");
+            if ((preparedAudioCache == null) != (audioDecoderIdentity == null)) {
+                throw new IllegalArgumentException(
+                        "Prepared audio cache and decoder identity must be supplied together");
+            }
+            requireEnabledAdapter(
+                    preparedAudioCache != null,
+                    "Prepared audio requires the enabled adapter");
+            if ((preparedAudioManifest == null) != (preparedAudioManifestIdentity == null)) {
+                throw new IllegalArgumentException(
+                        "Prepared audio manifest and identity must be supplied together");
+            }
+            if (preparedAudioManifest != null && preparedAudioCache == null) {
+                throw new IllegalArgumentException("Prepared audio manifest requires the audio cache");
+            }
+            requireEnabledAdapter(loadJsonMemo, "loadJSON memo requires the enabled adapter");
+            requireEnabledAdapter(resourceProbeCache, "Resource probe cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    ruleCommandClassCache != null,
+                    "Rule command class cache requires the enabled adapter");
+            requireEnabledAdapter(ruleTokenCache, "Rule token cache requires the enabled adapter");
+            if (singleChunkRecording && !recordingMode.records()) {
+                throw new IllegalArgumentException(
+                        "Single-chunk recording requires recording to be enabled");
+            }
+            requireEnabledAdapter(
+                    campaignEntityIndex,
+                    "Campaign entity index requires the enabled adapter");
+            requireEnabledAdapter(
+                    startupPhaseProbe,
+                    "Startup phase probe requires the enabled adapter");
+            requireEnabledAdapter(
+                    variantJsonCache != null,
+                    "Variant JSON cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    weaponJsonCache != null,
+                    "Weapon JSON cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    projectileJsonCache != null,
+                    "Projectile JSON cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    hullJsonCache != null,
+                    "Hull JSON cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    rulesCsvCache != null,
+                    "Rules CSV cache requires the enabled adapter");
+            requireEnabledAdapter(
+                    graphicsLibCompactReplay,
+                    "GraphicsLib compact replay requires the enabled adapter");
+            requireEnabledAdapter(
+                    graphicsLibInsigniaManagerCache,
+                    "GraphicsLib insignia cache requires the enabled adapter");
+        }
+
+        private void requireEnabledAdapter(boolean required, String message) {
+            if (required && adapterMode != AdapterMode.ENABLED) {
+                throw new IllegalArgumentException(message);
+            }
         }
     }
 }
