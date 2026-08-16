@@ -37,6 +37,11 @@ export const ORIGINAL_HULL: WireframeHull = {
   mounts: [],
 };
 
+interface CatalogState {
+  game: string;
+  catalog: WireframeHullCatalog | null;
+}
+
 function savedHullId(): string {
   try {
     return window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY) || ORIGINAL_HULL_ID;
@@ -45,24 +50,28 @@ function savedHullId(): string {
   }
 }
 
-export function useInstrumentHull(game?: string) {
-  const [catalog, setCatalog] = useState<WireframeHullCatalog | null>(null);
+/** Loads installation-owned cosmetic geometry only while a page that can use it is visible. */
+export function useInstrumentHull(game: string | undefined, enabled: boolean) {
+  const [catalogState, setCatalogState] = useState<CatalogState | null>(null);
   const [selectedId, setSelectedId] = useState(savedHullId);
+  const catalog = catalogState && catalogState.game === game ? catalogState.catalog : null;
 
   useEffect(() => {
+    if (!game || !enabled || catalogState?.game === game) return;
     let current = true;
-    setCatalog(null);
-    if (!game) return () => { current = false; };
     void getWireframeHulls(game)
       .then((next) => {
-        if (current) setCatalog(next);
+        if (current) setCatalogState({ game, catalog: next });
       })
       .catch(() => {
-        // Local hulls are cosmetic. Keep the same truthful courier fallback used before a catalog
-        // exists instead of turning a read failure into a successful-looking empty catalog.
+        if (current) {
+          // A failed cosmetic lookup is still an attempted lookup for this installation. Cache the
+          // fallback so page navigation cannot turn an unreadable catalog into a retry loop.
+          setCatalogState({ game, catalog: null });
+        }
       });
     return () => { current = false; };
-  }, [game]);
+  }, [catalogState?.game, enabled, game]);
 
   const hulls = useMemo(
     () => [ORIGINAL_HULL, ...(catalog?.hulls ?? []).filter((hull) => hull.id !== ORIGINAL_HULL_ID)],
