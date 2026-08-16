@@ -1,7 +1,8 @@
 # Working notes for agents
 
-Project state lives in [docs/next-llm-handoff.md](docs/next-llm-handoff.md) — see
-[LLM_HANDOFF.md](LLM_HANDOFF.md). This file is about how to work, not what is true.
+These are the canonical repository-working rules for coding agents. [AGENTS.md](AGENTS.md) points here so agent clients share one copy.
+
+Current project state starts at [LLM_HANDOFF.md](LLM_HANDOFF.md), which points to the maintained release-readiness and latest maintenance checkpoint before the longer engineering chronology. This file is about how to work, not what is true.
 
 ## Do not speak to people outside the project
 
