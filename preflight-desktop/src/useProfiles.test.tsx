@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import * as bridge from "./bridge";
 import * as profileActivation from "./profileActivationBridge";
 import { useProfiles } from "./useProfiles";
 
@@ -22,6 +23,33 @@ function plan(overrides: Partial<profileActivation.ReviewedProfileActivationPlan
     ...overrides,
   };
 }
+
+test("reuses the current installation list across ordinary page navigation", async () => {
+  const profiles = vi.spyOn(bridge, "getProfiles");
+  const refreshInstallation = vi.fn().mockResolvedValue(true);
+  const refreshCache = vi.fn().mockResolvedValue(undefined);
+  const announce = vi.fn();
+  try {
+    const { rerender } = renderHook(
+      ({ visible }) => useProfiles(
+        "/Applications/Starsector",
+        visible,
+        refreshInstallation,
+        refreshCache,
+        announce,
+      ),
+      { initialProps: { visible: true } },
+    );
+
+    await waitFor(() => expect(profiles).toHaveBeenCalledTimes(1));
+    rerender({ visible: false });
+    rerender({ visible: true });
+    await act(async () => undefined);
+    expect(profiles).toHaveBeenCalledTimes(1);
+  } finally {
+    profiles.mockRestore();
+  }
+});
 
 test("a stale activation becomes a fresh review instead of reporting success", async () => {
   const activate = vi.spyOn(profileActivation, "activateReviewedProfile")

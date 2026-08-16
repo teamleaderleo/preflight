@@ -78,14 +78,16 @@ export function useProfiles(
   }, [game]);
 
   useEffect(() => {
-    if (visible) {
+    // Page navigation is not a filesystem change. Keep the last list for this exact installation
+    // instead of starting another JVM every time Home or Mods becomes visible again.
+    if (visible && profiles?.installRoot !== game) {
       void refreshProfiles();
     } else if (!game) {
       profilesRequest.current += 1;
       setProfiles(null);
       setProfilesLoading(false);
     }
-  }, [refreshProfiles, visible]);
+  }, [game, profiles?.installRoot, refreshProfiles, visible]);
 
   const saveCurrentProfile = async () => {
     const name = profileName.trim();

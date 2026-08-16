@@ -4,6 +4,7 @@ import { INSTRUMENT_HULL_STORAGE_KEY } from "./desktopStorage";
 import type { WireframeHull, WireframeHullCatalog } from "./types";
 
 export const ORIGINAL_HULL_ID = "preflight-courier";
+const CATALOG_IDLE_DELAY_MS = 160;
 
 /** The bundled fallback is original Preflight artwork and exists before Starsector is selected. */
 export const ORIGINAL_HULL: WireframeHull = {
@@ -59,18 +60,25 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   useEffect(() => {
     if (!game || !enabled || catalogState?.game === game) return;
     let current = true;
-    void getWireframeHulls(game)
-      .then((next) => {
-        if (current) setCatalogState({ game, catalog: next });
-      })
-      .catch(() => {
-        if (current) {
-          // A failed cosmetic lookup is still an attempted lookup for this installation. Cache the
-          // fallback so page navigation cannot turn an unreadable catalog into a retry loop.
-          setCatalogState({ game, catalog: null });
-        }
-      });
-    return () => { current = false; };
+    // The courier is already bundled, so the first page frame never needs to wait behind hundreds
+    // of optional hull files. Start that cosmetic scan just after the page transition settles.
+    const timer = window.setTimeout(() => {
+      void getWireframeHulls(game)
+        .then((next) => {
+          if (current) setCatalogState({ game, catalog: next });
+        })
+        .catch(() => {
+          if (current) {
+            // A failed cosmetic lookup is still an attempted lookup for this installation. Cache
+            // the fallback so page navigation cannot turn an unreadable catalog into a retry loop.
+            setCatalogState({ game, catalog: null });
+          }
+        });
+    }, CATALOG_IDLE_DELAY_MS);
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
   }, [catalogState?.game, enabled, game]);
 
   const hulls = useMemo(

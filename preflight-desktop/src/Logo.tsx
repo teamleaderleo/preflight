@@ -1,4 +1,4 @@
-import preflightMark from "./assets/preflight-mark-v12-diagonal-candidate.png";
+import preflightMark from "./assets/preflight-mark-v12-sidebar.png";
 
 export default function Logo({ compact = false }: { compact?: boolean }) {
   return (

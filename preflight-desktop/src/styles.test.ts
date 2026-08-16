@@ -17,7 +17,7 @@ test("the drafting surface supports explicit themes while motion preferences rem
 });
 
 test("navigation motion stays brief and the home illustration is structural", () => {
-  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 90ms/s);
+  expect(styles).toMatch(/\.page-viewport--entering\s*\{[^}]*animation:\s*workspace-enter 80ms/s);
   expect(styles).toContain("@keyframes workspace-enter");
   expect(styles).toContain("@keyframes flight-plot-in");
   expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
