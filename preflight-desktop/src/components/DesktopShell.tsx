@@ -38,6 +38,7 @@ const PALETTE_NAMES: Record<PalettePreference, string> = {
   hangar: "Hangar",
   ultraviolet: "Ultraviolet",
   airglow: "Airglow",
+  phosphor: "Phosphor",
 };
 
 export type Page = "home" | "launch" | "speed" | "mods" | "benchmark" | "help" | "settings";

@@ -7,6 +7,8 @@ interface FlightInstrumentProps {
   hull?: WireframeHull;
 }
 
+export const INSTRUMENT_APPEARANCE_ATTRIBUTES = ["data-theme", "data-palette"] as const;
+
 interface InstrumentPalette {
   line: string;
   soft: string;
@@ -154,7 +156,10 @@ export function FlightInstrument({ hull = ORIGINAL_HULL }: FlightInstrumentProps
       palette = readPalette(canvas);
       drawStill();
     });
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [...INSTRUMENT_APPEARANCE_ATTRIBUTES],
+    });
     reducedMotion.addEventListener("change", updateMotion);
     updateMotion();
     return () => {
