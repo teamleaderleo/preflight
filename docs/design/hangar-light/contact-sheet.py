@@ -69,7 +69,14 @@ def hulls():
     blk = src[at:src.index("\n  };", at)]
     out = {}
     for name in ORDER:
+        # Bound the slice to this hull's own entry. Reading to the end of the table instead
+        # let an optional field fall through to the next ship that has one -- the Conquest
+        # quietly grew the Paragon's eight bastions, and only the edge count caught it.
         seg = blk[blk.index(name + ":{"):]
+        nxt = [seg.index("\n    " + o + ":{") for o in ORDER
+               if o != name and ("\n    " + o + ":{") in seg]
+        if nxt:
+            seg = seg[:min(nxt)]
         seg = re.sub(r"/\*.*?\*/", "", seg, flags=re.S)
 
         def arr(key):
@@ -94,6 +101,7 @@ def hulls():
             "o": arr("o:["),
             "holes": arr("holes:["),
             "decks": arr("decks:["),
+            "pods": arr("pods:[") if "pods:[" in seg else [],
         }
     return out
 
@@ -220,34 +228,35 @@ def build(hull):
             if live and live[k][3] - live[k][2] > 1e-4:
                 E.append((port[k], stbd[k]))
 
-        # Brace the deck to the hull with raked struts, not with rungs. A strut square to
-        # the keel is a ladder rung whatever you do to its length, and a deck tied to
-        # nothing is an island floating in the middle of the ship -- this construction has
-        # produced both. Each station throws one strut forward and one aft, landing on the
-        # silhouette between itself and its neighbours, so the deck sits in a truss.
-        #
-        # What is held constant is the strut's ANGLE, not how far along the ship it reaches.
-        # Reaching a fixed fraction of the gap to the next station means the strut's rake is
-        # decided by how wide the ship happens to be there, and across an Onslaught's beam
-        # that lies down flat and is a rung again. So the run aft is set from the run
-        # outboard, then clipped so a strut cannot overshoot its neighbour.
-        RAKE = 0.85
-        n = len(live)
-        for k in ([0, n - 1] if n > 1 else [0]):
+        # Short legs at the ends of the plate, straight down to the hull under it. The raked
+        # strut is gone: it had to reach from the deck edge out to the silhouette, and on a
+        # wide hull that is a line arcing clean across the ship no matter what angle it is
+        # held at. Three versions of that -- rung, chine, rake -- all crossed things they had
+        # no business crossing. A leg is local and cannot.
+        for k in ([0, len(live) - 1] if len(live) > 1 else [0]):
             dz, mid_x = live[k][0], live[k][1]
-            gap_f = (live[k - 1][0] - dz) if k else (dz - live[1][0] if n > 1 else 0.12)
-            gap_a = (dz - live[k + 1][0]) if k + 1 < n else (live[n - 2][0] - dz if n > 1 else 0.12)
-            here = flank(dz, mid_x)
-            if here is None:
-                continue
-            for side, anchor, edge_x in ((0, port[k], live[k][2]), (1, stbd[k], live[k][3])):
-                lateral = abs(here[side] - edge_x)
-                for gap, sign in ((gap_f, 1), (gap_a, -1)):
-                    tz = dz + sign * min(lateral * RAKE, abs(gap) * 0.72)
-                    sp = flank(tz, mid_x)
-                    if sp is None:
-                        continue
-                    E.append((anchor, vert(sp[side], half_height(tz, sp[side]), tz)))
+            for anchor, ex in ((port[k], live[k][2]), (stbd[k], live[k][3])):
+                E.append((anchor, vert(ex, half_height(dz, ex), dz)))
+
+    # Hand-drawn features, written per ship off its own sprite. Everything above is a rule
+    # applied to every hull; this is the part that is just drawn. A pod is a closed ring at
+    # its own height with two legs -- the Odyssey's recessed pod wells, the Paragon's turret
+    # bastions, the Onslaught's dome -- and nothing works them out.
+    for pod in hull.get("pods", []):
+        pz, px_, pr = pod[0], pod[1], pod[2]
+        lift = pod[3] if len(pod) > 3 else 0.0
+        sides = int(pod[4]) if len(pod) > 4 else 6
+        y = half_height(pz, px_) + TH * 0.95 * lift
+        ring = []
+        for q in range(sides):
+            t = q / sides * math.tau + math.pi / sides
+            ring.append(vert(px_ + math.cos(t) * pr, y, pz + math.sin(t) * pr * 1.0))
+        for q in range(sides):
+            E.append((ring[q], ring[(q + 1) % sides]))
+        for q in (0, sides // 2):
+            gz = pz + math.sin(q / sides * math.tau + math.pi / sides) * pr
+            gx = px_ + math.cos(q / sides * math.tau + math.pi / sides) * pr
+            E.append((ring[q], vert(gx, half_height(gz, gx), gz)))
 
     stern_half = max([abs(p[1]) for p in o if p[0] < zmin + (zmax - zmin) * 0.18] or [0])
     if stern_half <= 0:

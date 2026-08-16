@@ -28,6 +28,7 @@ Each hull in the page carries three things:
 | `o` | the plan-view outline, traced from the sprite, ~100–125 points |
 | `holes` | interior voids as their own closed loops |
 | `decks` | one or more **hand-written** lanes; a station is `[z, height, half-width, centre x]` |
+| `pods` | **hand-drawn** features, `[z, x, radius, height, sides]` — closed rings with two legs |
 
 `o` and `holes` are generated. `decks` is not, and that is the point — evenly spaced ribs read
 as a ruled grid laid over the ship, and scoring the artwork to pick better stations automatically
@@ -67,7 +68,11 @@ anything the reader could not already see.
   every station. A plate reads as a plate from its outline. Whether that outline comes out a
   triangle, a pentagon or a long hexagon is decided by how many stations the lane has, which is
   decided by the ship, which is the right thing for it to depend on.
-- **Two struts a lane, at its ends**, and nothing between them. A crossbar at the beam was
+- **Short legs at the ends of a plate**, straight down to the hull under them. Every version
+  that reached out to the *silhouette* — rung, chine, raked strut — drew a line arcing clean
+  across the ship, because on a wide hull that is what a deck-edge-to-outline connection is at
+  any angle. A leg is local and cannot cross anything. That fault took four attempts.
+- **Two connections a lane, at its ends**, and nothing between them. A crossbar at the beam was
   tried and pulled: no sprite has a feature there, it was in because a plate "should" be
   divided somewhere. Struts at the beam were worse — at the widest part of a wide hull the
   rake clips flat and draws long shallow lines across everything.
@@ -78,6 +83,18 @@ anything the reader could not already see.
 
 The general rule, since it keeps having to be rediscovered: **negative space is doing work.** A
 line has to earn its place against the reader's own ability to close a shape.
+
+## What is drawn rather than derived
+
+`pods` is the escape hatch from all of the above, and the reason it exists is that everything
+else on this page is a rule applied uniformly to six ships. A rule cannot know that an Odyssey
+is six recessed pod wells hung off a spine, that a Paragon's ring is studded with bastions, or
+that an Onslaught has one big lit disc on the centreline with a heavy drum on each beam. Those
+are the things people actually recognise, and they are typed in by hand off each sprite —
+position, radius, height, how many sides.
+
+They are also the only closed shapes on a hull that are not the hull, which is what makes them
+read as fittings rather than structure. Six sides for a round housing, eight for the big ones.
 
 ## The six
 
