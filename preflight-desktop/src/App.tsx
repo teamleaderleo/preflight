@@ -111,7 +111,10 @@ export default function App() {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
   }, []);
   const speedStanding = useSpeedRecord();
-  const instrumentHull = useInstrumentHull(snapshot?.selected?.installRoot);
+  const instrumentHull = useInstrumentHull(
+    snapshot?.selected?.installRoot,
+    page === "speed" || page === "settings",
+  );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
   const countWhenFinished = useRef<{ pid: number; profileFingerprint: string } | null>(null);
