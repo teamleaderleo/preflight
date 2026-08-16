@@ -23,16 +23,28 @@ test("navigation motion stays brief and the home illustration is structural", ()
   expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
 });
 
-test("the primary palette stays blue rather than blue-green", () => {
-  expect(styles).toContain("--accent: #6079ad");
-  expect(styles).toContain("--accent-strong: #425f98");
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#8fa8dd;/s);
-  expect(styles).not.toContain("#3b8493");
-  expect(styles).not.toContain("#246d7a");
+test("the primary palette stays warm gold rather than drifting back to blue", () => {
+  expect(styles).toContain("--accent: #8c6a41");
+  expect(styles).toContain("--accent-strong: #765427");
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#d4ad78;/s);
+  expect(styles).not.toContain("#6079ad");
+  expect(styles).not.toContain("#425f98");
+});
+
+/*
+ * Rotating the old blue palette toward gold landed the accent and the warning within a few degrees
+ * of each other, which is the one collision a near-monochrome scheme cannot absorb: "this is a
+ * link" and "this needs your attention" stop being distinguishable. Warning is pushed to rust and
+ * success keeps a real green, so the check is that they are still nowhere near the accent hue.
+ */
+test("status colours stay separable from the structural gold", () => {
+  expect(styles).toContain("--warning: #b0631f");
+  expect(styles).toContain("--success: #4e7f60");
+  expect(styles).not.toMatch(/--warning:\s*#[89ab][0-9a-f]6[0-9a-f]4[0-9a-f];/);
 });
 
 test("active controls look active without relying on gradients", () => {
-  expect(styles).toContain("--action: #4f69c5");
+  expect(styles).toContain("--action: #8a5f22");
   expect(styles).toMatch(/\.button--primary\s*\{[^}]*background:\s*var\(--action\);/s);
   expect(styles).not.toMatch(/\.button--primary\s*\{[^}]*linear-gradient/s);
   expect(styles).toMatch(/\.simple-switch:has\(input:checked\)\s*\{[^}]*background:\s*var\(--accent-soft\);/s);
