@@ -72,6 +72,26 @@ a{color:var(--gold-hi)}
 .stage__corner--tl{top:14px;left:16px}
 .stage__corner--br{bottom:14px;right:16px;color:var(--dim)}
 
+/* ---------- contact sheet ---------- */
+.sheet{
+  margin-top:18px;border:1px solid var(--rib);border-radius:3px;background:var(--sink);
+  overflow-x:auto;
+}
+.sheet table{border-collapse:collapse;width:100%;min-width:760px}
+.sheet th{
+  font-family:"B612",monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+  font-weight:400;color:var(--gold);opacity:.8;padding:9px 6px;border-bottom:1px solid var(--rib);
+}
+.sheet th.row{
+  text-align:right;color:var(--ink);opacity:1;border-bottom:0;border-right:1px solid var(--rib);
+  padding:0 12px 0 14px;white-space:nowrap;
+}
+.sheet th.row small{display:block;color:var(--dim);letter-spacing:.06em;text-transform:none;font-size:10px}
+.sheet td{padding:0;border-right:1px solid var(--rib);border-bottom:1px solid var(--rib)}
+.sheet td:last-child{border-right:0}
+.sheet tbody tr:last-child td,.sheet tbody tr:last-child th{border-bottom:0}
+.sheet canvas{display:block;width:100%;aspect-ratio:1/1}
+
 /* ---------- readout ---------- */
 .readout{
   border-left:1px solid var(--rib);padding:26px 26px 22px;
@@ -220,6 +240,13 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
         </div>
       </div>
     </div>
+    <div class="sheet" id="hullSheet"></div>
+    <p class="note"><b>The contact sheet.</b> Every hull at every angle worth judging it from, drawn
+      once and held still. Turning one ship at a time and remembering what the last one looked like
+      is how you end up with five hulls that are each defensible and do not look like a fleet &mdash;
+      a deck laid down the centreline of a ship that is not straight, a prow whose trenches have been
+      bridged over, the same nose cap on all of them. In the sheet those are visible at a glance.
+      Plan view is the column to trust: it is the only one the sprite can vouch for.</p>
     <p class="note">These are the real hulls. Starsector is drawn top-down, so a ship's plan view is
       already on screen &mdash; and the silhouettes here are marched off the <b>alpha channel of the
       installed sprite</b>, not off the collision polygon in <code>data/hulls</code>. The bounds are
@@ -408,6 +435,7 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
   document.getElementById("tTheme").addEventListener("click",function(){
     root.setAttribute("data-theme",current()==="dark"?"light":"dark");
     syncSwatches();
+    if(window.repaintSheet) window.repaintSheet();
   });
   syncSwatches();
 
@@ -445,23 +473,56 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     odyssey:{name:"Odyssey",klass:"Cruiser &middot; Tri-Tachyon",thick:0.13,bells:3,
       o:[[1.0, 0.03], [0.995, 0.005], [0.959, -0.025], [0.909, -0.041], [0.873, -0.061], [0.812, -0.071], [0.746, -0.127], [0.68, -0.132], [0.64, -0.107], [0.604, -0.127], [0.604, -0.147], [0.574, -0.178], [0.508, -0.178], [0.482, -0.152], [0.472, -0.152], [0.447, -0.178], [0.447, -0.203], [0.416, -0.234], [0.381, -0.249], [0.35, -0.249], [0.34, -0.264], [0.299, -0.264], [0.294, -0.254], [0.203, -0.208], [0.178, -0.178], [0.157, -0.178], [0.142, -0.203], [0.117, -0.208], [0.137, -0.213], [0.137, -0.234], [0.056, -0.274], [-0.02, -0.269], [-0.02, -0.299], [-0.036, -0.299], [-0.046, -0.32], [-0.096, -0.32], [-0.107, -0.365], [-0.152, -0.396], [-0.203, -0.391], [-0.259, -0.32], [-0.371, -0.31], [-0.421, -0.289], [-0.503, -0.213], [-0.533, -0.244], [-0.584, -0.244], [-0.604, -0.234], [-0.619, -0.213], [-0.701, -0.223], [-0.706, -0.228], [-0.695, -0.239], [-0.695, -0.279], [-0.721, -0.305], [-0.721, -0.335], [-0.756, -0.355], [-0.848, -0.35], [-0.898, -0.32], [-0.954, -0.299], [-0.99, -0.274], [-1.0, -0.254], [-0.939, -0.188], [-0.944, -0.168], [-0.929, -0.152], [-0.985, -0.117], [-0.985, 0.152], [-0.929, 0.188], [-0.944, 0.203], [-0.939, 0.223], [-0.995, 0.279], [-1.0, 0.294], [-0.944, 0.34], [-0.909, 0.35], [-0.822, 0.396], [-0.766, 0.396], [-0.726, 0.376], [-0.721, 0.34], [-0.695, 0.315], [-0.695, 0.274], [-0.706, 0.264], [-0.64, 0.249], [-0.619, 0.249], [-0.604, 0.269], [-0.584, 0.279], [-0.533, 0.279], [-0.508, 0.254], [-0.472, 0.289], [-0.431, 0.315], [-0.406, 0.32], [-0.401, 0.335], [-0.376, 0.345], [-0.335, 0.345], [-0.274, 0.33], [-0.208, 0.284], [-0.162, 0.299], [-0.132, 0.294], [-0.066, 0.355], [-0.01, 0.386], [0.066, 0.386], [0.091, 0.376], [0.132, 0.345], [0.157, 0.305], [0.178, 0.32], [0.218, 0.32], [0.264, 0.289], [0.35, 0.289], [0.365, 0.274], [0.411, 0.325], [0.467, 0.33], [0.492, 0.31], [0.508, 0.279], [0.543, 0.289], [0.604, 0.289], [0.624, 0.279], [0.635, 0.264], [0.685, 0.244], [0.736, 0.193], [0.751, 0.193], [0.787, 0.157], [0.787, 0.142], [0.797, 0.132], [0.873, 0.112], [0.909, 0.086], [0.949, 0.076], [0.975, 0.061], [0.995, 0.036]],
       holes:[],
-      deck:[[0.86, 0.3, 0.0], [0.58, 0.72, 0.09], [0.06, 0.95, 0.13], [-0.34, 0.8, 0.1], [-0.72, 0.45, 0.05]]},
+      /* Two lanes. The long one is the spine, and it does not run down x=0: the
+         Odyssey's midline wanders starboard at the bow and port amidships, and a
+         deck pinned to the centreline reads as a ruler laid over a ship that is
+         not straight. The short one is the port hangar shoulder -- the feature
+         the whole hull is bent around. */
+      decks:[[[0.88, 0.26, 0.02, 0.03], [0.66, 0.58, 0.05, 0.06], [0.40, 0.74, 0.06, 0.04],
+              [0.10, 1.00, 0.07, 0.04], [-0.16, 0.88, 0.07, -0.03], [-0.44, 0.62, 0.05, 0.01],
+              [-0.72, 0.44, 0.06, 0.02], [-0.90, 0.24, 0.04, 0.02]],
+             [[-0.04, 0.44, 0.03, -0.20], [-0.16, 0.52, 0.05, -0.26], [-0.30, 0.40, 0.04, -0.22]]]},
     onslaught:{name:"Onslaught",klass:"Battleship &middot; Hegemony",thick:0.16,bells:4,
       o:[[1.0, 0.034], [0.994, -0.051], [0.926, -0.097], [0.847, -0.114], [0.818, -0.148], [0.528, -0.21], [0.472, -0.205], [0.381, -0.239], [0.335, -0.227], [0.284, -0.25], [0.301, -0.318], [0.324, -0.301], [0.773, -0.273], [0.801, -0.301], [0.875, -0.318], [0.898, -0.358], [0.949, -0.381], [0.949, -0.415], [0.903, -0.477], [0.847, -0.5], [0.807, -0.494], [0.688, -0.551], [0.653, -0.511], [0.58, -0.528], [0.568, -0.585], [0.426, -0.636], [0.295, -0.733], [0.165, -0.733], [0.125, -0.705], [0.108, -0.653], [-0.023, -0.733], [-0.057, -0.722], [-0.182, -0.773], [-0.233, -0.71], [-0.341, -0.716], [-0.369, -0.67], [-0.392, -0.676], [-0.403, -0.642], [-0.449, -0.648], [-0.716, -0.562], [-0.71, -0.506], [-0.688, -0.472], [-0.716, -0.426], [-0.75, -0.42], [-0.767, -0.369], [-0.858, -0.403], [-0.892, -0.364], [-0.949, -0.369], [-1.0, -0.307], [-0.972, -0.267], [-0.869, -0.227], [-0.864, -0.131], [-0.938, -0.097], [-0.938, -0.028], [-0.909, 0.0], [-0.938, 0.028], [-0.938, 0.097], [-0.864, 0.131], [-0.864, 0.199], [-0.881, 0.239], [-0.972, 0.267], [-1.0, 0.318], [-0.949, 0.369], [-0.892, 0.364], [-0.858, 0.403], [-0.767, 0.369], [-0.75, 0.42], [-0.716, 0.426], [-0.688, 0.472], [-0.722, 0.545], [-0.699, 0.574], [-0.426, 0.653], [-0.403, 0.642], [-0.392, 0.676], [-0.369, 0.67], [-0.341, 0.716], [-0.233, 0.71], [-0.182, 0.773], [-0.057, 0.722], [-0.023, 0.733], [0.108, 0.653], [0.125, 0.705], [0.165, 0.733], [0.295, 0.733], [0.426, 0.636], [0.568, 0.585], [0.58, 0.528], [0.653, 0.511], [0.688, 0.551], [0.807, 0.494], [0.847, 0.5], [0.903, 0.477], [0.949, 0.415], [0.949, 0.381], [0.898, 0.358], [0.875, 0.318], [0.801, 0.301], [0.773, 0.273], [0.324, 0.301], [0.301, 0.318], [0.284, 0.25], [0.335, 0.227], [0.381, 0.239], [0.472, 0.205], [0.528, 0.21], [0.818, 0.148], [0.858, 0.108], [0.949, 0.085], [0.994, 0.04]],
       holes:[],
-      deck:[[0.9, 0.35, 0.0], [0.42, 0.6, 0.1], [-0.04, 1.0, 0.2], [-0.46, 0.72, 0.14], [-0.8, 0.4, 0.06]]},
+      /* Three lanes forward, one aft. The prow is three separate prongs from
+         z=+0.93 down to +0.25 -- measured off the sprite, not guessed -- and a
+         single centreline deck over them is a bridge built across two trenches.
+         Each prong carries its own run, they end where the prongs merge, and the
+         centre run carries on alone into the dome and the engine block. */
+      decks:[[[0.90, 0.22, 0.03, 0.00], [0.70, 0.44, 0.09, 0.00], [0.45, 0.58, 0.14, 0.00],
+              [0.26, 0.70, 0.18, 0.00], [0.00, 1.00, 0.26, 0.00], [-0.30, 0.80, 0.22, 0.00],
+              [-0.58, 0.52, 0.14, 0.00], [-0.80, 0.30, 0.08, 0.00]],
+             [[0.90, 0.18, 0.02, -0.40], [0.72, 0.40, 0.05, -0.40], [0.50, 0.52, 0.09, -0.45],
+              [0.29, 0.60, 0.12, -0.49]],
+             [[0.90, 0.18, 0.02,  0.40], [0.72, 0.40, 0.05,  0.40], [0.50, 0.52, 0.09,  0.45],
+              [0.29, 0.60, 0.12,  0.49]]]},
     conquest:{name:"Conquest",klass:"Battlecruiser &middot; broadside",thick:0.13,bells:3,
       o:[[1.0, 0.273], [0.995, 0.258], [0.97, 0.253], [0.975, 0.222], [0.955, 0.217], [0.955, 0.202], [0.975, 0.197], [0.955, 0.157], [0.894, 0.167], [0.884, 0.131], [0.854, 0.101], [0.884, 0.071], [0.874, 0.03], [0.763, 0.02], [0.717, 0.051], [0.636, 0.051], [0.596, 0.076], [0.551, 0.04], [0.545, 0.02], [0.551, -0.04], [0.596, -0.076], [0.636, -0.051], [0.717, -0.051], [0.763, -0.02], [0.874, -0.03], [0.884, -0.071], [0.854, -0.101], [0.884, -0.131], [0.894, -0.167], [0.955, -0.157], [0.975, -0.187], [0.955, -0.217], [0.975, -0.222], [0.965, -0.242], [1.0, -0.273], [0.672, -0.369], [0.652, -0.369], [0.611, -0.308], [0.586, -0.389], [0.54, -0.419], [0.495, -0.419], [0.455, -0.399], [0.424, -0.354], [0.379, -0.354], [0.348, -0.323], [0.278, -0.364], [0.051, -0.364], [0.035, -0.348], [-0.03, -0.359], [-0.056, -0.343], [-0.051, -0.369], [-0.071, -0.379], [-0.242, -0.424], [-0.298, -0.338], [-0.318, -0.359], [-0.333, -0.348], [-0.354, -0.359], [-0.369, -0.323], [-0.389, -0.313], [-0.399, -0.354], [-0.439, -0.379], [-0.48, -0.434], [-0.515, -0.434], [-0.576, -0.465], [-0.611, -0.444], [-0.662, -0.47], [-0.737, -0.46], [-0.798, -0.475], [-0.818, -0.475], [-0.869, -0.429], [-0.929, -0.439], [-0.98, -0.429], [-0.99, -0.389], [-1.0, -0.167], [-0.96, -0.141], [-0.96, -0.071], [-0.848, -0.051], [-0.848, 0.051], [-0.96, 0.071], [-0.96, 0.141], [-1.0, 0.167], [-0.98, 0.429], [-0.929, 0.439], [-0.869, 0.429], [-0.818, 0.475], [-0.737, 0.46], [-0.662, 0.47], [-0.611, 0.444], [-0.576, 0.465], [-0.515, 0.434], [-0.48, 0.434], [-0.449, 0.389], [-0.399, 0.354], [-0.389, 0.313], [-0.369, 0.323], [-0.354, 0.359], [-0.338, 0.348], [-0.318, 0.359], [-0.298, 0.338], [-0.242, 0.424], [-0.071, 0.379], [-0.051, 0.369], [-0.056, 0.343], [-0.03, 0.359], [0.035, 0.348], [0.051, 0.364], [0.278, 0.364], [0.348, 0.323], [0.379, 0.354], [0.424, 0.354], [0.455, 0.399], [0.495, 0.419], [0.54, 0.419], [0.586, 0.389], [0.611, 0.308], [0.626, 0.318], [0.626, 0.343], [0.652, 0.369], [0.672, 0.369], [0.995, 0.273]],
       holes:[[[0.414, 0.02], [0.414, -0.02], [0.409, -0.025], [0.409, -0.03], [0.389, -0.051], [0.384, -0.051], [0.379, -0.056], [0.308, -0.056], [0.303, -0.051], [0.263, -0.051], [0.258, -0.056], [0.157, -0.056], [0.152, -0.051], [0.0, -0.051], [-0.015, -0.035], [-0.01, -0.03], [-0.01, -0.015], [-0.015, -0.01], [-0.02, -0.01], [-0.02, 0.01], [-0.015, 0.01], [-0.01, 0.015], [-0.01, 0.03], [-0.015, 0.035], [0.0, 0.051], [0.152, 0.051], [0.157, 0.056], [0.258, 0.056], [0.263, 0.051], [0.303, 0.051], [0.308, 0.056], [0.379, 0.056], [0.384, 0.051], [0.389, 0.051], [0.409, 0.03], [0.409, 0.025]]],
-      deck:[[0.88, 0.3, 0.05], [0.3, 0.55, 0.24], [-0.1, 0.7, 0.2], [-0.34, 1.0, 0.09], [-0.78, 0.45, 0.06]]},
+      decks:[[[0.88, 0.30, 0.05, 0.0], [0.30, 0.55, 0.24, 0.0], [-0.10, 0.70, 0.20, 0.0],
+              [-0.34, 1.00, 0.09, 0.0], [-0.78, 0.45, 0.06, 0.0]]]},
     paragon:{name:"Paragon",klass:"Battleship &middot; Tri-Tachyon",thick:0.15,bells:3,
       o:[[1.0, 0.201], [0.972, 0.1], [0.978, 0.045], [0.994, 0.017], [0.972, -0.078], [0.978, -0.134], [1.0, -0.173], [0.983, -0.234], [0.972, -0.245], [0.95, -0.24], [0.894, -0.273], [0.894, -0.306], [0.872, -0.323], [0.777, -0.373], [0.755, -0.362], [0.677, -0.451], [0.604, -0.501], [0.532, -0.535], [0.504, -0.529], [0.487, -0.568], [0.376, -0.663], [0.348, -0.669], [0.315, -0.646], [0.237, -0.708], [0.064, -0.758], [-0.086, -0.752], [-0.114, -0.741], [-0.136, -0.769], [-0.164, -0.769], [-0.209, -0.747], [-0.22, -0.713], [-0.27, -0.696], [-0.298, -0.68], [-0.309, -0.657], [-0.326, -0.657], [-0.454, -0.724], [-0.526, -0.708], [-0.543, -0.724], [-0.549, -0.758], [-0.627, -0.786], [-0.627, -0.836], [-0.643, -0.864], [-0.727, -0.891], [-0.799, -0.886], [-0.811, -0.864], [-0.85, -0.864], [-0.883, -0.819], [-0.928, -0.819], [-0.944, -0.797], [-0.944, -0.646], [-0.967, -0.641], [-0.972, -0.613], [-0.989, -0.602], [-0.983, -0.485], [-0.967, -0.462], [-1.0, -0.423], [-1.0, -0.334], [-0.989, -0.295], [-0.955, -0.267], [-0.955, -0.223], [-0.928, -0.195], [-0.777, -0.178], [-0.794, -0.15], [-0.889, -0.089], [-0.922, -0.011], [-0.889, 0.089], [-0.794, 0.15], [-0.777, 0.178], [-0.844, 0.178], [-0.861, 0.195], [-0.916, 0.189], [-0.955, 0.223], [-0.955, 0.267], [-0.989, 0.295], [-1.0, 0.334], [-1.0, 0.423], [-0.967, 0.462], [-0.983, 0.485], [-0.989, 0.602], [-0.972, 0.613], [-0.967, 0.641], [-0.944, 0.646], [-0.944, 0.797], [-0.916, 0.825], [-0.883, 0.819], [-0.85, 0.864], [-0.811, 0.864], [-0.799, 0.886], [-0.772, 0.891], [-0.727, 0.891], [-0.643, 0.864], [-0.627, 0.836], [-0.627, 0.786], [-0.549, 0.758], [-0.543, 0.724], [-0.526, 0.708], [-0.454, 0.724], [-0.326, 0.657], [-0.309, 0.657], [-0.298, 0.68], [-0.27, 0.696], [-0.22, 0.713], [-0.209, 0.747], [-0.164, 0.769], [-0.136, 0.769], [-0.114, 0.741], [-0.086, 0.752], [0.064, 0.758], [0.237, 0.708], [0.315, 0.646], [0.365, 0.669], [0.437, 0.618], [0.487, 0.568], [0.504, 0.529], [0.532, 0.535], [0.604, 0.501], [0.677, 0.451], [0.755, 0.362], [0.777, 0.373], [0.889, 0.312], [0.889, 0.279], [0.95, 0.24], [0.972, 0.245], [0.994, 0.206]],
       holes:[[[0.32, 0.05], [0.32, -0.05], [0.298, -0.117], [0.298, -0.145], [0.259, -0.206], [0.17, -0.256], [0.148, -0.295], [0.109, -0.306], [0.025, -0.306], [0.014, -0.318], [-0.025, -0.312], [-0.064, -0.295], [-0.086, -0.267], [-0.159, -0.223], [-0.175, -0.24], [-0.209, -0.212], [-0.214, -0.189], [-0.242, -0.162], [-0.253, -0.134], [-0.164, -0.128], [-0.125, -0.078], [-0.097, -0.078], [-0.058, -0.028], [-0.058, 0.028], [-0.097, 0.078], [-0.125, 0.078], [-0.142, 0.095], [-0.142, 0.106], [-0.175, 0.134], [-0.253, 0.134], [-0.242, 0.162], [-0.214, 0.189], [-0.209, 0.212], [-0.175, 0.24], [-0.159, 0.223], [-0.086, 0.267], [-0.064, 0.295], [0.003, 0.318], [0.025, 0.306], [0.109, 0.306], [0.148, 0.295], [0.17, 0.256], [0.259, 0.206], [0.298, 0.145], [0.315, 0.056]]],
-      deck:[[0.8, 0.35, 0.1], [0.34, 0.7, 0.34], [-0.14, 0.9, 0.12], [-0.52, 1.0, 0.16], [-0.84, 0.4, 0.08]]},
+      /* Four lanes. A Paragon is a ring, and the only wrong place to put a deck
+         is straight down the middle of it -- from z=+0.30 to -0.26 the centreline
+         is the hole. The bow cap carries one run, each arm of the ring carries
+         its own, and the command module that stands up inside the ring's mouth
+         gets the tallest station on the ship. */
+      decks:[[[0.90, 0.28, 0.05, 0.00], [0.70, 0.54, 0.14, 0.00], [0.48, 0.70, 0.20, 0.00],
+              [0.36, 0.76, 0.24, 0.00]],
+             [[0.30, 0.66, 0.11, -0.42], [0.14, 0.80, 0.19, -0.52], [-0.07, 0.82, 0.20, -0.52],
+              [-0.24, 0.70, 0.17, -0.46]],
+             [[0.30, 0.66, 0.11,  0.42], [0.14, 0.80, 0.19,  0.52], [-0.07, 0.82, 0.20,  0.52],
+              [-0.24, 0.70, 0.17,  0.46]],
+             [[-0.09, 1.00, 0.04, 0.00], [-0.20, 0.90, 0.09, 0.00], [-0.34, 0.68, 0.15, 0.00],
+              [-0.54, 0.58, 0.20, 0.00], [-0.74, 0.44, 0.17, 0.00], [-0.90, 0.26, 0.09, 0.00]]]},
     hammerhead:{name:"Hammerhead",klass:"Destroyer &middot; everyone's first",thick:0.17,bells:2,
       o:[[1.0, 0.193], [0.975, 0.143], [1.0, 0.093], [0.913, 0.031], [0.814, 0.006], [0.913, -0.019], [1.0, -0.081], [0.975, -0.13], [1.0, -0.18], [0.963, -0.217], [0.851, -0.255], [0.975, -0.267], [0.975, -0.342], [0.95, -0.354], [0.95, -0.404], [0.975, -0.416], [0.975, -0.491], [0.826, -0.503], [0.814, -0.565], [0.764, -0.627], [0.503, -0.627], [0.528, -0.491], [0.503, -0.478], [0.491, -0.429], [0.528, -0.391], [0.466, -0.292], [0.429, -0.292], [0.379, -0.217], [0.292, -0.217], [0.242, -0.18], [0.193, -0.18], [0.155, -0.205], [0.019, -0.18], [0.006, -0.193], [0.043, -0.23], [0.043, -0.379], [-0.081, -0.453], [-0.093, -0.516], [-0.143, -0.565], [-0.193, -0.565], [-0.267, -0.652], [-0.304, -0.665], [-0.416, -0.652], [-0.491, -0.565], [-0.64, -0.503], [-0.789, -0.503], [-0.888, -0.59], [-0.988, -0.54], [-1.0, -0.404], [-0.975, -0.379], [-0.963, -0.093], [-0.901, -0.093], [-0.876, -0.068], [-0.789, -0.043], [-0.59, -0.056], [-0.54, -0.006], [-0.54, 0.019], [-0.59, 0.068], [-0.789, 0.056], [-0.876, 0.081], [-0.901, 0.106], [-0.963, 0.106], [-0.975, 0.391], [-1.0, 0.416], [-1.0, 0.503], [-0.975, 0.565], [-0.888, 0.602], [-0.789, 0.516], [-0.64, 0.516], [-0.491, 0.578], [-0.416, 0.665], [-0.267, 0.665], [-0.193, 0.578], [-0.143, 0.578], [-0.093, 0.528], [-0.081, 0.466], [0.043, 0.391], [0.043, 0.242], [0.006, 0.205], [0.019, 0.193], [0.155, 0.217], [0.193, 0.193], [0.242, 0.193], [0.292, 0.23], [0.379, 0.23], [0.429, 0.304], [0.466, 0.304], [0.491, 0.329], [0.528, 0.404], [0.491, 0.441], [0.503, 0.491], [0.528, 0.503], [0.503, 0.64], [0.764, 0.64], [0.814, 0.578], [0.826, 0.516], [0.975, 0.503], [0.975, 0.429], [0.95, 0.416], [0.95, 0.366], [0.975, 0.354], [0.975, 0.28], [0.851, 0.267], [0.963, 0.23], [0.988, 0.193]],
       holes:[],
-      deck:[[0.84, 0.4, 0.06], [0.36, 0.85, 0.13], [-0.1, 1.0, 0.11], [-0.52, 0.7, 0.16], [-0.82, 0.35, 0.07]]},
+      decks:[[[0.84, 0.40, 0.06, 0.0], [0.36, 0.85, 0.13, 0.0], [-0.10, 1.00, 0.11, 0.0],
+              [-0.52, 0.70, 0.16, 0.0], [-0.82, 0.35, 0.07, 0.0]]]},
   };
 
   var V=[],E=[],noseIndex=0,groundY=-0.4,fitScale=1;
@@ -561,32 +622,42 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
        triangles were what read as ruled, and no amount of choosing the stations
        automatically fixed it: these five ships are drawn by hand and are worth
        reading by hand. */
-    var deck=hull.deck, port=[], stbd=[];
-    deck.forEach(function(st){
-      var dz=st[0], lift=st[1], wid=st[2], xs=crossings(dz);
-      if(xs.length<2) return;
-      var span=null;
-      for(var q=0;q+1<xs.length;q+=2) if(xs[q]<=0 && xs[q+1]>=0) span=[xs[q],xs[q+1]];
-      var y=halfHeight(dz,0)+TH*0.95*lift;
-      var wl=Math.min(wid, Math.abs(span?span[0]:wid)*0.9),
-          wr=Math.min(wid, Math.abs(span?span[1]:wid)*0.9);
-      var l=vert(-wl,y,dz), r=vert(wr,y,dz);
-      if(wl+wr>1e-4) edge(l,r);                     // the flat top of the deck
-      port.push(l); stbd.push(r);
-      // Down to the hull on each side. These are the slopes and the overhangs.
-      if(span){
-        edge(l, vert(span[0],halfHeight(dz,span[0]),dz));
-        edge(r, vert(span[1],halfHeight(dz,span[1]),dz));
+    hull.decks.forEach(function(lane){
+      var port=[], stbd=[], chL=[], chR=[], live=[];
+      lane.forEach(function(st){
+        var dz=st[0], lift=st[1], wid=st[2], mid=st[3]||0, xs=crossings(dz);
+        // The station has to stand on something. A lane pinned to x=0 across a
+        // Paragon's ring, or over an Onslaught's prow trench, otherwise emits a
+        // bar hanging in the open air with nothing under it.
+        var span=null;
+        for(var q=0;q+1<xs.length;q+=2) if(xs[q]<=mid && xs[q+1]>=mid) span=[xs[q],xs[q+1]];
+        if(!span) return;
+        var y=halfHeight(dz,mid)+TH*0.95*lift;
+        var wl=Math.min(wid,(mid-span[0])*0.9), wr=Math.min(wid,(span[1]-mid)*0.9);
+        var l=vert(mid-wl,y,dz), r=vert(mid+wr,y,dz);
+        if(wl+wr>1e-4) edge(l,r);                   // the flat top of the deck
+        /* The slope stops at a chine, not at the silhouette. Run it the whole
+           half-beam and every station draws a full-width line, and a column of
+           those is the ladder this keeps turning back into -- it was what made
+           an Odyssey read as a barrel with hoops round it. The chines are then
+           joined down the ship, so a station contributes length, not width. */
+        var clx=mid-wl+(span[0]-(mid-wl))*0.62, crx=mid+wr+(span[1]-(mid+wr))*0.62;
+        var cl=vert(clx,halfHeight(dz,clx),dz), cr=vert(crx,halfHeight(dz,crx),dz);
+        edge(l,cl); edge(r,cr);
+        port.push(l); stbd.push(r); chL.push(cl); chR.push(cr);
+        live.push([dz,mid-wl,mid+wr,clx,crx]);
+      });
+      for(var k=0;k+1<live.length;k++){
+        // Each long edge is tested where it actually runs, not down the centreline.
+        // Testing the centre passes an Onslaught -- its middle prong is hull -- while
+        // the deck's own edges sail straight over the slots either side of it.
+        var mz=(live[k][0]+live[k+1][0])/2;
+        if(inside(mz,(live[k][1]+live[k+1][1])/2)) edge(port[k],port[k+1]);
+        if(inside(mz,(live[k][2]+live[k+1][2])/2)) edge(stbd[k],stbd[k+1]);
+        if(inside(mz,(live[k][3]+live[k+1][3])/2)) edge(chL[k],chL[k+1]);
+        if(inside(mz,(live[k][4]+live[k+1][4])/2)) edge(chR[k],chR[k+1]);
       }
     });
-    for(var k=0;k+1<port.length;k++){
-      // Each long edge is tested where it actually runs, not down the centreline.
-      // Testing the centre passes an Onslaught -- its middle prong is hull -- while
-      // the deck's own edges sail straight over the slots either side of it.
-      var mz=(deck[k][0]+deck[k+1][0])/2;
-      if(inside(mz, -(deck[k][2]+deck[k+1][2])/2)) edge(port[k],port[k+1]);
-      if(inside(mz,  (deck[k][2]+deck[k+1][2])/2)) edge(stbd[k],stbd[k+1]);
-    }
 
     /* Engine bells, sized and spread by the hull's width where the stern
        actually is -- using the widest point anywhere put them out past the
@@ -624,16 +695,46 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     return V.length;
   }
 
-  var pickedHull="odyssey", stageLabel=document.querySelector(".stage__corner--tl");
-  build(HULLS[pickedHull]);
+  /* build() fills the module-level V/E; snapshot them so several hulls can be
+     on screen at once. The comparison grid is not decoration -- three ships
+     judged one after another are three separate opinions, and the faults that
+     matter here are the ones you only see when they are side by side. */
+  function make(key){
+    build(HULLS[key]);
+    return {key:key,V:V,E:E,groundY:groundY,fitScale:fitScale};
+  }
+
+  var views=[];
+  function addView(cv,geom,detail,fixed){
+    var v={cv:cv,ctx:cv.getContext("2d"),geom:geom,W:0,H:0,dpr:1,
+           detail:!!detail,fixed:fixed||null,dirty:true};
+    function resize(){
+      var r=cv.getBoundingClientRect();
+      if(!r.width) return;
+      v.dpr=Math.min(devicePixelRatio||1,2);
+      v.W=r.width; v.H=r.height;
+      cv.width=Math.round(v.W*v.dpr); cv.height=Math.round(v.H*v.dpr);
+      v.ctx.setTransform(v.dpr,0,0,v.dpr,0,0);
+      v.dirty=true;
+    }
+    new ResizeObserver(resize).observe(cv); resize();
+    views.push(v);
+    return v;
+  }
+
+  var stageLabel=document.querySelector(".stage__corner--tl"),
+      stage=addView(document.getElementById("ship"),make("odyssey"),true);
+
+  function label(k){ return HULLS[k].name+", Claude's version \u00b7 "+HULLS[k].klass; }
+  stageLabel.innerHTML=label("odyssey");
 
   var picker=document.getElementById("hullPicker");
   Object.keys(HULLS).forEach(function(key){
     var b=document.createElement("button");
     b.type="button"; b.className="chip"; b.textContent=HULLS[key].name;
-    b.setAttribute("aria-pressed",String(key===pickedHull));
+    b.setAttribute("aria-pressed",String(key===stage.geom.key));
     b.addEventListener("click",function(){
-      pickedHull=key; build(HULLS[key]);
+      stage.geom=make(key);
       stageLabel.innerHTML=label(key);
       picker.querySelectorAll(".chip").forEach(function(o){
         o.setAttribute("aria-pressed",String(o===b));
@@ -641,27 +742,64 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     });
     picker.appendChild(b);
   });
-  stageLabel.innerHTML=label(pickedHull);
-  function label(k){ return HULLS[k].name+", Claude's version \u00b7 "+HULLS[k].klass; }
+
+  /* The contact sheet. Five hulls down, five cameras across, every cell static.
+     A single live view answers "does this hull look right"; the question that
+     actually needs answering is "do these five look like they came out of the
+     same yard", and that one is unanswerable by memory. Plan view is first
+     because it is the only column the sprite can vouch for. */
+  var ANGLES=[
+    {name:"Plan",   sub:"the traced part", yaw:0.00, pitch:1.42},
+    {name:"Bow 3/4",sub:"the hero angle",  yaw:-0.62,pitch:0.62},
+    {name:"Beam",   sub:"deck profile",    yaw:-1.57,pitch:0.30},
+    {name:"Quarter",sub:"stern shoulder",  yaw:-2.44,pitch:0.55},
+    {name:"Ahead",  sub:"prow section",    yaw:0.00, pitch:0.10}
+  ];
+
+  var sheet=document.getElementById("hullSheet"),
+      table=document.createElement("table"),
+      thead=document.createElement("thead"),
+      hrow=document.createElement("tr");
+  hrow.appendChild(document.createElement("th"));
+  ANGLES.forEach(function(a){
+    var th=document.createElement("th");
+    th.textContent=a.name; th.title=a.sub;
+    hrow.appendChild(th);
+  });
+  thead.appendChild(hrow); table.appendChild(thead);
+  var tbody=document.createElement("tbody");
+  Object.keys(HULLS).forEach(function(key){
+    var tr=document.createElement("tr"), th=document.createElement("th");
+    th.className="row";
+    th.innerHTML=HULLS[key].name+"<small>"+HULLS[key].klass+"</small>";
+    tr.appendChild(th);
+    var geom=make(key);
+    ANGLES.forEach(function(a){
+      var td=document.createElement("td"), c=document.createElement("canvas");
+      c.setAttribute("aria-label",HULLS[key].name+", "+a.name+" view");
+      td.appendChild(c); tr.appendChild(td);
+      addView(c,geom,false,a);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody); sheet.appendChild(table);
 
   /* ---------------- renderer ---------------- */
-  var cv=document.getElementById("ship"),cx=cv.getContext("2d"),
-      /* Pitched well over toward plan view on purpose: the silhouette is the
-         only faithful part of any of this, so the camera favours it.
-         Positive, and that sign is the whole ballgame -- the camera sits at +z,
-         so after the pitch rotation a deck point lands at z = vy*sin(pitch).
-         Negative pitch sends the deck away and pulls the keel forward, which
-         parks the camera under the hull looking up through the grid. */
-      W=0,H=0,dpr=1,yaw=-0.55,pitch=0.62,spin=true,drag=null;
+  /* Pitched well over toward plan view on purpose: the silhouette is the only
+     faithful part of any of this, so the camera favours it. Positive, and that
+     sign is the whole ballgame -- the camera sits at +z, so after the pitch
+     rotation a deck point lands at z = vy*sin(pitch). Negative pitch sends the
+     deck away and pulls the keel forward, which parks the camera under the hull
+     looking up through the grid.
 
-  function resize(){
-    var r=cv.getBoundingClientRect();
-    dpr=Math.min(devicePixelRatio||1,2);
-    W=r.width; H=r.height;
-    cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
-    cx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  new ResizeObserver(resize).observe(cv); resize();
+     One camera drives every canvas. Comparing hulls means comparing them from
+     the same angle at the same instant; letting each cell drift on its own made
+     the grid a lava lamp. */
+  var yaw=-0.55,pitch=0.62,spin=true,drag=null;
+  // Design aid: park the camera at a repeatable angle so two versions of a hull
+  // can be compared frame to frame instead of by memory.
+  window.hangarCamera=function(y,p){ yaw=y; pitch=p; spin=false;
+    document.getElementById("tSpin").setAttribute("aria-pressed","false"); };
 
   function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
   function hex2rgb(h){
@@ -671,8 +809,8 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     return [n>>16&255,n>>8&255,n&255];
   }
 
-  function project(v,cy,sy,cp,sp){
-    var vx=v[0]*fitScale, vy=v[1]*fitScale, vz=v[2]*fitScale;
+  function project(v,g,W,H,cy,sy,cp,sp){
+    var vx=v[0]*g.fitScale, vy=v[1]*g.fitScale, vz=v[2]*g.fitScale;
     var x=vx*cy - vz*sy, z=vx*sy + vz*cy;              // yaw
     var y=vy*cp - z*sp;  z=vy*sp + z*cp;                // pitch
     // build() fits every hull's longest planar axis to a half-extent of 0.95,
@@ -682,6 +820,47 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
     return [W/2 + x*s*sc, H/2 - y*s*sc, z];
   }
 
+  function paint(v,cy,sy,cp,sp,near,far,gridC,goldC){
+    if(!v.W) return;
+    var g=v.geom, ctx=v.ctx, W=v.W, H=v.H;
+    ctx.clearRect(0,0,W,H);
+
+    // faint reference grid on the keel plane
+    ctx.strokeStyle=gridC; ctx.lineWidth=1;
+    ctx.beginPath();
+    var gs=1.25/g.fitScale, gy=g.groundY, step=v.detail?4:2;
+    for(var q=-step;q<=step;q++){
+      var t=q/step*gs;
+      var p1=project([t,gy,-gs],g,W,H,cy,sy,cp,sp), p2=project([t,gy,gs],g,W,H,cy,sy,cp,sp);
+      ctx.moveTo(p1[0],p1[1]); ctx.lineTo(p2[0],p2[1]);
+      var p3=project([-gs,gy,t],g,W,H,cy,sy,cp,sp), p4=project([gs,gy,t],g,W,H,cy,sy,cp,sp);
+      ctx.moveTo(p3[0],p3[1]); ctx.lineTo(p4[0],p4[1]);
+    }
+    ctx.stroke();
+
+    // project once, then draw far edges first so near lines sit on top
+    var P=g.V.map(function(p){return project(p,g,W,H,cy,sy,cp,sp);});
+    var order=g.E.map(function(e,i){return [i,(P[e[0]][2]+P[e[1]][2])/2];})
+                 .sort(function(a,b){return a[1]-b[1];});
+    var wide=v.detail?1:0.6;
+    order.forEach(function(o){
+      var e=g.E[o[0]], a=P[e[0]], b=P[e[1]];
+      var k=Math.max(0,Math.min(1,(o[1]+1.05)/2.1));   // 0 = far, 1 = near
+      ctx.strokeStyle="rgb("+Math.round(far[0]+(near[0]-far[0])*k)+","
+                            +Math.round(far[1]+(near[1]-far[1])*k)+","
+                            +Math.round(far[2]+(near[2]-far[2])*k)+")";
+      ctx.lineWidth=(0.6+k*0.85)*wide;
+      ctx.globalAlpha=0.35+k*0.65;
+      ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+    });
+    ctx.globalAlpha=1;
+
+    // nose marker: the one bright point
+    var nose=P[0];
+    ctx.fillStyle=goldC;
+    ctx.beginPath(); ctx.arc(nose[0],nose[1],v.detail?2.4:1.8,0,Math.PI*2); ctx.fill();
+  }
+
   var last=0,frames=0,acc=0,fpsEl=document.getElementById("fps");
   function frame(t){
     var dt=last?(t-last)/1000:0; last=t;
@@ -689,53 +868,32 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
 
     // depth cue colours, re-read so a theme flip is picked up live
     var near=hex2rgb(css("--wire-near")), far=hex2rgb(css("--wire-far")),
-        gridC=css("--grid"), goldC=css("--gold");
+        gridC=css("--grid"), goldC=css("--gold"),
+        cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
 
-    cx.clearRect(0,0,W,H);
-
-    var cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
-
-    // faint reference grid on the keel plane
-    cx.strokeStyle=gridC; cx.lineWidth=1;
-    cx.beginPath();
-    var gs=1.25/fitScale, gy=groundY;
-    for(var g=-4;g<=4;g++){
-      var t=g/4*gs;
-      var p1=project([t,gy,-gs],cy,sy,cp,sp), p2=project([t,gy,gs],cy,sy,cp,sp);
-      cx.moveTo(p1[0],p1[1]); cx.lineTo(p2[0],p2[1]);
-      var p3=project([-gs,gy,t],cy,sy,cp,sp), p4=project([gs,gy,t],cy,sy,cp,sp);
-      cx.moveTo(p3[0],p3[1]); cx.lineTo(p4[0],p4[1]);
-    }
-    cx.stroke();
-
-    // project once, then draw far edges first so near lines sit on top
-    var P=V.map(function(v){return project(v,cy,sy,cp,sp);});
-    var order=E.map(function(e,i){return [i,(P[e[0]][2]+P[e[1]][2])/2];})
-               .sort(function(a,b){return a[1]-b[1];});
-
-    order.forEach(function(o){
-      var e=E[o[0]], a=P[e[0]], b=P[e[1]];
-      var k=Math.max(0,Math.min(1,(o[1]+1.05)/2.1));   // 0 = far, 1 = near
-      var r=Math.round(far[0]+(near[0]-far[0])*k),
-          gg=Math.round(far[1]+(near[1]-far[1])*k),
-          bl=Math.round(far[2]+(near[2]-far[2])*k);
-      cx.strokeStyle="rgb("+r+","+gg+","+bl+")";
-      cx.lineWidth=0.6+k*0.85;
-      cx.globalAlpha=0.35+k*0.65;
-      cx.beginPath(); cx.moveTo(a[0],a[1]); cx.lineTo(b[0],b[1]); cx.stroke();
+    // Twenty-five cells redrawn every frame is a space heater and none of them
+    // are moving. A fixed view paints when its geometry, size or theme changed.
+    var edges=0;
+    views.forEach(function(v){
+      if(v.fixed){
+        if(!v.dirty) return;
+        v.dirty=false;
+        paint(v,Math.cos(v.fixed.yaw),Math.sin(v.fixed.yaw),
+                Math.cos(v.fixed.pitch),Math.sin(v.fixed.pitch),near,far,gridC,goldC);
+        return;
+      }
+      paint(v,cy,sy,cp,sp,near,far,gridC,goldC); edges+=v.geom.E.length;
     });
-    cx.globalAlpha=1;
-
-    // nose marker: the one bright point
-    var nose=P[noseIndex];
-    cx.fillStyle=goldC;
-    cx.beginPath(); cx.arc(nose[0],nose[1],2.4,0,Math.PI*2); cx.fill();
 
     frames++; acc+=dt;
-    if(acc>=1){ fpsEl.textContent=Math.round(frames/acc)+" fps \u00b7 "+E.length+" edges"; frames=0; acc=0; }
+    if(acc>=1){
+      fpsEl.textContent=Math.round(frames/acc)+" fps \u00b7 "+edges+" edges \u00b7 "+views.length+" views";
+      frames=0; acc=0;
+    }
     requestAnimationFrame(frame);
   }
 
+  window.repaintSheet=function(){ views.forEach(function(v){ v.dirty=true; }); };
   if(matchMedia("(prefers-reduced-motion: reduce)").matches) spin=false;
   requestAnimationFrame(frame);
 
@@ -743,18 +901,21 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
   tSpin.setAttribute("aria-pressed",String(spin));
   tSpin.addEventListener("click",function(){spin=!spin;tSpin.setAttribute("aria-pressed",String(spin));});
 
-  cv.addEventListener("pointerdown",function(e){
-    drag={x:e.clientX,y:e.clientY}; cv.setPointerCapture(e.pointerId);
+  // Dragging any canvas turns all of them, for the same reason they share a camera.
+  views.forEach(function(v){
+    v.cv.addEventListener("pointerdown",function(e){
+      drag={x:e.clientX,y:e.clientY}; v.cv.setPointerCapture(e.pointerId);
+    });
+    v.cv.addEventListener("pointermove",function(e){
+      if(!drag) return;
+      yaw+=(e.clientX-drag.x)*0.008;
+      pitch=Math.max(-1.2,Math.min(1.2,pitch+(e.clientY-drag.y)*0.006));
+      drag={x:e.clientX,y:e.clientY};
+    });
+    ["pointerup","pointercancel"].forEach(function(n){
+      v.cv.addEventListener(n,function(){drag=null;});
+    });
+    v.cv.style.cursor="grab";
   });
-  cv.addEventListener("pointermove",function(e){
-    if(!drag) return;
-    yaw+=(e.clientX-drag.x)*0.008;
-    pitch=Math.max(-1.2,Math.min(1.2,pitch+(e.clientY-drag.y)*0.006));
-    drag={x:e.clientX,y:e.clientY};
-  });
-  ["pointerup","pointercancel"].forEach(function(n){
-    cv.addEventListener(n,function(){drag=null;});
-  });
-  cv.style.cursor="grab";
 })();
 </script>
