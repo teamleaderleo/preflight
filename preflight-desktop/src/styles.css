@@ -3682,10 +3682,11 @@ footer {
   padding: 26px 28px;
   overflow: hidden;
   isolation: isolate;
-  --instrument-line: rgba(87, 81, 74, 0.42);
-  --instrument-soft: rgba(87, 81, 74, 0.16);
-  --instrument-accent: #a76532;
+  --instrument-line: rgba(63, 58, 53, 0.64);
+  --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
+  --instrument-fill: rgba(167, 101, 50, 0.065);
 }
 
 .scoreboard > :not(.flight-instrument) {
@@ -3728,6 +3729,13 @@ footer {
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+
+.flight-instrument canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .flight-instrument path,
@@ -3928,10 +3936,11 @@ footer {
 }
 
 :root[data-theme="dark"] .scoreboard {
-  --instrument-line: rgba(209, 200, 186, 0.44);
-  --instrument-soft: rgba(209, 200, 186, 0.14);
-  --instrument-accent: #d58a46;
+  --instrument-line: rgba(226, 218, 206, 0.58);
+  --instrument-soft: rgba(209, 200, 186, 0.2);
+  --instrument-accent: #df9854;
   --instrument-glow: rgba(213, 138, 70, 0.2);
+  --instrument-fill: rgba(213, 138, 70, 0.075);
 }
 
 @media (max-width: 980px) {

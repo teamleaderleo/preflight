@@ -1,5 +1,5 @@
 import { ArrowIcon, GaugeIcon } from "../icons";
-import type { PlaytimeSnapshot } from "../types";
+import type { PlaytimeSnapshot, WireframeHull } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { formatPlaytime } from "../uiFormat";
 import { FlightInstrument } from "./FlightInstrument";
@@ -8,6 +8,7 @@ interface SpeedScoreboardProps {
   standing: SpeedStanding;
   isReady: boolean;
   playtime?: PlaytimeSnapshot;
+  hull: WireframeHull;
   onOpenBenchmark: () => void;
 }
 
@@ -56,13 +57,13 @@ export function formatSavedTotal(ms: number): string {
  * number. The running total is frankly a vanity figure and is labelled as an estimate: it is
  * launches counted since the measurement, times the measured saving, and it says so.
  */
-export function SpeedScoreboard({ standing, isReady, playtime, onOpenBenchmark }: SpeedScoreboardProps) {
+export function SpeedScoreboard({ standing, isReady, playtime, hull, onOpenBenchmark }: SpeedScoreboardProps) {
   const { record, multiplier, totalSavedMs } = standing;
 
   if (!record || multiplier === null) {
     return (
       <section className="card scoreboard scoreboard--unmeasured" aria-label="Startup speed">
-        <FlightInstrument />
+        <FlightInstrument hull={hull} />
         <div className="scoreboard__headline">
           <p className="eyebrow">Your startup</p>
           <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">?×</strong>
@@ -81,7 +82,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, onOpenBenchmark }
   const totalLaunches = record.bankedLaunches + record.fastLaunches;
   return (
     <section className="card scoreboard" aria-label="Startup speed">
-      <FlightInstrument />
+      <FlightInstrument hull={hull} />
       <div className="scoreboard__headline">
         <p className="eyebrow">Measured on this computer</p>
         <strong className="scoreboard__figure">

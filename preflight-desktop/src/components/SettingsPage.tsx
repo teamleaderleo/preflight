@@ -4,8 +4,10 @@ import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { formatBytes, shortPath } from "../uiFormat";
 import type { AfterLaunchBehavior, NoticeTone, RemovalPlan, RemovalScope, ReportIntakeStatus } from "../types";
+import type { useInstrumentHull } from "../useInstrumentHull";
 
 type UpdateState = ReturnType<typeof useSignedUpdates>;
+type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
 interface SettingsPageProps {
   message: string;
@@ -16,6 +18,7 @@ interface SettingsPageProps {
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
+  instrumentHull: InstrumentHullState;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onOpenHelp: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
@@ -32,6 +35,7 @@ export function SettingsPage({
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
+  instrumentHull,
   onAfterLaunchBehaviorChange,
   onOpenHelp,
   onReviewRemoval,
@@ -73,6 +77,37 @@ export function SettingsPage({
             : afterLaunchBehavior === "quit"
               ? "Playtime still records with the window closed."
               : "Useful while testing a setup."}</small>
+        </label>
+      </section>
+      <section className="card launch-behavior-card instrument-hull-card">
+        <div>
+          <h2>Display ship</h2>
+          <p>Choose the wireframe on the Speed page.</p>
+        </div>
+        <label className="setting-field launch-behavior-field">
+          <span>Ship</span>
+          <select
+            aria-label="Display ship"
+            value={instrumentHull.selectedId}
+            onChange={(event) => instrumentHull.choose(event.target.value)}
+          >
+            <option value="preflight-courier">Preflight courier</option>
+            {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && hull.featured) ? (
+              <optgroup label="Familiar hulls">
+                {instrumentHull.hulls.filter((hull) => hull.id !== "preflight-courier" && hull.featured).map((hull) => (
+                  <option key={hull.id} value={hull.id}>{hull.name}</option>
+                ))}
+              </optgroup>
+            ) : null}
+            {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && !hull.featured) ? (
+              <optgroup label="More hulls">
+                {instrumentHull.hulls.filter((hull) => !hull.featured).map((hull) => (
+                  <option key={hull.id} value={hull.id}>{hull.name}</option>
+                ))}
+              </optgroup>
+            ) : null}
+          </select>
+          <small>{instrumentHull.catalog ? `${instrumentHull.catalog.hulls.length.toLocaleString()} hulls found.` : "Using Preflight’s courier."}</small>
         </label>
       </section>
       <div className="settings-overview">

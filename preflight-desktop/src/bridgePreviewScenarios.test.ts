@@ -5,6 +5,7 @@ import {
   deleteProfile,
   getCache,
   getCacheHealth,
+  getWireframeHulls,
   getDesktopSmokeProbe,
   getPreparationPlan,
   getProfiles,
@@ -25,6 +26,13 @@ test("unknown browser scenarios fail back to the normal ready preview", async ()
   useScenario("invented");
   expect(browserPreviewScenario()).toBe("ready");
   expect((await getSnapshot()).ready).toBe(true);
+});
+
+test("the browser preview exposes a bounded local-hull stand-in for display review", async () => {
+  const catalog = await getWireframeHulls("/Applications/Starsector");
+  expect(catalog.format).toBe("preflight-wireframe-hulls-v1");
+  expect(catalog.hulls.map((hull) => hull.id)).toEqual(["hammerhead", "onslaught", "odyssey"]);
+  expect(catalog.hulls.every((hull) => hull.featured)).toBe(true);
 });
 
 test("running is an explicit preview state", () => {

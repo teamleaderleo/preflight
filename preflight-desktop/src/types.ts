@@ -22,6 +22,40 @@ export interface PlaytimeSnapshot {
   last: string | null;
 }
 
+export interface WireframePoint {
+  x: number;
+  y: number;
+}
+
+export interface WireframeEngine extends WireframePoint {
+  angle: number;
+  width: number;
+  length: number;
+}
+
+export interface WireframeMount extends WireframePoint {
+  angle: number;
+  size: "MEDIUM" | "LARGE";
+  mount: string;
+}
+
+export interface WireframeHull {
+  id: string;
+  name: string;
+  hullSize: string;
+  style: string;
+  bounds: WireframePoint[];
+  engines: WireframeEngine[];
+  mounts: WireframeMount[];
+  featured: boolean;
+}
+
+export interface WireframeHullCatalog {
+  format: "preflight-wireframe-hulls-v1";
+  hulls: WireframeHull[];
+  skipped: number;
+}
+
 export interface DesktopSnapshot {
   protocol: number;
   engineVersion: string;

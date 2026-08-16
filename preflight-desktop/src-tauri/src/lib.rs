@@ -10,6 +10,7 @@ mod automation;
 #[allow(dead_code, unused_imports)]
 mod desktop_automation_bridge;
 mod engine;
+mod hulls;
 mod operations;
 mod preparation;
 mod report_transport;
@@ -26,6 +27,7 @@ use engine::{
     get_cache_health, get_evidence_cleanup, get_launch_settings, get_profiles, get_removal_plan,
     get_snapshot, rename_profile, repair_cache, save_profile, update_launch_settings,
 };
+use hulls::get_wireframe_hulls;
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
 use preparation::{cancel_preparation, get_preparation_plan, start_preparation};
 use reports::{cancel_run_report, delete_run_report, get_report_intake_status, send_run_report};
@@ -647,6 +649,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
+            get_wireframe_hulls,
             get_desktop_smoke_probe,
             start_desktop_smoke,
             cancel_desktop_smoke,
