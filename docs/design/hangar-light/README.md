@@ -118,11 +118,20 @@ edge count it prints is the check, and it has to match what the page reports.
 
 ## The fidelity knobs
 
-They live together at the top of `trace-hulls.py` because they only make sense together.
+**Four of them are sliders on the page.** Detail, height, tier lift and interiors on/off move
+live, because they were each a number argued about in a commit message and they are quicker to
+settle by dragging. `contact-sheet.py` takes the same four as flags with the same defaults, so
+drag until it looks right and then pass what you settled on.
+
+That is why the page ships its shapes finely — 94 to 209 points rather than the 44 to 104 it
+draws at. **What is stored is not the fidelity, it is the ceiling on it**; the browser runs the
+same Douglas-Peucker again on the way in.
+
+The rest need the sprite, so they stay in `trace-hulls.py` and need a re-trace:
 
 | knob | what it does |
 | --- | --- |
-| `OUTER_EPS` | how closely the outline follows the artwork, in sprite pixels |
+| `OUTER_EPS` | the ceiling on outline fidelity, in sprite pixels — the slider works down from it |
 | `HOLE_EPS` | the same for voids, tighter — a void is small, so a given tolerance eats more of it |
 | `BLUR` | how hard the lighting is smoothed before the interiors are cut out of it |
 | `MIN_AREA` | the smallest interior block worth drawing |

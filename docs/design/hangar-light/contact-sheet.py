@@ -1,12 +1,16 @@
 """Render every hull at every angle into one PNG, for judging them against each other.
 
-    python3 contact-sheet.py [-o sheet.png] [--cell 260] [--sprites [GAME]] [hull ...]
+    python3 contact-sheet.py [-o sheet.png] [--cell 260] [--sprites [GAME]]
+                             [--detail F] [--height F] [--lift F] [--tiers 0|1] [hull ...]
 
 `--sprites` puts each hull's actual sprite in the first column, read live from an installation.
 That column is the only thing that can tell you whether a hull is right -- comparing a render
 against your own previous render just tells you what changed. **Its output is scratch and does
 not go in the repository**, same rule as everywhere else here: the tracer reads an install, the
 repository holds only the simplified contour.
+
+The four knobs match the page's sliders and default to the same values, so the edge counts stay
+a drift check. Drag them in the browser, then pass the ones you settled on here.
 
 The page is the renderer of record; this is a design aid. It reads the hull data straight out of
 `hangar-light.html`, so the outlines and deck lanes can only ever be the page's own, and it ports
@@ -108,6 +112,29 @@ def hulls():
 # ---------------------------------------------------------------- geometry
 # A faithful port of the page's build(). Keep the two in step: when one changes, change both.
 
+# The page's slider defaults. The sheet has to agree with the page or the edge counts stop
+# being a drift check, so these are the same numbers and move together.
+KNOB = {"detail": 0.012, "height": 1.0, "lift": 1.0, "tiers": 1}
+
+
+_TRACER = None
+
+
+def rdp_loop(loop, eps, floor):
+    """Simplify the walk, not the closed ring -- see the note in the page's thin().
+
+    Borrows the tracer's Douglas-Peucker rather than keeping a third copy: the page has one
+    because it has to, and two implementations of this already have to be kept in step.
+    """
+    global _TRACER
+    if eps <= 0:
+        return loop
+    if _TRACER is None:
+        _TRACER = tracer()
+    out = _TRACER.rdp(loop, eps)
+    return out if len(out) >= floor else loop
+
+
 def build(hull):
     V, E = [], []
 
@@ -115,7 +142,8 @@ def build(hull):
         V.append([x, y, z])
         return len(V) - 1
 
-    o, TH = hull["o"], hull["thick"]
+    o = rdp_loop(hull["o"], KNOB["detail"], 12)
+    TH = hull["thick"] * KNOB["height"]
     wmax = max(abs(p[1]) for p in o)
     zmin = min(p[0] for p in o)
     zmax = max(p[0] for p in o)
@@ -126,7 +154,7 @@ def build(hull):
         rim = 1 - min(1.0, abs(x) / wmax) ** 2.6
         return TH * (0.55 + 0.45 * ends) * (0.10 + 0.90 * rim)
 
-    loops = [o] + hull["holes"]
+    loops = [o] + [rdp_loop(l, KNOB["detail"] * 0.6, 6) for l in hull["holes"]]
     for li, loop in enumerate(loops):
         m = len(loop)
         mid = [vert(p[1], 0, p[0]) for p in loop]
@@ -192,7 +220,9 @@ def build(hull):
     # contour of what the sprite lights above a threshold -- the boundary between one raised
     # block and the next, where the silhouette is the boundary between hull and space. Nothing
     # here is hand-typed; the shapes are the ship's own.
-    for lift, loop in hull["inner"]:
+    for lift, loop in (hull["inner"] if KNOB["tiers"] else []):
+        lift *= KNOB["lift"]
+        loop = rdp_loop(loop, KNOB["detail"] * 1.4, 6)
         m = len(loop)
         if m < 3:
             continue
@@ -516,6 +546,12 @@ def main(argv):
     if "-o" in argv:
         i = argv.index("-o")
         out, argv = argv[i + 1], argv[:i] + argv[i + 2:]
+    for name in ("detail", "height", "lift", "tiers"):
+        flag = "--" + name
+        if flag in argv:
+            i = argv.index(flag)
+            KNOB[name] = float(argv[i + 1])
+            argv = argv[:i] + argv[i + 2:]
     if "--plan" in argv:
         # Sprite, relief and plan only, big. The three that can be compared like for like.
         argv.remove("--plan")

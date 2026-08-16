@@ -117,6 +117,11 @@ def budget(loop, eps, cap):
     Astral -- and the number is a decision about how closely to follow the artwork rather than
     a side effect.
 
+    These are deliberately set fine. What the page ships is not the final fidelity -- it
+    simplifies again in the browser, from a Detail slider, so the level of detail is something
+    to look at rather than something to re-run a script for. What cannot move in the browser is
+    anything needing the sprite: the blur, the area floor and where the light is cut.
+
     Deep notches survive either way; Douglas-Peucker keeps the largest deviation first, so the
     Onslaught's prow trenches are the last thing it would drop, not the first. They are intact
     at every tolerance tried up to 3.5. The cap is only there so a pathological outline cannot
@@ -297,10 +302,11 @@ def fold(mask, w, h, axis):
 # you can read at a glance rather than a contour map of its greebling.
 BLUR = 0.085       # box radius as a fraction of sprite width
 MIN_AREA = 0.022   # smallest region kept, as a fraction of the sprite's area
-OUTER_EPS = 2.8    # simplification tolerance in sprite pixels, for the outline
-HOLE_EPS = 1.4     # tighter for voids: they are small, so the same tolerance is a bigger share
-                   # of them -- at 2.8 the Astral's flight decks came out as five-point slivers
-TIER_EPS = 4.5     # ditto for an interior contour, which is a blurred blob and wants less
+OUTER_EPS = 1.2    # simplification tolerance in sprite pixels, for the outline
+HOLE_EPS = 0.8     # tighter for voids: they are small, so the same tolerance is a bigger share
+                   # of them -- at the outline's setting the Astral's flight decks came out as
+                   # five-point slivers
+TIER_EPS = 2.0     # ditto for an interior contour, which is a blurred blob and wants less
 TIERS = [(0.32, 0.42), (0.66, 0.86)]
 
 
@@ -329,12 +335,12 @@ def build(game, name):
     # Rebuilding the far flank from the near one was tried and is worse than useless -- it joins
     # the two ends of the walk straight across whatever sits between them, which welded the
     # Conquest's bow channel shut into a spire.
-    outer = budget(to_ship(raw), OUTER_EPS, 130)
-    inner = [budget(to_ship(loop), HOLE_EPS, 48) for loop in holes(mask, w, h)]
+    outer = budget(to_ship(raw), OUTER_EPS, 260)
+    inner = [budget(to_ship(loop), HOLE_EPS, 90) for loop in holes(mask, w, h)]
     tiers = []
     for cut, lift in TIERS:
         for loop in masses(px, w, h, mask, cut):
-            tiers.append((lift, budget(to_ship(loop), TIER_EPS, 30)))
+            tiers.append((lift, budget(to_ship(loop), TIER_EPS, 70)))
     return outer, inner, len(raw), lop, tiers
 
 
