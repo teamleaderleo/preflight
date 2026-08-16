@@ -18,6 +18,19 @@ export interface ProjectedHull {
   mounts: Array<WireframePoint & { size: "MEDIUM" | "LARGE" }>;
 }
 
+type HullDetail = "small" | "medium" | "showcase";
+
+interface PreparedHull {
+  segments: HullSegment[];
+  deck: HullVertex[];
+  mounts: Array<HullVertex & { size: "MEDIUM" | "LARGE" }>;
+}
+
+// A selected hull is immutable for the lifetime of the renderer. Its drafting topology is much
+// more expensive than rotating that topology, so retain one model per display detail instead of
+// rebuilding rings, the raised deck and nearest-outline braces on every animation frame.
+const preparedHulls = new WeakMap<WireframeHull, Map<HullDetail, PreparedHull>>();
+
 function ring(points: HullVertex[], kind: HullSegment["kind"]): HullSegment[] {
   return points.map((point, index) => ({
     from: point,
@@ -68,7 +81,7 @@ function buildDeck(hull: WireframeHull): HullVertex[] {
  * The deck and keel are deliberately generic: Preflight doesn't claim the flat source defines a
  * canon third axis, and one shared loft keeps mod hulls from needing hand-authored meshes.
  */
-export function buildHullSegments(hull: WireframeHull, detail: "small" | "medium" | "showcase"): HullSegment[] {
+export function buildHullSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
   if (hull.bounds.length < 3) return [];
   const { center, extent } = hullFrame(hull);
   const deckHeight = extent * 0.17;
@@ -112,6 +125,30 @@ export function buildHullSegments(hull: WireframeHull, detail: "small" | "medium
   return segments;
 }
 
+function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
+  const cached = preparedHulls.get(hull)?.get(detail);
+  if (cached) return cached;
+
+  const { extent } = hullFrame(hull);
+  const prepared = {
+    segments: buildHullSegments(hull, detail),
+    deck: buildDeck(hull),
+    mounts: detail === "small" ? [] : hull.mounts.map((mount) => ({
+      x: mount.x,
+      y: mount.y,
+      z: extent * 0.18,
+      size: mount.size,
+    })),
+  } satisfies PreparedHull;
+  let details = preparedHulls.get(hull);
+  if (!details) {
+    details = new Map();
+    preparedHulls.set(hull, details);
+  }
+  details.set(detail, prepared);
+  return prepared;
+}
+
 function project(vertex: HullVertex, yaw: number): WireframePoint {
   const cosine = Math.cos(yaw);
   const sine = Math.sin(yaw);
@@ -123,16 +160,16 @@ function project(vertex: HullVertex, yaw: number): WireframePoint {
   };
 }
 
-export function projectHull(hull: WireframeHull, yaw: number, detail: "small" | "medium" | "showcase"): ProjectedHull {
-  const segments = buildHullSegments(hull, detail).map((segment) => ({
+export function projectHull(hull: WireframeHull, yaw: number, detail: HullDetail): ProjectedHull {
+  const prepared = prepareHull(hull, detail);
+  const segments = prepared.segments.map((segment) => ({
     from: project(segment.from, yaw),
     to: project(segment.to, yaw),
     kind: segment.kind,
   }));
-  const { extent } = hullFrame(hull);
-  const deck = buildDeck(hull).map((point) => project(point, yaw));
-  const mounts = detail === "small" ? [] : hull.mounts.map((mount) => ({
-    ...project({ x: mount.x, y: mount.y, z: extent * 0.18 }, yaw),
+  const deck = prepared.deck.map((point) => project(point, yaw));
+  const mounts = prepared.mounts.map((mount) => ({
+    ...project(mount, yaw),
     size: mount.size,
   }));
   return { segments, deck, mounts };

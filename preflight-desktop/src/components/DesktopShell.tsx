@@ -12,7 +12,13 @@ import {
 } from "../icons";
 import { PALETTES, type PalettePreference, type ThemePreference } from "../useTheme";
 import Logo from "../Logo";
-import { useEffect, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 
 /*
  * Destinations are named for the errand a player arrives with, not for the part of this
@@ -70,6 +76,28 @@ export function DesktopShell({
   const pageViewport = useRef<HTMLDivElement>(null);
   const pageTitle = useRef<HTMLHeadingElement>(null);
   const previousPage = useRef(page);
+  const pointerFrame = useRef<number | null>(null);
+  const pointerPosition = useRef({ x: -1000, y: -1000 });
+  const pageChanged = previousPage.current !== page;
+  const moveGridHighlight = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const shell = event.currentTarget;
+    pointerPosition.current = { x: event.clientX, y: event.clientY };
+    // High-polling-rate mice can dispatch several pointer events inside one display frame. The
+    // highlight is paint-only, so one style invalidation per frame is the most the eye can use.
+    if (pointerFrame.current !== null) return;
+    pointerFrame.current = window.requestAnimationFrame(() => {
+      pointerFrame.current = null;
+      const { x, y } = pointerPosition.current;
+      shell.style.setProperty("--grid-x", `${x}px`);
+      shell.style.setProperty("--grid-y", `${y}px`);
+    });
+  }, []);
+  const hideGridHighlight = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (pointerFrame.current !== null) window.cancelAnimationFrame(pointerFrame.current);
+    pointerFrame.current = null;
+    event.currentTarget.style.setProperty("--grid-x", "-1000px");
+    event.currentTarget.style.setProperty("--grid-y", "-1000px");
+  }, []);
   useEffect(() => {
     if (pageViewport.current) pageViewport.current.scrollTop = 0;
     document.documentElement.scrollTop = 0;
@@ -77,17 +105,14 @@ export function DesktopShell({
     if (previousPage.current !== page) pageTitle.current?.focus({ preventScroll: true });
     previousPage.current = page;
   }, [page]);
+  useEffect(() => () => {
+    if (pointerFrame.current !== null) window.cancelAnimationFrame(pointerFrame.current);
+  }, []);
   return (
     <div
       className="app-shell"
-      onPointerMove={(event) => {
-        event.currentTarget.style.setProperty("--grid-x", `${event.clientX}px`);
-        event.currentTarget.style.setProperty("--grid-y", `${event.clientY}px`);
-      }}
-      onPointerLeave={(event) => {
-        event.currentTarget.style.setProperty("--grid-x", "-1000px");
-        event.currentTarget.style.setProperty("--grid-y", "-1000px");
-      }}
+      onPointerMove={moveGridHighlight}
+      onPointerLeave={hideGridHighlight}
     >
       <a className="skip-link" href="#main-content">Skip to workspace</a>
       <aside className="sidebar">
@@ -140,7 +165,13 @@ export function DesktopShell({
             </div>
           </div>
         </header>
-        <div key={page} ref={pageViewport} className={`page-viewport page-viewport--${page}`}>{children}</div>
+        <div
+          key={page}
+          ref={pageViewport}
+          className={`page-viewport page-viewport--${page}${pageChanged ? " page-viewport--entering" : ""}`}
+        >
+          {children}
+        </div>
         <footer>
           <span>Preflight {engineVersion}</span>
           {/* Quiet and optional, at the very bottom rather than in the launch flow. */}

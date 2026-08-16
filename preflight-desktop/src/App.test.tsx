@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -441,6 +441,32 @@ test("page navigation resets the viewport that actually owns desktop scrolling",
     expect(homeViewport).not.toBe(viewport);
     expect(homeViewport?.scrollTop).toBe(0);
   });
+});
+
+test("pointer drafting feedback performs at most one style write per display frame", () => {
+  let frame: FrameRequestCallback | null = null;
+  const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frame = callback;
+    return 17;
+  });
+  try {
+    const { container, unmount } = render(<App />);
+    const shell = container.querySelector<HTMLElement>(".app-shell");
+    expect(shell).not.toBeNull();
+    if (!shell) return;
+
+    fireEvent.pointerMove(shell, { clientX: 12, clientY: 24 });
+    fireEvent.pointerMove(shell, { clientX: 120, clientY: 240 });
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    expect(shell.style.getPropertyValue("--grid-x")).toBe("");
+    expect(frame).not.toBeNull();
+    if (frame) (frame as FrameRequestCallback)(0);
+    expect(shell.style.getPropertyValue("--grid-x")).toBe("120px");
+    expect(shell.style.getPropertyValue("--grid-y")).toBe("240px");
+    unmount();
+  } finally {
+    requestFrame.mockRestore();
+  }
 });
 
 test("keyboard users can skip navigation and receive the new workspace heading", async () => {
