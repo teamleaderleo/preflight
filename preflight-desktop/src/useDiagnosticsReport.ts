@@ -10,6 +10,7 @@ import {
 } from "./bridge";
 import { nativeCommandError } from "./nativeErrors";
 import { REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
+import { supportSafeReportReceipt } from "./supportReceipt";
 import type {
   DiagnosticsExport,
   ReportIntakeStatus,
@@ -259,8 +260,8 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const copyRunReportReceipt = async () => {
     if (!reportReceipt) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(reportReceipt, null, 2));
-      announce("Run-report receipt copied. It includes the deletion authorization.");
+      await navigator.clipboard.writeText(JSON.stringify(supportSafeReportReceipt(reportReceipt), null, 2));
+      announce("Support-safe run-report receipt copied. Deletion authorization stayed on this computer.");
     } catch (error) {
       announce(`Could not copy the receipt: ${errorMessage(error)}`, "error");
     }
