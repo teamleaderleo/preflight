@@ -68,8 +68,10 @@ function assertVocabulary(name, layers) {
 
 const types = read("preflight-desktop/src/types.ts");
 const nativeHost = read("preflight-desktop/src-tauri/src/lib.rs");
+const nativeEngine = read("preflight-desktop/src-tauri/src/engine.rs");
 const javaPresets = read("preflight-cli/src/main/java/dev/starsector/preflight/cli/OptimizationPreset.java");
 const javaDomains = read("preflight-cli/src/main/java/dev/starsector/preflight/cli/OptimizationDomain.java");
+const javaRemoval = read("preflight-cli/src/main/java/dev/starsector/preflight/cli/UninstallCommand.java");
 
 test("desktop optimization presets agree across TypeScript, Rust and Java", () => {
   assertVocabulary("optimization preset", [
@@ -95,6 +97,14 @@ test("after-launch behavior agrees across renderer and native host", () => {
   assertVocabulary("after-launch behavior", [
     { name: "TypeScript", values: typeUnionValues(types, "AfterLaunchBehavior") },
     { name: "Rust", values: rustMatchValues(nativeHost, "impl AfterLaunchBehavior") },
+  ]);
+});
+
+test("removal scope agrees across TypeScript, Rust and Java", () => {
+  assertVocabulary("removal scope", [
+    { name: "TypeScript", values: typeUnionValues(types, "RemovalScope") },
+    { name: "Rust", values: rustMatchValues(nativeEngine, "fn validate_removal_scope") },
+    { name: "Java", values: javaEnumOptionValues(javaRemoval, "Scope") },
   ]);
 });
 
