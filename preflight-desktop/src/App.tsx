@@ -420,6 +420,7 @@ export default function App() {
     || cleanup.busy
     || launcher.saving
     || profilesState.profileBusy
+    || diagnostics.diagnosticsBusy
     || diagnostics.reportUploading
     || removal.busy
     || updates.updateInstalling;
@@ -470,6 +471,13 @@ export default function App() {
     ? { reason: `Preparing this mod setup · ${preparation.preparationPercent}% complete`, owner: "home" as Page }
     : cacheRepairing
       ? { reason: "Repairing prepared data for this mod setup", owner: "prepare" as Page }
+      : automation.desktopSmokeRunning
+        ? {
+          reason: automation.desktopSmokeCancelling
+            ? "Stopping the startup benchmark"
+            : "Running the startup benchmark",
+          owner: "benchmark" as Page,
+        }
       : status === "launching"
         ? { reason: "Opening Starsector", owner: "home" as Page }
         : status === "running"
@@ -480,7 +488,9 @@ export default function App() {
               ? { reason: "Saving game settings", owner: "launch" as Page }
               : profilesState.profileBusy
                 ? { reason: "Updating the saved mod profile", owner: "mods" as Page }
-                : diagnostics.reportUploading
+                : diagnostics.diagnosticsBusy
+                  ? { reason: "Creating a support file", owner: "help" as Page }
+                  : diagnostics.reportUploading
                   ? {
                     reason: diagnostics.reportFinalizing
                       ? "Finishing the signed run-report receipt"

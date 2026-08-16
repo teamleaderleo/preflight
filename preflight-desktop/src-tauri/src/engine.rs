@@ -1,6 +1,7 @@
 use crate::child_error;
 use crate::operations::{
-    OperationCoordinator, OperationState, refuse_report_upload_for_removal, refuse_update_install,
+    OperationCoordinator, OperationState, begin_diagnostics_export,
+    refuse_report_upload_for_removal, refuse_update_install,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -1022,7 +1023,12 @@ pub(crate) fn diagnostic_output_path(output: &str) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub(crate) fn export_diagnostics(app: AppHandle, output: String) -> Result<Value, String> {
+pub(crate) fn export_diagnostics(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+    output: String,
+) -> Result<Value, String> {
+    let _export = begin_diagnostics_export(&tracker.0)?;
     let destination = diagnostic_output_path(&output)?;
     let paths = EnginePaths::resolve(&app)?;
     let mut command = paths.command();

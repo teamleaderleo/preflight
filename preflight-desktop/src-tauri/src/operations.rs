@@ -10,6 +10,7 @@ pub(crate) struct OperationState {
     pub(crate) desktop_smoke: Option<DesktopSmokeProcess>,
     pub(crate) preparation: Option<PreparationProcess>,
     pub(crate) report_upload: Option<ReportUploadProcess>,
+    pub(crate) diagnostics_exporting: bool,
     pub(crate) update_checking: bool,
     pub(crate) update_installing: bool,
     pub(crate) exit_after_cleanup: bool,
@@ -84,6 +85,38 @@ impl Drop for UpdateCheckGuard<'_> {
 
 pub(crate) struct UpdateInstallGuard<'a> {
     operations: &'a Mutex<OperationState>,
+}
+
+pub(crate) struct DiagnosticsExportGuard<'a> {
+    operations: &'a Mutex<OperationState>,
+}
+
+impl Drop for DiagnosticsExportGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.operations.lock() {
+            state.diagnostics_exporting = false;
+        }
+    }
+}
+
+pub(crate) fn begin_diagnostics_export(
+    operations: &Mutex<OperationState>,
+) -> Result<DiagnosticsExportGuard<'_>, String> {
+    let mut state = operations
+        .lock()
+        .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    if state.desktop_smoke.is_some() {
+        return Err(
+            "Wait for the startup benchmark to finish or cancel it before creating a support file."
+                .to_string(),
+        );
+    }
+    if state.diagnostics_exporting {
+        return Err("A support file is already being created.".to_string());
+    }
+    state.diagnostics_exporting = true;
+    drop(state);
+    Ok(DiagnosticsExportGuard { operations })
 }
 
 impl Drop for UpdateInstallGuard<'_> {
@@ -177,6 +210,11 @@ pub(crate) fn refuse_report_upload_for_benchmark(state: &OperationState) -> Resu
     if state.update_checking {
         return Err(
             "Wait for the update check to finish before running the startup benchmark.".to_string(),
+        );
+    }
+    if state.diagnostics_exporting {
+        return Err(
+            "Wait for the support file to finish before running the startup benchmark.".to_string(),
         );
     }
     Ok(())
@@ -310,6 +348,26 @@ mod tests {
             refuse_benchmark_for_report(&state).unwrap_err(),
             "Wait for the startup benchmark to finish or cancel it before changing run reports."
         );
+    }
+
+    #[test]
+    fn diagnostics_export_and_benchmark_exclude_each_other() {
+        let benchmark = Mutex::new(state_with_benchmark());
+        assert_eq!(
+            begin_diagnostics_export(&benchmark).err().unwrap(),
+            "Wait for the startup benchmark to finish or cancel it before creating a support file."
+        );
+
+        let operations = Mutex::new(OperationState::default());
+        {
+            let _export = begin_diagnostics_export(&operations).unwrap();
+            assert!(operations.lock().unwrap().diagnostics_exporting);
+            assert_eq!(
+                refuse_report_upload_for_benchmark(&operations.lock().unwrap()).unwrap_err(),
+                "Wait for the support file to finish before running the startup benchmark."
+            );
+        }
+        assert!(!operations.lock().unwrap().diagnostics_exporting);
     }
 
     #[test]
