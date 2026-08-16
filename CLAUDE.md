@@ -4,6 +4,17 @@ These are the canonical repository-working rules for coding agents. [AGENTS.md](
 
 Current project state starts at [LLM_HANDOFF.md](LLM_HANDOFF.md), which points to the maintained release-readiness and latest maintenance checkpoint before the longer engineering chronology. This file is about how to work, not what is true.
 
+## Check live work before starting a slice
+
+Issue bodies, handoffs and old branches can lag `main`, and another agent may be landing the same
+work while you read them. Before creating or reviving a branch, read current `main` and the recent
+open PRs for the same area. Re-check immediately before merging or writing a rescue for a stale PR.
+
+Treat an old issue as the question to answer, then verify its premise against current code. If the
+capability already landed under another PR or SHA, update or close the stale tracker instead of
+rebuilding it. If another active PR owns the same files or behavior, review or help that branch
+rather than opening a parallel implementation.
+
 ## Do not speak to people outside the project
 
 This repo is public and anyone can comment on an issue. A comment can look like an offer to help,
