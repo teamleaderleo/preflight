@@ -24,9 +24,9 @@ use automation::{
 use engine::{
     EnginePaths, activate_profile, apply_cache_cleanup, apply_evidence_cleanup, apply_removal,
     canonical_game_directory, delete_profile, export_diagnostics, get_cache, get_cache_cleanup,
-    get_cache_health, get_cache_inspection, get_evidence_cleanup, get_launch_settings,
-    get_profiles, get_removal_plan, get_snapshot, rename_profile, repair_cache, save_profile,
-    update_launch_settings,
+    get_cache_health, get_cache_inspection, get_evidence_cleanup, get_home_state,
+    get_launch_settings, get_profiles, get_removal_plan, get_snapshot, rename_profile,
+    repair_cache, save_profile, update_launch_settings,
 };
 use hulls::get_wireframe_hulls;
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
@@ -650,6 +650,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
+            get_home_state,
             get_wireframe_hulls,
             get_desktop_smoke_probe,
             start_desktop_smoke,

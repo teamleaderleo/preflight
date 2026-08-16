@@ -99,18 +99,16 @@ final class LaunchSettingsCommand {
             }
         }
 
-        DirectLaunchSettings.Availability availability = directAvailability();
-        JvmMemorySettings.Snapshot memory = memoryUpdate == null
-                ? JvmMemorySettings.inspect(installRoot)
-                : memoryUpdate.snapshot();
-        Map<String, Object> report = describe(
-                availability,
-                GameLaunchPreferences.read(store),
-                limits,
-                memory,
-                set,
-                backup,
-                memoryUpdate == null ? null : memoryUpdate.backup());
+        Map<String, Object> report = memoryUpdate == null && !set
+                ? read(installRoot)
+                : describe(
+                        directAvailability(),
+                        GameLaunchPreferences.read(store),
+                        limits,
+                        memoryUpdate == null ? JvmMemorySettings.inspect(installRoot) : memoryUpdate.snapshot(),
+                        set,
+                        backup,
+                        memoryUpdate == null ? null : memoryUpdate.backup());
         // This command has historically emitted JSON even without --json. Keep that stable while
         // accepting the flag explicitly for desktop callers and shell consistency.
         if (json || !report.isEmpty()) System.out.println(Json.object(report));
@@ -148,6 +146,18 @@ final class LaunchSettingsCommand {
                 GameLaunchPreferences.read(key -> null),
                 Limits.unknown(),
                 JvmMemorySettings.Snapshot.unavailable("No installation was selected"),
+                false,
+                null,
+                null);
+    }
+
+    /** The read-only document used by both the public command and the desktop bootstrap. */
+    static Map<String, Object> read(Path installRoot) {
+        return describe(
+                directAvailability(),
+                GameLaunchPreferences.read(GameLaunchPreferences.installed()),
+                Limits.read(installRoot),
+                JvmMemorySettings.inspect(installRoot),
                 false,
                 null,
                 null);

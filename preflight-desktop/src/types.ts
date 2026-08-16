@@ -70,6 +70,15 @@ export interface DesktopSnapshot {
   playtime: PlaytimeSnapshot;
 }
 
+export interface DesktopHomeState {
+  format: "starsector-preflight-desktop-home-state-v1";
+  installRoot: string;
+  cacheInspection: CacheInspection | null;
+  profiles: ProfileList | null;
+  launchSettings: LaunchSettings | null;
+  errors: Partial<Record<"cacheInspection" | "profiles" | "launchSettings", string>>;
+}
+
 export interface RunStarted {
   pid: number;
 }

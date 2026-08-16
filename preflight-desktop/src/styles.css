@@ -221,7 +221,7 @@ button {
 .brand__type strong {
   font-family: var(--font-display);
   font-size: 19px;
-  font-weight: 700;
+  font-weight: 620;
   letter-spacing: 0.035em;
 }
 
@@ -237,7 +237,7 @@ button {
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   margin-top: 48px;
 }
 
@@ -252,7 +252,7 @@ button {
   color: #696561;
   background: transparent;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 540;
   text-align: left;
   transition: color 80ms ease, background 80ms ease, box-shadow 100ms ease;
 }
@@ -456,6 +456,10 @@ p {
   margin-top: 0;
 }
 
+strong {
+  font-weight: 620;
+}
+
 h1 {
   margin-bottom: 0;
   font-family: var(--font-display);
@@ -468,7 +472,7 @@ h2 {
   margin-bottom: 0;
   font-family: var(--font-body);
   font-size: 21px;
-  font-weight: 720;
+  font-weight: 620;
   letter-spacing: -0.01em;
 }
 
@@ -1010,7 +1014,7 @@ h2 {
   border: 0;
   border-radius: 4px;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 620;
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }

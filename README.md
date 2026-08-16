@@ -299,10 +299,9 @@ extension mismatches, unused files, and configuration placed where the game neve
 
 ## Support Preflight
 
-Preflight is free and open source. If you want to support Leo's work on it, you can
-[support Preflight on Patreon](https://www.patreon.com/cw/teamleaderleo). Patreon contributions go
-to Leo, Preflight's maintainer. Donations are optional and don't buy priority support, compatibility
-guarantees, private builds, or access to features that other users can't get.
+Preflight is free and open source. If it helps you, you can
+[support its development on Patreon](https://www.patreon.com/cw/teamleaderleo). Everything stays
+free for everyone.
 
 ## License
 

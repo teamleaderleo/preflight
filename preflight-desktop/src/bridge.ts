@@ -4,6 +4,7 @@ import type {
   AfterLaunchBehavior,
   CacheHealth,
   CacheInspection,
+  DesktopHomeState,
   CacheRepair,
   CacheSnapshot,
   CacheCleanupPlan,
@@ -226,6 +227,42 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
 }
 
+interface HomeStateFlight {
+  game: string;
+  promise: Promise<DesktopHomeState>;
+  claimed: Set<HomeStateField>;
+}
+
+type HomeStateField = "cacheInspection" | "profiles" | "launchSettings";
+
+let homeStateFlight: HomeStateFlight | null = null;
+const homeStateBootstrapped = new Set<string>();
+
+function firstHomeStateField<K extends HomeStateField>(
+  game: string,
+  field: K,
+): Promise<NonNullable<DesktopHomeState[K]>> | null {
+  if (homeStateBootstrapped.has(game)) return null;
+  if (!homeStateFlight || homeStateFlight.game !== game) {
+    const promise = invoke<DesktopHomeState>("get_home_state", { game });
+    homeStateFlight = { game, promise, claimed: new Set() };
+    void promise.catch(() => undefined).finally(() => {
+      window.setTimeout(() => {
+        if (homeStateFlight?.promise === promise) homeStateFlight = null;
+      }, 0);
+    });
+  }
+  const flight = homeStateFlight;
+  if (flight.claimed.has(field)) return null;
+  flight.claimed.add(field);
+  if (flight.claimed.size === 3) homeStateBootstrapped.add(game);
+  return flight.promise.then((state) => {
+    const value = state[field];
+    if (value === null) throw new Error(state.errors[field] ?? `Preflight couldn't read ${field}.`);
+    return value as NonNullable<DesktopHomeState[K]>;
+  });
+}
+
 export async function getWireframeHulls(game: string): Promise<WireframeHullCatalog> {
   if (!isDesktopHost()) {
     return previewWireframeHulls;
@@ -402,6 +439,8 @@ export async function getCacheInspection(game: string): Promise<CacheInspection>
       health,
     };
   }
+  const first = firstHomeStateField(game, "cacheInspection");
+  if (first) return first;
   return invoke<CacheInspection>("get_cache_inspection", { game });
 }
 
@@ -539,6 +578,8 @@ export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
       backup: null,
     };
   }
+  const first = firstHomeStateField(game, "launchSettings");
+  if (first) return first;
   return invoke<LaunchSettings>("get_launch_settings", { game });
 }
 
@@ -581,6 +622,8 @@ export async function getProfiles(game: string): Promise<ProfileList> {
       diagnostics: [],
     };
   }
+  const first = firstHomeStateField(game, "profiles");
+  if (first) return first;
   return invoke<ProfileList>("get_profiles", { game });
 }
 
