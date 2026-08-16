@@ -8,6 +8,7 @@ import {
 import type { Announce, AppStatus, DesktopBenchmarkComparison, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
+import { errorMessage } from "./uiFormat";
 
 interface DesktopAutomationOptions {
   game: string | undefined;
@@ -110,7 +111,7 @@ export function useDesktopAutomation({
       if (probe.probe.ready && reviewWhenReady) await runDesktopAutomation(probe);
     } catch (error) {
       setDesktopSmokeProbe(null);
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     } finally {
       probeBusyRef.current = false;
       setDesktopSmokeProbeBusy(false);
@@ -155,7 +156,7 @@ export function useDesktopAutomation({
       setDesktopSmokeRunning(false);
       setDesktopSmokeCancelling(false);
       setStatus(installationReady ? "ready" : "setup");
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     }
   };
 
@@ -177,7 +178,7 @@ export function useDesktopAutomation({
     } catch (error) {
       cancellingRef.current = false;
       setDesktopSmokeCancelling(false);
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     }
   };
 
