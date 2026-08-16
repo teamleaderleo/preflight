@@ -281,4 +281,5 @@ def main(argv):
     print(f"wrote {PAGE.name}")
 
 
-main(sys.argv[1:])
+if __name__ == "__main__":
+    main(sys.argv[1:])

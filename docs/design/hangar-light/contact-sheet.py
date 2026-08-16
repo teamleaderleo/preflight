@@ -1,6 +1,12 @@
 """Render every hull at every angle into one PNG, for judging them against each other.
 
-    python3 contact-sheet.py [-o sheet.png] [--cell 260] [hull ...]
+    python3 contact-sheet.py [-o sheet.png] [--cell 260] [--sprites [GAME]] [hull ...]
+
+`--sprites` puts each hull's actual sprite in the first column, read live from an installation.
+That column is the only thing that can tell you whether a hull is right -- comparing a render
+against your own previous render just tells you what changed. **Its output is scratch and does
+not go in the repository**, same rule as everywhere else here: the tracer reads an install, the
+repository holds only the simplified contour.
 
 The page is the renderer of record; this is a design aid. It reads the hull data straight out of
 `hangar-light.html`, so the outlines and deck lanes can only ever be the page's own, and it ports
@@ -11,6 +17,7 @@ like is how you get five hulls that are each defensible and do not look like a f
 worth fixing -- a deck laid down the centreline of a ship that is not straight, a prow whose
 trenches have been bridged over, the same nose cap on all of them -- are only visible in a row.
 """
+import importlib.util
 import json
 import math
 import re
@@ -18,6 +25,17 @@ import struct
 import sys
 import zlib
 from pathlib import Path
+
+DEFAULT_GAME = "/Applications/Starsector.app/Contents/Resources/Java"
+
+
+def tracer():
+    """trace-hulls.py already has a PNG decoder; load it rather than keeping a second one."""
+    spec = importlib.util.spec_from_file_location(
+        "trace_hulls", Path(__file__).with_name("trace-hulls.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 PAGE = Path(__file__).with_name("hangar-light.html")
 ORDER = ["odyssey", "onslaught", "conquest", "paragon", "astral", "hammerhead"]
@@ -135,7 +153,7 @@ def build(hull):
             if all(min(abs(i - j), m - abs(i - j)) > m / 12 for j in taken):
                 taken.append(i)
                 picks.append(i)
-            if len(picks) >= (6 if li == 0 else 3):
+            if len(picks) >= (9 if li == 0 else 4):
                 break
         for i in picks:
             E.append((deck_r[i], mid[i]))
@@ -195,7 +213,11 @@ def build(hull):
                 E.append((port[k], port[k + 1]))
             if inside(mz, (live[k][3] + live[k + 1][3]) / 2):
                 E.append((stbd[k], stbd[k + 1]))
-        for k in (0, len(live) - 1):
+        # Caps at the ends, and one bar at the beam -- the station where the plate is widest.
+        # That bar is the only interior line the deck gets and it marks something: where the
+        # ship carries its width. Two more and it is a ladder again.
+        beam = max(range(len(live)), key=lambda k: live[k][3] - live[k][2]) if live else 0
+        for k in {0, len(live) - 1, beam}:
             if live and live[k][3] - live[k][2] > 1e-4:
                 E.append((port[k], stbd[k]))
 
@@ -314,6 +336,20 @@ class Canvas:
                 self.blend(x, yi, rgb, alpha * (1 - f))
                 self.blend(x, yi + 1, rgb, alpha * f)
             inter += grad
+
+    def blit(self, img, w, h, ox, oy, box):
+        """Nearest-neighbour fit of an RGBA sprite into a box, composited over the ground."""
+        k = min(box / w, box / h)
+        dw, dh = max(1, int(w * k)), max(1, int(h * k))
+        px, py = ox + (box - dw) // 2, oy + (box - dh) // 2
+        for y in range(dh):
+            sy = int(y / k)
+            for x in range(dw):
+                sx = int(x / k)
+                i = (sy * w + sx) * 4
+                a = img[i + 3] / 255
+                if a > 0.02:
+                    self.blend(px + x, py + y, (img[i], img[i + 1], img[i + 2]), a)
 
     def rect(self, x0, y0, x1, y1, rgb):
         for y in range(max(0, y0), min(self.h, y1)):
@@ -452,6 +488,14 @@ def draw_cell(cv, ox, oy, size, geom, yaw, pitch, turn):
 def main(argv):
     out = "sheet.png"
     cell = 260
+    game = None
+    if "--sprites" in argv:
+        i = argv.index("--sprites")
+        rest = argv[i + 1:]
+        if rest and not rest[0].startswith("-") and Path(rest[0], "data", "hulls").is_dir():
+            game, argv = rest[0], argv[:i] + argv[i + 2:]
+        else:
+            game, argv = DEFAULT_GAME, argv[:i] + argv[i + 1:]
     if "-o" in argv:
         i = argv.index("-o")
         out, argv = argv[i + 1], argv[:i] + argv[i + 2:]
@@ -461,12 +505,14 @@ def main(argv):
 
     data = hulls()
     names = [n for n in (argv or ORDER) if n in data]
+    T = tracer() if game else None
+    cols = (["Sprite"] if game else []) + [a[0] for a in ANGLES]
     pad, head, side = 2, 22, 132
-    W = side + len(ANGLES) * (cell + pad) + pad
+    W = side + len(cols) * (cell + pad) + pad
     H = head + len(names) * (cell + pad) + pad
     cv = Canvas(W, H, INK)
 
-    for c, (label, _, _, _) in enumerate(ANGLES):
+    for c, label in enumerate(cols):
         text(cv, label, side + c * (cell + pad) + 10, 8, GOLD, 2)
     cv.rect(0, head - 1, W, head, RULE)
 
@@ -477,10 +523,15 @@ def main(argv):
         text(cv, "%d EDGES" % len(geom[1]), 12, oy + 30, FAR, 1)
         if r:
             cv.rect(0, oy - pad, W, oy - pad + 1, RULE)
+        shift = 0
+        if game:
+            ship = T.load_ship(game, name)
+            sw, sh, spx = T.read_png(f"{game}/{ship['spriteName']}")
+            cv.blit(spx, sw, sh, side + pad, oy, cell)
+            shift = 1
         for c, (_, yaw, pitch, turn) in enumerate(ANGLES):
-            ox = side + c * (cell + pad) + pad
-            if c:
-                cv.rect(ox - pad, oy, ox - pad + 1, oy + cell, RULE)
+            ox = side + (c + shift) * (cell + pad) + pad
+            cv.rect(ox - pad, oy, ox - pad + 1, oy + cell, RULE)
             draw_cell(cv, ox, oy, cell, geom, yaw, pitch, turn)
         print(f"{name:11} {len(geom[0]):5} verts  {len(geom[1]):5} edges  "
               f"{len(data[name]['decks'])} deck lane(s)")
