@@ -13,40 +13,36 @@ and broken link syntax. Ready-to-paste download blocks for the forum, Reddit and
 
 ---
 
-## Preflight — a launcher that makes heavily modded Starsector start a lot faster
+## Preflight — faster launches for heavily modded Starsector
 
-Hello! I've been working on this for a while and it's ready for other people to try.
+Preflight is a free, open-source launcher for Starsector. The game normally repeats a lot of the
+same work every time it starts. Preflight does that work once, saves the answer, and reuses it while
+the game and mod files stay the same.
 
-**Preflight** is a free, open-source launcher for Starsector. If you run a lot of mods and have
-made peace with staring at the loading screen for a minute or two, this is for you. It does the
-slow repetitive startup work once, keeps the result, and reuses it every launch after that.
+On my development install, startup went from a **101-second worst case to a 15.25-second launch**.
 
-On my development install, startup went from a **~101-second worst case to a 15.25-second warm
-launch**.
+In a same-session comparison on the current 83-mod profile, the median was 89.00 seconds without
+Preflight and 15.53 seconds with it. The fastest of those launches was 15.25 seconds.
 
-Because those two ends were measured months apart on different mod lists, I also measured both
-sides again in one sitting, on the same 83 mods, alternating between them: five launches with no
-Preflight at all came in at a median of 89.00 seconds, and five with the preset an installed
-launcher runs came in at 15.53, with the fastest at 15.25. Same machine, same profile, same clock
-on both sides.
-
-That's still my Mac, my mods, my hardware — yours will differ, which is why the app includes a
-benchmark that runs one normal launch and one Preflight launch on your machine and shows you both
-numbers. Trust that one over mine.
+Your result will differ. The app can run one normal launch and one Preflight launch on your own
+machine, then show you the difference.
 
 **Download:** https://github.com/teamleaderleo/preflight/releases/latest
 
-### It's a beta, and here's exactly why
+### Why beta?
 
-I only have access to macOS. That's the entire reason.
+The Windows and Linux packages build and run through automated checks on every change. Real game
+launches have only been tested on Apple silicon so far. If something goes wrong, send the support
+file from the Help page or open an issue.
 
-The Windows and Linux packages are built and tested by CI on every change, and the code paths run
-on all three systems in automated tests — but I have never watched Starsector actually launch
-through Preflight on a Windows machine, because I don't have one. That's not a thing I can fix by
-being more careful. I need people to try it.
+### How to use it
 
-If you hit something, tell me and I'll do my best to fix it. Genuinely — that's what this phase is
-for.
+1. Download the package for your system.
+2. Open Preflight. If it doesn't find Starsector, choose the game folder.
+3. Press **Prepare and launch**.
+
+The first preparation can take a few minutes on a large mod list. Later launches reuse it. The app
+checks disk space before it starts and offers a much smaller option when the normal cache won't fit.
 
 ### What it does
 
@@ -58,54 +54,39 @@ for.
 - Has a built-in benchmark so you can see your own before/after.
 - Uninstalls cleanly, with a separate choice for "app only" and "everything Preflight made".
 
-### Will it break when Starsector updates?
+### What happens after an update?
 
-It won't break. It may stop helping until I update it.
+Every runtime optimization is pinned to the exact code it was reviewed against. When a game or mod
+class changes, that optimization declines and the original code runs. A new release may get fewer
+speedups until Preflight catches up.
 
-Every optimization is pinned to the exact game and mod code it was checked against. If Preflight
-looks at your installation and doesn't recognize something, that optimization declines and the
-original code runs instead. A new Starsector release means fewer shortcuts apply, not a broken
-game. Same for mods it hasn't seen — "not on the list" means "no speedup claimed", not
-"incompatible".
+Preflight is still beta software, so bugs are possible. The Help page has a single switch that
+turns runtime optimizations off, and the launch button continues to work.
 
-There's also a single switch that turns every runtime change off, and the game still launches
-normally.
+### What it changes
 
-### It does not touch your game
+Preflight leaves Starsector's JARs, executables, assets, activation data, mods, and saves alone. The
+runtime changes exist only inside the launched game process and are gone when you quit. Prepared
+data lives in Preflight's own folder.
 
-No permanent changes to Starsector, mod JARs, executables, assets, activation data, or saves. The
-runtime changes exist only inside the launched game process and are gone when you quit. Preflight
-writes its own cache in its own folder.
+Changing a game setting, RAM, or the enabled-mod profile through Preflight updates the same file the
+game or vanilla launcher would use. Preflight shows the change and makes a backup first.
 
-The two exceptions are explicit and both make a backup first: if you change a game setting or the
-RAM allocation through Preflight, it edits the corresponding game-owned file, because that's the
-file the game reads.
+### AI assistance
 
-### Yes, I used a lot of AI assistance
+ChatGPT/Codex and Claude helped develop Preflight. I review and publish the releases. The repository,
+build checks, package checksums, and technical evidence are public.
 
-I'd rather say it than have someone find it in the commit history and wonder what else I wasn't
-saying.
-
-I also understand what it's doing, and I'll happily go through any part of it. The honest summary
-is that the big wins are not clever — they're caching. Starsector spends a lot of startup decoding
-the same textures, parsing the same JSON, and generating the same bytecode it decoded and parsed
-and generated the last time you played, because it has no reason to assume any of it stayed the
-same. Preflight does the work once, checks that the inputs really are identical, and hands over the
-stored answer.
-
-Most of the difficulty wasn't making it fast. It was making it safe to be wrong — making sure that
-when something doesn't match, it notices and steps aside instead of handing the game a stale or
-mismatched result. That's where the identity checks, the version gates and the fallbacks come from.
+The large wins are caching: textures, merged data, and generated bytecode that would otherwise be
+rebuilt on every launch. Preflight checks the inputs before reusing an answer. When they differ, it
+steps aside.
 
 If you want the longer version, the technical writeup is at [TECHNICAL WRITEUP URL] and the whole
 repository is public.
 
-### Privacy, safety, and what it talks to
+### Privacy and network access
 
-Short version: it's a desktop app that mostly talks to nothing.
-
-- **Nothing is sent anywhere unless you choose to send it.** There's no telemetry, no analytics,
-  and no automatic crash reporting.
+- **No telemetry, analytics, accounts, or automatic crash reports.**
 - **Update check.** It asks a fixed GitHub release feed whether a newer version exists. Updates are
   signature-verified before install, and it never installs one without you saying so.
 - **Optional support reports.** If you hit a bug and want to send diagnostics, Preflight builds a
@@ -117,17 +98,14 @@ Short version: it's a desktop app that mostly talks to nothing.
   Cloudflare Worker. The Worker's source is in the repository along with everything else.
 - **It's a Tauri app** — a Rust host with a web UI, plus a Java engine that does the actual game
   work. No bundled browser, no Electron.
-- **The packages are unsigned**, because Apple and Microsoft signing costs money I haven't spent
-  yet. That's why you'll see a warning on first open, and it's why every download has a published
-  SHA-256 checksum. The source is public and you can build it yourself.
-
-If any of that sounds wrong or you want more detail, ask me. I'd rather answer than have you guess.
+- **The packages are unsigned.** Apple and Windows show a warning on first open. Every download has
+  a published SHA-256 checksum, and the source is available if you'd rather build it yourself.
 
 ### Known limits
 
-- Real-game testing so far: **macOS only** — and **Apple silicon only**. There is no Intel Mac
+- Real-game testing so far: **Apple silicon macOS only**. There is no Intel Mac
   package in this beta.
-- Reviewed game version: **0.98a-RC8**. Other versions get fewer shortcuts, not a broken game.
+- Reviewed game version: **0.98a-RC8**. Other versions may use fewer shortcuts.
 - Disk use: **about 4.5 GB** for a large profile. That's one measured profile (83 mods) on the
   default Balanced texture storage, so treat it as the ballpark rather than a number for your
   install — two cold preparations of that profile came out at 4.53 GB and 4.76 GB. The Fastest
@@ -153,9 +131,14 @@ If any of that sounds wrong or you want more detail, ask me. I'd rather answer t
 > it prepares the slow startup work once and reuses it. On my development install that took startup
 > from ~101s at worst to as fast as 15.25s; the app has a benchmark so you can measure your own.
 >
-> It doesn't modify the game, mods, or saves, and anything it doesn't recognize it just skips, so an
-> unknown version means less speedup rather than a broken game.
+> It doesn't modify the game, mods, or saves. Anything it doesn't recognize uses the game's
+> original code.
 >
 > It's beta because I only have a Mac and can't test the Windows/Linux builds on real hardware.
 > Windows, Linux, and Apple silicon Macs only for now — no Intel Mac build yet.
 > Bug reports very welcome. https://github.com/teamleaderleo/preflight/releases/latest
+
+---
+
+If Preflight helps and you want to support its development:
+https://www.patreon.com/cw/teamleaderleo
