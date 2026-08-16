@@ -54,7 +54,7 @@ function savedHullId(): string {
 export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   const [catalogState, setCatalogState] = useState<CatalogState | null>(null);
   const [selectedId, setSelectedId] = useState(savedHullId);
-  const catalog = catalogState?.game === game ? catalogState.catalog : null;
+  const catalog = catalogState && catalogState.game === game ? catalogState.catalog : null;
 
   useEffect(() => {
     if (!game || !enabled || catalogState?.game === game) return;
