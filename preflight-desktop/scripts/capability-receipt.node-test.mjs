@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -92,6 +92,19 @@ test("source lock makes a capability-changing boundary edit explicit", () => {
   const first = Object.keys(changed.sources)[0];
   changed.sources[first] = "0".repeat(64);
   assert.throws(() => verifySourceLock(changed), /Capability boundary changed without review/);
+});
+
+test("every native Rust source is part of the reviewed capability boundary", () => {
+  const prefix = "preflight-desktop/src-tauri/src/";
+  const directory = join(repositoryRoot, prefix);
+  const nativeSources = readdirSync(directory)
+    .filter((name) => name.endsWith(".rs"))
+    .map((name) => `${prefix}${name}`)
+    .sort();
+  const guardedSources = Object.keys(sourceLock.sources)
+    .filter((name) => name.startsWith(prefix) && name.endsWith(".rs"))
+    .sort();
+  assert.deepEqual(guardedSources, nativeSources);
 });
 
 test("source lock treats Git LF and Windows CRLF checkouts identically", async () => {

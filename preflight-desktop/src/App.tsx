@@ -25,6 +25,7 @@ import { useAfterLaunchBehavior } from "./useAfterLaunchBehavior";
 import { useCacheCleanup } from "./useCacheCleanup";
 import { useDiagnosticsReport } from "./useDiagnosticsReport";
 import { useLauncherSettings } from "./useLauncherSettings";
+import { useInstrumentHull } from "./useInstrumentHull";
 import { useOptimizationPolicy } from "./useOptimizationPolicy";
 import { usePreparation } from "./usePreparation";
 import { useProfiles } from "./useProfiles";
@@ -110,6 +111,7 @@ export default function App() {
     setStatus((current) => (current === "running" || current === "launching" ? current : next));
   }, []);
   const speedStanding = useSpeedRecord();
+  const instrumentHull = useInstrumentHull(snapshot?.selected?.installRoot);
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
   const countWhenFinished = useRef<{ pid: number; profileFingerprint: string } | null>(null);
@@ -608,6 +610,7 @@ export default function App() {
             operationBlocked={operationBlocked}
             speedStanding={speedStanding}
             playtime={snapshot?.playtime}
+            instrumentHull={instrumentHull.selected}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
             onReviewCleanup={() => void cleanup.review()}
@@ -652,6 +655,7 @@ export default function App() {
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
+            instrumentHull={instrumentHull}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onOpenHelp={() => setPage("help")}
             onReviewRemoval={(scope) => void removal.review(scope)}

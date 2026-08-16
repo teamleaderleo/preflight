@@ -6,7 +6,7 @@ import { resourcePresets, storagePlanApplies, type usePreparation } from "../use
 import type { StorageCleanupPlan } from "../useCacheCleanup";
 import type { SpeedStanding } from "../useSpeedRecord";
 import { formatBytes } from "../uiFormat";
-import type { NoticeTone, OptimizationDomain, OptimizationPreset, PlaytimeSnapshot } from "../types";
+import type { NoticeTone, OptimizationDomain, OptimizationPreset, PlaytimeSnapshot, WireframeHull } from "../types";
 
 export const optimizationPresets: Array<{
   id: OptimizationPreset;
@@ -78,6 +78,7 @@ interface PreparationPageProps {
   operationBlocked: boolean;
   speedStanding: SpeedStanding;
   playtime?: PlaytimeSnapshot;
+  instrumentHull: WireframeHull;
   onOptimizationPresetChange: (preset: OptimizationPreset) => void;
   onOptimizationDomainChange: (domain: OptimizationDomain, enabled: boolean) => void;
   onReviewCleanup: () => void;
@@ -98,6 +99,7 @@ export function PreparationPage({
   operationBlocked,
   speedStanding,
   playtime,
+  instrumentHull,
   onOptimizationPresetChange,
   onOptimizationDomainChange,
   onReviewCleanup,
@@ -158,7 +160,7 @@ export function PreparationPage({
         * than from a primary navigation slot. It leads the page because the result of having done
         * it is the one thing this page is named after and used to be missing entirely.
         */}
-      <SpeedScoreboard standing={speedStanding} isReady={isReady} playtime={playtime} onOpenBenchmark={onOpenBenchmark} />
+      <SpeedScoreboard standing={speedStanding} isReady={isReady} playtime={playtime} hull={instrumentHull} onOpenBenchmark={onOpenBenchmark} />
 
       {cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" ? (
         <section className="card run-recovery cache-recovery" aria-label="Prepared data repair">
