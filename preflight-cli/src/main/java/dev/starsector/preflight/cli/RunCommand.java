@@ -113,44 +113,46 @@ final class RunCommand {
         LaunchCacheContexts.PreparedAudio preparedAudio = cacheContexts.preparedAudio();
         Path preparedAudioCache = preparedAudio == null ? null : preparedAudio.cacheRoot();
         String audioDecoderIdentity = preparedAudio == null ? null : preparedAudio.decoderIdentity();
-        String javaToolOptions = AgentInjection.append(
-                System.getenv("JAVA_TOOL_OPTIONS"),
-                injectedAgentJar,
-                recording,
-                options.adapterMode(),
-                adapterReport,
-                options.adapterTargets(),
-                textureContext == null ? null : textureContext.cacheDirectory(),
-                textureContext == null ? null : textureContext.manifest(),
-                textureContext == null ? null : textureContext.index(),
-                options.textureAdapterMode(),
-                options.exhaustiveFileReads(),
-                options.recordingMode(),
-                options.npotDirect(),
-                options.unpadded(),
-                options.singleChunkRecording(),
-                options.campaignEntityIndex(),
-                options.startupPhaseProbe(),
-                variantJsonCache == null ? null : variantJsonCache.artifact(),
-                weaponJsonCache == null ? null : weaponJsonCache.artifact(),
-                projectileJsonCache == null ? null : projectileJsonCache.artifact(),
-                hullJsonCache == null ? null : hullJsonCache.artifact(),
-                rulesCsvCache == null ? null : rulesCsvCache.artifact(),
-                options.ruleTokenCache(),
-                ruleCommandCache == null ? null : ruleCommandCache.artifact(),
-                options.resourceProbeCache(),
-                options.loadJsonMemo(),
-                preparedAudioCache,
-                audioDecoderIdentity,
-                preparedAudio == null ? null : preparedAudio.manifest(),
-                preparedAudio == null ? null : preparedAudio.manifestIdentity(),
-                mergedReadCache == null ? null : mergedReadCache.artifact(),
-                options.quietLogs(),
-                options.graphicsLibCompactReplay(),
-                janinoBytecodeCache == null ? null : janinoBytecodeCache.cacheRoot(),
-                janinoBytecodeCache == null ? null : janinoBytecodeCache.contextToken(),
-                options.graphicsLibInsigniaManagerCache(),
-                options.adapterPlanScope());
+        String javaToolOptions = AgentLaunchConfig.builder(injectedAgentJar, recording)
+                .adapterMode(options.adapterMode())
+                .adapterReport(adapterReport)
+                .adapterTargets(options.adapterTargets())
+                .textureCacheDirectory(textureContext == null ? null : textureContext.cacheDirectory())
+                .textureManifest(textureContext == null ? null : textureContext.manifest())
+                .textureIndex(textureContext == null ? null : textureContext.index())
+                .textureAdapterMode(options.textureAdapterMode())
+                .exhaustiveFileReads(options.exhaustiveFileReads())
+                .recordingMode(options.recordingMode())
+                .npotDirect(options.npotDirect())
+                .unpadded(options.unpadded())
+                .singleChunkRecording(options.singleChunkRecording())
+                .campaignEntityIndex(options.campaignEntityIndex())
+                .startupPhaseProbe(options.startupPhaseProbe())
+                .variantJsonCache(variantJsonCache == null ? null : variantJsonCache.artifact())
+                .weaponJsonCache(weaponJsonCache == null ? null : weaponJsonCache.artifact())
+                .projectileJsonCache(projectileJsonCache == null ? null : projectileJsonCache.artifact())
+                .hullJsonCache(hullJsonCache == null ? null : hullJsonCache.artifact())
+                .rulesCsvCache(rulesCsvCache == null ? null : rulesCsvCache.artifact())
+                .ruleTokenCache(options.ruleTokenCache())
+                .ruleCommandClassCache(ruleCommandCache == null ? null : ruleCommandCache.artifact())
+                .resourceProbeCache(options.resourceProbeCache())
+                .loadJsonMemo(options.loadJsonMemo())
+                .preparedAudioCache(preparedAudioCache)
+                .audioDecoderIdentity(audioDecoderIdentity)
+                .preparedAudioManifest(preparedAudio == null ? null : preparedAudio.manifest())
+                .preparedAudioManifestIdentity(
+                        preparedAudio == null ? null : preparedAudio.manifestIdentity())
+                .mergedReadCache(mergedReadCache == null ? null : mergedReadCache.artifact())
+                .quietLogs(options.quietLogs())
+                .graphicsLibCompactReplay(options.graphicsLibCompactReplay())
+                .janinoBytecodeCache(
+                        janinoBytecodeCache == null ? null : janinoBytecodeCache.cacheRoot())
+                .janinoBytecodeContext(
+                        janinoBytecodeCache == null ? null : janinoBytecodeCache.contextToken())
+                .graphicsLibInsigniaManagerCache(options.graphicsLibInsigniaManagerCache())
+                .adapterPlanScope(options.adapterPlanScope())
+                .build()
+                .appendTo(System.getenv("JAVA_TOOL_OPTIONS"));
         if (directSettings != null) {
             javaToolOptions = appendJavaOptions(javaToolOptions, directSettings.javaOptions());
         }
