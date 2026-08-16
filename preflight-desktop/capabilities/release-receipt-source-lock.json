@@ -16,7 +16,7 @@
     "preflight-desktop/src-tauri/src/automation.rs": "8fc92075823bd3e8a3950d15189f97b0c42a3411e5bb513d93435a95be75c3ad",
     "preflight-desktop/src-tauri/src/desktop_automation_bridge.rs": "2e61931a7b6072989dc4b73a5895ef09339ba322d9936b3c4ec05c942ab6e6e1",
     "preflight-desktop/src-tauri/src/engine.rs": "755ab6e3564e3c0f04ab28e668798c4e054bebfd1908b9e97bd79ec357dea51b",
-    "preflight-desktop/src-tauri/src/hulls.rs": "dee931f7519d067bdd6ae08cdc876f5d2b3092cd73ead3da7ac678d977867cd9",
+    "preflight-desktop/src-tauri/src/hulls.rs": "2318ed33b7160da3331e32c4d804d28e2d20f18cfbd2ad265dd08a9d5f1fe04d",
     "preflight-desktop/src-tauri/src/lib.rs": "3d716ba94bce0035085a52b48b7d4a95cf9dd96479b00fd039c6b580af650f64",
     "preflight-desktop/src-tauri/src/main.rs": "d0dda62951f0b3474d4862ba2db2cfb104f596030d45e66fec4521491c34e351",
     "preflight-desktop/src-tauri/src/operations.rs": "a85407d56ca1df054b791f3b45008ff7710dc0735bf776401bf1c03deea40b25",
