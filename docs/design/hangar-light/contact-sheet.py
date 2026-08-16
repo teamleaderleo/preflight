@@ -20,7 +20,7 @@ import zlib
 from pathlib import Path
 
 PAGE = Path(__file__).with_name("hangar-light.html")
-ORDER = ["odyssey", "onslaught", "conquest", "paragon", "hammerhead"]
+ORDER = ["odyssey", "onslaught", "conquest", "paragon", "astral", "hammerhead"]
 
 # Same five cameras as the page's sheet. Plan view first: it is the only one the sprite vouches for.
 # (label, yaw, pitch, turn). `turn` spins the finished picture 180 degrees in screen space so
@@ -116,8 +116,28 @@ def build(hull):
             j = (i + 1) % m
             E.append((deck_r[i], deck_r[j]))
             E.append((keel_r[i], keel_r[j]))
-        step = max(1, round(m / 14))
-        for i in range(0, m, step):
+        # Verticals at the hull's corners, and nowhere else. One every nth vertex boxes the
+        # whole rim into rectangles; none at all and the three rings read as contour lines on a
+        # map rather than a solid. So they go where the outline actually turns -- the six
+        # sharpest corners of the loop, which on these ships are the prow, the shoulders and
+        # the transom, and which is where a real frame would be.
+        turn = []
+        for i in range(m):
+            az, ax = loop[i - 1]
+            bz, bx = loop[i]
+            cz2, cx2 = loop[(i + 1) % m]
+            u = math.atan2(bx - ax, bz - az)
+            w = math.atan2(cx2 - bx, cz2 - bz)
+            d = abs((w - u + math.pi) % (2 * math.pi) - math.pi)
+            turn.append((d, i))
+        picks, taken = [], []
+        for d, i in sorted(turn, reverse=True):
+            if all(min(abs(i - j), m - abs(i - j)) > m / 12 for j in taken):
+                taken.append(i)
+                picks.append(i)
+            if len(picks) >= (6 if li == 0 else 3):
+                break
+        for i in picks:
             E.append((deck_r[i], mid[i]))
             E.append((mid[i], keel_r[i]))
 
@@ -164,16 +184,20 @@ def build(hull):
             wr = min(wid, (span[1] - mid_x) * 0.9)
             l = vert(mid_x - wl, y, dz)
             r = vert(mid_x + wr, y, dz)
-            if wl + wr > 1e-4:
-                E.append((l, r))
             port.append(l); stbd.append(r)
             live.append((dz, mid_x, mid_x - wl, mid_x + wr))
+        # The deck is one closed plate, not a ladder of crossbars: the two long edges plus a
+        # cap at each end. A bar at every station fills the middle of the ship with rectangles,
+        # and the plate reads as a plate from its outline alone.
         for k in range(len(live) - 1):
             mz = (live[k][0] + live[k + 1][0]) / 2
             if inside(mz, (live[k][2] + live[k + 1][2]) / 2):
                 E.append((port[k], port[k + 1]))
             if inside(mz, (live[k][3] + live[k + 1][3]) / 2):
                 E.append((stbd[k], stbd[k + 1]))
+        for k in (0, len(live) - 1):
+            if live and live[k][3] - live[k][2] > 1e-4:
+                E.append((port[k], stbd[k]))
 
         # Brace the deck to the hull with raked struts, not with rungs. A strut square to
         # the keel is a ladder rung whatever you do to its length, and a deck tied to
@@ -188,7 +212,7 @@ def build(hull):
         # outboard, then clipped so a strut cannot overshoot its neighbour.
         RAKE = 0.85
         n = len(live)
-        for k in range(n):
+        for k in ([0, n - 1] if n > 1 else [0]):
             dz, mid_x = live[k][0], live[k][1]
             gap_f = (live[k - 1][0] - dz) if k else (dz - live[1][0] if n > 1 else 0.12)
             gap_a = (dz - live[k + 1][0]) if k + 1 < n else (live[n - 2][0] - dz if n > 1 else 0.12)

@@ -20,7 +20,7 @@ from pathlib import Path
 from collections import deque
 
 DEFAULT_GAME = "/Applications/Starsector.app/Contents/Resources/Java"
-HULLS = ["odyssey", "onslaught", "conquest", "paragon", "hammerhead"]
+HULLS = ["odyssey", "onslaught", "conquest", "paragon", "astral", "hammerhead"]
 PAGE = Path(__file__).with_name("hangar-light.html")
 NBR = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
 
