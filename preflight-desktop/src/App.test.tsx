@@ -288,7 +288,7 @@ test("shows a useful ready-state home screen in browser preview", async () => {
 
 test("setup keeps a single installation action and hides unavailable ready-state panels", async () => {
   const user = userEvent.setup();
-  const snapshot = vi.spyOn(bridge, "getSnapshot").mockResolvedValue({
+  const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({
     ...(await bridge.getSnapshot()),
     ready: false,
     selected: null,
@@ -370,38 +370,18 @@ test("blocks installation and preparation mutations while the game is running", 
   game.mockRestore();
 });
 
-test("re-reads the installation when the window is focused again, without flickering the page", async () => {
-  const pending = deferred<Awaited<ReturnType<typeof bridge.getSnapshot>>>();
-  const real = await bridge.getSnapshot();
+test("does not rediscover a stable installation when the window regains focus", async () => {
   const snapshot = vi.spyOn(bridge, "getSnapshot");
   render(<App />);
   await screen.findByRole("heading", { name: "Ready", level: 1 });
-  const onMount = snapshot.mock.calls.length;
-  snapshot.mockImplementationOnce(() => pending.promise);
+  const afterSetup = snapshot.mock.calls.length;
 
   window.dispatchEvent(new Event("focus"));
-  await waitFor(() => expect(snapshot.mock.calls.length).toBeGreaterThan(onMount));
+  document.dispatchEvent(new Event("visibilitychange"));
+  await Promise.resolve();
 
-  // In flight: the title must still be the answer the page already had.
+  expect(snapshot.mock.calls.length).toBe(afterSetup);
   expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "Finding Starsector…" })).not.toBeInTheDocument();
-
-  pending.resolve(real);
-  expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
-  snapshot.mockRestore();
-});
-
-test("a background re-read that fails keeps the last good installation on screen", async () => {
-  const snapshot = vi.spyOn(bridge, "getSnapshot");
-  render(<App />);
-  await screen.findByRole("heading", { name: "Ready", level: 1 });
-  snapshot.mockRejectedValueOnce(new Error("the disk went away"));
-
-  window.dispatchEvent(new Event("focus"));
-  await waitFor(() => expect(snapshot).toHaveBeenCalledTimes(2));
-
-  expect(screen.getByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
-  expect(screen.queryByText("the disk went away")).not.toBeInTheDocument();
   snapshot.mockRestore();
 });
 
@@ -673,6 +653,29 @@ test("after-launch behavior defaults to minimize and remains an explicit setting
   game.mockRestore();
 });
 
+test("the Hangar ships featured wireframes and keeps customization local to the selected hull", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Hangar" }));
+  const ship = await screen.findByRole("combobox", { name: "Display ship" });
+  await waitFor(() => expect(ship).toHaveValue("odyssey"));
+  for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
+    expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
+  }
+
+  await user.click(screen.getByText("Adjust the wireframe"));
+  const height = screen.getByRole("slider", { name: "Model height" });
+  fireEvent.change(height, { target: { value: "1.35" } });
+  expect(screen.getByRole("button", { name: "Reset this ship" })).toBeEnabled();
+  await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
+
+  await user.selectOptions(ship, "onslaught");
+  expect(screen.getByRole("button", { name: "Reset this ship" })).toBeDisabled();
+  await user.selectOptions(ship, "odyssey");
+  expect(screen.getByRole("slider", { name: "Model height" })).toHaveValue("1.35");
+});
+
 test("a restored running window offers graceful stop before force stop", async () => {
   const user = userEvent.setup();
   const game = vi.spyOn(bridge, "startGame").mockResolvedValue({ pid: 4242 });
@@ -721,7 +724,7 @@ test("storage totals disclose data outside the active cache categories", async (
   await user.click(screen.getByRole("button", { name: "Free space" }));
   await user.click(await screen.findByText("Storage details"));
 
-  expect(await screen.findByText("Anything else")).toBeInTheDocument();
+  expect(await screen.findByText("Other Preflight data")).toBeInTheDocument();
   expect(screen.getByText("512 B")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "About Preflight storage" })).toBeInTheDocument();
   cache.mockRestore();
@@ -772,8 +775,8 @@ test("launch settings mirror vanilla display and battle controls", async () => {
   expect(screen.getByLabelText("Sound")).toBeChecked();
   expect(screen.getByLabelText("Antialiasing")).toHaveValue("0");
   expect(screen.getByLabelText("UI size")).toHaveValue("1");
-  expect(screen.getByLabelText("Deployment-point budget")).toHaveValue("400");
-  expect(screen.getByLabelText("Deployment-point budget")).toHaveAttribute("max", "2000");
+  expect(screen.getByLabelText("Battle size")).toHaveValue("400");
+  expect(screen.getByLabelText("Battle size")).toHaveAttribute("max", "2000");
   expect(screen.getByLabelText("Game memory")).toHaveValue("6144");
   await user.selectOptions(screen.getByLabelText("Game memory"), "8192");
   await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -802,6 +805,32 @@ test("profiles are preview-first and show the exact switch before applying", asy
 
   expect(await screen.findByText(/Switched to “Utilities only”/)).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Switch to Utilities only?" })).not.toBeInTheDocument();
+});
+
+test("profile work does not dim unrelated launcher settings", async () => {
+  const user = userEvent.setup();
+  const pending = deferred<Awaited<ReturnType<typeof bridge.activateProfile>>>();
+  const activateNormally = bridge.activateProfile;
+  const activate = vi.spyOn(bridge, "activateProfile").mockImplementation((game, name, confirmed) => (
+    confirmed ? pending.promise : activateNormally(game, name, false)
+  ));
+
+  render(<App />);
+  await user.selectOptions(await screen.findByLabelText("Mod profile"), "Utilities only");
+  await user.click(await screen.findByRole("button", { name: "Apply switch" }));
+  await user.click(screen.getByRole("button", { name: "Home" }));
+
+  expect(await screen.findByRole("checkbox", { name: "Home sound" })).toBeEnabled();
+  expect(screen.getByRole("combobox", { name: "Home resolution" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeDisabled();
+
+  pending.resolve(await activateNormally("/Applications/Starsector", "Utilities only", true));
+  await waitFor(() => expect(activate).toHaveBeenLastCalledWith(
+    "/Applications/Starsector",
+    "Utilities only",
+    true,
+  ));
+  activate.mockRestore();
 });
 
 /**
@@ -903,7 +932,7 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
 
   expect(await screen.findByText("Support file ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
-  await user.click(await screen.findByRole("button", { name: "Review send" }));
+  await user.click(await screen.findByRole("button", { name: "Review and send" }));
 
   expect(await screen.findByRole("heading", { name: "Send this exact file?" })).toBeInTheDocument();
   expect(screen.getByText("4bd6db450a131978b8f8b79d5f08d6e75670ba7e75288bb50f9a742a6d996d8d")).toBeInTheDocument();
@@ -988,7 +1017,7 @@ test("an unconfigured build keeps local export available and refuses report send
   await user.click(await screen.findByRole("button", { name: "Make a support file" }));
 
   expect(await screen.findByText(/Run-report sending isn't configured/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Review send" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Review and send" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Make another one" })).toBeEnabled();
   intake.mockRestore();
 });
@@ -1001,7 +1030,7 @@ test("a failed report send keeps one recovery alert and the local ZIP", async ()
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
   await user.click(await screen.findByRole("button", { name: "Make a support file" }));
-  await user.click(await screen.findByRole("button", { name: "Review send" }));
+  await user.click(await screen.findByRole("button", { name: "Review and send" }));
   await user.click(screen.getByRole("button", { name: "Send this exact file" }));
 
   const alert = await screen.findByRole("alert");
@@ -1159,31 +1188,32 @@ test("help performs its fixes instead of only pointing at other pages", async ()
   expect(screen.getByText("Optimizations off")).toBeVisible();
 
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Time it" }));
+  await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
   expect(await screen.findByRole("heading", { name: "Benchmark", level: 1 })).toBeInTheDocument();
 });
 
 test("cancelling an installation change stays in Help and a valid change returns Home", async () => {
   const user = userEvent.setup();
+  const initialSnapshot = await bridge.getBootstrapSnapshot();
   const desktopHost = vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
   const nativeListen = vi.mocked(listen).mockResolvedValue(() => undefined);
   const cancelledPicker = deferred<string | null>();
   const folderPicker = vi.mocked(open)
     .mockReturnValueOnce(cancelledPicker.promise)
     .mockResolvedValueOnce("/Applications/Starsector");
-  const snapshot = vi.spyOn(bridge, "getSnapshot");
+  const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue(initialSnapshot);
   render(<App />);
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Change it" }));
+  await user.click(await screen.findByRole("button", { name: "Choose folder" }));
   await waitFor(() => expect(folderPicker).toHaveBeenCalledTimes(1));
-  expect(screen.getByRole("button", { name: "Change it" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Choose folder" })).toBeDisabled();
   cancelledPicker.resolve(null);
-  await waitFor(() => expect(screen.getByRole("button", { name: "Change it" })).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Choose folder" })).toBeEnabled());
   expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
 
-  await user.click(screen.getByRole("button", { name: "Change it" }));
+  await user.click(screen.getByRole("button", { name: "Choose folder" }));
   expect(await screen.findByRole("heading", { name: "Ready", level: 1 })).toBeInTheDocument();
   await waitFor(() => expect(snapshot).toHaveBeenCalledWith("/Applications/Starsector"));
 
@@ -1202,11 +1232,11 @@ test("a folder-picker failure stays in context and explains the failure", async 
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Help" }));
-  await user.click(await screen.findByRole("button", { name: "Change it" }));
+  await user.click(await screen.findByRole("button", { name: "Choose folder" }));
 
   expect(await screen.findByText(/Couldn’t open the folder picker.*picker unavailable/)).toBeVisible();
   expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Change it" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Choose folder" })).toBeEnabled();
 
   desktopHost.mockRestore();
   nativeListen.mockReset();

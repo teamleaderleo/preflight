@@ -39,6 +39,22 @@ export interface WireframeMount extends WireframePoint {
   mount: string;
 }
 
+export interface WireframeTuning {
+  outerDetail: number;
+  outerSmooth: number;
+  height: number;
+}
+
+export interface WireframeInnerContour {
+  height: number;
+  points: WireframePoint[];
+}
+
+export interface WireframeTrace {
+  holes: WireframePoint[][];
+  inner: WireframeInnerContour[];
+}
+
 export interface WireframeHull {
   id: string;
   name: string;
@@ -48,6 +64,8 @@ export interface WireframeHull {
   engines: WireframeEngine[];
   mounts: WireframeMount[];
   featured: boolean;
+  trace?: WireframeTrace;
+  tuning?: WireframeTuning;
 }
 
 export interface WireframeHullCatalog {

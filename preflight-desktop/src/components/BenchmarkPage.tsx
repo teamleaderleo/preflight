@@ -63,10 +63,10 @@ export function BenchmarkPage({
             * benchmark that drives the machine unattended for minutes says so before it is started.
             */}
           <p>{isReady
-            ? "Runs Starsector twice — normal, then Preflight — and times each at the main menu."
+            ? "Runs Starsector twice, once normally and once with Preflight, then compares the launch times."
             : "Choose Starsector on Home before running the benchmark."}</p>
           {isReady ? <small>Expect several minutes. Starsector opens and closes on its own.</small> : null}
-          {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
+          {desktopSmokeRunDirectory ? <small>Saved to {shortPath(desktopSmokeRunDirectory)}</small> : null}
         </div>
         <div className="benchmark-card__actions">
           {desktopSmokeRunning ? (
@@ -90,7 +90,7 @@ export function BenchmarkPage({
             <BenchmarkResult label="Main menu" metric={desktopBenchmarkComparison.metrics.processToMainMenuMs} unit="time" />
           </div>
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
-          <small>A paired run shows the difference on this setup. The saved receipt keeps exact identities and raw measurements.</small>
+          <small>The saved result includes exact versions and raw timings.</small>
         </section>
       ) : null}
 

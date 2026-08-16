@@ -7,6 +7,7 @@ export const SPEED_RECORD_STORAGE_KEY = "preflight.speedRecord";
 export const AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY = "preflight.afterLaunchBehavior";
 export const AUTOMATIC_UPDATE_CHECK_STORAGE_KEY = "preflight.automaticUpdateChecks";
 export const INSTRUMENT_HULL_STORAGE_KEY = "preflight.instrumentHull";
+export const INSTRUMENT_HULL_TUNING_STORAGE_KEY = "preflight.instrumentHullTuning.v1";
 
 /** Every Preflight-owned value persisted in the desktop renderer/WebView localStorage. */
 export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
@@ -19,6 +20,7 @@ export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
   AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY,
   AUTOMATIC_UPDATE_CHECK_STORAGE_KEY,
   INSTRUMENT_HULL_STORAGE_KEY,
+  INSTRUMENT_HULL_TUNING_STORAGE_KEY,
 ] as const);
 
 export interface LocalStorageRemoval {

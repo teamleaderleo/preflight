@@ -70,8 +70,8 @@ export function SpeedScoreboard({ standing, isReady, playtime, hull, onOpenBench
           <RecordedPlaytime playtime={playtime} />
         </div>
         <div className="scoreboard__body">
-          <strong>See what Preflight saves.</strong>
-          <p className="scoreboard__prompt">Opens Starsector twice and compares the result.</p>
+          <strong>Measure your startup time.</strong>
+          <p className="scoreboard__prompt">Starsector opens twice so Preflight can compare launch times.</p>
           <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
         </div>
       </section>
@@ -106,7 +106,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, hull, onOpenBench
           ) : (
             <>
               <strong>{formatDuration(record.measurementOnlyMs - record.optimizedMs)} saved per launch</strong>
-              <span>Launches on this measured mod setup grow the total.</span>
+              <span>Future launches on this mod setup add to the total.</span>
             </>
           )}
         </div>

@@ -10,6 +10,7 @@ mod automation;
 #[allow(dead_code, unused_imports)]
 mod desktop_automation_bridge;
 mod engine;
+mod hull_sprite_tracer;
 mod hulls;
 mod operations;
 mod preparation;
@@ -23,10 +24,10 @@ use automation::{
 };
 use engine::{
     EnginePaths, activate_profile, apply_cache_cleanup, apply_evidence_cleanup, apply_removal,
-    canonical_game_directory, delete_profile, export_diagnostics, get_cache, get_cache_cleanup,
-    get_cache_health, get_cache_inspection, get_evidence_cleanup, get_home_state,
-    get_launch_settings, get_profiles, get_removal_plan, get_snapshot, rename_profile,
-    repair_cache, save_profile, update_launch_settings,
+    canonical_game_directory, delete_profile, export_diagnostics, get_bootstrap, get_cache,
+    get_cache_cleanup, get_cache_health, get_cache_inspection, get_evidence_cleanup,
+    get_home_state, get_launch_settings, get_profiles, get_removal_plan, get_snapshot,
+    rename_profile, repair_cache, save_profile, update_launch_settings,
 };
 use hulls::get_wireframe_hulls;
 use operations::{OperationCoordinator, OperationSnapshot, OperationState, refuse_update_install};
@@ -649,6 +650,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_bootstrap,
             get_snapshot,
             get_home_state,
             get_wireframe_hulls,

@@ -40,8 +40,8 @@ test("every palette has an explicit swatch and structural accent", () => {
 
 test("the wireframe instrument follows every palette in both themes", () => {
   for (const name of ["blueprint", "hangar", "ultraviolet", "airglow", "phosphor"]) {
-    expect(styles).toMatch(new RegExp(`:root\\[data-palette="${name}"\\] \\.scoreboard\\s*\\{[^}]*--instrument-accent:`, "s"));
-    expect(styles).toMatch(new RegExp(`:root\\[data-theme="dark"\\]\\[data-palette="${name}"\\] \\.scoreboard\\s*\\{[^}]*--instrument-accent:`, "s"));
+    expect(styles).toMatch(new RegExp(`:root\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
+    expect(styles).toMatch(new RegExp(`:root\\[data-theme="dark"\\]\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
   }
 });
 

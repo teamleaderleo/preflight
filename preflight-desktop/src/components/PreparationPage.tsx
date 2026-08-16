@@ -17,19 +17,19 @@ export const optimizationPresets: Array<{
   {
     id: "recommended",
     label: "Recommended",
-    description: "All reviewed optimizations for this exact game and mod build.",
+    description: "Every optimization Preflight recognizes for this game and mod setup.",
     badge: "Default",
   },
   {
     id: "conservative",
     label: "Conservative",
-    description: "Startup caches only, with compatible padded textures and original gameplay code.",
+    description: "Startup caches and padded textures, without changing gameplay code.",
     badge: "Compatibility",
   },
   {
     id: "off",
     label: "Off",
-    description: "Launch and diagnostics only.",
+    description: "No optimizations. Launch and diagnostics still work.",
     badge: "Troubleshoot",
   },
 ];
@@ -48,7 +48,7 @@ const storageGroups: Record<string, { label: string; detail: string }> = {
   },
   evidence: {
     label: "Reports and recordings",
-    detail: "Launch timings, benchmarks, and diagnostics kept for the Benchmark page.",
+    detail: "Launch timings, benchmarks, and diagnostics.",
   },
   configuration: {
     label: "Profiles and backups",
@@ -139,7 +139,7 @@ export function PreparationPage({
       {cleanupPlan ? (
         <section className="card cleanup-review" aria-label="Cache cleanup review">
           <div className="activation-review__heading">
-            <div><p className="eyebrow">Cleanup review</p><h2>{cleanupPlan.files === 0 ? "Everything here is still useful" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
+            <div><p className="eyebrow">Cleanup review</p><h2>{cleanupPlan.files === 0 ? "Nothing to remove" : `Free ${formatBytes(cleanupPlan.bytes)}?`}</h2></div>
             <button className="text-button" type="button" onClick={onDismissCleanup} disabled={cleanupBusy}>Close</button>
           </div>
           {!cleanupPlan.cache.safe ? <p className="activation-warning">{cleanupPlan.cache.refusals.join(" ")}</p> : null}
@@ -180,7 +180,7 @@ export function PreparationPage({
         <div>
           <div className="heading-with-info">
             <h2>Optimizations</h2>
-            <InfoTip label="About Preflight optimizations">Preflight applies only transformations reviewed for the exact game and mod build. A fingerprint mismatch keeps the original code.</InfoTip>
+            <InfoTip label="About Preflight optimizations">Before changing runtime code, Preflight checks that it exactly matches a reviewed version. Anything unfamiliar stays untouched.</InfoTip>
           </div>
           {/*
             * The switch stated its own position and nothing else, so the page named Speed opened
@@ -189,9 +189,9 @@ export function PreparationPage({
             * misbehaves -- and each says what the next launch will do.
             */}
           <p>{optimizationPreset === "off"
-            ? "Starsector will launch exactly as it does without Preflight. Prepared data is kept, so turning this back on costs nothing."
+            ? "Preflight won’t apply optimizations. Prepared data stays here for when you turn them back on."
             : optimizationPreset === "conservative"
-              ? "Compatibility mode: startup caches only, with the game’s original code. Slower than Recommended, and the next thing to try if Recommended misbehaves."
+              ? "Compatibility mode uses startup caches with the game’s original code. Try it if the default mode causes trouble."
               : "Preflight prepares your mods once, then reuses that work to start the game faster."}</p>
         </div>
         <label className="simple-switch">
@@ -243,9 +243,9 @@ export function PreparationPage({
               const { label, detail } = storageGroupLabel(group.id);
               return <div key={group.id}><span>{label}</span><strong>{formatBytes(group.bytes)}</strong>{detail ? <small>{detail}</small> : null}</div>;
             })}
-            {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Anything else</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>In Preflight’s folder, in no category above.</small></div> : null}
-            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>A one-off cost for the current mod list, on top of the total above. Preflight won’t start unless the larger figure above fits.</small></div>
-            <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space left where Preflight stores its data, right now.</small></div>
+            {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Files that don’t fit a category above.</small></div> : null}
+            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>A one-off cost for the current mod list. Preparation won’t start unless the larger figure above fits.</small></div>
+            <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space currently free where Preflight stores its data.</small></div>
           </div>
         </details>
       </section>
@@ -299,11 +299,11 @@ export function PreparationPage({
             <div className="optimization-domain-list">
               <label className="optimization-domain">
                 <input type="checkbox" aria-label="Prepared textures" checked={!disabledOptimizationDomains.includes("prepared-textures")} onChange={(event) => onOptimizationDomainChange("prepared-textures", event.target.checked)} disabled={operationBlocked || optimizationPreset === "off"} />
-                <span><strong>Textures</strong><small>Validated texture pack with a live GPU capability gate</small></span>
+                <span><strong>Textures</strong><small>Prepared only when the GPU supports them</small></span>
               </label>
               <label className="optimization-domain">
                 <input type="checkbox" aria-label="Prepared audio" checked={!disabledOptimizationDomains.includes("prepared-audio")} onChange={(event) => onOptimizationDomainChange("prepared-audio", event.target.checked)} disabled={operationBlocked || optimizationPreset === "off"} />
-                <span><strong>Audio</strong><small>Decoded audio with exact cache and decoder identities</small></span>
+                <span><strong>Audio</strong><small>Reused only when the files and decoder match</small></span>
               </label>
             </div>
           </section>

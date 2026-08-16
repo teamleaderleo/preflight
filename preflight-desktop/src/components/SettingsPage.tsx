@@ -4,10 +4,8 @@ import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { formatBytes, shortPath } from "../uiFormat";
 import type { AfterLaunchBehavior, NoticeTone, RemovalPlan, RemovalScope, ReportIntakeStatus } from "../types";
-import type { useInstrumentHull } from "../useInstrumentHull";
 
 type UpdateState = ReturnType<typeof useSignedUpdates>;
-type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
 interface SettingsPageProps {
   message: string;
@@ -18,7 +16,6 @@ interface SettingsPageProps {
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
-  instrumentHull: InstrumentHullState;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
@@ -34,7 +31,6 @@ export function SettingsPage({
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
-  instrumentHull,
   onAfterLaunchBehaviorChange,
   onReviewRemoval,
   onDismissRemoval,
@@ -76,41 +72,6 @@ export function SettingsPage({
               : afterLaunchBehavior === "quit"
                 ? "Playtime still records."
                 : "Useful while testing."}</small>
-          </label>
-        </div>
-        <div className="preference-block instrument-hull-card">
-          <div>
-            <h2>Speed-page ship</h2>
-            <p>Choose the ship shown with your speed and playtime.</p>
-          </div>
-          <label className="setting-field preference-field">
-            <span>Ship</span>
-            <select
-              aria-label="Display ship"
-              value={instrumentHull.selectedId}
-              onChange={(event) => instrumentHull.choose(event.target.value)}
-            >
-              {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && hull.featured) ? (
-                <optgroup label="Familiar hulls">
-                  {instrumentHull.hulls.filter((hull) => hull.id !== "preflight-courier" && hull.featured).map((hull) => (
-                    <option key={hull.id} value={hull.id}>{hull.name}</option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && !hull.featured) ? (
-                <optgroup label="More hulls">
-                  {instrumentHull.hulls.filter((hull) => !hull.featured).map((hull) => (
-                    <option key={hull.id} value={hull.id}>{hull.name}</option>
-                  ))}
-                </optgroup>
-              ) : null}
-              <optgroup label="Fallback">
-                <option value="preflight-courier">Preflight courier</option>
-              </optgroup>
-            </select>
-            <small>{instrumentHull.catalog
-              ? `${instrumentHull.catalog.hulls.length.toLocaleString()} found`
-              : instrumentHull.catalogLoaded ? "Using fallback" : "Loading ships…"}</small>
           </label>
         </div>
       </section>

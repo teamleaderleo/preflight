@@ -74,14 +74,14 @@ export function HelpPage({
               <strong>It doesn’t feel any faster</strong>
               <p>Changed mods? The first launch prepares them. Time the next one.</p>
             </div>
-            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("benchmark")}>Time it<ArrowIcon /></button>
+            <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("benchmark")}>Run benchmark<ArrowIcon /></button>
           </li>
           <li>
             <div>
               <strong>Preflight is using the wrong copy of the game</strong>
               <p>Choose the Starsector folder you actually use. Preflight won’t move anything.</p>
             </div>
-            <button className="button button--quiet button--compact" type="button" onClick={onChooseInstall} disabled={operationBlocked}>Change it<ArrowIcon /></button>
+            <button className="button button--quiet button--compact" type="button" onClick={onChooseInstall} disabled={operationBlocked}>Choose folder<ArrowIcon /></button>
           </li>
         </ul>
       </section>
@@ -102,7 +102,7 @@ export function HelpPage({
             <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
               <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
             </button>
-            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review send"}</button> : null}
+            {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
           </div>
         </div>
 
@@ -144,7 +144,7 @@ export function HelpPage({
             <div><span>File</span><strong>{shortPath(diagnosticsExport.output)}</strong></div>
             <div><span>Size</span><strong>{formatBytes(diagnosticsExport.bytes)} ({diagnosticsExport.bytes.toLocaleString()} bytes)</strong></div>
             <div className="report-facts__digest"><span>SHA-256</span><code>{diagnosticsExport.sha256}</code></div>
-            <div><span>Retention</span><strong>Automatic deletion starts after 14 days; receipt deadline is 15 days</strong></div>
+            <div><span>Retention</span><strong>Deleted automatically within 15 days</strong></div>
           </div>
           <div className="report-contents">
             <strong>Included entries ({diagnosticsExport.included.length})</strong>
@@ -192,7 +192,7 @@ export function HelpPage({
       ) : null}
 
       <section className="card help-links-card">
-        <div className="card__heading"><div><h2>Elsewhere</h2></div></div>
+        <div className="card__heading"><div><h2>More help</h2></div></div>
         <p>Attach the support ZIP to an issue, or quote the case number.</p>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>

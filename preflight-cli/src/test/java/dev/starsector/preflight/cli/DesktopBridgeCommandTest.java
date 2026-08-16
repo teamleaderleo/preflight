@@ -86,6 +86,44 @@ class DesktopBridgeCommandTest {
     }
 
     @Test
+    void bootstrapCommandKeepsSetupUsableWithoutAnInstallation() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("bootstrap-home"));
+        Path current = Files.createDirectories(temporaryDirectory.resolve("bootstrap-current"));
+
+        Map<String, Object> bootstrap = DesktopBridgeCommand.bootstrap(
+                Platform.LINUX, home, current, Map.of(), null, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> snapshot = (Map<String, Object>) bootstrap.get("snapshot");
+
+        assertEquals("starsector-preflight-desktop-bootstrap-v1", bootstrap.get("format"));
+        assertEquals(false, snapshot.get("ready"));
+        assertNull(snapshot.get("selected"));
+        assertNull(bootstrap.get("homeState"));
+        assertNull(bootstrap.get("homeStateError"));
+    }
+
+    @Test
+    void bootstrapCommandReturnsHomeStateForTheSelectedInstallation() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("selected-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("selected-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path mods = Files.createDirectories(game.resolve("mods"));
+        Files.writeString(mods.resolve("enabled_mods.json"), "{\"enabledMods\":[]}");
+
+        Map<String, Object> bootstrap = DesktopBridgeCommand.bootstrap(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> homeState = (Map<String, Object>) bootstrap.get("homeState");
+
+        assertNotNull(homeState);
+        assertEquals("starsector-preflight-desktop-home-state-v1", homeState.get("format"));
+        assertNotNull(homeState.get("cacheInspection"));
+        assertNotNull(homeState.get("profiles"));
+        assertNotNull(homeState.get("launchSettings"));
+        assertNull(bootstrap.get("homeStateError"));
+    }
+
+    @Test
     void desktopSmokeStatusesHaveScriptableExitCodes() {
         assertEquals(0, DesktopBridgeCommand.statusExitCode("passed"));
         assertEquals(3, DesktopBridgeCommand.statusExitCode("skipped"));
