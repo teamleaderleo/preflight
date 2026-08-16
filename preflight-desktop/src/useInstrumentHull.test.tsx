@@ -36,6 +36,16 @@ test("uses the original courier until a local catalog is available", async () =>
   expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID, "hammerhead"]);
 });
 
+test("keeps the courier fallback when the local catalog cannot be read", async () => {
+  vi.mocked(getWireframeHulls).mockRejectedValue(new Error("unreadable hull directory"));
+  const { result } = renderHook(() => useInstrumentHull("/game"));
+
+  await waitFor(() => expect(getWireframeHulls).toHaveBeenCalledWith("/game"));
+  expect(result.current.catalog).toBeNull();
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID]);
+  expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
+});
+
 test("restores and persists an available local hull", async () => {
   window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, "hammerhead");
   vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
