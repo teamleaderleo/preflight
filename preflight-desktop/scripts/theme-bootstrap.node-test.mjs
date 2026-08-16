@@ -42,5 +42,7 @@ test("pre-paint theme bootstrap stays compatible with the packaged CSP", async (
   );
 
   assert.match(bootstrap, /localStorage\.getItem\(["']preflight\.theme["']\)/);
+  assert.match(bootstrap, /localStorage\.getItem\(["']preflight\.palette["']\)/);
   assert.match(bootstrap, /document\.documentElement\.dataset\.theme/);
+  assert.match(bootstrap, /document\.documentElement\.dataset\.palette/);
 });

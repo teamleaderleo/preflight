@@ -3,6 +3,7 @@ import desktopPackage from "../package.json";
 import type {
   AfterLaunchBehavior,
   CacheHealth,
+  CacheInspection,
   CacheRepair,
   CacheSnapshot,
   CacheCleanupPlan,
@@ -390,6 +391,18 @@ export async function getCacheHealth(game: string): Promise<CacheHealth> {
     };
   }
   return invoke<CacheHealth>("get_cache_health", { game });
+}
+
+export async function getCacheInspection(game: string): Promise<CacheInspection> {
+  if (!isDesktopHost()) {
+    const [cache, health] = await Promise.all([getCache(game), getCacheHealth(game)]);
+    return {
+      format: "starsector-preflight-cache-inspection-v1",
+      cache,
+      health,
+    };
+  }
+  return invoke<CacheInspection>("get_cache_inspection", { game });
 }
 
 export async function repairCache(game: string, expectedProfile: string): Promise<CacheRepair> {

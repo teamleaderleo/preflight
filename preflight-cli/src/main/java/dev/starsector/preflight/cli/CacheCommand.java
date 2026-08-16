@@ -26,6 +26,7 @@ final class CacheCommand {
     static int execute(String[] args, int from) throws Exception {
         boolean prune = false;
         boolean health = false;
+        boolean inspect = false;
         boolean repair = false;
         boolean confirmed = false;
         boolean json = false;
@@ -37,6 +38,7 @@ final class CacheCommand {
             switch (args[index]) {
                 case "prune" -> prune = true;
                 case "health" -> health = true;
+                case "inspect" -> inspect = true;
                 case "repair" -> repair = true;
                 case "--yes" -> confirmed = true;
                 case "--json" -> json = true;
@@ -56,13 +58,13 @@ final class CacheCommand {
             }
         }
         PreflightHome home = PreflightHome.current();
-        int actions = (prune ? 1 : 0) + (health ? 1 : 0) + (repair ? 1 : 0);
+        int actions = (prune ? 1 : 0) + (health ? 1 : 0) + (inspect ? 1 : 0) + (repair ? 1 : 0);
         if (expectedProfile != null && !expectedProfile.matches("[0-9a-f]{64}")) {
             System.err.println("preflight cache repair: --expected-profile must be a lowercase SHA-256 fingerprint");
             return 2;
         }
         if (actions > 1) {
-            System.err.println("preflight cache: choose only one of prune, health, or repair");
+            System.err.println("preflight cache: choose only one of prune, health, inspect, or repair");
             return 2;
         }
         if (prune) {
@@ -81,6 +83,14 @@ final class CacheCommand {
         }
         CurrentProfile currentProfile = currentProfile(game, launcher);
         String current = currentProfile.fingerprint();
+        if (inspect) {
+            if (confirmed || keepNamed || expectedProfile != null) {
+                System.err.println("preflight cache inspect: --yes, --keep-named, and --expected-profile aren't valid");
+                return 2;
+            }
+            System.out.println(Json.object(inspect(home, currentProfile)));
+            return 0;
+        }
         if (health) {
             if (confirmed || keepNamed || expectedProfile != null) {
                 System.err.println("preflight cache health: --yes, --keep-named, and --expected-profile aren't valid");
@@ -539,6 +549,12 @@ final class CacheCommand {
     /** Stable machine-readable storage/profile snapshot for the desktop host and other tools. */
     static int reportJson(PreflightHome home, String currentFingerprint, PrintStream out)
             throws Exception {
+        out.println(Json.object(reportJson(home, currentFingerprint)));
+        return 0;
+    }
+
+    static Map<String, Object> reportJson(PreflightHome home, String currentFingerprint)
+            throws Exception {
         CacheFootprint.Report footprint = CacheFootprint.measure(home);
         List<Map<String, Object>> categories = footprint.entries().stream().map(entry -> {
             Map<String, Object> value = new LinkedHashMap<>();
@@ -602,8 +618,21 @@ final class CacheCommand {
         report.put("currentProfileFingerprint", currentFingerprint);
         report.put("profiles", profiles);
         report.put("integrations", integrations);
-        out.println(Json.object(report));
-        return 0;
+        return report;
+    }
+
+    static Map<String, Object> inspect(PreflightHome home, CurrentProfile currentProfile)
+            throws Exception {
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("format", "starsector-preflight-cache-inspection-v1");
+        report.put("cache", reportJson(home, currentProfile.fingerprint()));
+        report.put("health", CacheHealth.json(CacheHealth.inspect(
+                home,
+                currentProfile.fingerprint(),
+                currentProfile.diagnostic(),
+                currentProfile.audioBuild(),
+                currentProfile.audioDecoder())));
+        return report;
     }
 
     private static void reportProfiles(

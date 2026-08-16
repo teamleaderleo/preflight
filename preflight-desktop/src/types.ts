@@ -373,6 +373,12 @@ export interface CacheHealth {
   repairFiles: number;
 }
 
+export interface CacheInspection {
+  format: "starsector-preflight-cache-inspection-v1";
+  cache: CacheSnapshot;
+  health: CacheHealth;
+}
+
 export interface CacheRepair {
   format: "starsector-preflight-cache-repair-v1";
   safe: boolean;

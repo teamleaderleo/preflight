@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { THEME_STORAGE_KEY } from "./desktopStorage";
+import { PALETTE_STORAGE_KEY, THEME_STORAGE_KEY } from "./desktopStorage";
 
-export { THEME_STORAGE_KEY } from "./desktopStorage";
+export { PALETTE_STORAGE_KEY, THEME_STORAGE_KEY } from "./desktopStorage";
 
 export type ThemePreference = "system" | "light" | "dark";
+export type PalettePreference = "blueprint" | "hangar";
 type ResolvedTheme = Exclude<ThemePreference, "system">;
 
 function savedPreference(): ThemePreference {
   const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
   return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+}
+
+function savedPalette(): PalettePreference {
+  return window.localStorage.getItem(PALETTE_STORAGE_KEY) === "hangar" ? "hangar" : "blueprint";
 }
 
 function darkPreferenceQuery(): MediaQueryList | null {
@@ -28,6 +33,7 @@ function resolveTheme(preference: ThemePreference): ResolvedTheme {
 
 export function useTheme() {
   const [preference, setPreferenceState] = useState<ThemePreference>(savedPreference);
+  const [palette, setPaletteState] = useState<PalettePreference>(savedPalette);
   // Seeded from the saved preference, not from the system. Reading the system here made a saved
   // "light" on a dark desktop render dark and then correct itself, which is a second flash on top
   // of the one the pre-paint script exists to remove.
@@ -57,10 +63,19 @@ export function useTheme() {
     return () => window.clearTimeout(finished);
   }, [resolved]);
 
+  useEffect(() => {
+    document.documentElement.dataset.palette = palette;
+  }, [palette]);
+
   const setPreference = (next: ThemePreference) => {
     window.localStorage.setItem(THEME_STORAGE_KEY, next);
     setPreferenceState(next);
   };
 
-  return { preference, resolved, setPreference };
+  const setPalette = (next: PalettePreference) => {
+    window.localStorage.setItem(PALETTE_STORAGE_KEY, next);
+    setPaletteState(next);
+  };
+
+  return { preference, resolved, palette, setPreference, setPalette };
 }

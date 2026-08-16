@@ -1,10 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { THEME_STORAGE_KEY, useTheme } from "./useTheme";
+import { PALETTE_STORAGE_KEY, THEME_STORAGE_KEY, useTheme } from "./useTheme";
 
 beforeEach(() => {
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
+  delete document.documentElement.dataset.palette;
   vi.stubGlobal("matchMedia", vi.fn().mockImplementation(() => ({
     matches: true,
     media: "(prefers-color-scheme: dark)",
@@ -34,4 +35,17 @@ test("follows the system until an explicit theme is saved", async () => {
   expect(result.current.preference).toBe("light");
   expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
   expect(document.documentElement.dataset.theme).toBe("light");
+});
+
+test("starts with Blueprint and persists an explicit palette", async () => {
+  const { result } = renderHook(() => useTheme());
+
+  expect(result.current.palette).toBe("blueprint");
+  await waitFor(() => expect(document.documentElement.dataset.palette).toBe("blueprint"));
+
+  act(() => result.current.setPalette("hangar"));
+
+  expect(result.current.palette).toBe("hangar");
+  expect(window.localStorage.getItem(PALETTE_STORAGE_KEY)).toBe("hangar");
+  await waitFor(() => expect(document.documentElement.dataset.palette).toBe("hangar"));
 });

@@ -16,9 +16,11 @@ async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "preflight-renderer-storage-"));
   write(root, "src/desktopStorage.ts", `
     export const THEME_STORAGE_KEY = "preflight.theme";
+    export const PALETTE_STORAGE_KEY = "preflight.palette";
     export const SPEED_RECORD_STORAGE_KEY = "preflight.speedRecord";
     export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
       THEME_STORAGE_KEY,
+      PALETTE_STORAGE_KEY,
       SPEED_RECORD_STORAGE_KEY,
     ] as const);
   `);
@@ -26,7 +28,10 @@ async function fixture() {
     import { THEME_STORAGE_KEY } from "./desktopStorage";
     window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
   `);
-  write(root, "public/theme-init.js", `window.localStorage.getItem("preflight.theme");`);
+  write(root, "public/theme-init.js", `
+    window.localStorage.getItem("preflight.theme");
+    window.localStorage.getItem("preflight.palette");
+  `);
   return root;
 }
 
@@ -35,6 +40,7 @@ test("the checked-in renderer has one owner for every persistent key", () => {
   assert.ok(report.files > 0);
   assert.ok(report.keys > 0);
   assert.equal(report.themeKey, "preflight.theme");
+  assert.equal(report.paletteKey, "preflight.palette");
 });
 
 test("a private preflight key fails with its file and literal", async () => {
@@ -66,13 +72,16 @@ test("a raw localStorage argument fails even outside the preflight namespace", a
   }
 });
 
-test("the pre-paint bootstrap must match the shared theme key exactly", async () => {
+test("the pre-paint bootstrap must match the shared appearance keys exactly", async () => {
   const root = await fixture();
   try {
-    write(root, "public/theme-init.js", `window.localStorage.getItem("preflight.theme-v2");`);
+    write(root, "public/theme-init.js", `
+      window.localStorage.getItem("preflight.theme-v2");
+      window.localStorage.getItem("preflight.palette");
+    `);
     assert.throws(
       () => verifyRendererStorageOwnership(root),
-      /public\/theme-init\.js: pre-paint storage access must use exactly "preflight\.theme"/,
+      /public\/theme-init\.js: pre-paint storage access must use exactly the reviewed appearance keys/,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -84,10 +93,12 @@ test("declaring a key without adding it to removal fails closed", async () => {
   try {
     write(root, "src/desktopStorage.ts", `
       export const THEME_STORAGE_KEY = "preflight.theme";
+      export const PALETTE_STORAGE_KEY = "preflight.palette";
       export const SPEED_RECORD_STORAGE_KEY = "preflight.speedRecord";
       export const PRIVATE_STORAGE_KEY = "preflight.privateSetting";
       export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
         THEME_STORAGE_KEY,
+        PALETTE_STORAGE_KEY,
         SPEED_RECORD_STORAGE_KEY,
       ] as const);
     `);

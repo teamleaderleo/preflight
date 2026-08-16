@@ -222,7 +222,7 @@ test("a refused preparation offers the preparation that barely uses disk", async
 
   render(<App />);
 
-  const action = await screen.findByRole("button", { name: "Prepare with minimal disk" });
+  const action = await screen.findByRole("button", { name: "Prepare with less disk" });
   await user.click(action);
 
   await waitFor(() => expect(preparation)
@@ -249,7 +249,7 @@ test("the Preflight page offers the same direct minimal-disk recovery", async ()
 
   render(<App />);
 
-  const homeAction = await screen.findByRole("button", { name: "Prepare with minimal disk" });
+  const homeAction = await screen.findByRole("button", { name: "Prepare with less disk" });
   expect(screen.getByText(/Full preparation needs .* free/)).toBeInTheDocument();
   expect(homeAction).toBeEnabled();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
@@ -257,7 +257,7 @@ test("the Preflight page offers the same direct minimal-disk recovery", async ()
   await userEvent.setup().click(screen.getByRole("button", { name: "Speed" }));
   expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
   await screen.findByText(reason);
-  const action = await screen.findByRole("button", { name: "Prepare with minimal disk" });
+  const action = await screen.findByRole("button", { name: "Prepare with less disk" });
   await userEvent.setup().click(action);
   await waitFor(() => expect(preparation)
     .toHaveBeenCalledWith("/Applications/Starsector", "minimal", 4, 256));
@@ -760,7 +760,7 @@ test("profiles are preview-first and show the exact switch before applying", asy
 
   await screen.findByText("Ready");
   expect(await screen.findByLabelText("Mod profile")).toHaveValue("Main campaign");
-  await user.click(screen.getByRole("button", { name: "Manage profiles" }));
+  await user.click(screen.getByRole("button", { name: "Profiles" }));
 
   expect(await screen.findByRole("heading", { name: "Mods", level: 1 })).toBeInTheDocument();
   expect(screen.getByText("Main campaign")).toBeInTheDocument();
@@ -794,17 +794,6 @@ test("the home card can start a switch, and it is still reviewed before anything
   expect(await screen.findByRole("heading", { name: "Switch to Utilities only?" })).toBeInTheDocument();
   expect(activate).toHaveBeenCalledWith("/Applications/Starsector", "Utilities only", false);
   expect(activate).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
-});
-
-test("the home card opens the rename editor for the profile it is showing", async () => {
-  const user = userEvent.setup();
-  render(<App />);
-
-  await screen.findByText("Ready");
-  await user.click(await screen.findByRole("button", { name: "Rename" }));
-
-  const editor = await screen.findByRole("group", { name: "Rename Main campaign" });
-  expect(within(editor).getByRole("textbox")).toHaveValue("Main campaign");
 });
 
 test("a profile with missing mods explains the problem without showing a dead switch action", async () => {
@@ -1109,13 +1098,12 @@ test("verified updates are explicit and explain when a build has no update chann
   expect(screen.queryByRole("button", { name: "Install and restart" })).not.toBeInTheDocument();
 });
 
-test("both recovery routes reach help without expanding anything", async () => {
+test("help remains a permanent primary route", async () => {
   const user = userEvent.setup();
   render(<App />);
 
   await screen.findByText("Ready");
-  await user.click(screen.getByRole("button", { name: "Settings" }));
-  await user.click(await screen.findByRole("button", { name: "Open Help" }));
+  await user.click(screen.getByRole("button", { name: "Help" }));
 
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Make a support file" })).toBeVisible();
@@ -1338,16 +1326,16 @@ test("the privacy panel describes the build's actual sending ability", async () 
 
   const { unmount } = render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText(/Support ZIPs stay on this computer/))
+  expect(await screen.findByText(/Support ZIPs stay here until you share one/))
     .toBeInTheDocument();
   expect(screen.getByRole("button", { name: "What Preflight can access" })).toBeEnabled();
-  expect(screen.queryByText(/sent only after you review it/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/sent only when you press Send/)).not.toBeInTheDocument();
   unmount();
 
   unconfigured.mockResolvedValue({ configured: true, origin: "https://reports.invalid", reason: null });
   render(<App />);
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  expect(await screen.findByText(/sent only after you review it and press Send/)).toBeInTheDocument();
+  expect(await screen.findByText(/sent only when you press Send/)).toBeInTheDocument();
 
   unconfigured.mockRestore();
 });

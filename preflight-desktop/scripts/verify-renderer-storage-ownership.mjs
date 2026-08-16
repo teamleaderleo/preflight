@@ -68,16 +68,21 @@ export function verifyRendererStorageOwnership(desktopRoot = DEFAULT_DESKTOP_ROO
   const bootstrapPath = join(desktopRoot, THEME_BOOTSTRAP);
   const inventory = storageInventory(readFileSync(ownerPath, "utf8"));
   const themeKey = inventory.constants.get("THEME_STORAGE_KEY");
+  const paletteKey = inventory.constants.get("PALETTE_STORAGE_KEY");
   if (!themeKey) throw new Error(`${STORAGE_OWNER}: THEME_STORAGE_KEY is required by the pre-paint bootstrap`);
+  if (!paletteKey) throw new Error(`${STORAGE_OWNER}: PALETTE_STORAGE_KEY is required by the pre-paint bootstrap`);
 
   const bootstrap = readFileSync(bootstrapPath, "utf8");
   const bootstrapArguments = literalStorageArguments(bootstrap);
   const bootstrapLiterals = stringLiterals(bootstrap);
-  if (bootstrapArguments.length !== 1 || bootstrapArguments[0] !== themeKey) {
-    throw new Error(`${THEME_BOOTSTRAP}: pre-paint storage access must use exactly ${JSON.stringify(themeKey)}`);
+  const reviewedBootstrapKeys = [themeKey, paletteKey];
+  if (bootstrapArguments.length !== reviewedBootstrapKeys.length
+      || !reviewedBootstrapKeys.every((key) => bootstrapArguments.includes(key))) {
+    throw new Error(`${THEME_BOOTSTRAP}: pre-paint storage access must use exactly the reviewed appearance keys`);
   }
-  if (bootstrapLiterals.length !== 1 || bootstrapLiterals[0] !== themeKey) {
-    throw new Error(`${THEME_BOOTSTRAP}: only the reviewed theme key ${JSON.stringify(themeKey)} may be duplicated`);
+  if (bootstrapLiterals.length !== reviewedBootstrapKeys.length
+      || !reviewedBootstrapKeys.every((key) => bootstrapLiterals.includes(key))) {
+    throw new Error(`${THEME_BOOTSTRAP}: only the reviewed appearance keys may be duplicated`);
   }
 
   const rendererFiles = [
@@ -99,7 +104,7 @@ export function verifyRendererStorageOwnership(desktopRoot = DEFAULT_DESKTOP_ROO
     }
   }
 
-  return { files: rendererFiles.length, keys: inventory.values.length, themeKey };
+  return { files: rendererFiles.length, keys: inventory.values.length, themeKey, paletteKey };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

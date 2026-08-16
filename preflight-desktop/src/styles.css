@@ -276,7 +276,7 @@ button {
   padding: 0 5px 2px 0;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
-  animation: workspace-enter 120ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: workspace-enter 90ms cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .page-viewport--home {
@@ -305,6 +305,50 @@ button {
   border: 1px solid var(--line);
   border-radius: 5px;
   background: color-mix(in srgb, var(--paper-solid) 76%, transparent);
+}
+
+.palette-switch {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 44px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--paper-solid) 76%, transparent);
+}
+
+.palette-switch__button {
+  display: grid;
+  width: 32px;
+  min-height: 36px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.palette-switch__button--active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.palette-switch__swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--paper-solid) 74%, transparent);
+}
+
+.palette-switch__swatch--blueprint {
+  background: #5672b0;
+}
+
+.palette-switch__swatch--hangar {
+  background: #b87828;
 }
 
 .theme-switch__button {
@@ -422,6 +466,16 @@ h2 {
   padding: 32px 38px;
   border-right: 1px solid var(--console-line);
   isolation: isolate;
+}
+
+.launch-console--setup:not(.launch-console--configured) {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 220px;
+}
+
+.launch-console--setup:not(.launch-console--configured) .launch-console__primary {
+  max-width: 680px;
+  border-right: 0;
 }
 
 .launch-console__primary > :not(.flight-plot) {
@@ -1572,39 +1626,53 @@ h2 {
 
 .settings-overview {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
-.launch-behavior-card {
+.preferences-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
-  align-items: center;
-  gap: 28px;
-  padding-block: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
-.launch-behavior-card h2,
-.launch-behavior-card p {
+.preference-block {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 22px;
+}
+
+.preference-block + .preference-block {
+  border-left: 1px solid var(--line);
+}
+
+.preference-block h2,
+.preference-block p {
   margin: 0;
 }
 
-.launch-behavior-card p {
+.preference-block p {
   margin-top: 4px;
   color: var(--ink-soft);
   font-size: var(--text-support);
 }
 
-.launch-behavior-field {
+.setting-field.preference-field {
   display: grid;
-  grid-template-columns: 1fr 150px;
-  gap: 4px 16px;
+  align-items: start;
+  justify-content: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
   padding: 0;
   border: 0;
 }
 
-.launch-behavior-field small {
-  grid-column: 1 / -1;
+.setting-field.preference-field select {
+  width: 100%;
 }
 
 .settings-overview > :only-child {
@@ -2956,8 +3024,8 @@ footer {
 
 @keyframes workspace-enter {
   from {
-    opacity: 0.35;
-    transform: translateY(6px);
+    opacity: 0.72;
+    transform: translateY(3px);
   }
 
   to {
@@ -3239,36 +3307,36 @@ footer {
 :root[data-theme="dark"] {
   color-scheme: dark;
   color: #eeecea;
-  background: #090705;
+  background: #0b0b0a;
   --accent: #c8944a;
   --accent-strong: #edc07a;
   --accent-soft: rgba(200, 148, 74, 0.15);
   --action: #a06c25;
   --action-hover: #b47c31;
   --ink: #e6ded0;
-  --ink-soft: #8e8478;
-  --ink-faint: #7a7064;
-  --cream: #100e0a;
-  --paper: rgba(25, 21, 16, 0.93);
-  --paper-solid: #191510;
+  --ink-soft: #aaa198;
+  --ink-faint: #888178;
+  --cream: #11110f;
+  --paper: rgba(25, 24, 21, 0.94);
+  --paper-solid: #191815;
   --line: rgba(200, 148, 74, 0.15);
   --line-strong: rgba(200, 148, 74, 0.26);
   --grid-line: rgba(200, 148, 74, 0.045);
   --grid-major: rgba(200, 148, 74, 0.08);
   --shadow: 0 0 0 1px rgba(200, 148, 74, 0.05), 0 18px 44px rgba(0, 0, 0, 0.5);
   --console-ink: #e6ded0;
-  --console-soft: #8e8478;
-  --console-label: #8e8478;
-  --console-bg: linear-gradient(125deg, #191510 0%, #14110c 58%, #100e0a 100%);
-  --console-panel: rgba(11, 9, 6, 0.32);
-  --console-control: rgba(11, 9, 6, 0.72);
+  --console-soft: #aaa198;
+  --console-label: #aaa198;
+  --console-bg: linear-gradient(125deg, #1a1916 0%, #151512 58%, #11110f 100%);
+  --console-panel: rgba(9, 9, 8, 0.28);
+  --console-control: rgba(9, 9, 8, 0.7);
   --console-line: rgba(200, 148, 74, 0.15);
   --console-line-strong: rgba(200, 148, 74, 0.28);
   --console-plot: #c8944a;
   --flight-accent: #edc07a;
-  --launch-fill: #191510;
-  --launch-fill-hover: #231d15;
-  --launch-fill-active: #12100b;
+  --launch-fill: #191815;
+  --launch-fill-hover: #24211b;
+  --launch-fill-active: #121210;
   --launch-rim: #c8944a;
   --launch-rim-hover: #edc07a;
   --launch-rim-inner: rgba(200, 148, 74, 0.30);
@@ -3284,12 +3352,12 @@ footer {
     linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
-    linear-gradient(145deg, #14110c 0%, #0b0906 100%);
+    linear-gradient(145deg, #151412 0%, #0b0b0a 100%);
   background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px, auto;
 }
 
 :root[data-theme="dark"] .sidebar {
-  background: rgba(10, 7, 6, 0.9);
+  background: rgba(9, 9, 8, 0.92);
 }
 
 :root[data-theme="dark"] .nav__item {
@@ -4122,4 +4190,243 @@ footer {
   font-size: 12px;
   color: var(--ink-soft);
   overflow-wrap: anywhere;
+}
+
+/*
+ * Palette is independent of light/dark mode. Blueprint is the calm original and the default;
+ * Hangar keeps the warmer drafting-board experiment available without forcing it on everyone.
+ * Keeping the choice at the token boundary also leaves room for user-authored palettes later.
+ */
+:root[data-palette="blueprint"] {
+  color: #10283b;
+  background: #dce6ec;
+  --ink: #10283b;
+  --ink-soft: #425c70;
+  --ink-faint: #526b7d;
+  --cream: #dce6ec;
+  --paper: rgba(239, 245, 248, 0.9);
+  --paper-solid: #eef4f7;
+  --accent: #6079ad;
+  --accent-strong: #425f98;
+  --accent-soft: rgba(86, 110, 166, 0.15);
+  --action: #4f69c5;
+  --action-hover: #5a76d8;
+  --warning: #ad8439;
+  --success: #4c8378;
+  --line: rgba(17, 59, 82, 0.17);
+  --line-strong: rgba(17, 59, 82, 0.28);
+  --blue-strong: #5573ab;
+  --grid-line: rgba(68, 90, 135, 0.035);
+  --grid-major: rgba(68, 90, 135, 0.065);
+  --shadow: 0 14px 34px rgba(16, 39, 57, 0.08), 0 2px 6px rgba(16, 39, 57, 0.05);
+  --console-ink: #173247;
+  --console-soft: #496579;
+  --console-label: #425f73;
+  --console-bg: linear-gradient(125deg, #f7fafb 0%, #edf3f6 58%, #e5edf2 100%);
+  --console-panel: rgba(201, 217, 226, 0.24);
+  --console-control: rgba(250, 252, 253, 0.92);
+  --console-line: rgba(36, 77, 101, 0.2);
+  --console-line-strong: rgba(36, 77, 101, 0.34);
+  --console-plot: #516e9f;
+  --flight-accent: #a76532;
+  --launch-fill: #10283b;
+  --launch-fill-hover: #173a55;
+  --launch-fill-active: #0b1e2d;
+  --launch-rim: #6079ad;
+  --launch-rim-hover: #8fa8dd;
+  --launch-rim-inner: rgba(96, 121, 173, 0.42);
+  --launch-rim-inner-hover: rgba(143, 168, 221, 0.56);
+  --launch-ink: #eef4f7;
+  --launch-ink-hover: #ffffff;
+  --launch-glow: rgba(73, 104, 212, 0.2);
+}
+
+:root[data-palette="blueprint"] body {
+  background:
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(145deg, #e7eef2 0%, #d7e2e9 100%);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px, auto;
+}
+
+:root[data-palette="blueprint"] :where(button, input, select, summary, a):focus-visible {
+  outline-color: rgba(96, 121, 173, 0.34);
+}
+
+:root[data-palette="blueprint"] .sidebar {
+  background: rgba(221, 232, 238, 0.82);
+}
+
+:root[data-palette="blueprint"] .nav__item {
+  color: #52697b;
+}
+
+:root[data-palette="blueprint"] .nav__item:not(:disabled):hover {
+  color: var(--ink);
+  background: rgba(86, 110, 166, 0.08);
+}
+
+:root[data-palette="blueprint"] .status-chip {
+  color: #936a2e;
+  background: #fff1c9;
+}
+
+:root[data-palette="blueprint"] :is(.status-chip--ready, .tiny-status--good) {
+  color: #34745c;
+  background: #ddf2e8;
+}
+
+:root[data-palette="blueprint"] .button--primary {
+  box-shadow: 0 9px 22px rgba(54, 78, 150, 0.24);
+}
+
+:root[data-palette="blueprint"] .button--primary:not(:disabled):hover {
+  box-shadow: 0 12px 26px rgba(54, 78, 150, 0.32);
+}
+
+:root[data-palette="blueprint"] .notice {
+  color: #4f6c61;
+  background: rgba(220, 241, 232, 0.75);
+}
+
+:root[data-palette="blueprint"] .notice--error {
+  color: #9e4d44;
+  background: rgba(255, 222, 215, 0.78);
+}
+
+:root[data-palette="blueprint"] .notice--warning {
+  color: #805c2c;
+  background: rgba(255, 238, 194, 0.82);
+}
+
+:root[data-palette="blueprint"] .notice--info {
+  color: #536b89;
+  background: rgba(220, 231, 247, 0.76);
+}
+
+:root[data-palette="blueprint"] .notice--success {
+  color: #4f6c61;
+  background: rgba(220, 241, 232, 0.75);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] {
+  color: #e9edf5;
+  background: #030711;
+  --accent: #7f95cc;
+  --accent-strong: #8fa8dd;
+  --accent-soft: rgba(112, 137, 194, 0.18);
+  --action: #4968d4;
+  --action-hover: #5678e7;
+  --ink: #e9edf5;
+  --ink-soft: #aeb9ca;
+  --ink-faint: #96a4b9;
+  --cream: #030711;
+  --paper: rgba(8, 14, 27, 0.93);
+  --paper-solid: #0a1020;
+  --line: rgba(119, 139, 178, 0.16);
+  --line-strong: rgba(119, 139, 178, 0.28);
+  --grid-line: rgba(77, 96, 139, 0.045);
+  --grid-major: rgba(77, 96, 139, 0.075);
+  --shadow: 0 18px 50px rgba(0, 7, 14, 0.24);
+  --console-ink: #eef6f8;
+  --console-soft: #b8c9d2;
+  --console-label: #a5bac6;
+  --console-bg: linear-gradient(125deg, #070f1d 0%, #0b182a 58%, #111f35 100%);
+  --console-panel: rgba(3, 15, 23, 0.26);
+  --console-control: rgba(5, 22, 31, 0.78);
+  --console-line: rgba(121, 143, 190, 0.16);
+  --console-line-strong: rgba(143, 163, 205, 0.3);
+  --console-plot: #8095c4;
+  --flight-accent: #d58a46;
+  --launch-fill: #0a1020;
+  --launch-fill-hover: #111f35;
+  --launch-fill-active: #070d1a;
+  --launch-rim: #7f95cc;
+  --launch-rim-hover: #a9bce7;
+  --launch-rim-inner: rgba(127, 149, 204, 0.4);
+  --launch-rim-inner-hover: rgba(169, 188, 231, 0.58);
+  --launch-ink: #f7f9ff;
+  --launch-ink-hover: #ffffff;
+  --launch-glow: rgba(61, 94, 211, 0.22);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] body {
+  background:
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(145deg, #070d1a 0%, #02050d 100%);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px, auto;
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .sidebar {
+  background: rgba(4, 8, 17, 0.9);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .nav__item {
+  color: #aebfca;
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .nav__item--active {
+  color: #effafd;
+  background: rgba(86, 110, 166, 0.17);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .simple-switch:has(input:checked) {
+  border-color: rgba(127, 149, 204, 0.45);
+  background: rgba(73, 104, 212, 0.22);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .status-chip {
+  color: #d8b873;
+  background: rgba(185, 135, 44, 0.17);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] :is(.status-chip--ready, .tiny-status--good) {
+  color: #8ed1bc;
+  background: rgba(63, 137, 121, 0.2);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .notice {
+  color: #a7d7c8;
+  background: rgba(63, 137, 121, 0.14);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] :is(.notice--error, .activation-warning) {
+  color: #e5a49a;
+  background: rgba(165, 79, 71, 0.17);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .notice--warning {
+  color: #ddc184;
+  background: rgba(185, 135, 44, 0.16);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .notice--info {
+  color: #b5c5e4;
+  background: rgba(86, 110, 166, 0.16);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] .notice--success {
+  color: #a7d7c8;
+  background: rgba(63, 137, 121, 0.14);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] :is(.run-recovery, .report-recovery) {
+  border-color: rgba(210, 167, 84, 0.26);
+  background: rgba(130, 91, 24, 0.14);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] :is(.update-notice, .profile-diagnostics) {
+  color: #d9be87;
+  background: rgba(185, 135, 44, 0.13);
+  border-color: rgba(185, 135, 44, 0.24);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] select option {
+  color: #e9edf5;
+  background: #0a1020;
 }

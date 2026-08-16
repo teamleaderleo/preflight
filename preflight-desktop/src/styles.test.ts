@@ -17,32 +17,32 @@ test("the drafting surface supports explicit themes while motion preferences rem
 });
 
 test("navigation motion stays brief and the home illustration is structural", () => {
-  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 120ms/s);
+  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 90ms/s);
   expect(styles).toContain("@keyframes workspace-enter");
   expect(styles).toContain("@keyframes flight-plot-in");
   expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
 });
 
-test("the primary palette stays warm gold rather than drifting back to blue", () => {
+test("Blueprint and Hangar are explicit palette choices rather than one global compromise", () => {
   expect(styles).toContain("--accent: #9a6a24");
   expect(styles).toContain("--accent-strong: #7d5518");
   expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#edc07a;/s);
-  expect(styles).not.toContain("#6079ad");
-  expect(styles).not.toContain("#425f98");
+  expect(styles).toMatch(/:root\[data-palette="blueprint"\]\s*\{[^}]*--accent:\s*#6079ad;[^}]*--accent-strong:\s*#425f98;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\[data-palette="blueprint"\]\s*\{[^}]*--accent-strong:\s*#8fa8dd;/s);
+  expect(styles).toContain(".palette-switch__swatch--blueprint");
+  expect(styles).toContain(".palette-switch__swatch--hangar");
 });
 
 /*
- * The grounds are lifted verbatim from the Hangar Light design prototype rather than derived, so
- * the app and the prototype are one palette instead of two attempts at the same description. They
- * are black and off-white that happen to lean warm -- a whisper of it, not brown -- and the
- * difference between the two is small enough that it only survives by being pinned.
+ * The light paper comes from the Hangar Light prototype. The dark ground is intentionally more
+ * neutral after checking the default window at desktop scale, while gold carries the warmth.
  */
-test("the grounds are the ones from the design prototype", () => {
+test("the grounds preserve the warm paper and neutral dark drafting surface", () => {
   expect(styles).toContain("--cream: #efe8dc");
   expect(styles).toContain("--paper-solid: #f6f1e8");
   expect(styles).toContain("--ink: #241d14");
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--cream:\s*#100e0a;/s);
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--paper-solid:\s*#191510;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--cream:\s*#11110f;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--paper-solid:\s*#191815;/s);
   expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--ink:\s*#e6ded0;/s);
 });
 

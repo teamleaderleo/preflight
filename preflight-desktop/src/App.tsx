@@ -509,8 +509,10 @@ export default function App() {
       updateAvailable={Boolean(updateStatus?.available)}
       engineVersion={snapshot?.engineVersion ?? "…"}
       theme={theme.preference}
+      palette={theme.palette}
       onPageChange={setPage}
       onThemeChange={theme.setPreference}
+      onPaletteChange={theme.setPalette}
     >
         {activeOperation && page !== activeOperation.owner ? (
           <WorkflowLockNotice
@@ -631,7 +633,6 @@ export default function App() {
             afterLaunchBehavior={afterLaunchBehavior}
             instrumentHull={instrumentHull}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
-            onOpenHelp={() => setPage("help")}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}
