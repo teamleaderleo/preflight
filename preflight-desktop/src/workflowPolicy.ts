@@ -41,7 +41,7 @@ export function blockingWorkflow(state: WorkflowState): BlockingWorkflow | null 
     };
   }
   if (state.cacheRepairing) {
-    return { reason: "Repairing prepared data for this mod setup", owner: "prepare" };
+    return { reason: "Repairing prepared data for this mod setup", owner: "speed" };
   }
   if (state.choosingInstall) {
     return { reason: "Choosing the Starsector installation", owner: "home" };
@@ -64,7 +64,7 @@ export function blockingWorkflow(state: WorkflowState): BlockingWorkflow | null 
     return { reason: "Starsector is running", owner: "home" };
   }
   if (state.cleanupBusy) {
-    return { reason: "Reviewing or cleaning prepared data", owner: "prepare" };
+    return { reason: "Reviewing or cleaning prepared data", owner: "speed" };
   }
   if (state.launcherSaving) {
     return { reason: "Saving game settings", owner: "launch" };
