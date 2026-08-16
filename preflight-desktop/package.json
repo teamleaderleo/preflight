@@ -21,6 +21,7 @@
     "engine:prepare:verified": "node scripts/prepare-engine.mjs --use-verified-jar",
     "engine:verify": "node scripts/verify-engine.mjs",
     "capabilities:review": "node scripts/review-capability-lock.mjs",
+    "renderer-storage:verify": "node scripts/verify-renderer-storage-ownership.mjs",
     "desktop:collect": "node scripts/collect-bundles.mjs",
     "desktop:clean": "node scripts/clean-bundle-output.mjs",
     "desktop:exercise-install": "node scripts/exercise-native-install.mjs",
