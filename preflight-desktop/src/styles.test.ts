@@ -24,33 +24,26 @@ test("navigation motion stays brief and the home illustration is structural", ()
 });
 
 test("the primary palette stays warm gold rather than drifting back to blue", () => {
-  expect(styles).toContain("--accent: #8c6a41");
-  expect(styles).toContain("--accent-strong: #765427");
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#d4ad78;/s);
+  expect(styles).toContain("--accent: #9a6a24");
+  expect(styles).toContain("--accent-strong: #7d5518");
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#edc07a;/s);
   expect(styles).not.toContain("#6079ad");
   expect(styles).not.toContain("#425f98");
 });
 
 /*
- * The gold is the accent and only the accent. Warming the grounds along with it turned the whole
- * app brown, which is the one thing this palette must not be: the ground is cool slate and the
- * warmth is spent on the few things that are meant to glow. Checking the channels rather than the
- * exact hexes means the grounds can be retuned without rewriting this, and a brown still fails.
+ * The grounds are lifted verbatim from the Hangar Light design prototype rather than derived, so
+ * the app and the prototype are one palette instead of two attempts at the same description. They
+ * are black and off-white that happen to lean warm -- a whisper of it, not brown -- and the
+ * difference between the two is small enough that it only survives by being pinned.
  */
-test("every ground stays cool", () => {
-  const grounds = ["cream", "paper-solid", "ink", "ink-soft", "launch-fill"];
-  const seen: string[] = [];
-  const warm: string[] = [];
-  for (const token of grounds) {
-    for (const [, value] of styles.matchAll(new RegExp(`--${token}:\\s*#([0-9a-f]{6})`, "g"))) {
-      seen.push(token);
-      if (parseInt(value.slice(0, 2), 16) > parseInt(value.slice(4, 6), 16)) {
-        warm.push(`--${token}: #${value}`);
-      }
-    }
-  }
-  expect(warm).toEqual([]);
-  expect(new Set(seen)).toEqual(new Set(grounds));
+test("the grounds are the ones from the design prototype", () => {
+  expect(styles).toContain("--cream: #efe8dc");
+  expect(styles).toContain("--paper-solid: #f6f1e8");
+  expect(styles).toContain("--ink: #241d14");
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--cream:\s*#100e0a;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--paper-solid:\s*#191510;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--ink:\s*#e6ded0;/s);
 });
 
 /*
@@ -61,12 +54,12 @@ test("every ground stays cool", () => {
  */
 test("status colours stay separable from the structural gold", () => {
   expect(styles).toContain("--warning: #b0631f");
-  expect(styles).toContain("--success: #4e7f60");
+  expect(styles).toContain("--success: #4f6b45");
   expect(styles).not.toMatch(/--warning:\s*#[89ab][0-9a-f]6[0-9a-f]4[0-9a-f];/);
 });
 
 test("active controls look active without relying on gradients", () => {
-  expect(styles).toContain("--action: #8a5f22");
+  expect(styles).toContain("--action: #9a6a24");
   expect(styles).toMatch(/\.button--primary\s*\{[^}]*background:\s*var\(--action\);/s);
   expect(styles).not.toMatch(/\.button--primary\s*\{[^}]*linear-gradient/s);
   expect(styles).toMatch(/\.simple-switch:has\(input:checked\)\s*\{[^}]*background:\s*var\(--accent-soft\);/s);
