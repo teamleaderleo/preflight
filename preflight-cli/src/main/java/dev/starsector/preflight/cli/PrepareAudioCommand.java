@@ -49,7 +49,7 @@ public final class PrepareAudioCommand {
 
     static int execute(String[] args, int from) throws Exception {
         Path game = null;
-        Path cache = Path.of(System.getProperty("user.home"), ".starsector-preflight", "cache");
+        Path cache = PreflightHome.current().cache();
         Path output = null;
         Path java = null;
         for (int i = from; i < args.length; i++) {

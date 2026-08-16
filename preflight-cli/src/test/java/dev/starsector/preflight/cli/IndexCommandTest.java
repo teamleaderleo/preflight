@@ -7,6 +7,7 @@ import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,6 +38,13 @@ class IndexCommandTest {
         assertTrue(Files.isRegularFile(indexFile));
 
         ResourceIndex index = ResourceIndexIO.read(indexFile);
+        PreflightHome alternateHome = new PreflightHome(temporaryDirectory.resolve("owned-home"), List.of());
+        assertEquals(
+                ResourceIndexIO.directory(alternateHome.cache())
+                        .resolve(index.profileFingerprint() + ".spfi")
+                        .toAbsolutePath()
+                        .normalize(),
+                IndexCommand.defaultOutput(alternateHome, index));
         Path canonicalAlphaFile = alphaFile.toRealPath();
         Path canonicalCoreFile = coreFile.toRealPath();
         assertEquals(2, index.providers("graphics/shared.png").size());
