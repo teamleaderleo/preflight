@@ -80,7 +80,7 @@ test("the default cold-profile action prepares with balanced settings and then l
   // compact summary still names both rather than presenting two unexplained disk figures.
   expect(screen.getByText(/uses about .* free required; .* available/))
     .toBeInTheDocument();
-  expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
+  expect(screen.getByLabelText("186h played across 77 recorded sessions")).toBeInTheDocument();
   expect(screen.queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
@@ -1070,7 +1070,7 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
   expect(await screen.findByText("Your startup")).toBeInTheDocument();
-  expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
+  expect(screen.getByLabelText("186h recorded playtime across 77 sessions")).toBeInTheDocument();
 
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
@@ -1079,7 +1079,7 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
 
   expect(await screen.findByText("5.5")).toBeInTheDocument();
   expect(screen.getByText(/1m 12s saved per launch/)).toBeInTheDocument();
-  expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
+  expect(screen.getByLabelText("186h recorded playtime across 77 sessions")).toBeInTheDocument();
   first.unmount();
 
   render(<App />);

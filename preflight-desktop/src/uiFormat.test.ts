@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { cleanUserMessage, errorMessage, failedRunSummary, formatPlaytime, localDateStamp } from "./uiFormat";
+import {
+  cleanUserMessage,
+  countedPlaytimeSessions,
+  errorMessage,
+  failedRunSummary,
+  formatPlaytime,
+  localDateStamp,
+} from "./uiFormat";
 
 describe("errorMessage", () => {
   test("keeps user-facing failures free of JavaScript's Error prefix", () => {
@@ -29,6 +36,13 @@ describe("formatPlaytime", () => {
     expect(formatPlaytime(90 * 60_000)).toBe("1.5h");
     expect(formatPlaytime(1_204 * 3_600_000)).toBe("1,204h");
     expect(formatPlaytime(-1)).toBe("0m");
+  });
+});
+
+describe("countedPlaytimeSessions", () => {
+  test("excludes sessions without a duration and never becomes negative", () => {
+    expect(countedPlaytimeSessions({ launches: 78, sessionsWithoutDuration: 1 })).toBe(77);
+    expect(countedPlaytimeSessions({ launches: 1, sessionsWithoutDuration: 2 })).toBe(0);
   });
 });
 

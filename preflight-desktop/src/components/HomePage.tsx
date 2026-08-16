@@ -5,7 +5,14 @@ import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import type { useProfiles } from "../useProfiles";
-import { formatBytes, formatPlaytime, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
+import {
+  countedPlaytimeSessions,
+  formatBytes,
+  formatPlaytime,
+  formatSavedAt,
+  friendlyPlatform,
+  shortPath,
+} from "../uiFormat";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -189,8 +196,8 @@ export function HomePage({
               {hasPlaytime && playtime ? (
                 <span
                   className="playtime-readout"
-                  aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches} recorded sessions`}
-                  title={`Time Starsector was open across ${playtime.launches.toLocaleString()} recorded sessions`}
+                  aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${countedPlaytimeSessions(playtime)} recorded sessions`}
+                  title={`Time Starsector was open across ${countedPlaytimeSessions(playtime).toLocaleString()} recorded sessions`}
                 >
                   <strong>{formatPlaytime(playtime.totalMillis)}</strong> played
                 </span>

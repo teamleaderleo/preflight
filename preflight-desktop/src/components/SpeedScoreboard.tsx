@@ -1,7 +1,7 @@
 import { ArrowIcon, GaugeIcon } from "../icons";
 import type { PlaytimeSnapshot } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
-import { formatPlaytime } from "../uiFormat";
+import { countedPlaytimeSessions, formatPlaytime } from "../uiFormat";
 import { FlightInstrument } from "./FlightInstrument";
 
 interface SpeedScoreboardProps {
@@ -14,7 +14,7 @@ interface SpeedScoreboardProps {
 function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
   if (!playtime?.readable || playtime.launches <= 0 || playtime.totalMillis <= 0) return null;
   const total = formatPlaytime(playtime.totalMillis);
-  const sessions = playtime.launches.toLocaleString();
+  const sessions = countedPlaytimeSessions(playtime).toLocaleString();
   return (
     <div
       className="scoreboard__playtime"

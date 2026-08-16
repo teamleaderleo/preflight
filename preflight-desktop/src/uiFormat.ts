@@ -1,4 +1,4 @@
-import type { DesktopSnapshot } from "./types";
+import type { DesktopSnapshot, PlaytimeSnapshot } from "./types";
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -24,6 +24,13 @@ export function formatPlaytime(totalMillis: number): string {
   if (hours >= 10) return `${Math.round(hours).toLocaleString()}h`;
   if (hours >= 1) return `${hours.toFixed(1)}h`;
   return `${Math.round(safeMillis / 60_000)}m`;
+}
+
+/** Sessions that actually contribute a duration to the displayed total. */
+export function countedPlaytimeSessions(
+  playtime: Pick<PlaytimeSnapshot, "launches" | "sessionsWithoutDuration">,
+): number {
+  return Math.max(0, playtime.launches - playtime.sessionsWithoutDuration);
 }
 
 export function shortPath(path: string): string {
