@@ -4,7 +4,8 @@ import { PALETTE_STORAGE_KEY, THEME_STORAGE_KEY } from "./desktopStorage";
 export { PALETTE_STORAGE_KEY, THEME_STORAGE_KEY } from "./desktopStorage";
 
 export type ThemePreference = "system" | "light" | "dark";
-export type PalettePreference = "blueprint" | "hangar";
+export const PALETTES = ["blueprint", "hangar", "ultraviolet", "airglow"] as const;
+export type PalettePreference = (typeof PALETTES)[number];
 type ResolvedTheme = Exclude<ThemePreference, "system">;
 
 function savedPreference(): ThemePreference {
@@ -13,7 +14,8 @@ function savedPreference(): ThemePreference {
 }
 
 function savedPalette(): PalettePreference {
-  return window.localStorage.getItem(PALETTE_STORAGE_KEY) === "hangar" ? "hangar" : "blueprint";
+  const saved = window.localStorage.getItem(PALETTE_STORAGE_KEY);
+  return PALETTES.find((palette) => palette === saved) ?? "blueprint";
 }
 
 function darkPreferenceQuery(): MediaQueryList | null {

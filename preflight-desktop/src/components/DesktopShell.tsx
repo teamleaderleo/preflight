@@ -10,7 +10,7 @@ import {
   SunIcon,
   SystemThemeIcon,
 } from "../icons";
-import type { PalettePreference, ThemePreference } from "../useTheme";
+import { PALETTES, type PalettePreference, type ThemePreference } from "../useTheme";
 import Logo from "../Logo";
 import { useEffect, useRef, type ReactNode } from "react";
 
@@ -26,6 +26,14 @@ import { useEffect, useRef, type ReactNode } from "react";
  * still reachable from Speed, where someone asking "is this actually doing anything" is already
  * standing. `launch` works the same way, from Home.
  */
+/* The switch is four swatches, so the readable name lives here and in the tooltip. */
+const PALETTE_NAMES: Record<PalettePreference, string> = {
+  blueprint: "Blueprint",
+  hangar: "Hangar",
+  ultraviolet: "Ultraviolet",
+  airglow: "Airglow",
+};
+
 export type Page = "home" | "launch" | "speed" | "mods" | "benchmark" | "help" | "settings";
 
 interface DesktopShellProps {
@@ -111,8 +119,19 @@ export function DesktopShell({
           <h1 className="page-title" ref={pageTitle} tabIndex={-1}>{title}</h1>
           <div className="topbar__actions">
             <div className="palette-switch" role="group" aria-label="Color palette">
-              <button className={palette === "blueprint" ? "palette-switch__button palette-switch__button--active" : "palette-switch__button"} type="button" title="Use Blueprint palette" aria-label="Use Blueprint palette" aria-pressed={palette === "blueprint"} onClick={() => onPaletteChange("blueprint")}><span className="palette-switch__swatch palette-switch__swatch--blueprint" /></button>
-              <button className={palette === "hangar" ? "palette-switch__button palette-switch__button--active" : "palette-switch__button"} type="button" title="Use Hangar palette" aria-label="Use Hangar palette" aria-pressed={palette === "hangar"} onClick={() => onPaletteChange("hangar")}><span className="palette-switch__swatch palette-switch__swatch--hangar" /></button>
+              {PALETTES.map((choice) => (
+                <button
+                  key={choice}
+                  className={`palette-switch__button ${palette === choice ? "palette-switch__button--active" : ""}`}
+                  type="button"
+                  title={`Use ${PALETTE_NAMES[choice]} palette`}
+                  aria-label={`Use ${PALETTE_NAMES[choice]} palette`}
+                  aria-pressed={palette === choice}
+                  onClick={() => onPaletteChange(choice)}
+                >
+                  <span className={`palette-switch__swatch palette-switch__swatch--${choice}`} />
+                </button>
+              ))}
             </div>
             <div className="theme-switch" role="group" aria-label="Color theme">
               <button className={theme === "system" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use system theme" aria-label="Use system theme" aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><SystemThemeIcon /></button>
