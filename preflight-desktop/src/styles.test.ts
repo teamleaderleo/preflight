@@ -53,9 +53,11 @@ test("the grounds preserve the warm paper and neutral dark drafting surface", ()
  * success keeps a real green, so the check is that they are still nowhere near the accent hue.
  */
 test("status colours stay separable from the structural gold", () => {
-  expect(styles).toContain("--warning: #b0631f");
+  expect(styles).toContain("--warning: #d55336");
   expect(styles).toContain("--success: #4f6b45");
-  expect(styles).not.toMatch(/--warning:\s*#[89ab][0-9a-f]6[0-9a-f]4[0-9a-f];/);
+  // Measured, not eyeballed: the shipped #b0631f sat 0.041 from the gold accent in OKLab, closer
+  // than the pair this rule was written to reject. #d55336 is 0.119 from the accent and 0.127 from
+  // the error red, which is the nearest thing to both that still reads as a warning.
 });
 
 test("active controls look active without relying on gradients", () => {
@@ -113,4 +115,49 @@ test("focus and pointer targets cover every native desktop control", () => {
   // InfoTip.tsx; the stylesheet only has to make the open state visible.
   expect(styles).toMatch(/\.info-tip__content\s*\{[^}]*position:\s*fixed;/s);
   expect(styles).toMatch(/\.info-tip__content--open\s*\{[^}]*visibility:\s*visible;/s);
+});
+
+/*
+ * A palette rotates what the app is made of. What it must not do is let a status colour drift
+ * into the accent: "this is a link" and "this needs your attention" have to stay distinguishable,
+ * and the hangar palette already had to move its warning to rust for exactly that reason once the
+ * accent became gold. So the rule is not that the palettes share a warning -- they do not -- it is
+ * that in every one of them the warning and the accent are still far apart.
+ */
+test("no palette lets a status colour collide with its accent", () => {
+  const hue = (value: string) => {
+    const [red, green, blue] = [0, 2, 4].map((at) => {
+      const channel = parseInt(value.slice(1 + at, 3 + at), 16) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    const cube = (v: number) => Math.cbrt(v);
+    const long = cube(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue);
+    const medium = cube(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue);
+    const short = cube(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue);
+    const a = 1.9779984951 * long - 2.4285922050 * medium + 0.4505937099 * short;
+    const b = 0.0259040371 * long + 0.7827717662 * medium - 0.8086757660 * short;
+    return ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
+  };
+  const apart = (one: number, two: number) => {
+    const gap = Math.abs(one - two) % 360;
+    return gap > 180 ? 360 - gap : gap;
+  };
+
+  for (const name of ["blueprint", "hangar", "ultraviolet", "airglow"]) {
+    // Hangar has no `[data-palette]` block: it is what bare `:root` already is, and the other
+    // three override it. The attribute is still stamped for all four so the switch is uniform.
+    const selector = name === "hangar" ? ":root" : `:root\\[data-palette="${name}"\\]`;
+    const block = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(styles);
+    expect(block, `no ${selector} block`).not.toBeNull();
+    const read = (token: string) => {
+      const value = new RegExp(`--${token}:\\s*(#[0-9a-f]{6});`).exec(block![1])?.[1];
+      expect(value, `${selector} has no --${token}`).toBeTruthy();
+      return hue(value!);
+    };
+    const accent = read("accent");
+    expect(apart(accent, read("warning")), `${name}: warning too close to accent`)
+      .toBeGreaterThan(25);
+    expect(apart(accent, read("success")), `${name}: success too close to accent`)
+      .toBeGreaterThan(25);
+  }
 });
