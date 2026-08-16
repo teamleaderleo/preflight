@@ -205,6 +205,56 @@ is already correct and the argument can be dropped.
   concave corners while bowing long runs into arcs — the last of which self-intersects any
   outline that touches itself, after which the even-odd test reads half the hull as outside.
 
+## Handing this over
+
+Nothing here runs in the product and nothing here is on the launch path. It is a design
+artefact: a page to argue against, a tracer that regenerates its data from any installation, and
+a sheet that makes six hulls comparable at a glance.
+
+**How it relates to the runtime catalog.** `preflight-desktop` already has one, built
+independently — `wireframeHullGeometry.ts`, `useInstrumentHull.ts` and the Rust side — and it
+solves a different problem well. It reads `.ship` files from the player's own installation at
+runtime, so it covers every hull including mods, with a bundled fallback and LOD. This
+prototype covers six ships and needs a Starsector install and a Python run to change any of
+them.
+
+They are the two halves of one design, not competing ones. What this page has that the runtime
+path does not:
+
+- **Silhouettes off sprite alpha, not collision bounds.** Bounds are what the game hit-tests;
+  they inscribe the artwork and chord across every sweep. On an Odyssey the difference is three
+  circular pods a side rendered as one straight line.
+- **Voids.** A Paragon is a donut, a Conquest has a channel, an Astral has two flight decks.
+  The runtime path has no hole handling, so a Paragon gets a line straight across its ring.
+- **Interiors.** The blocks inside a hull, traced off the sprite's own lighting.
+- **Measured asymmetry.** Four of the six are folded about their own centreline before tracing;
+  the Odyssey (16.4 %) and the Astral (12.5 %) are not, because they are asymmetric on purpose.
+
+The obvious shape of an integration is tiered: the runtime catalog stays the generic path for
+any hull including mods, and a small table of pre-traced hulls overrides it for the ones worth
+the trouble. That is a proposal, not a decision, and the runtime catalog is not this branch's
+to change.
+
+**Settled, and please do not re-derive:** everything in *Things that were tried and are wrong*
+below. Several of those cost multiple rounds each. The deck-reaching-for-the-silhouette family
+in particular was rediscovered four separate times under four different names.
+
+**Open:**
+
+- Whether the interiors want a third tier, and whether the two thresholds are in the right
+  place. They were set by dragging, not by argument.
+- The Conquest's relief fragments into more blocks than the others at the same settings. Might
+  be the ship, might be the threshold.
+- The Ziggurat is the strongest silhouette in the game and is out because naming it is a
+  spoiler. If it goes in, it should be drawn and labelled `???`.
+- Whether the Hammerhead keeps its slot. It is there because it is everyone's first destroyer,
+  not because of its silhouette, and the Doom and the Atlas both traced well.
+
+**The contact sheet is reusable on its own.** It is not specific to these six or to this page's
+construction — it takes hull data, a set of cameras and a cell size, and it renders a PNG in a
+fifth of a second. Any hull work wants something like it, because the faults that matter are
+only visible in a row.
+
 ## The boundary
 
 Outlines here are derived from an installation's sprites, which is the one thing this repository
