@@ -1,3 +1,4 @@
+import { nativeCommandError } from "./nativeErrors";
 import type { DesktopSnapshot } from "./types";
 
 export function formatBytes(bytes: number): string {
@@ -34,7 +35,8 @@ export function shortPath(path: string): string {
 }
 
 export function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const nativeError = nativeCommandError(error);
+  const message = nativeError?.message ?? (error instanceof Error ? error.message : String(error));
   return message.replace(/^Error:\s*/i, "").trim() || "Something went wrong.";
 }
 

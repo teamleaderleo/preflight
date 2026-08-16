@@ -7,6 +7,14 @@ describe("errorMessage", () => {
     expect(errorMessage("Error: update feed unavailable")).toBe("update feed unavailable");
   });
 
+  test("uses the message from a stable native command error envelope", () => {
+    expect(errorMessage({
+      code: "engine-timeout",
+      message: "The Preflight engine took too long to answer. Try again.",
+      retryable: true,
+    })).toBe("The Preflight engine took too long to answer. Try again.");
+  });
+
   test("provides a bounded fallback for an empty failure", () => {
     expect(errorMessage("Error:   ")).toBe("Something went wrong.");
   });
