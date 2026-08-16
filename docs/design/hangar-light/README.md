@@ -25,7 +25,7 @@ Each hull in the page carries three arrays, and **all three are traced**. Nothin
 
 | field | what it is |
 | --- | --- |
-| `o` | the plan-view outline, marched off the sprite's alpha, ~105–125 points |
+| `o` | the plan-view outline, marched off the sprite's alpha, 44–104 points |
 | `holes` | interior voids as their own closed loops |
 | `inner` | the raised blocks inside the hull, `[height, contour]`, marched off the sprite's light |
 
@@ -115,6 +115,31 @@ column is read live from an installation and **its output is scratch, not reposi
 The script reads the hull data straight out of the page, so the outlines and lanes can only be
 the page's own, but it **ports** `build()` and `project()`. Change one, change the other; the
 edge count it prints is the check, and it has to match what the page reports.
+
+## The fidelity knobs
+
+They live together at the top of `trace-hulls.py` because they only make sense together.
+
+| knob | what it does |
+| --- | --- |
+| `OUTER_EPS` | how closely the outline follows the artwork, in sprite pixels |
+| `HOLE_EPS` | the same for voids, tighter — a void is small, so a given tolerance eats more of it |
+| `BLUR` | how hard the lighting is smoothed before the interiors are cut out of it |
+| `MIN_AREA` | the smallest interior block worth drawing |
+| `TIER_EPS` | how closely an interior contour follows its blurred blob |
+| `TIERS` | where the light is cut, and how high each tier stands |
+
+Two notes on setting them. **Tolerance, not a point budget:** a budget gives every hull the same
+allowance for very different amounts of ship, and whatever tolerance buys it. At a fixed
+tolerance a hull lands where its own complexity puts it — 44 points for a Hammerhead, 104 for an
+Astral — and the number is a decision rather than a side effect. **Blur and area floor move
+together:** blurring harder merges blocks so the floor can come down; raising the floor without
+blurring just deletes the small blocks and keeps the ragged big ones.
+
+Deep notches are not the thing that gets lost when these are loosened. Douglas-Peucker keeps the
+largest deviation first, so the Onslaught's prow trenches are the last thing it would drop —
+they are intact at every tolerance tried up to 3.5, which was checked by counting spans across
+the prow rather than by looking at a thumbnail.
 
 ## Regenerating the outlines
 

@@ -107,14 +107,26 @@ def rdp(points, eps):
     return rdp(points[:index + 1], eps)[:-1] + rdp(points[index:], eps)
 
 
-def budget(loop, target):
-    """Simplify to at most `target` points, keeping the loosest tolerance that gets there."""
-    best = loop
-    for eps in (0.35, 0.5, 0.7, 1.0, 1.4, 1.9, 2.5, 3.2, 4.2, 5.5, 7.0, 9.0):
-        best = rdp(loop, eps)
-        if len(best) <= target:
-            break
-    return best
+def budget(loop, eps, cap):
+    """Simplify at a fixed tolerance, and only fall back to a point count if that overruns.
+
+    Tolerance, not a point budget. A budget makes every hull spend the same number of points
+    whatever its shape, so an Astral and a Hammerhead get the same allowance for very different
+    amounts of ship, and the tolerance that buys it is whatever it happens to be. At a fixed
+    tolerance hulls land where their own complexity puts them -- 66 for an Odyssey, 104 for an
+    Astral -- and the number is a decision about how closely to follow the artwork rather than
+    a side effect.
+
+    Deep notches survive either way; Douglas-Peucker keeps the largest deviation first, so the
+    Onslaught's prow trenches are the last thing it would drop, not the first. They are intact
+    at every tolerance tried up to 3.5. The cap is only there so a pathological outline cannot
+    run away.
+    """
+    out = rdp(loop, eps)
+    while len(out) > cap:
+        eps *= 1.25
+        out = rdp(loop, eps)
+    return out
 
 
 def holes(mask, w, h):
@@ -165,7 +177,7 @@ def blur_luma(px, w, h, mask):
     for i in range(w * h):
         if mask[i // w][i % w]:
             lum[i] = (0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]) / 255
-    r = max(2, w // 20)
+    r = max(2, int(w * BLUR))
     on = [mask[i // w][i % w] for i in range(w * h)]
 
     def sweep(src, horizontal):
@@ -224,7 +236,7 @@ def masses(px, w, h, mask, cut):
                     if 0 <= nx < w and 0 <= ny < h and up[ny][nx] and not seen[ny][nx]:
                         seen[ny][nx] = True
                         q.append((nx, ny))
-            if len(blob) >= w * h // 260:
+            if len(blob) >= w * h * MIN_AREA:
                 out.append(march(up, w, h, min(blob, key=lambda p: (p[1], p[0])), True))
     return out
 
@@ -278,11 +290,21 @@ def fold(mask, w, h, axis):
     return mask
 
 
-# Two tiers. One is a cutout, three is a topographic map of the greebling.
-TIERS = [(0.30, 0.42), (0.62, 0.86)]
+# The four knobs that decide how much of the inside gets drawn. They are all in one place
+# because they only make sense together: blurring harder merges blocks, so the area floor can
+# come down; raising the floor without blurring just deletes small blocks and keeps ragged big
+# ones. Tuned to land each hull at three to six shapes of fifteen-odd points, which is a hull
+# you can read at a glance rather than a contour map of its greebling.
+BLUR = 0.085       # box radius as a fraction of sprite width
+MIN_AREA = 0.022   # smallest region kept, as a fraction of the sprite's area
+OUTER_EPS = 2.8    # simplification tolerance in sprite pixels, for the outline
+HOLE_EPS = 1.4     # tighter for voids: they are small, so the same tolerance is a bigger share
+                   # of them -- at 2.8 the Astral's flight decks came out as five-point slivers
+TIER_EPS = 4.5     # ditto for an interior contour, which is a blurred blob and wants less
+TIERS = [(0.32, 0.42), (0.66, 0.86)]
 
 
-def build(game, name, target=64):
+def build(game, name):
     ship = load_ship(game, name)
     w, h, px = read_png(f"{game}/{ship['spriteName']}")
     cx, cy = ship["center"]
@@ -307,12 +329,12 @@ def build(game, name, target=64):
     # Rebuilding the far flank from the near one was tried and is worse than useless -- it joins
     # the two ends of the walk straight across whatever sits between them, which welded the
     # Conquest's bow channel shut into a spire.
-    outer = budget(to_ship(raw), target * 2)
-    inner = [budget(to_ship(loop), 48) for loop in holes(mask, w, h)]
+    outer = budget(to_ship(raw), OUTER_EPS, 130)
+    inner = [budget(to_ship(loop), HOLE_EPS, 48) for loop in holes(mask, w, h)]
     tiers = []
     for cut, lift in TIERS:
         for loop in masses(px, w, h, mask, cut):
-            tiers.append((lift, budget(to_ship(loop), 40)))
+            tiers.append((lift, budget(to_ship(loop), TIER_EPS, 30)))
     return outer, inner, len(raw), lop, tiers
 
 
