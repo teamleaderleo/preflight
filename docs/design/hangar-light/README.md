@@ -46,10 +46,16 @@ bow cap, each arm and the command module standing up inside the ring's mouth eac
 The Odyssey's spine does not run down `x=0` at all. A station whose centre has no hull under it
 is dropped rather than drawn, which is what stops a lane hanging a bar over open space.
 
-The slope down from a deck edge stops at a **chine** partway out, not at the silhouette. Running
-it the full half-beam draws a line clean across the ship at every station, and a column of those
-is a ladder — it is what made the Odyssey read as a barrel with hoops round it. The chines are
-joined down the length instead, so a station contributes length rather than width.
+The deck is tied to the hull by **raked struts**, two per station, landing on the silhouette
+between that station and its neighbours. Both other things this has been are wrong: a strut
+square to the keel is a ladder rung whatever you do to its length — it is what made the Odyssey
+read as a barrel with hoops round it — and a deck tied to nothing at all is an island floating in
+the middle of the ship.
+
+What is held constant is the strut's **angle**, not how far along the ship it reaches. Reaching a
+fixed fraction of the gap to the next station lets the rake be decided by how wide the ship
+happens to be there, and across an Onslaught's beam that lies down flat and is a rung again. The
+run aft is set from the run outboard and then clipped so a strut cannot overshoot its neighbour.
 
 ## The contact sheet
 
@@ -64,6 +70,9 @@ This is not a nicety. Turning one ship at a time in a browser and remembering wh
 looked like is how you end up with five hulls that are each defensible and do not look like a
 fleet, and every fault listed above was found in a row and invisible in isolation. Plan is the
 column to trust — it is the only one the sprite can vouch for.
+
+The other columns are interpretation and are allowed to be. Nothing above plan view exists in a
+flat sprite, so where faithfulness and legibility disagree there, legibility wins.
 
 The script reads the hull data straight out of the page, so the outlines and lanes can only be
 the page's own, but it **ports** `build()` and `project()`. Change one, change the other; the
@@ -94,8 +103,9 @@ is already correct and the argument can be dropped.
 - **Do not decimate the deck and keel rings.** A notch is exactly the feature a sampled ring
   loses, and the chord it draws instead runs through the empty space the notch is for. The rings
   follow every point; the frames between them are what gets thinned.
-- **Do not run a station's slope out to the silhouette.** See above: it is a rung, and a column
-  of rungs is a ladder. This construction has turned back into a ladder twice.
+- **Do not connect a deck square to the keel, and do not leave it unconnected.** See above. The
+  first is a ladder, which this construction has turned back into twice; the second is a deck
+  floating in the middle of the ship. Raked struts at a held angle are the answer to both.
 - Earlier dead ends, in order: a drum per weapon slot ("barnacles"), only the heaviest mounts,
   a triangulated height field with slots as bumps, rays from a centreline hub, and deepening the
   concave corners while bowing long runs into arcs — the last of which self-intersects any

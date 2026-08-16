@@ -622,40 +622,63 @@ footer{border-top:1px solid var(--rib);padding-top:22px;font-size:12.5px;color:v
        triangles were what read as ruled, and no amount of choosing the stations
        automatically fixed it: these five ships are drawn by hand and are worth
        reading by hand. */
+    /* Where the hull edge is at this z, on the lane's own side of the ship. */
+    function flank(z,midX){
+      var xs=crossings(z);
+      for(var q=0;q+1<xs.length;q+=2) if(xs[q]<=midX && xs[q+1]>=midX) return [xs[q],xs[q+1]];
+      return null;
+    }
+
     hull.decks.forEach(function(lane){
-      var port=[], stbd=[], chL=[], chR=[], live=[];
+      var port=[], stbd=[], live=[];
       lane.forEach(function(st){
-        var dz=st[0], lift=st[1], wid=st[2], mid=st[3]||0, xs=crossings(dz);
+        var dz=st[0], lift=st[1], wid=st[2], midX=st[3]||0;
         // The station has to stand on something. A lane pinned to x=0 across a
         // Paragon's ring, or over an Onslaught's prow trench, otherwise emits a
         // bar hanging in the open air with nothing under it.
-        var span=null;
-        for(var q=0;q+1<xs.length;q+=2) if(xs[q]<=mid && xs[q+1]>=mid) span=[xs[q],xs[q+1]];
+        var span=flank(dz,midX);
         if(!span) return;
-        var y=halfHeight(dz,mid)+TH*0.95*lift;
-        var wl=Math.min(wid,(mid-span[0])*0.9), wr=Math.min(wid,(span[1]-mid)*0.9);
-        var l=vert(mid-wl,y,dz), r=vert(mid+wr,y,dz);
+        var y=halfHeight(dz,midX)+TH*0.95*lift;
+        var wl=Math.min(wid,(midX-span[0])*0.9), wr=Math.min(wid,(span[1]-midX)*0.9);
+        var l=vert(midX-wl,y,dz), r=vert(midX+wr,y,dz);
         if(wl+wr>1e-4) edge(l,r);                   // the flat top of the deck
-        /* The slope stops at a chine, not at the silhouette. Run it the whole
-           half-beam and every station draws a full-width line, and a column of
-           those is the ladder this keeps turning back into -- it was what made
-           an Odyssey read as a barrel with hoops round it. The chines are then
-           joined down the ship, so a station contributes length, not width. */
-        var clx=mid-wl+(span[0]-(mid-wl))*0.62, crx=mid+wr+(span[1]-(mid+wr))*0.62;
-        var cl=vert(clx,halfHeight(dz,clx),dz), cr=vert(crx,halfHeight(dz,crx),dz);
-        edge(l,cl); edge(r,cr);
-        port.push(l); stbd.push(r); chL.push(cl); chR.push(cr);
-        live.push([dz,mid-wl,mid+wr,clx,crx]);
+        port.push(l); stbd.push(r); live.push([dz,midX,midX-wl,midX+wr]);
       });
       for(var k=0;k+1<live.length;k++){
         // Each long edge is tested where it actually runs, not down the centreline.
         // Testing the centre passes an Onslaught -- its middle prong is hull -- while
         // the deck's own edges sail straight over the slots either side of it.
         var mz=(live[k][0]+live[k+1][0])/2;
-        if(inside(mz,(live[k][1]+live[k+1][1])/2)) edge(port[k],port[k+1]);
-        if(inside(mz,(live[k][2]+live[k+1][2])/2)) edge(stbd[k],stbd[k+1]);
-        if(inside(mz,(live[k][3]+live[k+1][3])/2)) edge(chL[k],chL[k+1]);
-        if(inside(mz,(live[k][4]+live[k+1][4])/2)) edge(chR[k],chR[k+1]);
+        if(inside(mz,(live[k][2]+live[k+1][2])/2)) edge(port[k],port[k+1]);
+        if(inside(mz,(live[k][3]+live[k+1][3])/2)) edge(stbd[k],stbd[k+1]);
+      }
+
+      /* Brace the deck to the hull with raked struts, not with rungs. A strut square
+         to the keel is a ladder rung whatever you do to its length, and a deck tied to
+         nothing is an island floating in the middle of the ship -- this has produced
+         both. Each station throws one strut forward and one aft onto the silhouette,
+         so the deck sits in a truss.
+
+         What is held constant is the strut's ANGLE, not how far along the ship it
+         reaches. Reach a fixed fraction of the gap to the next station and the rake is
+         decided by how wide the ship happens to be there, which across an Onslaught's
+         beam lies flat and is a rung again. So the run aft is set from the run
+         outboard, then clipped so a strut cannot overshoot its neighbour. */
+      var RAKE=0.85, n=live.length;
+      for(var k=0;k<n;k++){
+        var dz=live[k][0], midX=live[k][1];
+        var gapF=k?(live[k-1][0]-dz):(n>1?dz-live[1][0]:0.12),
+            gapA=(k+1<n)?(dz-live[k+1][0]):(n>1?live[n-2][0]-dz:0.12),
+            here=flank(dz,midX);
+        if(!here) continue;
+        [[0,port[k],live[k][2]],[1,stbd[k],live[k][3]]].forEach(function(sideSpec){
+          var side=sideSpec[0], anchor=sideSpec[1],
+              lateral=Math.abs(here[side]-sideSpec[2]);
+          [[gapF,1],[gapA,-1]].forEach(function(g){
+            var tz=dz+g[1]*Math.min(lateral*RAKE,Math.abs(g[0])*0.72), sp=flank(tz,midX);
+            if(sp) edge(anchor,vert(sp[side],halfHeight(tz,sp[side]),tz));
+          });
+        });
       }
     });
 

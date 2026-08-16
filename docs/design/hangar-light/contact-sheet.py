@@ -143,16 +143,20 @@ def build(hull):
                     c = not c
         return c
 
+    def flank(z, mid_x):
+        """Where the hull edge is at this z, on the lane's own side of the ship."""
+        xs = crossings(z)
+        for q in range(0, len(xs) - 1, 2):
+            if xs[q] <= mid_x <= xs[q + 1]:
+                return xs[q], xs[q + 1]
+        return None
+
     for lane in hull["decks"]:
-        port, stbd, chl, chr_, live = [], [], [], [], []
+        port, stbd, live = [], [], []
         for st in lane:
             dz, lift, wid = st[0], st[1], st[2]
             mid_x = st[3] if len(st) > 3 else 0.0
-            xs = crossings(dz)
-            span = None
-            for q in range(0, len(xs) - 1, 2):
-                if xs[q] <= mid_x <= xs[q + 1]:
-                    span = (xs[q], xs[q + 1])
+            span = flank(dz, mid_x)
             if span is None:
                 continue
             y = half_height(dz, mid_x) + TH * 0.95 * lift
@@ -162,28 +166,43 @@ def build(hull):
             r = vert(mid_x + wr, y, dz)
             if wl + wr > 1e-4:
                 E.append((l, r))
-            # The slope stops at a chine, not at the silhouette. Running it the whole
-            # half-beam draws a rung at every station, and a column of rungs is the
-            # ladder this construction keeps turning back into. The chines are then
-            # joined down the ship, so a station contributes length, not width.
-            cl_x = mid_x - wl + (span[0] - (mid_x - wl)) * 0.62
-            cr_x = mid_x + wr + (span[1] - (mid_x + wr)) * 0.62
-            cl = vert(cl_x, half_height(dz, cl_x), dz)
-            cr = vert(cr_x, half_height(dz, cr_x), dz)
-            E.append((l, cl))
-            E.append((r, cr))
-            port.append(l); stbd.append(r); chl.append(cl); chr_.append(cr)
-            live.append((dz, mid_x - wl, mid_x + wr, cl_x, cr_x))
+            port.append(l); stbd.append(r)
+            live.append((dz, mid_x, mid_x - wl, mid_x + wr))
         for k in range(len(live) - 1):
             mz = (live[k][0] + live[k + 1][0]) / 2
-            if inside(mz, (live[k][1] + live[k + 1][1]) / 2):
-                E.append((port[k], port[k + 1]))
             if inside(mz, (live[k][2] + live[k + 1][2]) / 2):
-                E.append((stbd[k], stbd[k + 1]))
+                E.append((port[k], port[k + 1]))
             if inside(mz, (live[k][3] + live[k + 1][3]) / 2):
-                E.append((chl[k], chl[k + 1]))
-            if inside(mz, (live[k][4] + live[k + 1][4]) / 2):
-                E.append((chr_[k], chr_[k + 1]))
+                E.append((stbd[k], stbd[k + 1]))
+
+        # Brace the deck to the hull with raked struts, not with rungs. A strut square to
+        # the keel is a ladder rung whatever you do to its length, and a deck tied to
+        # nothing is an island floating in the middle of the ship -- this construction has
+        # produced both. Each station throws one strut forward and one aft, landing on the
+        # silhouette between itself and its neighbours, so the deck sits in a truss.
+        #
+        # What is held constant is the strut's ANGLE, not how far along the ship it reaches.
+        # Reaching a fixed fraction of the gap to the next station means the strut's rake is
+        # decided by how wide the ship happens to be there, and across an Onslaught's beam
+        # that lies down flat and is a rung again. So the run aft is set from the run
+        # outboard, then clipped so a strut cannot overshoot its neighbour.
+        RAKE = 0.85
+        n = len(live)
+        for k in range(n):
+            dz, mid_x = live[k][0], live[k][1]
+            gap_f = (live[k - 1][0] - dz) if k else (dz - live[1][0] if n > 1 else 0.12)
+            gap_a = (dz - live[k + 1][0]) if k + 1 < n else (live[n - 2][0] - dz if n > 1 else 0.12)
+            here = flank(dz, mid_x)
+            if here is None:
+                continue
+            for side, anchor, edge_x in ((0, port[k], live[k][2]), (1, stbd[k], live[k][3])):
+                lateral = abs(here[side] - edge_x)
+                for gap, sign in ((gap_f, 1), (gap_a, -1)):
+                    tz = dz + sign * min(lateral * RAKE, abs(gap) * 0.72)
+                    sp = flank(tz, mid_x)
+                    if sp is None:
+                        continue
+                    E.append((anchor, vert(sp[side], half_height(tz, sp[side]), tz)))
 
     stern_half = max([abs(p[1]) for p in o if p[0] < zmin + (zmax - zmin) * 0.18] or [0])
     if stern_half <= 0:
