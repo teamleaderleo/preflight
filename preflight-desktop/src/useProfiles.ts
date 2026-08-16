@@ -14,6 +14,7 @@ import type {
   ProfileList,
   ProfileMutationPlan,
 } from "./types";
+import { errorMessage } from "./uiFormat";
 
 export function useProfiles(
   game: string | undefined,
@@ -53,7 +54,7 @@ export function useProfiles(
       const next = await getProfiles(game);
       if (request === profilesRequest.current && currentGame.current === game) setProfiles(next);
     } catch (error) {
-      if (request === profilesRequest.current && currentGame.current === game) announce(String(error), "error");
+      if (request === profilesRequest.current && currentGame.current === game) announce(errorMessage(error), "error");
     } finally {
       if (request === profilesRequest.current) setProfilesLoading(false);
     }
@@ -101,7 +102,7 @@ export function useProfiles(
       announce(`Saved the exact current mod order as “${name}”.`, "success");
       await refreshProfiles();
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
@@ -124,7 +125,7 @@ export function useProfiles(
       setActivationPlan(plan);
       setActivationPlanGame(expectedGame);
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
@@ -153,7 +154,7 @@ export function useProfiles(
       setMutationPlan(plan);
       setMutationPlanGame(expectedGame);
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
@@ -193,7 +194,7 @@ export function useProfiles(
         ? `Renamed “${result.name}” to “${result.targetName}”.`
         : `Deleted “${result.name}”. Its prepared data was kept.`, "success");
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
@@ -239,7 +240,7 @@ export function useProfiles(
           : `“${result.name}” was already active; nothing changed.`);
       }
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
