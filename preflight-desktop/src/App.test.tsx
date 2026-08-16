@@ -81,7 +81,11 @@ test("the default cold-profile action prepares with balanced settings and then l
   expect(screen.getByText(/uses about .* free required; .* available/))
     .toBeInTheDocument();
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
-  expect(screen.queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
+  // The game's name belongs to the sidebar mark and to the launch button, and nowhere else. The
+  // point of the original assertion was that it had stopped repeating across the working area;
+  // that still holds with the subtitle restored, so the check moves to the main region.
+  expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
+  expect(screen.getByText(/^for Starsector$/i)).toBeInTheDocument();
   await user.click(action);
   await waitFor(() => expect(preparation).toHaveBeenCalledWith("/Applications/Starsector", "balanced", 4, 256));
   await waitFor(() => expect(game).toHaveBeenCalledWith("/Applications/Starsector", "recommended", [], "minimize"));

@@ -187,6 +187,15 @@ button {
   letter-spacing: 0.035em;
 }
 
+.brand__type small {
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .nav {
   display: flex;
   flex-direction: column;
