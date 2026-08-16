@@ -79,6 +79,14 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
         <version>3.5.6</version>
+        <configuration>
+          <!-- Integration tests launch the packaged CLI in fresh Java children. Give the test JVM
+               and every child it spawns the same build-local home so launch bookkeeping, leases,
+               and playtime history can never reach the operator's real ~/.starsector-preflight. -->
+          <environmentVariables>
+            <JAVA_TOOL_OPTIONS>-Duser.home="${project.build.directory}/test-user-home"</JAVA_TOOL_OPTIONS>
+          </environmentVariables>
+        </configuration>
         <executions>
           <execution>
             <goals>
