@@ -2,7 +2,7 @@
 
 **Status:** release-candidate preparation; Fractal Softworks guidance requested, awaiting response
 
-**Updated:** 2026-08-12
+**Updated:** 2026-08-16
 
 Preflight has a credible performance result and a verified cross-platform packaging pipeline. It is
 still inside the release boundary below.
@@ -51,8 +51,9 @@ still inside the release boundary below.
   unsigned macOS DMG passed package extraction, native-host boot, embedded-engine verification,
   disposable installation and removal, that synthetic contract, and game/mod/save retention without
   launching Starsector. Ubuntu ARM64 can run its portable source
-  half, but can't validate the published x86-64 Linux package. Windows and Linux still need a
-  completed hosted run of those checks, along with hosted-candidate completion.
+  half, but can't validate the published x86-64 Linux package. The generic hosted lifecycle checks
+  are complete on Linux, Windows, and macOS; the remaining package-lifecycle gap is candidate-scoped
+  hosted completion.
   Update and rollback are no longer hand-driven work: the dispatch-only
   [package lifecycle rehearsal](package-lifecycle-rehearsal.md) builds two versions on each hosted
   runner and checks the upgrade, a byte-identical rollback, and separately owned data across every
