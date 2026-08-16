@@ -11,6 +11,17 @@ export interface LastRun {
   modifiedAt: string;
 }
 
+export interface PlaytimeSnapshot {
+  readable: boolean;
+  totalMillis: number;
+  longestSessionMillis: number;
+  averageMillis: number;
+  launches: number;
+  sessionsWithoutDuration: number;
+  first: string | null;
+  last: string | null;
+}
+
 export interface DesktopSnapshot {
   protocol: number;
   engineVersion: string;
@@ -22,6 +33,7 @@ export interface DesktopSnapshot {
   preflightHome: string;
   cachePresent: boolean;
   lastRun: LastRun | null;
+  playtime: PlaytimeSnapshot;
 }
 
 export interface RunStarted {

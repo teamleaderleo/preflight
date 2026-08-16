@@ -5,7 +5,7 @@ import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import type { useProfiles } from "../useProfiles";
-import { formatBytes, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
+import { formatBytes, formatPlaytime, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -141,6 +141,8 @@ export function HomePage({
   const setupDiagnostics = (snapshot?.diagnostics ?? [])
     .filter((diagnostic) => !diagnostic.startsWith("Searched "))
     .filter((diagnostic) => !diagnostic.includes("--game") && !diagnostic.includes("--launcher"));
+  const playtime = snapshot?.playtime;
+  const hasPlaytime = Boolean(playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0);
   const statusLabel = status === "launching"
     ? "Opening Starsector"
     : status === "running"
@@ -179,9 +181,20 @@ export function HomePage({
             * screen look busier than the one decision it asks for.
             */}
           {(isReady || status === "loading") && status !== "running" && status !== "launching" ? (
-            <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
-              {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
-              {statusLabel}
+            <div className="launch-console__status-line">
+              <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
+                {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
+                {statusLabel}
+              </div>
+              {hasPlaytime && playtime ? (
+                <span
+                  className="playtime-readout"
+                  aria-label={`${formatPlaytime(playtime.totalMillis)} played across ${playtime.launches} recorded sessions`}
+                  title={`Time Starsector was open across ${playtime.launches.toLocaleString()} recorded sessions`}
+                >
+                  <strong>{formatPlaytime(playtime.totalMillis)}</strong> played
+                </span>
+              ) : null}
             </div>
           ) : null}
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}

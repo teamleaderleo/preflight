@@ -37,6 +37,7 @@
   --console-line: rgba(36, 77, 101, 0.2);
   --console-line-strong: rgba(36, 77, 101, 0.34);
   --console-plot: #516e9f;
+  --flight-accent: #a76532;
 }
 
 * {
@@ -461,6 +462,32 @@ h2 {
 
 .flight-plot__craft {
   fill: currentColor;
+}
+
+.launch-console__status-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 16px;
+}
+
+.launch-console__status-line .status-chip {
+  margin-bottom: 0;
+}
+
+.playtime-readout {
+  color: var(--console-soft);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.playtime-readout strong {
+  color: var(--flight-accent);
+  font-family: var(--font-data);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .launch-console__primary > h2 {
@@ -3191,6 +3218,7 @@ footer {
   --console-line: rgba(121, 143, 190, 0.16);
   --console-line-strong: rgba(143, 163, 205, 0.3);
   --console-plot: #8095c4;
+  --flight-accent: #d58a46;
 }
 
 :root[data-theme="dark"] body {
