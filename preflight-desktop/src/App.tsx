@@ -597,6 +597,7 @@ export default function App() {
             cleanupBusy={cleanup.busy}
             operationBlocked={operationBlocked}
             speedStanding={speedStanding}
+            playtime={snapshot?.playtime}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
             onReviewCleanup={() => void cleanup.review()}

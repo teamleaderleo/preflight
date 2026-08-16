@@ -1,10 +1,30 @@
 import { ArrowIcon, GaugeIcon } from "../icons";
+import type { PlaytimeSnapshot } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
+import { formatPlaytime } from "../uiFormat";
+import { FlightInstrument } from "./FlightInstrument";
 
 interface SpeedScoreboardProps {
   standing: SpeedStanding;
   isReady: boolean;
+  playtime?: PlaytimeSnapshot;
   onOpenBenchmark: () => void;
+}
+
+function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
+  if (!playtime?.readable || playtime.launches <= 0 || playtime.totalMillis <= 0) return null;
+  const total = formatPlaytime(playtime.totalMillis);
+  const sessions = playtime.launches.toLocaleString();
+  return (
+    <div
+      className="scoreboard__playtime"
+      aria-label={`${total} recorded playtime across ${sessions} sessions`}
+      title={`Across ${sessions} recorded sessions`}
+    >
+      <strong>{total}</strong>
+      <span>recorded playtime</span>
+    </div>
+  );
 }
 
 /** Seconds with one decimal below a minute, then minutes and seconds. */
@@ -36,15 +56,17 @@ export function formatSavedTotal(ms: number): string {
  * number. The running total is frankly a vanity figure and is labelled as an estimate: it is
  * launches counted since the measurement, times the measured saving, and it says so.
  */
-export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedScoreboardProps) {
+export function SpeedScoreboard({ standing, isReady, playtime, onOpenBenchmark }: SpeedScoreboardProps) {
   const { record, multiplier, totalSavedMs } = standing;
 
   if (!record || multiplier === null) {
     return (
       <section className="card scoreboard scoreboard--unmeasured" aria-label="Startup speed">
+        <FlightInstrument />
         <div className="scoreboard__headline">
           <p className="eyebrow">Your startup</p>
           <strong className="scoreboard__figure scoreboard__figure--unknown" aria-hidden="true">?×</strong>
+          <RecordedPlaytime playtime={playtime} />
         </div>
         <div className="scoreboard__body">
           <strong>See what Preflight saves.</strong>
@@ -59,6 +81,7 @@ export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedSco
   const totalLaunches = record.bankedLaunches + record.fastLaunches;
   return (
     <section className="card scoreboard" aria-label="Startup speed">
+      <FlightInstrument />
       <div className="scoreboard__headline">
         <p className="eyebrow">Measured on this computer</p>
         <strong className="scoreboard__figure">
@@ -69,6 +92,7 @@ export function SpeedScoreboard({ standing, isReady, onOpenBenchmark }: SpeedSco
           <ArrowIcon aria-hidden="true" />
           <span className="scoreboard__split--won"><small>Preflight</small>{formatDuration(record.optimizedMs)}</span>
         </div>
+        <RecordedPlaytime playtime={playtime} />
       </div>
       <div className="scoreboard__body">
         <div className="scoreboard__total">
