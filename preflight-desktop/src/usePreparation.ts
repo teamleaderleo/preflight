@@ -20,6 +20,7 @@ import type {
 } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
+import { errorMessage } from "./uiFormat";
 
 export type { TextureStorage } from "./types";
 
@@ -98,7 +99,7 @@ export function usePreparation(
       if (request === cacheRequest.current) {
         setCache(null);
         setCacheHealth(null);
-        announce(String(error), "error");
+        announce(errorMessage(error), "error");
       }
     } finally {
       if (request === cacheRequest.current) {
@@ -163,7 +164,7 @@ export function usePreparation(
       .catch((error) => {
         if (!cancelled) {
           setPreparationPlanEnvelope(null);
-          announce(String(error), "error");
+          announce(errorMessage(error), "error");
         }
       })
       .finally(() => {
@@ -225,7 +226,7 @@ export function usePreparation(
     } catch (error) {
       launchAfterPreparation.current = false;
       setPreparing(false);
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     } finally {
       setPreparationPlanLoading(false);
     }
@@ -270,7 +271,7 @@ export function usePreparation(
       announce(`Removed ${repair.files.toLocaleString()} damaged profile artifact${repair.files === 1 ? "" : "s"}. Rebuilding prepared data now.`, "warning");
       await runPreparation(launchWhenReady, true);
     } catch (error) {
-      if (gameRef.current === repairGame) announce(String(error), "error");
+      if (gameRef.current === repairGame) announce(errorMessage(error), "error");
     } finally {
       if (gameRef.current === repairGame) setCacheRepairing(false);
     }
@@ -357,7 +358,7 @@ export function usePreparation(
       }
     } catch (error) {
       setPreparationCancelling(false);
-      announce(String(error), "error");
+      announce(errorMessage(error), "error");
     }
   };
 

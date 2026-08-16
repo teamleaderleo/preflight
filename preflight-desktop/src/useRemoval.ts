@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
+import { errorMessage } from "./uiFormat";
 
 export function useRemoval(
   platform: DesktopSnapshot["platform"] | undefined,
@@ -28,7 +29,7 @@ export function useRemoval(
         ? "There’s nothing in that removal scope."
         : "Removal is ready to review. Nothing has been removed.");
     } catch (error) {
-      if (currentRequest === request.current) announce(String(error), "error");
+      if (currentRequest === request.current) announce(errorMessage(error), "error");
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;
@@ -69,7 +70,7 @@ export function useRemoval(
         announce(`${result.files.toLocaleString()} Preflight-owned files removed. ${platformStep}`, "success");
       }
     } catch (error) {
-      if (currentRequest === request.current) announce(String(error), "error");
+      if (currentRequest === request.current) announce(errorMessage(error), "error");
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyCacheCleanup, applyEvidenceCleanup, getCacheCleanup, getEvidenceCleanup } from "./bridge";
 import type { Announce, CacheCleanupPlan, EvidenceCleanupPlan } from "./types";
-import { formatBytes } from "./uiFormat";
+import { errorMessage, formatBytes } from "./uiFormat";
 
 export interface StorageCleanupPlan {
   cache: CacheCleanupPlan;
@@ -58,7 +58,7 @@ export function useCacheCleanup(
           : "Cleanup is ready to review. Nothing has been removed."
         : cache.refusals[0] ?? "Preflight couldn’t prove that cleanup was safe.");
     } catch (error) {
-      if (currentRequest === request.current && currentGame.current === expectedGame) announce(String(error), "error");
+      if (currentRequest === request.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
     } finally {
       if (currentRequest === request.current) {
         busyRef.current = false;
@@ -95,9 +95,10 @@ export function useCacheCleanup(
       if (currentRequest === request.current && currentGame.current === expectedGame) invalidatePreparationPlan();
     } catch (error) {
       if (currentRequest === request.current && currentGame.current === expectedGame) {
+        const detail = errorMessage(error);
         announce(freedBytes > 0
-          ? `Freed ${formatBytes(freedBytes)}, then cleanup stopped: ${String(error)}`
-          : String(error), "error");
+          ? `Freed ${formatBytes(freedBytes)}, then cleanup stopped: ${detail}`
+          : detail, "error");
         await refreshCache();
       }
     } finally {
