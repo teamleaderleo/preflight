@@ -134,20 +134,12 @@ final class ProfileCommand {
     }
 
     static int list(PreflightHome home, Path installRoot, boolean json, PrintStream out) throws Exception {
-        GameLayout layout = GameLayout.locate(installRoot);
-        List<String> current = readEnabled(layout.enabledModsFile());
-        Set<String> installed = installedModIds(layout.modsDirectory());
-        LoadedProfiles loaded = loadProfiles(home);
-        List<Map<String, Object>> profiles = loaded.profiles().stream()
-                .map(profile -> profile.view(layout.installRoot(), current, installed))
-                .toList();
+        Map<String, Object> report = describeList(home, installRoot);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) report.get("profiles");
+        @SuppressWarnings("unchecked")
+        List<String> diagnostics = (List<String>) report.get("diagnostics");
         if (json) {
-            Map<String, Object> report = new LinkedHashMap<>();
-            report.put("format", LIST_FORMAT);
-            report.put("installRoot", layout.installRoot());
-            report.put("enabledMods", current);
-            report.put("profiles", profiles);
-            report.put("diagnostics", loaded.diagnostics());
             out.println(Json.object(report));
             return 0;
         }
@@ -164,10 +156,28 @@ final class ProfileCommand {
                     profile.get("name"), marker, profile.get("modCount"),
                     missing.isEmpty() ? "" : ", missing " + missing.size());
         }
-        for (String diagnostic : loaded.diagnostics()) {
+        for (String diagnostic : diagnostics) {
             out.println("  warning: " + diagnostic);
         }
         return 0;
+    }
+
+    /** The read-only document used by both the public command and the desktop bootstrap. */
+    static Map<String, Object> describeList(PreflightHome home, Path installRoot) throws Exception {
+        GameLayout layout = GameLayout.locate(installRoot);
+        List<String> current = readEnabled(layout.enabledModsFile());
+        Set<String> installed = installedModIds(layout.modsDirectory());
+        LoadedProfiles loaded = loadProfiles(home);
+        List<Map<String, Object>> profiles = loaded.profiles().stream()
+                .map(profile -> profile.view(layout.installRoot(), current, installed))
+                .toList();
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("format", LIST_FORMAT);
+        report.put("installRoot", layout.installRoot());
+        report.put("enabledMods", current);
+        report.put("profiles", profiles);
+        report.put("diagnostics", loaded.diagnostics());
+        return report;
     }
 
     static int activate(

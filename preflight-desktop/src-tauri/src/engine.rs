@@ -691,6 +691,29 @@ pub(crate) fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value
 }
 
 #[tauri::command]
+pub(crate) fn get_home_state(app: AppHandle, game: String) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    command
+        .arg("desktop")
+        .arg("home-state")
+        .arg("--game")
+        .arg(directory);
+    let output = command
+        .output_within(READ_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not load the home screen",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable home-screen data: {error}"))
+}
+
+#[tauri::command]
 pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;

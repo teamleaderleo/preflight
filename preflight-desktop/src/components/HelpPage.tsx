@@ -20,17 +20,6 @@ interface HelpPageProps {
   onNavigate: (page: Page) => void;
 }
 
-/*
- * Recovery is the errand behind every "it won't start", and it used to live in a collapsed
- * accordion underneath the benchmark -- a page named after a measurement instrument that a
- * player has no reason to open. It is a destination now, so the failure card, Settings, and the
- * navigation all lead to the same place rather than to a panel that has to be expanded first.
- *
- * The support file is what the maintainer needs, not what the player came for. Somebody whose
- * game will not start wants it to start; making a ZIP is the fallback for when nothing here
- * worked. Every fix below is already a supported path in this app, so the page leads with them
- * and the file comes after.
- */
 export function HelpPage({
   message,
   messageTone,
@@ -73,8 +62,8 @@ export function HelpPage({
             <div>
               <strong>Starsector won’t open, or closes straight away</strong>
               <p>{optimizationPreset === "off"
-                ? "Optimizations are off for the next launch. Prepared data stays in place."
-                : "Turn optimizations off, then launch. Starsector starts normally, and prepared data stays in place."}</p>
+                ? "Optimizations are off. Your prepared data is still there."
+                : "Turn optimizations off and try again. Your prepared data stays put."}</p>
             </div>
             {optimizationPreset === "off"
               ? <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("home")}>Go to launch<ArrowIcon /></button>
@@ -83,14 +72,14 @@ export function HelpPage({
           <li>
             <div>
               <strong>It doesn’t feel any faster</strong>
-              <p>The first launch after changing mods rebuilds prepared data, so that one is slow. The next one is the fast one. You can time both to be sure.</p>
+              <p>Changed mods? The first launch prepares them. Time the next one.</p>
             </div>
             <button className="button button--quiet button--compact" type="button" onClick={() => onNavigate("benchmark")}>Time it<ArrowIcon /></button>
           </li>
           <li>
             <div>
               <strong>Preflight is using the wrong copy of the game</strong>
-              <p>Point it at the folder you actually play from. Your mods, saves, and settings are read from there and are never moved.</p>
+              <p>Choose the Starsector folder you actually use. Preflight won’t move anything.</p>
             </div>
             <button className="button button--quiet button--compact" type="button" onClick={onChooseInstall} disabled={operationBlocked}>Change it<ArrowIcon /></button>
           </li>
@@ -101,13 +90,13 @@ export function HelpPage({
         <div className="support-card__main">
           <div>
             <div className="heading-with-info">
-              <h2>{diagnosticsExport ? "Your support file is ready" : "Still stuck?"}</h2>
-              <InfoTip label="About the support file">Collects bounded, redacted run and benchmark details. Game files, mods, saves, logs, screenshots, audio, caches, and personal paths stay out.</InfoTip>
+              <h2>{diagnosticsExport ? "Support file ready" : "Still stuck?"}</h2>
+              <InfoTip label="About the support file">A small, redacted record of what Preflight did. It leaves your game, mods, saves, logs, media, caches, and personal paths out.</InfoTip>
             </div>
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Make a redacted file describing what Preflight did. You can review it first."}</p>
-            <small>It stays on this computer. Nothing is sent unless you choose to send it.</small>
+              : "Make a redacted support ZIP. You can review it before sending."}</p>
+            <small>Nothing uploads automatically.</small>
           </div>
           <div className="report-actions">
             <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
@@ -118,10 +107,10 @@ export function HelpPage({
         </div>
 
         <details className="settings-disclosure support-contents">
-          <summary><span><strong>What goes in it?</strong><small>Included and excluded data</small></span></summary>
+          <summary><span><strong>What’s inside?</strong><small>Included and left out</small></span></summary>
           <div className="settings-grid settings-disclosure__body">
             <section className="diagnostics-card">
-              <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Details about the run</h2></div><CheckIcon className="settings-check" /></div>
+              <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Run details</h2></div><CheckIcon className="settings-check" /></div>
               <ul>
                 <li>Run outcome, runtime, adapter health and timing summaries</li>
                 <li>Enabled-mod and resource names, counts, sizes and content hashes</li>
@@ -130,7 +119,7 @@ export function HelpPage({
               </ul>
             </section>
             <section className="diagnostics-card diagnostics-card--excluded">
-              <div className="card__heading"><div><p className="eyebrow">Excluded</p><h2>Your game and your data</h2></div><ShieldIcon className="settings-check" /></div>
+              <div className="card__heading"><div><p className="eyebrow">Left out</p><h2>Your game and data</h2></div><ShieldIcon className="settings-check" /></div>
               <ul>
                 <li>Game, mod, save, texture, audio or bytecode contents</li>
                 <li>Acceleration caches, console logs and crash dumps</li>
@@ -142,7 +131,7 @@ export function HelpPage({
         </details>
       </section>
 
-      {diagnosticsExport && reportIntake && !reportIntake.configured ? <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "This build can't send support files."} The file is still on this computer to read and share yourself.</p> : null}
+      {diagnosticsExport && reportIntake && !reportIntake.configured ? <p className="report-unavailable"><ShieldIcon /> {reportIntake.reason ?? "This build can’t send support files."} The ZIP is still on this computer.</p> : null}
 
       {reportReview && diagnosticsExport ? (
         <section className="card report-review" aria-label="Run report consent">
@@ -150,7 +139,7 @@ export function HelpPage({
             <div><p className="eyebrow">Send review</p><h2>Send this exact file?</h2></div>
             <button className="text-button" type="button" onClick={() => setReportReview(false)} disabled={reportUploading}>Cancel</button>
           </div>
-          <p>Preflight will send the file shown below to {reportIntake?.origin}. The service also receives ordinary network metadata such as your IP address for delivery and rate limiting. There are no automatic or background uploads.</p>
+          <p>This sends the ZIP below to {reportIntake?.origin}. The service receives your IP address for delivery and rate limiting. Preflight never uploads in the background.</p>
           <div className="report-facts">
             <div><span>File</span><strong>{shortPath(diagnosticsExport.output)}</strong></div>
             <div><span>Size</span><strong>{formatBytes(diagnosticsExport.bytes)} ({diagnosticsExport.bytes.toLocaleString()} bytes)</strong></div>
@@ -161,8 +150,8 @@ export function HelpPage({
             <strong>Included entries ({diagnosticsExport.included.length})</strong>
             {diagnosticsExport.included.length > 0 ? <ul>{diagnosticsExport.included.map((entry) => <li key={entry.entry}><span>{entry.entry}</span><small>{formatBytes(entry.bytes)}</small></li>)}</ul> : <p>No run or benchmark evidence is present; the file contains only its disclosure and manifest.</p>}
           </div>
-          <p>Game and mod files, saves, logs and crash dumps, caches, JFR, screenshots, audio, unknown files, binary content, and symlinks stay excluded. Home-directory paths are replaced with <code>&lt;home&gt;</code>.</p>
-          {diagnosticsExport.skipped.length > 0 ? <p>{diagnosticsExport.skipped.length} present source file{diagnosticsExport.skipped.length === 1 ? " was" : "s were"} skipped under the disclosed limits.</p> : null}
+          <p>Home-folder paths appear as <code>&lt;home&gt;</code>. The disclosure above lists everything left out.</p>
+          {diagnosticsExport.skipped.length > 0 ? <p>{diagnosticsExport.skipped.length} source file{diagnosticsExport.skipped.length === 1 ? " was" : "s were"} skipped.</p> : null}
           {reportError ? (
             <div className="report-recovery" role="alert">
               <strong>It wasn’t sent</strong>
@@ -188,7 +177,7 @@ export function HelpPage({
       {reportReceipt ? (
         <section className="card report-receipt" aria-label="Run report receipt">
           <div className="card__heading"><div><p className="eyebrow">Accepted</p><h2>Case {reportReceipt.caseId}</h2></div><CheckIcon className="settings-check" /></div>
-          <p>The intake accepted {formatBytes(reportReceipt.bytes)} with the same SHA-256. Quote this case number in an issue instead of pasting logs. Preflight keeps the deletion receipt on this computer until you delete the report, dismiss the receipt, or its deadline passes.</p>
+          <p>{formatBytes(reportReceipt.bytes)} arrived with the same SHA-256. Use this case number in an issue. The deletion receipt stays here until you dismiss it, delete the report, or its deadline passes.</p>
           <div className="report-facts">
             <div><span>Received</span><strong>{new Date(reportReceipt.receivedAt).toLocaleString()}</strong></div>
             <div><span>Retention deadline</span><strong>{new Date(reportReceipt.retentionDeadline).toLocaleString()}</strong></div>
@@ -204,16 +193,12 @@ export function HelpPage({
 
       <section className="card help-links-card">
         <div className="card__heading"><div><h2>Elsewhere</h2></div></div>
-        {/*
-          * The issue path says what to bring. Without it people paste raw logs into a public
-          * thread, which is both less useful than the support file and worse for their privacy.
-          */}
-        <p>Attach the support file to an issue, or quote the case number. Don’t paste logs.</p>
+        <p>Attach the support ZIP to an issue, or quote the case number.</p>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>
         </div>
-        <small>Links open in your browser. Preflight only ever opens its own pages.</small>
+        <small>These open Preflight’s pages in your browser.</small>
       </section>
     </div>
   );

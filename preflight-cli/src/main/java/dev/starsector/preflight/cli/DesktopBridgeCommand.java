@@ -27,6 +27,13 @@ final class DesktopBridgeCommand {
     }
 
     static int execute(String[] args, int offset) throws IOException {
+        if (offset < args.length && "home-state".equals(args[offset])) {
+            try {
+                return DesktopHomeStateCommand.execute(args, offset + 1);
+            } catch (Exception failure) {
+                throw new IOException("Could not read the desktop home state", failure);
+            }
+        }
         if (offset < args.length && "scenario".equals(args[offset])) {
             return scenario(args, offset + 1);
         }

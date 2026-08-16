@@ -896,12 +896,12 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
   await user.click(screen.getByRole("button", { name: "Help" }));
 
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  await user.click(screen.getByText("What goes in it?"));
-  expect(screen.getByText("Details about the run")).toBeInTheDocument();
-  expect(screen.getByText("Your game and your data")).toBeInTheDocument();
+  await user.click(screen.getByText("What’s inside?"));
+  expect(screen.getByText("Run details")).toBeInTheDocument();
+  expect(screen.getByText("Your game and data")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Make a support file" }));
 
-  expect(await screen.findByText("Your support file is ready")).toBeInTheDocument();
+  expect(await screen.findByText("Support file ready")).toBeInTheDocument();
   expect(screen.getByText(/Saved 14 disclosed files/)).toBeInTheDocument();
   await user.click(await screen.findByRole("button", { name: "Review send" }));
 
@@ -944,8 +944,8 @@ test("restores an unexpired report deletion receipt after restart", async () => 
   await user.click(screen.getByRole("button", { name: "Help" }));
 
   expect(await screen.findByRole("heading", { name: `Case ${caseId}` })).toBeInTheDocument();
-  expect(screen.getByText(/keeps the deletion receipt on this computer/)).toBeInTheDocument();
-  expect(screen.getByText(/Quote this case number in an issue instead of pasting logs/)).toBeInTheDocument();
+  expect(screen.getByText(/The deletion receipt stays here/)).toBeInTheDocument();
+  expect(screen.getByText(/Use this case number in an issue/)).toBeInTheDocument();
 });
 
 test("discards an expired local report deletion receipt", async () => {
@@ -1150,7 +1150,7 @@ test("help performs its fixes instead of only pointing at other pages", async ()
 
   await user.click(screen.getByRole("button", { name: "Turn off" }));
   expect(screen.getByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
-  expect(screen.getByText("Optimizations are off for the next launch. Prepared data stays in place.")).toBeVisible();
+  expect(screen.getByText("Optimizations are off. Your prepared data is still there.")).toBeVisible();
   expect(screen.getByRole("button", { name: "Go to launch" })).toBeEnabled();
   await waitFor(() => expect(window.localStorage.getItem("preflight.optimizationPreset")).toBe("off"));
 
