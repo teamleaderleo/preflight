@@ -13,6 +13,7 @@ test("the drafting surface supports explicit themes while motion preferences rem
   expect(styles).toMatch(/:root\[data-theme="dark"\] \.quick-control select\s*\{[^}]*color-scheme:\s*dark;/s);
   expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
   expect(styles).toMatch(/prefers-reduced-motion:[\s\S]*?transition-duration:\s*0\.01ms !important;/);
+  expect(styles).toMatch(/prefers-reduced-motion:[\s\S]*?\.flight-instrument__drift\s*\{[^}]*animation:\s*none;/);
 });
 
 test("navigation motion stays brief and the home illustration is structural", () => {

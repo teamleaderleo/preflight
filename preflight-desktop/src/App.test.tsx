@@ -1070,6 +1070,7 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
   expect(await screen.findByText("Your startup")).toBeInTheDocument();
+  expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
 
   await user.click(await screen.findByRole("button", { name: "Measure speed" }));
   await user.click(await screen.findByRole("button", { name: "Run benchmark" }));
@@ -1078,6 +1079,7 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
 
   expect(await screen.findByText("5.5")).toBeInTheDocument();
   expect(screen.getByText(/1m 12s saved per launch/)).toBeInTheDocument();
+  expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
   first.unmount();
 
   render(<App />);
