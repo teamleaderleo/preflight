@@ -213,11 +213,10 @@ def build(hull):
                 E.append((port[k], port[k + 1]))
             if inside(mz, (live[k][3] + live[k + 1][3]) / 2):
                 E.append((stbd[k], stbd[k + 1]))
-        # Caps at the ends, and one bar at the beam -- the station where the plate is widest.
-        # That bar is the only interior line the deck gets and it marks something: where the
-        # ship carries its width. Two more and it is a ladder again.
-        beam = max(range(len(live)), key=lambda k: live[k][3] - live[k][2]) if live else 0
-        for k in {0, len(live) - 1, beam}:
+        # Caps at the ends of the plate and nothing between them. A bar at the beam was tried
+        # and is a rule rather than an observation: no sprite has a feature there, it was put in
+        # because a plate "should" be divided somewhere.
+        for k in ({0, len(live) - 1}):
             if live and live[k][3] - live[k][2] > 1e-4:
                 E.append((port[k], stbd[k]))
 
@@ -433,6 +432,65 @@ def text(cv, s, x, y, rgb, scale=1, alpha=1.0):
     return x
 
 
+def relief(px, w, h):
+    """Blur the sprite's own lighting, then posterise it, so what it raises reads as masses.
+
+    Starsector's art is lit from straight above: a raised deck is bright, a well between two
+    blocks is dark, and that is the only thing a flat sprite says about where a third axis
+    would go. Posterising it as-is does not work -- the bands chase the greebling, which is
+    high-frequency detail sitting at every tone. Blurring first at about a twentieth of the
+    hull's width throws the rivets away and leaves the blocks, and four bands of that is a
+    map of where a line is worth drawing at all.
+    """
+    lum = [0.0] * (w * h)
+    on = [False] * (w * h)
+    for i in range(w * h):
+        if px[i * 4 + 3] > 16:
+            on[i] = True
+            lum[i] = (0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]) / 255
+
+    r = max(2, w // 20)
+    # separable box blur over the hull only, so the transparent ground does not drag the
+    # edges dark and invent a rim that the artwork does not have.
+    def pass_(src, stride, count, length):
+        dst = [0.0] * (w * h)
+        for c in range(count):
+            acc, num = 0.0, 0
+            for t in range(length):
+                i = c * (stride if stride == 1 else 1) + t * (1 if stride == 1 else w)
+                i = (c * w + t) if stride == 1 else (t * w + c)
+                if on[i]:
+                    acc += src[i]
+                    num += 1
+                if t > 2 * r:
+                    j = (c * w + t - 2 * r - 1) if stride == 1 else ((t - 2 * r - 1) * w + c)
+                    if on[j]:
+                        acc -= src[j]
+                        num -= 1
+                m = t - r
+                if 0 <= m < length:
+                    k = (c * w + m) if stride == 1 else (m * w + c)
+                    dst[k] = acc / num if num else 0.0
+        return dst
+
+    blur = pass_(pass_(lum, 1, h, w), 0, w, h)
+    vals = sorted(blur[i] for i in range(w * h) if on[i])
+    if not vals:
+        return bytearray(w * h * 4)
+    lo, hi = vals[len(vals) // 50], vals[-len(vals) // 50 - 1]
+    span = (hi - lo) or 1
+    out = bytearray(w * h * 4)
+    for i in range(w * h):
+        if not on[i]:
+            continue
+        k = min(3, max(0, int((blur[i] - lo) / span * 4))) / 3
+        out[i * 4] = int(FAR[0] + (NEAR[0] - FAR[0]) * k)
+        out[i * 4 + 1] = int(FAR[1] + (NEAR[1] - FAR[1]) * k)
+        out[i * 4 + 2] = int(FAR[2] + (NEAR[2] - FAR[2]) * k)
+        out[i * 4 + 3] = 255
+    return out
+
+
 # ---------------------------------------------------------------- sheet
 
 def draw_cell(cv, ox, oy, size, geom, yaw, pitch, turn):
@@ -506,7 +564,7 @@ def main(argv):
     data = hulls()
     names = [n for n in (argv or ORDER) if n in data]
     T = tracer() if game else None
-    cols = (["Sprite"] if game else []) + [a[0] for a in ANGLES]
+    cols = (["Sprite", "Relief"] if game else []) + [a[0] for a in ANGLES]
     pad, head, side = 2, 22, 132
     W = side + len(cols) * (cell + pad) + pad
     H = head + len(names) * (cell + pad) + pad
@@ -528,7 +586,8 @@ def main(argv):
             ship = T.load_ship(game, name)
             sw, sh, spx = T.read_png(f"{game}/{ship['spriteName']}")
             cv.blit(spx, sw, sh, side + pad, oy, cell)
-            shift = 1
+            cv.blit(relief(spx, sw, sh), sw, sh, side + (cell + pad) + pad, oy, cell)
+            shift = 2
         for c, (_, yaw, pitch, turn) in enumerate(ANGLES):
             ox = side + (c + shift) * (cell + pad) + pad
             cv.rect(ox - pad, oy, ox - pad + 1, oy + cell, RULE)

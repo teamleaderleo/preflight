@@ -67,10 +67,10 @@ anything the reader could not already see.
   every station. A plate reads as a plate from its outline. Whether that outline comes out a
   triangle, a pentagon or a long hexagon is decided by how many stations the lane has, which is
   decided by the ship, which is the right thing for it to depend on.
-- **Two struts a lane, at its ends**, plus one crossbar at the beam — the station where the
-  plate is widest, which is the one interior line that marks something. Struts at the beam as
-  well were tried and are the one thing here that read as a mistake: at the widest part of a
-  wide hull the rake clips flat and you get long shallow lines crossing everything.
+- **Two struts a lane, at its ends**, and nothing between them. A crossbar at the beam was
+  tried and pulled: no sprite has a feature there, it was in because a plate "should" be
+  divided somewhere. Struts at the beam were worse — at the widest part of a wide hull the
+  rake clips flat and draws long shallow lines across everything.
 - **Verticals only at the hull's corners** — the sharpest turns in the outline, which on these
   ships are the prow, the shoulders and the transom. One every nth vertex boxes the whole rim
   into rectangles. Removing them entirely was tried too and is also wrong: with nothing tying
@@ -109,6 +109,18 @@ column to trust — it is the only one the sprite can vouch for.
 
 The other columns are interpretation and are allowed to be. Nothing above plan view exists in a
 flat sprite, so where faithfulness and legibility disagree there, legibility wins.
+
+`--sprites` also draws a **relief** column: the sprite's own luminance, blurred at about a
+twentieth of the hull's width and cut into four bands. Starsector's art is lit from straight
+above, so a raised deck is bright and a well between two blocks is dark, and that is the only
+thing a flat sprite says about where a third axis would go. Posterising it unblurred does not
+work — the bands chase the greebling, which sits at every tone. Blurred, it is a map of where a
+line is worth drawing at all, and where the answer is nothing.
+
+It has already overruled a hand-written lane. The Odyssey carried a second deck on its port
+shoulder, on the theory that the shoulder was the feature the hull is bent around. The relief
+says that shoulder is a **well**: the Odyssey is a spine ship with pods hung off it and the pods
+are recessed. The lane was inventing structure the artwork does not have, and it is gone.
 
 **Pass `--sprites` and compare against the artwork, not against your own last render.** A render
 next to a render only tells you what changed. Next to the sprite it told us immediately that
