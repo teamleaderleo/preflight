@@ -24,6 +24,8 @@ archive. They answer different questions. This page is the shortest route to the
 - [Performance and storage tradeoffs](performance-storage-tradeoffs.md) — what Balanced, Fastest,
   prepared audio, redundancy, and safe pruning cost and buy.
 - [Downloads and installation](downloads.md) — planned artifacts and current private build process.
+- [Beta announcement draft](beta-announcement-draft.md) — forum, Reddit, and Discord launch copy.
+- [Patreon page draft](patreon-page-draft.md) — short About, tier, welcome, and first-post copy.
 - [Known limitations](known-limitations.md) — the current platform, evidence, storage, and fallback
   limits.
 - [Cross-platform evidence plan](cross-platform-evidence-plan.md) — what hosted, emulated, and native
