@@ -20,7 +20,7 @@ from pathlib import Path
 from collections import deque
 
 DEFAULT_GAME = "/Applications/Starsector.app/Contents/Resources/Java"
-HULLS = ["odyssey", "onslaught", "conquest", "paragon", "hammerhead"]
+HULLS = ["odyssey", "onslaught", "conquest", "paragon", "astral", "hammerhead"]
 PAGE = Path(__file__).with_name("hangar-light.html")
 NBR = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
 
@@ -107,14 +107,31 @@ def rdp(points, eps):
     return rdp(points[:index + 1], eps)[:-1] + rdp(points[index:], eps)
 
 
-def budget(loop, target):
-    """Simplify to at most `target` points, keeping the loosest tolerance that gets there."""
-    best = loop
-    for eps in (0.35, 0.5, 0.7, 1.0, 1.4, 1.9, 2.5, 3.2, 4.2, 5.5, 7.0, 9.0):
-        best = rdp(loop, eps)
-        if len(best) <= target:
-            break
-    return best
+def budget(loop, eps, cap):
+    """Simplify at a fixed tolerance, and only fall back to a point count if that overruns.
+
+    Tolerance, not a point budget. A budget makes every hull spend the same number of points
+    whatever its shape, so an Astral and a Hammerhead get the same allowance for very different
+    amounts of ship, and the tolerance that buys it is whatever it happens to be. At a fixed
+    tolerance hulls land where their own complexity puts them -- 66 for an Odyssey, 104 for an
+    Astral -- and the number is a decision about how closely to follow the artwork rather than
+    a side effect.
+
+    These are deliberately set fine. What the page ships is not the final fidelity -- it
+    simplifies again in the browser, from a Detail slider, so the level of detail is something
+    to look at rather than something to re-run a script for. What cannot move in the browser is
+    anything needing the sprite: the blur, the area floor and where the light is cut.
+
+    Deep notches survive either way; Douglas-Peucker keeps the largest deviation first, so the
+    Onslaught's prow trenches are the last thing it would drop, not the first. They are intact
+    at every tolerance tried up to 3.5. The cap is only there so a pathological outline cannot
+    run away.
+    """
+    out = rdp(loop, eps)
+    while len(out) > cap:
+        eps *= 1.25
+        out = rdp(loop, eps)
+    return out
 
 
 def holes(mask, w, h):
@@ -157,6 +174,76 @@ def holes(mask, w, h):
             if len(blob) >= 60:
                 found.append(march(mask, w, h, min(blob, key=lambda p: (p[1], p[0])), False))
     return found
+
+
+def blur_luma(px, w, h, mask):
+    """The sprite's own lighting, blurred until the greebling is gone and only masses are left."""
+    lum = [0.0] * (w * h)
+    for i in range(w * h):
+        if mask[i // w][i % w]:
+            lum[i] = (0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]) / 255
+    r = max(2, int(w * BLUR))
+    on = [mask[i // w][i % w] for i in range(w * h)]
+
+    def sweep(src, horizontal):
+        dst = [0.0] * (w * h)
+        outer, inner = (h, w) if horizontal else (w, h)
+        for c in range(outer):
+            acc = num = 0
+            for t in range(inner + r):
+                if t < inner:
+                    i = c * w + t if horizontal else t * w + c
+                    if on[i]:
+                        acc += src[i]
+                        num += 1
+                d = t - 2 * r - 1
+                if d >= 0:
+                    j = c * w + d if horizontal else d * w + c
+                    if on[j]:
+                        acc -= src[j]
+                        num -= 1
+                m = t - r
+                if 0 <= m < inner:
+                    k = c * w + m if horizontal else m * w + c
+                    dst[k] = acc / num if num else 0.0
+        return dst
+
+    return sweep(sweep(lum, True), False)
+
+
+def masses(px, w, h, mask, cut):
+    """Closed contours of everything the sprite lights above `cut` of its own range.
+
+    This is the same march that produces the silhouette, one level in: the silhouette is the
+    boundary between hull and space, and these are the boundaries between one raised block and
+    the next. They are the shapes inside the ship, which is what anyone actually recognises --
+    an Odyssey's spine and its pod cluster, an Onslaught's three blocks, a Paragon's ring.
+    """
+    lum = blur_luma(px, w, h, mask)
+    vals = sorted(lum[y * w + x] for y in range(h) for x in range(w) if mask[y][x])
+    if not vals:
+        return []
+    lo, hi = vals[len(vals) // 50], vals[-len(vals) // 50 - 1]
+    level = lo + (hi - lo) * cut
+    up = [[mask[y][x] and lum[y * w + x] >= level for x in range(w)] for y in range(h)]
+    seen, out = [[False] * w for _ in range(h)], []
+    for y in range(h):
+        for x in range(w):
+            if not up[y][x] or seen[y][x]:
+                continue
+            blob, q = [], deque([(x, y)])
+            seen[y][x] = True
+            while q:
+                cx, cy = q.popleft()
+                blob.append((cx, cy))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < w and 0 <= ny < h and up[ny][nx] and not seen[ny][nx]:
+                        seen[ny][nx] = True
+                        q.append((nx, ny))
+            if len(blob) >= w * h * MIN_AREA:
+                out.append(march(up, w, h, min(blob, key=lambda p: (p[1], p[0])), True))
+    return out
 
 
 def load_ship(game, name):
@@ -208,7 +295,22 @@ def fold(mask, w, h, axis):
     return mask
 
 
-def build(game, name, target=64):
+# The four knobs that decide how much of the inside gets drawn. They are all in one place
+# because they only make sense together: blurring harder merges blocks, so the area floor can
+# come down; raising the floor without blurring just deletes small blocks and keeps ragged big
+# ones. Tuned to land each hull at three to six shapes of fifteen-odd points, which is a hull
+# you can read at a glance rather than a contour map of its greebling.
+BLUR = 0.085       # box radius as a fraction of sprite width
+MIN_AREA = 0.022   # smallest region kept, as a fraction of the sprite's area
+OUTER_EPS = 1.2    # simplification tolerance in sprite pixels, for the outline
+HOLE_EPS = 0.8     # tighter for voids: they are small, so the same tolerance is a bigger share
+                   # of them -- at the outline's setting the Astral's flight decks came out as
+                   # five-point slivers
+TIER_EPS = 2.0     # ditto for an interior contour, which is a blurred blob and wants less
+TIERS = [(0.32, 0.42), (0.66, 0.86)]
+
+
+def build(game, name):
     ship = load_ship(game, name)
     w, h, px = read_png(f"{game}/{ship['spriteName']}")
     cx, cy = ship["center"]
@@ -233,13 +335,21 @@ def build(game, name, target=64):
     # Rebuilding the far flank from the near one was tried and is worse than useless -- it joins
     # the two ends of the walk straight across whatever sits between them, which welded the
     # Conquest's bow channel shut into a spire.
-    outer = budget(to_ship(raw), target * 2)
-    inner = [budget(to_ship(loop), 48) for loop in holes(mask, w, h)]
-    return outer, inner, len(raw), lop
+    outer = budget(to_ship(raw), OUTER_EPS, 260)
+    inner = [budget(to_ship(loop), HOLE_EPS, 90) for loop in holes(mask, w, h)]
+    tiers = []
+    for cut, lift in TIERS:
+        for loop in masses(px, w, h, mask, cut):
+            tiers.append((lift, budget(to_ship(loop), TIER_EPS, 70)))
+    return outer, inner, len(raw), lop, tiers
 
 
-def normalise(outer, inner):
-    """Centre on the origin and scale the longest axis to 1, which is what the page expects."""
+def normalise(outer, inner, tiers):
+    """Centre on the origin and scale the longest axis to 1, which is what the page expects.
+
+    The frame comes from the outline alone, and the interiors are carried through it, so a
+    tier stays where it sits on the ship instead of being fitted to its own bounding box.
+    """
     pts = outer + [p for loop in inner for p in loop]
     zs = [p[0] for p in pts]
     xs = [p[1] for p in pts]
@@ -249,15 +359,22 @@ def normalise(outer, inner):
     def unit(loop):
         return [[round((p[0] - cz) / span, 3), round((p[1] - cx) / span, 3)] for p in loop]
 
-    return unit(outer), [unit(loop) for loop in inner]
+    return unit(outer), [unit(loop) for loop in inner], [(lift, unit(loop)) for lift, loop in tiers]
 
 
-def rewrite(page, name, outer, inner):
-    """Replace this hull's `o:` and `holes:` arrays, leaving its hand-written `deck:` alone."""
+def rewrite(page, name, outer, inner, tiers):
+    """Replace this hull's whole geometry: outline, voids and interior tiers.
+
+    Nothing in a hull entry is written by hand any more. Hand-written deck stations were tried
+    at length and the answer was always the same -- a rule applied to six ships cannot know what
+    any one of them looks like. The interiors are marched off the sprite's own lighting by the
+    same code that marches the silhouette off its alpha.
+    """
     at = page.index(f"{name}:{{")
     head = page[at:page.index("o:[", at)]
-    tail = page.index("deck:[", at)
-    block = f"o:{json.dumps(outer)},\n      holes:{json.dumps(inner)},\n      "
+    tail = page.index("},\n", page.index("inner:[", at))
+    block = (f"o:{json.dumps(outer)},\n      holes:{json.dumps(inner)},\n      inner:["
+             + ",".join(f"[{lift},{json.dumps(loop)}]" for lift, loop in tiers) + "]")
     return page[:at] + head + block + page[tail:]
 
 
@@ -270,15 +387,17 @@ def main(argv):
         raise SystemExit(f"no Starsector data/hulls under {game} -- pass --game")
     page = PAGE.read_text()
     for name in (argv or HULLS):
-        outer, inner, source, lop = build(game, name)
-        outer, inner = normalise(outer, inner)
-        page = rewrite(page, name, outer, inner)
+        outer, inner, source, lop, tiers = build(game, name)
+        outer, inner, tiers = normalise(outer, inner, tiers)
+        page = rewrite(page, name, outer, inner, tiers)
         print(f"{name:11} {source:5} contour pixels -> {len(outer):4} points   "
               f"voids {[len(loop) for loop in inner] or '-'}   "
+              f"inner {len(tiers)}   "
               f"asymmetry {lop * 100:4.1f}% "
               f"{'(traced verbatim)' if lop > 0.06 else '(folded)'}")
     PAGE.write_text(page)
     print(f"wrote {PAGE.name}")
 
 
-main(sys.argv[1:])
+if __name__ == "__main__":
+    main(sys.argv[1:])

@@ -21,41 +21,47 @@ is being built independently and lofts the collision bounds rather than the artw
 
 ## How a hull is built
 
-Each hull in the page carries three things:
+Each hull in the page carries three arrays, and **all three are traced**. Nothing is typed in.
 
 | field | what it is |
 | --- | --- |
-| `o` | the plan-view outline, traced from the sprite, ~100–125 points |
+| `o` | the plan-view outline, marched off the sprite's alpha, 44–104 points |
 | `holes` | interior voids as their own closed loops |
-| `decks` | one or more **hand-written** lanes; a station is `[z, height, half-width, centre x]` |
+| `inner` | the raised blocks inside the hull, `[height, contour]`, marched off the sprite's light |
 
-`o` and `holes` are generated. `decks` is not, and that is the point — evenly spaced ribs read
-as a ruled grid laid over the ship, and scoring the artwork to pick better stations automatically
-was barely different, because it finds the rows that are busy rather than the rows that are
-structure. The stations are read off each sprite: the nose cap, the pod rows or the broadsides,
-the bridge, the face of the engine block. Width is what gives the deck slopes and overhangs —
-zero width is a knife ridge, a wide station is a plate, and a station wider than the one before
-it overhangs the hull beneath.
+`inner` is the answer to a question this prototype got wrong for a long time. The silhouette is
+the boundary between hull and space. The shapes **inside** a ship — an Odyssey's spine and its
+pod cluster, an Onslaught's three blocks, a Paragon's ring, an Astral's wings either side of its
+flight decks — are the boundaries between one raised block and the next, and they are what
+anyone actually recognises. They come off the same march, one level in: the sprite's own
+luminance, blurred until the greebling is gone, cut at two thresholds, and every region above
+each threshold traced as a closed loop and stood up at that height with four legs.
 
-**A hull gets as many lanes as it has spines.** One centreline run is the assumption that every
-ship is a fish, and three of these five are not. An Onslaught's prow is three separate prongs
-from `z=+0.93` down to `+0.25` — measured off the sprite — so a single deck over them is a bridge
-built across two trenches; it carries one lane per prong, and they stop where the prongs merge. A
-Paragon is a ring, and the one wrong place for a deck is straight down the middle of it, so the
-bow cap, each arm and the command module standing up inside the ring's mouth each get their own.
-The Odyssey's spine does not run down `x=0` at all. A station whose centre has no hull under it
-is dropped rather than drawn, which is what stops a lane hanging a bar over open space.
+**Everything hand-typed was deleted to get here**, and the history is worth keeping because it
+was three weeks of the same mistake. There were hand-written deck stations, then hand-written
+lanes with a centre offset, then hand-placed pods. Each was a rule applied to six ships, and a
+rule cannot know what any one ship looks like — the sprite can, and the sprite was sitting there
+the whole time. The last version of it, `pods`, was hexagons scattered at coordinates read off
+by eye; it survived one look next to the artwork.
 
-The deck is tied to the hull by **raked struts**, two per station, landing on the silhouette
-between that station and its neighbours. Both other things this has been are wrong: a strut
-square to the keel is a ladder rung whatever you do to its length — it is what made the Odyssey
-read as a barrel with hoops round it — and a deck tied to nothing at all is an island floating in
-the middle of the ship.
+Related dead ends, all of them the deck reaching for the silhouette and drawing a line across
+the whole ship: a rung square to the keel, a chine partway out, a raked strut held at a fixed
+angle. The interiors need none of it — a traced block already sits where it sits, and four short
+legs at its compass extremes stand it up.
 
-What is held constant is the strut's **angle**, not how far along the ship it reaches. Reaching a
-fixed fraction of the gap to the next station lets the rake be decided by how wide the ship
-happens to be there, and across an Onslaught's beam that lies down flat and is a rung again. The
-run aft is set from the run outboard and then clipped so a strut cannot overshoot its neighbour.
+## The six
+
+Odyssey, Onslaught, Conquest, Paragon, Astral, Hammerhead.
+
+The first four are picked for silhouettes nothing else in the game has: a long asymmetric spire,
+three prongs over two trenches, a channel down the middle, a ring. The Astral is the carrier and
+brings a third kind of void — parallel slots either side of a spine, after the Conquest's channel
+and the Paragon's hole. The Hammerhead is here because it is everyone's first destroyer.
+
+Tracing the alternatives is what settled it, and the plan-view row is the argument: Legion and
+Dominator are the Onslaught's silhouette at another size, and Atlas is distinct only by being a
+freighter. The Ziggurat is the strongest shape in the game and is not in the set because naming
+it is a spoiler — if it ever goes in it should be drawn and labelled **???**.
 
 ## The contact sheet
 
@@ -74,9 +80,97 @@ column to trust — it is the only one the sprite can vouch for.
 The other columns are interpretation and are allowed to be. Nothing above plan view exists in a
 flat sprite, so where faithfulness and legibility disagree there, legibility wins.
 
+`--sprites` also draws a **relief** column: the sprite's own luminance, blurred at about a
+twentieth of the hull's width and cut into four bands. Starsector's art is lit from straight
+above, so a raised deck is bright and a well between two blocks is dark, and that is the only
+thing a flat sprite says about where a third axis would go. Posterising it unblurred does not
+work — the bands chase the greebling, which sits at every tone. Blurred, it is a map of where a
+line is worth drawing at all, and where the answer is nothing.
+
+The relief has rewritten three of the six, and in both directions:
+
+- **Odyssey** carried a second deck on its port shoulder, written on the theory that the
+  shoulder is the feature the hull is bent around. The relief says that shoulder is a **well** —
+  the Odyssey is a spine ship with its pods hung off it, recessed. Lane deleted. Its one
+  remaining lane also stopped bulging amidships, because the lit spine is near-constant width.
+- **Onslaught**'s outer lanes used to stop where the prongs merge. Wrong: each prong is the
+  forward end of a **broadside block** that carries on past the quarter, lit as a mass of its
+  own with a trough between it and the central dome. All three lanes now run the ship's length,
+  which is what the three-mass relief has been saying all along.
+- **Paragon** gained the two **stern pods**, which are lit as separate masses rather than as
+  part of the body, and its ring lanes moved outboard. The bright band on that ring runs along
+  its *outer* edge; centred on the arm they split the difference between ring and hole and
+  landed on neither.
+
+The pattern in all three: a lane was where a lane seemed reasonable, and the relief had an
+opinion.
+
+**Pass `--sprites` and compare against the artwork, not against your own last render.** A render
+next to a render only tells you what changed. Next to the sprite it told us immediately that
+every deck plate was about half again as wide as the superstructure it stood for — the Astral's
+spine between its flight decks, the Onslaught's central ridge, the Paragon's bow. Those got
+narrowed by hand, per ship, which is the only way that particular fault gets fixed. The sprite
+column is read live from an installation and **its output is scratch, not repository content**.
+
 The script reads the hull data straight out of the page, so the outlines and lanes can only be
 the page's own, but it **ports** `build()` and `project()`. Change one, change the other; the
 edge count it prints is the check, and it has to match what the page reports.
+
+## The fidelity knobs
+
+**The page has the dials, in two groups that carry the same three controls.** A hull is two
+families of closed loop: the **outer** ones marched off the sprite's alpha — the silhouette and
+the voids punched through it — and the **inner** ones marched off its lighting. They are found
+differently and they are different sizes, but once found they are the same kind of thing, so
+they get the same dials and the panel toggles between them rather than stacking six unrelated
+sliders.
+
+| dial | axis | what it does |
+| --- | --- | --- |
+| `Smooth` | input | rounds the traced contour before anything is decided about it |
+| `Min size` | input | the smallest closed shape worth keeping, as a share of hull area |
+| `Detail` | output | how many points survive to be drawn |
+
+The two axes are kept apart because they are not the same question, and **smoothing then
+simplifying is not the same as simplifying harder**: one softens the shape and keeps its extent,
+the other keeps the shape and drops its middles. An Onslaught's prow trenches narrow under
+`Smooth` and stay put under `Detail`.
+
+`Tier lift` and `Height` sit below the rule as shared form controls — they apply to the whole
+hull, so they belong to neither group.
+
+Driving all three loop families off one `Detail` dial with fixed multipliers was the version
+before this, and it was wrong: an outline, a void and an interior block are three different
+sizes of thing, and a tolerance that reads well on a 200-point hull outline flattens a 12-point
+flight deck.
+
+`contact-sheet.py` takes the same eight as flags — `--outer-detail`, `--inner-smooth` and so on
+— with the same defaults, so drag until it looks right and then pass what you settled on.
+
+What decides what the loops **are** still needs the sprite, so it stays in `trace-hulls.py` and
+needs a re-trace — the alpha cut that separates hull from space, the blur and light cuts that
+separate one raised block from the next, and the tier heights:
+
+| knob | what it does |
+| --- | --- |
+| `OUTER_EPS` | the ceiling on outline fidelity, in sprite pixels — the slider works down from it |
+| `HOLE_EPS` | the ceiling for voids, tighter — a void is small, so a given tolerance eats more of it |
+| `BLUR` | how hard the lighting is smoothed before the interiors are cut out of it |
+| `MIN_AREA` | the smallest interior block worth drawing |
+| `TIER_EPS` | how closely an interior contour follows its blurred blob |
+| `TIERS` | where the light is cut, and how high each tier stands |
+
+Two notes on setting them. **Tolerance, not a point budget:** a budget gives every hull the same
+allowance for very different amounts of ship, and whatever tolerance buys it. At a fixed
+tolerance a hull lands where its own complexity puts it — 44 points for a Hammerhead, 104 for an
+Astral — and the number is a decision rather than a side effect. **Blur and area floor move
+together:** blurring harder merges blocks so the floor can come down; raising the floor without
+blurring just deletes the small blocks and keeps the ragged big ones.
+
+Deep notches are not the thing that gets lost when these are loosened. Douglas-Peucker keeps the
+largest deviation first, so the Onslaught's prow trenches are the last thing it would drop —
+they are intact at every tolerance tried up to 3.5, which was checked by counting spans across
+the prow rather than by looking at a thumbnail.
 
 ## Regenerating the outlines
 
@@ -110,6 +204,56 @@ is already correct and the argument can be dropped.
   a triangulated height field with slots as bumps, rays from a centreline hub, and deepening the
   concave corners while bowing long runs into arcs — the last of which self-intersects any
   outline that touches itself, after which the even-odd test reads half the hull as outside.
+
+## Handing this over
+
+Nothing here runs in the product and nothing here is on the launch path. It is a design
+artefact: a page to argue against, a tracer that regenerates its data from any installation, and
+a sheet that makes six hulls comparable at a glance.
+
+**How it relates to the runtime catalog.** `preflight-desktop` already has one, built
+independently — `wireframeHullGeometry.ts`, `useInstrumentHull.ts` and the Rust side — and it
+solves a different problem well. It reads `.ship` files from the player's own installation at
+runtime, so it covers every hull including mods, with a bundled fallback and LOD. This
+prototype covers six ships and needs a Starsector install and a Python run to change any of
+them.
+
+They are the two halves of one design, not competing ones. What this page has that the runtime
+path does not:
+
+- **Silhouettes off sprite alpha, not collision bounds.** Bounds are what the game hit-tests;
+  they inscribe the artwork and chord across every sweep. On an Odyssey the difference is three
+  circular pods a side rendered as one straight line.
+- **Voids.** A Paragon is a donut, a Conquest has a channel, an Astral has two flight decks.
+  The runtime path has no hole handling, so a Paragon gets a line straight across its ring.
+- **Interiors.** The blocks inside a hull, traced off the sprite's own lighting.
+- **Measured asymmetry.** Four of the six are folded about their own centreline before tracing;
+  the Odyssey (16.4 %) and the Astral (12.5 %) are not, because they are asymmetric on purpose.
+
+The obvious shape of an integration is tiered: the runtime catalog stays the generic path for
+any hull including mods, and a small table of pre-traced hulls overrides it for the ones worth
+the trouble. That is a proposal, not a decision, and the runtime catalog is not this branch's
+to change.
+
+**Settled, and please do not re-derive:** everything in *Things that were tried and are wrong*
+below. Several of those cost multiple rounds each. The deck-reaching-for-the-silhouette family
+in particular was rediscovered four separate times under four different names.
+
+**Open:**
+
+- Whether the interiors want a third tier, and whether the two thresholds are in the right
+  place. They were set by dragging, not by argument.
+- The Conquest's relief fragments into more blocks than the others at the same settings. Might
+  be the ship, might be the threshold.
+- The Ziggurat is the strongest silhouette in the game and is out because naming it is a
+  spoiler. If it goes in, it should be drawn and labelled `???`.
+- Whether the Hammerhead keeps its slot. It is there because it is everyone's first destroyer,
+  not because of its silhouette, and the Doom and the Atlas both traced well.
+
+**The contact sheet is reusable on its own.** It is not specific to these six or to this page's
+construction — it takes hull data, a set of cameras and a cell size, and it renders a PNG in a
+fifth of a second. Any hull work wants something like it, because the faults that matter are
+only visible in a row.
 
 ## The boundary
 
