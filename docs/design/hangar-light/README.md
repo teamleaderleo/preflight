@@ -57,6 +57,40 @@ fixed fraction of the gap to the next station lets the rake be decided by how wi
 happens to be there, and across an Onslaught's beam that lies down flat and is a rung again. The
 run aft is set from the run outboard and then clipped so a strut cannot overshoot its neighbour.
 
+## Draw less
+
+Three separate things were each filling the middle of a ship with rectangles, and all three are
+gone. Between them they were about a fifth of every hull's line count and none of them said
+anything the reader could not already see.
+
+- **The deck is one closed plate**, two long edges and a cap at each end — not a crossbar at
+  every station. A plate reads as a plate from its outline. Whether that outline comes out a
+  triangle, a pentagon or a long hexagon is decided by how many stations the lane has, which is
+  decided by the ship, which is the right thing for it to depend on.
+- **Two struts a lane, at its ends.** One at every station is a truss where a truss is not the
+  point; the middle of a hull is better left empty than filled in.
+- **Verticals only at the hull's corners** — the sharpest turns in the outline, which on these
+  ships are the prow, the shoulders and the transom. One every nth vertex boxes the whole rim
+  into rectangles. Removing them entirely was tried too and is also wrong: with nothing tying
+  the three rings together they read as contour lines on a map instead of a solid.
+
+The general rule, since it keeps having to be rediscovered: **negative space is doing work.** A
+line has to earn its place against the reader's own ability to close a shape.
+
+## The six
+
+Odyssey, Onslaught, Conquest, Paragon, Astral, Hammerhead.
+
+The first four are picked for silhouettes nothing else in the game has: a long asymmetric spire,
+three prongs over two trenches, a channel down the middle, a ring. The Astral is the carrier and
+brings a third kind of void — parallel slots either side of a spine, after the Conquest's channel
+and the Paragon's hole. The Hammerhead is here because it is everyone's first destroyer.
+
+Tracing the alternatives is what settled it, and the plan-view row is the argument: Legion and
+Dominator are the Onslaught's silhouette at another size, and Atlas is distinct only by being a
+freighter. The Ziggurat is the strongest shape in the game and is not in the set because naming
+it is a spoiler — if it ever goes in it should be drawn and labelled **???**.
+
 ## The contact sheet
 
 ```bash
