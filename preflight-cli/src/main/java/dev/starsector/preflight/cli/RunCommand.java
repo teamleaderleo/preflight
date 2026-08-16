@@ -425,7 +425,12 @@ final class RunCommand {
     private static void printLaunchReadiness(CommandLine options) {
         PreflightHome home = PreflightHome.current();
         CacheCommand.CurrentProfile profile = CacheCommand.currentProfile(options.game(), options.launcher());
-        CacheHealth.Report health = CacheHealth.inspect(home, profile.fingerprint(), profile.diagnostic());
+        CacheHealth.Report health = CacheHealth.inspect(
+                home,
+                profile.fingerprint(),
+                profile.diagnostic(),
+                profile.audioBuild(),
+                profile.audioDecoder());
         boolean prepared = "ready".equals(health.status());
 
         System.out.println();
