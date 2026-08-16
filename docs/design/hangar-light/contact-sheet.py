@@ -100,8 +100,7 @@ def hulls():
             "bells": int(re.search(r"bells:(\d+)", seg).group(1)),
             "o": arr("o:["),
             "holes": arr("holes:["),
-            "decks": arr("decks:["),
-            "pods": arr("pods:[") if "pods:[" in seg else [],
+            "inner": arr("inner:["),
         }
     return out
 
@@ -189,74 +188,25 @@ def build(hull):
                     c = not c
         return c
 
-    def flank(z, mid_x):
-        """Where the hull edge is at this z, on the lane's own side of the ship."""
-        xs = crossings(z)
-        for q in range(0, len(xs) - 1, 2):
-            if xs[q] <= mid_x <= xs[q + 1]:
-                return xs[q], xs[q + 1]
-        return None
-
-    for lane in hull["decks"]:
-        port, stbd, live = [], [], []
-        for st in lane:
-            dz, lift, wid = st[0], st[1], st[2]
-            mid_x = st[3] if len(st) > 3 else 0.0
-            span = flank(dz, mid_x)
-            if span is None:
-                continue
-            y = half_height(dz, mid_x) + TH * 0.95 * lift
-            wl = min(wid, (mid_x - span[0]) * 0.9)
-            wr = min(wid, (span[1] - mid_x) * 0.9)
-            l = vert(mid_x - wl, y, dz)
-            r = vert(mid_x + wr, y, dz)
-            port.append(l); stbd.append(r)
-            live.append((dz, mid_x, mid_x - wl, mid_x + wr))
-        # The deck is one closed plate, not a ladder of crossbars: the two long edges plus a
-        # cap at each end. A bar at every station fills the middle of the ship with rectangles,
-        # and the plate reads as a plate from its outline alone.
-        for k in range(len(live) - 1):
-            mz = (live[k][0] + live[k + 1][0]) / 2
-            if inside(mz, (live[k][2] + live[k + 1][2]) / 2):
-                E.append((port[k], port[k + 1]))
-            if inside(mz, (live[k][3] + live[k + 1][3]) / 2):
-                E.append((stbd[k], stbd[k + 1]))
-        # Caps at the ends of the plate and nothing between them. A bar at the beam was tried
-        # and is a rule rather than an observation: no sprite has a feature there, it was put in
-        # because a plate "should" be divided somewhere.
-        for k in ({0, len(live) - 1}):
-            if live and live[k][3] - live[k][2] > 1e-4:
-                E.append((port[k], stbd[k]))
-
-        # Short legs at the ends of the plate, straight down to the hull under it. The raked
-        # strut is gone: it had to reach from the deck edge out to the silhouette, and on a
-        # wide hull that is a line arcing clean across the ship no matter what angle it is
-        # held at. Three versions of that -- rung, chine, rake -- all crossed things they had
-        # no business crossing. A leg is local and cannot.
-        for k in ([0, len(live) - 1] if len(live) > 1 else [0]):
-            dz, mid_x = live[k][0], live[k][1]
-            for anchor, ex in ((port[k], live[k][2]), (stbd[k], live[k][3])):
-                E.append((anchor, vert(ex, half_height(dz, ex), dz)))
-
-    # Hand-drawn features, written per ship off its own sprite. Everything above is a rule
-    # applied to every hull; this is the part that is just drawn. A pod is a closed ring at
-    # its own height with two legs -- the Odyssey's recessed pod wells, the Paragon's turret
-    # bastions, the Onslaught's dome -- and nothing works them out.
-    for pod in hull.get("pods", []):
-        pz, px_, pr = pod[0], pod[1], pod[2]
-        lift = pod[3] if len(pod) > 3 else 0.0
-        sides = int(pod[4]) if len(pod) > 4 else 6
-        y = half_height(pz, px_) + TH * 0.95 * lift
-        ring = []
-        for q in range(sides):
-            t = q / sides * math.tau + math.pi / sides
-            ring.append(vert(px_ + math.cos(t) * pr, y, pz + math.sin(t) * pr * 1.0))
-        for q in range(sides):
-            E.append((ring[q], ring[(q + 1) % sides]))
-        for q in (0, sides // 2):
-            gz = pz + math.sin(q / sides * math.tau + math.pi / sides) * pr
-            gx = px_ + math.cos(q / sides * math.tau + math.pi / sides) * pr
-            E.append((ring[q], vert(gx, half_height(gz, gx), gz)))
+    # The inside of the ship, traced the same way as the outside. Each tier is a closed
+    # contour of what the sprite lights above a threshold -- the boundary between one raised
+    # block and the next, where the silhouette is the boundary between hull and space. Nothing
+    # here is hand-typed; the shapes are the ship's own.
+    for lift, loop in hull["inner"]:
+        m = len(loop)
+        if m < 3:
+            continue
+        ring = [vert(p[1], half_height(p[0], p[1]) + TH * 0.95 * lift, p[0]) for p in loop]
+        for i in range(m):
+            E.append((ring[i], ring[(i + 1) % m]))
+        # Legs at the shape's four compass extremes, down to the hull under them. Enough to
+        # stand it up, few enough that the block keeps its own outline.
+        for pick in (min(range(m), key=lambda i: loop[i][0]),
+                     max(range(m), key=lambda i: loop[i][0]),
+                     min(range(m), key=lambda i: loop[i][1]),
+                     max(range(m), key=lambda i: loop[i][1])):
+            pz, px_ = loop[pick]
+            E.append((ring[pick], vert(px_, half_height(pz, px_), pz)))
 
     stern_half = max([abs(p[1]) for p in o if p[0] < zmin + (zmax - zmin) * 0.18] or [0])
     if stern_half <= 0:
@@ -606,7 +556,7 @@ def main(argv):
             cv.rect(ox - pad, oy, ox - pad + 1, oy + cell, RULE)
             draw_cell(cv, ox, oy, cell, geom, yaw, pitch, turn)
         print(f"{name:11} {len(geom[0]):5} verts  {len(geom[1]):5} edges  "
-              f"{len(data[name]['decks'])} deck lane(s)")
+              f"{len(data[name]['inner'])} inner shape(s)")
 
     cv.png(out)
     print(f"wrote {out}  {W}x{H}")

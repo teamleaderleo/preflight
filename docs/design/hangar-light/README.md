@@ -21,80 +21,33 @@ is being built independently and lofts the collision bounds rather than the artw
 
 ## How a hull is built
 
-Each hull in the page carries three things:
+Each hull in the page carries three arrays, and **all three are traced**. Nothing is typed in.
 
 | field | what it is |
 | --- | --- |
-| `o` | the plan-view outline, traced from the sprite, ~100–125 points |
+| `o` | the plan-view outline, marched off the sprite's alpha, ~105–125 points |
 | `holes` | interior voids as their own closed loops |
-| `decks` | one or more **hand-written** lanes; a station is `[z, height, half-width, centre x]` |
-| `pods` | **hand-drawn** features, `[z, x, radius, height, sides]` — closed rings with two legs |
+| `inner` | the raised blocks inside the hull, `[height, contour]`, marched off the sprite's light |
 
-`o` and `holes` are generated. `decks` is not, and that is the point — evenly spaced ribs read
-as a ruled grid laid over the ship, and scoring the artwork to pick better stations automatically
-was barely different, because it finds the rows that are busy rather than the rows that are
-structure. The stations are read off each sprite: the nose cap, the pod rows or the broadsides,
-the bridge, the face of the engine block. Width is what gives the deck slopes and overhangs —
-zero width is a knife ridge, a wide station is a plate, and a station wider than the one before
-it overhangs the hull beneath.
+`inner` is the answer to a question this prototype got wrong for a long time. The silhouette is
+the boundary between hull and space. The shapes **inside** a ship — an Odyssey's spine and its
+pod cluster, an Onslaught's three blocks, a Paragon's ring, an Astral's wings either side of its
+flight decks — are the boundaries between one raised block and the next, and they are what
+anyone actually recognises. They come off the same march, one level in: the sprite's own
+luminance, blurred until the greebling is gone, cut at two thresholds, and every region above
+each threshold traced as a closed loop and stood up at that height with four legs.
 
-**A hull gets as many lanes as it has spines.** One centreline run is the assumption that every
-ship is a fish, and three of these five are not. An Onslaught's prow is three separate prongs
-from `z=+0.93` down to `+0.25` — measured off the sprite — so a single deck over them is a bridge
-built across two trenches; it carries one lane per prong, and they stop where the prongs merge. A
-Paragon is a ring, and the one wrong place for a deck is straight down the middle of it, so the
-bow cap, each arm and the command module standing up inside the ring's mouth each get their own.
-The Odyssey's spine does not run down `x=0` at all. A station whose centre has no hull under it
-is dropped rather than drawn, which is what stops a lane hanging a bar over open space.
+**Everything hand-typed was deleted to get here**, and the history is worth keeping because it
+was three weeks of the same mistake. There were hand-written deck stations, then hand-written
+lanes with a centre offset, then hand-placed pods. Each was a rule applied to six ships, and a
+rule cannot know what any one ship looks like — the sprite can, and the sprite was sitting there
+the whole time. The last version of it, `pods`, was hexagons scattered at coordinates read off
+by eye; it survived one look next to the artwork.
 
-The deck is tied to the hull by **raked struts**, two per station, landing on the silhouette
-between that station and its neighbours. Both other things this has been are wrong: a strut
-square to the keel is a ladder rung whatever you do to its length — it is what made the Odyssey
-read as a barrel with hoops round it — and a deck tied to nothing at all is an island floating in
-the middle of the ship.
-
-What is held constant is the strut's **angle**, not how far along the ship it reaches. Reaching a
-fixed fraction of the gap to the next station lets the rake be decided by how wide the ship
-happens to be there, and across an Onslaught's beam that lies down flat and is a rung again. The
-run aft is set from the run outboard and then clipped so a strut cannot overshoot its neighbour.
-
-## Draw less
-
-Three separate things were each filling the middle of a ship with rectangles, and all three are
-gone. Between them they were about a fifth of every hull's line count and none of them said
-anything the reader could not already see.
-
-- **The deck is one closed plate**, two long edges and a cap at each end — not a crossbar at
-  every station. A plate reads as a plate from its outline. Whether that outline comes out a
-  triangle, a pentagon or a long hexagon is decided by how many stations the lane has, which is
-  decided by the ship, which is the right thing for it to depend on.
-- **Short legs at the ends of a plate**, straight down to the hull under them. Every version
-  that reached out to the *silhouette* — rung, chine, raked strut — drew a line arcing clean
-  across the ship, because on a wide hull that is what a deck-edge-to-outline connection is at
-  any angle. A leg is local and cannot cross anything. That fault took four attempts.
-- **Two connections a lane, at its ends**, and nothing between them. A crossbar at the beam was
-  tried and pulled: no sprite has a feature there, it was in because a plate "should" be
-  divided somewhere. Struts at the beam were worse — at the widest part of a wide hull the
-  rake clips flat and draws long shallow lines across everything.
-- **Verticals only at the hull's corners** — the sharpest turns in the outline, which on these
-  ships are the prow, the shoulders and the transom. One every nth vertex boxes the whole rim
-  into rectangles. Removing them entirely was tried too and is also wrong: with nothing tying
-  the three rings together they read as contour lines on a map instead of a solid.
-
-The general rule, since it keeps having to be rediscovered: **negative space is doing work.** A
-line has to earn its place against the reader's own ability to close a shape.
-
-## What is drawn rather than derived
-
-`pods` is the escape hatch from all of the above, and the reason it exists is that everything
-else on this page is a rule applied uniformly to six ships. A rule cannot know that an Odyssey
-is six recessed pod wells hung off a spine, that a Paragon's ring is studded with bastions, or
-that an Onslaught has one big lit disc on the centreline with a heavy drum on each beam. Those
-are the things people actually recognise, and they are typed in by hand off each sprite —
-position, radius, height, how many sides.
-
-They are also the only closed shapes on a hull that are not the hull, which is what makes them
-read as fittings rather than structure. Six sides for a round housing, eight for the big ones.
+Related dead ends, all of them the deck reaching for the silhouette and drawing a line across
+the whole ship: a rung square to the keel, a chine partway out, a raked strut held at a fixed
+angle. The interiors need none of it — a traced block already sits where it sits, and four short
+legs at its compass extremes stand it up.
 
 ## The six
 
