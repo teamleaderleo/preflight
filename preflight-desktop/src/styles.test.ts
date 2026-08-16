@@ -32,6 +32,28 @@ test("the primary palette stays warm gold rather than drifting back to blue", ()
 });
 
 /*
+ * The gold is the accent and only the accent. Warming the grounds along with it turned the whole
+ * app brown, which is the one thing this palette must not be: the ground is cool slate and the
+ * warmth is spent on the few things that are meant to glow. Checking the channels rather than the
+ * exact hexes means the grounds can be retuned without rewriting this, and a brown still fails.
+ */
+test("every ground stays cool", () => {
+  const grounds = ["cream", "paper-solid", "ink", "ink-soft", "launch-fill"];
+  const seen: string[] = [];
+  const warm: string[] = [];
+  for (const token of grounds) {
+    for (const [, value] of styles.matchAll(new RegExp(`--${token}:\\s*#([0-9a-f]{6})`, "g"))) {
+      seen.push(token);
+      if (parseInt(value.slice(0, 2), 16) > parseInt(value.slice(4, 6), 16)) {
+        warm.push(`--${token}: #${value}`);
+      }
+    }
+  }
+  expect(warm).toEqual([]);
+  expect(new Set(seen)).toEqual(new Set(grounds));
+});
+
+/*
  * Rotating the old blue palette toward gold landed the accent and the warning within a few degrees
  * of each other, which is the one collision a near-monochrome scheme cannot absorb: "this is a
  * link" and "this needs your attention" stop being distinguishable. Warning is pushed to rust and
