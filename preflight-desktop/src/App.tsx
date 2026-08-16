@@ -37,6 +37,7 @@ import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { failedRunSummary, shortPath } from "./uiFormat";
+import { blockingWorkflow } from "./workflowPolicy";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -416,19 +417,26 @@ export default function App() {
     }
   };
 
-  const operationBlocked = preparing
-    || cacheRepairing
-    || choosingInstall
-    || restoringOperation
-    || status === "launching"
-    || status === "running"
-    || cleanup.busy
-    || launcher.saving
-    || profilesState.profileBusy
-    || diagnostics.diagnosticsBusy
-    || diagnostics.reportUploading
-    || removal.busy
-    || updates.updateInstalling;
+  const activeOperation = blockingWorkflow({
+    preparing,
+    preparationPercent: preparation.preparationPercent,
+    cacheRepairing,
+    choosingInstall,
+    restoringOperation,
+    desktopSmokeRunning: automation.desktopSmokeRunning,
+    desktopSmokeCancelling: automation.desktopSmokeCancelling,
+    status,
+    cleanupBusy: cleanup.busy,
+    launcherSaving: launcher.saving,
+    profileBusy: profilesState.profileBusy,
+    diagnosticsBusy: diagnostics.diagnosticsBusy,
+    reportUploading: diagnostics.reportUploading,
+    reportFinalizing: diagnostics.reportFinalizing,
+    reportCancelling: diagnostics.reportCancelling,
+    removalBusy: removal.busy,
+    updateInstalling: updates.updateInstalling,
+  });
+  const operationBlocked = activeOperation !== null;
   const refreshAfterAutomaticCacheCleanup = useCallback(() => {
     void refreshCache();
     invalidatePreparationPlan();
@@ -472,43 +480,6 @@ export default function App() {
     };
   }, []);
 
-  const activeOperation = preparing
-    ? { reason: `Preparing this mod setup · ${preparation.preparationPercent}% complete`, owner: "home" as Page }
-    : cacheRepairing
-      ? { reason: "Repairing prepared data for this mod setup", owner: "prepare" as Page }
-      : automation.desktopSmokeRunning
-        ? {
-          reason: automation.desktopSmokeCancelling
-            ? "Stopping the startup benchmark"
-            : "Running the startup benchmark",
-          owner: "benchmark" as Page,
-        }
-      : status === "launching"
-        ? { reason: "Opening Starsector", owner: "home" as Page }
-        : status === "running"
-          ? { reason: "Starsector is running", owner: "home" as Page }
-          : cleanup.busy
-            ? { reason: "Reviewing or cleaning prepared data", owner: "prepare" as Page }
-            : launcher.saving
-              ? { reason: "Saving game settings", owner: "launch" as Page }
-              : profilesState.profileBusy
-                ? { reason: "Updating the saved mod profile", owner: "mods" as Page }
-                : diagnostics.diagnosticsBusy
-                  ? { reason: "Creating a support file", owner: "help" as Page }
-                  : diagnostics.reportUploading
-                  ? {
-                    reason: diagnostics.reportFinalizing
-                      ? "Finishing the signed run-report receipt"
-                      : diagnostics.reportCancelling
-                        ? "Stopping the run report upload"
-                        : "Sending the run report",
-                    owner: "help" as Page,
-                  }
-                  : removal.busy
-                    ? { reason: "Reviewing or removing Preflight data", owner: "settings" as Page }
-                    : updates.updateInstalling
-                      ? { reason: "Installing the verified Preflight update", owner: "settings" as Page }
-                      : null;
   const retryFailedOperation = () => {
     if (retryIntent?.kind === "launch") {
       void primaryLaunch();
