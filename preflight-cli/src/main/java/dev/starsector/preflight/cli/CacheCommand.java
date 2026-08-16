@@ -695,6 +695,11 @@ final class CacheCommand {
     }
 
     static CurrentProfile currentProfile(Path game, Path launcher) {
+        return currentProfile(game, launcher, ResourceIndexBuilder.DEFAULT_SCAN_WORKERS);
+    }
+
+    /** Lets an interactive caller bound transient load without changing the resulting identity. */
+    static CurrentProfile currentProfile(Path game, Path launcher, int scanWorkers) {
         try {
             DiscoveryResult discovery = StarsectorDiscovery.discover(
                     Platform.current(),
@@ -711,8 +716,9 @@ final class CacheCommand {
                         .orElse("No readable Starsector installation was found.");
                 return new CurrentProfile(null, detail, null, null);
             }
-            String fingerprint = ResourceIndexBuilder.build(
-                    target.installRoot()).index().profileFingerprint();
+            ResourceIndexBuilder.BuildResult resourceIndex =
+                    ResourceIndexBuilder.build(target.installRoot(), scanWorkers);
+            String fingerprint = resourceIndex.index().profileFingerprint();
             try {
                 List<Path> gameJars = PrepareAudioCommand.jars(target.installRoot());
                 return new CurrentProfile(

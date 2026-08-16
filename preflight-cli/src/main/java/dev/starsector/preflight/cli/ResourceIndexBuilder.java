@@ -39,7 +39,7 @@ final class ResourceIndexBuilder {
      * CPU-bound, so the useful width is the number of roots that can have a syscall outstanding at
      * once rather than the number of cores.
      */
-    private static final int DEFAULT_SCAN_WORKERS =
+    static final int DEFAULT_SCAN_WORKERS =
             Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors()));
 
     static BuildResult build(Path installRoot) throws IOException {

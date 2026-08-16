@@ -13,6 +13,9 @@ import java.util.concurrent.Executors;
 final class DesktopHomeStateCommand {
     private static final String FORMAT = "starsector-preflight-desktop-home-state-v1";
     private static final int MAX_ERROR_CHARACTERS = 1_000;
+    // On the reviewed 61,693-file profile, six matched eight workers' ~1.02 s wall time while
+    // reducing combined user + system CPU time. Preparation and launch keep their own widths.
+    private static final int HOME_SCAN_WORKERS = 6;
 
     private DesktopHomeStateCommand() {
     }
@@ -35,7 +38,9 @@ final class DesktopHomeStateCommand {
         });
         try {
             CompletableFuture<Result> cache = readAsync(reads, "cacheInspection", () ->
-                    CacheCommand.inspect(home, CacheCommand.currentProfile(installRoot, null)));
+                    CacheCommand.inspect(
+                            home,
+                            CacheCommand.currentProfile(installRoot, null, HOME_SCAN_WORKERS)));
             CompletableFuture<Result> profiles = readAsync(reads, "profiles", () ->
                     ProfileCommand.describeList(home, installRoot));
             CompletableFuture<Result> launchSettings = readAsync(reads, "launchSettings", () ->
