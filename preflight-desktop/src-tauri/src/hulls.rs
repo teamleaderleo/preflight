@@ -6,8 +6,10 @@ use std::path::{Path, PathBuf};
 
 const MAX_HULL_FILES: usize = 1_024;
 const MAX_HULL_BYTES: u64 = 1024 * 1024;
+const MAX_CATALOG_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_BOUND_POINTS: usize = 256;
 const MAX_SLOTS: usize = 256;
+const MAX_LABEL_BYTES: usize = 128;
 const MAX_COORDINATE: f64 = 16_384.0;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -99,20 +101,30 @@ fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
     let directory = hull_directory(game).ok_or_else(|| {
         "This Starsector installation doesn't contain readable hull definitions.".to_string()
     })?;
-    let mut entries = fs::read_dir(&directory)
-        .map_err(|error| format!("Could not inspect Starsector's hull catalog: {error}"))?
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("ship"))
-        .collect::<Vec<_>>();
-    entries.sort_by_key(|entry| entry.file_name());
-    if entries.len() > MAX_HULL_FILES {
-        return Err(
-            "This installation contains too many hull definitions to display safely.".to_string(),
-        );
+    let directory_entries = fs::read_dir(&directory)
+        .map_err(|error| format!("Could not inspect Starsector's hull catalog: {error}"))?;
+    let mut entries = Vec::new();
+    let mut skipped = 0;
+    for entry in directory_entries {
+        let Ok(entry) = entry else {
+            skipped += 1;
+            continue;
+        };
+        if entry.path().extension().and_then(|value| value.to_str()) != Some("ship") {
+            continue;
+        }
+        if entries.len() >= MAX_HULL_FILES {
+            return Err(
+                "This installation contains too many hull definitions to display safely."
+                    .to_string(),
+            );
+        }
+        entries.push(entry);
     }
+    entries.sort_by_key(|entry| entry.file_name());
 
     let mut hulls = Vec::new();
-    let mut skipped = 0;
+    let mut catalog_bytes = 0;
     for entry in entries {
         let path = entry.path();
         let Ok(metadata) = fs::symlink_metadata(&path) else {
@@ -123,10 +135,23 @@ fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
             skipped += 1;
             continue;
         }
-        let hull = fs::read(&path)
+        let Ok(bytes) = fs::read(&path) else {
+            skipped += 1;
+            continue;
+        };
+        if bytes.len() as u64 > MAX_HULL_BYTES {
+            skipped += 1;
+            continue;
+        }
+        let Some(next_catalog_bytes) = bounded_catalog_bytes(catalog_bytes, bytes.len() as u64)
+        else {
+            return Err(
+                "This installation contains too much hull data to display safely.".to_string(),
+            );
+        };
+        catalog_bytes = next_catalog_bytes;
+        let hull = serde_json::from_slice::<RawHull>(&bytes)
             .ok()
-            .filter(|bytes| bytes.len() as u64 <= MAX_HULL_BYTES)
-            .and_then(|bytes| serde_json::from_slice::<RawHull>(&bytes).ok())
             .and_then(validate_hull);
         match hull {
             Some(hull) => hulls.push(hull),
@@ -150,6 +175,12 @@ fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
     })
 }
 
+fn bounded_catalog_bytes(current: u64, next: u64) -> Option<u64> {
+    current
+        .checked_add(next)
+        .filter(|total| *total <= MAX_CATALOG_BYTES)
+}
+
 fn hull_directory(game: &Path) -> Option<PathBuf> {
     let game = game.canonicalize().ok()?;
     [
@@ -169,6 +200,7 @@ fn validate_hull(raw: RawHull) -> Option<WireframeHull> {
     if !valid_label(&raw.hull_id)
         || !valid_label(&raw.hull_name)
         || !valid_label(&raw.hull_size)
+        || !valid_optional_label(&raw.style)
         || raw.bounds.len() < 6
         || raw.bounds.len() % 2 != 0
         || raw.bounds.len() / 2 > MAX_BOUND_POINTS
@@ -242,7 +274,11 @@ fn valid_positive(value: f64) -> bool {
 }
 
 fn valid_label(value: &str) -> bool {
-    !value.trim().is_empty() && value.len() <= 128 && !value.chars().any(char::is_control)
+    !value.trim().is_empty() && valid_optional_label(value)
+}
+
+fn valid_optional_label(value: &str) -> bool {
+    value.len() <= MAX_LABEL_BYTES && !value.chars().any(char::is_control)
 }
 
 fn featured_rank(id: &str) -> usize {
@@ -384,6 +420,21 @@ mod tests {
         )
         .expect("raw hull");
         assert!(validate_hull(raw).is_none());
+
+        let mut oversized_style: RawHull =
+            serde_json::from_str(&hull("style", "Style")).expect("raw hull with style");
+        oversized_style.style = "x".repeat(MAX_LABEL_BYTES + 1);
+        assert!(validate_hull(oversized_style).is_none());
+    }
+
+    #[test]
+    fn catalog_byte_budget_is_inclusive_and_overflow_safe() {
+        assert_eq!(
+            Some(MAX_CATALOG_BYTES),
+            bounded_catalog_bytes(MAX_CATALOG_BYTES - 1, 1)
+        );
+        assert_eq!(None, bounded_catalog_bytes(MAX_CATALOG_BYTES, 1));
+        assert_eq!(None, bounded_catalog_bytes(u64::MAX, 1));
     }
 
     #[test]
