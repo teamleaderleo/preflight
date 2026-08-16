@@ -714,6 +714,30 @@ pub(crate) fn get_cache(app: AppHandle, game: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub(crate) fn get_cache_inspection(app: AppHandle, game: String) -> Result<Value, String> {
+    let directory = canonical_game_directory(&game)?;
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    command
+        .arg("cache")
+        .arg("inspect")
+        .arg("--json")
+        .arg("--game")
+        .arg(directory);
+    let output = command
+        .output_within(READ_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not inspect its prepared data",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned an unreadable cache inspection: {error}"))
+}
+
+#[tauri::command]
 pub(crate) fn get_cache_health(
     app: AppHandle,
     tracker: State<'_, OperationCoordinator>,

@@ -10,7 +10,7 @@ import {
   SunIcon,
   SystemThemeIcon,
 } from "../icons";
-import type { ThemePreference } from "../useTheme";
+import type { PalettePreference, ThemePreference } from "../useTheme";
 import Logo from "../Logo";
 import { useEffect, useRef, type ReactNode } from "react";
 
@@ -36,9 +36,11 @@ interface DesktopShellProps {
   updateAvailable: boolean;
   engineVersion: string;
   theme: ThemePreference;
+  palette: PalettePreference;
   children: ReactNode;
   onPageChange: (page: Page) => void;
   onThemeChange: (theme: ThemePreference) => void;
+  onPaletteChange: (palette: PalettePreference) => void;
 }
 
 export function DesktopShell({
@@ -49,9 +51,11 @@ export function DesktopShell({
   updateAvailable,
   engineVersion,
   theme,
+  palette,
   children,
   onPageChange,
   onThemeChange,
+  onPaletteChange,
 }: DesktopShellProps) {
   const homeActive = page === "home" || page === "launch";
   const speedActive = page === "speed" || page === "benchmark";
@@ -106,6 +110,10 @@ export function DesktopShell({
         <header className="topbar">
           <h1 className="page-title" ref={pageTitle} tabIndex={-1}>{title}</h1>
           <div className="topbar__actions">
+            <div className="palette-switch" role="group" aria-label="Color palette">
+              <button className={palette === "blueprint" ? "palette-switch__button palette-switch__button--active" : "palette-switch__button"} type="button" title="Use Blueprint palette" aria-label="Use Blueprint palette" aria-pressed={palette === "blueprint"} onClick={() => onPaletteChange("blueprint")}><span className="palette-switch__swatch palette-switch__swatch--blueprint" /></button>
+              <button className={palette === "hangar" ? "palette-switch__button palette-switch__button--active" : "palette-switch__button"} type="button" title="Use Hangar palette" aria-label="Use Hangar palette" aria-pressed={palette === "hangar"} onClick={() => onPaletteChange("hangar")}><span className="palette-switch__swatch palette-switch__swatch--hangar" /></button>
+            </div>
             <div className="theme-switch" role="group" aria-label="Color theme">
               <button className={theme === "system" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use system theme" aria-label="Use system theme" aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><SystemThemeIcon /></button>
               <button className={theme === "light" ? "theme-switch__button theme-switch__button--active" : "theme-switch__button"} type="button" title="Use light theme" aria-label="Use light theme" aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><SunIcon /></button>

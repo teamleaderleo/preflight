@@ -17,22 +17,49 @@ test("the drafting surface supports explicit themes while motion preferences rem
 });
 
 test("navigation motion stays brief and the home illustration is structural", () => {
-  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 120ms/s);
+  expect(styles).toMatch(/\.page-viewport\s*\{[^}]*animation:\s*workspace-enter 90ms/s);
   expect(styles).toContain("@keyframes workspace-enter");
   expect(styles).toContain("@keyframes flight-plot-in");
   expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
 });
 
-test("the primary palette stays blue rather than blue-green", () => {
-  expect(styles).toContain("--accent: #6079ad");
-  expect(styles).toContain("--accent-strong: #425f98");
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#8fa8dd;/s);
-  expect(styles).not.toContain("#3b8493");
-  expect(styles).not.toContain("#246d7a");
+test("Blueprint and Hangar are explicit palette choices rather than one global compromise", () => {
+  expect(styles).toContain("--accent: #9a6a24");
+  expect(styles).toContain("--accent-strong: #7d5518");
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#edc07a;/s);
+  expect(styles).toMatch(/:root\[data-palette="blueprint"\]\s*\{[^}]*--accent:\s*#6079ad;[^}]*--accent-strong:\s*#425f98;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\[data-palette="blueprint"\]\s*\{[^}]*--accent-strong:\s*#8fa8dd;/s);
+  expect(styles).toContain(".palette-switch__swatch--blueprint");
+  expect(styles).toContain(".palette-switch__swatch--hangar");
+});
+
+/*
+ * The light paper comes from the Hangar Light prototype. The dark ground is intentionally more
+ * neutral after checking the default window at desktop scale, while gold carries the warmth.
+ */
+test("the grounds preserve the warm paper and neutral dark drafting surface", () => {
+  expect(styles).toContain("--cream: #efe8dc");
+  expect(styles).toContain("--paper-solid: #f6f1e8");
+  expect(styles).toContain("--ink: #241d14");
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--cream:\s*#11110f;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--paper-solid:\s*#191815;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--ink:\s*#e6ded0;/s);
+});
+
+/*
+ * Rotating the old blue palette toward gold landed the accent and the warning within a few degrees
+ * of each other, which is the one collision a near-monochrome scheme cannot absorb: "this is a
+ * link" and "this needs your attention" stop being distinguishable. Warning is pushed to rust and
+ * success keeps a real green, so the check is that they are still nowhere near the accent hue.
+ */
+test("status colours stay separable from the structural gold", () => {
+  expect(styles).toContain("--warning: #b0631f");
+  expect(styles).toContain("--success: #4f6b45");
+  expect(styles).not.toMatch(/--warning:\s*#[89ab][0-9a-f]6[0-9a-f]4[0-9a-f];/);
 });
 
 test("active controls look active without relying on gradients", () => {
-  expect(styles).toContain("--action: #4f69c5");
+  expect(styles).toContain("--action: #9a6a24");
   expect(styles).toMatch(/\.button--primary\s*\{[^}]*background:\s*var\(--action\);/s);
   expect(styles).not.toMatch(/\.button--primary\s*\{[^}]*linear-gradient/s);
   expect(styles).toMatch(/\.simple-switch:has\(input:checked\)\s*\{[^}]*background:\s*var\(--accent-soft\);/s);

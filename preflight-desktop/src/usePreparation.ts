@@ -3,6 +3,7 @@ import {
   cancelPreparation,
   getCache,
   getCacheHealth,
+  getCacheInspection,
   getPreparationPlan,
   isDesktopHost,
   repairCache,
@@ -90,10 +91,16 @@ export function usePreparation(
     cacheRequestRoot.current = game;
     setCacheLoading(true);
     try {
-      const [next, health] = await Promise.all([getCache(game), getCacheHealth(game)]);
+      const inspection = isDesktopHost()
+        ? await getCacheInspection(game)
+        : await Promise.all([getCache(game), getCacheHealth(game)]).then(([cache, health]) => ({
+          format: "starsector-preflight-cache-inspection-v1" as const,
+          cache,
+          health,
+        }));
       if (request === cacheRequest.current) {
-        setCache(next);
-        setCacheHealth(health);
+        setCache(inspection.cache);
+        setCacheHealth(inspection.health);
       }
     } catch (error) {
       if (request === cacheRequest.current) {

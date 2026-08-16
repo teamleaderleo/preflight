@@ -119,7 +119,7 @@ export function HomePage({
   // the launch button stays disabled forever on the one setting a short-of-space user would pick.
   const awaitingStoragePlan = storagePlanApplies(textureStorage)
     && (preparationPlanLoading || !preparationPlan);
-  const { profiles, profilesLoading, profileBusy, beginRename, reviewProfile } = profilesState;
+  const { profiles, profilesLoading, profileBusy, reviewProfile } = profilesState;
   const activeProfile = profiles?.profiles.find((profile) => profile.active) ?? null;
   const accelerationBytes = cache?.groups.find((group) => group.id === "acceleration")?.bytes ?? 0;
   // Nothing to pick between until there is somewhere to switch to, so the card stays plain text.
@@ -180,7 +180,7 @@ export function HomePage({
             * worth a line when it carries something the heading does not; here it only made the
             * screen look busier than the one decision it asks for.
             */}
-          {(isReady || status === "loading") && status !== "running" && status !== "launching" ? (
+          {isReady && status !== "running" && status !== "launching" ? (
             <div className="launch-console__status-line">
               <div className={`status-chip ${isReady && !needsPreparation ? "status-chip--ready" : ""}`}>
                 {isReady && !needsPreparation && optimizationPreset !== "off" ? <CheckIcon /> : <SparklesIcon />}
@@ -221,7 +221,7 @@ export function HomePage({
                   disabled={preparing || cacheRepairing || operationBlocked || status === "loading" || status === "error" || cacheLoading || (!storageBlocked && needsPreparation && !cacheNeedsRepair && !cacheInspectionBlocked && awaitingStoragePlan)}
                 >
                   {needsPreparation ? <SparklesIcon /> : <PlayIcon />}
-                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with minimal disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
+                  <span>{status === "launching" ? "Opening Starsector…" : status === "running" ? "Starsector is running" : preparing ? `Preparing ${preparationPercent}%…` : cacheRepairing ? "Repairing prepared data…" : cacheLoading ? "Checking this mod setup…" : cacheInspectionBlocked ? "Review profile check" : cacheNeedsRepair ? "Repair and launch" : preparationPlanLoading && needsPreparation ? "Calculating space…" : storageBlocked ? "Prepare with less disk" : needsPreparation ? "Prepare and launch" : "Launch Starsector"}</span>
                 </button>
                 {preparing ? (
                   <button className="button button--quiet launch-console__stop" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>
@@ -377,10 +377,7 @@ export function HomePage({
                 ? "Current list isn't saved as a profile"
                 : "The current mod list couldn’t be read"}</small>
           <div className="home-fact__links">
-            {activeProfile ? (
-              <button className="text-button" type="button" onClick={() => { beginRename(activeProfile.name); onNavigate("mods"); }} disabled={profileBusy || operationBlocked}>Rename</button>
-            ) : null}
-            <button className="text-button" type="button" onClick={() => onNavigate("mods")} disabled={!isReady}>Manage profiles <ArrowIcon /></button>
+            <button className="text-button" type="button" onClick={() => onNavigate("mods")} disabled={!isReady}>Profiles <ArrowIcon /></button>
           </div>
         </div>
         <div className="home-fact">

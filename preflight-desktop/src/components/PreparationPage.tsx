@@ -208,7 +208,7 @@ export function PreparationPage({
         </div>
         <div className="prepare-actions">
           {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
-          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with minimal disk" : "Prepare current profile"}</button>
+          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current profile"}</button>
         </div>
       </section> : null}
 

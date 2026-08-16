@@ -1,4 +1,5 @@
 export const THEME_STORAGE_KEY = "preflight.theme";
+export const PALETTE_STORAGE_KEY = "preflight.palette";
 export const OPTIMIZATION_PRESET_STORAGE_KEY = "preflight.optimizationPreset";
 export const DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY = "preflight.disabledOptimizationDomains";
 export const REPORT_RECEIPT_STORAGE_KEY = "preflight.reportReceipt";
@@ -10,6 +11,7 @@ export const INSTRUMENT_HULL_STORAGE_KEY = "preflight.instrumentHull";
 /** Every Preflight-owned value persisted in the desktop renderer/WebView localStorage. */
 export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
   THEME_STORAGE_KEY,
+  PALETTE_STORAGE_KEY,
   OPTIMIZATION_PRESET_STORAGE_KEY,
   DISABLED_OPTIMIZATION_DOMAINS_STORAGE_KEY,
   REPORT_RECEIPT_STORAGE_KEY,

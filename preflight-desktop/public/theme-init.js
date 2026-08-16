@@ -9,8 +9,11 @@
         typeof window.matchMedia === "function" &&
         window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    document.documentElement.dataset.palette =
+      window.localStorage.getItem("preflight.palette") === "hangar" ? "hangar" : "blueprint";
   } catch (error) {
     // Storage can be unavailable; a readable window matters more than the right theme.
     document.documentElement.dataset.theme = "light";
+    document.documentElement.dataset.palette = "blueprint";
   }
 })();

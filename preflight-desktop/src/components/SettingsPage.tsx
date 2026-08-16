@@ -1,4 +1,4 @@
-import { LifebuoyIcon, ShieldIcon } from "../icons";
+import { ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
@@ -20,7 +20,6 @@ interface SettingsPageProps {
   afterLaunchBehavior: AfterLaunchBehavior;
   instrumentHull: InstrumentHullState;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
-  onOpenHelp: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
   onRemove: () => void;
@@ -37,7 +36,6 @@ export function SettingsPage({
   afterLaunchBehavior,
   instrumentHull,
   onAfterLaunchBehaviorChange,
-  onOpenHelp,
   onReviewRemoval,
   onDismissRemoval,
   onRemove,
@@ -56,59 +54,61 @@ export function SettingsPage({
   return (
     <div className="settings-page">
       <NoticeBanner message={updateError === message ? "" : message} tone={messageTone} />
-      <section className="card launch-behavior-card">
-        <div>
-          <h2>After Starsector opens</h2>
-          <p>Preflight can stay one click away without covering the game.</p>
+      <section className="card preferences-card">
+        <div className="preference-block">
+          <div>
+            <h2>After launch</h2>
+            <p>Keep Preflight nearby without covering the game.</p>
+          </div>
+          <label className="setting-field preference-field">
+            <span>Window</span>
+            <select
+              aria-label="Preflight window"
+              value={afterLaunchBehavior}
+              onChange={(event) => onAfterLaunchBehaviorChange(event.target.value as AfterLaunchBehavior)}
+            >
+              <option value="minimize">Minimize</option>
+              <option value="keep">Keep open</option>
+              <option value="quit">Quit</option>
+            </select>
+            <small>{afterLaunchBehavior === "minimize"
+              ? "Restore it for logs or to stop Starsector."
+              : afterLaunchBehavior === "quit"
+                ? "Playtime still records."
+                : "Useful while testing."}</small>
+          </label>
         </div>
-        <label className="setting-field launch-behavior-field">
-          <span>Preflight window</span>
-          <select
-            aria-label="Preflight window"
-            value={afterLaunchBehavior}
-            onChange={(event) => onAfterLaunchBehaviorChange(event.target.value as AfterLaunchBehavior)}
-          >
-            <option value="minimize">Minimize</option>
-            <option value="keep">Keep open</option>
-            <option value="quit">Quit</option>
-          </select>
-          <small>{afterLaunchBehavior === "minimize"
-            ? "Restore it for logs or to stop Starsector."
-            : afterLaunchBehavior === "quit"
-              ? "Playtime still records with the window closed."
-              : "Useful while testing a setup."}</small>
-        </label>
-      </section>
-      <section className="card launch-behavior-card instrument-hull-card">
-        <div>
-          <h2>Display ship</h2>
-          <p>Choose the wireframe on the Speed page.</p>
+        <div className="preference-block instrument-hull-card">
+          <div>
+            <h2>Speed-page ship</h2>
+            <p>Use Preflight’s courier or a hull from this installation.</p>
+          </div>
+          <label className="setting-field preference-field">
+            <span>Ship</span>
+            <select
+              aria-label="Display ship"
+              value={instrumentHull.selectedId}
+              onChange={(event) => instrumentHull.choose(event.target.value)}
+            >
+              <option value="preflight-courier">Preflight courier</option>
+              {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && hull.featured) ? (
+                <optgroup label="Familiar hulls">
+                  {instrumentHull.hulls.filter((hull) => hull.id !== "preflight-courier" && hull.featured).map((hull) => (
+                    <option key={hull.id} value={hull.id}>{hull.name}</option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && !hull.featured) ? (
+                <optgroup label="More hulls">
+                  {instrumentHull.hulls.filter((hull) => !hull.featured).map((hull) => (
+                    <option key={hull.id} value={hull.id}>{hull.name}</option>
+                  ))}
+                </optgroup>
+              ) : null}
+            </select>
+            <small>{instrumentHull.catalog ? `${instrumentHull.catalog.hulls.length.toLocaleString()} found` : "Using Preflight’s courier"}</small>
+          </label>
         </div>
-        <label className="setting-field launch-behavior-field">
-          <span>Ship</span>
-          <select
-            aria-label="Display ship"
-            value={instrumentHull.selectedId}
-            onChange={(event) => instrumentHull.choose(event.target.value)}
-          >
-            <option value="preflight-courier">Preflight courier</option>
-            {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && hull.featured) ? (
-              <optgroup label="Familiar hulls">
-                {instrumentHull.hulls.filter((hull) => hull.id !== "preflight-courier" && hull.featured).map((hull) => (
-                  <option key={hull.id} value={hull.id}>{hull.name}</option>
-                ))}
-              </optgroup>
-            ) : null}
-            {instrumentHull.hulls.some((hull) => hull.id !== "preflight-courier" && !hull.featured) ? (
-              <optgroup label="More hulls">
-                {instrumentHull.hulls.filter((hull) => !hull.featured).map((hull) => (
-                  <option key={hull.id} value={hull.id}>{hull.name}</option>
-                ))}
-              </optgroup>
-            ) : null}
-          </select>
-          <small>{instrumentHull.catalog ? `${instrumentHull.catalog.hulls.length.toLocaleString()} hulls found.` : "Using Preflight’s courier."}</small>
-        </label>
       </section>
       <div className="settings-overview">
         <section className="card update-card">
@@ -150,9 +150,9 @@ export function SettingsPage({
           * a wary player has not gone.
           */}
         <section className="card privacy-card">
-          <div className="card__heading"><div><h2>Preflight and your data</h2></div><ShieldIcon className="settings-check" /></div>
+          <div className="card__heading"><div><h2>Privacy</h2></div><ShieldIcon className="settings-check" /></div>
           <ul className="privacy-facts">
-            <li><strong>No telemetry, analytics, or accounts.</strong></li>
+            <li><strong>No telemetry or accounts.</strong></li>
             {/*
               * A build without a configured intake cannot send a report at all, and the Benchmark
               * page already says so where the button would be. Describing the send flow here anyway
@@ -160,11 +160,11 @@ export function SettingsPage({
               * privacy position, which in that case is stronger, not weaker.
               */}
             {reportIntake && !reportIntake.configured ? (
-              <li>Update checks request version metadata. Support ZIPs stay on this computer until you share one yourself.</li>
+              <li>Update checks fetch version metadata. Support ZIPs stay here until you share one.</li>
             ) : (
-              <li>Update checks request version metadata. A support ZIP is sent only after you review it and press Send.</li>
+              <li>Update checks fetch version metadata. A support ZIP is sent only when you press Send.</li>
             )}
-            <li><strong>Saves, mods, screenshots, and game files stay out of support ZIPs.</strong></li>
+            <li>Saves, mods, screenshots, and game files stay out.</li>
           </ul>
           <div className="privacy-links">
             <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("privacy")}>Full privacy statement</button>
@@ -174,13 +174,6 @@ export function SettingsPage({
         </section>
 
       </div>
-
-      <section className="card help-card">
-        <div className="help-card__main">
-          <div><h2>Something going wrong?</h2><p>Support files, setup help, and the issue tracker are in Help.</p></div>
-          <button className="button button--primary button--support" type="button" onClick={onOpenHelp}><LifebuoyIcon />Open Help</button>
-        </div>
-      </section>
 
       <details className="card settings-disclosure removal-card">
         <summary><span><strong>Remove Preflight</strong><small>Launcher, prepared data, profiles, and reports</small></span></summary>

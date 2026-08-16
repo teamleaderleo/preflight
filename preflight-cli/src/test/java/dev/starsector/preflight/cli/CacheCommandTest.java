@@ -30,6 +30,23 @@ class CacheCommandTest {
     Path directory;
 
     @Test
+    @SuppressWarnings("unchecked")
+    void desktopInspectionSharesOneCurrentProfileAcrossInventoryAndHealth() throws Exception {
+        PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
+        String profile = "a".repeat(64);
+
+        Map<String, Object> inspection = CacheCommand.inspect(
+                home, new CacheCommand.CurrentProfile(profile, null, null, null));
+
+        assertEquals("starsector-preflight-cache-inspection-v1", inspection.get("format"));
+        Map<String, Object> cache = (Map<String, Object>) inspection.get("cache");
+        Map<String, Object> health = (Map<String, Object>) inspection.get("health");
+        assertEquals(profile, cache.get("currentProfileFingerprint"));
+        assertEquals(profile, health.get("profileFingerprint"));
+        assertEquals("cold", health.get("status"));
+    }
+
+    @Test
     void cacheHealthDistinguishesColdReadyAndProfileScopedRepair() throws Exception {
         PreflightHome home = PreflightHome.resolve(Platform.OTHER, directory, Map.of());
         String profile = "a".repeat(64);
