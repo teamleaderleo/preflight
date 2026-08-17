@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -101,6 +102,114 @@ class JvmMemorySettingsTest {
     }
 
     @Test
+    void refusesSameSizeExternalEditBeforePublishing() throws Exception {
+        Path root = temporary.resolve("external-edit/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("external-edit/backups");
+        Files.createDirectories(root);
+        String original = "#!/bin/sh\nexec java -Xmx4g game.Main\n";
+        String external = "#!/bin/sh\nexec java -Xmx5g game.Main\n";
+        assertEquals(original.length(), external.length());
+        Files.writeString(launcher, original);
+
+        IOException failure = assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> Files.writeString(source, external),
+                source -> {}));
+
+        assertTrue(failure.getMessage().contains("changed while they were being reviewed"), failure::getMessage);
+        assertEquals(external, Files.readString(launcher));
+        assertFalse(Files.exists(backups), "a refused pre-publication update should not retain a backup");
+    }
+
+    @Test
+    void refusesSymlinkEntrySwapBeforePublishingWhenSupported() throws Exception {
+        Path root = temporary.resolve("entry-swap/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path alternate = root.resolve("alternate.vmparams");
+        Path backups = temporary.resolve("entry-swap/backups");
+        Files.createDirectories(root);
+        String original = "#!/bin/sh\nexec java -Xmx4g game.Main\n";
+        Files.writeString(launcher, original);
+        Files.writeString(alternate, original);
+        Path probe = root.resolve("symlink-probe");
+        try {
+            Files.createSymbolicLink(probe, alternate.getFileName());
+            Files.delete(probe);
+        } catch (UnsupportedOperationException | IOException unsupported) {
+            return;
+        }
+
+        assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> {
+                    Files.delete(source);
+                    Files.createSymbolicLink(source, alternate.getFileName());
+                },
+                source -> {}));
+
+        assertTrue(Files.isSymbolicLink(launcher));
+        assertEquals(original, Files.readString(alternate));
+        assertFalse(Files.exists(backups), "a refused entry replacement should not retain a backup");
+    }
+
+    @Test
+    void postPublicationFailureRollsBackOnlyPreflightsPublishedBytes() throws Exception {
+        Path root = temporary.resolve("rollback/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("rollback/backups");
+        Files.createDirectories(root);
+        String original = "#!/bin/sh\nexec java -Xms4g -Xmx4g game.Main\n";
+        Files.writeString(launcher, original);
+
+        IOException failure = assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> {},
+                source -> { throw new IOException("synthetic post-publication failure"); }));
+
+        assertEquals("synthetic post-publication failure", failure.getMessage());
+        assertEquals(original, Files.readString(launcher));
+        Path backup = onlyFile(backups);
+        assertEquals(original, Files.readString(backup));
+    }
+
+    @Test
+    void externalPostPublicationEditSurvivesFailedRollback() throws Exception {
+        Path root = temporary.resolve("rollback-race/game");
+        Path launcher = root.resolve("starsector.sh");
+        Path backups = temporary.resolve("rollback-race/backups");
+        Files.createDirectories(root);
+        String original = "#!/bin/sh\nexec java -Xms4g -Xmx4g game.Main\n";
+        String external = "#!/bin/sh\nexec java -Xms7g -Xmx7g game.Main\n";
+        Files.writeString(launcher, original);
+
+        IOException failure = assertThrows(IOException.class, () -> JvmMemorySettings.update(
+                root,
+                target(root, launcher),
+                6144,
+                backups,
+                source -> {},
+                source -> {
+                    Files.writeString(source, external);
+                    throw new IOException("synthetic external edit");
+                }));
+
+        assertEquals("synthetic external edit", failure.getMessage());
+        assertTrue(failure.getSuppressed().length >= 1, "rollback refusal should be retained as suppressed evidence");
+        assertEquals(external, Files.readString(launcher));
+        assertEquals(original, Files.readString(onlyFile(backups)));
+    }
+
+    @Test
     void boundsAutomaticLauncherFileBackups() throws Exception {
         Path root = temporary.resolve("bounded-game");
         Path launcher = root.resolve("starsector.sh");
@@ -146,6 +255,14 @@ class JvmMemorySettingsTest {
         assertEquals(
                 "No Starsector installation was found. Set STARSECTOR_HOME or use --game.",
                 snapshot.reason());
+    }
+
+    private static Path onlyFile(Path directory) throws Exception {
+        try (var files = Files.list(directory)) {
+            List<Path> found = files.toList();
+            assertEquals(1, found.size());
+            return found.get(0);
+        }
     }
 
     private static LaunchTarget target(Path root, Path launcher) {
