@@ -52,6 +52,10 @@ final class PrepareCommand {
             return 3;
         }
 
+        ModCompatibilityPrecheck.Result modReadiness =
+        ModCompatibilityPrecheck.inspect(target.installRoot(), target);
+    ModCompatibilityPresenter.print(modReadiness, System.err);
+
         Path cache = (options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory())
                 .toAbsolutePath().normalize();
         ResourceIndexBuilder.BuildResult plannedResourceBuild = null;

@@ -18,6 +18,7 @@ final class ModCompatibilityPrecheck {
     static final String FORMAT = "starsector-preflight-mod-readiness-v1";
 
     enum ReasonCode {
+        ENABLED_MODS_UNAVAILABLE("enabled_mods_unavailable"),
         METADATA_ABSENT("mod_metadata_absent"),
         METADATA_INVALID("mod_metadata_invalid"),
         DUPLICATE_MOD_ID("mod_id_ambiguous"),
@@ -119,17 +120,47 @@ final class ModCompatibilityPrecheck {
     private ModCompatibilityPrecheck() {}
 
     static Result inspect(Path installRoot) throws IOException {
-        GameLayout layout = GameLayout.locate(installRoot);
-        List<String> enabled = readEnabled(layout.enabledModsFile());
-        String gameVersion = discoverGameVersion(layout.installRoot());
-        JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot());
-        Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
-        return inspect(layout.modsDirectory(), enabled, gameVersion, heap);
+    GameLayout layout;
+    try {
+        layout = GameLayout.locate(installRoot);
+    } catch (IOException unavailable) {
+        return unavailableProfileResult(installRoot, unavailable);
     }
+    List<String> enabled = readEnabled(layout.enabledModsFile());
+    JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot());
+    Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+    return inspect(layout.modsDirectory(), enabled, null, heap);
+}
+
+static Result inspect(Path installRoot, LaunchTarget target) throws IOException {
+    GameLayout layout;
+    try {
+        layout = GameLayout.locate(installRoot);
+    } catch (IOException unavailable) {
+        return unavailableProfileResult(installRoot, unavailable);
+    }
+    List<String> enabled = readEnabled(layout.enabledModsFile());
+    JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot(), target);
+    Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+    return inspect(layout.modsDirectory(), enabled, null, heap);
+}
+
+private static Result unavailableProfileResult(Path installRoot, IOException failure) {
+    Finding finding = new Finding(
+            ReasonCode.ENABLED_MODS_UNAVAILABLE,
+            Severity.WARNING,
+            null,
+            null,
+            "Enabled-mod profile could not be established under "
+                    + installRoot.toAbsolutePath().normalize()
+                    + ": "
+                    + failure.getMessage());
+    return new Result(FORMAT, List.of(), List.of(finding), null);
+}
 
     static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)
             throws IOException {
-        List<String> enabled = enabledMods.stream().distinct().sorted().toList();
+        List<String> enabled = List.copyOf(new LinkedHashSet<>(enabledMods));
         Set<String> enabledSet = new LinkedHashSet<>(enabled);
         List<Finding> findings = new ArrayList<>();
         Map<String, List<Metadata>> providers = new LinkedHashMap<>();
@@ -209,16 +240,18 @@ final class ModCompatibilityPrecheck {
                 }
             }
             for (Dependency dependency : metadata.dependencies()) {
-                if (dependency.optional()) {
-                    findings.add(new Finding(
-                            ReasonCode.OPTIONAL_DEPENDENCY,
-                            Severity.INFO,
-                            modId,
-                            dependency.id(),
-                            "Optional dependency '" + dependency.id() + "' is declared"));
-                    continue;
-                }
                 List<Metadata> dependencyProviders = providers.get(dependency.id());
+        if (dependency.optional()) {
+            if (dependencyProviders == null || dependencyProviders.isEmpty()) {
+                findings.add(new Finding(
+                        ReasonCode.OPTIONAL_DEPENDENCY,
+                        Severity.INFO,
+                        modId,
+                        dependency.id(),
+                        "Optional dependency '" + dependency.id() + "' is not installed"));
+            }
+            continue;
+        }
                 if (dependencyProviders == null || dependencyProviders.isEmpty()) {
                     findings.add(new Finding(
                             ReasonCode.REQUIRED_DEPENDENCY_MISSING,
@@ -270,13 +303,12 @@ final class ModCompatibilityPrecheck {
                 .thenComparing(Finding::summary));
 
         ProfileChange change = null;
-        if (!proposedEnable.isEmpty()) {
-            List<String> additions = proposedEnable.stream().sorted().toList();
-            List<String> after = new ArrayList<>(enabled);
-            after.addAll(additions);
-            after = after.stream().distinct().sorted().toList();
-            change = new ProfileChange(enabled, after, additions);
-        }
+    if (!proposedEnable.isEmpty()) {
+        List<String> additions = proposedEnable.stream().sorted().toList();
+        List<String> after = new ArrayList<>(enabled);
+        after.addAll(additions);
+        change = new ProfileChange(enabled, after, additions);
+    }
         return new Result(FORMAT, enabled, findings, change);
     }
 
@@ -390,23 +422,6 @@ final class ModCompatibilityPrecheck {
     private static List<String> readEnabled(Path file) throws IOException {
         if (!Files.isRegularFile(file)) return List.of();
         return JsonText.stringArray(Files.readString(file, StandardCharsets.UTF_8), "enabledMods");
-    }
-
-    private static String discoverGameVersion(Path installRoot) {
-        List<Path> candidates = List.of(
-                installRoot.resolve("starsector-core/starsector.version"),
-                installRoot.resolve("starsector-core/version.txt"),
-                installRoot.resolve("starsector.version"));
-        for (Path candidate : candidates) {
-            if (!Files.isRegularFile(candidate)) continue;
-            try {
-                String value = Files.readString(candidate, StandardCharsets.UTF_8).trim();
-                if (!value.isBlank() && value.length() < 80) return value;
-            } catch (IOException ignored) {
-                // Unknown is an explicit result state below.
-            }
-        }
-        return null;
     }
 
     private static boolean sameGameVersion(String declared, String actual) {

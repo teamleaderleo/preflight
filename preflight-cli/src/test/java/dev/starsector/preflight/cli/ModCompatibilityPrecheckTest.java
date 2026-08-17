@@ -132,6 +132,40 @@ class ModCompatibilityPrecheckTest {
     }
 
     @Test
+    void reviewedPreviewPreservesExistingModOrder() throws Exception {
+        Path mods = mods();
+        mod(mods, "consumer", """
+                {"id":"consumer","name":"Consumer","version":"1","gameVersion":"0.98a-RC8",
+                 "dependencies":[{"id":"library"}]}
+                """);
+        mod(mods, "library", metadata("library", "1"));
+        mod(mods, "first", metadata("first", "1"));
+        mod(mods, "last", metadata("last", "1"));
+
+        var result = ModCompatibilityPrecheck.inspect(
+                mods, List.of("last", "consumer", "first"), "0.98a-RC8", 4096L);
+
+        assertEquals(List.of("last", "consumer", "first"), result.suggestedProfileChange().before());
+        assertEquals(List.of("last", "consumer", "first", "library"), result.suggestedProfileChange().after());
+        assertEquals(List.of("library"), result.suggestedProfileChange().enable());
+    }
+
+    @Test
+    void unavailableEnabledProfileIsAdvisoryAndLaunchable() throws Exception {
+        Path install = temp.resolve("partial-install");
+        Files.createDirectories(install.resolve("mods"));
+
+        var result = ModCompatibilityPrecheck.inspect(install);
+
+        assertFalse(result.hasErrors());
+        assertEquals(List.of(), result.enabledMods());
+        assertTrue(result.findings().stream().anyMatch(finding ->
+                finding.reason() == ModCompatibilityPrecheck.ReasonCode.ENABLED_MODS_UNAVAILABLE
+                        && finding.severity() == ModCompatibilityPrecheck.Severity.WARNING));
+        assertEquals(Boolean.TRUE, result.toMap().get("launchAllowed"));
+    }
+
+    @Test
     void optionalDependencyStaysInformational() throws Exception {
         Path mods = mods();
         mod(mods, "consumer", """
