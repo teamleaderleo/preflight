@@ -20,13 +20,11 @@ export function useCopySetup(optimizationPreset: OptimizationPreset) {
       const rememberedGame = readLastInstallRoot();
       const snapshot = await getSnapshot(rememberedGame ?? undefined);
       const game = snapshot.selected?.installRoot;
-      const [profiles, launchSettings, cacheInspection] = game
-        ? await Promise.all([
-            optionalRead(getProfiles(game)),
-            optionalRead(getLaunchSettings(game)),
-            optionalRead(getCacheInspection(game)),
-          ])
-        : [null, null, null];
+      const [profiles, launchSettings, cacheInspection] = await Promise.all([
+        game ? optionalRead(getProfiles(game)) : Promise.resolve(null),
+        game ? optionalRead(getLaunchSettings(game)) : Promise.resolve(null),
+        game ? optionalRead(getCacheInspection(game)) : Promise.resolve(null),
+      ]);
       const activeProfile = profiles?.profiles.find((profile) => profile.active && profile.sameInstall) ?? null;
 
       await writeCopySetupToClipboard({
