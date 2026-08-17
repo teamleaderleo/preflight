@@ -45,10 +45,28 @@
 - **Dual Trigger**: Evaluates unreachable cache profile pruning when either cache size exceeds the 12 GiB limit OR available free disk space falls under 5 GiB while cache is non-empty.
 - **Verification**: Unit tests added in `useAutomaticMaintenance.test.tsx` verifying threshold activation.
 
-### Desktop UX Polish & Gating
-- **Launch Posture**: Added posture indicator (`Accelerations active · Balanced storage` / `Original code and assets · Vanilla fallback`) under the primary launch button in [`HomePage.tsx`](preflight-desktop/src/components/HomePage.tsx).
-- **Hydration Stability**: Added `min-height: 130px` to `.quick-settings--loading` in [`styles.css`](preflight-desktop/src/styles.css) to eliminate layout shift during startup settings scan.
-- **Uncoupled Operation Gating**: Ensured quick launcher settings remain responsive during background profile operations.
+### Support Export Refusal During All-Data Removal ([#621](https://github.com/teamleaderleo/preflight/issues/621), [PR #626](https://github.com/teamleaderleo/preflight/pull/626))
+- **Problem**: `apply_removal()` in Tauri held the coordinator mutex without publishing an admission state. A concurrent diagnostics export request would block on the mutex and execute *after* the destructive uninstallation finished, generating diagnostic files right after data removal.
+- **Fix**: Added `pub(crate) removing: bool` to `OperationState` with `RemovalGuard`. `begin_removal()` sets `removing = true` and releases the coordinator lock during child execution. `begin_diagnostics_export()`, `begin_update_check()`, and `begin_update_install()` fail-closed immediately while removal is active. Added `removing` to `OperationSnapshot` across Rust and TypeScript.
+
+### Copy Setup Public-Data Privacy Boundary ([#610](https://github.com/teamleaderleo/preflight/issues/610), [PR #629](https://github.com/teamleaderleo/preflight/pull/629))
+- **Problem**: `CopySetupObservations` accepted optional per-mod `displayName` and `declaredVersion` strings which were written directly to clipboard text. Third-party mod metadata could inject private local paths (`/Users/alice/...`, `C:\...`), URLs with query tokens, credentials, or control characters.
+- **Fix**: Added `boundedModId` to enforce strict mod ID token grammar, and `boundedPublicModText` / `isSensitiveModLabel` to screen `displayName` and `declaredVersion`. Fails closed by omitting labels that contain paths (`/`, `\`), URIs, credentials, secret assignments, or control characters, while cleanly preserving safe Unicode titles (e.g. `星海の航路 — Étoile`, `2.1.0-RC1`).
+
+### Hangar Hull Picker Selection Retention & Count Consistency ([#602](https://github.com/teamleaderleo/preflight/issues/602), [PR #622](https://github.com/teamleaderleo/preflight/pull/622))
+- **Fix**: Retains selected hulls outside the first 60 rows by deterministically mapping the active matching selection into the 60th slot. Preserves selection across filter clears and clarifies label count wording to `additional hulls`.
+
+### Hangar Facet Ring Endpoints In 3D ([#605](https://github.com/teamleaderleo/preflight/issues/605))
+- **Fix**: `sideStations` derives `(waterline, deck, keel)` vertices by interpolating directly along straight 3D ring segments, eliminating vertical facet divergence on sparse hull contours.
+
+### Launcher Heap Setting Containment Proving ([#601](https://github.com/teamleaderleo/preflight/issues/601))
+- **Fix**: `boundedText` validates `containedByRealPath(root, path)` prior to reading, preventing symlink traversal outside the Starsector installation root.
+
+### Peer Reviews
+- **PR #625** (Codex / Issue #621): Reviewed non-blocking admission; noted `release-receipt-source-lock.json` review requirement.
+- **PR #624** (Codex / Issue #608): Reviewed sub-millisecond `FileTime` precision in direct provider identity.
+- **PR #623** (Codex / Issue #595): Reviewed optimistic concurrency check on JVM memory update & rollback.
+- **PR #622** (Codex / Issue #602): Reviewed 60-slot deterministic bounded picker fallback.
 
 ---
 
@@ -56,8 +74,9 @@
 
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
   - **Release Node Tests**: 110/110 passing
-  - **Vitest Unit Tests**: 201/201 passing across 24 test suites
-  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 147ms
-  - **Rust Backend Tests**: 81/81 Cargo tests passing
-  - **Cargo Format & Clippy**: `cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --all-targets -- -D warnings` (0 warnings)
-- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest,CacheCommandTest,LaunchLedgerTest -Dsurefire.failIfNoSpecifiedTests=false` (29/29 CLI tests passing)
+  - **Vitest Unit Tests**: 233/233 passing across 28 test suites
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 78ms
+  - **Rust Backend Tests**: 90/90 Cargo tests passing
+  - **Cargo Format & Clippy**: 0 warnings
+- **Maven Backend**: `./mvnw test` (122/122 CLI tests passing, 690/690 total project tests passing)
+
