@@ -152,14 +152,12 @@ final class SupportEvidenceProjection {
                 return true;
             }
             if (current == '\\' && index + 1 < text.length()
-                    && text.charAt(index + 1) == '\\'
-                    && locatorBoundary(text, index)) {
+                    && text.charAt(index + 1) == '\\') {
                 return true;
             }
             if (Character.isLetter(current) && index + 2 < text.length()
                     && text.charAt(index + 1) == ':'
-                    && (text.charAt(index + 2) == '\\' || text.charAt(index + 2) == '/')
-                    && locatorBoundary(text, index)) {
+                    && (text.charAt(index + 2) == '\\' || text.charAt(index + 2) == '/')) {
                 return true;
             }
         }
@@ -204,10 +202,6 @@ final class SupportEvidenceProjection {
 
     private static boolean locatorBoundary(String text, int index) {
         if (index == 0) return true;
-        char previous = text.charAt(index - 1);
-        return !Character.isLetterOrDigit(previous)
-                && previous != '_'
-                && previous != '-'
-                && previous != '.';
+        return !Character.isLetterOrDigit(text.charAt(index - 1));
     }
 }
