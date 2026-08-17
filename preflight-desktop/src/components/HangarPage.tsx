@@ -42,11 +42,11 @@ interface HangarPageProps {
 
 export function HangarPage({ instrumentHull }: HangarPageProps) {
   const featured = useMemo(
-    () => instrumentHull.hulls.filter((hull) => hull.featured && hull.id !== "preflight-courier"),
+    () => instrumentHull.hulls.filter((hull) => hull.featured),
     [instrumentHull.hulls],
   );
   const more = useMemo(
-    () => instrumentHull.hulls.filter((hull) => !hull.featured && hull.id !== "preflight-courier"),
+    () => instrumentHull.hulls.filter((hull) => !hull.featured),
     [instrumentHull.hulls],
   );
   const selectedIndex = featured.findIndex((hull) => hull.id === instrumentHull.selectedId);
@@ -113,13 +113,10 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                   {more.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
                 </optgroup>
               ) : null}
-              <optgroup label="Preflight">
-                <option value="preflight-courier">Preflight courier</option>
-              </optgroup>
             </select>
             <small>{instrumentHull.catalog
               ? `${instrumentHull.catalog.hulls.length.toLocaleString()} game hulls`
-              : instrumentHull.catalogLoaded ? "Installation catalog unavailable" : "Reading the local catalog…"}</small>
+              : instrumentHull.catalogLoaded ? "6 included hulls" : "6 included hulls · finding more…"}</small>
           </label>
 
           <details className="wireframe-customizer">

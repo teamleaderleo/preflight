@@ -1,7 +1,6 @@
-import tracedHulls from "./previewTracedHulls.json";
-
 import { invoke } from "@tauri-apps/api/core";
 import desktopPackage from "../package.json";
+import { BUNDLED_WIREFRAME_HULLS } from "./bundledWireframeHulls";
 import type {
   AfterLaunchBehavior,
   CacheHealth,
@@ -137,7 +136,7 @@ const previewProfiles: NamedProfile[] = [
  * The six featured hulls, as the desktop tracer derives them from a real installation.
  * Generated, not authored: cargo run --example trace-featured-hulls.
  */
-const previewWireframeHulls = tracedHulls as unknown as WireframeHullCatalog;
+const previewWireframeHulls = BUNDLED_WIREFRAME_HULLS;
 
 export function isDesktopHost(): boolean {
   return Boolean(window.__TAURI_INTERNALS__);

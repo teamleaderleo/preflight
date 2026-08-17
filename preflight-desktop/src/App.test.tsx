@@ -784,8 +784,8 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
     expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
   }
-  expect(within(ship).getByRole("option", { name: "Preflight courier" })).toBeInTheDocument();
-  expect(screen.getByText("6 game hulls")).toBeInTheDocument();
+  expect(within(ship).queryByRole("option", { name: "Preflight courier" })).not.toBeInTheDocument();
+  expect(await screen.findByText("6 game hulls")).toBeInTheDocument();
 
   await user.click(screen.getByText("Adjust wireframe"));
   const height = screen.getByRole("slider", { name: "Model height" });

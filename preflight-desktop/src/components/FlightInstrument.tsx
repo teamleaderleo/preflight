@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import type { WireframeHull, WireframePoint } from "../types";
-import { ORIGINAL_HULL } from "../useInstrumentHull";
+import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
 import { projectHull } from "../wireframeHullGeometry";
 
 interface FlightInstrumentProps {
@@ -189,7 +189,7 @@ function drawHull(
 }
 
 /** Draws bounded hull geometry derived locally from the user's Starsector installation. */
-export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: FlightInstrumentProps) {
+export function FlightInstrument({ hull = BUNDLED_DEFAULT_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
