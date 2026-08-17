@@ -210,7 +210,9 @@ pub(crate) fn refuse_report_upload_for_removal(state: &OperationState) -> Result
         );
     }
     if state.diagnostics_exporting {
-        return Err("Wait for the support file to finish before removing Preflight data.".to_string());
+        return Err(
+            "Wait for the support file to finish before removing Preflight data.".to_string(),
+        );
     }
     Ok(())
 }
