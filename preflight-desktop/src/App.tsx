@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   getSnapshot,
+  getBootstrapSnapshot,
   getOperationState,
   browserPreviewScenario,
   isDesktopHost,
@@ -11,6 +12,7 @@ import {
 } from "./bridge";
 import { DesktopShell, type Page } from "./components/DesktopShell";
 import { GameSettingsPage } from "./components/GameSettingsPage";
+import { HangarPage } from "./components/HangarPage";
 import { HomePage } from "./components/HomePage";
 import { NoticeBanner } from "./components/NoticeBanner";
 import { PreparationPage } from "./components/PreparationPage";
@@ -36,8 +38,10 @@ import { useTheme } from "./useTheme";
 import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
+import { benchmarkOperationReason } from "./operationAvailability";
 import { failedRunSummary, shortPath } from "./uiFormat";
 import { blockingWorkflow } from "./workflowPolicy";
+import { readLastInstallRoot, rememberLastInstallRoot } from "./desktopStorage";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -50,6 +54,7 @@ function pageTitle(page: Page, status: AppStatus, preparing: boolean, isReady: b
   if (page === "speed") return preparing ? "Preparing…" : "Speed";
   if (page === "benchmark") return "Benchmark";
   if (page === "mods") return "Mods";
+  if (page === "hangar") return "Hangar";
   if (page === "help") return "Help";
   if (page === "settings") return "Settings";
   if (preparing) return "Preparing…";
@@ -79,6 +84,7 @@ export default function App() {
   const [stoppingGame, setStoppingGame] = useState(false);
   const [forceStopAvailable, setForceStopAvailable] = useState(false);
   const [restoringOperation, setRestoringOperation] = useState(() => isDesktopHost());
+  const [nativeBenchmarkBlockReason, setNativeBenchmarkBlockReason] = useState<string | null>(null);
   const choosingInstallRef = useRef(false);
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
@@ -114,37 +120,39 @@ export default function App() {
   const speedStanding = useSpeedRecord();
   const instrumentHull = useInstrumentHull(
     snapshot?.selected?.installRoot,
-    page === "speed" || page === "settings",
+    page === "speed" || page === "hangar",
   );
   const { countFastLaunch, rememberBenchmark } = speedStanding;
   const currentProfileFingerprint = useRef<string | null>(null);
   const countWhenFinished = useRef<{ pid: number; profileFingerprint: string } | null>(null);
-  /**
-   * `background` is for a re-read nobody asked for. A foreground refresh is allowed to say it is
-   * working and to report that it failed; a background one must not, because the page is already
-   * showing a correct answer and replacing it with "Finding Starsector…" and back is a flicker on
-   * every window focus. A background failure keeps the last good snapshot: the next thing the
-   * operator actually does will surface the problem with somewhere to go.
-   */
   const refresh = useCallback(async (
     game?: string,
-    options?: { background?: boolean },
+    options?: { bootstrap?: boolean; fallbackDiscovery?: boolean },
   ): Promise<boolean> => {
-    const background = options?.background === true;
     const request = ++refreshRequest.current;
-    if (!background) {
-      setInstallationStatus("loading");
-      clearNotice("installation");
-      setRetryIntent(null);
-    }
+    setInstallationStatus("loading");
+    clearNotice("installation");
+    setRetryIntent(null);
     try {
-      const next = await getSnapshot(game);
+      let next: DesktopSnapshot;
+      try {
+        next = options?.bootstrap
+          ? await getBootstrapSnapshot(game)
+          : await getSnapshot(game);
+      } catch (error) {
+        if (!options?.fallbackDiscovery || !game) throw error;
+        next = await getBootstrapSnapshot();
+      }
+      if (options?.fallbackDiscovery && game && !next.ready) {
+        next = await getBootstrapSnapshot();
+      }
       if (request !== refreshRequest.current) return false;
       setSnapshot(next);
+      rememberLastInstallRoot(next.selected?.installRoot ?? null);
       setInstallationStatus(next.ready ? "ready" : "setup");
       return true;
     } catch (error) {
-      if (request !== refreshRequest.current || background) return false;
+      if (request !== refreshRequest.current) return false;
       setInstallationStatus("error");
       setRetryIntent(game ? { kind: "installation", game } : { kind: "discovery" });
       announceInstallation(game ? `Couldn’t use ${shortPath(game)}. ${String(error)}` : String(error), "error");
@@ -285,16 +293,42 @@ export default function App() {
   }, [desktopBenchmarkComparison, rememberBenchmark]);
 
   useEffect(() => {
-    void refresh();
+    const rememberedGame = readLastInstallRoot();
+    void refresh(rememberedGame ?? undefined, {
+      bootstrap: true,
+      fallbackDiscovery: rememberedGame !== null,
+    });
   }, [refresh]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
     let cancelled = false;
     let recoveredGameActive = false;
+    let backgroundOperationActive = false;
     let stopRecoveredGameReconciliation: () => void = () => undefined;
+    let stopBackgroundOperationReconciliation: () => void = () => undefined;
     void getOperationState(true).then((operation) => {
-      if (!cancelled && operation.gamePid !== null) {
+      if (cancelled) return;
+      const benchmarkReason = benchmarkOperationReason(operation);
+      setNativeBenchmarkBlockReason(benchmarkReason);
+      if (benchmarkReason !== null) {
+        backgroundOperationActive = true;
+        stopBackgroundOperationReconciliation = startOperationReconciliation({
+          // These owners live in the current Tauri process. Avoid the durable game probe here;
+          // it starts the CLI and is only needed by the separate recovered-game path below.
+          read: () => getOperationState(false),
+          apply: (current) => {
+            const reason = benchmarkOperationReason(current);
+            setNativeBenchmarkBlockReason(reason);
+            backgroundOperationActive = reason !== null;
+          },
+          isActive: () => backgroundOperationActive,
+          onError: (error) => announceBenchmark(`Couldn’t refresh native operation state: ${error}`, "warning"),
+        });
+      }
+      if (automation.reconnectDesktopAutomation(operation)) {
+        announceBenchmark("Reconnected to the running startup benchmark.", "success");
+      } else if (operation.gamePid !== null) {
         setStatus("running");
         announceGame("Reconnected to the running Starsector game.", "success");
         if (operation.gameRecovered) {
@@ -328,9 +362,11 @@ export default function App() {
     return () => {
       cancelled = true;
       recoveredGameActive = false;
+      backgroundOperationActive = false;
       stopRecoveredGameReconciliation();
+      stopBackgroundOperationReconciliation();
     };
-  }, [announceGame, refresh]);
+  }, [announceBenchmark, announceGame, automation.reconnectDesktopAutomation, refresh]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -405,7 +441,7 @@ export default function App() {
         title: "Choose your Starsector folder",
       });
       if (typeof selected === "string") {
-        return refresh(selected);
+        return refresh(selected, { bootstrap: true });
       }
       return false;
     } catch (error) {
@@ -437,6 +473,13 @@ export default function App() {
     updateInstalling: updates.updateInstalling,
   });
   const operationBlocked = activeOperation !== null;
+  const launchSettingsBlocked = choosingInstall
+    || restoringOperation
+    || status === "launching"
+    || status === "running"
+    || automation.desktopSmokeRunning
+    || updates.updateInstalling
+    || removal.busy;
   const refreshAfterAutomaticCacheCleanup = useCallback(() => {
     void refreshCache();
     invalidatePreparationPlan();
@@ -450,36 +493,6 @@ export default function App() {
       onCacheCleaned: refreshAfterAutomaticCacheCleanup,
     },
   );
-  /**
-   * The snapshot describes files on disk: which installation is selected, whether it is usable,
-   * and whether a prepared cache exists. Preflight already re-reads it on start, after a launch,
-   * and when the game exits, so the only way it goes stale is the disk changing behind the app --
-   * the game installed, moved, or a cache deleted in Finder. That always means leaving Preflight
-   * and coming back, so watch for the return rather than have every page carry a button for it.
-   *
-   * <p>The guard matters: a refresh publishes installation status, and doing that during a
-   * preparation or a running game is the failure {@code setInstallationStatus} exists to contain.
-   */
-  const refreshOnReturn = useRef<() => void>(() => undefined);
-  useEffect(() => {
-    refreshOnReturn.current = () => {
-      if (operationBlocked || status === "loading") return;
-      void refresh(snapshot?.selected?.installRoot, { background: true });
-    };
-  });
-  useEffect(() => {
-    const onReturn = () => {
-      if (document.visibilityState === "hidden") return;
-      refreshOnReturn.current();
-    };
-    window.addEventListener("focus", onReturn);
-    document.addEventListener("visibilitychange", onReturn);
-    return () => {
-      window.removeEventListener("focus", onReturn);
-      document.removeEventListener("visibilitychange", onReturn);
-    };
-  }, []);
-
   const retryFailedOperation = () => {
     if (retryIntent?.kind === "launch") {
       void primaryLaunch();
@@ -538,6 +551,7 @@ export default function App() {
             launcherSettingsSaving={launcher.saving}
             launchSettingsDirty={launcher.dirty}
             operationBlocked={operationBlocked}
+            launchSettingsBlocked={launchSettingsBlocked}
             theme={theme.resolved}
             onLauncherChange={launcher.changeDraft}
             onChooseInstall={() => void chooseInstall()}
@@ -567,7 +581,7 @@ export default function App() {
               loading={launcher.loading}
               saving={launcher.saving}
               dirty={launcher.dirty}
-              disabled={operationBlocked}
+              disabled={launchSettingsBlocked}
               onChange={launcher.changeDraft}
               onRefresh={() => void launcher.refresh()}
               onSave={() => void launcher.save()}
@@ -596,6 +610,8 @@ export default function App() {
           />
         ) : page === "mods" ? (
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
+        ) : page === "hangar" ? (
+          <HangarPage instrumentHull={instrumentHull} />
         ) : page === "benchmark" ? (
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}
@@ -604,6 +620,7 @@ export default function App() {
             isReady={isReady}
             preparing={preparing}
             operationBlocked={operationBlocked}
+            nativeBlockReason={nativeBenchmarkBlockReason}
             automation={automation}
           />
         ) : page === "help" ? (
@@ -631,7 +648,6 @@ export default function App() {
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
-            instrumentHull={instrumentHull}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}

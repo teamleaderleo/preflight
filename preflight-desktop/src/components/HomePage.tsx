@@ -8,6 +8,7 @@ import type { useProfiles } from "../useProfiles";
 import { formatBytes, formatPlaytime, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
 import type {
   AppStatus,
+  AdapterHealthSummary,
   DesktopSnapshot,
   LaunchSettings,
   LaunchSettingsUpdate,
@@ -15,6 +16,25 @@ import type {
   OptimizationPreset,
   UpdateStatus,
 } from "../types";
+
+export function adapterHealthLine(health: AdapterHealthSummary): string {
+  switch (health.status) {
+    case "ACTIVE":
+      return "Last run: acceleration active";
+    case "PARTIAL":
+      return "Last run: acceleration active, with safe fallback";
+    case "SAFE_FALLBACK":
+      return "Last run: original game code used safely";
+    case "DISABLED":
+      return "Last run: optimizations off";
+    case "PROBE_ONLY":
+      return "Last run: compatibility check only";
+    case "NO_TARGETS":
+      return "Last run: no matching optimizations needed";
+    case "ERROR":
+      return "Last run: optimization check incomplete";
+  }
+}
 
 type PreparationState = ReturnType<typeof usePreparation>;
 type ProfilesState = ReturnType<typeof useProfiles>;
@@ -49,6 +69,7 @@ interface HomePageProps {
   launcherSettingsSaving: boolean;
   launchSettingsDirty: boolean;
   operationBlocked: boolean;
+  launchSettingsBlocked: boolean;
   theme: Exclude<ThemePreference, "system">;
   onLauncherChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onChooseInstall: () => void;
@@ -83,6 +104,7 @@ export function HomePage({
   launcherSettingsSaving,
   launchSettingsDirty,
   operationBlocked,
+  launchSettingsBlocked,
   theme,
   onLauncherChange,
   onChooseInstall,
@@ -142,6 +164,7 @@ export function HomePage({
     .filter((diagnostic) => !diagnostic.startsWith("Searched "))
     .filter((diagnostic) => !diagnostic.includes("--game") && !diagnostic.includes("--launcher"));
   const playtime = snapshot?.playtime;
+  const lastAdapterHealth = snapshot?.lastRun?.adapterHealth ?? null;
   const hasPlaytime = Boolean(playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0);
   const statusLabel = status === "launching"
     ? "Opening Starsector"
@@ -196,6 +219,14 @@ export function HomePage({
                 </span>
               ) : null}
             </div>
+          ) : null}
+          {isReady && lastAdapterHealth && status !== "running" && status !== "launching" ? (
+            <span
+              className={`last-run-health ${lastAdapterHealth.reviewRecommended ? "last-run-health--review" : ""}`}
+              title={lastAdapterHealth.suggestedActions[0] ?? "Exact compatibility evidence from the latest Preflight launch"}
+            >
+              {adapterHealthLine(lastAdapterHealth)}
+            </span>
           ) : null}
           {!isReady ? <h2>{status === "loading" ? "Finding Starsector…" : "Choose your Starsector installation"}</h2> : null}
           {!isReady ? <p>{status === "loading" ? "Checking the usual installation locations." : "Select the folder containing Starsector.app, starsector.exe, or starsector.sh."}</p> : null}
@@ -290,7 +321,7 @@ export function HomePage({
             draft={launcherDraft}
             dirty={launchSettingsDirty}
             saving={launcherSettingsSaving}
-            disabled={operationBlocked || launcherSettingsLoading}
+            disabled={launchSettingsBlocked || launcherSettingsLoading}
             onChange={onLauncherChange}
             onOpenAll={() => onNavigate("launch")}
             onSave={onSaveLauncherSettings}

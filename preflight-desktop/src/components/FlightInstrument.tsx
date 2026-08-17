@@ -7,6 +7,8 @@ interface FlightInstrumentProps {
   hull?: WireframeHull;
 }
 
+export const INSTRUMENT_APPEARANCE_ATTRIBUTES = ["data-theme", "data-palette"] as const;
+
 interface InstrumentPalette {
   line: string;
   soft: string;
@@ -88,7 +90,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
       context.lineTo(to.x, to.y);
     }
     context.strokeStyle = kind === "engine" ? palette.accent : kind === "keel" || kind === "structure" ? palette.soft : palette.line;
-    context.lineWidth = kind === "outline" ? 1.8 : kind === "engine" ? 1.6 : 1;
+    context.lineWidth = kind === "outline" ? 1.8 : kind === "engine" ? 1.4 : 1;
     context.lineJoin = "round";
     context.stroke();
   }
@@ -104,7 +106,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
   }
 }
 
-/** A bounded local-install wireframe; the game sprite and source geometry never enter the app. */
+/** Draws bounded hull data read from the user's own Starsector installation. */
 export function FlightInstrument({ hull = ORIGINAL_HULL }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -154,7 +156,10 @@ export function FlightInstrument({ hull = ORIGINAL_HULL }: FlightInstrumentProps
       palette = readPalette(canvas);
       drawStill();
     });
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [...INSTRUMENT_APPEARANCE_ATTRIBUTES],
+    });
     reducedMotion.addEventListener("change", updateMotion);
     updateMotion();
     return () => {

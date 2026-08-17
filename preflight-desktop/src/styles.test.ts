@@ -23,26 +23,34 @@ test("navigation motion stays brief and the home illustration is structural", ()
   expect(styles).toMatch(/\.flight-plot\s*\{[^}]*pointer-events:\s*none;[^}]*animation:\s*flight-plot-in 520ms/s);
 });
 
-test("Blueprint and Hangar are explicit palette choices rather than one global compromise", () => {
-  expect(styles).toContain("--accent: #9a6a24");
-  expect(styles).toContain("--accent-strong: #7d5518");
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent-strong:\s*#edc07a;/s);
-  expect(styles).toMatch(/:root\[data-palette="blueprint"\]\s*\{[^}]*--accent:\s*#6079ad;[^}]*--accent-strong:\s*#425f98;/s);
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\[data-palette="blueprint"\]\s*\{[^}]*--accent-strong:\s*#8fa8dd;/s);
-  expect(styles).toContain(".palette-switch__swatch--blueprint");
-  expect(styles).toContain(".palette-switch__swatch--hangar");
+test("the Hangar reference colors are locked by exact value", () => {
+  expect(styles).toMatch(/:root\s*\{[^}]*--ink:\s*#241d14;[^}]*--cream:\s*#efe8dc;[^}]*--paper-solid:\s*#f6f1e8;[^}]*--accent:\s*#9a6a24;[^}]*--accent-strong:\s*#7d5518;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--accent:\s*#c8944a;[^}]*--accent-strong:\s*#edc07a;[^}]*--ink:\s*#e6ded0;[^}]*--cream:\s*#100e0a;[^}]*--paper-solid:\s*#191510;/s);
 });
 
-/*
- * The light paper comes from the Hangar Light prototype. The dark ground is intentionally more
- * neutral after checking the default window at desktop scale, while gold carries the warmth.
- */
-test("the grounds preserve the warm paper and neutral dark drafting surface", () => {
+test("every palette has an explicit swatch and structural accent", () => {
+  expect(styles).toMatch(/:root\[data-palette="blueprint"\]\s*\{[^}]*--accent:\s*#6079ad;[^}]*--accent-strong:\s*#425f98;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\[data-palette="blueprint"\]\s*\{[^}]*--accent-strong:\s*#8fa8dd;/s);
+  expect(styles).toMatch(/:root\[data-palette="phosphor"\]\s*\{[^}]*--accent:\s*#598759;[^}]*--accent-strong:\s*#3c6e39;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\[data-palette="phosphor"\]\s*\{[^}]*--accent-strong:\s*#88b788;/s);
+  for (const name of ["blueprint", "hangar", "ultraviolet", "airglow", "phosphor"]) {
+    expect(styles).toContain(`.palette-switch__swatch--${name}`);
+  }
+});
+
+test("the wireframe instrument follows every palette in both themes", () => {
+  for (const name of ["blueprint", "hangar", "ultraviolet", "airglow", "phosphor"]) {
+    expect(styles).toMatch(new RegExp(`:root\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
+    expect(styles).toMatch(new RegExp(`:root\\[data-theme="dark"\\]\\[data-palette="${name}"\\] :is\\(\\.scoreboard, \\.hangar-stage\\)\\s*\\{[^}]*--instrument-accent:`, "s"));
+  }
+});
+
+test("the grounds preserve the exact Hangar Light drafting surface", () => {
   expect(styles).toContain("--cream: #efe8dc");
   expect(styles).toContain("--paper-solid: #f6f1e8");
   expect(styles).toContain("--ink: #241d14");
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--cream:\s*#11110f;/s);
-  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--paper-solid:\s*#191815;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--cream:\s*#100e0a;/s);
+  expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--paper-solid:\s*#191510;/s);
   expect(styles).toMatch(/:root\[data-theme="dark"\]\s*\{[^}]*--ink:\s*#e6ded0;/s);
 });
 
@@ -80,7 +88,9 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.settings-page\s*\{[^}]*gap:\s*10px;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.settings-page \.removal-card\s*\{[^}]*margin-top:\s*0;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.help-page :is\(\.support-card, \.help-links-card\)\s*\{[^}]*padding-top:\s*21px;/);
-  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.scoreboard\s*\{[^}]*padding:\s*18px 22px;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.prepare-page \.scoreboard\s*\{[^}]*padding:\s*14px 22px;/);
+  expect(styles).toMatch(/\.preferences-card > \.preference-block:only-child\s*\{[^}]*grid-column:\s*1 \/ -1;[^}]*grid-template-columns:\s*minmax\(220px, 0\.7fr\) minmax\(320px, 1\.3fr\);/s);
+  expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.preferences-card,[\s\S]*?grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.home-fact > small\s*\{[^}]*display:\s*none;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
 });
@@ -143,9 +153,9 @@ test("no palette lets a status colour collide with its accent", () => {
     return gap > 180 ? 360 - gap : gap;
   };
 
-  for (const name of ["blueprint", "hangar", "ultraviolet", "airglow"]) {
+  for (const name of ["blueprint", "hangar", "ultraviolet", "airglow", "phosphor"]) {
     // Hangar has no `[data-palette]` block: it is what bare `:root` already is, and the other
-    // three override it. The attribute is still stamped for all four so the switch is uniform.
+    // four override it. The attribute is still stamped for all five so the switch is uniform.
     const selector = name === "hangar" ? ":root" : `:root\\[data-palette="${name}"\\]`;
     const block = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(styles);
     expect(block, `no ${selector} block`).not.toBeNull();

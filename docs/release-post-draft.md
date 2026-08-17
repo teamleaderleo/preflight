@@ -1,12 +1,10 @@
-# Public beta announcement draft
+# Public beta fact sheet
 
-Replace every bracketed field after release-candidate testing and the packaged benchmark.
+This holds the exact release-day facts, links, and package language. The public post itself is
+[beta-announcement-draft.md](beta-announcement-draft.md). Replace every bracketed field after
+release-candidate testing and the packaged benchmark.
 
-## Headline
-
-Preflight public beta: heavily modded startup from a 101-second worst case to 15.25 seconds
-
-## Short version
+## Performance statement
 
 Preflight is a free, open-source launcher and preparation tool for Starsector. It moves deterministic
 texture, data, generated-code, and audio work ahead of the game launch, then reuses the exact result
@@ -25,15 +23,15 @@ original path when their identity or validation doesn't match. It writes its own
 reports; only explicit backed-up profile and launch-setting actions update the corresponding
 game-owned preferences.
 
-## What the beta includes
+## Included in the beta
 
 - **Recommended** launch mode and **Balanced** storage by default.
 - Prepared repeat-launch work for textures, merged/spec data, generated mod bytecode, and audio.
 - Reviewed campaign/combat shortcuts behind the same exact adapter boundary.
 - Current cache disk use, preview-first cleanup, and clean removal.
 - Existing Starsector display, sound, UI-scale, antialiasing, and battle-size settings.
-- An optional, consent-based support ZIP containing bounded diagnostics—never saves, game/mod assets,
-  screenshots, audio, JFR recordings, or arbitrary logs.
+- An optional, consent-based support ZIP containing bounded diagnostics. It never includes saves,
+  game/mod assets, screenshots, audio, JFR recordings, or arbitrary logs.
 
 ## Important beta limits
 

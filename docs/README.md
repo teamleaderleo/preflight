@@ -5,34 +5,37 @@ archive. They answer different questions. This page is the shortest route to the
 
 ## Start here
 
-- [Project overview](../README.md) — what Preflight does, current measured results, and development
+- [Project overview](../README.md): what Preflight does, current measured results, and development
   status.
-- [Release readiness](release-readiness.md) — the blocking work before public distribution.
-- [Public beta roadmap](beta-roadmap.md) — the ordered product, benchmark, reliability, package,
+- [Release readiness](release-readiness.md): the blocking work before public distribution.
+- [Public beta roadmap](beta-roadmap.md): the ordered product, benchmark, reliability, package,
   platform, evidence, and presentation program.
-- [Fractal permission request](fractal-permission-request.md) — maintainer correspondence draft and
+- [Fractal permission request](fractal-permission-request.md): maintainer correspondence draft and
   reply-handling checklist.
-- [Product contract](product-contract.md) — exact modification, compatibility, preset, storage,
+- [Product contract](product-contract.md): exact modification, compatibility, preset, storage,
   update, and diagnostics boundaries.
-- [Packaged capability receipt](capability-receipt.md) — the machine-checked writes, child
+- [Packaged capability receipt](capability-receipt.md): the machine-checked writes, child
   processes, native commands, fixed links, and network endpoints in an exact package.
-- [Optimization history](optimization-history.md) — the readable, source-linked account from the
+- [Optimization history](optimization-history.md): the readable, source-linked account from the
   roughly 101-second observed worst case through the 15.25-second warm record, with the latest
   same-profile medians at 89.00 seconds ordinary and 15.53 seconds accelerated.
-- [Experiment ledger](experiment-ledger.md) — every retained optimization family, including rejected,
+- [Experiment ledger](experiment-ledger.md): every retained optimization family, including rejected,
   corrected, diagnostic, and deferred branches.
-- [Performance and storage tradeoffs](performance-storage-tradeoffs.md) — what Balanced, Fastest,
+- [Performance and storage tradeoffs](performance-storage-tradeoffs.md): what Balanced, Fastest,
   prepared audio, redundancy, and safe pruning cost and buy.
-- [Downloads and installation](downloads.md) — planned artifacts and current private build process.
-- [Beta announcement draft](beta-announcement-draft.md) — forum, Reddit, and Discord launch copy.
-- [Patreon page draft](patreon-page-draft.md) — short About, tier, welcome, and first-post copy.
-- [Known limitations](known-limitations.md) — the current platform, evidence, storage, and fallback
+- [Downloads and installation](downloads.md): planned artifacts and current private build process.
+- [Leo's beta announcement draft](beta-announcement-leo-draft.md): the short forum and Reddit post,
+  with the result first and instructions at the bottom.
+- [Long beta announcement draft](beta-announcement-draft.md): retained source copy with the fuller
+  privacy, compatibility, and release explanation.
+- [Patreon page draft](patreon-page-draft.md): short About, tier, welcome, and first-post copy.
+- [Known limitations](known-limitations.md): the current platform, evidence, storage, and fallback
   limits.
-- [Cross-platform evidence plan](cross-platform-evidence-plan.md) — what hosted, emulated, and native
+- [Cross-platform evidence plan](cross-platform-evidence-plan.md): what hosted, emulated, and native
   checks can establish before a platform is accepted.
-- [VMware Fusion acceptance](fusion-acceptance.md) — deterministic Windows package and Ubuntu ARM64
+- [VMware Fusion acceptance](fusion-acceptance.md): deterministic Windows package and Ubuntu ARM64
   portable checks that use no game content.
-- [Versioning and updates](versioning-and-updates.md) — application releases, game/mod compatibility,
+- [Versioning and updates](versioning-and-updates.md): application releases, game/mod compatibility,
   profiles, cache evolution, and the signed update channel.
 
 ## Users and beta testers
@@ -82,14 +85,19 @@ When documents disagree, use this precedence:
 
 ## Writing voice
 
-Public writing should sound natural and assured:
+Public writing should say things directly and retain the path of the thought. Deliberate repetition
+is not a defect. Neither is an ordinary word beside a more specific or esoteric one. Do not sand a
+sentence down merely because a shorter version is available.
 
-- use contractions in ordinary prose;
-- lead with the artifact, outcome, or evidence;
-- state conclusions directly and delete setup the reader can infer;
-- use “Preflight” or a neutral construction for product behavior;
-- reserve first person for direct correspondence;
-- use “a” or “an” unless the exact count matters;
-- avoid contrast scaffolding such as “not X, but Y” and repeated “X, while Y” sentences;
-- mention a limitation where it changes the claim, then move on; and
-- keep benchmark qualifiers, compatibility limits, and write boundaries precise.
+Use contractions. Keep grammar precise. Hedge when the evidence actually calls for it. Humor should
+come from the observation itself rather than a decorative adjective. Avoid generic setup, packaged
+personality, contrast scaffolding, and lists created only to make prose look organized.
+Never use an em dash unless Leo explicitly asks for one.
+
+First person belongs wherever Leo is describing what he did, saw, or decided. Product instructions
+can remain neutral. Benchmark conditions, compatibility limits, and write boundaries must stay
+exact even when the surrounding prose is informal.
+Public titles lead with Preflight or the result. Never frame a release as “I built,” “I made,” or
+“I created” something.
+Posts to the Starsector forum and subreddit are technical release posts. Do not write them as
+product launches or sincere clickbait. Any clickbait-adjacent joke has to be unmistakably ironic.

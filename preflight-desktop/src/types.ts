@@ -9,6 +9,20 @@ export interface LaunchTarget {
 export interface LastRun {
   directory: string;
   modifiedAt: string;
+  adapterHealth: AdapterHealthSummary | null;
+}
+
+export interface AdapterHealthSummary {
+  format: "starsector-preflight-adapter-health-v1";
+  status: "ACTIVE" | "PARTIAL" | "SAFE_FALLBACK" | "DISABLED" | "PROBE_ONLY" | "NO_TARGETS" | "ERROR";
+  accelerationsActive: boolean;
+  originalCodeRetained: boolean;
+  reviewRecommended: boolean;
+  transformationsApplied: number;
+  registryTargets: number;
+  containedFailures: number;
+  evidenceKinds: string[];
+  suggestedActions: string[];
 }
 
 export interface PlaytimeSnapshot {
@@ -39,6 +53,22 @@ export interface WireframeMount extends WireframePoint {
   mount: string;
 }
 
+export interface WireframeTuning {
+  outerDetail: number;
+  outerSmooth: number;
+  height: number;
+}
+
+export interface WireframeInnerContour {
+  height: number;
+  points: WireframePoint[];
+}
+
+export interface WireframeTrace {
+  holes: WireframePoint[][];
+  inner: WireframeInnerContour[];
+}
+
 export interface WireframeHull {
   id: string;
   name: string;
@@ -48,6 +78,8 @@ export interface WireframeHull {
   engines: WireframeEngine[];
   mounts: WireframeMount[];
   featured: boolean;
+  trace?: WireframeTrace;
+  tuning?: WireframeTuning;
 }
 
 export interface WireframeHullCatalog {
@@ -102,6 +134,8 @@ export interface OperationSnapshot {
   preparationPid: number | null;
   reportUploadId: number | null;
   reportUploadTotalBytes: number | null;
+  diagnosticsExporting: boolean;
+  updateChecking: boolean;
   updateInstalling: boolean;
 }
 

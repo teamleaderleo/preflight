@@ -5,24 +5,19 @@ Blog-length piece on how Preflight works. Every number here traces to a retained
 
 ---
 
-## Making a heavily modded Starsector start in 15 seconds instead of 89
+## Making a heavily modded Starsector start in 15.25 seconds instead of 101
 
-Heavily modded Starsector took about a minute and a half to reach the main menu on my machine: a
-five-run median of 88.13 seconds on a 77-mod profile, with a worst observed run around 101. It now
-reaches the menu in 15.88 seconds warm on the 83-mod profile I have run since. Those two ends are a
-chronological progression on one development install rather than a controlled before/after — the
-mod list grew while the work was going on.
+At its worst, Starsector took about 101 seconds to reach the main menu on my machine. The fastest
+launch I have recorded since is 15.25 seconds. The mod list grew while I was working on it, from 77
+mods to 83, so those two numbers show the development history rather than a controlled comparison.
 
-So I went back and measured both sides again on the same profile, in one sitting, alternating
-between them so that nothing about the machine could line up with one side. Five launches of the
-game's own launcher with no Preflight involved: a median of 89.00 seconds. Five launches of the
-preset an installed Preflight runs: 15.53s. The same 83 mods, the same hardware and the same clock
-on both sides, with 240 seconds of cooling before every launch so none of them started warmer than
-the last.
+I went back and measured both sides again on the same profile. Five ordinary launches had an
+89.00-second median. Five Preflight launches had a 15.53-second median. I shuffled the order inside
+every round and let the machine cool for 240 seconds before each launch. None of the ten runs were
+excluded.
 
-Almost none of that came from clever code. It came from noticing that the game does the same
-expensive work every single launch, and that nearly all of it is work whose inputs haven't changed
-since last time.
+Most of the result came from noticing that the game does the same work every single launch, even
+when the inputs haven't changed since last time.
 
 ### First: most of my early measurements were wrong
 
@@ -30,7 +25,7 @@ The thing I'd tell anyone starting this: you will measure the wrong thing, confi
 while.
 
 An early profile showed a 4.8–5.9 second gap before resource loading that I spent real time trying
-to explain. It turned out to be a clock-origin artifact — two timestamps from different origins
+to explain. It turned out to be a clock-origin artifact. Two timestamps from different origins
 being subtracted. There was no gap.
 
 The more expensive one was the benchmark harness. It started its clock on the first timestamped log
@@ -39,12 +34,12 @@ game does. Whether the launcher's lines had been flushed by that moment decided 
 fifth of loading landed inside the measured interval or outside it. So the results split into two
 modes about 18 seconds apart, with nothing about the run predicting which mode it landed in, and I
 recorded that split as an unexplained property of the game for a couple of weeks. It was a property
-of my stopwatch. Recovering each launch's interval from the game's own log — no harness involved —
+of my stopwatch. Recovering each launch's interval from the game's own log, with no harness involved,
 showed the low mode understating by 14–18 seconds: startup was ~92s, not the ~75s I had been
 quoting.
 
-What fixed it was checking the harness against the game's own artifacts — its logs, its bytecode —
-instead of against my own model of what it must be doing. The lesson generalizes past this bug: a
+What fixed it was checking the harness against the game's own artifacts, including its logs and
+bytecode, instead of against my own model of what it must be doing. The lesson generalizes past this bug: a
 measurement that only ever agrees with itself has told you nothing.
 
 So the ordering that worked was: measure, distrust the measurement, verify it against something
@@ -58,7 +53,7 @@ is dominated by:
 
 - **Decoding textures.** Thousands of PNGs decoded to raw pixels, every launch.
 - **Parsing and merging mod data.** Ship, weapon, projectile, hull and variant JSON, plus campaign
-  rules CSV — read, parsed and merged from scratch each time.
+  rules CSV, read, parsed and merged from scratch each time.
 - **Generating bytecode.** Mods that compile classes at runtime do it again on every start.
 - **Decoding audio.** Same files, same result, every time.
 
@@ -66,15 +61,15 @@ The pattern is the same in every case. The game has no reason to assume any of i
 between runs, so it redoes all of it. But on a machine where you haven't touched your mods since
 yesterday, all of it *did* stay the same.
 
-### The fix is caching, and the interesting part isn't the cache
+### The cache had to know when it was wrong
 
 Preflight does the work once, ahead of launch, and stores the result keyed by a fingerprint of the
 exact inputs: the game build, the ordered mod profile, and the content of the files themselves. On
 the next launch it hands the game the stored answer.
 
-Where it actually got hard was the other half: **being correct when the assumption breaks.**
+The difficult part was deciding what should happen when that assumption breaks.
 
-A cache that's wrong 1% of the time isn't 99% good, it's unusable — a stale texture or a mismatched
+A cache that's wrong 1% of the time isn't 99% good, it's unusable. A stale texture or a mismatched
 merged JSON is a corrupted game that fails somewhere far away from the cause, and the player has no
 way to connect the two. So every shortcut is gated on an exact identity check: the class it's
 about, the source it was loaded from, the loader that loaded it. If any of that doesn't match what
@@ -85,11 +80,11 @@ support that mod" means "no speedup claimed", not "it'll crash".
 
 Concretely, the containment rules are:
 
-- Nothing is permanently modified — not the game, not mod JARs, not assets, not saves. Runtime
+- Nothing is permanently modified: not the game, mod JARs, assets, or saves. Runtime
   changes exist only in the launched JVM and vanish when it exits.
 - Every optimization has an independent kill switch, plus one global switch.
-- On any uncertainty — identity mismatch, validation failure, a cache that doesn't verify — the
-  original path runs.
+- On any uncertainty, including an identity mismatch, validation failure, or cache that doesn't
+  verify, the original path runs.
 - Prepared data is content-addressed and validated on read, so a truncated or drifted cache is
   rejected rather than used.
 
@@ -114,7 +109,7 @@ Some of the per-boundary ratios are more striking than the totals:
 | AshLib callback | 9.778s | 2.712–2.343s | 3.61–4.17× |
 | GraphicsLib callback | 8.503s | 5.465s | 1.56× |
 
-Textures dominate, which is unsurprising in hindsight and wasn't obvious at the start — I expected
+Textures dominate, which is unsurprising in hindsight and wasn't obvious at the start. I expected
 JSON parsing to be the story, and spent a while there before the profile pointed elsewhere.
 
 ### The unglamorous bugs were the expensive ones
@@ -123,7 +118,7 @@ A sample, because these are the ones that actually cost time:
 
 - A stop-acknowledgement was written with a plain file write, which creates and truncates before
   writing. A reader polling for the file could catch it existing and empty, and conclude the
-  operation had failed. The fix is the standard one — write to a temporary sibling, then rename.
+  operation had failed. The fix is the standard one: write to a temporary sibling, then rename.
   A test that polls tightly while publishing the acknowledgement 2,000 times sees hundreds of empty
   reads against the plain write and none against the rename. The count moves with the machine and
   the run; the zero doesn't.
@@ -136,16 +131,17 @@ A sample, because these are the ones that actually cost time:
 None of these are interesting computer science. All of them are the difference between a tool
 people trust and one they uninstall.
 
-### What I'd tell someone doing this
+### What I learned from getting it wrong
 
-1. **Your measurement is wrong until something external agrees with it.** Self-consistent numbers
-   are the dangerous kind.
-2. **Write down the condition, not just the number.** "16.9s" is useless in a month. "One run,
-   uncooled, cold cache, 83-mod profile, macOS" survives.
-3. **Decide what happens when you're wrong before you decide how fast you'll be.** The fallback
-   design is what made the aggressive parts safe to attempt.
-4. **The boring wins are the big ones.** The single largest contribution here is "don't decode the
-   same PNG twice."
+I no longer trust a measurement until something external agrees with it. Self-consistent numbers
+can still be wrong in exactly the same way every time. I also write down the conditions now. A
+number such as “16.9 seconds” becomes useless surprisingly quickly; the machine, profile, cache
+state, temperature, and measurement boundary are what let it survive.
+
+The fallback behavior had to be decided before the optimization was allowed to matter. That made it
+possible to attempt more aggressive changes without asking an unknown installation to share my
+assumptions. The largest improvement still came from a simple observation: the same PNG did not
+need to be decoded again.
 
 ---
 

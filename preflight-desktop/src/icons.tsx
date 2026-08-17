@@ -42,6 +42,15 @@ export function LayersIcon(props: IconProps) {
   );
 }
 
+export function ShipIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <path d="M12 3 16.5 9 19 19l-7-3-7 3L7.5 9z" />
+      <path d="M7.5 9 12 12l4.5-3M12 12v4" />
+    </svg>
+  );
+}
+
 export function SettingsIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

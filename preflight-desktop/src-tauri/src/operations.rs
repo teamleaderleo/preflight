@@ -43,6 +43,8 @@ pub(crate) struct OperationSnapshot {
     pub(crate) preparation_pid: Option<u32>,
     pub(crate) report_upload_id: Option<u64>,
     pub(crate) report_upload_total_bytes: Option<u64>,
+    pub(crate) diagnostics_exporting: bool,
+    pub(crate) update_checking: bool,
     pub(crate) update_installing: bool,
 }
 
@@ -63,6 +65,8 @@ impl OperationSnapshot {
                 .report_upload
                 .as_ref()
                 .map(|process| process.total_bytes),
+            diagnostics_exporting: state.diagnostics_exporting,
+            update_checking: state.update_checking,
             update_installing: state.update_installing,
         }
     }

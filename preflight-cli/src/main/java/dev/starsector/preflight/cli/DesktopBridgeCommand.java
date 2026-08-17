@@ -2,7 +2,10 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -22,11 +25,19 @@ import java.util.stream.Stream;
  */
 final class DesktopBridgeCommand {
     private static final int PROTOCOL_VERSION = 1;
+    private static final long MAX_ADAPTER_HEALTH_BYTES = 256 * 1024;
 
     private DesktopBridgeCommand() {
     }
 
     static int execute(String[] args, int offset) throws IOException {
+        if (offset < args.length && "bootstrap".equals(args[offset])) {
+            try {
+                return bootstrap(args, offset);
+            } catch (Exception failure) {
+                throw new IOException("Could not read the desktop bootstrap state", failure);
+            }
+        }
         if (offset < args.length && "home-state".equals(args[offset])) {
             try {
                 return DesktopHomeStateCommand.execute(args, offset + 1);
@@ -49,7 +60,7 @@ final class DesktopBridgeCommand {
         if (offset < args.length && "benchmark".equals(args[offset])) {
             return benchmark(args, offset + 1);
         }
-        Options options = Options.parse(args, offset);
+        Options options = Options.parse(args, offset, "snapshot");
         Map<String, Object> snapshot = snapshot(
                 Platform.current(),
                 Path.of(System.getProperty("user.home")),
@@ -59,6 +70,66 @@ final class DesktopBridgeCommand {
                 options.launcher());
         System.out.println(Json.object(snapshot));
         return 0;
+    }
+
+    /**
+     * Discovers the installation and reads the first page's data in one JVM. The desktop used to
+     * launch this command once for discovery and then launch a second JVM for {@code home-state}.
+     * Starting the bundled runtime twice was visible in the time between opening Preflight and
+     * getting an actionable Home page.
+     */
+    private static int bootstrap(String[] args, int offset) throws Exception {
+        Options options = Options.parse(args, offset, "bootstrap");
+        Platform platform = Platform.current();
+        Path home = Path.of(System.getProperty("user.home"));
+        Map<String, Object> result = bootstrap(
+                platform,
+                home,
+                Path.of(System.getProperty("user.dir")),
+                System.getenv(),
+                options.game(),
+                options.launcher());
+        System.out.println(Json.object(result));
+        return 0;
+    }
+
+    static Map<String, Object> bootstrap(
+            Platform platform,
+            Path home,
+            Path currentDirectory,
+            Map<String, String> environment,
+            Path explicitGame,
+            Path explicitLauncher) throws IOException {
+        Map<String, Object> snapshot = snapshot(
+                platform,
+                home,
+                currentDirectory,
+                environment,
+                explicitGame,
+                explicitLauncher);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("format", "starsector-preflight-desktop-bootstrap-v1");
+        result.put("snapshot", snapshot);
+        Object selected = snapshot.get("selected");
+        if (!(selected instanceof Map<?, ?> target)
+                || !(target.get("installRoot") instanceof Path installRoot)) {
+            result.put("homeState", null);
+            result.put("homeStateError", null);
+        } else {
+            try {
+                PreflightHome desktopHome = PreflightHome.resolve(platform, home, environment);
+                result.put("homeState", DesktopHomeStateCommand.read(desktopHome, installRoot));
+                result.put("homeStateError", null);
+            } catch (Exception failure) {
+                String message = failure.getMessage();
+                result.put("homeState", null);
+                result.put("homeStateError", message == null || message.isBlank()
+                        ? failure.getClass().getSimpleName()
+                        : message.replaceAll("\\s+", " ").strip());
+            }
+        }
+        return result;
     }
 
     private static int scenario(String[] args, int offset) throws IOException {
@@ -355,7 +426,7 @@ final class DesktopBridgeCommand {
             return null;
         }
         try (Stream<Path> runs = Files.list(runsDirectory)) {
-            Path latest = runs.filter(Files::isDirectory)
+            Path latest = runs.filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
                     .max(Comparator.comparing(DesktopBridgeCommand::modifiedAt))
                     .orElse(null);
             if (latest == null) {
@@ -364,10 +435,67 @@ final class DesktopBridgeCommand {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("directory", latest.toAbsolutePath().normalize());
             result.put("modifiedAt", modifiedAt(latest).toInstant());
+            result.put("adapterHealth", adapterHealth(latest.resolve("adapter-health.json")));
             return result;
         } catch (IOException ignored) {
             return null;
         }
+    }
+
+    private static Map<String, Object> adapterHealth(Path healthFile) {
+        try {
+            if (!Files.isRegularFile(healthFile, LinkOption.NOFOLLOW_LINKS)
+                    || Files.size(healthFile) > MAX_ADAPTER_HEALTH_BYTES) {
+                return null;
+            }
+            byte[] encoded;
+            try (InputStream input = Files.newInputStream(healthFile, LinkOption.NOFOLLOW_LINKS)) {
+                encoded = input.readNBytes(Math.toIntExact(MAX_ADAPTER_HEALTH_BYTES + 1));
+            }
+            if (encoded.length > MAX_ADAPTER_HEALTH_BYTES) {
+                return null;
+            }
+            Map<String, Object> health = StrictJson.object(new String(encoded, StandardCharsets.UTF_8));
+            if (!AdapterHealthReport.FORMAT.equals(health.get("format"))) {
+                return null;
+            }
+            String status = health.get("status") instanceof String value ? value : "";
+            if (!List.of("ACTIVE", "PARTIAL", "SAFE_FALLBACK", "DISABLED", "PROBE_ONLY", "NO_TARGETS", "ERROR")
+                    .contains(status)) {
+                return null;
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("format", AdapterHealthReport.FORMAT);
+            result.put("status", status);
+            result.put("accelerationsActive", Boolean.TRUE.equals(health.get("accelerationsActive")));
+            result.put("originalCodeRetained", Boolean.TRUE.equals(health.get("originalCodeRetained")));
+            result.put("reviewRecommended", Boolean.TRUE.equals(health.get("reviewRecommended")));
+            result.put("transformationsApplied", nonNegativeNumber(health.get("transformationsApplied")));
+            result.put("registryTargets", nonNegativeNumber(health.get("registryTargets")));
+            result.put("containedFailures", nonNegativeNumber(health.get("containedFailures")));
+            result.put("evidenceKinds", strings(health.get("evidenceKinds"), 32));
+            result.put("suggestedActions", strings(health.get("suggestedActions"), 16));
+            return result;
+        } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    private static long nonNegativeNumber(Object value) {
+        return value instanceof Number number ? Math.max(0L, number.longValue()) : 0L;
+    }
+
+    private static List<String> strings(Object value, int limit) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(String::strip)
+                .filter(item -> !item.isEmpty())
+                .limit(limit)
+                .toList();
     }
 
     private static FileTime modifiedAt(Path path) {
@@ -384,10 +512,11 @@ final class DesktopBridgeCommand {
     }
 
     private record Options(Path game, Path launcher) {
-        private static Options parse(String[] args, int offset) {
-            if (offset >= args.length || !"snapshot".equals(args[offset])) {
+        private static Options parse(String[] args, int offset, String command) {
+            if (offset >= args.length || !command.equals(args[offset])) {
                 throw new IllegalArgumentException(
-                        "Expected desktop bridge request: desktop snapshot [--game <path>] [--launcher <path>]");
+                        "Expected desktop bridge request: desktop " + command
+                                + " [--game <path>] [--launcher <path>]");
             }
 
             Path game = null;

@@ -18,6 +18,7 @@ import java.util.Set;
 
 /** Converts exact-match telemetry into a compact post-run compatibility verdict. */
 final class AdapterHealthReport {
+    static final String FORMAT = "starsector-preflight-adapter-health-v1";
     private static final int DETAIL_LIMIT = 16;
     private static final List<String> CACHE_SECTIONS = List.of(
             "adapterTransformationCache",
@@ -358,6 +359,7 @@ final class AdapterHealthReport {
 
         Map<String, Object> toMap() {
             Map<String, Object> values = new LinkedHashMap<>();
+            values.put("format", FORMAT);
             values.put("generatedAt", generatedAt);
             values.put("adapterReport", adapterReport);
             values.put("output", output);

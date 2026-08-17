@@ -308,11 +308,11 @@ button {
 }
 
 .page-viewport {
+  min-width: 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 5px 2px 0;
-  scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
 
@@ -330,12 +330,14 @@ button {
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 28px;
+  min-width: 0;
 }
 
 .topbar__actions {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .theme-switch {
@@ -399,6 +401,10 @@ button {
 
 .palette-switch__swatch--airglow {
   background: #a45270;
+}
+
+.palette-switch__swatch--phosphor {
+  background: #15873d;
 }
 
 .theme-switch__button {
@@ -789,7 +795,23 @@ h2 {
 .quick-settings__toggles input {
   width: 18px;
   height: 18px;
-  accent-color: var(--accent);
+  appearance: none;
+  border: 1px solid var(--console-line-strong);
+  border-radius: 3px;
+  background: var(--console-control);
+  box-shadow: inset 0 0 0 0 var(--console-control);
+  transition: background-color 90ms ease, border-color 90ms ease, box-shadow 90ms ease;
+}
+
+.quick-settings__toggles input:checked {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 4px var(--console-control);
+}
+
+.quick-settings__toggles input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .quick-settings__save {
@@ -901,6 +923,21 @@ h2 {
   grid-template-columns: minmax(180px, 0.75fr) minmax(180px, 0.65fr) minmax(320px, 1.35fr);
   margin-top: 14px;
   overflow: hidden;
+}
+
+.last-run-health {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: fit-content;
+  margin: -6px 0 10px;
+  color: var(--ink-soft);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.last-run-health--review {
+  color: var(--accent-strong);
 }
 
 .home-fact {
@@ -1700,6 +1737,12 @@ h2 {
   padding: 20px 22px;
 }
 
+.preferences-card > .preference-block:only-child {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(320px, 1.3fr);
+  align-items: center;
+}
+
 .preference-block + .preference-block {
   border-left: 1px solid var(--line);
 }
@@ -1707,6 +1750,249 @@ h2 {
 .preference-block h2,
 .preference-block p {
   margin: 0;
+}
+
+.wireframe-customizer {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.wireframe-customizer > summary {
+  width: fit-content;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.wireframe-customizer__body {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(190px, .65fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.wireframe-customizer fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  padding: 10px 12px 12px;
+}
+
+.wireframe-customizer legend {
+  padding: 0 5px;
+  color: var(--ink-soft);
+  font-size: .78rem;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.wireframe-slider {
+  display: grid;
+  grid-template-columns: minmax(58px, auto) 1fr 48px;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: var(--ink-soft);
+  font-size: .84rem;
+}
+
+.wireframe-slider input {
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.wireframe-slider output {
+  color: var(--ink);
+  font-family: var(--font-data);
+  font-size: .76rem;
+  text-align: right;
+}
+
+.wireframe-customizer__body > small {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+}
+
+.wireframe-customizer__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 1120px) {
+  .wireframe-customizer__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .wireframe-customizer__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hangar-page {
+  display: grid;
+  grid-template-columns: minmax(330px, .9fr) minmax(440px, 1.1fr);
+  gap: 18px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.hangar-stage {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  isolation: isolate;
+  min-width: 0;
+  --instrument-line: rgba(63, 58, 53, 0.64);
+  --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-accent: #a95f29;
+  --instrument-glow: rgba(167, 101, 50, 0.22);
+  --instrument-fill: rgba(167, 101, 50, 0.065);
+}
+
+.hangar-stage::before {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at 50% 42%, black, transparent 78%);
+  opacity: .55;
+}
+
+.hangar-stage__instrument {
+  position: absolute;
+  inset: 36px 28px 110px;
+}
+
+.hangar-stage__instrument .flight-instrument {
+  right: auto;
+  top: auto;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  transform: none;
+}
+
+.hangar-stage__caption {
+  position: absolute;
+  z-index: 2;
+  left: 28px;
+  bottom: 26px;
+}
+
+.hangar-stage__caption span,
+.hangar-stage__caption p {
+  color: var(--ink-soft);
+}
+
+.hangar-stage__caption h2,
+.hangar-stage__caption p {
+  margin: 3px 0 0;
+}
+
+.hangar-stage__caption p {
+  text-transform: capitalize;
+}
+
+.hangar-stage__stepper {
+  position: absolute;
+  z-index: 2;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  gap: 6px;
+}
+
+.hangar-stage__stepper button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--paper-solid) 86%, transparent);
+  cursor: pointer;
+}
+
+.hangar-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.hangar-featured {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hangar-ship {
+  display: flex;
+  min-height: 68px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: var(--paper-soft);
+  cursor: pointer;
+}
+
+.hangar-ship small {
+  color: var(--ink-soft);
+  text-transform: capitalize;
+}
+
+.hangar-ship--selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper-solid));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.hangar-all-ships {
+  max-width: none;
+}
+
+.hangar-loading {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 1120px) {
+  .hangar-page {
+    grid-template-columns: minmax(280px, .8fr) minmax(380px, 1.2fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .preferences-card,
+  .preferences-card > .preference-block:only-child {
+    grid-template-columns: 1fr;
+  }
+
+  .hangar-page {
+    grid-template-columns: 1fr;
+  }
+
+  .hangar-stage {
+    min-height: 380px;
+  }
+
+  .hangar-featured {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .preference-block p {
@@ -3360,8 +3646,8 @@ footer {
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  color: #eeecea;
-  background: #0b0b0a;
+  color: #e6ded0;
+  background: #100e0a;
   --accent: #c8944a;
   --accent-strong: #edc07a;
   --accent-soft: rgba(200, 148, 74, 0.15);
@@ -3370,9 +3656,9 @@ footer {
   --ink: #e6ded0;
   --ink-soft: #aaa198;
   --ink-faint: #888178;
-  --cream: #11110f;
-  --paper: rgba(25, 24, 21, 0.94);
-  --paper-solid: #191815;
+  --cream: #100e0a;
+  --paper: rgba(25, 21, 16, 0.94);
+  --paper-solid: #191510;
   --line: rgba(200, 148, 74, 0.15);
   --line-strong: rgba(200, 148, 74, 0.26);
   --grid-line: rgba(200, 148, 74, 0.045);
@@ -3381,16 +3667,16 @@ footer {
   --console-ink: #e6ded0;
   --console-soft: #aaa198;
   --console-label: #aaa198;
-  --console-bg: linear-gradient(125deg, #1a1916 0%, #151512 58%, #11110f 100%);
-  --console-panel: rgba(9, 9, 8, 0.28);
-  --console-control: rgba(9, 9, 8, 0.7);
+  --console-bg: linear-gradient(125deg, #191510 0%, #14110c 58%, #100e0a 100%);
+  --console-panel: rgba(11, 9, 6, 0.28);
+  --console-control: rgba(11, 9, 6, 0.7);
   --console-line: rgba(200, 148, 74, 0.15);
   --console-line-strong: rgba(200, 148, 74, 0.28);
   --console-plot: #c8944a;
   --flight-accent: #edc07a;
-  --launch-fill: #191815;
-  --launch-fill-hover: #24211b;
-  --launch-fill-active: #121210;
+  --launch-fill: #191510;
+  --launch-fill-hover: #2b241a;
+  --launch-fill-active: #0b0906;
   --launch-rim: #c8944a;
   --launch-rim-hover: #edc07a;
   --launch-rim-inner: rgba(200, 148, 74, 0.30);
@@ -3406,12 +3692,12 @@ footer {
     linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
-    linear-gradient(145deg, #151412 0%, #0b0b0a 100%);
+    linear-gradient(145deg, #191510 0%, #100e0a 100%);
   background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px, auto;
 }
 
 :root[data-theme="dark"] .sidebar {
-  background: rgba(9, 9, 8, 0.92);
+  background: rgba(16, 14, 10, 0.92);
 }
 
 :root[data-theme="dark"] .nav__item {
@@ -3577,8 +3863,15 @@ footer {
   }
 
   .topbar {
+    align-items: stretch;
+    flex-direction: column;
     gap: 14px;
     margin-bottom: 20px;
+  }
+
+  .topbar__actions {
+    justify-content: space-between;
+    width: 100%;
   }
 
   .diagnostics-card,
@@ -3736,9 +4029,9 @@ footer {
     padding: 10px 0;
   }
 
-  .preflight-summary-card {
-    padding-top: 16px;
-    padding-bottom: 16px;
+  .prepare-page .preflight-summary-card {
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 
   .storage-card--compact {
@@ -3746,13 +4039,18 @@ footer {
     padding-bottom: 10px;
   }
 
-  .scoreboard {
+  .prepare-page .scoreboard {
     gap: 20px;
-    padding: 18px 22px;
+    padding: 14px 22px;
   }
 
-  .preflight-advanced > summary {
-    min-height: 56px;
+  .prepare-page .preflight-advanced > summary {
+    min-height: 44px;
+  }
+
+  .page-viewport:has(> .prepare-page--settled):not(:has(details[open])) {
+    overflow-y: hidden;
+    padding-right: 0;
   }
 
   .launch-console--configured .launch-console__primary {
@@ -4951,4 +5249,323 @@ footer {
 :root[data-theme="dark"][data-palette="airglow"] select option {
   color: #f2eaed;
   background: #1a0c11;
+}
+
+/*
+ * Phosphor is the green rotation of Blueprint. Its lightness is held at the same values, while
+ * warning amber and success teal stay fixed so status keeps meaning the same thing in every palette.
+ */
+:root[data-palette="phosphor"] {
+  color: #212a0f;
+  background: #e4e5db;
+  --ink: #212a0f;
+  --ink-soft: #545d40;
+  --ink-faint: #646b51;
+  --cream: #e4e5db;
+  --paper: rgba(244, 244, 239, 0.9);
+  --paper-solid: #f3f3ee;
+  --accent: #598759;
+  --accent-strong: #3c6e39;
+  --accent-soft: rgba(74, 126, 78, 0.15);
+  --action: #15873d;
+  --action-hover: #229648;
+  --warning: #ad8439;
+  --success: #4c8378;
+  --line: rgba(53, 59, 18, 0.17);
+  --line-strong: rgba(53, 59, 18, 0.28);
+  --blue-strong: #52824d;
+  --grid-line: rgba(63, 102, 62, 0.035);
+  --grid-major: rgba(63, 102, 62, 0.065);
+  --shadow: 0 14px 34px rgba(32, 41, 15, 0.08), 0 2px 6px rgba(32, 41, 15, 0.05);
+  --console-ink: #2a3416;
+  --console-soft: #5e6548;
+  --console-label: #585f41;
+  --console-bg: linear-gradient(125deg, #faf9f7 0%, #f2f2ed 58%, #ebede4 100%);
+  --console-panel: rgba(214, 216, 200, 0.24);
+  --console-control: rgba(252, 252, 250, 0.92);
+  --console-line: rgba(70, 76, 36, 0.2);
+  --console-line-strong: rgba(70, 76, 36, 0.34);
+  --console-plot: #527a4b;
+  --flight-accent: #527a4b;
+  --launch-fill: #212a0f;
+  --launch-fill-hover: #303c16;
+  --launch-fill-active: #181f0a;
+  --launch-rim: #598759;
+  --launch-rim-hover: #88b788;
+  --launch-rim-inner: rgba(89, 135, 89, 0.42);
+  --launch-rim-inner-hover: rgba(136, 183, 136, 0.56);
+  --launch-ink: #f3f3ee;
+  --launch-ink-hover: #ffffff;
+  --launch-glow: rgba(21, 135, 61, 0.2);
+}
+
+:root[data-palette="phosphor"] body {
+  background:
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(145deg, #edede7 0%, #dfe2d6 100%);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px, auto;
+}
+
+:root[data-palette="phosphor"] :where(button, input, select, summary, a):focus-visible {
+  outline-color: rgba(89, 135, 89, 0.34);
+}
+
+:root[data-palette="phosphor"] .sidebar {
+  background: rgba(230, 231, 220, 0.82);
+}
+
+:root[data-palette="phosphor"] .nav__item {
+  color: #626a50;
+}
+
+:root[data-palette="phosphor"] .nav__item:not(:disabled):hover {
+  color: var(--ink);
+  background: rgba(74, 126, 78, 0.08);
+}
+
+:root[data-palette="phosphor"] .status-chip {
+  color: #936a2e;
+  background: #fff1c9;
+}
+
+:root[data-palette="phosphor"] :is(.status-chip--ready, .tiny-status--good) {
+  color: #34745c;
+  background: #ddf2e8;
+}
+
+:root[data-palette="phosphor"] .button--primary {
+  box-shadow: 0 9px 22px rgba(17, 101, 40, 0.24);
+}
+
+:root[data-palette="phosphor"] .button--primary:not(:disabled):hover {
+  box-shadow: 0 12px 26px rgba(17, 101, 40, 0.32);
+}
+
+:root[data-palette="phosphor"] .notice {
+  color: #4f6c61;
+  background: rgba(220, 241, 232, 0.75);
+}
+
+:root[data-palette="phosphor"] .notice--error {
+  color: #9e4d44;
+  background: rgba(255, 222, 215, 0.78);
+}
+
+:root[data-palette="phosphor"] .notice--warning {
+  color: #805c2c;
+  background: rgba(255, 238, 194, 0.82);
+}
+
+:root[data-palette="phosphor"] .notice--info {
+  color: #5c7050;
+  background: rgba(222, 234, 218, 0.76);
+}
+
+:root[data-palette="phosphor"] .notice--success {
+  color: #4f6c61;
+  background: rgba(220, 241, 232, 0.75);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] {
+  color: #e8efe8;
+  background: #030902;
+  --accent: #72a578;
+  --accent-strong: #88b788;
+  --accent-soft: rgba(101, 153, 104, 0.18);
+  --action: #008a37;
+  --action-hover: #099c3f;
+  --ink: #e8efe8;
+  --ink-soft: #b0bdac;
+  --ink-faint: #99a894;
+  --cream: #030902;
+  --paper: rgba(6, 18, 6, 0.93);
+  --paper-solid: #061508;
+  --line: rgba(116, 149, 114, 0.16);
+  --line-strong: rgba(116, 149, 114, 0.28);
+  --grid-line: rgba(69, 108, 71, 0.045);
+  --grid-major: rgba(69, 108, 71, 0.075);
+  --shadow: 0 18px 50px rgba(6, 7, 0, 0.24);
+  --console-ink: #f6f4ee;
+  --console-soft: #c6c8b7;
+  --console-label: #b6b9a4;
+  --console-bg: linear-gradient(125deg, #071205 0%, #0f1c09 58%, #13240e 100%);
+  --console-panel: rgba(13, 15, 3, 0.26);
+  --console-control: rgba(20, 21, 5, 0.78);
+  --console-line: rgba(115, 156, 115, 0.16);
+  --console-line-strong: rgba(138, 174, 138, 0.3);
+  --console-plot: #78a27a;
+  --flight-accent: #78a27a;
+  --launch-fill: #061508;
+  --launch-fill-hover: #13240e;
+  --launch-fill-active: #061106;
+  --launch-rim: #72a578;
+  --launch-rim-hover: #a2c8a4;
+  --launch-rim-inner: rgba(114, 165, 120, 0.4);
+  --launch-rim-inner-hover: rgba(162, 200, 164, 0.58);
+  --launch-ink: #f5fbf6;
+  --launch-ink-hover: #ffffff;
+  --launch-glow: rgba(0, 129, 48, 0.22);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] body {
+  background:
+    linear-gradient(var(--grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(145deg, #061106 0%, #020702 100%);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px, auto;
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .sidebar {
+  background: rgba(4, 10, 3, 0.9);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .nav__item {
+  color: #bbbead;
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .nav__item--active {
+  color: #faf8ef;
+  background: rgba(74, 126, 78, 0.17);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .simple-switch:has(input:checked) {
+  border-color: rgba(114, 165, 120, 0.45);
+  background: rgba(0, 129, 48, 0.22);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .status-chip {
+  color: #d8b873;
+  background: rgba(185, 135, 44, 0.17);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] :is(.status-chip--ready, .tiny-status--good) {
+  color: #8ed1bc;
+  background: rgba(63, 137, 121, 0.2);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .notice {
+  color: #a7d7c8;
+  background: rgba(63, 137, 121, 0.14);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] :is(.notice--error, .activation-warning) {
+  color: #e5a49a;
+  background: rgba(165, 79, 71, 0.17);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .notice--warning {
+  color: #ddc184;
+  background: rgba(185, 135, 44, 0.16);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .notice--info {
+  color: #b3cdb2;
+  background: rgba(74, 126, 78, 0.16);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] .notice--success {
+  color: #a7d7c8;
+  background: rgba(63, 137, 121, 0.14);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] :is(.run-recovery, .report-recovery) {
+  border-color: rgba(210, 167, 84, 0.26);
+  background: rgba(130, 91, 24, 0.14);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] :is(.update-notice, .profile-diagnostics) {
+  color: #d9be87;
+  background: rgba(185, 135, 44, 0.13);
+  border-color: rgba(185, 135, 44, 0.24);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] select option {
+  color: #e8efe8;
+  background: #061508;
+}
+
+/* The instrument changes with the palette too; the canvas redraw watches both appearance axes. */
+:root[data-palette="blueprint"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(50, 78, 111, 0.64);
+  --instrument-soft: rgba(79, 105, 197, 0.2);
+  --instrument-accent: #4f69c5;
+  --instrument-glow: rgba(73, 104, 212, 0.22);
+  --instrument-fill: rgba(73, 104, 212, 0.065);
+}
+
+:root[data-palette="hangar"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(63, 58, 53, 0.64);
+  --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-accent: #a95f29;
+  --instrument-glow: rgba(167, 101, 50, 0.22);
+  --instrument-fill: rgba(167, 101, 50, 0.065);
+}
+
+:root[data-palette="ultraviolet"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(80, 61, 91, 0.64);
+  --instrument-soft: rgba(137, 109, 154, 0.22);
+  --instrument-accent: #8959a5;
+  --instrument-glow: rgba(142, 85, 175, 0.22);
+  --instrument-fill: rgba(142, 85, 175, 0.065);
+}
+
+:root[data-palette="airglow"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(94, 61, 72, 0.64);
+  --instrument-soft: rgba(155, 105, 122, 0.22);
+  --instrument-accent: #a45270;
+  --instrument-glow: rgba(173, 76, 114, 0.22);
+  --instrument-fill: rgba(173, 76, 114, 0.065);
+}
+
+:root[data-palette="phosphor"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(70, 76, 36, 0.64);
+  --instrument-soft: rgba(89, 135, 89, 0.22);
+  --instrument-accent: #15873d;
+  --instrument-glow: rgba(21, 135, 61, 0.22);
+  --instrument-fill: rgba(21, 135, 61, 0.065);
+}
+
+:root[data-theme="dark"][data-palette="blueprint"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(220, 229, 246, 0.58);
+  --instrument-soft: rgba(174, 190, 220, 0.2);
+  --instrument-accent: #8fa8dd;
+  --instrument-glow: rgba(61, 94, 211, 0.22);
+  --instrument-fill: rgba(61, 94, 211, 0.075);
+}
+
+:root[data-theme="dark"][data-palette="hangar"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(226, 218, 206, 0.58);
+  --instrument-soft: rgba(209, 200, 186, 0.2);
+  --instrument-accent: #df9854;
+  --instrument-glow: rgba(213, 138, 70, 0.2);
+  --instrument-fill: rgba(213, 138, 70, 0.075);
+}
+
+:root[data-theme="dark"][data-palette="ultraviolet"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(235, 224, 241, 0.58);
+  --instrument-soft: rgba(205, 189, 216, 0.2);
+  --instrument-accent: #b79cc9;
+  --instrument-glow: rgba(137, 73, 171, 0.22);
+  --instrument-fill: rgba(137, 73, 171, 0.075);
+}
+
+:root[data-theme="dark"][data-palette="airglow"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(242, 224, 230, 0.58);
+  --instrument-soft: rgba(218, 187, 196, 0.2);
+  --instrument-accent: #d9afbc;
+  --instrument-glow: rgba(168, 64, 106, 0.22);
+  --instrument-fill: rgba(168, 64, 106, 0.075);
+}
+
+:root[data-theme="dark"][data-palette="phosphor"] :is(.scoreboard, .hangar-stage) {
+  --instrument-line: rgba(232, 239, 232, 0.58);
+  --instrument-soft: rgba(179, 205, 178, 0.2);
+  --instrument-accent: #a2c8a4;
+  --instrument-glow: rgba(0, 129, 48, 0.22);
+  --instrument-fill: rgba(0, 129, 48, 0.075);
 }
