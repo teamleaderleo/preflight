@@ -29,7 +29,7 @@ test("filters the installed catalog by name and reports what the filter left", a
   const choose = vi.fn();
   render(<HullPicker hulls={catalog} selectedId="wolf" onChoose={choose} />);
 
-  expect(screen.getByText("4 installed")).toBeInTheDocument();
+  expect(screen.getByText("4 additional hulls")).toBeInTheDocument();
   const list = () => within(screen.getByRole("group", { name: "Installed hulls" }));
   expect(list().getByRole("button", { name: /Wolf/ })).toHaveAttribute("aria-pressed", "true");
 
@@ -53,9 +53,6 @@ test("says so rather than showing an empty list when nothing matches", async () 
 });
 
 test("caps how much of a large catalog it renders and says how much is left", () => {
-  // A stock installation carries about two hundred hulls and a modded one carries more. Rendering
-  // every one of them is both a long scroll and a long tab order, so the list is capped and the
-  // filter is the way through it.
   const many = Array.from({ length: 220 }, (_, index) => hull(`hull-${index}`, `Hull ${index}`));
   render(<HullPicker hulls={many} selectedId="hull-0" onChoose={vi.fn()} />);
 
@@ -63,3 +60,38 @@ test("caps how much of a large catalog it renders and says how much is left", ()
   expect(shown).toHaveLength(60);
   expect(screen.getByText("160 more — keep typing to narrow it.")).toBeInTheDocument();
 });
+
+test("retains the selected hull when it lies beyond the visible slice, preserving the 60-item cap and aria-pressed=true", () => {
+  const many = Array.from({ length: 220 }, (_, index) => hull(`hull-${index}`, `Hull ${index}`));
+  render(<HullPicker hulls={many} selectedId="hull-150" onChoose={vi.fn()} />);
+
+  const list = within(screen.getByRole("group", { name: "Installed hulls" }));
+  const buttons = list.getAllByRole("button");
+  expect(buttons).toHaveLength(60);
+
+  const selectedButton = list.getByRole("button", { name: /Hull 150/ });
+  expect(selectedButton).toBeInTheDocument();
+  expect(selectedButton).toHaveAttribute("aria-pressed", "true");
+});
+
+test("retains deep filtered hull selection after clearing the search filter", async () => {
+  const user = userEvent.setup();
+  const many = Array.from({ length: 220 }, (_, index) => hull(`hull-${index}`, `Special Ship ${index}`));
+  const { rerender } = render(<HullPicker hulls={many} selectedId="hull-0" onChoose={vi.fn()} />);
+
+  const search = screen.getByRole("searchbox", { name: "Filter installed hulls" });
+  await user.type(search, "180");
+  expect(screen.getByText("1 of 220")).toBeInTheDocument();
+
+  rerender(<HullPicker hulls={many} selectedId="hull-180" onChoose={vi.fn()} />);
+  await user.clear(search);
+
+  const list = within(screen.getByRole("group", { name: "Installed hulls" }));
+  const buttons = list.getAllByRole("button");
+  expect(buttons).toHaveLength(60);
+
+  const selectedButton = list.getByRole("button", { name: /Special Ship 180/ });
+  expect(selectedButton).toBeInTheDocument();
+  expect(selectedButton).toHaveAttribute("aria-pressed", "true");
+});
+

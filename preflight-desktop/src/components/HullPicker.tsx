@@ -27,7 +27,14 @@ function matches(hull: WireframeHull, query: string): boolean {
 export function HullPicker({ hulls, selectedId, onChoose }: HullPickerProps) {
   const [query, setQuery] = useState("");
   const found = useMemo(() => hulls.filter((hull) => matches(hull, query)), [hulls, query]);
-  const shown = found.slice(0, VISIBLE_LIMIT);
+  const shown = useMemo(() => {
+    if (found.length <= VISIBLE_LIMIT) return found;
+    const selectedIndex = found.findIndex((hull) => hull.id === selectedId);
+    if (selectedIndex >= VISIBLE_LIMIT) {
+      return [...found.slice(0, VISIBLE_LIMIT - 1), found[selectedIndex]!];
+    }
+    return found.slice(0, VISIBLE_LIMIT);
+  }, [found, selectedId]);
   const hidden = found.length - shown.length;
 
   return (
@@ -43,7 +50,7 @@ export function HullPicker({ hulls, selectedId, onChoose }: HullPickerProps) {
         <small aria-live="polite">
           {query
             ? `${found.length.toLocaleString()} of ${hulls.length.toLocaleString()}`
-            : `${hulls.length.toLocaleString()} installed`}
+            : `${hulls.length.toLocaleString()} additional hulls`}
         </small>
       </div>
       {shown.length > 0 ? (
@@ -70,3 +77,4 @@ export function HullPicker({ hulls, selectedId, onChoose }: HullPickerProps) {
     </div>
   );
 }
+
