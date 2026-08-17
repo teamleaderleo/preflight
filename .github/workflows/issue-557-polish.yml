@@ -1,0 +1,518 @@
+name: Issue 557 contract polish
+
+on:
+  push:
+    branches:
+      - codex/issue-557-mod-compat-precheck
+    paths:
+      - .github/workflows/issue-557-polish.yml
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/issue-557-mod-compat-precheck
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Move result vocabulary to core and tighten incomplete evidence
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one {label}, found {count}")
+              return text.replace(old, new, 1)
+
+          path = Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java")
+          text = path.read_text()
+          text = text.replace(
+              "package dev.starsector.preflight.cli;\n\n",
+              "package dev.starsector.preflight.cli;\n\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness.Finding;\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness.ProfileChange;\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness.ReasonCode;\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness.Result;\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness.Severity;\n\n",
+              1)
+
+          contract_start = text.index("    static final String FORMAT")
+          contract_end = text.index("    record Version", contract_start)
+          text = text[:contract_start] + text[contract_end:]
+
+          text = replace_once(
+              text,
+              '''    record Metadata(
+                      Path directory,
+                      String id,
+                      String name,
+                      Version version,
+                      String gameVersion,
+                      List<Dependency> dependencies,
+                      Long requiredMemoryMb) {}
+          ''',
+              '''    record Metadata(
+                      Path directory,
+                      String id,
+                      String name,
+                      Version version,
+                      String gameVersion,
+                      List<String> missingFields,
+                      List<Dependency> dependencies,
+                      Long requiredMemoryMb) {}
+          ''',
+              "metadata record")
+
+          inspect_start = text.index("    static Result inspect(Path installRoot) throws IOException {")
+          inspect_end = text.index("    static Result inspect(Path modsDirectory", inspect_start)
+          text = text[:inspect_start] + '''    static Result inspect(Path installRoot) throws IOException {
+              GameLayout layout;
+              try {
+                  layout = GameLayout.locate(installRoot);
+              } catch (IOException unavailable) {
+                  return unavailableProfileResult(installRoot, unavailable);
+              }
+              List<String> enabled;
+              try {
+                  enabled = readEnabled(layout.enabledModsFile());
+              } catch (IOException | RuntimeException unavailable) {
+                  return unavailableProfileResult(installRoot, unavailable);
+              }
+              JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot());
+              Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+              return inspect(layout.modsDirectory(), enabled, null, heap);
+          }
+
+          static Result inspect(Path installRoot, LaunchTarget target) throws IOException {
+              GameLayout layout;
+              try {
+                  layout = GameLayout.locate(installRoot);
+              } catch (IOException unavailable) {
+                  return unavailableProfileResult(installRoot, unavailable);
+              }
+              List<String> enabled;
+              try {
+                  enabled = readEnabled(layout.enabledModsFile());
+              } catch (IOException | RuntimeException unavailable) {
+                  return unavailableProfileResult(installRoot, unavailable);
+              }
+              JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot(), target);
+              Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+              return inspect(layout.modsDirectory(), enabled, null, heap);
+          }
+
+          private static Result unavailableProfileResult(Path installRoot, Exception failure) {
+              Finding finding = new Finding(
+                      ReasonCode.ENABLED_MODS_UNAVAILABLE,
+                      Severity.WARNING,
+                      null,
+                      null,
+                      "Enabled-mod profile could not be established under "
+                              + installRoot.toAbsolutePath().normalize()
+                              + ": "
+                              + failure.getMessage());
+              return new Result(List.of(), List.of(finding), null, false, true);
+          }
+
+          ''' + text[inspect_end:]
+
+          text = replace_once(
+              text,
+              "        List<Finding> findings = new ArrayList<>();\n        Map<String, List<Metadata>> providers = new LinkedHashMap<>();\n",
+              "        List<Finding> findings = new ArrayList<>();\n"
+              "        Map<String, List<Metadata>> providers = new LinkedHashMap<>();\n"
+              "        Set<String> partialReported = new LinkedHashSet<>();\n"
+              "        boolean evidenceComplete = true;\n",
+              "evidence state")
+
+          malformed = '''                        findings.add(new Finding(
+                                  ReasonCode.METADATA_INVALID,
+                                  Severity.WARNING,
+                                  directory.getFileName().toString(),
+                                  null,
+                                  "Unreadable or invalid mod_info.json in " + directory.getFileName() + ": " + malformed.getMessage()));
+          '''
+          text = replace_once(
+              text,
+              malformed,
+              malformed + "                        evidenceComplete = false;\n",
+              "invalid metadata finding")
+
+          absent = '''                findings.add(new Finding(
+                          ReasonCode.METADATA_ABSENT,
+                          Severity.WARNING,
+                          modId,
+                          null,
+                          "Enabled mod '" + modId + "' has no uniquely readable installed metadata"));
+                      continue;
+          '''
+          text = replace_once(
+              text,
+              absent,
+              absent.replace("                continue;", "                evidenceComplete = false;\n                continue;"),
+              "absent metadata finding")
+
+          unique = '''            Metadata metadata = candidates.get(0);
+              if (metadata.requiredMemoryMb() != null && metadata.requiredMemoryMb() > 0) {
+                  declaredMemoryTotal += metadata.requiredMemoryMb();
+                  anyMemory = true;
+              }
+          '''
+          replacement = '''            Metadata metadata = candidates.get(0);
+              if (reportPartialMetadata(metadata, findings, partialReported)) {
+                  evidenceComplete = false;
+              }
+              if (metadata.requiredMemoryMb() != null) {
+                  if (metadata.requiredMemoryMb() <= 0) {
+                      findings.add(new Finding(
+                              ReasonCode.MEMORY_REQUIREMENT_INVALID,
+                              Severity.WARNING,
+                              modId,
+                              null,
+                              "requiredMemoryMB must be positive; declared " + metadata.requiredMemoryMb()));
+                      evidenceComplete = false;
+                  } else {
+                      try {
+                          declaredMemoryTotal = Math.addExact(declaredMemoryTotal, metadata.requiredMemoryMb());
+                          anyMemory = true;
+                      } catch (ArithmeticException overflow) {
+                          findings.add(new Finding(
+                                  ReasonCode.MEMORY_REQUIREMENT_INVALID,
+                                  Severity.WARNING,
+                                  modId,
+                                  null,
+                                  "requiredMemoryMB total exceeds the supported numeric range"));
+                          evidenceComplete = false;
+                      }
+                  }
+              }
+          '''
+          text = replace_once(text, unique, replacement, "enabled metadata evaluation")
+
+          game_unknown = '''                    findings.add(new Finding(
+                              ReasonCode.GAME_VERSION_UNKNOWN,
+                              Severity.INFO,
+                              modId,
+                              null,
+                              "Mod declares game version " + metadata.gameVersion() + ", but the installed game version was not established"));
+          '''
+          text = replace_once(
+              text,
+              game_unknown,
+              game_unknown + "                    evidenceComplete = false;\n",
+              "unknown game version")
+
+          old_dep = '''                List<Metadata> dependencyProviders = providers.get(dependency.id());
+          if (dependency.optional()) {
+              if (dependencyProviders == null || dependencyProviders.isEmpty()) {
+                  findings.add(new Finding(
+                          ReasonCode.OPTIONAL_DEPENDENCY,
+                          Severity.INFO,
+                          modId,
+                          dependency.id(),
+                          "Optional dependency '" + dependency.id() + "' is not installed"));
+              }
+              continue;
+          }
+          '''
+          new_dep = '''                List<Metadata> dependencyProviders = providers.get(dependency.id());
+                  if (dependency.optional()) {
+                      if (dependencyProviders == null || dependencyProviders.isEmpty()) {
+                          findings.add(new Finding(
+                                  ReasonCode.OPTIONAL_DEPENDENCY,
+                                  Severity.INFO,
+                                  modId,
+                                  dependency.id(),
+                                  "Optional dependency '" + dependency.id() + "' is not installed"));
+                      }
+                      continue;
+                  }
+          '''
+          text = replace_once(text, old_dep, new_dep, "optional dependency block")
+
+          provider = '''                Metadata provider = dependencyProviders.get(0);
+                  if (!enabledSet.contains(dependency.id())) {
+          '''
+          text = replace_once(
+              text,
+              provider,
+              '''                Metadata provider = dependencyProviders.get(0);
+                  if (reportPartialMetadata(provider, findings, partialReported)) {
+                      evidenceComplete = false;
+                  }
+                  if (!enabledSet.contains(dependency.id())) {
+          ''',
+              "dependency provider")
+
+          text = replace_once(
+              text,
+              "                compareVersion(modId, dependency, provider, findings);\n",
+              "                if (!compareVersion(modId, dependency, provider, findings)) {\n"
+              "                    evidenceComplete = false;\n"
+              "                }\n",
+              "version comparison call")
+
+          memory_unknown = '''                findings.add(new Finding(
+                          ReasonCode.MEMORY_REQUIREMENT_UNKNOWN,
+                          Severity.INFO,
+                          null,
+                          null,
+                          "Enabled mods declare " + declaredMemoryTotal + " MiB required memory; effective -Xmx was not established"));
+          '''
+          text = replace_once(
+              text,
+              memory_unknown,
+              memory_unknown + "                evidenceComplete = false;\n",
+              "unknown memory policy")
+
+          proposal_start = text.index("        ProfileChange change = null;")
+          return_line = text.index("        return new Result", proposal_start)
+          return_end = text.index("\n", return_line)
+          proposal = '''        ProfileChange change = null;
+              if (!proposedEnable.isEmpty()) {
+                  List<String> additions = proposedEnable.stream().sorted().toList();
+                  List<String> after = new ArrayList<>(enabled);
+                  after.addAll(additions);
+                  change = new ProfileChange(enabled, after, additions);
+              }
+              return new Result(enabled, findings, change, evidenceComplete, true);
+          '''
+          text = text[:proposal_start] + proposal + text[return_end + 1:]
+
+          parse = '''        String name = optionalString(values.get("name"));
+              Version version = parseVersion(values.get("version"));
+              String gameVersion = optionalString(values.get("gameVersion"));
+              Long memory = optionalLong(values.get("requiredMemoryMB"));
+          '''
+          text = replace_once(
+              text,
+              parse,
+              '''        String name = optionalString(values.get("name"));
+              Version version = parseVersion(values.get("version"));
+              String gameVersion = optionalString(values.get("gameVersion"));
+              List<String> missingFields = new ArrayList<>();
+              if (name == null || name.isBlank()) missingFields.add("name");
+              if (version == null) missingFields.add("version");
+              if (gameVersion == null || gameVersion.isBlank()) missingFields.add("gameVersion");
+              Long memory = optionalLong(values.get("requiredMemoryMB"));
+          ''',
+              "partial metadata fields")
+
+          text = replace_once(
+              text,
+              "        return new Metadata(directory, id, name, version, gameVersion, List.copyOf(dependencies), memory);\n",
+              "        return new Metadata(directory, id, name, version, gameVersion, List.copyOf(missingFields), List.copyOf(dependencies), memory);\n",
+              "metadata construction")
+
+          compare_start = text.index("    private static void compareVersion(")
+          compare_end = text.index("    private static Version parseVersion", compare_start)
+          text = text[:compare_start] + '''    private static boolean reportPartialMetadata(
+                  Metadata metadata, List<Finding> findings, Set<String> reported) {
+              if (metadata.missingFields().isEmpty()) {
+                  return false;
+              }
+              if (reported.add(metadata.id())) {
+                  findings.add(new Finding(
+                          ReasonCode.METADATA_PARTIAL,
+                          Severity.WARNING,
+                          metadata.id(),
+                          null,
+                          "Metadata is missing compatibility fields: " + String.join(", ", metadata.missingFields())));
+              }
+              return true;
+          }
+
+              private static boolean compareVersion(
+                      String dependentId, Dependency dependency, Metadata provider, List<Finding> findings) {
+                  if (dependency.version() == null || provider.version() == null) {
+                      return true;
+                  }
+                  Version required = dependency.version();
+                  Version actual = provider.version();
+                  if (!required.hasNumericMajor() || !actual.hasNumericMajor()) {
+                      if (!required.raw().equals(actual.raw())) {
+                          findings.add(new Finding(
+                                  ReasonCode.DEPENDENCY_VERSION_ADVISORY,
+                                  Severity.WARNING,
+                                  dependentId,
+                                  dependency.id(),
+                                  "Dependency version declaration '" + required.raw() + "' does not match installed '"
+                                          + actual.raw() + "'; unsupported range semantics remain advisory"));
+                          return false;
+                      }
+                      return true;
+                  }
+                  if (!required.major().equals(actual.major())) {
+                      findings.add(new Finding(
+                              ReasonCode.DEPENDENCY_VERSION_MAJOR_MISMATCH,
+                              Severity.ERROR,
+                              dependentId,
+                              dependency.id(),
+                              "Dependency requires major version " + required.major() + "; installed version is " + actual.raw()));
+                      return true;
+                  }
+                  if ((required.minor() != null && actual.minor() != null && !required.minor().equals(actual.minor()))
+                          || (required.patch() != null && actual.patch() != null && !required.patch().equals(actual.patch()))) {
+                      findings.add(new Finding(
+                              ReasonCode.DEPENDENCY_VERSION_ADVISORY,
+                              Severity.WARNING,
+                              dependentId,
+                              dependency.id(),
+                              "Dependency declares version " + required.raw() + "; installed version is " + actual.raw()));
+                  }
+                  return true;
+              }
+
+          ''' + text[compare_end:]
+          path.write_text(text)
+
+          presenter = Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPresenter.java")
+          presenter.write_text('''package dev.starsector.preflight.cli;
+
+          import dev.starsector.preflight.core.ModCompatibilityReadiness.Finding;
+          import dev.starsector.preflight.core.ModCompatibilityReadiness.ProfileChange;
+          import dev.starsector.preflight.core.ModCompatibilityReadiness.Result;
+          import dev.starsector.preflight.core.ModCompatibilityReadiness.Severity;
+          import java.io.PrintStream;
+          import java.util.List;
+          import java.util.Locale;
+
+          /** Human view of metadata readiness; informational evidence stays available in the typed result. */
+          final class ModCompatibilityPresenter {
+              private ModCompatibilityPresenter() {
+              }
+
+              static void print(Result result, PrintStream out) {
+                  List<Finding> visible = result.findings().stream()
+                          .filter(finding -> finding.severity() != Severity.INFO)
+                          .toList();
+                  ProfileChange change = result.suggestedProfileChange();
+                  if (visible.isEmpty() && change == null) {
+                      return;
+                  }
+                  out.println("Mod metadata readiness:");
+                  for (Finding finding : visible) {
+                      out.printf(
+                              Locale.ROOT,
+                              "  %-7s %-38s %s%n",
+                              finding.severity().name().toLowerCase(Locale.ROOT),
+                              finding.reason().code(),
+                              finding.summary());
+                  }
+                  if (change != null) {
+                      out.println("  reviewed profile change available; current profile remains unchanged:");
+                      out.println("    before: " + change.before());
+                      out.println("    enable: " + change.enable());
+                      out.println("    after:  " + change.after());
+                      out.println("    applying this change requires an explicit profile/settings action; dependency chains stay untouched.");
+                  }
+                  out.println("  launch remains available; this metadata pass does not change the profile or installed mods.");
+              }
+          }
+          ''')
+
+          for command_path in [
+              Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java"),
+              Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/PrepareCommand.java")]:
+              command = command_path.read_text()
+              command = command.replace(
+                  "ModCompatibilityPrecheck.Result modReadiness =\n",
+                  "var modReadiness =\n")
+              command_path.write_text(command)
+
+          test = Path("preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java")
+          t = test.read_text()
+          t = t.replace(
+              "import static org.junit.jupiter.api.Assertions.assertTrue;\n\n",
+              "import static org.junit.jupiter.api.Assertions.assertTrue;\n\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness;\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness.ReasonCode;\n"
+              "import dev.starsector.preflight.core.ModCompatibilityReadiness.Severity;\n")
+          t = t.replace("ModCompatibilityPrecheck.ReasonCode.", "ReasonCode.")
+          t = t.replace("ModCompatibilityPrecheck.Severity.", "Severity.")
+          t = t.replace("ModCompatibilityPrecheck.ReasonCode reason", "ReasonCode reason")
+          t = t.replace("ModCompatibilityPrecheck.Result result", "ModCompatibilityReadiness.Result result")
+          t = t.replace("first.toMap(), second.toMap()", "first.toPublicMap(), second.toPublicMap()")
+          t = t.replace(
+              '        assertEquals(Boolean.TRUE, result.toMap().get("launchAllowed"));\n',
+              '        assertFalse(result.evidenceComplete());\n        assertTrue(result.launchAllowed());\n')
+          t = t.replace(
+              "        assertFalse(result.hasErrors());\n    }\n\n    @Test\n    void duplicateIdsAreAmbiguousAndDeterministic()",
+              "        assertFalse(result.hasErrors());\n"
+              "        assertFalse(result.evidenceComplete());\n"
+              "    }\n\n"
+              "    @Test\n"
+              "    void duplicateIdsAreAmbiguousAndDeterministic()",
+              1)
+
+          marker = "    @Test\n    void optionalDependencyStaysInformational() throws Exception {\n"
+          addition = '''    @Test
+              void malformedEnabledProfileIsAdvisoryAndLaunchable() throws Exception {
+                  Path install = temp.resolve("malformed-profile");
+                  Path mods = install.resolve("mods");
+                  Files.createDirectories(mods);
+                  Files.writeString(mods.resolve("enabled_mods.json"), "{broken", StandardCharsets.UTF_8);
+
+                  var result = ModCompatibilityPrecheck.inspect(install);
+
+                  assertReason(result, ReasonCode.ENABLED_MODS_UNAVAILABLE);
+                  assertFalse(result.hasErrors());
+                  assertFalse(result.evidenceComplete());
+                  assertTrue(result.launchAllowed());
+              }
+
+              @Test
+              void partialCompatibilityMetadataIsVisible() throws Exception {
+                  Path mods = mods();
+                  mod(mods, "partial", "{\"id\":\"partial\",\"name\":\"Partial\",\"gameVersion\":\"0.98a-RC8\"}");
+
+                  var result = ModCompatibilityPrecheck.inspect(
+                          mods, List.of("partial"), "0.98a-RC8", 4096L);
+
+                  assertReason(result, ReasonCode.METADATA_PARTIAL);
+                  assertFalse(result.evidenceComplete());
+                  assertTrue(result.launchAllowed());
+              }
+
+              @Test
+              void invalidMemoryDeclarationStaysAdvisoryAndIncomplete() throws Exception {
+                  Path mods = mods();
+                  mod(mods, "odd-memory", """
+                          {"id":"odd-memory","name":"Odd Memory","version":"1","gameVersion":"0.98a-RC8",
+                           "requiredMemoryMB":0}
+                          """);
+
+                  var result = ModCompatibilityPrecheck.inspect(
+                          mods, List.of("odd-memory"), "0.98a-RC8", 4096L);
+
+                  assertReason(result, ReasonCode.MEMORY_REQUIREMENT_INVALID);
+                  assertFalse(result.hasErrors());
+                  assertFalse(result.evidenceComplete());
+                  assertTrue(result.launchAllowed());
+              }
+
+          '''
+          t = replace_once(t, marker, addition + marker, "optional test marker")
+          test.write_text(t)
+      - name: Verify Java correctness
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Commit verified named files
+        run: |
+          rm .github/workflows/issue-557-polish.yml
+          git config user.name "preflight-issue-557-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add preflight-core/src/main/java/dev/starsector/preflight/core/ModCompatibilityReadiness.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPresenter.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/PrepareCommand.java
+          git add preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java
+          git add -u .github/workflows/issue-557-polish.yml
+          git commit -m "Polish mod compatibility readiness contract"
+          git push origin HEAD:codex/issue-557-mod-compat-precheck
