@@ -158,7 +158,7 @@ Public packages aren't available during the preview. Build the self-contained CL
 with JDK 17 and Maven 3.9 or newer:
 
 ```bash
-mvn verify
+./mvnw verify
 ```
 
 The resulting launcher is `preflight-cli/target/preflight.jar`. Install the local launcher and
