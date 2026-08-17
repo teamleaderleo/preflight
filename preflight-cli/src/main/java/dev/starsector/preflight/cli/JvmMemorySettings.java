@@ -4,14 +4,18 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,6 +38,8 @@ final class JvmMemorySettings {
             .withZone(ZoneOffset.UTC);
     private static final Pattern BACKUP_FILE = Pattern.compile(
             "\\d{8}-\\d{6}-\\d{3}-[0-9a-f]{8}-[A-Za-z0-9._-]+");
+    private static final String SETTINGS_CHANGED =
+            "The heap settings changed while they were being reviewed; review them again before applying.";
 
     private JvmMemorySettings() {
     }
@@ -138,6 +144,26 @@ final class JvmMemorySettings {
             LaunchTarget target,
             int memoryMiB,
             Path backupDirectory) throws IOException {
+        return update(
+                installRoot,
+                target,
+                memoryMiB,
+                backupDirectory,
+                ignored -> {},
+                ignored -> {});
+    }
+
+    /** Test seam for deterministic external-edit races around publication; production uses no-op hooks. */
+    static UpdateResult update(
+            Path installRoot,
+            LaunchTarget target,
+            int memoryMiB,
+            Path backupDirectory,
+            UpdateHook beforePublish,
+            UpdateHook afterPublish) throws IOException {
+        if (beforePublish == null || afterPublish == null) {
+            throw new IllegalArgumentException("Heap update hooks are required");
+        }
         if (memoryMiB < MIN_HEAP_MIB || memoryMiB > MAX_HEAP_MIB || memoryMiB % 256 != 0) {
             throw new IllegalArgumentException("Memory must be 512-32768 MiB in 256 MiB steps");
         }
@@ -153,22 +179,36 @@ final class JvmMemorySettings {
         }
 
         Path source = before.source();
-        byte[] original = Files.readAllBytes(source);
-        if (original.length > MAX_SETTINGS_BYTES) {
+        SourceState original = readStableSource(source);
+        if (original.bytes().length > MAX_SETTINGS_BYTES) {
             throw new IOException("The heap settings file is too large to edit safely: " + source);
         }
-        String text = new String(original, StandardCharsets.UTF_8);
+        String text = new String(original.bytes(), StandardCharsets.UTF_8);
         if (count(MAX_HEAP.matcher(text)) != 1 || count(INITIAL_HEAP.matcher(text)) > 1) {
-            throw new IOException("The heap settings changed while they were being reviewed: " + source);
+            throw new IOException(SETTINGS_CHANGED);
         }
         String replacement = MAX_HEAP.matcher(text).replaceFirst("-Xmx" + memoryMiB + "m");
         if (INITIAL_HEAP.matcher(replacement).find()) {
             replacement = INITIAL_HEAP.matcher(replacement).replaceFirst("-Xms" + memoryMiB + "m");
         }
+        byte[] replacementBytes = replacement.getBytes(StandardCharsets.UTF_8);
 
-        Path backup = writeBackup(backupDirectory, source, original);
+        // Refuse an external edit before creating a recovery artifact. Publication rechecks once
+        // more after the backup write, so a change during backup creation is still fail-closed.
+        beforePublish.run(source);
+        requireUnchanged(source, original);
+        Path backup = writeBackup(backupDirectory, source, original.bytes());
+        boolean published = false;
+        SourceState publishedState = null;
         try {
-            replace(source, replacement.getBytes(StandardCharsets.UTF_8));
+            publishIfUnchanged(source, original, replacementBytes);
+            published = true;
+            publishedState = readStableSource(source);
+            if (!Arrays.equals(replacementBytes, publishedState.bytes())) {
+                throw new IOException("The heap settings changed immediately after Preflight updated them");
+            }
+
+            afterPublish.run(source);
             Snapshot after = inspect(installRoot, target);
             if (!after.available() || !Integer.valueOf(memoryMiB).equals(after.maxHeapMiB())
                     || (after.initialHeapMiB() != null
@@ -177,10 +217,22 @@ final class JvmMemorySettings {
             }
             return new UpdateResult(after, backup, true);
         } catch (Exception failed) {
-            try {
-                replace(source, original);
-            } catch (Exception rollbackFailed) {
-                failed.addSuppressed(rollbackFailed);
+            if (published) {
+                try {
+                    if (publishedState == null) {
+                        throw new IOException(
+                                "Preflight could not prove its published heap settings were unchanged; backup retained");
+                    }
+                    publishIfUnchanged(source, publishedState, original.bytes());
+                } catch (Exception rollbackFailed) {
+                    failed.addSuppressed(rollbackFailed);
+                }
+            } else {
+                try {
+                    Files.deleteIfExists(backup);
+                } catch (IOException cleanupFailed) {
+                    failed.addSuppressed(cleanupFailed);
+                }
             }
             if (failed instanceof IOException io) throw io;
             throw new IOException("Could not update the launcher heap setting", failed);
@@ -290,24 +342,83 @@ final class JvmMemorySettings {
         return backup.toAbsolutePath().normalize();
     }
 
-    private static void replace(Path destination, byte[] bytes) throws IOException {
-        Path temporary = Files.createTempFile(destination.getParent(), ".preflight-heap-", ".tmp");
+    private static SourceState readStableSource(Path source) throws IOException {
+        BasicFileAttributes before = Files.readAttributes(
+                source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        byte[] bytes = Files.readAllBytes(source);
+        BasicFileAttributes after = Files.readAttributes(
+                source, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        FileIdentity beforeIdentity = FileIdentity.from(before);
+        FileIdentity afterIdentity = FileIdentity.from(after);
+        if (!beforeIdentity.equals(afterIdentity)) {
+            throw new IOException(SETTINGS_CHANGED);
+        }
+        return new SourceState(bytes, afterIdentity);
+    }
+
+    private static void requireUnchanged(Path source, SourceState expected) throws IOException {
+        SourceState current = readStableSource(source);
+        if (!expected.identity().equals(current.identity())
+                || !Arrays.equals(expected.bytes(), current.bytes())) {
+            throw new IOException(SETTINGS_CHANGED);
+        }
+    }
+
+    private static void publishIfUnchanged(Path destination, SourceState expected, byte[] bytes)
+            throws IOException {
+        Path absolute = destination.toAbsolutePath().normalize();
+        Path temporary = Files.createTempFile(absolute.getParent(), ".preflight-heap-", ".tmp");
         try {
             Files.write(temporary, bytes, StandardOpenOption.TRUNCATE_EXISTING);
             try {
-                Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(destination);
+                Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(absolute);
                 Files.setPosixFilePermissions(temporary, permissions);
             } catch (UnsupportedOperationException ignored) {
                 // Windows has no POSIX permissions; replacing a vmparams file needs none.
             }
+            // This is intentionally the final source read before publication. An external editor,
+            // launcher, or mod manager cannot silently lose changes made after the review read.
+            requireUnchanged(absolute, expected);
             try {
-                Files.move(temporary, destination,
+                Files.move(temporary, absolute,
                         StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException unsupported) {
-                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(temporary, absolute, StandardCopyOption.REPLACE_EXISTING);
             }
         } finally {
             Files.deleteIfExists(temporary);
+        }
+    }
+
+    @FunctionalInterface
+    interface UpdateHook {
+        void run(Path source) throws IOException;
+    }
+
+    private record SourceState(byte[] bytes, FileIdentity identity) {
+        SourceState {
+            bytes = bytes.clone();
+        }
+
+        @Override
+        public byte[] bytes() {
+            return bytes.clone();
+        }
+    }
+
+    private record FileIdentity(
+            long size,
+            FileTime modified,
+            Object fileKey,
+            boolean regularFile,
+            boolean symbolicLink) {
+        static FileIdentity from(BasicFileAttributes attributes) {
+            return new FileIdentity(
+                    attributes.size(),
+                    attributes.lastModifiedTime(),
+                    attributes.fileKey(),
+                    attributes.isRegularFile(),
+                    attributes.isSymbolicLink());
         }
     }
 
