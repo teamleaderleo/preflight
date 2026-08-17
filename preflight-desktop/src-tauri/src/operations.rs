@@ -115,6 +115,12 @@ pub(crate) fn begin_diagnostics_export(
                 .to_string(),
         );
     }
+    if state.update_installing {
+        return Err(
+            "Wait for the Preflight update to finish installing before creating a support file."
+                .to_string(),
+        );
+    }
     if state.diagnostics_exporting {
         return Err("A support file is already being created.".to_string());
     }
@@ -294,6 +300,20 @@ mod tests {
             "Wait for the support file to finish before installing an update."
         );
         assert!(!operations.lock().unwrap().update_installing);
+    }
+
+    #[test]
+    fn diagnostics_export_refuses_active_update_install() {
+        let operations = Mutex::new(OperationState {
+            update_installing: true,
+            ..OperationState::default()
+        });
+
+        assert_eq!(
+            begin_diagnostics_export(&operations).err().unwrap(),
+            "Wait for the Preflight update to finish installing before creating a support file."
+        );
+        assert!(!operations.lock().unwrap().diagnostics_exporting);
     }
 
     #[test]
