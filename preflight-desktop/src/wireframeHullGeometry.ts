@@ -99,6 +99,37 @@ function hullFrame(hull: WireframeHull) {
   return { center, minX, maxX, minY, maxY, extent };
 }
 
+function polygonArea(loop: WireframePoint[]): number {
+  let total = 0;
+  for (let index = 0, previous = loop.length - 1; index < loop.length; previous = index, index += 1) {
+    total += loop[previous].x * loop[index].y - loop[index].x * loop[previous].y;
+  }
+  return Math.abs(total / 2);
+}
+
+/** Put the few verticals where the contour actually turns instead of making a ladder. */
+function contourCorners(loop: WireframePoint[], wanted: number): number[] {
+  const turns = loop.map((point, index) => {
+    const previous = loop[(index + loop.length - 1) % loop.length];
+    const next = loop[(index + 1) % loop.length];
+    const incoming = Math.atan2(point.y - previous.y, point.x - previous.x);
+    const outgoing = Math.atan2(next.y - point.y, next.x - point.x);
+    const turn = Math.abs(Math.atan2(Math.sin(outgoing - incoming), Math.cos(outgoing - incoming)));
+    return { index, turn };
+  }).sort((left, right) => right.turn - left.turn);
+
+  const selected: number[] = [];
+  for (const candidate of turns) {
+    if (selected.length >= wanted) break;
+    const separated = selected.every((index) => {
+      const distance = Math.abs(index - candidate.index);
+      return Math.min(distance, loop.length - distance) > loop.length / 12;
+    });
+    if (separated) selected.push(candidate.index);
+  }
+  return selected;
+}
+
 function smoothContour(points: WireframePoint[], weight: number): WireframePoint[] {
   let current = points;
   if (weight <= 0) return current;
@@ -166,6 +197,78 @@ function buildDeck(hull: WireframeHull): HullVertex[] {
 }
 
 /**
+ * A readable plate from the sprite-derived silhouette, voids and light contours.
+ *
+ * This is deliberately separate from the generic collision-bound loft below. A trace already
+ * says where the raised shapes are. Adding the generic six-sided cabin on top of it creates a
+ * second, unrelated ship in the middle of the first one.
+ */
+function buildTracedHull(hull: WireframeHull, detail: HullDetail): HullModel {
+  const trace = hull.trace;
+  if (!trace || hull.bounds.length < 3) return { segments: [], deck: [], mounts: [] };
+  const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
+  const axis = (minY + maxY) / 2;
+  const halfWidth = Math.max(...hull.bounds.map((point) => Math.abs(point.y - axis)), 1);
+  const height = hull.tuning?.height ?? 1;
+  const thickness = extent * 0.085 * height;
+  const hullArea = polygonArea(hull.bounds);
+  const halfHeight = (point: WireframePoint) => {
+    const along = Math.min(1, Math.max(0, (point.x - minX) / Math.max(maxX - minX, 1)));
+    const ends = Math.sin(Math.PI * along);
+    const rim = 1 - Math.min(1, Math.abs(point.y - axis) / halfWidth) ** 2.6;
+    return thickness * (0.55 + 0.45 * ends) * (0.1 + 0.9 * rim);
+  };
+
+  const segments: HullSegment[] = [];
+  const minimumVoidArea = hullArea * 0.004;
+  const loops = [hull.bounds, ...trace.holes.filter((loop) => polygonArea(loop) >= minimumVoidArea)];
+  loops.forEach((loop, index) => {
+    const isVoid = index > 0;
+    const middle = loop.map((point) => ({ ...point, z: 0 }));
+    const upper = loop.map((point) => ({ ...point, z: halfHeight(point) * (isVoid ? 0.62 : 1) }));
+    const lower = loop.map((point) => ({ ...point, z: -halfHeight(point) * (isVoid ? 0.62 : 1) * 0.72 }));
+    segments.push(...ring(middle, "outline"), ...ring(upper, "deck"));
+    if (detail !== "small") segments.push(...ring(lower, "keel"));
+    const wanted = isVoid ? 4 : detail === "small" ? 4 : detail === "medium" ? 7 : 9;
+    for (const at of contourCorners(loop, wanted)) {
+      segments.push({ from: middle[at], to: upper[at], kind: "structure" });
+      if (detail !== "small") {
+        segments.push({ from: middle[at], to: lower[at], kind: "structure" });
+      }
+    }
+  });
+
+  if (detail !== "small") {
+    const minimumInnerArea = hullArea * 0.012;
+    for (const contour of trace.inner) {
+      if (contour.points.length < 3 || polygonArea(contour.points) < minimumInnerArea) continue;
+      const raised = contour.points.map((point) => ({
+        ...point,
+        z: halfHeight(point) + thickness * 0.95 * contour.height,
+      }));
+      segments.push(...ring(raised, "deck"));
+      const extremes = [
+        contour.points.reduce((best, point, index) => point.x < contour.points[best].x ? index : best, 0),
+        contour.points.reduce((best, point, index) => point.x > contour.points[best].x ? index : best, 0),
+        contour.points.reduce((best, point, index) => point.y < contour.points[best].y ? index : best, 0),
+        contour.points.reduce((best, point, index) => point.y > contour.points[best].y ? index : best, 0),
+      ];
+      for (const at of new Set(extremes)) {
+        segments.push({
+          from: raised[at],
+          to: { ...contour.points[at], z: halfHeight(contour.points[at]) },
+          kind: "structure",
+        });
+      }
+    }
+  }
+
+  // A single Canvas fill path cannot preserve the trace's cutouts. Keep traced hulls honest and
+  // let their layered contours carry the form; the generic fallback below still has a solid deck.
+  return { segments, deck: [], mounts: [] };
+}
+
+/**
  * Turns Starsector's authoritative plan-view silhouette into a restrained drafting model.
  * The deck and keel are deliberately generic: Preflight doesn't claim the flat source defines a
  * canon third axis, and one shared loft keeps mod hulls from needing hand-authored meshes.
@@ -197,18 +300,6 @@ function buildSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
     ...structure,
   ];
 
-  if (detail !== "small" && hull.trace) {
-    for (const hole of hull.trace.holes) {
-      segments.push(...ring(hole.map((point) => ({ ...point, z: deckHeight * 0.03 })), "structure"));
-    }
-    for (const contour of hull.trace.inner) {
-      segments.push(...ring(
-        contour.points.map((point) => ({ ...point, z: deckHeight * contour.height })),
-        "deck",
-      ));
-    }
-  }
-
   for (const engine of hull.engines) {
     const angle = engine.angle * Math.PI / 180;
     const direction = { x: Math.cos(angle), y: Math.sin(angle) };
@@ -228,7 +319,10 @@ function buildSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
 }
 
 export function buildHullSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
-  return buildSegments(tunedHull(hull), detail);
+  const effectiveHull = tunedHull(hull);
+  return effectiveHull.trace
+    ? buildTracedHull(effectiveHull, detail).segments
+    : buildSegments(effectiveHull, detail);
 }
 
 function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
@@ -237,16 +331,18 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
 
   const effectiveHull = tunedHull(hull);
   const { extent } = hullFrame(effectiveHull);
-  const built = {
-    segments: buildSegments(effectiveHull, detail),
-    deck: buildDeck(effectiveHull),
-    mounts: detail === "small" ? [] : effectiveHull.mounts.map((mount) => ({
-      x: mount.x,
-      y: mount.y,
-      z: extent * 0.18 * (effectiveHull.tuning?.height ?? 1),
-      size: mount.size,
-    })),
-  } satisfies HullModel;
+  const built = effectiveHull.trace
+    ? buildTracedHull(effectiveHull, detail)
+    : {
+        segments: buildSegments(effectiveHull, detail),
+        deck: buildDeck(effectiveHull),
+        mounts: detail === "small" ? [] : effectiveHull.mounts.map((mount) => ({
+          x: mount.x,
+          y: mount.y,
+          z: extent * 0.18 * (effectiveHull.tuning?.height ?? 1),
+          size: mount.size,
+        })),
+      } satisfies HullModel;
 
   /*
    * Fit every hull into one normalised frame. A stubby Hammerhead and a long Conquest have very

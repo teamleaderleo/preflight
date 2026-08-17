@@ -1927,6 +1927,7 @@ h2 {
 
 .hangar-controls {
   display: flex;
+  align-self: start;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
