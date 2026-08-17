@@ -74,6 +74,8 @@ for (const [source, name] of legalSources) {
   cpSync(source, join(engineDirectory, "legal", name));
 }
 
+rmSync(runtimeDirectory, { recursive: true, force: true });
+
 run(
   jlink,
   [

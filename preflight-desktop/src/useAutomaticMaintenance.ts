@@ -7,10 +7,12 @@ import {
 } from "./bridge";
 
 export const AUTOMATIC_CACHE_LIMIT_BYTES = 12 * 1024 * 1024 * 1024;
+export const AUTOMATIC_FREE_SPACE_THRESHOLD_BYTES = 5 * 1024 * 1024 * 1024;
 
 interface AutomaticMaintenanceOptions {
   game?: string;
   cacheBytes?: number;
+  freeBytes?: number;
   onCacheCleaned?: () => void;
 }
 
@@ -35,11 +37,15 @@ export function useAutomaticMaintenance(
   }, [enabled, epoch]);
 
   useEffect(() => {
-    const { game, cacheBytes, onCacheCleaned } = options;
+    const { game, cacheBytes, freeBytes, onCacheCleaned } = options;
+    const underSpacePressure = freeBytes !== undefined
+      && freeBytes <= AUTOMATIC_FREE_SPACE_THRESHOLD_BYTES
+      && (cacheBytes ?? 0) > 0;
+    const overCacheLimit = cacheBytes !== undefined && cacheBytes > AUTOMATIC_CACHE_LIMIT_BYTES;
+
     if (!enabled
       || !game
-      || cacheBytes === undefined
-      || cacheBytes <= AUTOMATIC_CACHE_LIMIT_BYTES
+      || (!overCacheLimit && !underSpacePressure)
       || lastCacheEpoch.current === epoch
       || !isDesktopHost()) return;
     const timer = window.setTimeout(() => {
@@ -53,5 +59,5 @@ export function useAutomaticMaintenance(
       });
     }, 1_500);
     return () => window.clearTimeout(timer);
-  }, [enabled, epoch, options.cacheBytes, options.game, options.onCacheCleaned]);
+  }, [enabled, epoch, options.cacheBytes, options.freeBytes, options.game, options.onCacheCleaned]);
 }

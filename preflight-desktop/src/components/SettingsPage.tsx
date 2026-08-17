@@ -16,6 +16,8 @@ interface SettingsPageProps {
   removalPlan: RemovalPlan | null;
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
+  automaticRunReports: boolean;
+  onAutomaticRunReportsChange: (enabled: boolean) => void;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
@@ -31,6 +33,8 @@ export function SettingsPage({
   removalPlan,
   removalBusy,
   afterLaunchBehavior,
+  automaticRunReports,
+  onAutomaticRunReportsChange,
   onAfterLaunchBehaviorChange,
   onReviewRemoval,
   onDismissRemoval,
@@ -105,6 +109,15 @@ export function SettingsPage({
               onChange={(event) => setAutomaticUpdateChecks(event.target.checked)}
             />
             <span>Check for updates automatically<small>Checks the release feed when Preflight starts.</small></span>
+          </label>
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={automaticRunReports}
+              disabled={!reportIntake?.configured}
+              onChange={(event) => onAutomaticRunReportsChange(event.target.checked)}
+            />
+            <span>Send failed-run reports automatically<small>{reportIntake?.configured ? "Sends disclosed diagnostics only when Starsector fails to launch." : "Report intake is unavailable in this build."}</small></span>
           </label>
         </section>
 

@@ -9,7 +9,7 @@ import {
   sendRunReport,
 } from "./bridge";
 import { nativeCommandError } from "./nativeErrors";
-import { REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
+import { AUTOMATIC_RUN_REPORTS_STORAGE_KEY, REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
 import { supportSafeReportReceipt } from "./supportReceipt";
 import type {
   DiagnosticsExport,
@@ -21,6 +21,14 @@ import type {
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage, localDateStamp } from "./uiFormat";
+
+function savedAutomaticRunReports(): boolean {
+  try {
+    return window.localStorage.getItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
 
 function savedRunReportReceipt(): ReportReceipt | null {
   try {
@@ -70,8 +78,20 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(savedRunReportReceipt);
   const [reportError, setReportError] = useState("");
   const [reportDeleting, setReportDeleting] = useState(false);
+  const [automaticRunReports, setAutomaticRunReports] = useState(savedAutomaticRunReports);
   const diagnosticsBusyRef = useRef(false);
   const reportUploadingRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        AUTOMATIC_RUN_REPORTS_STORAGE_KEY,
+        automaticRunReports ? "on" : "off",
+      );
+    } catch {
+      // Persistent storage denial keeps in-memory choice.
+    }
+  }, [automaticRunReports]);
 
   useEffect(() => {
     try {
@@ -291,7 +311,36 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     }
   };
 
+  const submitAutomaticFailedRunReport = async () => {
+    if (!automaticRunReports || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current) return;
+    reportUploadingRef.current = true;
+    setReportUploading(true);
+    setReportFinalizing(false);
+    setReportCancelling(false);
+    setReportUploadedBytes(0);
+    setReportError("");
+    try {
+      const stamp = localDateStamp();
+      const destination = isDesktopHost()
+        ? `~/.starsector-preflight/reports/auto-failed-run-${stamp}.zip`
+        : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
+      const exported = await exportDiagnostics(destination);
+      setDiagnosticsExport(exported);
+      const receipt = await sendRunReport(exported);
+      reportUploadingRef.current = false;
+      setReportUploading(false);
+      setReportReceipt(receipt);
+      announce("A failed-run support report was sent automatically. A receipt is saved in Help.", "info");
+    } catch (error) {
+      reportUploadingRef.current = false;
+      setReportUploading(false);
+      setReportError(errorMessage(error));
+      announce("Could not automatically send the failed-run report. The local diagnostics ZIP was kept.", "warning");
+    }
+  };
+
   return {
+    automaticRunReports,
     diagnosticsBusy,
     diagnosticsExport,
     reportCancelling,
@@ -308,8 +357,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     dismissRunReportReceipt,
     removeRunReport,
     saveDiagnostics,
+    setAutomaticRunReports,
     setReportReview,
     stopRunReport,
+    submitAutomaticFailedRunReport,
     submitRunReport,
   };
 }

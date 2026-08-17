@@ -29,6 +29,16 @@
   - Added typed fields to `LastRun` in `types.ts`.
   - Wired `lastRun` to `SpeedScoreboard.tsx` to display the actual measured startup time (`Last launch took 15.3s`) directly on unmeasured speed scoreboards.
 
+### Automatic Failed-Run Reports ([#476](https://github.com/teamleaderleo/preflight/issues/476))
+- **Consent & Storage**: Added `AUTOMATIC_RUN_REPORTS_STORAGE_KEY` (`preflight.automaticRunReports`) to `desktopStorage.ts` with strict storage ownership tests. Default is strictly `false`/`off`.
+- **Settings Toggle**: Added "Send failed-run reports automatically" checkbox in `SettingsPage.tsx` with clear privacy disclosures and intake capability gating.
+- **Automated Single-Flight Export**: On failed launch process completion, triggers a single disclosed diagnostics bundle export and upload without blocking application shutdown or retrying infinitely on failure.
+
+### Free-Space-Pressure Cache Eviction ([#477](https://github.com/teamleaderleo/preflight/issues/477))
+- **Safety Reserve**: Added `AUTOMATIC_FREE_SPACE_THRESHOLD_BYTES = 5 GiB` to `useAutomaticMaintenance.ts`.
+- **Dual Trigger**: Evaluates unreachable cache profile pruning when either cache size exceeds the 12 GiB limit OR available free disk space falls under 5 GiB while cache is non-empty.
+- **Verification**: Unit tests added in `useAutomaticMaintenance.test.tsx` verifying threshold activation.
+
 ### Desktop UX Polish & Gating
 - **Launch Posture**: Added posture indicator (`Accelerations active · Balanced storage` / `Original code and assets · Vanilla fallback`) under the primary launch button in [`HomePage.tsx`](preflight-desktop/src/components/HomePage.tsx).
 - **Hydration Stability**: Added `min-height: 130px` to `.quick-settings--loading` in [`styles.css`](preflight-desktop/src/styles.css) to eliminate layout shift during startup settings scan.
@@ -40,8 +50,8 @@
 
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
   - **Release Node Tests**: 110/110 passing
-  - **Vitest Unit Tests**: 200/200 passing across 24 test suites
+  - **Vitest Unit Tests**: 201/201 passing across 24 test suites
   - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 147ms
   - **Rust Backend Tests**: 81/81 Cargo tests passing
   - **Cargo Format & Clippy**: `cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --all-targets -- -D warnings` (0 warnings)
-- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest -Dsurefire.failIfNoSpecifiedTests=false` (16/16 CLI tests passing)
+- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest,CacheCommandTest,LaunchLedgerTest -Dsurefire.failIfNoSpecifiedTests=false` (29/29 CLI tests passing)
