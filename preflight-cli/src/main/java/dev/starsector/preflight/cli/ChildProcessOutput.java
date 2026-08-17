@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -49,32 +50,44 @@ final class ChildProcessOutput {
         builder.redirectErrorStream(true);
         builder.redirectInput(ProcessBuilder.Redirect.INHERIT);
         Process process = builder.start();
-        HeadTailBuffer capture = new HeadTailBuffer(
-                MAX_HEAD_BYTES, MAX_CAPTURE_BYTES - MAX_HEAD_BYTES - ELISION_RESERVE_BYTES);
-        byte[] copy = new byte[COPY_BUFFER_BYTES];
-        try (InputStream input = process.getInputStream()) {
-            int count;
-            while ((count = input.read(copy)) >= 0) {
-                if (count == 0) {
-                    continue;
+        SaveProfileObservation.Observer saveObserver =
+                SaveProfileObservation.start(builder, process, System.err);
+        try {
+            HeadTailBuffer capture = new HeadTailBuffer(
+                    MAX_HEAD_BYTES, MAX_CAPTURE_BYTES - MAX_HEAD_BYTES - ELISION_RESERVE_BYTES);
+            byte[] copy = new byte[COPY_BUFFER_BYTES];
+            try (InputStream input = process.getInputStream()) {
+                int count;
+                while ((count = input.read(copy)) >= 0) {
+                    if (count == 0) {
+                        continue;
+                    }
+                    operatorStream.write(copy, 0, count);
+                    operatorStream.flush();
+                    capture.append(copy, 0, count);
                 }
-                operatorStream.write(copy, 0, count);
-                operatorStream.flush();
-                capture.append(copy, 0, count);
+            } catch (IOException error) {
+                process.destroyForcibly();
+                throw error;
             }
-        } catch (IOException error) {
-            process.destroyForcibly();
-            throw error;
+            int exitCode = process.waitFor();
+            Path absolute = outputFile.toAbsolutePath().normalize();
+            Path parent = absolute.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            byte[] retained = capture.bytes();
+            Files.write(absolute, retained);
+            return new Result(exitCode, absolute, capture.totalBytes(), retained.length, capture.truncated());
+        } finally {
+            if (process.isAlive()) {
+                process.destroyForcibly();
+                // Completing the observation after the child is gone keeps interruption or output
+                // capture failure from extending the owned filesystem interval.
+                process.onExit().join();
+            }
+            saveObserver.processEnded(Instant.now());
         }
-        int exitCode = process.waitFor();
-        Path absolute = outputFile.toAbsolutePath().normalize();
-        Path parent = absolute.getParent();
-        if (parent != null) {
-            Files.createDirectories(parent);
-        }
-        byte[] retained = capture.bytes();
-        Files.write(absolute, retained);
-        return new Result(exitCode, absolute, capture.totalBytes(), retained.length, capture.truncated());
     }
 
     record Result(int exitCode, Path file, long totalBytes, int capturedBytes, boolean truncated) {
