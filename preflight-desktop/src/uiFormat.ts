@@ -27,6 +27,20 @@ export function formatPlaytime(totalMillis: number): string {
   return `${Math.round(safeMillis / 60_000)}m`;
 }
 
+/**
+ * The same total, split so a headline can set the unit apart from the number.
+ *
+ * At display size "186h" is one word and the h is as loud as the digits, which is the one part of
+ * it nobody needs to read. Splitting lets the number carry the weight and the unit sit back.
+ */
+export function splitPlaytime(totalMillis: number): { value: string; unit: string } {
+  const formatted = formatPlaytime(totalMillis);
+  const boundary = formatted.search(/[a-z]/i);
+  return boundary < 0
+    ? { value: formatted, unit: "" }
+    : { value: formatted.slice(0, boundary), unit: formatted.slice(boundary) };
+}
+
 /** Seconds with one decimal below a minute, then minutes and seconds. */
 export function formatDuration(ms: number): string {
   const safeMs = Math.max(0, ms);

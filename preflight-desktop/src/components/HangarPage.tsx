@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import type { PlaytimeSnapshot, WireframeTuning } from "../types";
-import { formatPlaytime } from "../uiFormat";
+import { formatPlaytime, splitPlaytime } from "../uiFormat";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import { FlightInstrument } from "./FlightInstrument";
+import { HullPicker } from "./HullPicker";
 
 type InstrumentHullState = ReturnType<typeof useInstrumentHull>;
 
@@ -62,6 +63,7 @@ export function HangarPage({ instrumentHull, playtime }: HangarPageProps) {
   const recordedPlaytime = playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0
     ? playtime
     : null;
+  const total = recordedPlaytime ? splitPlaytime(recordedPlaytime.totalMillis) : { value: "0", unit: "h" };
 
   return (
     <div className="hangar-page">
@@ -83,7 +85,8 @@ export function HangarPage({ instrumentHull, playtime }: HangarPageProps) {
                 ? `${formatPlaytime(recordedPlaytime.totalMillis)} recorded playtime across ${recordedPlaytime.launches.toLocaleString()} sessions`
                 : "No recorded playtime yet"}
             >
-              <strong>{recordedPlaytime ? formatPlaytime(recordedPlaytime.totalMillis) : "0h"}</strong>
+              {/* The number carries the weight; the unit is the part nobody has to read. */}
+              <strong>{total.value}<i>{total.unit}</i></strong>
               <span>{recordedPlaytime ? `${recordedPlaytime.launches.toLocaleString()} recorded sessions` : "Recorded playtime"}</span>
               <dl>
                 <div><dt>Longest</dt><dd>{recordedPlaytime ? formatPlaytime(recordedPlaytime.longestSessionMillis) : "—"}</dd></div>
@@ -131,25 +134,9 @@ export function HangarPage({ instrumentHull, playtime }: HangarPageProps) {
               <p className="hangar-loading">Finding ships…</p>
             )}
 
-            <label className="setting-field hangar-all-ships">
-              <span>Installed catalog</span>
-              <select
-                aria-label="Display ship"
-                value={instrumentHull.selectedId}
-                onChange={(event) => instrumentHull.choose(event.target.value)}
-              >
-                {featured.length > 0 ? (
-                  <optgroup label="Featured">
-                    {featured.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
-                  </optgroup>
-                ) : null}
-                {more.length > 0 ? (
-                  <optgroup label="More from this installation">
-                    {more.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
-                  </optgroup>
-                ) : null}
-              </select>
-            </label>
+            {more.length > 0 ? (
+              <HullPicker hulls={more} selectedId={instrumentHull.selectedId} onChoose={instrumentHull.choose} />
+            ) : null}
           </section>
 
           <section className="hangar-tuning" aria-labelledby="hangar-tuning-title">
