@@ -9,6 +9,14 @@ on:
       - '.github/workflows/bulk-texture-tests.yml'
   push:
     branches: [main]
+    # The same filter the pull_request trigger carries. Without it every merge to main ran this
+    # three-OS randomized suite, including the merges that only touch the desktop frontend and
+    # cannot reach the preprocessor at all.
+    paths:
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/BulkTexturePreprocessor.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/ReferenceTexturePreprocessor.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/BulkTexturePreprocessorTest.java'
+      - '.github/workflows/bulk-texture-tests.yml'
 
 permissions:
   contents: read
