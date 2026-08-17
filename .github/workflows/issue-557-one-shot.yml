@@ -38,10 +38,21 @@ jobs:
           precheck = Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java")
           text = precheck.read_text()
 
+          text = replace_once(
+              text,
+              '        METADATA_ABSENT("mod_metadata_absent"),\n',
+              '        ENABLED_MODS_UNAVAILABLE("enabled_mods_unavailable"),\n        METADATA_ABSENT("mod_metadata_absent"),\n',
+              "enabled-mod availability reason")
+
           start = text.index("    static Result inspect(Path installRoot) throws IOException {")
           end = text.index("    static Result inspect(Path modsDirectory", start)
           text = text[:start] + '''    static Result inspect(Path installRoot) throws IOException {
-              GameLayout layout = GameLayout.locate(installRoot);
+              GameLayout layout;
+              try {
+                  layout = GameLayout.locate(installRoot);
+              } catch (IOException unavailable) {
+                  return unavailableProfileResult(installRoot, unavailable);
+              }
               List<String> enabled = readEnabled(layout.enabledModsFile());
               JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot());
               Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
@@ -49,11 +60,29 @@ jobs:
           }
 
           static Result inspect(Path installRoot, LaunchTarget target) throws IOException {
-              GameLayout layout = GameLayout.locate(installRoot);
+              GameLayout layout;
+              try {
+                  layout = GameLayout.locate(installRoot);
+              } catch (IOException unavailable) {
+                  return unavailableProfileResult(installRoot, unavailable);
+              }
               List<String> enabled = readEnabled(layout.enabledModsFile());
               JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot(), target);
               Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
               return inspect(layout.modsDirectory(), enabled, null, heap);
+          }
+
+          private static Result unavailableProfileResult(Path installRoot, IOException failure) {
+              Finding finding = new Finding(
+                      ReasonCode.ENABLED_MODS_UNAVAILABLE,
+                      Severity.WARNING,
+                      null,
+                      null,
+                      "Enabled-mod profile could not be established under "
+                              + installRoot.toAbsolutePath().normalize()
+                              + ": "
+                              + failure.getMessage());
+              return new Result(FORMAT, List.of(), List.of(finding), null);
           }
 
           ''' + text[end:]
@@ -153,6 +182,21 @@ jobs:
                   assertEquals(List.of("last", "consumer", "first"), result.suggestedProfileChange().before());
                   assertEquals(List.of("last", "consumer", "first", "library"), result.suggestedProfileChange().after());
                   assertEquals(List.of("library"), result.suggestedProfileChange().enable());
+              }
+
+              @Test
+              void unavailableEnabledProfileIsAdvisoryAndLaunchable() throws Exception {
+                  Path install = temp.resolve("partial-install");
+                  Files.createDirectories(install.resolve("mods"));
+
+                  var result = ModCompatibilityPrecheck.inspect(install);
+
+                  assertFalse(result.hasErrors());
+                  assertEquals(List.of(), result.enabledMods());
+                  assertTrue(result.findings().stream().anyMatch(finding ->
+                          finding.reason() == ModCompatibilityPrecheck.ReasonCode.ENABLED_MODS_UNAVAILABLE
+                                  && finding.severity() == ModCompatibilityPrecheck.Severity.WARNING));
+                  assertEquals(Boolean.TRUE, result.toMap().get("launchAllowed"));
               }
 
           '''
