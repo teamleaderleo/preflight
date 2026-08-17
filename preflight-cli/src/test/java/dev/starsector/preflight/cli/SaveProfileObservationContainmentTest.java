@@ -2,8 +2,8 @@ package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -101,21 +101,66 @@ final class SaveProfileObservationContainmentTest {
         assertFalse(Files.isSymbolicLink(runtime.resolve(SaveProfileObservation.FILE_NAME + ".lock")));
     }
 
+    @Test
+    void concurrentFirstObservationWritesPreserveBothPublishedRecords() throws Exception {
+        PreflightHome home = home();
+        Path firstInstall = installWithSave("first-install", "first-save");
+        Path secondInstall = installWithSave("second-install", "second-save");
+        Instant started = Instant.now();
+        SaveProfileObservation.Session first = SaveProfileObservation.testSession(
+                home, firstInstall, identity("first-profile"), started, false);
+        SaveProfileObservation.Session second = SaveProfileObservation.testSession(
+                home, secondInstall, identity("second-profile"), started, false);
+        Files.writeString(firstInstall.resolve("saves/first-save/save.dat"), "first changed");
+        Files.writeString(secondInstall.resolve("saves/second-save/save.dat"), "second changed");
+        Instant ended = started.plusSeconds(1);
+
+        var workers = Executors.newFixedThreadPool(2);
+        try {
+            var firstWrite = workers.submit(() -> {
+                first.finish(ended);
+                return null;
+            });
+            var secondWrite = workers.submit(() -> {
+                second.finish(ended);
+                return null;
+            });
+            firstWrite.get();
+            secondWrite.get();
+        } finally {
+            workers.shutdown();
+            assertTrue(workers.awaitTermination(5, TimeUnit.SECONDS));
+        }
+
+        List<SaveProfileObservation.Observation> observations = SaveProfileObservation.observations(home);
+        assertEquals(2, observations.size());
+        assertTrue(observations.stream().anyMatch(value -> value.profileFingerprint().equals("first-profile")));
+        assertTrue(observations.stream().anyMatch(value -> value.profileFingerprint().equals("second-profile")));
+    }
+
     private PreflightHome home() {
         return new PreflightHome(temp.resolve("preflight-home"), List.of());
     }
 
     private Path installWithSave(String name) throws IOException {
-        Path install = temp.resolve("Starsector");
-        Path save = install.resolve("saves").resolve(name);
+        return installWithSave("Starsector", name);
+    }
+
+    private Path installWithSave(String installName, String saveName) throws IOException {
+        Path install = temp.resolve(installName);
+        Path save = install.resolve("saves").resolve(saveName);
         Files.createDirectories(save);
         Files.writeString(save.resolve("save.dat"), "contents");
         return install;
     }
 
     private static SaveProfileObservation.SessionIdentity identity() {
+        return identity("profile-fingerprint");
+    }
+
+    private static SaveProfileObservation.SessionIdentity identity(String fingerprint) {
         return new SaveProfileObservation.SessionIdentity(
-                "profile-fingerprint", "Profile", "game-build", List.of());
+                fingerprint, "Profile", "game-build", List.of());
     }
 
     private static void createSymlinkOrSkip(Path link, Path target) throws IOException {
