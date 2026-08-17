@@ -1959,16 +1959,20 @@ h2 {
   --instrument-fill: rgba(167, 101, 50, 0.065);
 }
 
+/*
+ * The stage is the one surface in the app without the drafting grid on it.
+ *
+ * There were two grids here and they disagreed. A flat one ruled to the screen at a fixed 32px,
+ * and the ship's own floor, which is projected through the same camera and turns with the hull.
+ * Nothing recedes when a square grid is pinned behind it at a constant size, so the floor read as
+ * wallpaper and the ship read as a decal on it. The prototype puts the hull on a plain panel for
+ * this reason. The app keeps its grid everywhere else; this is the window cut in it.
+ */
 .hangar-stage::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: radial-gradient(circle at 52% 48%, black 0%, rgba(0, 0, 0, .82) 62%, transparent 98%);
-  opacity: .7;
+  background: radial-gradient(ellipse at 52% 46%, var(--paper-solid) 0%, var(--paper-soft) 76%);
 }
 
 .hangar-stage__instrument {
@@ -2033,6 +2037,15 @@ h2 {
   font-weight: 620;
   line-height: .92;
   letter-spacing: -.035em;
+}
+
+/* The unit, set back from the number so the digits are what the eye lands on. */
+.hangar-playtime > strong > i {
+  color: var(--accent-strong);
+  font-size: .46em;
+  font-style: normal;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .hangar-playtime > span {
@@ -2233,29 +2246,110 @@ h2 {
   color: var(--accent-strong);
 }
 
-.setting-field.hangar-all-ships {
-  display: grid;
-  align-items: center;
-  justify-content: stretch;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  max-width: none;
-  margin-top: 10px;
-  padding: 0;
-  border: 0;
+/* The installed catalog: a filter and a list, in the deck's own vocabulary rather than a popup. */
+.hull-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
-.hangar-all-ships > span {
-  color: var(--ink-soft);
-  font-size: 11.5px;
-  font-weight: 520;
+.hull-picker__search {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.hull-picker__search input {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  background: var(--paper-solid);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.hull-picker__search input:focus-visible {
+  border-color: var(--accent-strong);
+  outline: none;
+}
+
+.hull-picker__search small {
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .1em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.setting-field.hangar-all-ships select {
+.hull-picker__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 178px;
+  padding-right: 4px;
+}
+
+.hull-picker__hull {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hull-picker__hull > span {
+  overflow: hidden;
   width: 100%;
-  min-height: 36px;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hull-picker__hull > small {
+  color: var(--ink-faint);
+  font-family: var(--font-data);
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.hull-picker__hull:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.hull-picker__hull--selected {
+  border-color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.hull-picker__hull--selected > small {
+  color: var(--accent-strong);
+}
+
+.hull-picker__empty,
+.hull-picker__more {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 11px;
 }
 
 .hangar-loading {

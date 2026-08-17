@@ -782,12 +782,15 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
   expect(screen.getByText("Longest")).toBeInTheDocument();
   expect(screen.getByText("Typical")).toBeInTheDocument();
-  const ship = await screen.findByRole("combobox", { name: "Display ship" });
-  await waitFor(() => expect(ship).toHaveValue("odyssey"));
+  // The six are chips, not a dropdown. There is no select on this page at all: the installed
+  // catalog behind the featured six gets a filter rather than two hundred <option> elements.
+  const fleet = await screen.findByRole("group", { name: "Featured ships" });
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
-    expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
+    expect(within(fleet).getByRole("button", { name })).toBeInTheDocument();
   }
-  expect(within(ship).queryByRole("option", { name: "Preflight courier" })).not.toBeInTheDocument();
+  expect(within(fleet).queryByRole("button", { name: "Preflight courier" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  await waitFor(() => expect(within(fleet).getByRole("button", { name: "Odyssey" })).toHaveAttribute("aria-pressed", "true"));
   expect(await screen.findByText("6 installed")).toBeInTheDocument();
   expect(screen.queryByText("Adjust wireframe")).not.toBeInTheDocument();
 
@@ -807,9 +810,9 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   });
   expect(screen.getByRole("slider", { name: "Outline simplification" })).toHaveValue("0.012");
 
-  await user.selectOptions(ship, "onslaught");
+  await user.click(within(fleet).getByRole("button", { name: "Onslaught" }));
   expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
-  await user.selectOptions(ship, "odyssey");
+  await user.click(within(fleet).getByRole("button", { name: "Odyssey" }));
   expect(screen.getByRole("slider", { name: "Model height" })).toHaveValue("1.35");
   expect(screen.getByRole("slider", { name: "Interior simplification" })).toHaveValue("0.04");
 });
