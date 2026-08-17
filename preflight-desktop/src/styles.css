@@ -83,14 +83,17 @@
   --console-plot: #9a6a24;
   /* The prototype's recessed ground, by value. One step under the panel, not a tint of it. */
   /*
-   * The wireframe's colours, over the palette's own ink and accent. Every palette already
-   * declares both, so a blue app draws a blue ship and a green one a green ship without each
-   * palette carrying six more tokens. Near and far are the depth cue: an edge is lerped between
-   * them by how close it is to the viewer, which is what makes flat lines read as a solid.
+   * The wireframe's depth cue, lifted from the prototype by hex rather than re-derived. An edge is
+   * lerped between far and near by how close it is to the viewer, and that alone is what makes a
+   * flat set of lines read as a solid object.
+   *
+   * Every other palette's pair is this pair rotated in OKLCH by the same hue delta its accent
+   * carries, lightness and chroma held -- the way the palettes themselves were built, so a blue
+   * app draws a blue ship without anyone choosing a second set of colours by eye.
    */
-  --instrument-near: color-mix(in srgb, var(--accent-strong) 80%, var(--ink));
-  --instrument-far: color-mix(in srgb, var(--accent) 38%, var(--paper-solid));
-  --instrument-grid: color-mix(in srgb, var(--accent) 18%, transparent);
+  --instrument-near: #8a5c1e;
+  --instrument-far: #c9b48e;
+  --instrument-grid: rgba(120, 96, 60, 0.13);
   --flight-accent: #b07a3a;
   /*
    * The launch button used to be a saturated slab with a bevel drawn in four inset rings. It is
@@ -3462,6 +3465,9 @@ footer {
   --launch-ink: #f0e4cf;
   --launch-ink-hover: #fdf4e2;
   --launch-glow: rgba(200, 148, 74, 0.24);
+  --instrument-near: #f0c684;
+  --instrument-far: #5c3a1c;
+  --instrument-grid: rgba(200, 148, 74, 0.1);
 }
 
 :root[data-theme="dark"] body {
@@ -4384,6 +4390,9 @@ footer {
   --launch-ink: #eef4f7;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(73, 104, 212, 0.2);
+  --instrument-near: #48669e;
+  --instrument-far: #abb5dc;
+  --instrument-grid: rgba(86, 99, 135, 0.13);
 }
 
 :root[data-palette="blueprint"] body {
@@ -4495,6 +4504,9 @@ footer {
   --launch-ink: #f7f9ff;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(61, 94, 211, 0.22);
+  --instrument-near: #b7caff;
+  --instrument-far: #294465;
+  --instrument-grid: rgba(128, 156, 228, 0.1);
 }
 
 :root[data-theme="dark"][data-palette="blueprint"] body {
@@ -4618,6 +4630,9 @@ footer {
   --launch-ink: #f4f2f6;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(142, 85, 175, 0.2);
+  --instrument-near: #785690;
+  --instrument-far: #c9abcd;
+  --instrument-grid: rgba(114, 90, 124, 0.13);
 }
 
 :root[data-palette="ultraviolet"] body {
@@ -4729,6 +4744,9 @@ footer {
   --launch-ink: #fbf8fd;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(137, 73, 171, 0.22);
+  --instrument-near: #e6baf8;
+  --instrument-far: #473b61;
+  --instrument-grid: rgba(182, 139, 209, 0.1);
 }
 
 :root[data-theme="dark"][data-palette="ultraviolet"] body {
@@ -4852,6 +4870,9 @@ footer {
   --launch-ink: #f7f1f3;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(173, 76, 114, 0.2);
+  --instrument-near: #924e6a;
+  --instrument-far: #d8a8b0;
+  --instrument-grid: rgba(130, 86, 98, 0.13);
 }
 
 :root[data-palette="airglow"] body {
@@ -4963,6 +4984,9 @@ footer {
   --launch-ink: #fdf7f9;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(168, 64, 106, 0.22);
+  --instrument-near: #ffb3c7;
+  --instrument-far: #5b344b;
+  --instrument-grid: rgba(214, 129, 158, 0.1);
 }
 
 :root[data-theme="dark"][data-palette="airglow"] body {
