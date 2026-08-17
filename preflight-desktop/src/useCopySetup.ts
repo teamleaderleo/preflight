@@ -36,7 +36,10 @@ export function useCopySetup(optimizationPreset: OptimizationPreset) {
         profileFingerprint: activeProfile?.profileFingerprint
           ?? cacheInspection?.cache.currentProfileFingerprint
           ?? null,
-        mods: (profiles?.enabledMods ?? []).map((id) => ({ id })),
+        // A null profile read means the enabled-mod list was unavailable. Preserve [] exclusively
+        // for a successfully observed vanilla/empty profile so public support text cannot confuse
+        // missing evidence with an established zero-mod setup.
+        mods: profiles === null ? null : profiles.enabledMods.map((id) => ({ id })),
         launchSettings: launchSettings
           ? {
               resolution: launchSettings.settings?.resolution ?? launchSettings.preferences.resolution,
