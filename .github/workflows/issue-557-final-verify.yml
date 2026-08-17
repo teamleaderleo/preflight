@@ -1,0 +1,150 @@
+name: Issue 557 final verification
+
+on:
+  push:
+    branches: [codex/issue-557-mod-compat-precheck]
+    paths: [.github/workflows/issue-557-final-verify.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/issue-557-mod-compat-precheck
+          fetch-depth: 0
+      - name: Rebase onto current main
+        run: |
+          git config user.name "preflight-issue-557-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin main
+          git rebase origin/main
+      - name: Use runner JDK 17
+        run: |
+          test -n "$JAVA_HOME_17_X64"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+      - name: Tighten repair review consistency and retention
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileDependencyRepair.java")
+          text = path.read_text()
+
+          old = '''        GameLayout layout = GameLayout.locate(installRoot);
+                  byte[] sourceState = Files.readAllBytes(layout.enabledModsFile());
+                  String sourceStateSha256 = Hashes.sha256(sourceState);
+                  Result readiness = target == null
+                          ? ModCompatibilityPrecheck.inspect(layout.installRoot())
+                          : ModCompatibilityPrecheck.inspect(layout.installRoot(), target);
+                  ProfileChange change = readiness.suggestedProfileChange();
+          '''
+          new = '''        GameLayout layout = GameLayout.locate(installRoot);
+                  Evaluation evaluation = evaluate(layout, target);
+                  byte[] sourceState = evaluation.sourceState();
+                  String sourceStateSha256 = evaluation.sourceStateSha256();
+                  Result readiness = evaluation.readiness();
+                  ProfileChange change = readiness.suggestedProfileChange();
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f"repair evaluation seam drifted: {text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          marker = '''    private static String proposalSha256(ProfileChange change) {
+          '''
+          helper = '''    private static Evaluation evaluate(GameLayout layout, LaunchTarget target) throws Exception {
+                  for (int attempt = 0; attempt < 2; attempt++) {
+                      byte[] before = Files.readAllBytes(layout.enabledModsFile());
+                      Result readiness = target == null
+                              ? ModCompatibilityPrecheck.inspect(layout.installRoot())
+                              : ModCompatibilityPrecheck.inspect(layout.installRoot(), target);
+                      byte[] after = Files.readAllBytes(layout.enabledModsFile());
+                      if (java.util.Arrays.equals(before, after)) {
+                          return new Evaluation(before, Hashes.sha256(before), readiness);
+                      }
+                  }
+                  throw new IOException(
+                          "enabled_mods.json changed while dependency repair was being prepared; retry");
+              }
+
+          '''
+          if text.count(marker) != 1:
+              raise SystemExit("proposal hash seam drifted")
+          text = text.replace(marker, helper + marker, 1)
+
+          text = text.replace(
+              '    private static final Duration REVIEW_MAX_AGE = Duration.ofMinutes(30);\n',
+              '    private static final Duration REVIEW_MAX_AGE = Duration.ofMinutes(30);\n'
+              '    private static final java.util.regex.Pattern REVIEW_FILE =\n'
+              '            java.util.regex.Pattern.compile("[0-9a-f]{64}\\\\.json");\n',
+              1)
+
+          write = '''        ProfileCommand.atomicWrite(reviewPath(home, installRoot), Json.object(review) + System.lineSeparator());
+              }
+
+              private static Review readReview'''
+          replacement = '''        ProfileCommand.atomicWrite(reviewPath(home, installRoot), Json.object(review) + System.lineSeparator());
+                  pruneReviews(home);
+              }
+
+              private static void pruneReviews(PreflightHome home) throws IOException {
+                  Path directory = home.state().resolve("profile-dependency-repair-reviews");
+                  SafetyArtifactRetention.deleteOlderThan(
+                          directory, REVIEW_FILE, Instant.now().minus(REVIEW_MAX_AGE));
+                  SafetyArtifactRetention.retainNewest(
+                          directory, REVIEW_FILE, SafetyArtifactRetention.MAX_ACTIVATION_REVIEWS);
+              }
+
+              private static Review readReview'''
+          if text.count(write) != 1:
+              raise SystemExit(f"review write seam drifted: {text.count(write)}")
+          text = text.replace(write, replacement, 1)
+
+          record_marker = '''    private record Review(String sourceStateSha256, String proposalSha256) {
+              }
+          '''
+          records = '''    private record Evaluation(byte[] sourceState, String sourceStateSha256, Result readiness) {
+              }
+
+              private record Review(String sourceStateSha256, String proposalSha256) {
+              }
+          '''
+          if text.count(record_marker) != 1:
+              raise SystemExit("review record seam drifted")
+          path.write_text(text.replace(record_marker, records, 1))
+      - name: Format newly added Java files
+        run: |
+          if command -v clang-format >/dev/null 2>&1; then
+            clang-format --style=Google -i \
+              preflight-core/src/main/java/dev/starsector/preflight/core/ModCompatibilityReadiness.java \
+              preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java \
+              preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPresenter.java \
+              preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileDependencyRepair.java \
+              preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java \
+              preflight-cli/src/test/java/dev/starsector/preflight/cli/ProfileDependencyRepairTest.java
+          fi
+      - name: Commit final verified tree candidate
+        run: |
+          rm .github/workflows/issue-557-final-verify.yml
+          git add preflight-core/src/main/java/dev/starsector/preflight/core/ModCompatibilityReadiness.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPresenter.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileDependencyRepair.java
+          git add preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java
+          git add preflight-cli/src/test/java/dev/starsector/preflight/cli/ProfileDependencyRepairTest.java
+          git add -u .github/workflows/issue-557-final-verify.yml
+          git commit -m "Tighten reviewed dependency repair evidence"
+      - name: Check patch whitespace
+        run: git diff --check origin/main...HEAD
+      - name: Verify Java reactor
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Verify repository-owned surfaces
+        run: ./scripts/verify-all.sh
+      - name: Confirm verification left the tree clean
+        run: test -z "$(git status --porcelain)"
+      - name: Publish verified rebased head
+        run: git push --force-with-lease origin HEAD:codex/issue-557-mod-compat-precheck
