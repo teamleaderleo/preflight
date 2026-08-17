@@ -62,6 +62,15 @@
 ### Launcher Heap Setting Containment Proving ([#601](https://github.com/teamleaderleo/preflight/issues/601))
 - **Fix**: `boundedText` validates `containedByRealPath(root, path)` prior to reading, preventing symlink traversal outside the Starsector installation root.
 
+### Refuse All-Data Removal When Home Root Is a Symlink or Alias ([#591](https://github.com/teamleaderleo/preflight/issues/591), [PR #631](https://github.com/teamleaderleo/preflight/pull/631))
+- **Fix**: In `UninstallCommand.java`, validates `home.root()` under `LinkOption.NOFOLLOW_LINKS`. Refuses all-data removal if the Preflight home directory is a symlink or alias (`safe = false`), preventing destructive traversal or unlinking of arbitrary external directories. In `OperationLease.java`, blocks acquisition of `remove-all-preflight-data` when root is a symlink.
+
+### Refuse Launcher Installation Through Symlinked Integration Paths ([#594](https://github.com/teamleaderleo/preflight/issues/594), [PR #632](https://github.com/teamleaderleo/preflight/pull/632))
+- **Fix**: In `InstallCommand.java`, validates target integration paths and parent directory chains under `NOFOLLOW_LINKS` via `requireRealDirectory()` and `validateNotSymlink()`. Publishes launcher scripts and engine JAR via temporary sibling files and atomic moves (`ATOMIC_MOVE` / `REPLACE_EXISTING`). Refuses installation if the home root or target launcher paths are symlinks or aliases.
+
+### Require Ownership Proof Before Removing Launcher Integrations ([#596](https://github.com/teamleaderleo/preflight/issues/596), [PR #635](https://github.com/teamleaderleo/preflight/pull/635))
+- **Fix**: Added [`IntegrationOwnership.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationOwnership.java) to verify structural markers, bundle IDs, and script contents before treating an integration as Preflight-owned. Added `recordInstalledIntegrations()` in `PreflightHome` to bind installed locations in `integrations.json`, surviving environment drift (`LOCALAPPDATA`). `UninstallCommand.plan()` excludes unowned collisions from deletion targets, and `InstallCommand` refuses overwriting unowned collisions.
+
 ### Peer Reviews
 - **PR #625** (Codex / Issue #621): Reviewed non-blocking admission; noted `release-receipt-source-lock.json` review requirement.
 - **PR #624** (Codex / Issue #608): Reviewed sub-millisecond `FileTime` precision in direct provider identity.
@@ -75,8 +84,9 @@
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
   - **Release Node Tests**: 110/110 passing
   - **Vitest Unit Tests**: 233/233 passing across 28 test suites
-  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 78ms
-  - **Rust Backend Tests**: 90/90 Cargo tests passing
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 77ms
+  - **Rust Backend Tests**: 93/93 Cargo tests passing
   - **Cargo Format & Clippy**: 0 warnings
-- **Maven Backend**: `./mvnw test` (122/122 CLI tests passing, 690/690 total project tests passing)
+- **Maven Backend**: `./mvnw test` (691/691 tests passing across 5 modules)
+
 
