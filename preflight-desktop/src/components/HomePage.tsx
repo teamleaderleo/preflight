@@ -1,6 +1,7 @@
 import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
 import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
+import { HangarStage } from "./HangarStage";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
@@ -14,6 +15,7 @@ import type {
   NoticeTone,
   OptimizationPreset,
   UpdateStatus,
+  WireframeHull,
 } from "../types";
 
 type PreparationState = ReturnType<typeof usePreparation>;
@@ -49,6 +51,7 @@ interface HomePageProps {
   launcherSettingsSaving: boolean;
   launchSettingsDirty: boolean;
   operationBlocked: boolean;
+  hull: WireframeHull;
   theme: Exclude<ThemePreference, "system">;
   onLauncherChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onChooseInstall: () => void;
@@ -83,6 +86,7 @@ export function HomePage({
   launcherSettingsSaving,
   launchSettingsDirty,
   operationBlocked,
+  hull,
   theme,
   onLauncherChange,
   onChooseInstall,
@@ -169,11 +173,24 @@ export function HomePage({
    * the only thing here that a player cannot find out by looking at the game.
    */
 
+  /*
+   * The stage caption. The prototype put the profile here and it was right: on a screen whose job
+   * is "press this to play", the mod setup is the one thing that changes what pressing it does.
+   */
+  const stageContext = profilesLoading
+    ? "Reading mod list"
+    : activeProfile
+      ? `${activeProfile.name} · ${activeProfile.modCount.toLocaleString()} mod${activeProfile.modCount === 1 ? "" : "s"}`
+      : profiles
+        ? `${profiles.enabledMods.length.toLocaleString()} enabled mod${profiles.enabledMods.length === 1 ? "" : "s"}`
+        : "Mod list unavailable";
+
   return (
     <>
-      <section className={`launch-console card launch-console--${status} ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+      <section className={`launch-console card launch-console--${status} ${isReady ? "launch-console--ready" : "launch-console--setup"} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
+        {isReady ? <HangarStage hull={hull} context={stageContext} ready={isReady} /> : null}
         <div className="launch-console__primary">
-          {flightPlot}
+          {isReady ? null : flightPlot}
           {/*
             * Before an installation is chosen the heading below already says "Installation
             * required" in longer words, and the chip said it again directly above it. A chip is
@@ -284,19 +301,26 @@ export function HomePage({
             </div>
           ) : null}
         </div>
-        {isReady && launcherDraft && launcherSettings ? (
-          <QuickGameSettings
-            settings={launcherSettings}
-            draft={launcherDraft}
-            dirty={launchSettingsDirty}
-            saving={launcherSettingsSaving}
-            disabled={operationBlocked || launcherSettingsLoading}
-            onChange={onLauncherChange}
-            onOpenAll={() => onNavigate("launch")}
-            onSave={onSaveLauncherSettings}
-          />
-        ) : isReady ? <div className="quick-settings quick-settings--loading">{launcherSettingsLoading ? "Reading game settings…" : "Game settings unavailable"}</div> : null}
       </section>
+
+      {/*
+        * Resolution and sound used to share the console with the launch button, which made the
+        * first thing anyone sees a screen of settings with a launch button in it. They are still
+        * one scroll away and still two clicks from the game, but the console is now about the
+        * launch, and the ship is what fills the space they were taking.
+        */}
+      {isReady && launcherDraft && launcherSettings ? (
+        <QuickGameSettings
+          settings={launcherSettings}
+          draft={launcherDraft}
+          dirty={launchSettingsDirty}
+          saving={launcherSettingsSaving}
+          disabled={operationBlocked || launcherSettingsLoading}
+          onChange={onLauncherChange}
+          onOpenAll={() => onNavigate("launch")}
+          onSave={onSaveLauncherSettings}
+        />
+      ) : isReady ? <div className="quick-settings quick-settings--loading">{launcherSettingsLoading ? "Reading game settings…" : "Game settings unavailable"}</div> : null}
 
       {updateStatus?.available ? (
         <section className="update-notice" aria-label="Preflight update available">

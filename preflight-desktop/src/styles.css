@@ -81,6 +81,8 @@
   --console-line: rgba(120, 96, 60, 0.22);
   --console-line-strong: rgba(120, 96, 60, 0.34);
   --console-plot: #9a6a24;
+  /* The prototype's recessed ground, by value. One step under the panel, not a tint of it. */
+  --hangar-sink: #e8e0d2;
   --flight-accent: #b07a3a;
   /*
    * The launch button used to be a saturated slab with a bevel drawn in four inset rings. It is
@@ -503,8 +505,8 @@ h2 {
 
 .launch-console {
   display: grid;
-  grid-template-columns: minmax(330px, 0.9fr) minmax(360px, 1.1fr);
-  min-height: 264px;
+  grid-template-columns: minmax(300px, 1fr) minmax(340px, 0.95fr);
+  min-height: 320px;
   overflow: hidden;
   border-color: var(--console-line);
   background: var(--console-bg);
@@ -518,18 +520,82 @@ h2 {
   justify-content: center;
   overflow: hidden;
   padding: 32px 38px;
-  border-right: 1px solid var(--console-line);
   isolation: isolate;
 }
 
-.launch-console--setup:not(.launch-console--configured) {
+.launch-console--setup {
   grid-template-columns: minmax(0, 1fr);
   min-height: 220px;
 }
 
-.launch-console--setup:not(.launch-console--configured) .launch-console__primary {
+.launch-console--setup .launch-console__primary {
   max-width: 680px;
-  border-right: 0;
+}
+
+/*
+ * The hangar.
+ *
+ * The recess is the prototype's, by value: the sink sits one step below the panel it is cut into,
+ * so the ship reads as being inside something rather than printed on the card. The captions are
+ * its corner labels -- same face, same tracking -- and they carry the two facts worth having on
+ * an idle screen: what this launch is, and which ship you are looking at.
+ */
+.hangar-stage {
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid var(--console-line);
+  background: var(--hangar-sink);
+  --instrument-line: rgba(63, 58, 53, 0.64);
+  --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-detail: rgba(139, 82, 38, 0.42);
+  --instrument-accent: #a95f29;
+  --instrument-glow: rgba(167, 101, 50, 0.22);
+  --instrument-fill: rgba(167, 101, 50, 0.065);
+}
+
+/* A horizon, so the ship stands in a place instead of floating in a swatch. */
+.hangar-stage::before {
+  content: "";
+  position: absolute;
+  right: 13%;
+  bottom: 26%;
+  left: 13%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--console-line-strong) 20%, var(--console-line-strong) 80%, transparent);
+}
+
+.hangar-stage__caption {
+  position: absolute;
+  z-index: 2;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  color: var(--accent);
+  font-family: var(--font-data);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.hangar-stage__caption--lead {
+  top: 14px;
+  left: 16px;
+}
+
+.hangar-stage__caption--ship {
+  right: 16px;
+  bottom: 14px;
+  color: var(--ink-faint);
+}
+
+/* While the game is opening or running, the one thing on screen that moves says so. */
+.launch-console--launching .hangar-stage,
+.launch-console--running .hangar-stage {
+  --instrument-accent: var(--success);
+  --instrument-glow: rgba(79, 107, 69, 0.26);
 }
 
 .launch-console__primary > :not(.flight-plot) {
@@ -3387,6 +3453,7 @@ footer {
   --console-line: rgba(200, 148, 74, 0.15);
   --console-line-strong: rgba(200, 148, 74, 0.28);
   --console-plot: #c8944a;
+  --hangar-sink: #0b0906;
   --flight-accent: #edc07a;
   --launch-fill: #191815;
   --launch-fill-hover: #24211b;
@@ -3850,6 +3917,7 @@ footer {
   isolation: isolate;
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-detail: rgba(139, 82, 38, 0.42);
   --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
   --instrument-fill: rgba(167, 101, 50, 0.065);
@@ -3889,6 +3957,30 @@ footer {
   height: 100%;
   animation: flight-instrument-drift 8s ease-in-out infinite;
   will-change: transform;
+}
+
+/*
+ * At stage size the ship fills its panel and its own rotation carries the movement. The badge's
+ * perspective wobble is dropped rather than scaled: the same transform that reads as a gentle
+ * drift on a 236px ornament reads as a lurch on something four times the size.
+ */
+.flight-instrument--stage {
+  position: absolute;
+  z-index: 0;
+  inset: 4% 5% 8%;
+  width: auto;
+  aspect-ratio: auto;
+  opacity: 1;
+  transform: none;
+}
+
+.flight-instrument--stage .flight-instrument__drift {
+  animation: none;
+}
+
+.flight-instrument--stage::after {
+  inset: 30% 14% 22%;
+  filter: blur(14px);
 }
 
 .flight-instrument svg {
@@ -4101,9 +4193,11 @@ footer {
   align-items: center;
 }
 
-:root[data-theme="dark"] .scoreboard {
+:root[data-theme="dark"] .scoreboard,
+:root[data-theme="dark"] .hangar-stage {
   --instrument-line: rgba(226, 218, 206, 0.58);
   --instrument-soft: rgba(209, 200, 186, 0.2);
+  --instrument-detail: rgba(223, 152, 84, 0.44);
   --instrument-accent: #df9854;
   --instrument-glow: rgba(213, 138, 70, 0.2);
   --instrument-fill: rgba(213, 138, 70, 0.075);
