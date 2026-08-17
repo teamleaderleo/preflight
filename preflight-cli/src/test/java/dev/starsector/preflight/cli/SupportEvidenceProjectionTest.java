@@ -68,22 +68,32 @@ class SupportEvidenceProjectionTest {
     }
 
     @Test
-    void dropsAbsolutePathsAfterClosingAndUnicodePunctuation() {
-        String unix = text(SupportEvidenceProjection.project(
-                "unix-punctuation.json",
+    void dropsAbsolutePathsAfterAsciiAndUnicodePunctuation() {
+        String unixClosing = text(SupportEvidenceProjection.project(
+                "unix-closing.json",
                 "{\"reason\":\"failed)/opt/Starsector/private.json\",\"status\":\"ok\"}"));
+        String unixHyphen = text(SupportEvidenceProjection.project(
+                "unix-hyphen.json",
+                "{\"reason\":\"failed-/opt/Starsector/private.json\",\"status\":\"ok\"}"));
         String windows = text(SupportEvidenceProjection.project(
                 "windows-punctuation.json",
                 "{\"summary\":\"failed—C:\\\\Users\\\\alice\\\\secret.txt\",\"status\":\"ok\"}"));
+        String windowsHyphen = text(SupportEvidenceProjection.project(
+                "windows-hyphen.json",
+                "{\"summary\":\"failed-C:\\\\Users\\\\alice\\\\secret.txt\",\"status\":\"ok\"}"));
         String unc = text(SupportEvidenceProjection.project(
                 "unc-punctuation.json",
                 "{\"summary\":\"failed)\\\\\\\\server\\\\share\\\\secret.txt\",\"status\":\"ok\"}"));
 
-        assertFalse(unix.contains("/opt/Starsector"), unix);
+        assertFalse(unixClosing.contains("/opt/Starsector"), unixClosing);
+        assertFalse(unixHyphen.contains("/opt/Starsector"), unixHyphen);
         assertFalse(windows.contains("Users"), windows);
+        assertFalse(windowsHyphen.contains("Users"), windowsHyphen);
         assertFalse(unc.contains("server"), unc);
-        assertTrue(unix.contains("status"), unix);
+        assertTrue(unixClosing.contains("status"), unixClosing);
+        assertTrue(unixHyphen.contains("status"), unixHyphen);
         assertTrue(windows.contains("status"), windows);
+        assertTrue(windowsHyphen.contains("status"), windowsHyphen);
         assertTrue(unc.contains("status"), unc);
     }
 
