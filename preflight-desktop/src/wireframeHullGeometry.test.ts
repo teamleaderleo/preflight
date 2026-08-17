@@ -19,6 +19,14 @@ const hull: WireframeHull = {
   ],
 };
 
+/** Points evenly spaced by angle, so spacing by index and spacing along the loop agree. */
+function ellipse(count: number, from = 0, sweep = Math.PI * 2) {
+  return Array.from({ length: count }, (_, index) => {
+    const angle = from + sweep * index / count;
+    return { x: Math.cos(angle) * 40, y: Math.sin(angle) * 26 };
+  });
+}
+
 describe("wireframe hull geometry", () => {
   it("builds a closed outline, raised deck, structure and engine bell", () => {
     const segments = buildHullSegments(hull, "medium");
@@ -141,6 +149,54 @@ describe("wireframe hull geometry", () => {
     const projected = projectHull(traced, 0.2, "medium");
     expect(projected.deck).toEqual([]);
     expect(projected.mounts).toEqual([]);
+  });
+
+  it("closes the side into triangles instead of leaving the contours loose", () => {
+    const traced: WireframeHull = {
+      ...hull,
+      id: "faceted",
+      bounds: ellipse(60),
+      trace: { holes: [], inner: [] },
+      tuning: { ...DEFAULT_WIREFRAME_TUNING, outerDetail: 0 },
+    };
+
+    const structure = buildHullSegments(traced, "showcase").filter((segment) => segment.kind === "structure");
+    const upright = structure.filter((segment) => segment.from.x === segment.to.x && segment.from.y === segment.to.y);
+    const leaning = structure.filter((segment) => segment.from.x !== segment.to.x || segment.from.y !== segment.to.y);
+    // A strut and a diagonal at every station: the diagonal is what turns the quad between two
+    // contours into two triangles, and without it the side is a ladder with nothing spanning it.
+    expect(upright.length).toBeGreaterThan(20);
+    expect(leaning.length).toBe(upright.length);
+    // Above the silhouette and below it, so the band reads as one truss rather than two ribbons.
+    expect(leaning.some((segment) => segment.to.z > 0)).toBe(true);
+    expect(leaning.some((segment) => segment.from.z < 0)).toBe(true);
+  });
+
+  it("spaces the side facets along the hull, not along its point list", () => {
+    /*
+     * One half of this outline carries ten times the points of the other, which is what a
+     * simplified trace really looks like: the corners keep a point for every turn and a long flat
+     * run is crossed in two. Stations picked by index land almost entirely in the detailed half
+     * and hand the flat one a single facet, so the facet widths are the thing worth asserting.
+     */
+    const points = [
+      ...ellipse(80, -Math.PI / 2, Math.PI),
+      ...ellipse(8, Math.PI / 2, Math.PI),
+    ];
+    const traced: WireframeHull = {
+      ...hull,
+      id: "lopsided",
+      bounds: points,
+      trace: { holes: [], inner: [] },
+      tuning: { ...DEFAULT_WIREFRAME_TUNING, outerDetail: 0 },
+    };
+
+    const widths = buildHullSegments(traced, "showcase")
+      .filter((segment) => segment.kind === "structure" && segment.to.z > 0)
+      .filter((segment) => segment.from.x !== segment.to.x || segment.from.y !== segment.to.y)
+      .map((segment) => Math.hypot(segment.to.x - segment.from.x, segment.to.y - segment.from.y));
+    expect(widths.length).toBeGreaterThan(8);
+    expect(Math.max(...widths) / Math.min(...widths)).toBeLessThan(3);
   });
 
   it("simplifies traced contours by default, on both loop families", () => {

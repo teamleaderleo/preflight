@@ -6,10 +6,12 @@ export interface HullVertex {
   z: number;
 }
 
+export type HullSegmentKind = "outline" | "deck" | "keel" | "structure" | "engine";
+
 export interface HullSegment {
   from: HullVertex;
   to: HullVertex;
-  kind: "outline" | "deck" | "keel" | "structure" | "engine";
+  kind: HullSegmentKind;
 }
 
 /** A projected point carries its view depth, which is what shades the wireframe. */
@@ -123,15 +125,57 @@ function polygonArea(loop: WireframePoint[]): number {
 }
 
 /** Put the few verticals where the contour actually turns instead of making a ladder. */
+/** How hard the loop turns at a vertex, in radians, which is what makes a corner a corner. */
+function turnAt(loop: WireframePoint[], index: number): number {
+  const point = loop[index];
+  const previous = loop[(index + loop.length - 1) % loop.length];
+  const next = loop[(index + 1) % loop.length];
+  const incoming = Math.atan2(point.y - previous.y, point.x - previous.x);
+  const outgoing = Math.atan2(next.y - point.y, next.x - point.x);
+  return Math.abs(Math.atan2(Math.sin(outgoing - incoming), Math.cos(outgoing - incoming)));
+}
+
+/**
+ * Evenly spaced stations around a loop, each pulled to the sharpest turn near it.
+ *
+ * The struts alone could sit on the sharpest corners the loop has, wherever those fall. A band of
+ * facets cannot: uneven spacing gives one triangle a sliver and the next one a third of the ship,
+ * and the band stops reading as a surface. So the spacing leads and the corner only adjusts, by
+ * less than half a station either way -- close enough that a facet still breaks on a real feature.
+ */
+function sideStations(loop: WireframePoint[], wanted: number): WireframePoint[] {
+  if (loop.length < 3 || wanted < 3) return [];
+  const walked = [0];
+  for (let index = 1; index <= loop.length; index += 1) {
+    const previous = loop[index - 1];
+    const point = loop[index % loop.length];
+    walked.push(walked[index - 1] + Math.hypot(point.x - previous.x, point.y - previous.y));
+  }
+  const perimeter = walked[loop.length];
+  if (perimeter <= 0) return [];
+
+  const stations: WireframePoint[] = [];
+  let cursor = 0;
+  for (let step = 0; step < wanted; step += 1) {
+    const target = step * perimeter / wanted;
+    while (cursor < loop.length - 1 && walked[cursor + 1] <= target) cursor += 1;
+    // Between the loop's own vertices, not on them. Snapping to the nearest vertex sounds harmless
+    // and is not: a simplified contour has no vertex to spare along a flat run, so every station
+    // aimed at that run collapses onto the one point that starts it and the facet there ends up as
+    // long as the run. Interpolating costs nothing and makes the spacing independent of the trace.
+    const from = loop[cursor];
+    const to = loop[(cursor + 1) % loop.length];
+    const span = walked[cursor + 1] - walked[cursor];
+    const along = span > 0 ? (target - walked[cursor]) / span : 0;
+    stations.push({ x: from.x + (to.x - from.x) * along, y: from.y + (to.y - from.y) * along });
+  }
+  return stations;
+}
+
 function contourCorners(loop: WireframePoint[], wanted: number): number[] {
-  const turns = loop.map((point, index) => {
-    const previous = loop[(index + loop.length - 1) % loop.length];
-    const next = loop[(index + 1) % loop.length];
-    const incoming = Math.atan2(point.y - previous.y, point.x - previous.x);
-    const outgoing = Math.atan2(next.y - point.y, next.x - point.x);
-    const turn = Math.abs(Math.atan2(Math.sin(outgoing - incoming), Math.cos(outgoing - incoming)));
-    return { index, turn };
-  }).sort((left, right) => right.turn - left.turn);
+  const turns = loop
+    .map((_, index) => ({ index, turn: turnAt(loop, index) }))
+    .sort((left, right) => right.turn - left.turn);
 
   const selected: number[] = [];
   for (const candidate of turns) {
@@ -269,14 +313,36 @@ function buildTracedHull(hull: WireframeHull, detail: HullDetail): HullModel {
     const upper = loop.map((point) => ({ ...point, z: halfHeight(point) * (isVoid ? 0.62 : 1) }));
     const lower = loop.map((point) => ({ ...point, z: -halfHeight(point) * (isVoid ? 0.62 : 1) * 0.72 }));
     segments.push(...ring(middle, "outline"), ...ring(upper, "deck"));
-    if (detail !== "small") segments.push(...ring(lower, "keel"));
-    const wanted = isVoid ? 4 : detail === "small" ? 4 : detail === "medium" ? 7 : 9;
-    for (const at of contourCorners(loop, wanted)) {
-      segments.push({ from: middle[at], to: upper[at], kind: "structure" });
-      if (detail !== "small") {
-        segments.push({ from: middle[at], to: lower[at], kind: "structure" });
+    if (detail === "small") {
+      for (const at of contourCorners(loop, 4)) {
+        segments.push({ from: middle[at], to: upper[at], kind: "structure" });
       }
+      return;
     }
+    segments.push(...ring(lower, "keel"));
+    /*
+     * The side is a band of triangles, not a ladder between two loose rings.
+     *
+     * Three parallel contours tied together by vertical struts read as a contour map, because
+     * nothing in the picture says the space between two rings is a surface. One diagonal per
+     * station closes each quad into two triangles, and the eye takes a triangulated band as skin.
+     * The diagonals lean opposite ways above and below the waterline so the two bands read as one
+     * truss rather than two sets of parallel slashes.
+     */
+    const squeeze = isVoid ? 0.62 : 1;
+    const stations = sideStations(loop, isVoid ? 8 : detail === "medium" ? 18 : 28);
+    const deckOf = (point: WireframePoint) => ({ ...point, z: halfHeight(point) * squeeze });
+    const keelOf = (point: WireframePoint) => ({ ...point, z: -halfHeight(point) * squeeze * 0.72 });
+    stations.forEach((point, index) => {
+      const next = stations[(index + 1) % stations.length];
+      const waterline = { ...point, z: 0 };
+      segments.push(
+        { from: waterline, to: deckOf(point), kind: "structure" },
+        { from: waterline, to: deckOf(next), kind: "structure" },
+        { from: waterline, to: keelOf(point), kind: "structure" },
+        { from: keelOf(point), to: { ...next, z: 0 }, kind: "structure" },
+      );
+    });
   });
 
   if (detail !== "small") {
