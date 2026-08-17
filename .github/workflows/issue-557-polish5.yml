@@ -75,16 +75,18 @@ jobs:
           }
 
           '''
-          method_marker = "    private static List<String> readEnabled(Path enabledFile) throws IOException {"
-          if method_marker in text:
-              start = text.index(method_marker)
-              end = text.index("    private static String nullSafe", start)
+          signature = "private static List<String> readEnabled(Path enabledFile) throws IOException"
+          if signature in text:
+              signature_at = text.index(signature)
+              start = text.rfind("\n", 0, signature_at) + 1
+              next_signature = text.index("private static String nullSafe", signature_at)
+              end = text.rfind("\n", 0, next_signature) + 1
               text = text[:start] + strict_reader + text[end:]
           else:
-              evaluator_marker = "    static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)\n"
-              if text.count(evaluator_marker) != 1:
-                  raise SystemExit(f"evaluator marker drifted: {text.count(evaluator_marker)}")
-              text = text.replace(evaluator_marker, strict_reader + evaluator_marker, 1)
+              evaluator = "static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)"
+              evaluator_at = text.index(evaluator)
+              start = text.rfind("\n", 0, evaluator_at) + 1
+              text = text[:start] + strict_reader + text[start:]
           text = text.replace(
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.WARNING,",
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.INFO,",
