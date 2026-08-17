@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import App from "./App";
 import { failedRunSummary } from "./uiFormat";
-import { adapterHealthLine } from "./components/HomePage";
+import { adapterHealthLine } from "./adapterHealthText";
 import { isCurrentProfilePrepared } from "./usePreparation";
 import * as bridge from "./bridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";

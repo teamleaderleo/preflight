@@ -2,7 +2,8 @@ import { CheckIcon, RefreshIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
 import { shortPath } from "../uiFormat";
 import { GameMemorySelect } from "./GameMemorySelect";
-import { ResolutionSelect, UiScaleSelect, battleSizePresets, battleSizeUpperBound, uiScaleMaximum } from "./GameSettingSelects";
+import { battleSizePresets, battleSizeUpperBound, uiScaleMaximum } from "../gameSettingOptions";
+import { ResolutionSelect, UiScaleSelect } from "./GameSettingSelects";
 
 interface GameSettingsPageProps {
   settings: LaunchSettings | null;
