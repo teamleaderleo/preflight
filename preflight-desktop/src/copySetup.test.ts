@@ -107,7 +107,7 @@ describe("Copy setup public summary", () => {
       profileFingerprint: "cache-fingerprint",
       mods: null,
       launchSettings: null,
-      preparation: { status: "stale", profileFingerprint: "cache-fingerprint" },
+      preparation: { status: "repair-needed", profileFingerprint: "cache-fingerprint" },
     });
 
     const first = new TextEncoder().encode(createCopySetupText(source));
