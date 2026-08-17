@@ -29,12 +29,28 @@ function observations(overrides: Partial<CopySetupObservations> = {}): CopySetup
 }
 
 describe("Copy setup public summary", () => {
-  it("handles a vanilla or empty profile", () => {
+  it("handles a proven vanilla or empty profile", () => {
     const text = createCopySetupText(observations({ profileFingerprint: null, mods: [] }));
 
     expect(text).toContain("Enabled mods: 0\n");
     expect(text).toContain("Optimization preset: recommended\n");
     expect(text).toContain("Preparation: ready\n");
+  });
+
+  it("keeps unavailable mod evidence distinct from a proven empty profile", () => {
+    const source = observations({
+      profileFingerprint: "cache-fingerprint",
+      mods: null,
+      launchSettings: null,
+    });
+    const summary = createCopySetupSummary(source);
+    const text = createCopySetupText(source);
+
+    expect(summary.mods).toBeNull();
+    expect(summary.omittedModCount).toBeNull();
+    expect(text).toContain("Profile fingerprint: cache-fingerprint\n");
+    expect(text).toContain("Enabled mods: unavailable\n");
+    expect(text).not.toContain("Enabled mods: 0\n");
   });
 
   it("bounds and deterministically orders a very large mod profile", () => {
@@ -44,8 +60,8 @@ describe("Copy setup public summary", () => {
 
     expect(summary.mods).toHaveLength(COPY_SETUP_MAX_MODS);
     expect(summary.omittedModCount).toBe(500 - COPY_SETUP_MAX_MODS);
-    expect(summary.mods[0]?.id).toBe("mod-000");
-    expect(summary.mods.at(-1)?.id).toBe(`mod-${String(COPY_SETUP_MAX_MODS - 1).padStart(3, "0")}`);
+    expect(summary.mods?.[0]?.id).toBe("mod-000");
+    expect(summary.mods?.at(-1)?.id).toBe(`mod-${String(COPY_SETUP_MAX_MODS - 1).padStart(3, "0")}`);
     expect(text).toContain(`${500 - COPY_SETUP_MAX_MODS} more mod IDs omitted`);
   });
 
@@ -79,6 +95,19 @@ describe("Copy setup public summary", () => {
     const source = observations({
       mods: [{ id: "zeta" }, { id: "alpha" }, { id: "beta" }],
       latestLaunch: { outcome: "SUCCESS", startupMillis: 9_876, exitCode: 0 },
+    });
+
+    const first = new TextEncoder().encode(createCopySetupText(source));
+    const second = new TextEncoder().encode(createCopySetupText(source));
+    expect(second).toEqual(first);
+  });
+
+  it("keeps partial unavailable observations byte-stable", () => {
+    const source = observations({
+      profileFingerprint: "cache-fingerprint",
+      mods: null,
+      launchSettings: null,
+      preparation: { status: "repair-needed", profileFingerprint: "cache-fingerprint" },
     });
 
     const first = new TextEncoder().encode(createCopySetupText(source));

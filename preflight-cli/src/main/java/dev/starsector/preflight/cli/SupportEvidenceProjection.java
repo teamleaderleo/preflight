@@ -18,9 +18,8 @@ final class SupportEvidenceProjection {
     static final int MAX_FIELD_PATH_CHARS = 256;
     private static final int MAX_SOURCE_DEPTH = 12;
     private static final int MAX_ARRAY_ITEMS = 256;
-    private static final List<String> SECRET_MARKERS = List.of(
-            "token=", "token:", "secret=", "secret:", "password=", "password:",
-            "authorization:", "bearer ", "api_key=", "api-key=", "apikey=");
+    private static final List<String> SECRET_ASSIGNMENT_KEYS = List.of(
+            "token", "secret", "password", "authorization", "api_key", "api-key", "apikey");
 
     private static final Set<String> ALLOWED_SEGMENTS = Set.of(
             "active", "adapter", "adapterHealth", "adapters", "architecture", "available",
@@ -140,11 +139,14 @@ final class SupportEvidenceProjection {
 
     private static boolean containsSensitiveLocatorOrSecret(String text) {
         String lower = text.toLowerCase(Locale.ROOT);
-        if (lower.contains("http://") || lower.contains("https://") || lower.contains("file:")) return true;
-        if (SECRET_MARKERS.stream().anyMatch(lower::contains)) return true;
+        if (containsSecretAssignment(lower) || lower.contains("bearer ")) return true;
         for (int index = 0; index < text.length(); index++) {
             char current = text.charAt(index);
+            if (Character.isLetter(current) && locatorBoundary(text, index) && beginsUri(text, index)) {
+                return true;
+            }
             if (current == '/' && locatorBoundary(text, index)
+                    && !isRedactedHomeSlash(text, index)
                     && index + 1 < text.length()
                     && text.charAt(index + 1) != '/'
                     && !Character.isWhitespace(text.charAt(index + 1))) {
@@ -165,9 +167,61 @@ final class SupportEvidenceProjection {
         return false;
     }
 
+    private static boolean containsSecretAssignment(String lower) {
+        for (String key : SECRET_ASSIGNMENT_KEYS) {
+            int from = 0;
+            while (from < lower.length()) {
+                int index = lower.indexOf(key, from);
+                if (index < 0) break;
+                int end = index + key.length();
+                if (secretTokenBoundary(lower, index - 1)
+                        && secretTokenBoundary(lower, end)) {
+                    int cursor = end;
+                    while (cursor < lower.length() && assignmentWhitespace(lower.charAt(cursor))) cursor++;
+                    if (cursor < lower.length()
+                            && (lower.charAt(cursor) == ':' || lower.charAt(cursor) == '=')) {
+                        return true;
+                    }
+                }
+                from = index + 1;
+            }
+        }
+        return false;
+    }
+
+    private static boolean secretTokenBoundary(String text, int index) {
+        return index < 0 || index >= text.length() || !Character.isLetterOrDigit(text.charAt(index));
+    }
+
+    private static boolean assignmentWhitespace(char character) {
+        return Character.isWhitespace(character) || Character.isSpaceChar(character);
+    }
+
+    private static boolean beginsUri(String text, int index) {
+        int cursor = index + 1;
+        while (cursor < text.length() && uriSchemeCharacter(text.charAt(cursor))) cursor++;
+        return cursor < text.length()
+                && text.charAt(cursor) == ':'
+                && cursor + 1 < text.length()
+                && !Character.isWhitespace(text.charAt(cursor + 1));
+    }
+
+    private static boolean uriSchemeCharacter(char character) {
+        return Character.isLetterOrDigit(character)
+                || character == '+'
+                || character == '-'
+                || character == '.';
+    }
+
+    private static boolean isRedactedHomeSlash(String text, int index) {
+        String marker = "<home>";
+        int start = index - marker.length();
+        return start >= 0 && text.regionMatches(start, marker, 0, marker.length());
+    }
+
     private static boolean locatorBoundary(String text, int index) {
         if (index == 0) return true;
         char previous = text.charAt(index - 1);
-        return Character.isWhitespace(previous) || "\"'`([{<,;=:+!?".indexOf(previous) >= 0;
+        return !Character.isLetterOrDigit(previous) && previous != '_';
     }
 }

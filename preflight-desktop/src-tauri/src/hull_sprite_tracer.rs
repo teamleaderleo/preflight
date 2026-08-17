@@ -298,7 +298,10 @@ fn trace_decoded(
         .filter(|contour| contour.len() >= 3)
         .collect::<Vec<_>>();
 
-    let blurred = blurred_luminance(&rgba, &mask, width, height);
+    let mut blurred = blurred_luminance(&rgba, &mask, width, height);
+    if folded {
+        fold_brightness(&mut blurred, width, height, axis);
+    }
     let levels = luminance_levels(&blurred, &mask)?;
     let minimum_component = ((width * height) as f64 * MIN_COMPONENT_FRACTION).ceil() as usize;
     let mut inner = Vec::new();
@@ -500,6 +503,31 @@ fn fold(mask: &mut [bool], width: usize, height: usize, axis: usize) {
             if reflected >= 0 && reflected < width as isize && mask[y * width + reflected as usize]
             {
                 mask[y * width + x] = true;
+            }
+        }
+    }
+}
+
+/// The luminance twin of [`fold`]: where the mask takes the union, brightness takes the brighter.
+///
+/// Folding only the alpha left the two channels disagreeing about the same ship. The silhouette
+/// came back symmetric to a fraction of a percent and the lit contours did not, because a raised
+/// block and its mirror are shaded differently and the darker of the pair can fall under the
+/// minimum component size on its own. What reached the renderer was a hull with a flight deck down
+/// one flank and nothing down the other. Reading the brighter of each pair applies the decision
+/// this hull has already been given -- that it is symmetric -- to the channel that was missing it.
+fn fold_brightness(values: &mut [f64], width: usize, height: usize, axis: usize) {
+    // In place is safe: the pass converges on the pairwise maximum, so a cell that has already
+    // taken its mirror's value still yields that same maximum when its mirror reads it back.
+    for y in 0..height {
+        for x in 0..width {
+            let reflected = 2 * axis as isize - x as isize;
+            if reflected >= 0 && reflected < width as isize {
+                let mirrored = values[y * width + reflected as usize];
+                let at = &mut values[y * width + x];
+                if mirrored > *at {
+                    *at = mirrored;
+                }
             }
         }
     }
@@ -856,6 +884,54 @@ mod tests {
         assert!(coordinates.iter().all(|value| (-1.0..=1.0).contains(value)));
         assert!(coordinates.iter().any(|value| *value == -1.0));
         assert!(coordinates.contains(&1.0));
+    }
+
+    #[test]
+    fn a_symmetric_hull_keeps_both_of_a_shaded_pair() {
+        // A symmetric silhouette with a matched pair of raised blocks, lit the way a sprite is:
+        // the port one bright, the starboard one in shadow. Folding only the alpha finds the lit
+        // block and loses its twin under the minimum component size, and the ship reaches the
+        // renderer with a flight deck down one flank.
+        let width = 96usize;
+        let height = 96usize;
+        let mut pixels = vec![0u8; width * height * 4];
+        for y in 8..88 {
+            for x in 8..88 {
+                let at = (y * width + x) * 4;
+                let port = (16..40).contains(&x) && (24..72).contains(&y);
+                let starboard = (56..80).contains(&x) && (24..72).contains(&y);
+                pixels[at..at + 4].copy_from_slice(match (port, starboard) {
+                    (true, _) => &[248, 236, 208, 255],
+                    (_, true) => &[150, 142, 124, 255],
+                    _ => &[64, 60, 54, 255],
+                });
+            }
+        }
+        let trace = trace_png_bytes(
+            &rgba_png(width as u32, height as u32, &pixels),
+            [48.0, 48.0],
+        )
+        .expect("trace");
+
+        assert!(trace.folded);
+        let flanks = trace
+            .inner
+            .iter()
+            .map(|contour| {
+                let total: f64 = contour.points.iter().map(|point| point.y).sum();
+                total / contour.points.len() as f64
+            })
+            .filter(|lateral| lateral.abs() > 0.1)
+            .collect::<Vec<_>>();
+        // Both luminance bands can fire on the same block, so the count is not the assertion --
+        // the balance is. Every flank contour has to answer one on the other side.
+        let port = flanks.iter().filter(|lateral| **lateral > 0.0).count();
+        let starboard = flanks.iter().filter(|lateral| **lateral < 0.0).count();
+        assert!(port > 0, "expected flank blocks at all, got {flanks:?}");
+        assert_eq!(
+            port, starboard,
+            "expected one block per side, got {flanks:?}"
+        );
     }
 
     #[test]

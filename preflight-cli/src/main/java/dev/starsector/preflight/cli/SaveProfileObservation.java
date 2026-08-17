@@ -8,8 +8,10 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
@@ -34,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -519,12 +522,11 @@ final class SaveProfileObservation {
     }
 
     private static final class Ledger {
-        private final Path file;
-        private final Path lockFile;
+        private static final ReentrantLock JVM_LOCK = new ReentrantLock();
+        private final PreflightHome home;
 
         Ledger(PreflightHome home) {
-            this.file = storeFile(home);
-            this.lockFile = file.resolveSibling(FILE_NAME + ".lock");
+            this.home = home;
         }
 
         List<Observation> read() throws IOException {
@@ -612,7 +614,8 @@ final class SaveProfileObservation {
         }
 
         private List<Observation> readUnlocked() throws IOException {
-            if (!Files.isRegularFile(file)) return List.of();
+            Path file = ledgerFile(false);
+            if (file == null) return List.of();
             Map<String, Object> root;
             try {
                 root = StrictJson.object(Files.readString(file));
@@ -632,13 +635,15 @@ final class SaveProfileObservation {
         }
 
         private void writeUnlocked(List<Observation> observations) throws IOException {
-            Files.createDirectories(file.getParent());
+            Path file = ledgerFile(true);
+            Path directory = file.getParent();
             Map<String, Object> root = new LinkedHashMap<>();
             root.put("format", FORMAT);
             root.put("records", observations.stream().map(SaveProfileObservation::observationMap).toList());
-            Path temporary = Files.createTempFile(file.getParent(), FILE_NAME + ".", ".tmp");
+            Path temporary = Files.createTempFile(directory, FILE_NAME + ".", ".tmp");
             try {
                 Files.writeString(temporary, Json.object(root) + System.lineSeparator());
+                LaunchLedger.requireRegularFileIfPresent(file, "Save-observation ledger");
                 try {
                     Files.move(temporary, file,
                             StandardCopyOption.ATOMIC_MOVE,
@@ -652,14 +657,56 @@ final class SaveProfileObservation {
         }
 
         private <T> T withLock(IoSupplier<T> operation) throws IOException {
-            Files.createDirectories(lockFile.getParent());
-            try (FileChannel channel = FileChannel.open(
-                            lockFile,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.WRITE);
-                    FileLock ignored = channel.lock()) {
-                return operation.get();
+            JVM_LOCK.lock();
+            try {
+                Path directory = storeDirectory(true);
+                Path lockFile = directory.resolve(FILE_NAME + ".lock");
+                LaunchLedger.requireRegularFileIfPresent(lockFile, "Save-observation lock");
+                try (FileChannel channel = FileChannel.open(
+                                lockFile,
+                                StandardOpenOption.CREATE,
+                                StandardOpenOption.WRITE,
+                                LinkOption.NOFOLLOW_LINKS);
+                        FileLock ignored = channel.lock()) {
+                    return operation.get();
+                }
+            } finally {
+                JVM_LOCK.unlock();
             }
+        }
+
+        private Path ledgerFile(boolean createDirectory) throws IOException {
+            Path directory = storeDirectory(createDirectory);
+            if (directory == null) return null;
+            Path file = directory.resolve(FILE_NAME);
+            if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+                return createDirectory ? file : null;
+            }
+            LaunchLedger.requireRegularFileIfPresent(file, "Save-observation ledger");
+            return file;
+        }
+
+        private Path storeDirectory(boolean create) throws IOException {
+            Path root = home.root().toAbsolutePath().normalize();
+            if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                if (!create) return null;
+                Files.createDirectories(root);
+            }
+            Path realRoot = SafetyArtifactRetention.requireRealDirectory(root).toRealPath();
+            Path runtime = realRoot.resolve("runtime");
+            if (!Files.exists(runtime, LinkOption.NOFOLLOW_LINKS)) {
+                if (!create) return null;
+                try {
+                    Files.createDirectory(runtime);
+                } catch (FileAlreadyExistsException createdByAnotherProcess) {
+                    // Type and containment checks below decide whether the raced result is safe.
+                }
+            }
+            Path realRuntime = SafetyArtifactRetention.requireRealDirectory(runtime).toRealPath();
+            if (!realRuntime.getParent().equals(realRoot)) {
+                throw new IOException("Save-observation directory escapes the Preflight home");
+            }
+            return realRuntime;
         }
     }
 
