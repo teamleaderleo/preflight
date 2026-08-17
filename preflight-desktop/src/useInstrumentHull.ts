@@ -57,22 +57,25 @@ function savedHullId(): string | null {
 const TUNING_LIMITS: Record<keyof WireframeTuning, readonly [number, number]> = {
   outerDetail: [0, 0.06],
   outerSmooth: [0, 0.9],
+  innerDetail: [0, 0.06],
+  innerSmooth: [0, 0.9],
   height: [0.2, 2.2],
 };
 
 export function validateWireframeTuning(value: unknown): WireframeTuning | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
+  const tuning = { ...DEFAULT_WIREFRAME_TUNING } as WireframeTuning;
   for (const key of Object.keys(TUNING_LIMITS) as Array<keyof WireframeTuning>) {
     const next = candidate[key];
+    // A tuning saved before the inner dials existed is still that person's tuning. Missing keys
+    // take the default; only a key that is present and out of range rejects the whole record.
+    if (next === undefined) continue;
     const [minimum, maximum] = TUNING_LIMITS[key];
     if (typeof next !== "number" || !Number.isFinite(next) || next < minimum || next > maximum) return null;
+    tuning[key] = next;
   }
-  return {
-    outerDetail: candidate.outerDetail as number,
-    outerSmooth: candidate.outerSmooth as number,
-    height: candidate.height as number,
-  };
+  return tuning;
 }
 
 function savedTunings(): Record<string, WireframeTuning> {

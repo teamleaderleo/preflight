@@ -64,11 +64,26 @@ interface PreparedHull extends HullModel {
 // rebuilding rings, the raised deck and nearest-outline braces on every animation frame.
 const preparedHulls = new WeakMap<WireframeHull, Map<HullDetail, PreparedHull>>();
 
+/*
+ * The design page's settled dials, by value.
+ *
+ * A traced contour arrives with a point for nearly every turn the sprite's edge makes, and drawn
+ * raw it reads as a contour map rather than a ship: the Astral came to 830 edges against the
+ * page's 587, and looked busier for them. The page answers this with one simplification pass in
+ * the renderer, per loop family, at a tolerance that is a fraction of the hull's own size -- so a
+ * hull lands where its own complexity puts it rather than inside a shared point budget.
+ */
 export const DEFAULT_WIREFRAME_TUNING: Readonly<WireframeTuning> = Object.freeze({
-  outerDetail: 0,
+  outerDetail: 0.012,
   outerSmooth: 0,
+  innerDetail: 0.016,
+  innerSmooth: 0,
   height: 1,
 });
+
+/** Below these a loop has stopped being a shape, so a tolerance that would is refused instead. */
+const OUTLINE_FLOOR = 12;
+const LOOP_FLOOR = 6;
 
 function ring(points: HullVertex[], kind: HullSegment["kind"]): HullSegment[] {
   return points.map((point, index) => ({
@@ -170,13 +185,39 @@ function simplifyContour(points: WireframePoint[], epsilon: number): WireframePo
   ];
 }
 
+/** Smooth, then simplify, then refuse the result if it has stopped being a shape. */
+function shapeContour(
+  points: WireframePoint[],
+  smooth: number,
+  epsilon: number,
+  floor: number,
+): WireframePoint[] {
+  const smoothed = smoothContour(points, smooth);
+  const simplified = simplifyContour(smoothed, epsilon);
+  return simplified.length >= floor ? simplified : smoothed;
+}
+
 function tunedHull(hull: WireframeHull): WireframeHull {
-  if (!hull.tuning || hull.bounds.length < 3) return hull;
+  if (hull.bounds.length < 3) return hull;
+  const tuning = hull.tuning ?? DEFAULT_WIREFRAME_TUNING;
   const { extent } = hullFrame(hull);
-  const smoothed = smoothContour(hull.bounds, hull.tuning.outerSmooth);
-  const simplified = simplifyContour(smoothed, hull.tuning.outerDetail * extent / 2);
-  const bounds = simplified.length >= 3 ? simplified : smoothed;
-  return bounds === hull.bounds ? hull : { ...hull, bounds };
+  // The dials are fractions of the hull's own size; these points are in the source's units, so
+  // the tolerance is scaled by the extent before it means the same thing on a frigate and a
+  // capital. Smoothing then simplifying is not the same as simplifying harder: one softens the
+  // shape and keeps its extent, the other keeps the shape and drops its middles.
+  const outer = tuning.outerDetail * extent / 2;
+  const inner = tuning.innerDetail * extent / 2;
+  const bounds = shapeContour(hull.bounds, tuning.outerSmooth, outer, OUTLINE_FLOOR);
+  // The voids belong to the outer family: they are marched off the same alpha as the silhouette.
+  const trace = hull.trace && {
+    holes: hull.trace.holes.map((hole) => shapeContour(hole, tuning.outerSmooth, outer, LOOP_FLOOR)),
+    inner: hull.trace.inner.map((contour) => ({
+      ...contour,
+      points: shapeContour(contour.points, tuning.innerSmooth, inner, LOOP_FLOOR),
+    })),
+  };
+  if (bounds === hull.bounds && !trace) return hull;
+  return { ...hull, bounds, ...(trace ? { trace } : {}) };
 }
 
 /** A shared raised cabin keeps the source silhouette legible instead of duplicating every notch. */
