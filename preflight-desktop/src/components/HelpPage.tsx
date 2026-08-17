@@ -108,7 +108,7 @@ export function HelpPage({
               {setupCopy.state === "copying" ? "Copying…" : setupCopy.state === "copied" ? "Setup copied" : "Copy setup"}
             </button>
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
-              <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another support file" : "Make a support file"}
+              <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
             </button>
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
           </div>
@@ -116,7 +116,7 @@ export function HelpPage({
         {setupCopy.state === "error" ? <p className="report-unavailable" role="alert"><ShieldIcon /> Clipboard access failed. Try Copy setup again or use the separate support file action.</p> : null}
 
         <details className="settings-disclosure support-contents">
-          <summary><span><strong>What’s inside the support file?</strong><small>Included and left out</small></span></summary>
+          <summary><span><strong>What’s inside?</strong><small>Included and left out</small></span></summary>
           <div className="settings-grid settings-disclosure__body">
             <section className="diagnostics-card">
               <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Run details</h2></div><CheckIcon className="settings-check" /></div>
