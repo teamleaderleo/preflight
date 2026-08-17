@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,11 +132,15 @@ final class ResourceProviderContentIdentity {
     private record DirectHash(String sha256, FileIdentity identity) {
     }
 
-    private record FileIdentity(long size, long modifiedMillis, Object fileKey) {
+    /**
+     * Same-read stability keeps the filesystem's full timestamp precision. The persisted index has
+     * a millisecond metadata contract, which remains isolated in {@link #matchesIndexedMetadata}.
+     */
+    private record FileIdentity(long size, FileTime modified, Object fileKey) {
         static FileIdentity from(BasicFileAttributes attributes) {
             return new FileIdentity(
                     attributes.size(),
-                    Math.max(0, attributes.lastModifiedTime().toMillis()),
+                    attributes.lastModifiedTime(),
                     attributes.fileKey());
         }
     }
