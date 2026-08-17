@@ -9,7 +9,6 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -442,10 +441,10 @@ final class DesktopBridgeCommand {
             if (run != null) {
                 result.put("started", run.get("started"));
                 result.put("ended", run.get("ended"));
-                result.put("durationMillis", run.get("durationMillis"));
                 result.put("outcome", run.get("outcome"));
                 result.put("exitCode", run.get("exitCode"));
             }
+            result.put("startupMillis", startupMillis(latest.resolve("runtime-state.json")));
             return result;
         } catch (IOException ignored) {
             return null;
@@ -507,26 +506,23 @@ final class DesktopBridgeCommand {
             Map<String, Object> run = StrictJson.object(new String(encoded, StandardCharsets.UTF_8));
             String started = run.get("started") instanceof String value ? value : null;
             String ended = run.get("ended") instanceof String value ? value : null;
-            Long durationMillis = null;
-            if (started != null && ended != null) {
-                try {
-                    long diff = Instant.parse(ended).toEpochMilli() - Instant.parse(started).toEpochMilli();
-                    if (diff >= 0) {
-                        durationMillis = diff;
-                    }
-                } catch (DateTimeParseException ignored) {
-                }
-            }
             String outcome = run.get("outcome") instanceof String value ? value : null;
             Long exitCode = run.get("exitCode") instanceof Number value ? value.longValue() : null;
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("started", started);
             result.put("ended", ended);
-            result.put("durationMillis", durationMillis);
             result.put("outcome", outcome);
             result.put("exitCode", exitCode);
             return result;
+        } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    private static Long startupMillis(Path runtimeState) {
+        try {
+            return RuntimeSemanticStateIdentity.read(runtimeState).startupMillis();
         } catch (IOException | RuntimeException unreadable) {
             return null;
         }

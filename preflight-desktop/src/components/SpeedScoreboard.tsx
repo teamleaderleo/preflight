@@ -1,7 +1,7 @@
 import { ArrowIcon, GaugeIcon } from "../icons";
-import type { PlaytimeSnapshot, WireframeHull } from "../types";
+import type { LastRun, PlaytimeSnapshot, WireframeHull } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
-import { formatPlaytime } from "../uiFormat";
+import { formatDuration, formatPlaytime } from "../uiFormat";
 import { formatSavedTotal } from "../speedScoreboardFormat";
 import { FlightInstrument } from "./FlightInstrument";
 
@@ -9,6 +9,7 @@ interface SpeedScoreboardProps {
   standing: SpeedStanding;
   isReady: boolean;
   playtime?: PlaytimeSnapshot;
+  lastRun?: LastRun | null;
   hull: WireframeHull;
   onOpenBenchmark: () => void;
 }
@@ -29,14 +30,6 @@ function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
   );
 }
 
-/** Seconds with one decimal below a minute, then minutes and seconds. */
-function formatDuration(ms: number): string {
-  const seconds = ms / 1_000;
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${Math.round(seconds - minutes * 60)}s`;
-}
-
 /*
  * The page named Speed used to hold a switch, a disk figure and an accordion, and not one number
  * that was a speed. Measuring costs several minutes of the machine to itself, and the result was
@@ -48,7 +41,7 @@ function formatDuration(ms: number): string {
  * number. The running total is frankly a vanity figure and is labelled as an estimate: it is
  * launches counted since the measurement, times the measured saving, and it says so.
  */
-export function SpeedScoreboard({ standing, isReady, playtime, hull, onOpenBenchmark }: SpeedScoreboardProps) {
+export function SpeedScoreboard({ standing, isReady, playtime, lastRun, hull, onOpenBenchmark }: SpeedScoreboardProps) {
   const { record, multiplier, totalSavedMs } = standing;
 
   if (!record || multiplier === null) {
@@ -62,6 +55,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, hull, onOpenBench
         </div>
         <div className="scoreboard__body">
           <strong>Measure your startup time.</strong>
+          {typeof lastRun?.startupMillis === "number" ? <p className="scoreboard__last-launch">Last fast launch: {formatDuration(lastRun.startupMillis)} to the menu.</p> : null}
           <p className="scoreboard__prompt">Starsector opens twice so Preflight can compare launch times.</p>
           <button className="button button--primary" type="button" onClick={onOpenBenchmark} disabled={!isReady}><GaugeIcon />Measure speed<ArrowIcon /></button>
         </div>

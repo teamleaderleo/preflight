@@ -1,6 +1,7 @@
 package dev.starsector.preflight.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,8 +30,19 @@ final class RuntimeSemanticStateIdentityTest {
 
         assertTrue(state.is("campaign-ready"));
         assertEquals(2L, state.sequence());
+        assertNull(state.startupMillis());
         assertThrows(IllegalArgumentException.class, () -> RuntimeSemanticStateIdentity.read(
                 file, new DesktopSmokeDriver.ProcessTarget(process.pid(), Instant.EPOCH)));
+    }
+
+    @Test
+    void reportsOnlyAValidatedProcessToMainMenuDuration() throws Exception {
+        Instant startedAt = Instant.parse("2026-08-16T12:00:00Z");
+        Path file = write(42L, startedAt, "stopped", 4L,
+                Instant.parse("2026-08-16T12:00:15.250Z"),
+                Instant.parse("2026-08-16T14:00:00Z"));
+
+        assertEquals(15_250L, RuntimeSemanticStateIdentity.read(file).startupMillis());
     }
 
     @Test
@@ -52,13 +64,24 @@ final class RuntimeSemanticStateIdentityTest {
     }
 
     private Path write(long pid, Instant startedAt, String state, long sequence) throws Exception {
+        return write(pid, startedAt, state, sequence, null, Instant.now());
+    }
+
+    private Path write(
+            long pid,
+            Instant startedAt,
+            String state,
+            long sequence,
+            Instant mainMenuReadyAt,
+            Instant observedAt) throws Exception {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("format", "starsector-preflight-runtime-state-v1");
         values.put("pid", pid);
         values.put("processStartedAt", startedAt);
+        if (mainMenuReadyAt != null) values.put("mainMenuReadyAt", mainMenuReadyAt);
         values.put("state", state);
         values.put("sequence", sequence);
-        values.put("observedAt", Instant.now());
+        values.put("observedAt", observedAt);
         Path file = temporaryDirectory.resolve("state-" + System.nanoTime() + ".json");
         Files.writeString(file, Json.object(values));
         return file;

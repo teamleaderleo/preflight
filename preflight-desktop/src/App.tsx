@@ -555,7 +555,6 @@ export default function App() {
             launchSettingsDirty={launcher.dirty}
             operationBlocked={operationBlocked}
             launchSettingsBlocked={launchSettingsBlocked}
-            hull={instrumentHull.selected}
             theme={theme.resolved}
             onLauncherChange={launcher.changeDraft}
             onChooseInstall={() => void chooseInstall()}

@@ -1235,6 +1235,32 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
   expect(screen.getByText(/1m 12s saved per launch/)).toBeInTheDocument();
 });
 
+test("an unmeasured scoreboard labels the exact last process-to-menu time", async () => {
+  const user = userEvent.setup();
+  const base = await bridge.getSnapshot();
+  const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({
+    ...base,
+    lastRun: {
+      directory: "~/.starsector-preflight/runs/latest",
+      modifiedAt: "2026-08-17T00:00:00Z",
+      adapterHealth: null,
+      started: "2026-08-17T00:00:00Z",
+      ended: "2026-08-17T02:00:00Z",
+      startupMillis: 15_250,
+      outcome: "COMPLETED",
+      exitCode: 0,
+    },
+  });
+
+  render(<App />);
+  await screen.findByText("Ready");
+  await user.click(screen.getByRole("button", { name: "Speed" }));
+
+  expect(await screen.findByText("Last fast launch: 15.3s to the menu.")).toBeInTheDocument();
+  expect(screen.queryByText(/2h/)).not.toBeInTheDocument();
+  snapshot.mockRestore();
+});
+
 test("verified updates are explicit and explain when a build has no update channel", async () => {
   const user = userEvent.setup();
   render(<App />);

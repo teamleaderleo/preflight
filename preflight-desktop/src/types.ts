@@ -12,7 +12,7 @@ export interface LastRun {
   adapterHealth: AdapterHealthSummary | null;
   started?: string | null;
   ended?: string | null;
-  durationMillis?: number | null;
+  startupMillis?: number | null;
   outcome?: string | null;
   exitCode?: number | null;
 }

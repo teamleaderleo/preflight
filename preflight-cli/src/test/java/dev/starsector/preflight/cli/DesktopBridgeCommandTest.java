@@ -108,7 +108,7 @@ class DesktopBridgeCommandTest {
     }
 
     @Test
-    void snapshotCarriesTheCompactRunSummaryOfTheLatestRun() throws Exception {
+    void snapshotCarriesExactStartupTimingInsteadOfWholeSessionDuration() throws Exception {
         Path home = Files.createDirectories(temporaryDirectory.resolve("run-summary-home"));
         Path game = Files.createDirectories(temporaryDirectory.resolve("run-summary-game"));
         Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
@@ -118,6 +118,14 @@ class DesktopBridgeCommandTest {
                 "ended", "2026-08-16T12:00:15.300Z",
                 "outcome", "COMPLETED",
                 "exitCode", 0)));
+        Files.writeString(run.resolve("runtime-state.json"), Json.object(Map.of(
+                "format", "starsector-preflight-runtime-state-v1",
+                "pid", 42,
+                "processStartedAt", "2026-08-16T12:00:00Z",
+                "mainMenuReadyAt", "2026-08-16T12:00:15.250Z",
+                "state", "stopped",
+                "sequence", 4,
+                "observedAt", "2026-08-16T14:00:15.300Z")));
 
         Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
                 Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
@@ -126,7 +134,8 @@ class DesktopBridgeCommandTest {
 
         assertEquals("2026-08-16T12:00:00Z", lastRun.get("started"));
         assertEquals("2026-08-16T12:00:15.300Z", lastRun.get("ended"));
-        assertEquals(15300L, lastRun.get("durationMillis"));
+        assertEquals(15250L, lastRun.get("startupMillis"));
+        assertFalse(lastRun.containsKey("durationMillis"), lastRun.toString());
         assertEquals("COMPLETED", lastRun.get("outcome"));
         assertEquals(0L, lastRun.get("exitCode"));
     }

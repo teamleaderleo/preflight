@@ -27,8 +27,11 @@ final class RuntimeSemanticStateTest {
 
         RuntimeSemanticState.mainMenuReady();
         assertState(destination, "main-menu-ready", 1L);
+        String firstMainMenuTime = String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuReadyAt"));
         RuntimeSemanticState.mainMenuReady();
         assertState(destination, "main-menu-ready", 1L);
+        assertEquals(firstMainMenuTime,
+                String.valueOf(RuntimeSemanticState.telemetry().get("mainMenuReadyAt")));
 
         RuntimeSemanticState.campaignReady();
         assertState(destination, "campaign-ready", 2L);
@@ -38,6 +41,7 @@ final class RuntimeSemanticStateTest {
         assertState(destination, "campaign-ready", 4L);
         RuntimeSemanticState.stopped();
         assertState(destination, "stopped", 5L);
+        assertTrue(Files.readString(destination).contains("\"mainMenuReadyAt\":"));
         assertTrue(RuntimeSemanticState.telemetry().get("writeProblem") == null);
     }
 
