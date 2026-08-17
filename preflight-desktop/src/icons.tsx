@@ -51,6 +51,16 @@ export function ShipIcon(props: IconProps) {
   );
 }
 
+export function SidebarIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="m14 9 3 3-3 3" />
+    </svg>
+  );
+}
+
 export function SettingsIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

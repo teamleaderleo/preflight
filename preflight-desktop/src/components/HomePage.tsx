@@ -177,7 +177,7 @@ export function HomePage({
     <>
       <section className={`launch-console card launch-console--${status} ${isReady ? "launch-console--ready" : "launch-console--setup"} ${isReady && launcherDraft && launcherSettings ? "launch-console--configured" : ""} ${launchSettingsDirty ? "launch-console--settings-dirty" : ""}`}>
         <div className="launch-console__primary">
-          {flightPlot}
+          {isReady ? flightPlot : null}
           {/*
             * Before an installation is chosen the heading below already says "Installation
             * required" in longer words, and the chip said it again directly above it. A chip is

@@ -163,7 +163,7 @@ default-off toggle rather than a side effect of enabling server observability.
 
 ## Update, removal, and storage contract
 
-The default desktop path should present a primary action—**Make Starsector fast**—and an honest
+The default desktop path presents one primary action, **Launch Starsector**, and an honest
 before/after result. Advanced controls remain available without becoming prerequisites.
 
 - Updates may be checked in the background, but installation is explicit. Every Tauri updater

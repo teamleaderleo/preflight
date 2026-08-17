@@ -15,6 +15,7 @@ import {
   readLastInstallRoot,
   rememberLastInstallRoot,
   REPORT_RECEIPT_STORAGE_KEY,
+  SIDEBAR_STORAGE_KEY,
   SPEED_RECORD_STORAGE_KEY,
   THEME_STORAGE_KEY,
 } from "./desktopStorage";
@@ -35,6 +36,7 @@ describe("desktop storage ownership", () => {
       INSTRUMENT_HULL_STORAGE_KEY,
       INSTRUMENT_HULL_TUNING_STORAGE_KEY,
       LAST_INSTALL_ROOT_STORAGE_KEY,
+      SIDEBAR_STORAGE_KEY,
     ]);
     expect(new Set(PREFLIGHT_LOCAL_STORAGE_KEYS).size).toBe(PREFLIGHT_LOCAL_STORAGE_KEYS.length);
   });

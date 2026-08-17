@@ -58,81 +58,86 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
 
   return (
     <div className="hangar-page">
-      <section className="card hangar-stage" aria-label="Selected display ship">
-        <div className="hangar-stage__instrument">
-          <FlightInstrument hull={instrumentHull.selected} variant="stage" />
-        </div>
-        <div className="hangar-stage__caption">
-          <h2>{instrumentHull.selected.name}</h2>
-          <p>{instrumentHull.selected.hullSize.replaceAll("_", " ").toLowerCase()}</p>
-        </div>
-        <div className="hangar-stage__stepper" aria-label="Featured ship">
-          <button type="button" aria-label="Previous featured ship" onClick={() => stepFeatured(-1)} disabled={featured.length === 0}>←</button>
-          <button type="button" aria-label="Next featured ship" onClick={() => stepFeatured(1)} disabled={featured.length === 0}>→</button>
-        </div>
-      </section>
-
-      <section className="card hangar-controls">
-        {featured.length > 0 ? (
-          <div className="hangar-featured" role="group" aria-label="Featured ships">
-            {featured.map((hull) => (
-              <button
-                key={hull.id}
-                className={hull.id === instrumentHull.selectedId ? "hangar-ship hangar-ship--selected" : "hangar-ship"}
-                type="button"
-                aria-pressed={hull.id === instrumentHull.selectedId}
-                onClick={() => instrumentHull.choose(hull.id)}
-              >
-                <span>{hull.name}</span>
-                <small>{hull.hullSize.replaceAll("_", " ").toLowerCase()}</small>
-              </button>
-            ))}
+      <section className="hangar-display" aria-label="Selected display ship">
+        <div className="hangar-stage">
+          <div className="hangar-stage__instrument">
+            <FlightInstrument hull={instrumentHull.selected} variant="stage" />
           </div>
-        ) : (
-          <p className="hangar-loading">{instrumentHull.catalogLoaded ? "Using the Preflight ship." : "Finding your ships…"}</p>
-        )}
-
-        <label className="setting-field hangar-all-ships">
-          <span>All ships</span>
-          <select
-            aria-label="Display ship"
-            value={instrumentHull.selectedId}
-            onChange={(event) => instrumentHull.choose(event.target.value)}
-          >
-            {featured.length > 0 ? (
-              <optgroup label="Featured">
-                {featured.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
-              </optgroup>
-            ) : null}
-            {more.length > 0 ? (
-              <optgroup label="More from this installation">
-                {more.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
-              </optgroup>
-            ) : null}
-            <optgroup label="Preflight">
-              <option value="preflight-courier">Preflight courier</option>
-            </optgroup>
-          </select>
-          <small>{instrumentHull.catalog
-            ? `${instrumentHull.catalog.hulls.length.toLocaleString()} available`
-            : instrumentHull.catalogLoaded ? "Installation catalog unavailable" : "Reading the local catalog…"}</small>
-        </label>
-
-        <details className="wireframe-customizer">
-          <summary>Adjust the wireframe</summary>
-          <div className="wireframe-customizer__body">
-            <fieldset>
-              <legend>Shape</legend>
-              <WireframeSlider label="Outline smoothing" setting="outerSmooth" value={instrumentHull.tuning.outerSmooth} minimum={0} maximum={0.9} step={0.02} format={(value) => value === 0 ? "None" : value.toFixed(2)} onChange={instrumentHull.customize} />
-              <WireframeSlider label="Outline simplification" setting="outerDetail" value={instrumentHull.tuning.outerDetail} minimum={0} maximum={0.06} step={0.001} format={(value) => value === 0 ? "Full" : value.toFixed(3)} onChange={instrumentHull.customize} />
-              <WireframeSlider label="Model height" setting="height" value={instrumentHull.tuning.height} minimum={0.2} maximum={2.2} step={0.05} format={(value) => `${value.toFixed(2)}×`} onChange={instrumentHull.customize} />
-            </fieldset>
-            <div className="wireframe-customizer__actions">
-              <button className="button button--quiet button--compact" type="button" disabled={!instrumentHull.customized} onClick={instrumentHull.resetCustomization}>Reset this ship</button>
-              <small>Saved on this computer. Starsector files stay untouched.</small>
+          <span className="hangar-stage__corner hangar-stage__corner--start">Local wireframe</span>
+          <span className="hangar-stage__corner hangar-stage__corner--end">Idle display</span>
+          <div className="hangar-stage__stepper" aria-label="Featured ship">
+            <button type="button" aria-label="Previous featured ship" onClick={() => stepFeatured(-1)} disabled={featured.length === 0}>←</button>
+            <button type="button" aria-label="Next featured ship" onClick={() => stepFeatured(1)} disabled={featured.length === 0}>→</button>
+          </div>
+        </div>
+        <aside className="hangar-readout">
+          <div className="hangar-readout__identity">
+            <span>Display hull</span>
+            <h2>{instrumentHull.selected.name}</h2>
+            <p>{instrumentHull.selected.hullSize.replaceAll("_", " ").toLowerCase()}</p>
+          </div>
+          {featured.length > 0 ? (
+            <div className="hangar-featured" role="group" aria-label="Featured ships">
+              {featured.map((hull) => (
+                <button
+                  key={hull.id}
+                  className={hull.id === instrumentHull.selectedId ? "hangar-ship hangar-ship--selected" : "hangar-ship"}
+                  type="button"
+                  aria-label={hull.name}
+                  title={hull.name}
+                  aria-pressed={hull.id === instrumentHull.selectedId}
+                  onClick={() => instrumentHull.choose(hull.id)}
+                >
+                  {hull.name}
+                </button>
+              ))}
             </div>
-          </div>
-        </details>
+          ) : (
+            <p className="hangar-loading">{instrumentHull.catalogLoaded ? "Using the Preflight ship." : "Finding your ships…"}</p>
+          )}
+
+          <label className="setting-field hangar-all-ships">
+            <span>All ships</span>
+            <select
+              aria-label="Display ship"
+              value={instrumentHull.selectedId}
+              onChange={(event) => instrumentHull.choose(event.target.value)}
+            >
+              {featured.length > 0 ? (
+                <optgroup label="Featured">
+                  {featured.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
+                </optgroup>
+              ) : null}
+              {more.length > 0 ? (
+                <optgroup label="More from this installation">
+                  {more.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
+                </optgroup>
+              ) : null}
+              <optgroup label="Preflight">
+                <option value="preflight-courier">Preflight courier</option>
+              </optgroup>
+            </select>
+            <small>{instrumentHull.catalog
+              ? `${instrumentHull.catalog.hulls.length.toLocaleString()} available`
+              : instrumentHull.catalogLoaded ? "Installation catalog unavailable" : "Reading the local catalog…"}</small>
+          </label>
+
+          <details className="wireframe-customizer">
+            <summary>Adjust wireframe</summary>
+            <div className="wireframe-customizer__body">
+              <fieldset>
+                <legend>Shape</legend>
+                <WireframeSlider label="Outline smoothing" setting="outerSmooth" value={instrumentHull.tuning.outerSmooth} minimum={0} maximum={0.9} step={0.02} format={(value) => value === 0 ? "None" : value.toFixed(2)} onChange={instrumentHull.customize} />
+                <WireframeSlider label="Outline simplification" setting="outerDetail" value={instrumentHull.tuning.outerDetail} minimum={0} maximum={0.06} step={0.001} format={(value) => value === 0 ? "Full" : value.toFixed(3)} onChange={instrumentHull.customize} />
+                <WireframeSlider label="Model height" setting="height" value={instrumentHull.tuning.height} minimum={0.2} maximum={2.2} step={0.05} format={(value) => `${value.toFixed(2)}×`} onChange={instrumentHull.customize} />
+              </fieldset>
+              <div className="wireframe-customizer__actions">
+                <button className="button button--quiet button--compact" type="button" disabled={!instrumentHull.customized} onClick={instrumentHull.resetCustomization}>Reset this ship</button>
+                <small>Saved locally. Starsector stays untouched.</small>
+              </div>
+            </div>
+          </details>
+        </aside>
       </section>
     </div>
   );

@@ -76,8 +76,8 @@ still inside the release boundary below.
   published campaign so far still measured checkout bytes, so the exact-candidate pair itself
   remains to run. The
   [controlled campaign](evidence/2026-08-15-controlled-vanilla-fast-campaign.md) of 2026-08-15 did
-  close the *other* half of this item — a same-profile vanilla baseline against the shipped preset,
-  89.00s versus 15.53s — but it too ran the checkout jar.
+  close the *other* half of this item, a same-profile vanilla baseline against the shipped preset,
+  89.00s versus 15.53s, but it too ran the checkout jar.
 
 ## Blocking product work
 
