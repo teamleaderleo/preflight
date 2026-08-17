@@ -58,7 +58,6 @@ export function SettingsPage({
         <div className="preference-block">
           <div>
             <h2>After launch</h2>
-            <p>Keep Preflight nearby without covering the game.</p>
           </div>
           <label className="setting-field preference-field">
             <span>Window</span>

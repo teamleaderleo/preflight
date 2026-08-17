@@ -1,5 +1,6 @@
 import type { AppStatus } from "../types";
 import { openProjectLink } from "../bridge";
+import { SIDEBAR_STORAGE_KEY } from "../desktopStorage";
 import {
   HomeIcon,
   LayersIcon,
@@ -7,6 +8,7 @@ import {
   MoonIcon,
   SettingsIcon,
   ShipIcon,
+  SidebarIcon,
   SparklesIcon,
   SunIcon,
   SystemThemeIcon,
@@ -17,6 +19,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -73,6 +76,13 @@ export function DesktopShell({
   onThemeChange,
   onPaletteChange,
 }: DesktopShellProps) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "collapsed";
+    } catch {
+      return false;
+    }
+  });
   const homeActive = page === "home" || page === "launch";
   const speedActive = page === "speed" || page === "benchmark";
   const pageViewport = useRef<HTMLDivElement>(null);
@@ -100,6 +110,17 @@ export function DesktopShell({
     event.currentTarget.style.setProperty("--grid-x", "-1000px");
     event.currentTarget.style.setProperty("--grid-y", "-1000px");
   }, []);
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? "collapsed" : "expanded");
+      } catch {
+        // A denied WebView store only makes the sidebar start expanded next time.
+      }
+      return next;
+    });
+  }, []);
   useEffect(() => {
     if (pageViewport.current) pageViewport.current.scrollTop = 0;
     document.documentElement.scrollTop = 0;
@@ -112,13 +133,25 @@ export function DesktopShell({
   }, []);
   return (
     <div
-      className="app-shell"
+      className={`app-shell${sidebarCollapsed ? " app-shell--sidebar-collapsed" : ""}`}
       onPointerMove={moveGridHighlight}
       onPointerLeave={hideGridHighlight}
     >
       <a className="skip-link" href="#main-content">Skip to workspace</a>
       <aside className="sidebar">
-        <Logo />
+        <div className="sidebar__masthead">
+          <Logo compact={sidebarCollapsed} />
+          <button
+            className="sidebar__collapse"
+            type="button"
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={toggleSidebar}
+          >
+            <SidebarIcon />
+          </button>
+        </div>
         <nav className="nav" aria-label="Main navigation">
           <button className={`nav__item ${homeActive ? "nav__item--active" : ""}`} type="button" title="Home" aria-current={homeActive ? "page" : undefined} onClick={() => onPageChange("home")}>
             <HomeIcon /><span>Home</span>

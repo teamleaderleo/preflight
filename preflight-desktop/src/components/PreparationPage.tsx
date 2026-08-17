@@ -172,10 +172,10 @@ export function PreparationPage({
           <button className="icon-button icon-button--small" type="button" onClick={() => void refreshCache()} aria-label="Refresh cache storage" disabled={cacheLoading || operationBlocked}><RefreshIcon className={cacheLoading ? "spin" : ""} /></button>
         </div>
         <div className="storage-summary-row">
-          <div><strong className="storage-total">{cache ? formatBytes(cache.groups.find((group) => group.id === "acceleration")?.bytes ?? 0) : "—"}</strong><span className="storage-files">Prepared data</span></div>
-          <div><span>Reports and benchmarks</span><strong>{cache ? formatBytes(cache.groups.find((group) => group.id === "evidence")?.bytes ?? 0) : "—"}</strong><small>Old sessions can be removed without slowing launches.</small></div>
+          <div><strong className="storage-total">{cache ? formatBytes(cache.groups.find((group) => group.id === "acceleration")?.bytes ?? 0) : "…"}</strong><span className="storage-files">Prepared data</span></div>
+          <div><span>Reports and benchmarks</span><strong>{cache ? formatBytes(cache.groups.find((group) => group.id === "evidence")?.bytes ?? 0) : "…"}</strong><small>Old sessions can be removed without slowing launches.</small></div>
           {/* The conservative build bound matters before preparation, not on every launch. */}
-          {!profilePrepared || preparing ? <div><span>Free space needed to prepare</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Finished data uses much less.</small></div> : null}
+          {!profilePrepared || preparing ? <div><span>Free space needed to prepare</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "…"}</strong><small>Finished data uses much less.</small></div> : null}
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (
@@ -191,8 +191,8 @@ export function PreparationPage({
               return <div key={group.id}><span>{label}</span><strong>{formatBytes(group.bytes)}</strong>{detail ? <small>{detail}</small> : null}</div>;
             })}
             {(cache?.uncategorizedBytes ?? 0) > 0 ? <div><span>Other Preflight data</span><strong>{formatBytes(cache?.uncategorizedBytes ?? 0)}</strong><small>Files that don’t fit a category above.</small></div> : null}
-            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "—"}</strong><small>A one-off cost for the current mod list. Preparation won’t start unless the larger figure above fits.</small></div>
-            <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "—"}</strong><small>Space currently free where Preflight stores its data.</small></div>
+            <div><span>Preparing this profile adds</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.predictedAdditionalBytes) : "…"}</strong><small>A one-off cost for the current mod list. Preparation won’t start unless the larger figure above fits.</small></div>
+            <div><span>Free on this disk</span><strong>{preparationPlan ? formatBytes(preparationPlan.usableBytes) : "…"}</strong><small>Space currently free where Preflight stores its data.</small></div>
           </div>
         </details>
       </section>

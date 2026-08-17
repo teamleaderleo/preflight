@@ -480,6 +480,20 @@ test("does not rediscover a stable installation when the window regains focus", 
   snapshot.mockRestore();
 });
 
+test("keeps launch-route drafting lines off the installation picker", async () => {
+  const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({
+    ...(await bridge.getSnapshot()),
+    ready: false,
+    selected: null,
+  });
+
+  const { container } = render(<App />);
+  await screen.findByRole("button", { name: "Choose game folder" });
+
+  expect(container.querySelector(".flight-plot")).not.toBeInTheDocument();
+  snapshot.mockRestore();
+});
+
 test("window focus never changes the quick game controls", async () => {
   render(<App />);
   const sound = await screen.findByRole("checkbox", { name: "Home sound" });
@@ -773,7 +787,7 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   expect(within(ship).getByRole("option", { name: "Preflight courier" })).toBeInTheDocument();
   expect(screen.getByText("6 available")).toBeInTheDocument();
 
-  await user.click(screen.getByText("Adjust the wireframe"));
+  await user.click(screen.getByText("Adjust wireframe"));
   const height = screen.getByRole("slider", { name: "Model height" });
   fireEvent.change(height, { target: { value: "1.35" } });
   expect(screen.getByRole("button", { name: "Reset this ship" })).toBeEnabled();
@@ -783,6 +797,18 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   expect(screen.getByRole("button", { name: "Reset this ship" })).toBeDisabled();
   await user.selectOptions(ship, "odyssey");
   expect(screen.getByRole("slider", { name: "Model height" })).toHaveValue("1.35");
+});
+
+test("the desktop sidebar collapses to icon navigation without losing its destinations", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  const collapse = await screen.findByRole("button", { name: "Collapse sidebar" });
+  await user.click(collapse);
+  expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute("aria-expanded", "false");
+  expect(window.localStorage.getItem("preflight.sidebar")).toBe("collapsed");
+  expect(screen.getByRole("button", { name: "Home" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Hangar" })).toBeEnabled();
 });
 
 test("a restored running window offers graceful stop before force stop", async () => {
