@@ -47,8 +47,11 @@
 
 ### Desktop UX Polish & Gating
 - **Launch Posture**: Added posture indicator (`Accelerations active · Balanced storage` / `Original code and assets · Vanilla fallback`) under the primary launch button in [`HomePage.tsx`](preflight-desktop/src/components/HomePage.tsx).
-- **Hydration Stability**: Added `min-height: 130px` to `.quick-settings--loading` in [`styles.css`](preflight-desktop/src/styles.css) to eliminate layout shift during startup settings scan.
-- **Uncoupled Operation Gating**: Ensured quick launcher settings remain responsive during background profile operations.
+### Hangar Hull Picker Selection Retention & Count Consistency ([#602](https://github.com/teamleaderleo/preflight/issues/602))
+- **Selection Retention**: Ensured `HullPicker` preserves the selected non-featured hull within the rendered view even when its index exceeds the 60-item limit (`VISIBLE_LIMIT`), while enforcing the hard 60-row rendering budget and maintaining `aria-pressed="true"`.
+- **Search Clearing**: Retains the deep selected row when clearing a filtered search.
+- **Count Wording**: Resolved contradictory "installed" counts between the Hangar header (`catalog.hulls.length installed`) and the picker subset by labeling the picker's count as `N additional hulls`.
+- **Verification**: Unit tests added in `HullPicker.test.tsx` verifying slice retention and filter clearing.
 
 ---
 
@@ -56,8 +59,9 @@
 
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
   - **Release Node Tests**: 110/110 passing
-  - **Vitest Unit Tests**: 201/201 passing across 24 test suites
-  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 147ms
-  - **Rust Backend Tests**: 81/81 Cargo tests passing
-  - **Cargo Format & Clippy**: `cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --all-targets -- -D warnings` (0 warnings)
-- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest,CacheCommandTest,LaunchLedgerTest -Dsurefire.failIfNoSpecifiedTests=false` (29/29 CLI tests passing)
+  - **Vitest Unit Tests**: 230/230 passing across 28 test suites
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 85ms
+  - **Rust Backend Tests**: 86/86 Cargo tests passing
+  - **Cargo Format & Clippy**: `0` warnings
+- **Maven Backend**: `./mvnw test` (120/120 CLI tests passing, 688/688 total project tests passing)
+
