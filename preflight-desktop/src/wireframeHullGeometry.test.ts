@@ -98,4 +98,50 @@ describe("wireframe hull geometry", () => {
     expect(Math.min(...keel.map((segment) => segment.from.y)))
       .toBeCloseTo(-Math.max(...keel.map((segment) => segment.from.y)), 8);
   });
+
+  it("draws sprite traces as plates instead of adding the generic cabin and weapon circles", () => {
+    const traced: WireframeHull = {
+      ...hull,
+      id: "traced-test",
+      bounds: [
+        { x: 12, y: 0 },
+        { x: 2, y: 9 },
+        { x: -10, y: 7 },
+        { x: -12, y: 0 },
+        { x: -10, y: -7 },
+        { x: 2, y: -9 },
+      ],
+      trace: {
+        holes: [[
+          { x: 2, y: 2 },
+          { x: -2, y: 2 },
+          { x: -2, y: -2 },
+          { x: 2, y: -2 },
+        ]],
+        inner: [{
+          height: 0.86,
+          points: [
+            { x: 8, y: 0 },
+            { x: 1, y: 3 },
+            { x: -5, y: 0 },
+            { x: 1, y: -3 },
+          ],
+        }],
+      },
+    };
+
+    const segments = buildHullSegments(traced, "medium");
+    expect(segments.filter((segment) => segment.kind === "outline")).toHaveLength(10);
+    expect(segments.filter((segment) => segment.kind === "deck")).toHaveLength(14);
+    expect(segments.filter((segment) => segment.kind === "keel")).toHaveLength(10);
+    const projected = projectHull(traced, 0.2, "medium");
+    expect(projected.deck).toEqual([]);
+    expect(projected.mounts).toEqual([]);
+  });
+
+  it("keeps the collision-bound fallback for hulls without a readable sprite trace", () => {
+    const segments = buildHullSegments(hull, "medium");
+    expect(segments.filter((segment) => segment.kind === "deck")).toHaveLength(6);
+    expect(projectHull(hull, 0.2, "medium").mounts).toHaveLength(1);
+  });
 });

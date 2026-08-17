@@ -480,6 +480,21 @@ test("does not rediscover a stable installation when the window regains focus", 
   snapshot.mockRestore();
 });
 
+test("window focus never changes the quick game controls", async () => {
+  render(<App />);
+  const sound = await screen.findByRole("checkbox", { name: "Home sound" });
+  expect(sound).toBeEnabled();
+  expect(sound).toBeChecked();
+
+  window.dispatchEvent(new Event("blur"));
+  document.dispatchEvent(new Event("visibilitychange"));
+  window.dispatchEvent(new Event("focus"));
+  await Promise.resolve();
+
+  expect(sound).toBeEnabled();
+  expect(sound).toBeChecked();
+});
+
 test("returning to the window does not re-read the installation while the game runs", async () => {
   const user = userEvent.setup();
   const game = vi.spyOn(bridge, "startGame").mockImplementation(() => new Promise(() => undefined));
@@ -756,7 +771,7 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
     expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
   }
   expect(within(ship).getByRole("option", { name: "Preflight courier" })).toBeInTheDocument();
-  expect(screen.getByText("7 available")).toBeInTheDocument();
+  expect(screen.getByText("6 available")).toBeInTheDocument();
 
   await user.click(screen.getByText("Adjust the wireframe"));
   const height = screen.getByRole("slider", { name: "Model height" });

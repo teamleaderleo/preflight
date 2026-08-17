@@ -77,7 +77,13 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
  * either way. Batching the edges by kind and giving each kind a flat colour was tried, and the
  * ship came out looking like a diagram of itself.
  */
-function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, palette: InstrumentPalette) {
+function drawHull(
+  canvas: HTMLCanvasElement,
+  hull: WireframeHull,
+  yaw: number,
+  palette: InstrumentPalette,
+  variant: "badge" | "stage",
+) {
   const context = canvas.getContext("2d");
   if (!context) return;
   const width = canvas.clientWidth;
@@ -105,7 +111,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
    * pumps the whole picture on every frame. The geometry is already normalised to one frame,
    * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
    */
-  const scale = Math.min(width, height) * 0.46;
+  const scale = Math.min(width, height) * (variant === "stage" ? 0.56 : 0.46);
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
     y: height / 2 + point.y * scale,
@@ -204,7 +210,7 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
     /* The angle a still frame is parked at, for reduced motion and the first paint. */
     const RESTING = variant === "stage" ? 0.52 : 0.38;
     let yaw = RESTING;
-    const drawStill = () => drawHull(canvas, hull, yaw, palette);
+    const drawStill = () => drawHull(canvas, hull, yaw, palette, variant);
     const schedule = () => {
       if (frame === null && visible && !reducedMotion.matches) frame = window.requestAnimationFrame(render);
     };
@@ -212,12 +218,13 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
     const render = (time: number) => {
       frame = null;
       if (!visible || reducedMotion.matches) return;
+      if (previous === 0) previous = time;
       if (time - previous >= 1000 / 24) {
         // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
         // does not change how fast the ship appears to turn.
         yaw += Math.min(time - previous, 250) / 1000 * RATE;
         previous = time;
-        drawHull(canvas, hull, yaw, palette);
+        drawHull(canvas, hull, yaw, palette, variant);
       }
       schedule();
     };

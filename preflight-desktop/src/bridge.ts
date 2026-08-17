@@ -31,6 +31,7 @@ import type {
   RunStarted,
   StopGameResult,
   UpdateStatus,
+  WireframeHull,
   WireframeHullCatalog,
 } from "./types";
 
@@ -130,10 +131,33 @@ const previewProfiles: NamedProfile[] = [
 
 // Browser-only drafting fixtures keep the locally discovered selector reviewable without
 // bundling game data. The desktop command replaces this entire catalog from the chosen install.
+function previewTracedHull(hull: WireframeHull): WireframeHull {
+  const minX = Math.min(...hull.bounds.map((point) => point.x));
+  const maxX = Math.max(...hull.bounds.map((point) => point.x));
+  const minY = Math.min(...hull.bounds.map((point) => point.y));
+  const maxY = Math.max(...hull.bounds.map((point) => point.y));
+  const center = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  return {
+    ...hull,
+    trace: {
+      holes: [],
+      // Representative raised geometry for layout review. Native builds replace it with the
+      // bounded alpha/luminance trace from the selected installation.
+      inner: [{
+        height: 0.66,
+        points: hull.bounds.map((point) => ({
+          x: center.x + (point.x - center.x) * 0.52,
+          y: center.y + (point.y - center.y) * 0.52,
+        })),
+      }],
+    },
+  };
+}
+
 const previewWireframeHulls: WireframeHullCatalog = {
   format: "preflight-wireframe-hulls-v1",
   skipped: 0,
-  hulls: [
+  hulls: ([
     {
       id: "hammerhead",
       name: "Hammerhead",
@@ -218,7 +242,7 @@ const previewWireframeHulls: WireframeHullCatalog = {
       engines: [{ x: -114, y: 27, angle: 180, width: 15, length: 28 }, { x: -114, y: -27, angle: 180, width: 15, length: 28 }],
       mounts: [{ x: 48, y: 0, angle: 0, size: "LARGE", mount: "TURRET" }],
     },
-  ],
+  ] satisfies WireframeHull[]).map(previewTracedHull),
 };
 
 export function isDesktopHost(): boolean {

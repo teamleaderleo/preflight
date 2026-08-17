@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { ShipIcon } from "../icons";
 import type { WireframeTuning } from "../types";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import { FlightInstrument } from "./FlightInstrument";
@@ -74,13 +73,6 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
       </section>
 
       <section className="card hangar-controls">
-        <div className="card__heading">
-          <div>
-            <h2>Ship</h2>
-          </div>
-          <ShipIcon />
-        </div>
-
         {featured.length > 0 ? (
           <div className="hangar-featured" role="group" aria-label="Featured ships">
             {featured.map((hull) => (
@@ -122,7 +114,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             </optgroup>
           </select>
           <small>{instrumentHull.catalog
-            ? `${instrumentHull.hulls.length.toLocaleString()} available`
+            ? `${instrumentHull.catalog.hulls.length.toLocaleString()} available`
             : instrumentHull.catalogLoaded ? "Installation catalog unavailable" : "Reading the local catalog…"}</small>
         </label>
 
