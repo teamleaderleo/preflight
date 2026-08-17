@@ -350,7 +350,7 @@ export function HomePage({
           draft={launcherDraft}
           dirty={launchSettingsDirty}
           saving={launcherSettingsSaving}
-          disabled={launchSettingsBlocked || operationBlocked || launcherSettingsLoading}
+          disabled={launchSettingsBlocked || launcherSettingsLoading}
           onChange={onLauncherChange}
           onOpenAll={() => onNavigate("launch")}
           onSave={onSaveLauncherSettings}
