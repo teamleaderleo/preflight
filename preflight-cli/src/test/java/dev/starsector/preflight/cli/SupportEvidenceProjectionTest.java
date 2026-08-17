@@ -48,6 +48,61 @@ class SupportEvidenceProjectionTest {
     }
 
     @Test
+    void dropsEmbeddedUnixWindowsAndUncPathsFromAllowedProse() {
+        String unix = text(SupportEvidenceProjection.project(
+                "unix.json",
+                "{\"reason\":\"Could not read /opt/Starsector/private-profile.json\",\"status\":\"ok\"}"));
+        String windows = text(SupportEvidenceProjection.project(
+                "windows.json",
+                "{\"summary\":\"Failed at C:\\\\Users\\\\alice\\\\secret.txt\",\"status\":\"ok\"}"));
+        String unc = text(SupportEvidenceProjection.project(
+                "unc.json",
+                "{\"summary\":\"Failed at \\\\\\\\server\\\\share\\\\secret.txt\",\"status\":\"ok\"}"));
+
+        assertFalse(unix.contains("/opt/Starsector"), unix);
+        assertFalse(windows.contains("Users"), windows);
+        assertFalse(unc.contains("server"), unc);
+        assertTrue(unix.contains("status"), unix);
+        assertTrue(windows.contains("status"), windows);
+        assertTrue(unc.contains("status"), unc);
+    }
+
+    @Test
+    void dropsEmbeddedUrisAndSecretAssignmentsFromAllowedProse() {
+        String fileUri = text(SupportEvidenceProjection.project(
+                "file-uri.json",
+                "{\"reason\":\"Could not open file:///Users/alice/private.json\",\"status\":\"ok\"}"));
+        String url = text(SupportEvidenceProjection.project(
+                "url.json",
+                "{\"summary\":\"Upload failed at https://support.example/case?token=secret\",\"status\":\"ok\"}"));
+        String token = text(SupportEvidenceProjection.project(
+                "token.json",
+                "{\"reason\":\"authorization: Bearer top-secret\",\"status\":\"ok\"}"));
+
+        assertFalse(fileUri.contains("file:"), fileUri);
+        assertFalse(url.contains("support.example"), url);
+        assertFalse(token.contains("top-secret"), token);
+        assertTrue(fileUri.contains("status"), fileUri);
+        assertTrue(url.contains("status"), url);
+        assertTrue(token.contains("status"), token);
+    }
+
+    @Test
+    void keepsRedactedHomeAndLogicalResourcePathsButRejectsASecondAbsolutePath() {
+        String safe = text(SupportEvidenceProjection.project(
+                "safe.json",
+                "{\"reason\":\"cache miss for <home>/cache and graphics/foo.png\",\"status\":\"ok\"}"));
+        String mixed = text(SupportEvidenceProjection.project(
+                "mixed.json",
+                "{\"reason\":\"home is <home>/cache; fallback is /Volumes/private/cache\",\"status\":\"ok\"}"));
+
+        assertTrue(safe.contains("&lt;home&gt;/cache") || safe.contains("<home>/cache"), safe);
+        assertTrue(safe.contains("graphics/foo.png"), safe);
+        assertFalse(mixed.contains("Volumes"), mixed);
+        assertTrue(mixed.contains("status"), mixed);
+    }
+
+    @Test
     void projectsJsonlIntoBoundedRecords() {
         String projected = text(SupportEvidenceProjection.project(
                 "results.jsonl",
