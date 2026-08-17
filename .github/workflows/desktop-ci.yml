@@ -85,7 +85,7 @@ jobs:
       - uses: ./.github/actions/setup-build-jdk
 
       - name: Build bounded engine JAR once
-        run: mvn --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests package
+        run: ./mvnw --batch-mode --no-transfer-progress -pl preflight-cli -am -DskipTests package
 
       - name: Verify runnable JAR boundary
         run: python3 -c "from pathlib import Path; import sys; sys.path.insert(0, 'scripts'); import verify_release_boundary as v; v.validate_jar_bytes(Path('preflight-cli/target/preflight.jar').read_bytes())"
