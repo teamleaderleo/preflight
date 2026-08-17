@@ -47,8 +47,10 @@
 
 ### Desktop UX Polish & Gating
 - **Launch Posture**: Added posture indicator (`Accelerations active · Balanced storage` / `Original code and assets · Vanilla fallback`) under the primary launch button in [`HomePage.tsx`](preflight-desktop/src/components/HomePage.tsx).
-- **Hydration Stability**: Added `min-height: 130px` to `.quick-settings--loading` in [`styles.css`](preflight-desktop/src/styles.css) to eliminate layout shift during startup settings scan.
-- **Uncoupled Operation Gating**: Ensured quick launcher settings remain responsive during background profile operations.
+### Hangar Facet Ring Endpoints In 3D ([#605](https://github.com/teamleaderleo/preflight/issues/605))
+- **Problem**: `sideStations` interpolated `(x, y)` along contour edges and then recomputed `z` via the nonlinear `halfHeight(point)` function. Because deck and keel rings are straight 3D segments between vertex heights, recomputing `halfHeight` caused facet struts and diagonals to terminate slightly above or below the ring segments on sparse contour spans.
+- **Fix**: Derived deck and keel station vertices directly by interpolating along the straight 3D `upper` (deck) and `lower` (keel) ring vertices, guaranteeing that every facet endpoint lies collinearly on the ring segment in all three coordinates.
+- **Verification**: Added regression test in `wireframeHullGeometry.test.ts` asserting 3D segment collinearity across sparse traced contours.
 
 ---
 
@@ -56,8 +58,9 @@
 
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
   - **Release Node Tests**: 110/110 passing
-  - **Vitest Unit Tests**: 201/201 passing across 24 test suites
-  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 147ms
-  - **Rust Backend Tests**: 81/81 Cargo tests passing
-  - **Cargo Format & Clippy**: `cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --all-targets -- -D warnings` (0 warnings)
-- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest,CacheCommandTest,LaunchLedgerTest -Dsurefire.failIfNoSpecifiedTests=false` (29/29 CLI tests passing)
+  - **Vitest Unit Tests**: 229/229 passing across 28 test suites
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 87ms
+  - **Rust Backend Tests**: 86/86 Cargo tests passing
+  - **Cargo Format & Clippy**: `0` warnings
+- **Maven Backend**: `./mvnw test` (120/120 CLI tests passing, 688/688 total project tests passing)
+
