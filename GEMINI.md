@@ -71,6 +71,12 @@
 ### Require Ownership Proof Before Removing Launcher Integrations ([#596](https://github.com/teamleaderleo/preflight/issues/596), [PR #635](https://github.com/teamleaderleo/preflight/pull/635))
 - **Fix**: Added [`IntegrationOwnership.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/IntegrationOwnership.java) to verify structural markers, bundle IDs, and script contents before treating an integration as Preflight-owned. Added `recordInstalledIntegrations()` in `PreflightHome` to bind installed locations in `integrations.json`, surviving environment drift (`LOCALAPPDATA`). `UninstallCommand.plan()` excludes unowned collisions from deletion targets, and `InstallCommand` refuses overwriting unowned collisions.
 
+### Bind ProfileIdentityContext Hashes to Stable Provider Observations ([#603](https://github.com/teamleaderleo/preflight/issues/603), [PR #636](https://github.com/teamleaderleo/preflight/pull/636))
+- **Fix**: In [`ProfileIdentityContext.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileIdentityContext.java), bound memoized file digests to pre- and post-read metadata stability (`size`, `lastModifiedTime`, `fileKey`) against indexed providers and filesystem identity. Fails closed immediately on mid-read modification, replacement, or post-index alteration, preventing invalid digests from entering the cache. Synchronized per-path calculations across threads to eliminate duplicate I/O.
+
+### Cache Derived Installed Hull Catalog Under Exact Cosmetic Input Identity ([#598](https://github.com/teamleaderleo/preflight/issues/598), [PR #637](https://github.com/teamleaderleo/preflight/pull/637))
+- **Fix**: In [`hulls.rs`](preflight-desktop/src-tauri/src/hulls.rs), added `compute_catalog_fingerprint` binding installation identity, `.ship` file names/sizes/mtimes, and featured sprite file sizes/mtimes under generator schema tag `preflight-wireframe-catalog-v1`. Added `CATALOG_CACHE` providing instant catalog reuse for identical installations without redundant I/O or PNG re-tracing. Automatically invalidates when participating ship/sprite inputs change while ignoring unrelated files.
+
 ### Peer Reviews
 - **PR #625** (Codex / Issue #621): Reviewed non-blocking admission; noted `release-receipt-source-lock.json` review requirement.
 - **PR #624** (Codex / Issue #608): Reviewed sub-millisecond `FileTime` precision in direct provider identity.
@@ -84,9 +90,10 @@
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
   - **Release Node Tests**: 110/110 passing
   - **Vitest Unit Tests**: 233/233 passing across 28 test suites
-  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 77ms
-  - **Rust Backend Tests**: 93/93 Cargo tests passing
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 91ms
+  - **Rust Backend Tests**: 98/98 Cargo tests passing
   - **Cargo Format & Clippy**: 0 warnings
-- **Maven Backend**: `./mvnw test` (691/691 tests passing across 5 modules)
+- **Maven Backend**: `./mvnw test` (694/694 tests passing across 5 modules)
+
 
 
