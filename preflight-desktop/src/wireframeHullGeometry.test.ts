@@ -250,9 +250,61 @@ describe("wireframe hull geometry", () => {
     expect(outline(0.06)).toBeGreaterThanOrEqual(12);
   });
 
+  it("places all facet endpoints exactly on straight 3D deck and keel ring segments (#605)", () => {
+    // A sparse traced diamond where halfHeight varies significantly across long diagonal edges
+    const sparseTraced: WireframeHull = {
+      ...hull,
+      id: "sparse-diamond",
+      bounds: [
+        { x: 120, y: 0 },
+        { x: 0, y: 80 },
+        { x: -120, y: 0 },
+        { x: 0, y: -80 },
+      ],
+      trace: { holes: [], inner: [] },
+    };
+
+    const segments = buildHullSegments(sparseTraced, "showcase");
+    const deckRing = segments.filter((s) => s.kind === "deck");
+    const keelRing = segments.filter((s) => s.kind === "keel");
+    const facetStructures = segments.filter((s) => s.kind === "structure");
+
+    expect(facetStructures.length).toBeGreaterThan(0);
+    expect(deckRing.length).toBe(4);
+    expect(keelRing.length).toBe(4);
+
+    const isOnRing3D = (point: { x: number; y: number; z: number }, ring: typeof deckRing) => {
+      return ring.some((segment) => {
+        const dx = segment.to.x - segment.from.x;
+        const dy = segment.to.y - segment.from.y;
+        const dz = segment.to.z - segment.from.z;
+        const lenSq = dx * dx + dy * dy + dz * dz;
+        if (lenSq < 1e-9) return false;
+        const t = ((point.x - segment.from.x) * dx + (point.y - segment.from.y) * dy + (point.z - segment.from.z) * dz) / lenSq;
+        if (t < -1e-4 || t > 1 + 1e-4) return false;
+        const projX = segment.from.x + t * dx;
+        const projY = segment.from.y + t * dy;
+        const projZ = segment.from.z + t * dz;
+        const distSq = (point.x - projX) ** 2 + (point.y - projY) ** 2 + (point.z - projZ) ** 2;
+        return distSq < 1e-6;
+      });
+    };
+
+    for (const struct of facetStructures) {
+      for (const vertex of [struct.from, struct.to]) {
+        if (vertex.z > 1e-4) {
+          expect(isOnRing3D(vertex, deckRing)).toBe(true);
+        } else if (vertex.z < -1e-4) {
+          expect(isOnRing3D(vertex, keelRing)).toBe(true);
+        }
+      }
+    }
+  });
+
   it("keeps the collision-bound fallback for hulls without a readable sprite trace", () => {
     const segments = buildHullSegments(hull, "medium");
     expect(segments.filter((segment) => segment.kind === "deck")).toHaveLength(6);
     expect(projectHull(hull, 0.2, "medium").mounts).toHaveLength(1);
   });
 });
+
