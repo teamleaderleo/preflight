@@ -349,10 +349,13 @@ public final class PreflightCli {
                 "preflight profile list [--game <path>] [--launcher <path>] [--json]",
                 "preflight profile save <name> [--game <path>] [--launcher <path>] [--json]",
                 "preflight profile activate <name> [--game <path>] [--launcher <path>] [--json] [--yes]",
+                "preflight profile repair-dependencies [--game <path>] [--launcher <path>] [--json] [--yes]",
                 "preflight profile rename <name> <new-name> [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
                 "preflight profile delete <name> [--game <path>] [--launcher <path>] [--expected-profile <sha256>] [--json] [--yes]",
                 "  Saves and restores ordered enabled-mod sets. Activation prints the exact plan",
                 "  by default; --yes stages and replaces mods/enabled_mods.json after backing it up.",
+                "  repair-dependencies previews direct installed-but-disabled requirements, preserves",
+                "  mod order, and applies that exact reviewed proposal only when repeated with --yes.",
                 "  Rename and delete also preview by default. Applying them requires the exact profile",
                 "  fingerprint from that preview; delete keeps prepared data and writes a profile backup.",
                 "  Missing mods or a profile saved for another installation are refused."));
@@ -480,7 +483,7 @@ public final class PreflightCli {
             case "uninstall" -> "Remove the launcher integration, and with --purge the cache too.";
             case "cache" -> "Report what Preflight is storing and which profiles it holds.";
             case "evidence" -> "Report, export, and prune bounded diagnostic evidence.";
-            case "profile" -> "Save, inspect, rename, delete, and safely activate named enabled-mod profiles.";
+            case "profile" -> "Save, inspect, repair dependencies, rename, delete, and safely activate enabled-mod profiles.";
             case "scan" -> "Inspect the enabled profile and estimate decoded texture memory.";
             case "index" -> "Build, inspect, query, or validate a resource-provider index.";
             case "texture" -> "Prepare and inspect texture cache artifacts.";

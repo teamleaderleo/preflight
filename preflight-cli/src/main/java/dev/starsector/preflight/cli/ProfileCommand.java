@@ -59,14 +59,19 @@ final class ProfileCommand {
             }
             name = validateName(args[optionsAt++]);
             targetName = validateName(args[optionsAt++]);
-        } else if (!"list".equals(operation)) {
-            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|delete> ...");
+        } else if (!"list".equals(operation) && !"repair-dependencies".equals(operation)) {
+            throw new IllegalArgumentException(
+                    "Expected: profile <list|save|activate|repair-dependencies|rename|delete> ...");
         }
 
         Options options = Options.parse(args, optionsAt);
         boolean mutation = "rename".equals(operation) || "delete".equals(operation);
-        if (options.confirmed() && !("activate".equals(operation) || mutation)) {
-            throw new IllegalArgumentException("--yes is only valid for profile activate, rename, or delete");
+        if (options.confirmed()
+                && !("activate".equals(operation)
+                        || "repair-dependencies".equals(operation)
+                        || mutation)) {
+            throw new IllegalArgumentException(
+                    "--yes is only valid for profile activate, repair-dependencies, rename, or delete");
         }
         if (options.expectedProfile() != null && !mutation) {
             throw new IllegalArgumentException("--expected-profile is only valid for profile rename or delete");
@@ -82,6 +87,8 @@ final class ProfileCommand {
             case "save" -> save(home, target.installRoot(), name, options.json(), System.out);
             case "activate" -> activate(
                     home, target.installRoot(), name, options.confirmed(), options.json(), System.out);
+            case "repair-dependencies" -> ProfileDependencyRepair.execute(
+                    home, target, options.confirmed(), options.json(), System.out);
             case "rename" -> rename(
                     home,
                     target.installRoot(),
@@ -514,7 +521,7 @@ final class ProfileCommand {
                 .normalize();
     }
 
-    private static String callerIdentity() {
+    static String callerIdentity() {
         ProcessHandle parent = ProcessHandle.current().parent().orElse(null);
         if (parent == null) {
             return "unknown-parent";
@@ -587,7 +594,7 @@ final class ProfileCommand {
         Files.deleteIfExists(activationReviewPath(home, installRoot, name));
     }
 
-    private static Path backup(PreflightHome home, byte[] original) throws IOException {
+    static Path backup(PreflightHome home, byte[] original) throws IOException {
         Path directory = SafetyArtifactRetention.requireRealDirectory(home.profileBackups());
         Path target = Files.createTempFile(
                 directory,
@@ -613,7 +620,7 @@ final class ProfileCommand {
                 directory, ACTIVATION_REVIEW_FILE, SafetyArtifactRetention.MAX_ACTIVATION_REVIEWS);
     }
 
-    private static boolean replaceIfUnchanged(Path target, byte[] expected, byte[] replacement)
+    static boolean replaceIfUnchanged(Path target, byte[] expected, byte[] replacement)
             throws IOException {
         byte[] current = Files.readAllBytes(target);
         if (!Arrays.equals(expected, current)) {
@@ -642,7 +649,7 @@ final class ProfileCommand {
         }
     }
 
-    private static void atomicWrite(Path target, String value) throws IOException {
+    static void atomicWrite(Path target, String value) throws IOException {
         Path absolute = target.toAbsolutePath().normalize();
         Path parent = SafetyArtifactRetention.requireRealDirectory(absolute.getParent());
         Path staged = Files.createTempFile(parent, ".preflight-profile-", ".json");
