@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 final class DesktopBridgeCommand {
     private static final int PROTOCOL_VERSION = 1;
     private static final long MAX_ADAPTER_HEALTH_BYTES = 256 * 1024;
+    private static final long MAX_RUN_METADATA_BYTES = 256 * 1024;
 
     private DesktopBridgeCommand() {
     }
@@ -436,6 +437,16 @@ final class DesktopBridgeCommand {
             result.put("directory", latest.toAbsolutePath().normalize());
             result.put("modifiedAt", modifiedAt(latest).toInstant());
             result.put("adapterHealth", adapterHealth(latest.resolve("adapter-health.json")));
+            Map<String, Object> run = runSummary(latest.resolve("run.json"));
+            if (run != null) {
+                result.put("started", run.get("started"));
+                result.put("ended", run.get("ended"));
+                result.put("wrapperPid", run.get("wrapperPid"));
+                result.put("wrapperStartedAt", run.get("wrapperStartedAt"));
+                result.put("outcome", run.get("outcome"));
+                result.put("exitCode", run.get("exitCode"));
+            }
+            result.put("startupMillis", startupMillis(latest.resolve("runtime-state.json")));
             return result;
         } catch (IOException ignored) {
             return null;
@@ -476,6 +487,67 @@ final class DesktopBridgeCommand {
             result.put("evidenceKinds", strings(health.get("evidenceKinds"), 32));
             result.put("suggestedActions", strings(health.get("suggestedActions"), 16));
             return result;
+        } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    private static Map<String, Object> runSummary(Path runFile) {
+        try {
+            if (!Files.isRegularFile(runFile, LinkOption.NOFOLLOW_LINKS)
+                    || Files.size(runFile) > MAX_RUN_METADATA_BYTES) {
+                return null;
+            }
+            byte[] encoded;
+            try (InputStream input = Files.newInputStream(runFile, LinkOption.NOFOLLOW_LINKS)) {
+                encoded = input.readNBytes(Math.toIntExact(MAX_RUN_METADATA_BYTES + 1));
+            }
+            if (encoded.length > MAX_RUN_METADATA_BYTES) {
+                return null;
+            }
+            Map<String, Object> run = StrictJson.object(new String(encoded, StandardCharsets.UTF_8));
+            String started = run.get("started") instanceof String value ? value : null;
+            String ended = run.get("ended") instanceof String value ? value : null;
+            Long wrapperPid = positiveLong(run.get("wrapperPid"));
+            String wrapperStartedAt = validInstant(run.get("wrapperStartedAt"));
+            String outcome = run.get("outcome") instanceof String value ? value : null;
+            Long exitCode = run.get("exitCode") instanceof Number value ? value.longValue() : null;
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("started", started);
+            result.put("ended", ended);
+            result.put("wrapperPid", wrapperPid);
+            result.put("wrapperStartedAt", wrapperStartedAt);
+            result.put("outcome", outcome);
+            result.put("exitCode", exitCode);
+            return result;
+        } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    private static Long positiveLong(Object value) {
+        if (!(value instanceof Number number)
+                || number.doubleValue() != number.longValue()
+                || number.longValue() <= 0L) {
+            return null;
+        }
+        return number.longValue();
+    }
+
+    private static String validInstant(Object value) {
+        if (!(value instanceof String text)) return null;
+        try {
+            Instant.parse(text);
+            return text;
+        } catch (RuntimeException invalid) {
+            return null;
+        }
+    }
+
+    private static Long startupMillis(Path runtimeState) {
+        try {
+            return RuntimeSemanticStateIdentity.read(runtimeState).startupMillis();
         } catch (IOException | RuntimeException unreadable) {
             return null;
         }

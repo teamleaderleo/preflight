@@ -128,8 +128,9 @@ still inside the release boundary below.
   so its receipt can be inspected during the owner walkthrough. A final candidate cancel/retry/delete
   sequence and the first complete hosted candidate matrix remain. See
   [the packaged report canary](evidence/2026-08-08-packaged-report-canary.md).
-- [x] Keep automatic crash upload separate, default off, and out of scope unless its consent and
-  privacy lifecycle are complete. No automatic crash-upload path is present.
+- [x] Keep automatic failed-run reports separate and default off. Consent is versioned and
+  remembered, the exact failed wrapper identity is rechecked, the bounded support ZIP is unchanged,
+  duplicate run uploads are refused, and at most three local automatic ZIPs are retained.
 - [x] Surface Recommended, Conservative, and Off/troubleshooting. Keep raw plan flags behind an
   Advanced disclosure and let the engine enforce dependencies.
 - [x] Preserve the ordinary game settings users expect: resolution, fullscreen, sound,

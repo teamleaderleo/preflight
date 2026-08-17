@@ -58,7 +58,8 @@
   "network": {
     "automaticTelemetry": false,
     "ordinaryLaunchNetwork": false,
-    "reportUpload": "disabled unless a release is compiled with one reviewed HTTPS intake origin and the user explicitly confirms a support ZIP upload",
+    "automaticFailedRunReports": "off by default; when separately enabled, an exact failed launch sends the same bounded support ZIP disclosed in Help to the one reviewed HTTPS intake origin",
+    "reportUpload": "disabled unless a release is compiled with one reviewed HTTPS intake origin; manual support ZIP uploads require explicit confirmation",
     "updates": "a signed metadata request to the fixed HTTPS endpoint recorded in this receipt"
   }
 }

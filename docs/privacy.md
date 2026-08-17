@@ -81,5 +81,7 @@ post private diagnostics, credentials, personal data, or security exploit detail
 use the bounded support flow and [security policy](../SECURITY.md) as applicable.
 **Privacy notice effective date:** 2026-08-13.
 
-Automatic background diagnostics are off. A future automatic-crash option would require a separate,
-remembered, default-off consent choice; enabling ordinary Worker observability can't turn it on.
+Automatic failed-run reports are off by default. Enabling them is a separate remembered choice.
+After an exact failed launch, Preflight exports and sends the same bounded ZIP disclosed in Help.
+The run ID, wrapper PID, and wrapper start time must all match before it sends. At most three local
+automatic ZIPs are retained. Ordinary launch, preparation, and Worker observability can't enable it.

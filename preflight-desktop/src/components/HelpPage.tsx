@@ -42,6 +42,7 @@ export function HelpPage({
     reportReview,
     reportUploadedBytes,
     reportUploading,
+    automaticRunReports,
     copyRunReportReceipt,
     dismissRunReportReceipt,
     removeRunReport,
@@ -96,7 +97,9 @@ export function HelpPage({
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
               : "Make a redacted support ZIP. You can review it before sending."}</p>
-            <small>Nothing uploads automatically.</small>
+            <small>{automaticRunReports
+              ? "Failed-run reports are on. A failed launch can send this same ZIP automatically."
+              : "Nothing is sent unless you choose Send."}</small>
           </div>
           <div className="report-actions">
             <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
@@ -139,7 +142,7 @@ export function HelpPage({
             <div><p className="eyebrow">Send review</p><h2>Send this exact file?</h2></div>
             <button className="text-button" type="button" onClick={() => setReportReview(false)} disabled={reportUploading}>Cancel</button>
           </div>
-          <p>This sends the ZIP below to {reportIntake?.origin}. The service receives your IP address for delivery and rate limiting. Preflight never uploads in the background.</p>
+          <p>This sends the exact ZIP below to {reportIntake?.origin}. The service receives your IP address for delivery and rate limiting.</p>
           <div className="report-facts">
             <div><span>File</span><strong>{shortPath(diagnosticsExport.output)}</strong></div>
             <div><span>Size</span><strong>{formatBytes(diagnosticsExport.bytes)} ({diagnosticsExport.bytes.toLocaleString()} bytes)</strong></div>

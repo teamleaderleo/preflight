@@ -14,8 +14,9 @@ The short version:
   network don't supply arbitrary shell commands. Stopping a frozen launch requires the recorded
   process ID and matching start time, so a reused ID or unrelated Starsector process is left alone.
 - Ordinary preparation and launch send no telemetry. Update checks use the fixed signed-update URL
-  in the receipt. A support ZIP is uploaded only after the user confirms it, and only when that
-  release was compiled with the exact HTTPS intake origin shown in the receipt.
+  in the receipt. Manual support ZIPs require confirmation. Optional failed-run reports start off;
+  when enabled, an exact failed wrapper can send the same bounded ZIP. Both paths require the exact
+  HTTPS intake origin shown in the receipt.
 
 ## Why the receipt is useful
 

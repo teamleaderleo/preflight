@@ -50,9 +50,9 @@ Azeri it already fails to match ids containing an `I`; the index in front of it 
 instead of resolving what the game would decline. The detail for both is in
 [Java runtime support](java-runtime-support.md).
 
-There is no automatic report or crash upload. A configured build can send a support ZIP only after
-the user creates it, reviews it, and confirms the send. Ordinary builds can save the same bounded
-ZIP locally.
+There is no ambient telemetry. A configured build can send a support ZIP after the user reviews and
+confirms it. A separate failed-run setting starts off; when enabled, an exact failed wrapper sends
+the same bounded ZIP automatically. Ordinary builds can save that ZIP locally.
 
 There is no remote runtime kill switch. If a reviewed adapter is implicated, select **Off /
 troubleshooting** and follow the [rollback and incident path](rollback.md). An updated package is

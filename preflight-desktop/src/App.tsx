@@ -391,6 +391,10 @@ export default function App() {
           ? "Starsector closed normally. The run report is ready."
           : failedRunSummary(payload.detail);
         setRunFailure(payload.success ? null : { summary: outcome, detail: payload.detail });
+        const game = snapshot?.selected?.installRoot;
+        if (!payload.success && game) {
+          void diagnostics.submitAutomaticFailedRunReport({ game, wrapperPid: payload.pid });
+        }
         void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
           if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
         });
@@ -425,7 +429,7 @@ export default function App() {
       stopListening();
       stopReconciliation();
     };
-  }, [announceGame, countFastLaunch, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+  }, [announceGame, countFastLaunch, diagnostics.submitAutomaticFailedRunReport, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async (): Promise<boolean> => {
     if (choosingInstallRef.current) return false;
@@ -600,6 +604,7 @@ export default function App() {
             operationBlocked={operationBlocked}
             speedStanding={speedStanding}
             playtime={snapshot?.playtime}
+            lastRun={snapshot?.lastRun}
             instrumentHull={instrumentHull.selected}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
@@ -648,6 +653,8 @@ export default function App() {
             removalPlan={removal.plan}
             removalBusy={removal.busy}
             afterLaunchBehavior={afterLaunchBehavior}
+            automaticRunReports={diagnostics.automaticRunReports}
+            onAutomaticRunReportsChange={diagnostics.setAutomaticRunReports}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}

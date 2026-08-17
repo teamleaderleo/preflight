@@ -36,10 +36,11 @@ export function useAutomaticMaintenance(
 
   useEffect(() => {
     const { game, cacheBytes, onCacheCleaned } = options;
+    const overCacheLimit = cacheBytes !== undefined && cacheBytes > AUTOMATIC_CACHE_LIMIT_BYTES;
+
     if (!enabled
       || !game
-      || cacheBytes === undefined
-      || cacheBytes <= AUTOMATIC_CACHE_LIMIT_BYTES
+      || !overCacheLimit
       || lastCacheEpoch.current === epoch
       || !isDesktopHost()) return;
     const timer = window.setTimeout(() => {

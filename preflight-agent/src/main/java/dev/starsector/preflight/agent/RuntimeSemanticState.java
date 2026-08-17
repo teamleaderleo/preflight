@@ -26,6 +26,8 @@ public final class RuntimeSemanticState {
     private static Path destination;
     private static long sequence;
     private static String writeProblem;
+    private static Instant processStartedAt;
+    private static Instant mainMenuReadyAt;
 
     private RuntimeSemanticState() {
     }
@@ -35,6 +37,8 @@ public final class RuntimeSemanticState {
         state = STARTING;
         sequence = 0L;
         writeProblem = null;
+        processStartedAt = ProcessHandle.current().info().startInstant().orElse(null);
+        mainMenuReadyAt = null;
         enabled = true;
         try {
             write();
@@ -70,6 +74,9 @@ public final class RuntimeSemanticState {
         if (!enabled || state == next) return;
         synchronized (RuntimeSemanticState.class) {
             if (!enabled || state == next) return;
+            if (next == MAIN_MENU && mainMenuReadyAt == null) {
+                mainMenuReadyAt = Instant.now();
+            }
             state = next;
             sequence++;
             try {
@@ -91,6 +98,8 @@ public final class RuntimeSemanticState {
         result.put("sequence", sequence);
         result.put("writeProblem", writeProblem);
         result.put("destination", destination);
+        result.put("processStartedAt", processStartedAt);
+        result.put("mainMenuReadyAt", mainMenuReadyAt);
         return result;
     }
 
@@ -100,6 +109,8 @@ public final class RuntimeSemanticState {
         destination = null;
         sequence = 0L;
         writeProblem = null;
+        processStartedAt = null;
+        mainMenuReadyAt = null;
     }
 
     private static void write() throws IOException {
@@ -107,7 +118,8 @@ public final class RuntimeSemanticState {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("format", FORMAT);
         values.put("pid", process.pid());
-        values.put("processStartedAt", process.info().startInstant().orElse(null));
+        values.put("processStartedAt", processStartedAt);
+        values.put("mainMenuReadyAt", mainMenuReadyAt);
         values.put("state", name(state));
         values.put("sequence", sequence);
         values.put("observedAt", Instant.now());
