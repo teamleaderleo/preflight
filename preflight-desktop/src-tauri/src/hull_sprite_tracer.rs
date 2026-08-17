@@ -907,8 +907,11 @@ mod tests {
                 });
             }
         }
-        let trace = trace_png_bytes(&rgba_png(width as u32, height as u32, &pixels), [48.0, 48.0])
-            .expect("trace");
+        let trace = trace_png_bytes(
+            &rgba_png(width as u32, height as u32, &pixels),
+            [48.0, 48.0],
+        )
+        .expect("trace");
 
         assert!(trace.folded);
         let flanks = trace
@@ -925,7 +928,10 @@ mod tests {
         let port = flanks.iter().filter(|lateral| **lateral > 0.0).count();
         let starboard = flanks.iter().filter(|lateral| **lateral < 0.0).count();
         assert!(port > 0, "expected flank blocks at all, got {flanks:?}");
-        assert_eq!(port, starboard, "expected one block per side, got {flanks:?}");
+        assert_eq!(
+            port, starboard,
+            "expected one block per side, got {flanks:?}"
+        );
     }
 
     #[test]
