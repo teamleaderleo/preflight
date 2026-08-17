@@ -171,3 +171,21 @@ test("no palette lets a status colour collide with its accent", () => {
       .toBeGreaterThan(25);
   }
 });
+
+test("every palette override declares every non-inheriting root token", () => {
+  const rootMatch = /:root\s*\{([^}]*)\}/s.exec(styles);
+  expect(rootMatch).not.toBeNull();
+  const rootTokens = Array.from(rootMatch![1].matchAll(/--([a-z0-9-]+):/g), (match) => match[1]);
+  const inherited = new Set(["font-body", "font-data", "font-display", "text-support"]);
+  const paletteTokens = rootTokens.filter((token) => !inherited.has(token));
+  expect(paletteTokens.length).toBeGreaterThan(30);
+
+  for (const name of ["blueprint", "ultraviolet", "airglow", "phosphor"]) {
+    const selector = `:root\\[data-palette="${name}"\\]`;
+    const block = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(styles);
+    expect(block, `missing palette block for ${name}`).not.toBeNull();
+    for (const token of paletteTokens) {
+      expect(new RegExp(`--${token}:`).test(block![1]), `${name} is missing --${token}`).toBe(true);
+    }
+  }
+});

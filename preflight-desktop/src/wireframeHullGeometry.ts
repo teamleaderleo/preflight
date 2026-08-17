@@ -114,27 +114,29 @@ function tunedHull(hull: WireframeHull): WireframeHull {
 
 /** A shared raised cabin keeps the source silhouette legible instead of inventing ship-specific depth. */
 function buildDeck(hull: WireframeHull): HullVertex[] {
-  const { center, minX, maxX, minY, maxY, extent } = hullFrame(hull);
+  const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
+  const midY = (minY + maxY) / 2;
   const length = Math.max(maxX - minX, 1);
   const halfWidth = Math.max(maxY - minY, 1) / 2;
   const z = extent * 0.16 * (hull.tuning?.height ?? 1);
   return [
-    { x: maxX - length * 0.1, y: center.y, z },
-    { x: maxX - length * 0.3, y: center.y + halfWidth * 0.36, z },
-    { x: minX + length * 0.34, y: center.y + halfWidth * 0.29, z },
-    { x: minX + length * 0.18, y: center.y, z },
-    { x: minX + length * 0.34, y: center.y - halfWidth * 0.29, z },
-    { x: maxX - length * 0.3, y: center.y - halfWidth * 0.36, z },
+    { x: maxX - length * 0.1, y: midY, z },
+    { x: maxX - length * 0.3, y: midY + halfWidth * 0.36, z },
+    { x: minX + length * 0.34, y: midY + halfWidth * 0.29, z },
+    { x: minX + length * 0.18, y: midY, z },
+    { x: minX + length * 0.34, y: midY - halfWidth * 0.29, z },
+    { x: maxX - length * 0.3, y: midY - halfWidth * 0.36, z },
   ];
 }
 
 function buildSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
   if (hull.bounds.length < 3) return [];
-  const { center, extent } = hullFrame(hull);
+  const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
+  const midpoint = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
   const deckHeight = extent * 0.17 * (hull.tuning?.height ?? 1);
   const outline = hull.bounds.map((point) => ({ ...point, z: 0 }));
   const deck = buildDeck(hull);
-  const keel = hull.bounds.map((point) => scalePoint(point, center, 0.9, 0.82, -deckHeight * 0.42));
+  const keel = hull.bounds.map((point) => scalePoint(point, midpoint, 0.9, 0.82, -deckHeight * 0.42));
   const structure = deck.map((point) => {
     const nearest = outline.reduce((best, candidate) => {
       const distance = (candidate.x - point.x) ** 2 + (candidate.y - point.y) ** 2;
