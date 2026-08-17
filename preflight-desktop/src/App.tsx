@@ -38,8 +38,13 @@ import { useTheme } from "./useTheme";
 import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
-import { benchmarkOperationReason } from "./operationAvailability";
+import {
+  benchmarkOperationReason,
+  removalOperationReason,
+  updateInstallOperationReason,
+} from "./operationAvailability";
 import { failedRunSummary, shortPath } from "./uiFormat";
+
 import { blockingWorkflow } from "./workflowPolicy";
 import { readLastInstallRoot, rememberLastInstallRoot } from "./desktopStorage";
 import type {
@@ -85,7 +90,10 @@ export default function App() {
   const [forceStopAvailable, setForceStopAvailable] = useState(false);
   const [restoringOperation, setRestoringOperation] = useState(() => isDesktopHost());
   const [nativeBenchmarkBlockReason, setNativeBenchmarkBlockReason] = useState<string | null>(null);
+  const [nativeRemovalBlockReason, setNativeRemovalBlockReason] = useState<string | null>(null);
+  const [nativeUpdateInstallBlockReason, setNativeUpdateInstallBlockReason] = useState<string | null>(null);
   const choosingInstallRef = useRef(false);
+
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
   const announceGame = useCallback((message: string, tone?: NoticeTone) => announceNotice("game", message, tone), [announceNotice]);
@@ -310,22 +318,31 @@ export default function App() {
     void getOperationState(true).then((operation) => {
       if (cancelled) return;
       const benchmarkReason = benchmarkOperationReason(operation);
+      const removalReason = removalOperationReason(operation);
+      const updateInstallReason = updateInstallOperationReason(operation);
       setNativeBenchmarkBlockReason(benchmarkReason);
-      if (benchmarkReason !== null) {
+      setNativeRemovalBlockReason(removalReason);
+      setNativeUpdateInstallBlockReason(updateInstallReason);
+      if (benchmarkReason !== null || removalReason !== null || updateInstallReason !== null) {
         backgroundOperationActive = true;
         stopBackgroundOperationReconciliation = startOperationReconciliation({
           // These owners live in the current Tauri process. Avoid the durable game probe here;
           // it starts the CLI and is only needed by the separate recovered-game path below.
           read: () => getOperationState(false),
           apply: (current) => {
-            const reason = benchmarkOperationReason(current);
-            setNativeBenchmarkBlockReason(reason);
-            backgroundOperationActive = reason !== null;
+            const bReason = benchmarkOperationReason(current);
+            const rReason = removalOperationReason(current);
+            const uReason = updateInstallOperationReason(current);
+            setNativeBenchmarkBlockReason(bReason);
+            setNativeRemovalBlockReason(rReason);
+            setNativeUpdateInstallBlockReason(uReason);
+            backgroundOperationActive = bReason !== null || rReason !== null || uReason !== null;
           },
           isActive: () => backgroundOperationActive,
           onError: (error) => announceBenchmark(`Couldn’t refresh native operation state: ${error}`, "warning"),
         });
       }
+
       if (automation.reconnectDesktopAutomation(operation)) {
         announceBenchmark("Reconnected to the running startup benchmark.", "success");
       } else if (operation.gamePid !== null) {
@@ -661,6 +678,8 @@ export default function App() {
             message={settingsNotice?.message ?? ""}
             messageTone={settingsNotice?.tone ?? "info"}
             operationBlocked={operationBlocked}
+            removalBlockedReason={nativeRemovalBlockReason}
+            updateInstallBlockedReason={nativeUpdateInstallBlockReason}
             updates={updates}
             reportIntake={diagnostics.reportIntake}
             removalPlan={removal.plan}
@@ -669,6 +688,7 @@ export default function App() {
             automaticRunReports={diagnostics.automaticRunReports}
             onAutomaticRunReportsChange={diagnostics.setAutomaticRunReports}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
+
             onReviewRemoval={(scope) => void removal.review(scope)}
             onDismissRemoval={removal.dismiss}
             onRemove={() => void removal.remove()}
