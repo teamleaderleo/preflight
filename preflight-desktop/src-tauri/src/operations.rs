@@ -418,4 +418,3 @@ mod tests {
         assert_eq!(json["updateInstalling"], false);
     }
 }
-
