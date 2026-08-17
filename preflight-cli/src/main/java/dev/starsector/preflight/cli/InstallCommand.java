@@ -57,6 +57,7 @@ final class InstallCommand {
             }
         };
         if (installed == 0) {
+            preflight.recordInstalledIntegrations();
             retireLegacyLaunchers(preflight);
         }
         if (installed != 0 || !options.prepare()) {
@@ -85,6 +86,7 @@ final class InstallCommand {
 
     static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
         Path app = preflight.pathOf(PreflightHome.Id.MAC_APP).toAbsolutePath().normalize();
+        checkNotUnownedCollision(app, PreflightHome.Id.MAC_APP);
         requireRealDirectory(app, "macOS app");
         Path macos = app.resolve("Contents").resolve("MacOS");
         requireRealDirectory(macos, "macOS bundle directory");
@@ -119,6 +121,7 @@ final class InstallCommand {
 
     static int installLinux(PreflightHome preflight, Path jar, Path game) throws IOException {
         Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND).toAbsolutePath().normalize();
+        checkNotUnownedCollision(launcher, PreflightHome.Id.LINUX_COMMAND);
         String script = "#!/bin/sh\nexec "
                 + shellQuote(javaExecutable())
                 + " -jar "
@@ -129,6 +132,7 @@ final class InstallCommand {
         writeAtomicFile(launcher, script, true);
 
         Path desktop = preflight.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY).toAbsolutePath().normalize();
+        checkNotUnownedCollision(desktop, PreflightHome.Id.LINUX_DESKTOP_ENTRY);
         String desktopFile = "[Desktop Entry]\n"
                 + "Type=Application\n"
                 + "Name=Preflight\n"
@@ -144,8 +148,10 @@ final class InstallCommand {
     static int installWindows(PreflightHome preflight, Path jar, Path game)
             throws IOException {
         Path directory = preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY).toAbsolutePath().normalize();
+        checkNotUnownedCollision(directory, PreflightHome.Id.WINDOWS_DIRECTORY);
         requireRealDirectory(directory, "Windows launcher directory");
         Path command = preflight.pathOf(PreflightHome.Id.WINDOWS_COMMAND).toAbsolutePath().normalize();
+        checkNotUnownedCollision(command, PreflightHome.Id.WINDOWS_COMMAND);
         String content = "@echo off\r\n\""
                 + windowsBatchLiteral(javaExecutable())
                 + "\" -jar \""
@@ -156,6 +162,20 @@ final class InstallCommand {
         writeAtomicFile(command, content, false);
         System.out.println("Installed Windows launcher: " + command);
         return 0;
+    }
+
+    static void checkNotUnownedCollision(Path target, PreflightHome.Id id) throws IOException {
+        Path normalized = target.toAbsolutePath().normalize();
+        validateNotSymlink(normalized, id.name());
+        if (Files.exists(normalized, LinkOption.NOFOLLOW_LINKS)) {
+            boolean directory = Files.isDirectory(normalized, LinkOption.NOFOLLOW_LINKS);
+            PreflightHome.Integration temp = new PreflightHome.Integration(
+                    id, id.name(), normalized, directory, false);
+            if (!temp.isOwned()) {
+                throw new IOException("Refusing to overwrite unowned existing " + (directory ? "directory" : "file")
+                        + " at launcher location: " + normalized);
+            }
+        }
     }
 
     static void validateNotSymlink(Path path, String description) throws IOException {

@@ -98,7 +98,8 @@ class UninstallCommandTest {
         PreflightHome preflight = macHome();
         Path legacyApp = preflight.pathOf(PreflightHome.Id.LEGACY_MAC_APP);
         Files.createDirectories(legacyApp.resolve("Contents/MacOS"));
-        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\n");
+        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\nexec java -jar starsector-preflight.jar run --fast \"$@\"\n");
+        Files.writeString(legacyApp.resolve("Contents/Info.plist"), "<plist><dict><key>CFBundleExecutable</key><string>starsector-preflight</string></dict></plist>");
 
         assertEquals(0, UninstallCommand.run(preflight, false, true, quiet()));
         assertFalse(Files.exists(legacyApp), "the old branded launcher should be gone");
@@ -111,7 +112,8 @@ class UninstallCommandTest {
         Path currentApp = preflight.pathOf(PreflightHome.Id.MAC_APP);
         Path legacyApp = preflight.pathOf(PreflightHome.Id.LEGACY_MAC_APP);
         Files.createDirectories(legacyApp.resolve("Contents/MacOS"));
-        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\n");
+        Files.writeString(legacyApp.resolve("Contents/MacOS/starsector-preflight"), "#!/bin/sh\nexec java -jar starsector-preflight.jar run --fast \"$@\"\n");
+        Files.writeString(legacyApp.resolve("Contents/Info.plist"), "<plist><dict><key>CFBundleExecutable</key><string>starsector-preflight</string></dict></plist>");
 
         InstallCommand.retireLegacyLaunchers(preflight);
 
@@ -312,6 +314,120 @@ class UninstallCommandTest {
         assertTrue(json.contains("symlink or alias"), json);
     }
 
+    @Test
+    void unrelatedLinuxFileNamedPreflightSurvivesUninstall() throws Exception {
+        PreflightHome preflight = PreflightHome.resolve(Platform.LINUX, home, Map.of());
+        Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        Files.createDirectories(launcher.getParent());
+        Files.writeString(launcher, "#!/usr/bin/env python3\nprint('unrelated aviation tool')\n");
+
+        UninstallCommand.Plan plan = UninstallCommand.plan(preflight, UninstallCommand.Scope.LAUNCHER, false);
+        assertTrue(plan.targets().isEmpty(), "unowned file must not be targeted");
+        assertFalse(plan.refusals().isEmpty());
+        assertTrue(plan.refusals().get(0).contains("not proven Preflight-owned"));
+
+        assertEquals(0, UninstallCommand.run(preflight, false, true, quiet()));
+        assertTrue(Files.isRegularFile(launcher), "unowned file must survive uninstall");
+        assertEquals("#!/usr/bin/env python3\nprint('unrelated aviation tool')\n", Files.readString(launcher));
+    }
+
+    @Test
+    void unrelatedMacAppNamedPreflightSurvivesUninstall() throws Exception {
+        PreflightHome preflight = macHome();
+        Path app = preflight.pathOf(PreflightHome.Id.MAC_APP);
+        Files.createDirectories(app.resolve("Contents/MacOS"));
+        Files.writeString(app.resolve("Contents/MacOS/aviation_tool"), "binary");
+        Files.writeString(app.resolve("Contents/Info.plist"), "<plist><dict><key>CFBundleIdentifier</key><string>com.aviation.preflight</string></dict></plist>");
+
+        UninstallCommand.Plan plan = UninstallCommand.plan(preflight, UninstallCommand.Scope.LAUNCHER, false);
+        assertTrue(plan.targets().isEmpty(), "unowned app must not be targeted");
+        assertFalse(plan.refusals().isEmpty());
+
+        assertEquals(0, UninstallCommand.run(preflight, false, true, quiet()));
+        assertTrue(Files.isDirectory(app), "unowned app must survive uninstall");
+        assertTrue(Files.isRegularFile(app.resolve("Contents/MacOS/aviation_tool")));
+    }
+
+    @Test
+    void unrelatedWindowsDirectoryNamedPreflightSurvivesUninstall() throws Exception {
+        PreflightHome preflight = PreflightHome.resolve(Platform.WINDOWS, home, Map.of());
+        Path winDir = preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY);
+        Files.createDirectories(winDir);
+        Path userDoc = winDir.resolve("user_document.txt");
+        Files.writeString(userDoc, "keep this data");
+
+        UninstallCommand.Plan plan = UninstallCommand.plan(preflight, UninstallCommand.Scope.LAUNCHER, false);
+        assertTrue(plan.targets().isEmpty(), "unowned directory with foreign files must not be targeted");
+
+        assertEquals(0, UninstallCommand.run(preflight, false, true, quiet()));
+        assertTrue(Files.isDirectory(winDir), "unowned directory must survive uninstall");
+        assertTrue(Files.isRegularFile(userDoc));
+        assertEquals("keep this data", Files.readString(userDoc));
+    }
+
+    @Test
+    void tamperedLauncherScriptIsPreservedAndRefusedRatherThanDeleted() throws Exception {
+        PreflightHome preflight = PreflightHome.resolve(Platform.LINUX, home, Map.of());
+        Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        Files.createDirectories(launcher.getParent());
+        Files.writeString(launcher, "corrupted shell script with no preflight identifiers");
+
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        try (PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8)) {
+            UninstallCommand.run(preflight, UninstallCommand.Scope.LAUNCHER, false, false, out);
+        }
+        String output = captured.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains("not proven Preflight-owned"), output);
+        assertTrue(Files.isRegularFile(launcher), "tampered launcher must survive uninstall");
+    }
+
+    @Test
+    void recordedWindowsIntegrationFromReceiptIsCleanedUpEvenIfEnvironmentChanges() throws Exception {
+        Path customLocalAppData = home.resolve("CustomAppData/Local");
+        PreflightHome original = PreflightHome.resolve(
+                Platform.WINDOWS, home, Map.of("LOCALAPPDATA", customLocalAppData.toString()));
+        Path jar = home.resolve("bin/preflight.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "jar");
+        Path game = home.resolve("starsector");
+
+        assertEquals(0, InstallCommand.installWindows(original, jar, game));
+        original.recordInstalledIntegrations();
+        assertTrue(Files.isRegularFile(customLocalAppData.resolve("Preflight/Preflight.cmd")));
+
+        // New environment with different LOCALAPPDATA resolves the recorded installation from receipt
+        Path newLocalAppData = home.resolve("DifferentAppData/Local");
+        PreflightHome resolvedWithReceipt = PreflightHome.resolve(
+                Platform.WINDOWS, home, Map.of("LOCALAPPDATA", newLocalAppData.toString()));
+
+        assertEquals(
+                customLocalAppData.resolve("Preflight/Preflight.cmd"),
+                resolvedWithReceipt.pathOf(PreflightHome.Id.WINDOWS_COMMAND));
+
+        assertEquals(0, UninstallCommand.run(resolvedWithReceipt, false, true, quiet()));
+        assertFalse(Files.exists(customLocalAppData.resolve("Preflight/Preflight.cmd")));
+        assertFalse(Files.exists(newLocalAppData), "new environment path must never have been touched");
+    }
+
+    @Test
+    void installCommandRefusesOverwritingUnownedCollision() throws Exception {
+        PreflightHome preflight = PreflightHome.resolve(Platform.LINUX, home, Map.of());
+        Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        Files.createDirectories(launcher.getParent());
+        Files.writeString(launcher, "#!/usr/bin/env python3\nprint('unrelated')\n");
+
+        Path jar = home.resolve("bin/preflight.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "jar");
+        Path game = home.resolve("starsector");
+
+        java.io.IOException error = assertThrows(
+                java.io.IOException.class,
+                () -> InstallCommand.installLinux(preflight, jar, game));
+        assertTrue(error.getMessage().contains("Refusing to overwrite unowned"), error.getMessage());
+        assertEquals("#!/usr/bin/env python3\nprint('unrelated')\n", Files.readString(launcher));
+    }
+
     private PreflightHome macHome() {
         return PreflightHome.resolve(Platform.MAC, home, Map.of());
     }
@@ -319,8 +435,8 @@ class UninstallCommandTest {
     private static void installIntegration(PreflightHome preflight) throws Exception {
         Path app = preflight.integrations().get(0).path();
         Files.createDirectories(app.resolve("Contents/MacOS"));
-        Files.writeString(app.resolve("Contents/MacOS/preflight"), "#!/bin/sh\n");
-        Files.writeString(app.resolve("Contents/Info.plist"), "<plist/>");
+        Files.writeString(app.resolve("Contents/MacOS/preflight"), "#!/bin/sh\nexec java -jar preflight.jar run --fast \"$@\"\n");
+        Files.writeString(app.resolve("Contents/Info.plist"), "<plist><dict><key>CFBundleExecutable</key><string>preflight</string></dict></plist>");
     }
 
     private static String run(PreflightHome preflight, boolean purge, boolean confirmed)

@@ -109,16 +109,23 @@ final class UninstallCommand {
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    private static Plan plan(PreflightHome home, Scope scope, boolean applied) throws IOException {
+    static Plan plan(PreflightHome home, Scope scope, boolean applied) throws IOException {
         List<Target> targets = new ArrayList<>();
+        List<String> refusals = new ArrayList<>();
         for (PreflightHome.Integration integration : home.integrations()) {
-            if (integration.present()) addTarget(targets, "launch-integration", integration.label(), integration.path());
+            if (integration.present()) {
+                if (integration.isOwned()) {
+                    addTarget(targets, "launch-integration", integration.label(), integration.path());
+                } else {
+                    refusals.add("Existing " + integration.label() + " at " + integration.path()
+                            + " is not proven Preflight-owned and is preserved untouched.");
+                }
+            }
         }
         Path installedEngine = home.installedJar().getParent();
         if (Files.exists(installedEngine, LinkOption.NOFOLLOW_LINKS)) {
             addTarget(targets, "installed-engine", "installed command engine", installedEngine);
         }
-        List<String> refusals = new ArrayList<>();
         boolean safe = true;
         if (scope == Scope.ALL_DATA) {
             Path root = home.root().toAbsolutePath().normalize();
@@ -207,6 +214,9 @@ final class UninstallCommand {
             plan.refusals().forEach(out::println);
             return;
         }
+        if (!plan.refusals().isEmpty()) {
+            plan.refusals().forEach(out::println);
+        }
         if (plan.targets().isEmpty()) {
             out.println("Nothing to remove for the selected scope.");
             return;
@@ -242,7 +252,9 @@ final class UninstallCommand {
     }
 
     static void removeIntegration(PreflightHome.Integration integration) throws IOException {
-        deleteRecursively(integration.path());
+        if (integration.isOwned()) {
+            deleteRecursively(integration.path());
+        }
     }
 
     private static String requireValue(String[] args, int index, String option) {

@@ -1,8 +1,17 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.Json;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,12 +62,65 @@ record PreflightHome(Path root, List<Integration> integrations) {
     /** A file or directory Preflight wrote outside {@link #root()} so the OS could find it. */
     record Integration(Id id, String label, Path path, boolean directory, boolean legacy) {
         boolean present() {
-            return directory ? Files.isDirectory(path) : Files.isRegularFile(path);
+            return directory
+                    ? Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)
+                    : Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS);
+        }
+
+        boolean isOwned() {
+            return IntegrationOwnership.isOwned(this);
         }
     }
 
     static PreflightHome resolve(Platform platform, Path home, Map<String, String> environment) {
         Path root = home.resolve(DIRECTORY_NAME).toAbsolutePath().normalize();
+        List<Integration> integrations = defaultIntegrations(platform, home, environment);
+        Path receipt = root.resolve("integrations.json");
+        if (Files.isRegularFile(receipt, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                Map<String, Object> json = StrictJson.object(Files.readString(receipt, StandardCharsets.UTF_8));
+                Object list = json.get("integrations");
+                if (list instanceof List<?> entries) {
+                    Map<Id, Path> recorded = new HashMap<>();
+                    for (Object entry : entries) {
+                        if (entry instanceof Map<?, ?> item) {
+                            Object idVal = item.get("id");
+                            Object pathVal = item.get("path");
+                            if (idVal instanceof String idStr && pathVal instanceof String pathStr) {
+                                try {
+                                    Id id = Id.valueOf(idStr);
+                                    recorded.put(id, Path.of(pathStr));
+                                } catch (IllegalArgumentException ignored) {
+                                }
+                            }
+                        }
+                    }
+                    if (!recorded.isEmpty()) {
+                        List<Integration> updated = new ArrayList<>();
+                        for (Integration integration : integrations) {
+                            Path custom = recorded.get(integration.id());
+                            if (custom != null && !custom.equals(integration.path())) {
+                                updated.add(new Integration(
+                                        integration.id(),
+                                        integration.label(),
+                                        custom,
+                                        integration.directory(),
+                                        integration.legacy()));
+                            } else {
+                                updated.add(integration);
+                            }
+                        }
+                        integrations = updated;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return new PreflightHome(root, List.copyOf(integrations));
+    }
+
+    private static List<Integration> defaultIntegrations(
+            Platform platform, Path home, Map<String, String> environment) {
         List<Integration> integrations = new ArrayList<>();
         switch (platform) {
             case MAC -> {
@@ -137,7 +199,46 @@ record PreflightHome(Path root, List<Integration> integrations) {
                 // here; InstallCommand prints the manual java -jar invocation instead.
             }
         }
-        return new PreflightHome(root, List.copyOf(integrations));
+        return integrations;
+    }
+
+    void recordInstalledIntegrations() {
+        try {
+            SafetyArtifactRetention.requireRealDirectory(root);
+            Path receipt = root.resolve("integrations.json");
+            List<Map<String, Object>> list = new ArrayList<>();
+            for (Integration integration : integrations) {
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("id", integration.id().name());
+                entry.put("path", integration.path().toAbsolutePath().normalize().toString());
+                entry.put("label", integration.label());
+                entry.put("directory", integration.directory());
+                entry.put("legacy", integration.legacy());
+                list.add(entry);
+            }
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("format", "preflight-integrations-v1");
+            data.put("integrations", list);
+            String json = Json.object(data) + "\n";
+            Path temporary = receipt.resolveSibling(
+                    receipt.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
+            try {
+                Files.writeString(
+                        temporary,
+                        json,
+                        StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE_NEW,
+                        StandardOpenOption.WRITE);
+                try {
+                    Files.move(temporary, receipt, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException unsupported) {
+                    Files.move(temporary, receipt, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
+        } catch (IOException ignored) {
+        }
     }
 
     /**
