@@ -318,6 +318,39 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
 });
 
+test("starts from the remembered installation instead of rediscovering it", async () => {
+  window.localStorage.setItem("preflight.lastInstallRoot", "/Games/Starsector");
+  const initial = await bridge.getSnapshot();
+  const bootstrap = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue(initial);
+
+  render(<App />);
+
+  expect(await screen.findByText("Ready")).toBeInTheDocument();
+  expect(bootstrap).toHaveBeenCalledWith("/Games/Starsector");
+  expect(window.localStorage.getItem("preflight.lastInstallRoot"))
+    .toBe(initial.selected?.installRoot);
+  bootstrap.mockRestore();
+});
+
+test("a stale remembered installation falls back to normal discovery", async () => {
+  window.localStorage.setItem("preflight.lastInstallRoot", "/Moved/Starsector");
+  const initial = await bridge.getSnapshot();
+  const bootstrap = vi.spyOn(bridge, "getBootstrapSnapshot")
+    .mockResolvedValueOnce({ ...initial, ready: false, selected: null })
+    .mockResolvedValueOnce(initial);
+
+  render(<App />);
+
+  expect(await screen.findByText("Ready")).toBeInTheDocument();
+  expect(bootstrap.mock.calls.slice(0, 2)).toEqual([
+    ["/Moved/Starsector"],
+    [],
+  ]);
+  expect(window.localStorage.getItem("preflight.lastInstallRoot"))
+    .toBe(initial.selected?.installRoot);
+  bootstrap.mockRestore();
+});
+
 test("home surfaces the latest compatibility verdict without exposing the raw report", async () => {
   const base = await bridge.getSnapshot();
   const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({

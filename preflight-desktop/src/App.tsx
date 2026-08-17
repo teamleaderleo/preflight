@@ -41,6 +41,7 @@ import { startOperationReconciliation } from "./operationReconciliation";
 import { benchmarkOperationReason } from "./operationAvailability";
 import { failedRunSummary, shortPath } from "./uiFormat";
 import { blockingWorkflow } from "./workflowPolicy";
+import { readLastInstallRoot, rememberLastInstallRoot } from "./desktopStorage";
 import type {
   AppStatus,
   DesktopSnapshot,
@@ -126,18 +127,28 @@ export default function App() {
   const countWhenFinished = useRef<{ pid: number; profileFingerprint: string } | null>(null);
   const refresh = useCallback(async (
     game?: string,
-    options?: { bootstrap?: boolean },
+    options?: { bootstrap?: boolean; fallbackDiscovery?: boolean },
   ): Promise<boolean> => {
     const request = ++refreshRequest.current;
     setInstallationStatus("loading");
     clearNotice("installation");
     setRetryIntent(null);
     try {
-      const next = options?.bootstrap
-        ? await getBootstrapSnapshot(game)
-        : await getSnapshot(game);
+      let next: DesktopSnapshot;
+      try {
+        next = options?.bootstrap
+          ? await getBootstrapSnapshot(game)
+          : await getSnapshot(game);
+      } catch (error) {
+        if (!options?.fallbackDiscovery || !game) throw error;
+        next = await getBootstrapSnapshot();
+      }
+      if (options?.fallbackDiscovery && game && !next.ready) {
+        next = await getBootstrapSnapshot();
+      }
       if (request !== refreshRequest.current) return false;
       setSnapshot(next);
+      rememberLastInstallRoot(next.selected?.installRoot ?? null);
       setInstallationStatus(next.ready ? "ready" : "setup");
       return true;
     } catch (error) {
@@ -282,7 +293,11 @@ export default function App() {
   }, [desktopBenchmarkComparison, rememberBenchmark]);
 
   useEffect(() => {
-    void refresh(undefined, { bootstrap: true });
+    const rememberedGame = readLastInstallRoot();
+    void refresh(rememberedGame ?? undefined, {
+      bootstrap: true,
+      fallbackDiscovery: rememberedGame !== null,
+    });
   }, [refresh]);
 
   useEffect(() => {

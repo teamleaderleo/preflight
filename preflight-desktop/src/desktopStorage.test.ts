@@ -8,7 +8,10 @@ import {
   PREFLIGHT_LOCAL_STORAGE_KEYS,
   INSTRUMENT_HULL_STORAGE_KEY,
   INSTRUMENT_HULL_TUNING_STORAGE_KEY,
+  LAST_INSTALL_ROOT_STORAGE_KEY,
   PALETTE_STORAGE_KEY,
+  readLastInstallRoot,
+  rememberLastInstallRoot,
   REPORT_RECEIPT_STORAGE_KEY,
   SPEED_RECORD_STORAGE_KEY,
   THEME_STORAGE_KEY,
@@ -27,8 +30,26 @@ describe("desktop storage ownership", () => {
       AUTOMATIC_UPDATE_CHECK_STORAGE_KEY,
       INSTRUMENT_HULL_STORAGE_KEY,
       INSTRUMENT_HULL_TUNING_STORAGE_KEY,
+      LAST_INSTALL_ROOT_STORAGE_KEY,
     ]);
     expect(new Set(PREFLIGHT_LOCAL_STORAGE_KEYS).size).toBe(PREFLIGHT_LOCAL_STORAGE_KEYS.length);
+  });
+
+  test("the last installation is a disposable startup hint", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+
+    rememberLastInstallRoot("/Applications/Starsector.app", storage);
+    expect(readLastInstallRoot(storage)).toBe("/Applications/Starsector.app");
+
+    rememberLastInstallRoot(null, storage);
+    expect(readLastInstallRoot(storage)).toBeNull();
+    values.set(LAST_INSTALL_ROOT_STORAGE_KEY, "x".repeat(32_769));
+    expect(readLastInstallRoot(storage)).toBeNull();
   });
 
   test("all-data cleanup removes every owned key", () => {
