@@ -121,9 +121,10 @@ test("signed candidates require updater credentials, release validation and ever
   assert.doesNotMatch(workflow, /PREFLIGHT_UPDATER_ENDPOINT/);
 });
 
-test("desktop CI builds one engine and one frontend before native packaging", () => {
+test("desktop CI builds the engine and frontend in parallel before native packaging", () => {
   const engine = desktopJob("engine", "frontend");
-  const frontend = desktopJob("frontend", "validate");
+  const frontend = desktopJob("frontend", "contracts");
+  const contracts = desktopJob("contracts", "validate");
   const validate = desktopJob("validate", "package");
   const packageJob = desktopJob("package", "package-linux");
   const linux = desktopJob("package-linux");
@@ -131,28 +132,34 @@ test("desktop CI builds one engine and one frontend before native packaging", ()
   assert.match(engine, /Build bounded engine JAR once/);
   assert.match(engine, /actions\/upload-artifact@/);
 
-  assert.match(frontend, /needs: engine/);
+  assert.doesNotMatch(frontend, /needs:/);
+  assert.doesNotMatch(frontend, /setup-build-jdk|engine:prepare:verified/);
   assert.match(frontend, /npm audit --omit=dev/);
   assert.match(frontend, /npm test/);
-  assert.match(frontend, /npm run test:release:prepared/);
+  assert.doesNotMatch(frontend, /npm run test:release:prepared/);
   assert.match(frontend, /npm run build/);
   assert.match(frontend, /frontend-dist-manifest\.mjs write dist frontend-dist\.json/);
   assert.match(frontend, /name: preflight-desktop-frontend-\$\{\{ github\.run_id \}\}/);
   assert.match(frontend, /actions\/upload-artifact@/);
 
-  assert.match(validate, /needs: \[engine, frontend\]/);
+  assert.match(contracts, /needs: engine/);
+  assert.match(contracts, /npm run test:release:prepared/);
+  assert.doesNotMatch(contracts, /cargo fmt|cargo test|cargo clippy/);
+
+  assert.match(validate, /needs: \[engine, scope\]/);
+  assert.match(validate, /if: needs\.scope\.outputs\.native == 'true'/);
   assert.match(validate, /cargo fmt --check/);
   assert.match(validate, /cargo test --locked/);
   assert.match(validate, /cargo clippy --locked/);
-  assert.doesNotMatch(validate, /npm audit --omit=dev|npm test|npm run test:release:prepared|npm run build/);
+  assert.doesNotMatch(validate, /npm audit --omit=dev|npm test|npm run build|npm run test:release:prepared/);
 
-  assert.match(packageJob, /needs: \[engine, scope, frontend\]/);
+  assert.match(packageJob, /needs: \[engine, scope, frontend, contracts\]/);
   assert.match(packageJob, /matrix:\n        os: \[macos-latest, windows-latest\]/);
   assert.match(packageJob, /frontend-dist-manifest\.mjs[\s\\]+verify preflight-desktop\/dist preflight-desktop\/frontend-dist\.json/);
   assert.match(packageJob, /--config src-tauri\/tauri\.ci\.conf\.json/);
   assert.doesNotMatch(packageJob, /ubuntu-latest|ubuntu-22\.04|Build Linux/);
 
-  assert.match(linux, /needs: \[engine, scope, frontend\]/);
+  assert.match(linux, /needs: \[engine, scope, frontend, contracts\]/);
   assert.match(linux, /runs-on: ubuntu-latest/);
   assert.match(linux, /container:\n      image: ubuntu:jammy-20260627@sha256:/);
   assert.match(linux, /PREFLIGHT_LINUX_MAX_GLIBC: '2\.35'/);
