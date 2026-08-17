@@ -247,6 +247,26 @@ final class ProfileCommandTest {
         assertTrue(list(fixture).contains("\"name\":\"Campaign\""));
     }
 
+    @Test
+    void costCommandReportsPublicModFootprint() throws Exception {
+        Fixture fixture = fixture(List.of("alpha", "beta"));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        assertEquals(0, ProfileCommand.cost(fixture.game(), true, stream(output)));
+        String json = output.toString(StandardCharsets.UTF_8);
+        assertTrue(json.contains("preflight-mod-cost-breakdown-v1"));
+        assertTrue(json.contains("\"modId\":\"alpha\""));
+        assertTrue(json.contains("\"modId\":\"beta\""));
+        assertFalse(json.contains(temporaryDirectory.toString()));
+
+        ByteArrayOutputStream textOutput = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.cost(fixture.game(), false, stream(textOutput)));
+        String text = textOutput.toString(StandardCharsets.UTF_8);
+        assertTrue(text.contains("Profile cost breakdown"));
+        assertTrue(text.contains("alpha"));
+    }
+
+
     private static String list(Fixture fixture) throws Exception {
         ByteArrayOutputStream listed = new ByteArrayOutputStream();
         assertEquals(0, ProfileCommand.list(fixture.home(), fixture.game(), true, stream(listed)));

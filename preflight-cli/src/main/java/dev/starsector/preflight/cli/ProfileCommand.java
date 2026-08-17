@@ -2,6 +2,10 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.Json;
+import dev.starsector.preflight.core.ModCostBreakdown;
+import dev.starsector.preflight.core.ResourceIndex;
+import dev.starsector.preflight.core.ResourceProviderComparison;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -59,8 +63,8 @@ final class ProfileCommand {
             }
             name = validateName(args[optionsAt++]);
             targetName = validateName(args[optionsAt++]);
-        } else if (!"list".equals(operation)) {
-            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|delete> ...");
+        } else if (!"list".equals(operation) && !"cost".equals(operation)) {
+            throw new IllegalArgumentException("Expected: profile <list|save|activate|rename|delete|cost> ...");
         }
 
         Options options = Options.parse(args, optionsAt);
@@ -79,6 +83,7 @@ final class ProfileCommand {
         PreflightHome home = PreflightHome.current();
         return switch (operation) {
             case "list" -> list(home, target.installRoot(), options.json(), System.out);
+            case "cost" -> cost(target.installRoot(), options.json(), System.out);
             case "save" -> save(home, target.installRoot(), name, options.json(), System.out);
             case "activate" -> activate(
                     home, target.installRoot(), name, options.confirmed(), options.json(), System.out);
@@ -102,6 +107,32 @@ final class ProfileCommand {
             default -> throw new IllegalStateException("Unexpected profile operation " + operation);
         };
     }
+
+    static int cost(Path installRoot, boolean json, PrintStream out) throws Exception {
+        ProfileCensus.Result census = ProfileCensus.scan(installRoot);
+        ResourceIndex index = ResourceIndexBuilder.build(installRoot).index();
+        ResourceProviderComparison.Result comparison = ResourceProviderComparison.analyze(
+                index, ResourceProviderContentIdentity.direct(index));
+        ModCostBreakdown.Report report = ProfileModCostAnalyzer.analyze(
+                installRoot, census, index, comparison);
+        if (json) {
+            out.println(Json.object(report.toPublicMap()));
+            return 0;
+        }
+        out.println("Profile cost breakdown (" + report.mods().size() + " mods, "
+                + PreparationStoragePlanner.humanBytes(report.totalInstalledBytes()) + " total installed):");
+        for (ModCostBreakdown.ModFootprint mod : report.mods()) {
+            String label = mod.displayName() != null ? mod.displayName() : mod.modId();
+            out.printf("  - %s (%s): %s (%d files), %s GPU texture resident%n",
+                    label,
+                    mod.modId(),
+                    PreparationStoragePlanner.humanBytes(mod.installedBytes()),
+                    mod.totalFiles(),
+                    PreparationStoragePlanner.humanBytes(mod.uncompressedTextureGpuBytes()));
+        }
+        return 0;
+    }
+
 
     static int save(PreflightHome home, Path installRoot, String name, boolean json, PrintStream out)
             throws Exception {
