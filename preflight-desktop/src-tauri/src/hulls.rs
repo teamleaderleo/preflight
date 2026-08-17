@@ -131,6 +131,19 @@ impl WireframeHullCatalog {
     }
 }
 
+use sha2::{Digest, Sha256};
+use std::sync::Mutex;
+use std::time::SystemTime;
+
+#[derive(Clone, Debug)]
+struct CachedCatalogEntry {
+    installation_root: PathBuf,
+    fingerprint: [u8; 32],
+    catalog: WireframeHullCatalog,
+}
+
+static CATALOG_CACHE: Mutex<Option<CachedCatalogEntry>> = Mutex::new(None);
+
 #[tauri::command]
 pub(crate) fn get_wireframe_hulls(game: String) -> Result<WireframeHullCatalog, String> {
     let game = canonical_game_directory(&game)?;
@@ -138,10 +151,43 @@ pub(crate) fn get_wireframe_hulls(game: String) -> Result<WireframeHullCatalog, 
 }
 
 pub fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
-    let directory = hull_directory(game).ok_or_else(|| {
+    let canonical_game = game
+        .canonicalize()
+        .map_err(|error| format!("Could not inspect Starsector installation directory: {error}"))?;
+    let directory = hull_directory(&canonical_game).ok_or_else(|| {
         "This Starsector installation doesn't contain readable hull definitions.".to_string()
     })?;
-    let directory_entries = fs::read_dir(&directory)
+
+    let fingerprint = compute_catalog_fingerprint(&canonical_game, &directory);
+    if let Some(fp) = fingerprint {
+        let guard = CATALOG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(cached) = guard.as_ref() {
+            if cached.installation_root == canonical_game && cached.fingerprint == fp {
+                return Ok(cached.catalog.clone());
+            }
+        }
+    }
+
+    let catalog = derive_wireframe_hulls(&directory)?;
+
+    if let Some(fp) = fingerprint {
+        let mut guard = CATALOG_CACHE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *guard = Some(CachedCatalogEntry {
+            installation_root: canonical_game,
+            fingerprint: fp,
+            catalog: catalog.clone(),
+        });
+    }
+
+    Ok(catalog)
+}
+
+fn derive_wireframe_hulls(directory: &Path) -> Result<WireframeHullCatalog, String> {
+    let directory_entries = fs::read_dir(directory)
         .map_err(|error| format!("Could not inspect Starsector's hull catalog: {error}"))?;
     let mut entries = Vec::new();
     let mut skipped = 0;
@@ -192,7 +238,7 @@ pub fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String>
         catalog_bytes = next_catalog_bytes;
         let hull = serde_json::from_slice::<RawHull>(&bytes)
             .ok()
-            .and_then(|raw| validate_hull(raw, &directory));
+            .and_then(|raw| validate_hull(raw, directory));
         match hull {
             Some(hull) => hulls.push(hull),
             None => skipped += 1,
@@ -213,6 +259,70 @@ pub fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String>
         hulls,
         skipped,
     })
+}
+
+fn compute_catalog_fingerprint(game: &Path, hull_directory: &Path) -> Option<[u8; 32]> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"preflight-wireframe-catalog-v1\0");
+    hasher.update(game.as_os_str().as_encoded_bytes());
+    hasher.update(b"\0");
+    hasher.update(hull_directory.as_os_str().as_encoded_bytes());
+    hasher.update(b"\0");
+
+    let directory_entries = fs::read_dir(hull_directory).ok()?;
+    let mut ship_files = Vec::new();
+    for entry in directory_entries {
+        let Ok(entry) = entry else { continue };
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) == Some("ship") {
+            ship_files.push((entry.file_name(), path));
+        }
+    }
+    ship_files.sort_by(|(left, _), (right, _)| left.cmp(right));
+
+    for (file_name, path) in ship_files {
+        hasher.update(file_name.as_encoded_bytes());
+        hasher.update(b"\0");
+        if let Ok(metadata) = fs::symlink_metadata(&path) {
+            hasher.update(metadata.len().to_le_bytes());
+            if let Ok(mtime) = metadata.modified() {
+                if let Ok(duration) = mtime.duration_since(SystemTime::UNIX_EPOCH) {
+                    hasher.update(duration.as_nanos().to_le_bytes());
+                }
+            }
+        }
+    }
+
+    let root = hull_directory
+        .parent()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.canonicalize().ok());
+    if let Some(root) = root {
+        const CANDIDATE_SPRITES: [&str; 6] = [
+            "graphics/ships/odyssey.png",
+            "graphics/ships/onslaught.png",
+            "graphics/ships/conquest.png",
+            "graphics/ships/paragon.png",
+            "graphics/ships/astral.png",
+            "graphics/ships/hammerhead.png",
+        ];
+        for candidate in CANDIDATE_SPRITES {
+            let sprite_path = root.join(candidate);
+            if let Ok(metadata) = fs::symlink_metadata(&sprite_path) {
+                if metadata.is_file() {
+                    hasher.update(candidate.as_bytes());
+                    hasher.update(metadata.len().to_le_bytes());
+                    if let Ok(mtime) = metadata.modified() {
+                        if let Ok(duration) = mtime.duration_since(SystemTime::UNIX_EPOCH) {
+                            hasher.update(duration.as_nanos().to_le_bytes());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Some(hasher.finalize().into())
 }
 
 fn bounded_catalog_bytes(current: u64, next: u64) -> Option<u64> {
@@ -641,5 +751,133 @@ mod tests {
             Ordering::Less,
             featured_rank("odyssey").cmp(&featured_rank("custom"))
         );
+    }
+
+    #[test]
+    fn identical_installation_reuses_exact_cached_catalog() {
+        let root = temporary_directory("reuse-exact");
+        let directory = root.join("data/hulls");
+        fs::create_dir_all(&directory).expect("hull directory");
+        fs::write(
+            directory.join("hammerhead.ship"),
+            hull("hammerhead", "Hammerhead"),
+        )
+        .expect("write");
+
+        let first = read_wireframe_hulls(&root).expect("first read");
+        let second = read_wireframe_hulls(&root).expect("second read");
+        assert_eq!(first, second);
+        assert_eq!(first.hulls.len(), 1);
+
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn modifying_a_ship_file_invalidates_cache() {
+        let root = temporary_directory("ship-invalidate");
+        let directory = root.join("data/hulls");
+        fs::create_dir_all(&directory).expect("hull directory");
+        fs::write(
+            directory.join("hammerhead.ship"),
+            hull("hammerhead", "Hammerhead"),
+        )
+        .expect("write");
+
+        let first = read_wireframe_hulls(&root).expect("first read");
+        assert_eq!(first.hulls.len(), 1);
+
+        // Add a second ship file
+        fs::write(directory.join("zeta.ship"), hull("zeta", "Zeta")).expect("write zeta");
+        let second = read_wireframe_hulls(&root).expect("second read");
+        assert_eq!(second.hulls.len(), 2);
+        assert_ne!(first, second);
+
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn modifying_a_featured_sprite_invalidates_cache() {
+        let root = temporary_directory("sprite-invalidate");
+        let hulls = root.join("data/hulls");
+        let sprites = root.join("graphics/ships");
+        fs::create_dir_all(&hulls).expect("hulls");
+        fs::create_dir_all(&sprites).expect("sprites");
+        write_test_sprite(&sprites.join("odyssey.png"));
+        fs::write(
+            hulls.join("odyssey.ship"),
+            r#"{
+                "hullId":"odyssey",
+                "hullName":"Odyssey",
+                "hullSize":"CAPITAL_SHIP",
+                "center":[8,8],
+                "spriteName":"graphics/ships/odyssey.png",
+                "bounds":[10,0,-5,8,-5,-8]
+            }"#,
+        )
+        .expect("hull");
+
+        let first = read_wireframe_hulls(&root).expect("first read");
+        assert!(first.hulls[0].trace.is_some());
+
+        // Modify sprite
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        fs::write(sprites.join("odyssey.png"), b"not-a-valid-png").expect("overwrite sprite");
+
+        let second = read_wireframe_hulls(&root).expect("second read");
+        // Because sprite became invalid, trace fails and is None
+        assert!(second.hulls[0].trace.is_none());
+        assert_ne!(first, second);
+
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn unrelated_file_change_does_not_invalidate_cache() {
+        let root = temporary_directory("unrelated-file");
+        let directory = root.join("data/hulls");
+        fs::create_dir_all(&directory).expect("hull directory");
+        fs::write(
+            directory.join("hammerhead.ship"),
+            hull("hammerhead", "Hammerhead"),
+        )
+        .expect("write");
+
+        let first = read_wireframe_hulls(&root).expect("first read");
+
+        // Write unrelated file in another directory
+        fs::create_dir_all(root.join("saves")).expect("saves dir");
+        fs::write(root.join("saves/save.xml"), "<save></save>").expect("write save");
+
+        let second = read_wireframe_hulls(&root).expect("second read");
+        assert_eq!(first, second);
+
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn multiple_installations_never_share_the_wrong_catalog() {
+        let root1 = temporary_directory("install-1");
+        let root2 = temporary_directory("install-2");
+        let dir1 = root1.join("data/hulls");
+        let dir2 = root2.join("data/hulls");
+        fs::create_dir_all(&dir1).expect("dir1");
+        fs::create_dir_all(&dir2).expect("dir2");
+        fs::write(
+            dir1.join("hammerhead.ship"),
+            hull("hammerhead", "Hammerhead"),
+        )
+        .expect("write 1");
+        fs::write(dir2.join("zeta.ship"), hull("zeta", "Zeta")).expect("write 2");
+
+        let cat1 = read_wireframe_hulls(&root1).expect("cat1");
+        let cat2 = read_wireframe_hulls(&root2).expect("cat2");
+
+        assert_eq!(cat1.hulls.len(), 1);
+        assert_eq!(cat1.hulls[0].id, "hammerhead");
+        assert_eq!(cat2.hulls.len(), 1);
+        assert_eq!(cat2.hulls[0].id, "zeta");
+
+        fs::remove_dir_all(root1).expect("cleanup 1");
+        fs::remove_dir_all(root2).expect("cleanup 2");
     }
 }
