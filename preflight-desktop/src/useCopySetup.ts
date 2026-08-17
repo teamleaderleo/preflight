@@ -51,13 +51,9 @@ export function useCopySetup(optimizationPreset: OptimizationPreset) {
               profileFingerprint: cacheInspection.health.profileFingerprint,
             }
           : null,
-        latestLaunch: snapshot.lastRun
-          ? {
-              outcome: snapshot.lastRun.outcome,
-              startupMillis: snapshot.lastRun.startupMillis,
-              exitCode: snapshot.lastRun.exitCode,
-            }
-          : null,
+        // DesktopSnapshot.lastRun is the newest global run directory today. It has no selected-install
+        // or profile fingerprint, so Copy setup leaves launch evidence out until it can be correlated.
+        latestLaunch: null,
       });
       setState("copied");
     } catch {
