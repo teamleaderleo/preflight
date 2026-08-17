@@ -50,7 +50,9 @@ interface HomePageProps {
   launcherSettingsSaving: boolean;
   launchSettingsDirty: boolean;
   operationBlocked: boolean;
-  launchSettingsBlocked: boolean;
+  launchSettingsEditingBlocked: boolean;
+  launchSettingsSaveBlocked: boolean;
+  launchSettingsSaveBlockReason?: string;
   theme: Exclude<ThemePreference, "system">;
   onLauncherChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onChooseInstall: () => void;
@@ -85,7 +87,9 @@ export function HomePage({
   launcherSettingsSaving,
   launchSettingsDirty,
   operationBlocked,
-  launchSettingsBlocked,
+  launchSettingsEditingBlocked,
+  launchSettingsSaveBlocked,
+  launchSettingsSaveBlockReason,
   theme,
   onLauncherChange,
   onChooseInstall,
@@ -302,7 +306,9 @@ export function HomePage({
             draft={launcherDraft}
             dirty={launchSettingsDirty}
             saving={launcherSettingsSaving}
-            disabled={launchSettingsBlocked || launcherSettingsLoading}
+            editingDisabled={launchSettingsEditingBlocked || launcherSettingsLoading}
+            saveBlocked={launchSettingsSaveBlocked || launcherSettingsLoading}
+            saveBlockReason={launchSettingsSaveBlockReason}
             onChange={onLauncherChange}
             onOpenAll={() => onNavigate("launch")}
             onSave={onSaveLauncherSettings}

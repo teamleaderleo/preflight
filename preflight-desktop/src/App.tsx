@@ -477,13 +477,23 @@ export default function App() {
     updateInstalling: updates.updateInstalling,
   });
   const operationBlocked = activeOperation !== null;
-  const launchSettingsBlocked = choosingInstall
+  const launchSettingsEditingBlocked = choosingInstall
     || restoringOperation
+    || updates.updateInstalling
+    || removal.busy;
+  const launchSettingsSaveBlocked = launchSettingsEditingBlocked
     || status === "launching"
     || status === "running"
     || automation.desktopSmokeRunning
-    || updates.updateInstalling
-    || removal.busy;
+  const launchSettingsSaveBlockReason = status === "launching" || status === "running"
+    ? "Changes can be applied after Starsector closes."
+    : automation.desktopSmokeRunning
+      ? "Changes can be applied after the benchmark finishes."
+      : updates.updateInstalling
+        ? "Changes can be applied after Preflight finishes updating."
+        : removal.busy
+          ? "Changes can be applied after the current removal review finishes."
+          : undefined;
   const refreshAfterAutomaticCacheCleanup = useCallback(() => {
     void refreshCache();
     invalidatePreparationPlan();
@@ -555,7 +565,9 @@ export default function App() {
             launcherSettingsSaving={launcher.saving}
             launchSettingsDirty={launcher.dirty}
             operationBlocked={operationBlocked}
-            launchSettingsBlocked={launchSettingsBlocked}
+            launchSettingsEditingBlocked={launchSettingsEditingBlocked}
+            launchSettingsSaveBlocked={launchSettingsSaveBlocked}
+            launchSettingsSaveBlockReason={launchSettingsSaveBlockReason}
             theme={theme.resolved}
             onLauncherChange={launcher.changeDraft}
             onChooseInstall={() => void chooseInstall()}
@@ -585,7 +597,8 @@ export default function App() {
               loading={launcher.loading}
               saving={launcher.saving}
               dirty={launcher.dirty}
-              disabled={launchSettingsBlocked}
+              saveBlocked={launchSettingsSaveBlocked}
+              saveBlockReason={launchSettingsSaveBlockReason}
               onChange={launcher.changeDraft}
               onRefresh={() => void launcher.refresh()}
               onSave={() => void launcher.save()}

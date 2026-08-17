@@ -11,7 +11,8 @@ interface GameSettingsPageProps {
   loading: boolean;
   saving: boolean;
   dirty: boolean;
-  disabled: boolean;
+  saveBlocked: boolean;
+  saveBlockReason?: string;
   onChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onRefresh: () => void;
   onSave: () => void;
@@ -23,7 +24,8 @@ export function GameSettingsPage({
   loading,
   saving,
   dirty,
-  disabled,
+  saveBlocked,
+  saveBlockReason,
   onChange,
   onRefresh,
   onSave,
@@ -102,8 +104,11 @@ export function GameSettingsPage({
 
       {dirty || saving ? (
         <section className="card launch-save">
-          <div><span>{settings.backup ? `Previous values: ${shortPath(settings.backup)}` : "The original launcher values are backed up before a change."}</span></div>
-          <button className="button button--primary" type="button" onClick={onSave} disabled={loading || saving || disabled}>
+          <div>
+            <span>{settings.backup ? `Previous values: ${shortPath(settings.backup)}` : "The original launcher values are backed up before a change."}</span>
+            {saveBlocked && saveBlockReason ? <small>{saveBlockReason}</small> : null}
+          </div>
+          <button className="button button--primary" type="button" onClick={onSave} disabled={loading || saving || saveBlocked}>
             <CheckIcon />{saving ? "Saving…" : "Save changes"}
           </button>
         </section>

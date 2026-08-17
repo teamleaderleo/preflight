@@ -2865,6 +2865,11 @@ h2 {
   font-size: 13px;
 }
 
+.launch-save small {
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+
 .launch-loading {
   padding: 26px;
 }
