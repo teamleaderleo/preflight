@@ -68,6 +68,26 @@ class SupportEvidenceProjectionTest {
     }
 
     @Test
+    void dropsAbsolutePathsAfterClosingAndUnicodePunctuation() {
+        String unix = text(SupportEvidenceProjection.project(
+                "unix-punctuation.json",
+                "{\"reason\":\"failed)/opt/Starsector/private.json\",\"status\":\"ok\"}"));
+        String windows = text(SupportEvidenceProjection.project(
+                "windows-punctuation.json",
+                "{\"summary\":\"failed—C:\\\\Users\\\\alice\\\\secret.txt\",\"status\":\"ok\"}"));
+        String unc = text(SupportEvidenceProjection.project(
+                "unc-punctuation.json",
+                "{\"summary\":\"failed)\\\\\\\\server\\\\share\\\\secret.txt\",\"status\":\"ok\"}"));
+
+        assertFalse(unix.contains("/opt/Starsector"), unix);
+        assertFalse(windows.contains("Users"), windows);
+        assertFalse(unc.contains("server"), unc);
+        assertTrue(unix.contains("status"), unix);
+        assertTrue(windows.contains("status"), windows);
+        assertTrue(unc.contains("status"), unc);
+    }
+
+    @Test
     void dropsEmbeddedUrisAndSecretAssignmentsFromAllowedProse() {
         String fileUri = text(SupportEvidenceProjection.project(
                 "file-uri.json",
@@ -85,6 +105,30 @@ class SupportEvidenceProjectionTest {
         assertTrue(fileUri.contains("status"), fileUri);
         assertTrue(url.contains("status"), url);
         assertTrue(token.contains("status"), token);
+    }
+
+    @Test
+    void dropsGenericSchemeUrisWithoutTreatingProfileProseAsFileUri() {
+        String profile = text(SupportEvidenceProjection.project(
+                "profile.json",
+                "{\"summary\":\"Current profile: ready\",\"status\":\"ok\"}"));
+        String s3 = text(SupportEvidenceProjection.project(
+                "s3.json",
+                "{\"reason\":\"upload target s3://private-bucket/object\",\"status\":\"ok\"}"));
+        String ftp = text(SupportEvidenceProjection.project(
+                "ftp.json",
+                "{\"summary\":\"mirror ftp://user:pass@example.test/file\",\"status\":\"ok\"}"));
+        String custom = text(SupportEvidenceProjection.project(
+                "custom-uri.json",
+                "{\"reason\":\"endpoint support+case://private.example/item\",\"status\":\"ok\"}"));
+
+        assertTrue(profile.contains("Current profile: ready"), profile);
+        assertFalse(s3.contains("private-bucket"), s3);
+        assertFalse(ftp.contains("user:pass"), ftp);
+        assertFalse(custom.contains("private.example"), custom);
+        assertTrue(s3.contains("status"), s3);
+        assertTrue(ftp.contains("status"), ftp);
+        assertTrue(custom.contains("status"), custom);
     }
 
     @Test
