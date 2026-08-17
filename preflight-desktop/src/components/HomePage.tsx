@@ -1,4 +1,5 @@
 import { ArrowIcon, CheckIcon, FolderIcon, PlayIcon, SparklesIcon } from "../icons";
+import { adapterHealthLine } from "../adapterHealthText";
 import type { Page } from "./DesktopShell";
 import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
@@ -8,7 +9,6 @@ import type { useProfiles } from "../useProfiles";
 import { formatBytes, formatPlaytime, formatSavedAt, friendlyPlatform, shortPath } from "../uiFormat";
 import type {
   AppStatus,
-  AdapterHealthSummary,
   DesktopSnapshot,
   LaunchSettings,
   LaunchSettingsUpdate,
@@ -16,25 +16,6 @@ import type {
   OptimizationPreset,
   UpdateStatus,
 } from "../types";
-
-export function adapterHealthLine(health: AdapterHealthSummary): string {
-  switch (health.status) {
-    case "ACTIVE":
-      return "Last run: acceleration active";
-    case "PARTIAL":
-      return "Last run: acceleration active, with safe fallback";
-    case "SAFE_FALLBACK":
-      return "Last run: original game code used safely";
-    case "DISABLED":
-      return "Last run: optimizations off";
-    case "PROBE_ONLY":
-      return "Last run: compatibility check only";
-    case "NO_TARGETS":
-      return "Last run: no matching optimizations needed";
-    case "ERROR":
-      return "Last run: optimization check incomplete";
-  }
-}
 
 type PreparationState = ReturnType<typeof usePreparation>;
 type ProfilesState = ReturnType<typeof useProfiles>;

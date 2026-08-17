@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { createElement } from "react";
 import { expect, test } from "vitest";
-import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "./FlightInstrument";
+import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import { FlightInstrument } from "./FlightInstrument";
 
 test("the canvas redraw watches both appearance axes", () => {

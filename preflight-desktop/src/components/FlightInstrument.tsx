@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import type { WireframeHull, WireframePoint } from "../types";
 import { ORIGINAL_HULL } from "../useInstrumentHull";
 import { projectHull } from "../wireframeHullGeometry";
@@ -12,8 +13,6 @@ interface FlightInstrumentProps {
    */
   variant?: "badge" | "stage";
 }
-
-export const INSTRUMENT_APPEARANCE_ATTRIBUTES = ["data-theme", "data-palette"] as const;
 
 interface InstrumentPalette {
   near: [number, number, number];

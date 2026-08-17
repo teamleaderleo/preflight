@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach } from "vitest";
-import { battleSizePresets, displayPixels, resolutionChoices } from "./components/GameSettingSelects";
-import { storageGroupLabel } from "./components/PreparationPage";
+import { battleSizePresets, displayPixels, resolutionChoices } from "./gameSettingOptions";
+import { storageGroupLabel } from "./preparationOptions";
 import { maximumUiScale } from "./uiFormat";
 import type { LaunchSettings } from "./types";
 
