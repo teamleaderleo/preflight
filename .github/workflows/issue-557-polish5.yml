@@ -50,8 +50,6 @@ jobs:
 
           precheck = Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java")
           text = precheck.read_text()
-          start = text.index("    private static List<String> readEnabled(Path enabledFile) throws IOException {")
-          end = text.index("    private static String nullSafe", start)
           strict_reader = '''    private static List<String> readEnabled(Path enabledFile) throws IOException {
               Object root;
               try {
@@ -77,7 +75,16 @@ jobs:
           }
 
           '''
-          text = text[:start] + strict_reader + text[end:]
+          method_marker = "    private static List<String> readEnabled(Path enabledFile) throws IOException {"
+          if method_marker in text:
+              start = text.index(method_marker)
+              end = text.index("    private static String nullSafe", start)
+              text = text[:start] + strict_reader + text[end:]
+          else:
+              evaluator_marker = "    static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)\n"
+              if text.count(evaluator_marker) != 1:
+                  raise SystemExit(f"evaluator marker drifted: {text.count(evaluator_marker)}")
+              text = text.replace(evaluator_marker, strict_reader + evaluator_marker, 1)
           text = text.replace(
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.WARNING,",
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.INFO,",
