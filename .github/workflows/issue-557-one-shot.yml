@@ -81,20 +81,16 @@ jobs:
                   }
           ''' + text[optional_end:]
 
-          text = replace_once(
-              text,
-              '''            List<String> additions = proposedEnable.stream().sorted().toList();
-              List<String> after = new ArrayList<>(enabled);
-              after.addAll(additions);
-              after = after.stream().distinct().sorted().toList();
-              change = new ProfileChange(enabled, after, additions);
-          ''',
-              '''            List<String> additions = proposedEnable.stream().sorted().toList();
-              List<String> after = new ArrayList<>(enabled);
-              after.addAll(additions);
-              change = new ProfileChange(enabled, after, additions);
-          ''',
-              "profile-change construction")
+          proposal_start = text.index("        ProfileChange change = null;")
+          proposal_end = text.index("        return new Result(FORMAT, enabled, findings, change);", proposal_start)
+          text = text[:proposal_start] + '''        ProfileChange change = null;
+              if (!proposedEnable.isEmpty()) {
+                  List<String> additions = proposedEnable.stream().sorted().toList();
+                  List<String> after = new ArrayList<>(enabled);
+                  after.addAll(additions);
+                  change = new ProfileChange(enabled, after, additions);
+              }
+          ''' + text[proposal_end:]
 
           game_start = text.index("    private static String discoverGameVersion(Path installRoot) {")
           game_end = text.index("    private static boolean sameGameVersion", game_start)
