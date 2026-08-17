@@ -1,0 +1,79 @@
+name: Issue 557 one-shot integration
+
+on:
+  push:
+    branches:
+      - codex/issue-557-mod-compat-precheck
+    paths:
+      - .github/workflows/issue-557-one-shot.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/issue-557-mod-compat-precheck
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Apply exact pre-launch hooks
+        shell: python
+        run: |
+          from pathlib import Path
+
+          replacements = {
+              Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java"): (
+                  '''        if (target == null) {
+                      printDiscovery(discovery);
+                      return 3;
+                  }
+                  return executeSelected(options, discovery, target, platform);
+          ''',
+                  '''        if (target == null) {
+                      printDiscovery(discovery);
+                      return 3;
+                  }
+                  ModCompatibilityPrecheck.Result modReadiness = ModCompatibilityPrecheck.inspect(target.installRoot());
+                  ModCompatibilityPresenter.print(modReadiness, System.out);
+                  return executeSelected(options, discovery, target, platform);
+          '''),
+              Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/PrepareCommand.java"): (
+                  '''        if (target == null) {
+                      System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
+                      return 3;
+                  }
+          
+                  Path cache = (options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory())
+          ''',
+                  '''        if (target == null) {
+                      System.err.println("Preflight could not locate Starsector. Run `doctor` or provide --game.");
+                      return 3;
+                  }
+          
+                  ModCompatibilityPrecheck.Result modReadiness = ModCompatibilityPrecheck.inspect(target.installRoot());
+                  ModCompatibilityPresenter.print(modReadiness, System.out);
+          
+                  Path cache = (options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory())
+          ''')
+          }
+
+          for path, (old, new) in replacements.items():
+              text = path.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"expected exactly one integration seam in {path}, found {text.count(old)}")
+              path.write_text(text.replace(old, new, 1))
+      - name: Verify Java correctness
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Remove one-shot workflow and commit named files
+        run: |
+          rm .github/workflows/issue-557-one-shot.yml
+          git config user.name "preflight-issue-557-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/PrepareCommand.java
+          git add -u .github/workflows/issue-557-one-shot.yml
+          git commit -m "Run mod compatibility precheck before launch"
+          git push origin HEAD:codex/issue-557-mod-compat-precheck
