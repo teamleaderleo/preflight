@@ -72,4 +72,30 @@ describe("wireframe hull geometry", () => {
       && Number.isFinite(segment.to.depth)
     ))).toBe(true);
   });
+
+  it("keeps normalized asymmetric hulls on their bounding-box centerline", () => {
+    const asymmetricHull: WireframeHull = {
+      ...hull,
+      id: "asymmetric-test",
+      bounds: [
+        { x: 10, y: 0 },
+        { x: 5, y: 8 },
+        { x: 0, y: 8 },
+        { x: -5, y: 8 },
+        { x: -5, y: 6 },
+        { x: -5, y: 4 },
+        { x: -5, y: 2 },
+        { x: -5, y: -8 },
+      ],
+    };
+    const segments = buildHullSegments(asymmetricHull, "medium");
+    const deck = segments.filter((segment) => segment.kind === "deck");
+    const keel = segments.filter((segment) => segment.kind === "keel");
+
+    expect(deck).toHaveLength(6);
+    expect(deck[0].from.y).toBeCloseTo(0, 8);
+    expect(deck[3].from.y).toBeCloseTo(0, 8);
+    expect(Math.min(...keel.map((segment) => segment.from.y)))
+      .toBeCloseTo(-Math.max(...keel.map((segment) => segment.from.y)), 8);
+  });
 });
