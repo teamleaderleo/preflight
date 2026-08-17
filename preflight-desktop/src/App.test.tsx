@@ -78,13 +78,13 @@ test("latest-run compatibility stays short and treats fallback as a safe result"
     suggestedActions: [],
   };
 
-  expect(adapterHealthLine({ ...base, status: "ACTIVE" })).toBe("Last run: 31 optimizations active");
+  expect(adapterHealthLine({ ...base, status: "ACTIVE" })).toBe("Last run: acceleration active");
   expect(adapterHealthLine({
     ...base,
     status: "PARTIAL",
     originalCodeRetained: true,
     reviewRecommended: true,
-  })).toBe("Last run: 31 active, built-in fallback used where needed");
+  })).toBe("Last run: acceleration active, with safe fallback");
   expect(adapterHealthLine({
     ...base,
     status: "SAFE_FALLBACK",
@@ -341,7 +341,7 @@ test("home surfaces the latest compatibility verdict without exposing the raw re
 
   render(<App />);
 
-  expect(await screen.findByText("Last run: 31 active, built-in fallback used where needed"))
+  expect(await screen.findByText("Last run: acceleration active, with safe fallback"))
     .toHaveAttribute("title", "Keep playing if the game is otherwise healthy.");
   expect(screen.queryByText("VERSION_OR_TARGET_MISMATCH")).not.toBeInTheDocument();
   snapshot.mockRestore();

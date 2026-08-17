@@ -350,6 +350,8 @@ export async function getOperationState(includeDurable = false): Promise<Operati
       preparationPid: null,
       reportUploadId: null,
       reportUploadTotalBytes: null,
+      diagnosticsExporting: false,
+      updateChecking: false,
       updateInstalling: false,
     };
   }

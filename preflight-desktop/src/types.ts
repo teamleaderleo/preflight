@@ -134,6 +134,8 @@ export interface OperationSnapshot {
   preparationPid: number | null;
   reportUploadId: number | null;
   reportUploadTotalBytes: number | null;
+  diagnosticsExporting: boolean;
+  updateChecking: boolean;
   updateInstalling: boolean;
 }
 

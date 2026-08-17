@@ -14,6 +14,7 @@ interface BenchmarkPageProps {
   isReady: boolean;
   preparing: boolean;
   operationBlocked: boolean;
+  nativeBlockReason: string | null;
   automation: AutomationState;
 }
 
@@ -29,6 +30,7 @@ export function BenchmarkPage({
   isReady,
   preparing,
   operationBlocked,
+  nativeBlockReason,
   automation,
 }: BenchmarkPageProps) {
   const {
@@ -45,6 +47,7 @@ export function BenchmarkPage({
   const benchmarkBlocked = !isReady
     || preparing
     || operationBlocked
+    || nativeBlockReason !== null
     || status === "launching"
     || status === "running";
   return (
@@ -72,10 +75,11 @@ export function BenchmarkPage({
           {desktopSmokeRunning ? (
             <button className="button button--quiet button--benchmark" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping…" : "Stop benchmark"}</button>
           ) : (
-            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || benchmarkBlocked}>
+            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || benchmarkBlocked} aria-describedby={nativeBlockReason ? "benchmark-native-block" : undefined}>
               {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? "Check again" : "Run benchmark"}
             </button>
           )}
+          {nativeBlockReason ? <small id="benchmark-native-block">{nativeBlockReason}</small> : null}
           {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "The startup benchmark isn’t available in this build."}</small> : null}
         </div>
       </section>

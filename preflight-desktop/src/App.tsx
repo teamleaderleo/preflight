@@ -38,6 +38,7 @@ import { useTheme } from "./useTheme";
 import { useWorkflowNotices } from "./useWorkflowNotices";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
+import { benchmarkOperationReason } from "./operationAvailability";
 import { failedRunSummary, shortPath } from "./uiFormat";
 import { blockingWorkflow } from "./workflowPolicy";
 import type {
@@ -82,6 +83,7 @@ export default function App() {
   const [stoppingGame, setStoppingGame] = useState(false);
   const [forceStopAvailable, setForceStopAvailable] = useState(false);
   const [restoringOperation, setRestoringOperation] = useState(() => isDesktopHost());
+  const [nativeBenchmarkBlockReason, setNativeBenchmarkBlockReason] = useState<string | null>(null);
   const choosingInstallRef = useRef(false);
   const { announce: announceNotice, clear: clearNotice, latest: latestNotice } = useWorkflowNotices();
   const announceInstallation = useCallback((message: string, tone?: NoticeTone) => announceNotice("installation", message, tone), [announceNotice]);
@@ -287,9 +289,31 @@ export default function App() {
     if (!isDesktopHost()) return;
     let cancelled = false;
     let recoveredGameActive = false;
+    let backgroundOperationActive = false;
     let stopRecoveredGameReconciliation: () => void = () => undefined;
+    let stopBackgroundOperationReconciliation: () => void = () => undefined;
     void getOperationState(true).then((operation) => {
-      if (!cancelled && operation.gamePid !== null) {
+      if (cancelled) return;
+      const benchmarkReason = benchmarkOperationReason(operation);
+      setNativeBenchmarkBlockReason(benchmarkReason);
+      if (benchmarkReason !== null) {
+        backgroundOperationActive = true;
+        stopBackgroundOperationReconciliation = startOperationReconciliation({
+          // These owners live in the current Tauri process. Avoid the durable game probe here;
+          // it starts the CLI and is only needed by the separate recovered-game path below.
+          read: () => getOperationState(false),
+          apply: (current) => {
+            const reason = benchmarkOperationReason(current);
+            setNativeBenchmarkBlockReason(reason);
+            backgroundOperationActive = reason !== null;
+          },
+          isActive: () => backgroundOperationActive,
+          onError: (error) => announceBenchmark(`Couldn’t refresh native operation state: ${error}`, "warning"),
+        });
+      }
+      if (automation.reconnectDesktopAutomation(operation)) {
+        announceBenchmark("Reconnected to the running startup benchmark.", "success");
+      } else if (operation.gamePid !== null) {
         setStatus("running");
         announceGame("Reconnected to the running Starsector game.", "success");
         if (operation.gameRecovered) {
@@ -323,9 +347,11 @@ export default function App() {
     return () => {
       cancelled = true;
       recoveredGameActive = false;
+      backgroundOperationActive = false;
       stopRecoveredGameReconciliation();
+      stopBackgroundOperationReconciliation();
     };
-  }, [announceGame, refresh]);
+  }, [announceBenchmark, announceGame, automation.reconnectDesktopAutomation, refresh]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -579,6 +605,7 @@ export default function App() {
             isReady={isReady}
             preparing={preparing}
             operationBlocked={operationBlocked}
+            nativeBlockReason={nativeBenchmarkBlockReason}
             automation={automation}
           />
         ) : page === "help" ? (

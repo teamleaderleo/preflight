@@ -910,12 +910,13 @@ mod tests {
                 "preparationPid": 43,
                 "reportUploadId": 44,
                 "reportUploadTotalBytes": 4096,
+                "diagnosticsExporting": true,
+                "updateChecking": false,
                 "updateInstalling": true
             }),
             value
         );
         assert!(value.get("exitAfterCleanup").is_none());
-        assert!(value.get("diagnosticsExporting").is_none());
     }
 
     #[test]

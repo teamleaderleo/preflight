@@ -18,12 +18,11 @@ import type {
 } from "../types";
 
 export function adapterHealthLine(health: AdapterHealthSummary): string {
-  const applied = health.transformationsApplied.toLocaleString();
   switch (health.status) {
     case "ACTIVE":
-      return `Last run: ${applied} optimization${health.transformationsApplied === 1 ? "" : "s"} active`;
+      return "Last run: acceleration active";
     case "PARTIAL":
-      return `Last run: ${applied} active, built-in fallback used where needed`;
+      return "Last run: acceleration active, with safe fallback";
     case "SAFE_FALLBACK":
       return "Last run: original game code used safely";
     case "DISABLED":
