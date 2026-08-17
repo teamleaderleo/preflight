@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -220,6 +221,18 @@ final class SaveProfileObservationTest {
     }
 
     @Test
+    void pollThatStraddlesProcessTerminationDiscardsItsSnapshot() throws Exception {
+        Fixture fixture = fixture("manual", "before");
+        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(1));
+        Files.writeString(fixture.saveFile("manual"), "changed-during-straddled-scan");
+        AtomicInteger ownershipChecks = new AtomicInteger();
+
+        session.scanWhileOwned(() -> ownershipChecks.getAndIncrement() == 0);
+
+        assertTrue(session.changedSaveKeys().isEmpty());
+    }
+
+    @Test
     void modMetadataIsBoundedAndSortedForStableDifferencePresentation() {
         SaveProfileObservation.SessionIdentity identity = new SaveProfileObservation.SessionIdentity(
                 "fingerprint",
@@ -323,7 +336,7 @@ final class SaveProfileObservationTest {
     }
 
     private Fixture fixture(String saveName, String contents) throws Exception {
-        PreflightHome home = new PreflightHome(temp.resolve("preflight-home"));
+        PreflightHome home = new PreflightHome(temp.resolve("preflight-home"), List.of());
         Path install = temp.resolve("Starsector");
         Path saves = install.resolve("saves");
         Files.createDirectories(saves);
