@@ -36,6 +36,8 @@ describe("operationAvailability", () => {
     expect(removalOperationReason(idle)).toBeNull();
     expect(removalOperationReason({ ...idle, gamePid: 1234 }))
       .toBe("Close Starsector before removing Preflight data.");
+    expect(removalOperationReason({ ...idle, preparationPid: 5678 }))
+      .toBe("Wait for profile preparation to finish before removing Preflight data.");
     expect(removalOperationReason({ ...idle, reportUploadId: 5 }))
       .toBe("Wait for the run report upload to finish or cancel it before removing Preflight data.");
     expect(removalOperationReason({ ...idle, updateInstalling: true }))
@@ -56,4 +58,3 @@ describe("operationAvailability", () => {
       .toBe("A Preflight update is already being installed.");
   });
 });
-

@@ -11,6 +11,9 @@ export function benchmarkOperationReason(operation: OperationSnapshot): string |
 
 export function removalOperationReason(operation: OperationSnapshot): string | null {
   if (operation.gamePid !== null) return "Close Starsector before removing Preflight data.";
+  if (operation.preparationPid !== null) {
+    return "Wait for profile preparation to finish before removing Preflight data.";
+  }
   if (operation.reportUploadId !== null) {
     return "Wait for the run report upload to finish or cancel it before removing Preflight data.";
   }
@@ -32,4 +35,3 @@ export function updateInstallOperationReason(operation: OperationSnapshot): stri
   if (operation.updateInstalling) return "A Preflight update is already being installed.";
   return null;
 }
-

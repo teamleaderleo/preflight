@@ -10,7 +10,6 @@ type UpdateState = ReturnType<typeof useSignedUpdates>;
 interface SettingsPageProps {
   message: string;
   messageTone: NoticeTone;
-  operationBlocked: boolean;
   removalBlockedReason?: string | null;
   updateInstallBlockedReason?: string | null;
   updates: UpdateState;
@@ -29,7 +28,6 @@ interface SettingsPageProps {
 export function SettingsPage({
   message,
   messageTone,
-  operationBlocked,
   removalBlockedReason,
   updateInstallBlockedReason,
   updates,
@@ -44,7 +42,6 @@ export function SettingsPage({
   onDismissRemoval,
   onRemove,
 }: SettingsPageProps) {
-
   const {
     updateChecking,
     updateError,
@@ -107,13 +104,16 @@ export function SettingsPage({
                 className="button button--primary"
                 type="button"
                 onClick={() => void installSignedUpdate()}
-                disabled={updateInstalling || operationBlocked || Boolean(updateInstallBlockedReason)}
+                disabled={updateInstalling || Boolean(updateInstallBlockedReason)}
                 title={updateInstallBlockedReason ?? undefined}
               >
                 {updateInstalling ? "Installing…" : "Install and restart"}
               </button>
             ) : null}
           </div>
+          {updateStatus?.available && updateInstallBlockedReason
+            ? <small role="status">{updateInstallBlockedReason}</small>
+            : null}
           {updateStatus?.available ? <small>Prepared profiles stay in place. If the cache format changed, the previous copy is kept for rollback.</small> : null}
           <small>Updates are verified before installation. A failed check leaves this version untouched.</small>
           <label className="settings-toggle">
@@ -181,7 +181,7 @@ export function SettingsPage({
                 className="button button--quiet button--compact"
                 type="button"
                 onClick={() => onReviewRemoval("launcher")}
-                disabled={removalBusy || operationBlocked || Boolean(removalBlockedReason)}
+                disabled={removalBusy || Boolean(removalBlockedReason)}
                 title={removalBlockedReason ?? undefined}
               >
                 Review
@@ -194,13 +194,14 @@ export function SettingsPage({
                 className="button button--danger button--compact"
                 type="button"
                 onClick={() => onReviewRemoval("all-data")}
-                disabled={removalBusy || operationBlocked || Boolean(removalBlockedReason)}
+                disabled={removalBusy || Boolean(removalBlockedReason)}
                 title={removalBlockedReason ?? undefined}
               >
                 Review deletion
               </button>
             </div>
           </div>
+          {removalBlockedReason ? <small role="status">{removalBlockedReason}</small> : null}
         </div>
       </details>
 
@@ -212,13 +213,14 @@ export function SettingsPage({
           </div>
           <p className="cleanup-summary">{formatBytes(removalPlan.bytes)} across {removalPlan.files.toLocaleString()} files. The plan was measured from the paths below.</p>
           <div className="cleanup-groups">{removalPlan.targets.map((target) => <div key={`${target.kind}:${target.path}`}><span>{target.label}</span><strong>{formatBytes(target.bytes)} · {shortPath(target.path)}</strong></div>)}</div>
+          {removalBlockedReason ? <small role="status">{removalBlockedReason}</small> : null}
           <div className="activation-review__footer">
             <span><ShieldIcon /> Starsector, mods, saves, and game settings aren’t removal targets.</span>
             <button
               className="button button--danger"
               type="button"
               onClick={onRemove}
-              disabled={!removalPlan.safe || removalPlan.targets.length === 0 || removalBusy || operationBlocked || Boolean(removalBlockedReason)}
+              disabled={!removalPlan.safe || removalPlan.targets.length === 0 || removalBusy || Boolean(removalBlockedReason)}
               title={removalBlockedReason ?? undefined}
             >
               {removalBusy ? "Removing…" : removalPlan.targets.length === 0 ? "Nothing to remove" : removalPlan.scope === "all-data" ? "Remove all Preflight data" : "Remove launch integration"}
@@ -229,4 +231,3 @@ export function SettingsPage({
     </div>
   );
 }
-

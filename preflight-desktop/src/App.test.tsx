@@ -1545,7 +1545,9 @@ test("a reviewed removal cannot be applied while the game is running", async () 
   await user.click(await screen.findByRole("button", { name: "Launch Starsector" }));
   await waitFor(() => expect(game).toHaveBeenCalled());
   await user.click(screen.getByRole("button", { name: "Settings" }));
-  expect(await screen.findByRole("button", { name: "Remove all Preflight data" })).toBeDisabled();
+  const removalReview = await screen.findByRole("region", { name: "Removal review" });
+  expect(within(removalReview).getByRole("button", { name: "Remove all Preflight data" })).toBeDisabled();
+  expect(within(removalReview).getByText("Close Starsector before removing Preflight data.")).toBeVisible();
   game.mockRestore();
 });
 

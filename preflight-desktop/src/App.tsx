@@ -494,6 +494,26 @@ export default function App() {
     updateInstalling: updates.updateInstalling,
   });
   const operationBlocked = activeOperation !== null;
+  const removalBlockedReason = status === "launching" || status === "running"
+    ? "Close Starsector before removing Preflight data."
+    : preparing
+      ? "Wait for profile preparation to finish before removing Preflight data."
+      : diagnostics.reportUploading
+        ? "Wait for the run report upload to finish or cancel it before removing Preflight data."
+        : updates.updateInstalling
+          ? "Wait for the Preflight update to finish installing."
+          : nativeRemovalBlockReason;
+  const updateInstallBlockedReason = status === "launching" || status === "running"
+    ? "Close Starsector before installing a Preflight update."
+    : preparing
+      ? "Wait for profile preparation to finish before installing an update."
+      : diagnostics.reportUploading
+        ? "Wait for the run report upload to finish or cancel it before installing an update."
+        : updates.updateChecking
+          ? "Wait for the current update check to finish before installing an update."
+          : updates.updateInstalling
+            ? "A Preflight update is already being installed."
+            : nativeUpdateInstallBlockReason;
   const launchSettingsEditingBlocked = choosingInstall
     || restoringOperation
     || updates.updateInstalling
@@ -677,9 +697,8 @@ export default function App() {
           <SettingsPage
             message={settingsNotice?.message ?? ""}
             messageTone={settingsNotice?.tone ?? "info"}
-            operationBlocked={operationBlocked}
-            removalBlockedReason={nativeRemovalBlockReason}
-            updateInstallBlockedReason={nativeUpdateInstallBlockReason}
+            removalBlockedReason={removalBlockedReason}
+            updateInstallBlockedReason={updateInstallBlockedReason}
             updates={updates}
             reportIntake={diagnostics.reportIntake}
             removalPlan={removal.plan}
