@@ -23,7 +23,6 @@ jobs:
           test -n "$JAVA_HOME_17_X64"
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-          "$JAVA_HOME_17_X64/bin/java" -version
       - name: Apply reviewed contract polish
         shell: python
         run: |
@@ -34,8 +33,7 @@ jobs:
           shell_at = workflow.index("        shell: python")
           script_at = workflow.index("        run: |\n", shell_at) + len("        run: |\n")
           script_end = workflow.index("      - name: Verify Java correctness", script_at)
-          script = textwrap.dedent(workflow[script_at:script_end])
-          exec(compile(script, "issue-557-polish2-inline.py", "exec"), {})
+          exec(compile(textwrap.dedent(workflow[script_at:script_end]), "issue-557-polish2-inline.py", "exec"), {})
 
           test = Path("preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java")
           test_text = test.read_text()
@@ -75,21 +73,22 @@ jobs:
           }
 
           '''
-          signature = "private static List<String> readEnabled(Path enabledFile) throws IOException"
+          prefix = "private static List<String> readEnabled(Path "
           spans = []
           search_at = 0
           while True:
-              signature_at = text.find(signature, search_at)
-              if signature_at < 0:
+              method_at = text.find(prefix, search_at)
+              if method_at < 0:
                   break
-              line_start = text.rfind("\n", 0, signature_at) + 1
-              brace = text.index("{", signature_at)
+              line_start = text.rfind("\n", 0, method_at) + 1
+              brace = text.index("{", method_at)
               depth = 0
               close = None
               for index in range(brace, len(text)):
-                  if text[index] == "{":
+                  char = text[index]
+                  if char == "{":
                       depth += 1
-                  elif text[index] == "}":
+                  elif char == "}":
                       depth -= 1
                       if depth == 0:
                           close = index + 1
@@ -100,14 +99,16 @@ jobs:
                   close += 1
               spans.append((line_start, close))
               search_at = close
+          if not spans:
+              raise SystemExit("expected at least one existing readEnabled(Path) method")
           for start, end in reversed(spans):
               text = text[:start] + text[end:]
           evaluator = "static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)"
           evaluator_at = text.index(evaluator)
           insertion = text.rfind("\n", 0, evaluator_at) + 1
           text = text[:insertion] + strict_reader + text[insertion:]
-          if text.count(signature) != 1:
-              raise SystemExit(f"expected one strict reader, found {text.count(signature)}")
+          if text.count(prefix) != 1:
+              raise SystemExit(f"expected one readEnabled(Path) method, found {text.count(prefix)}")
           text = text.replace(
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.WARNING,",
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.INFO,",
