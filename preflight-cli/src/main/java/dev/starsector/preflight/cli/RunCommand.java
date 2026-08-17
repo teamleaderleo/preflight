@@ -39,7 +39,7 @@ final class RunCommand {
             printDiscovery(discovery);
             return 3;
         }
-        ModCompatibilityPrecheck.Result modReadiness =
+        var modReadiness =
         ModCompatibilityPrecheck.inspect(target.installRoot(), target);
     ModCompatibilityPresenter.print(modReadiness, System.err);
         return executeSelected(options, discovery, target, platform);

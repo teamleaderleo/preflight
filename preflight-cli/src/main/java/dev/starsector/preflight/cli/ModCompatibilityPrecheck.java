@@ -1,5 +1,11 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.ModCompatibilityReadiness.Finding;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.ProfileChange;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.ReasonCode;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.Result;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.Severity;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,91 +21,6 @@ import java.util.Set;
 
 /** Cheap, metadata-only validation of the enabled mod profile. */
 final class ModCompatibilityPrecheck {
-    static final String FORMAT = "starsector-preflight-mod-readiness-v1";
-
-    enum ReasonCode {
-        ENABLED_MODS_UNAVAILABLE("enabled_mods_unavailable"),
-        METADATA_ABSENT("mod_metadata_absent"),
-        METADATA_INVALID("mod_metadata_invalid"),
-        DUPLICATE_MOD_ID("mod_id_ambiguous"),
-        REQUIRED_DEPENDENCY_MISSING("mod_dependency_missing"),
-        REQUIRED_DEPENDENCY_DISABLED("mod_dependency_disabled"),
-        DEPENDENCY_VERSION_MAJOR_MISMATCH("mod_dependency_version_major_mismatch"),
-        DEPENDENCY_VERSION_ADVISORY("mod_dependency_version_advisory"),
-        OPTIONAL_DEPENDENCY("mod_dependency_optional"),
-        GAME_VERSION_MISMATCH("mod_game_version_mismatch"),
-        GAME_VERSION_UNKNOWN("game_version_unknown"),
-        MEMORY_REQUIREMENT_EXCEEDS_HEAP("mod_memory_requirement_exceeds_heap"),
-        MEMORY_REQUIREMENT_UNKNOWN("mod_memory_requirement_unknown");
-
-        private final String code;
-
-        ReasonCode(String code) {
-            this.code = code;
-        }
-
-        String code() {
-            return code;
-        }
-    }
-
-    enum Severity { ERROR, WARNING, INFO }
-
-    record Finding(
-            ReasonCode reason,
-            Severity severity,
-            String modId,
-            String subjectId,
-            String summary) {
-        Map<String, Object> toMap() {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("reasonCode", reason.code());
-            map.put("severity", severity.name().toLowerCase(Locale.ROOT));
-            map.put("modId", modId);
-            map.put("subjectId", subjectId);
-            map.put("summary", summary);
-            return map;
-        }
-    }
-
-    record ProfileChange(List<String> before, List<String> after, List<String> enable) {
-        ProfileChange {
-            before = List.copyOf(before);
-            after = List.copyOf(after);
-            enable = List.copyOf(enable);
-        }
-
-        Map<String, Object> toMap() {
-            return Map.of("before", before, "after", after, "enable", enable);
-        }
-    }
-
-    record Result(
-            String format,
-            List<String> enabledMods,
-            List<Finding> findings,
-            ProfileChange suggestedProfileChange) {
-        Result {
-            enabledMods = List.copyOf(enabledMods);
-            findings = List.copyOf(findings);
-        }
-
-        boolean hasErrors() {
-            return findings.stream().anyMatch(finding -> finding.severity() == Severity.ERROR);
-        }
-
-        Map<String, Object> toMap() {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("format", format);
-            map.put("enabledMods", enabledMods);
-            map.put("hasErrors", hasErrors());
-            map.put("launchAllowed", true);
-            map.put("findings", findings.stream().map(Finding::toMap).toList());
-            map.put("suggestedProfileChange", suggestedProfileChange == null ? null : suggestedProfileChange.toMap());
-            return map;
-        }
-    }
-
     record Version(String raw, Integer major, Integer minor, Integer patch) {
         boolean hasNumericMajor() {
             return major != null;
@@ -109,13 +30,15 @@ final class ModCompatibilityPrecheck {
     record Dependency(String id, String name, Version version, boolean optional) {}
 
     record Metadata(
-            Path directory,
-            String id,
-            String name,
-            Version version,
-            String gameVersion,
-            List<Dependency> dependencies,
-            Long requiredMemoryMb) {}
+        Path directory,
+        String id,
+        String name,
+        Version version,
+        String gameVersion,
+        List<String> missingFields,
+        List<Dependency> dependencies,
+        Long requiredMemoryMb) {}
+
 
     private ModCompatibilityPrecheck() {}
 
@@ -126,228 +49,329 @@ final class ModCompatibilityPrecheck {
     } catch (IOException unavailable) {
         return unavailableProfileResult(installRoot, unavailable);
     }
-    List<String> enabled = readEnabled(layout.enabledModsFile());
+    List<String> enabled;
+    try {
+        enabled = readEnabled(layout.enabledModsFile());
+    } catch (IOException | RuntimeException unavailable) {
+        return unavailableProfileResult(installRoot, unavailable);
+    }
     JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot());
     Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
     return inspect(layout.modsDirectory(), enabled, null, heap);
 }
 
-static Result inspect(Path installRoot, LaunchTarget target) throws IOException {
-    GameLayout layout;
-    try {
-        layout = GameLayout.locate(installRoot);
-    } catch (IOException unavailable) {
-        return unavailableProfileResult(installRoot, unavailable);
+    static Result inspect(Path installRoot, LaunchTarget target) throws IOException {
+        GameLayout layout;
+        try {
+            layout = GameLayout.locate(installRoot);
+        } catch (IOException unavailable) {
+            return unavailableProfileResult(installRoot, unavailable);
+        }
+        List<String> enabled;
+        try {
+            enabled = readEnabled(layout.enabledModsFile());
+        } catch (IOException | RuntimeException unavailable) {
+            return unavailableProfileResult(installRoot, unavailable);
+        }
+        JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot(), target);
+        Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+        return inspect(layout.modsDirectory(), enabled, null, heap);
     }
-    List<String> enabled = readEnabled(layout.enabledModsFile());
-    JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot(), target);
-    Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
-    return inspect(layout.modsDirectory(), enabled, null, heap);
-}
 
-private static Result unavailableProfileResult(Path installRoot, IOException failure) {
-    Finding finding = new Finding(
-            ReasonCode.ENABLED_MODS_UNAVAILABLE,
-            Severity.WARNING,
-            null,
-            null,
-            "Enabled-mod profile could not be established under "
-                    + installRoot.toAbsolutePath().normalize()
-                    + ": "
-                    + failure.getMessage());
-    return new Result(FORMAT, List.of(), List.of(finding), null);
+    private static Result unavailableProfileResult(Path installRoot, Exception failure) {
+        Finding finding = new Finding(
+                ReasonCode.ENABLED_MODS_UNAVAILABLE,
+                Severity.WARNING,
+                null,
+                null,
+                "Enabled-mod profile could not be established under "
+                        + installRoot.toAbsolutePath().normalize()
+                        + ": "
+                        + failure.getMessage());
+        return new Result(List.of(), List.of(finding), null, false, true);
+    }
+
+    private static List<String> readEnabled(Path enabledFile) throws IOException {
+    Object root;
+    try {
+        root = new Parser(Files.readString(enabledFile, StandardCharsets.UTF_8)).parse();
+    } catch (IllegalArgumentException malformed) {
+        throw new IOException("enabled_mods.json is malformed: " + malformed.getMessage(), malformed);
+    }
+    if (!(root instanceof Map<?, ?> raw)) {
+        throw new IOException("enabled_mods.json root must be an object");
+    }
+    Object declared = stringMap(raw).get("enabledMods");
+    if (!(declared instanceof List<?> list)) {
+        throw new IOException("enabled_mods.json must contain an enabledMods array");
+    }
+    List<String> enabled = new ArrayList<>();
+    for (Object value : list) {
+        if (!(value instanceof String id) || id.isBlank()) {
+            throw new IOException("enabled_mods.json enabledMods entries must be non-blank strings");
+        }
+        enabled.add(id);
+    }
+    return List.copyOf(enabled);
 }
 
     static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)
-            throws IOException {
-        List<String> enabled = List.copyOf(new LinkedHashSet<>(enabledMods));
-        Set<String> enabledSet = new LinkedHashSet<>(enabled);
-        List<Finding> findings = new ArrayList<>();
-        Map<String, List<Metadata>> providers = new LinkedHashMap<>();
+        throws IOException {
+    List<String> enabled = List.copyOf(new LinkedHashSet<>(enabledMods));
+    Set<String> enabledSet = new LinkedHashSet<>(enabled);
+    List<Finding> findings = new ArrayList<>();
+    Map<String, List<Metadata>> providers = new LinkedHashMap<>();
+    Set<String> partialReported = new LinkedHashSet<>();
+    boolean evidenceComplete = true;
 
-        if (Files.isDirectory(modsDirectory)) {
-            try (var entries = Files.list(modsDirectory)) {
-                for (Path directory : entries.filter(Files::isDirectory).sorted().toList()) {
-                    Path info = directory.resolve("mod_info.json");
-                    if (!Files.isRegularFile(info)) {
-                        continue;
-                    }
-                    try {
-                        Metadata metadata = parseMetadata(directory, Files.readString(info, StandardCharsets.UTF_8));
-                        providers.computeIfAbsent(metadata.id(), ignored -> new ArrayList<>()).add(metadata);
-                    } catch (IllegalArgumentException | IOException malformed) {
-                        findings.add(new Finding(
-                                ReasonCode.METADATA_INVALID,
-                                Severity.WARNING,
-                                directory.getFileName().toString(),
-                                null,
-                                "Unreadable or invalid mod_info.json in " + directory.getFileName() + ": " + malformed.getMessage()));
-                    }
+    if (Files.isDirectory(modsDirectory)) {
+        try (var entries = Files.list(modsDirectory)) {
+            for (Path directory : entries.filter(Files::isDirectory).sorted().toList()) {
+                Path info = directory.resolve("mod_info.json");
+                if (!Files.isRegularFile(info)) {
+                    continue;
                 }
-            }
-        }
-
-        providers.values().forEach(list -> list.sort(Comparator.comparing(metadata -> metadata.directory().toString())));
-        for (Map.Entry<String, List<Metadata>> entry : providers.entrySet()) {
-            if (entry.getValue().size() > 1) {
-                findings.add(new Finding(
-                        ReasonCode.DUPLICATE_MOD_ID,
-                        Severity.ERROR,
-                        entry.getKey(),
-                        entry.getKey(),
-                        "Multiple installed mods declare id '" + entry.getKey() + "': "
-                                + entry.getValue().stream().map(value -> value.directory().getFileName().toString()).toList()));
-            }
-        }
-
-        LinkedHashSet<String> proposedEnable = new LinkedHashSet<>();
-        long declaredMemoryTotal = 0;
-        boolean anyMemory = false;
-        for (String modId : enabled) {
-            List<Metadata> candidates = providers.get(modId);
-            if (candidates == null || candidates.isEmpty()) {
-                findings.add(new Finding(
-                        ReasonCode.METADATA_ABSENT,
-                        Severity.WARNING,
-                        modId,
-                        null,
-                        "Enabled mod '" + modId + "' has no uniquely readable installed metadata"));
-                continue;
-            }
-            if (candidates.size() != 1) {
-                continue;
-            }
-            Metadata metadata = candidates.get(0);
-            if (metadata.requiredMemoryMb() != null && metadata.requiredMemoryMb() > 0) {
-                declaredMemoryTotal += metadata.requiredMemoryMb();
-                anyMemory = true;
-            }
-            if (metadata.gameVersion() != null && !metadata.gameVersion().isBlank()) {
-                if (gameVersion == null || gameVersion.isBlank()) {
+                try {
+                    Metadata metadata = parseMetadata(
+                            directory, Files.readString(info, StandardCharsets.UTF_8));
+                    providers.computeIfAbsent(metadata.id(), ignored -> new ArrayList<>()).add(metadata);
+                } catch (IllegalArgumentException | IOException malformed) {
                     findings.add(new Finding(
-                            ReasonCode.GAME_VERSION_UNKNOWN,
-                            Severity.INFO,
-                            modId,
-                            null,
-                            "Mod declares game version " + metadata.gameVersion() + ", but the installed game version was not established"));
-                } else if (!sameGameVersion(metadata.gameVersion(), gameVersion)) {
-                    findings.add(new Finding(
-                            ReasonCode.GAME_VERSION_MISMATCH,
+                            ReasonCode.METADATA_INVALID,
                             Severity.WARNING,
-                            modId,
+                            directory.getFileName().toString(),
                             null,
-                            "Mod declares Starsector " + metadata.gameVersion() + "; selected installation reports " + gameVersion));
+                            "Unreadable or invalid mod_info.json in "
+                                    + directory.getFileName() + ": " + malformed.getMessage()));
+                    evidenceComplete = false;
                 }
             }
-            for (Dependency dependency : metadata.dependencies()) {
-                List<Metadata> dependencyProviders = providers.get(dependency.id());
-        if (dependency.optional()) {
-            if (dependencyProviders == null || dependencyProviders.isEmpty()) {
-                findings.add(new Finding(
-                        ReasonCode.OPTIONAL_DEPENDENCY,
-                        Severity.INFO,
-                        modId,
-                        dependency.id(),
-                        "Optional dependency '" + dependency.id() + "' is not installed"));
-            }
+        }
+    }
+
+    providers.values().forEach(list -> list.sort(
+            Comparator.comparing(metadata -> metadata.directory().toString())));
+    for (Map.Entry<String, List<Metadata>> entry : providers.entrySet()) {
+        if (entry.getValue().size() > 1) {
+            findings.add(new Finding(
+                    ReasonCode.DUPLICATE_MOD_ID,
+                    Severity.ERROR,
+                    entry.getKey(),
+                    entry.getKey(),
+                    "Multiple installed mods declare id '" + entry.getKey() + "': "
+                            + entry.getValue().stream()
+                                    .map(value -> value.directory().getFileName().toString())
+                                    .toList()));
+        }
+    }
+
+    LinkedHashSet<String> proposedEnable = new LinkedHashSet<>();
+    long largestDeclaredMemoryMiB = 0;
+    boolean anyValidMemory = false;
+    for (String modId : enabled) {
+        List<Metadata> candidates = providers.get(modId);
+        if (candidates == null || candidates.isEmpty()) {
+            findings.add(new Finding(
+                    ReasonCode.METADATA_ABSENT,
+                    Severity.WARNING,
+                    modId,
+                    null,
+                    "Enabled mod '" + modId + "' has no uniquely readable installed metadata"));
+            evidenceComplete = false;
             continue;
         }
+        if (candidates.size() != 1) {
+            continue;
+        }
+
+        Metadata metadata = candidates.get(0);
+        if (reportPartialMetadata(metadata, findings, partialReported)) {
+            evidenceComplete = false;
+        }
+        if (metadata.requiredMemoryMb() != null) {
+            if (metadata.requiredMemoryMb() <= 0) {
+                findings.add(new Finding(
+                        ReasonCode.MEMORY_REQUIREMENT_INVALID,
+                        Severity.WARNING,
+                        modId,
+                        null,
+                        "requiredMemoryMB must be positive; declared " + metadata.requiredMemoryMb()));
+                evidenceComplete = false;
+            } else {
+                largestDeclaredMemoryMiB = Math.max(largestDeclaredMemoryMiB, metadata.requiredMemoryMb());
+                anyValidMemory = true;
+            }
+        }
+
+        if (metadata.gameVersion() != null && !metadata.gameVersion().isBlank()) {
+            if (gameVersion == null || gameVersion.isBlank()) {
+                findings.add(new Finding(
+                        ReasonCode.GAME_VERSION_UNKNOWN,
+                        Severity.INFO,
+                        modId,
+                        null,
+                        "Mod declares game version " + metadata.gameVersion()
+                                + ", but the installed game version was not established"));
+                evidenceComplete = false;
+            } else if (!sameGameVersion(metadata.gameVersion(), gameVersion)) {
+                findings.add(new Finding(
+                        ReasonCode.GAME_VERSION_MISMATCH,
+                        Severity.WARNING,
+                        modId,
+                        null,
+                        "Mod declares Starsector " + metadata.gameVersion()
+                                + "; selected installation reports " + gameVersion));
+            }
+        }
+
+        for (Dependency dependency : metadata.dependencies()) {
+            List<Metadata> dependencyProviders = providers.get(dependency.id());
+            if (dependency.optional()) {
                 if (dependencyProviders == null || dependencyProviders.isEmpty()) {
                     findings.add(new Finding(
-                            ReasonCode.REQUIRED_DEPENDENCY_MISSING,
-                            Severity.ERROR,
+                            ReasonCode.OPTIONAL_DEPENDENCY,
+                            Severity.INFO,
                             modId,
                             dependency.id(),
-                            "Required dependency '" + dependency.id() + "' is not installed"));
-                    continue;
+                            "Optional dependency '" + dependency.id() + "' is not installed"));
                 }
-                if (dependencyProviders.size() != 1) {
-                    continue;
-                }
-                Metadata provider = dependencyProviders.get(0);
-                if (!enabledSet.contains(dependency.id())) {
-                    findings.add(new Finding(
-                            ReasonCode.REQUIRED_DEPENDENCY_DISABLED,
-                            Severity.ERROR,
-                            modId,
-                            dependency.id(),
-                            "Required dependency '" + dependency.id() + "' is installed but disabled"));
-                    proposedEnable.add(dependency.id());
-                }
-                compareVersion(modId, dependency, provider, findings);
+                continue;
+            }
+            if (dependencyProviders == null || dependencyProviders.isEmpty()) {
+                findings.add(new Finding(
+                        ReasonCode.REQUIRED_DEPENDENCY_MISSING,
+                        Severity.ERROR,
+                        modId,
+                        dependency.id(),
+                        "Required dependency '" + dependency.id() + "' is not installed"));
+                continue;
+            }
+            if (dependencyProviders.size() != 1) {
+                continue;
+            }
+
+            Metadata provider = dependencyProviders.get(0);
+            if (reportPartialMetadata(provider, findings, partialReported)) {
+                evidenceComplete = false;
+            }
+            if (!enabledSet.contains(dependency.id())) {
+                findings.add(new Finding(
+                        ReasonCode.REQUIRED_DEPENDENCY_DISABLED,
+                        Severity.ERROR,
+                        modId,
+                        dependency.id(),
+                        "Required dependency '" + dependency.id() + "' is installed but disabled"));
+                proposedEnable.add(dependency.id());
+            }
+            if (!compareVersion(modId, dependency, provider, findings)) {
+                evidenceComplete = false;
             }
         }
+    }
 
-        if (anyMemory) {
-            if (maxHeapMiB == null) {
-                findings.add(new Finding(
-                        ReasonCode.MEMORY_REQUIREMENT_UNKNOWN,
-                        Severity.INFO,
-                        null,
-                        null,
-                        "Enabled mods declare " + declaredMemoryTotal + " MiB required memory; effective -Xmx was not established"));
-            } else if (declaredMemoryTotal > maxHeapMiB) {
-                findings.add(new Finding(
-                        ReasonCode.MEMORY_REQUIREMENT_EXCEEDS_HEAP,
-                        Severity.WARNING,
-                        null,
-                        null,
-                        "Enabled mods declare " + declaredMemoryTotal + " MiB required memory; effective -Xmx is " + maxHeapMiB + " MiB"));
-            }
+    if (anyValidMemory) {
+        if (maxHeapMiB == null) {
+            findings.add(new Finding(
+                    ReasonCode.MEMORY_REQUIREMENT_UNKNOWN,
+                    Severity.INFO,
+                    null,
+                    null,
+                    "Enabled mods declare up to " + largestDeclaredMemoryMiB
+                            + " MiB required memory; effective -Xmx was not established"));
+            evidenceComplete = false;
+        } else if (largestDeclaredMemoryMiB > maxHeapMiB) {
+            findings.add(new Finding(
+                    ReasonCode.MEMORY_REQUIREMENT_EXCEEDS_HEAP,
+                    Severity.WARNING,
+                    null,
+                    null,
+                    "Largest enabled-mod requiredMemoryMB is " + largestDeclaredMemoryMiB
+                            + " MiB; effective -Xmx is " + maxHeapMiB + " MiB"));
         }
+    }
 
-        findings.sort(Comparator
-                .comparing((Finding finding) -> finding.reason().code())
-                .thenComparing(finding -> nullSafe(finding.modId()))
-                .thenComparing(finding -> nullSafe(finding.subjectId()))
-                .thenComparing(Finding::summary));
+    findings.sort(Comparator
+            .comparing((Finding finding) -> finding.reason().code())
+            .thenComparing(finding -> nullSafe(finding.modId()))
+            .thenComparing(finding -> nullSafe(finding.subjectId()))
+            .thenComparing(Finding::summary));
 
-        ProfileChange change = null;
+    ProfileChange change = null;
     if (!proposedEnable.isEmpty()) {
         List<String> additions = proposedEnable.stream().sorted().toList();
         List<String> after = new ArrayList<>(enabled);
         after.addAll(additions);
         change = new ProfileChange(enabled, after, additions);
     }
-        return new Result(FORMAT, enabled, findings, change);
-    }
+    return new Result(enabled, findings, change, evidenceComplete, true);
+}
 
     private static Metadata parseMetadata(Path directory, String json) {
-        Object root = new Parser(json).parse();
-        if (!(root instanceof Map<?, ?> raw)) {
-            throw new IllegalArgumentException("metadata root must be an object");
+    Object root = new Parser(json).parse();
+    if (!(root instanceof Map<?, ?> raw)) {
+        throw new IllegalArgumentException("metadata root must be an object");
+    }
+    Map<String, Object> values = stringMap(raw);
+    String id = requiredString(values, "id");
+    String name = optionalString(values.get("name"));
+    Version version = parseVersion(values.get("version"));
+    String gameVersion = optionalString(values.get("gameVersion"));
+    List<String> missingFields = new ArrayList<>();
+    if (name == null || name.isBlank()) missingFields.add("name");
+    if (version == null) missingFields.add("version");
+    if (gameVersion == null || gameVersion.isBlank()) missingFields.add("gameVersion");
+    Long memory = optionalLong(values.get("requiredMemoryMB"));
+    List<Dependency> dependencies = new ArrayList<>();
+    Object declared = values.get("dependencies");
+    if (declared != null) {
+        if (!(declared instanceof List<?> list)) {
+            throw new IllegalArgumentException("dependencies must be an array");
         }
-        Map<String, Object> values = stringMap(raw);
-        String id = requiredString(values, "id");
-        String name = optionalString(values.get("name"));
-        Version version = parseVersion(values.get("version"));
-        String gameVersion = optionalString(values.get("gameVersion"));
-        Long memory = optionalLong(values.get("requiredMemoryMB"));
-        List<Dependency> dependencies = new ArrayList<>();
-        Object declared = values.get("dependencies");
-        if (declared != null) {
-            if (!(declared instanceof List<?> list)) {
-                throw new IllegalArgumentException("dependencies must be an array");
+        for (Object entry : list) {
+            if (!(entry instanceof Map<?, ?> dependencyRaw)) {
+                throw new IllegalArgumentException("dependency entries must be objects");
             }
-            for (Object entry : list) {
-                if (!(entry instanceof Map<?, ?> dependencyRaw)) {
-                    throw new IllegalArgumentException("dependency entries must be objects");
-                }
-                Map<String, Object> dependency = stringMap(dependencyRaw);
-                dependencies.add(new Dependency(
-                        requiredString(dependency, "id"),
-                        optionalString(dependency.get("name")),
-                        parseVersion(dependency.get("version")),
-                        Boolean.TRUE.equals(dependency.get("optional"))));
-            }
+            Map<String, Object> dependency = stringMap(dependencyRaw);
+            dependencies.add(new Dependency(
+                    requiredString(dependency, "id"),
+                    optionalString(dependency.get("name")),
+                    parseVersion(dependency.get("version")),
+                    Boolean.TRUE.equals(dependency.get("optional"))));
         }
-        return new Metadata(directory, id, name, version, gameVersion, List.copyOf(dependencies), memory);
+    }
+    return new Metadata(
+            directory,
+            id,
+            name,
+            version,
+            gameVersion,
+            List.copyOf(missingFields),
+            List.copyOf(dependencies),
+            memory);
+}
+
+    private static boolean reportPartialMetadata(
+            Metadata metadata, List<Finding> findings, Set<String> reported) {
+        if (metadata.missingFields().isEmpty()) {
+            return false;
+        }
+        if (reported.add(metadata.id())) {
+            findings.add(new Finding(
+                    ReasonCode.METADATA_PARTIAL,
+                    Severity.WARNING,
+                    metadata.id(),
+                    null,
+                    "Metadata is missing compatibility fields: "
+                            + String.join(", ", metadata.missingFields())));
+        }
+        return true;
     }
 
-    private static void compareVersion(
+    /** Returns false only when the declaration uses version semantics this pass cannot establish. */
+    private static boolean compareVersion(
             String dependentId, Dependency dependency, Metadata provider, List<Finding> findings) {
         if (dependency.version() == null || provider.version() == null) {
-            return;
+            return true;
         }
         Version required = dependency.version();
         Version actual = provider.version();
@@ -358,10 +382,12 @@ private static Result unavailableProfileResult(Path installRoot, IOException fai
                         Severity.WARNING,
                         dependentId,
                         dependency.id(),
-                        "Dependency version declaration '" + required.raw() + "' does not match installed '" + actual.raw()
-                                + "'; non-numeric range semantics are intentionally left advisory"));
+                        "Dependency version declaration '" + required.raw()
+                                + "' does not match installed '" + actual.raw()
+                                + "'; unsupported range semantics remain advisory"));
+                return false;
             }
-            return;
+            return true;
         }
         if (!required.major().equals(actual.major())) {
             findings.add(new Finding(
@@ -369,18 +395,23 @@ private static Result unavailableProfileResult(Path installRoot, IOException fai
                     Severity.ERROR,
                     dependentId,
                     dependency.id(),
-                    "Dependency requires major version " + required.major() + "; installed version is " + actual.raw()));
-            return;
+                    "Dependency requires major version " + required.major()
+                            + "; installed version is " + actual.raw()));
+            return true;
         }
-        if ((required.minor() != null && actual.minor() != null && !required.minor().equals(actual.minor()))
-                || (required.patch() != null && actual.patch() != null && !required.patch().equals(actual.patch()))) {
+        if ((required.minor() != null && actual.minor() != null
+                        && !required.minor().equals(actual.minor()))
+                || (required.patch() != null && actual.patch() != null
+                        && !required.patch().equals(actual.patch()))) {
             findings.add(new Finding(
                     ReasonCode.DEPENDENCY_VERSION_ADVISORY,
                     Severity.WARNING,
                     dependentId,
                     dependency.id(),
-                    "Dependency declares version " + required.raw() + "; installed version is " + actual.raw()));
+                    "Dependency declares version " + required.raw()
+                            + "; installed version is " + actual.raw()));
         }
+        return true;
     }
 
     private static Version parseVersion(Object value) {
@@ -419,12 +450,7 @@ private static Result unavailableProfileResult(Path installRoot, IOException fai
         }
     }
 
-    private static List<String> readEnabled(Path file) throws IOException {
-        if (!Files.isRegularFile(file)) return List.of();
-        return JsonText.stringArray(Files.readString(file, StandardCharsets.UTF_8), "enabledMods");
-    }
-
-    private static boolean sameGameVersion(String declared, String actual) {
+private static boolean sameGameVersion(String declared, String actual) {
         return canonicalGameVersion(declared).equals(canonicalGameVersion(actual));
     }
 

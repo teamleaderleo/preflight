@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.ModCompatibilityReadiness;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.ReasonCode;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.Severity;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +27,7 @@ class ModCompatibilityPrecheckTest {
 
         var result = ModCompatibilityPrecheck.inspect(mods, List.of("consumer"), "0.98a-RC8", 4096L);
 
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.REQUIRED_DEPENDENCY_MISSING);
+        assertReason(result, ReasonCode.REQUIRED_DEPENDENCY_MISSING);
         assertTrue(result.hasErrors());
     }
 
@@ -44,7 +47,7 @@ class ModCompatibilityPrecheckTest {
 
         var result = ModCompatibilityPrecheck.inspect(mods, List.of("consumer"), "0.98a-RC8", 4096L);
 
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.REQUIRED_DEPENDENCY_DISABLED);
+        assertReason(result, ReasonCode.REQUIRED_DEPENDENCY_DISABLED);
         assertEquals(List.of("consumer"), result.suggestedProfileChange().before());
         assertEquals(List.of("consumer", "library"), result.suggestedProfileChange().after());
         assertEquals(List.of("library"), result.suggestedProfileChange().enable());
@@ -67,9 +70,9 @@ class ModCompatibilityPrecheckTest {
         var result = ModCompatibilityPrecheck.inspect(
                 mods, List.of("consumer", "major", "minor", "exact"), "0.98a-RC8", 4096L);
 
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.DEPENDENCY_VERSION_MAJOR_MISMATCH);
+        assertReason(result, ReasonCode.DEPENDENCY_VERSION_MAJOR_MISMATCH);
         assertEquals(2, result.findings().stream()
-                .filter(f -> f.reason() == ModCompatibilityPrecheck.ReasonCode.DEPENDENCY_VERSION_ADVISORY)
+                .filter(f -> f.reason() == ReasonCode.DEPENDENCY_VERSION_ADVISORY)
                 .count());
     }
 
@@ -85,7 +88,7 @@ class ModCompatibilityPrecheckTest {
         var result = ModCompatibilityPrecheck.inspect(
                 mods, List.of("consumer", "library"), "0.98a-RC8", 4096L);
 
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.DEPENDENCY_VERSION_ADVISORY);
+        assertReason(result, ReasonCode.DEPENDENCY_VERSION_ADVISORY);
         assertFalse(result.hasErrors());
     }
 
@@ -98,8 +101,8 @@ class ModCompatibilityPrecheckTest {
         var first = ModCompatibilityPrecheck.inspect(mods, List.of("same"), "0.98a-RC8", 4096L);
         var second = ModCompatibilityPrecheck.inspect(mods, List.of("same"), "0.98a-RC8", 4096L);
 
-        assertReason(first, ModCompatibilityPrecheck.ReasonCode.DUPLICATE_MOD_ID);
-        assertEquals(first.toMap(), second.toMap());
+        assertReason(first, ReasonCode.DUPLICATE_MOD_ID);
+        assertEquals(first.toPublicMap(), second.toPublicMap());
     }
 
     @Test
@@ -109,8 +112,8 @@ class ModCompatibilityPrecheckTest {
 
         var result = ModCompatibilityPrecheck.inspect(mods, List.of("broken", "absent"), "0.98a-RC8", 4096L);
 
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.METADATA_INVALID);
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.METADATA_ABSENT);
+        assertReason(result, ReasonCode.METADATA_INVALID);
+        assertReason(result, ReasonCode.METADATA_ABSENT);
     }
 
     @Test
@@ -127,7 +130,7 @@ class ModCompatibilityPrecheckTest {
 
         assertEquals(List.of("b"), result.suggestedProfileChange().enable());
         assertEquals(1, result.findings().stream()
-                .filter(f -> f.reason() == ModCompatibilityPrecheck.ReasonCode.REQUIRED_DEPENDENCY_DISABLED)
+                .filter(f -> f.reason() == ReasonCode.REQUIRED_DEPENDENCY_DISABLED)
                 .count());
     }
 
@@ -160,9 +163,57 @@ class ModCompatibilityPrecheckTest {
         assertFalse(result.hasErrors());
         assertEquals(List.of(), result.enabledMods());
         assertTrue(result.findings().stream().anyMatch(finding ->
-                finding.reason() == ModCompatibilityPrecheck.ReasonCode.ENABLED_MODS_UNAVAILABLE
-                        && finding.severity() == ModCompatibilityPrecheck.Severity.WARNING));
-        assertEquals(Boolean.TRUE, result.toMap().get("launchAllowed"));
+                finding.reason() == ReasonCode.ENABLED_MODS_UNAVAILABLE
+                        && finding.severity() == Severity.WARNING));
+        assertFalse(result.evidenceComplete());
+        assertTrue(result.launchAllowed());
+    }
+
+    @Test
+    void malformedEnabledProfileIsAdvisoryAndLaunchable() throws Exception {
+        Path install = temp.resolve("malformed-profile");
+        Path mods = install.resolve("mods");
+        Files.createDirectories(mods);
+        Files.writeString(mods.resolve("enabled_mods.json"), "{broken", StandardCharsets.UTF_8);
+
+        var result = ModCompatibilityPrecheck.inspect(install);
+
+        assertReason(result, ReasonCode.ENABLED_MODS_UNAVAILABLE);
+        assertFalse(result.hasErrors());
+        assertFalse(result.evidenceComplete());
+        assertTrue(result.launchAllowed());
+    }
+
+    @Test
+    void partialCompatibilityMetadataIsVisible() throws Exception {
+        Path mods = mods();
+        mod(mods, "partial", """
+        {"id":"partial","name":"Partial","gameVersion":"0.98a-RC8"}
+        """);
+
+        var result = ModCompatibilityPrecheck.inspect(
+                mods, List.of("partial"), "0.98a-RC8", 4096L);
+
+        assertReason(result, ReasonCode.METADATA_PARTIAL);
+        assertFalse(result.evidenceComplete());
+        assertTrue(result.launchAllowed());
+    }
+
+    @Test
+    void invalidMemoryDeclarationStaysAdvisoryAndIncomplete() throws Exception {
+        Path mods = mods();
+        mod(mods, "odd-memory", """
+                {"id":"odd-memory","name":"Odd Memory","version":"1","gameVersion":"0.98a-RC8",
+                 "requiredMemoryMB":0}
+                """);
+
+        var result = ModCompatibilityPrecheck.inspect(
+                mods, List.of("odd-memory"), "0.98a-RC8", 4096L);
+
+        assertReason(result, ReasonCode.MEMORY_REQUIREMENT_INVALID);
+        assertFalse(result.hasErrors());
+        assertFalse(result.evidenceComplete());
+        assertTrue(result.launchAllowed());
     }
 
     @Test
@@ -175,7 +226,7 @@ class ModCompatibilityPrecheckTest {
 
         var result = ModCompatibilityPrecheck.inspect(mods, List.of("consumer"), "0.98a-RC8", 4096L);
 
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.OPTIONAL_DEPENDENCY);
+        assertReason(result, ReasonCode.OPTIONAL_DEPENDENCY);
         assertFalse(result.hasErrors());
     }
 
@@ -188,8 +239,8 @@ class ModCompatibilityPrecheckTest {
 
         var result = ModCompatibilityPrecheck.inspect(mods, List.of("heavy"), "0.98a-RC8", 4096L);
 
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.GAME_VERSION_MISMATCH);
-        assertReason(result, ModCompatibilityPrecheck.ReasonCode.MEMORY_REQUIREMENT_EXCEEDS_HEAP);
+        assertReason(result, ReasonCode.GAME_VERSION_MISMATCH);
+        assertReason(result, ReasonCode.MEMORY_REQUIREMENT_EXCEEDS_HEAP);
         assertFalse(result.hasErrors());
     }
 
@@ -230,7 +281,7 @@ class ModCompatibilityPrecheckTest {
     }
 
     private static void assertReason(
-            ModCompatibilityPrecheck.Result result, ModCompatibilityPrecheck.ReasonCode reason) {
+            ModCompatibilityReadiness.Result result, ReasonCode reason) {
         assertTrue(result.findings().stream().anyMatch(finding -> finding.reason() == reason),
                 () -> "Expected " + reason + " in " + result.findings());
     }

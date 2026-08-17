@@ -1,18 +1,28 @@
 package dev.starsector.preflight.cli;
 
+import dev.starsector.preflight.core.ModCompatibilityReadiness.Finding;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.ProfileChange;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.Result;
+import dev.starsector.preflight.core.ModCompatibilityReadiness.Severity;
 import java.io.PrintStream;
+import java.util.List;
 import java.util.Locale;
 
-/** Human view of the typed metadata result. Rendering is deliberately separate from evaluation. */
+/** Human view of metadata readiness; informational evidence stays available in the typed result. */
 final class ModCompatibilityPresenter {
-    private ModCompatibilityPresenter() {}
+    private ModCompatibilityPresenter() {
+    }
 
-    static void print(ModCompatibilityPrecheck.Result result, PrintStream out) {
-        if (result.findings().isEmpty()) {
+    static void print(Result result, PrintStream out) {
+        List<Finding> visible = result.findings().stream()
+                .filter(finding -> finding.severity() != Severity.INFO)
+                .toList();
+        ProfileChange change = result.suggestedProfileChange();
+        if (visible.isEmpty() && change == null) {
             return;
         }
         out.println("Mod metadata readiness:");
-        for (ModCompatibilityPrecheck.Finding finding : result.findings()) {
+        for (Finding finding : visible) {
             out.printf(
                     Locale.ROOT,
                     "  %-7s %-38s %s%n",
@@ -20,7 +30,6 @@ final class ModCompatibilityPresenter {
                     finding.reason().code(),
                     finding.summary());
         }
-        ModCompatibilityPrecheck.ProfileChange change = result.suggestedProfileChange();
         if (change != null) {
             out.println("  reviewed profile change available; current profile remains unchanged:");
             out.println("    before: " + change.before());
