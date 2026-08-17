@@ -601,6 +601,7 @@ export default function App() {
             operationBlocked={operationBlocked}
             speedStanding={speedStanding}
             playtime={snapshot?.playtime}
+            lastRun={snapshot?.lastRun}
             instrumentHull={instrumentHull.selected}
             onOptimizationPresetChange={setOptimizationPreset}
             onOptimizationDomainChange={setOptimizationDomainEnabled}
