@@ -18,13 +18,170 @@ jobs:
         with:
           ref: codex/issue-557-mod-compat-precheck
           fetch-depth: 0
+      - name: Rebase onto current main
+        run: |
+          git fetch origin main
+          git rebase origin/main
       - uses: ./.github/actions/setup-build-jdk
-      - name: Apply exact pre-launch hooks
+      - name: Refine metadata precheck and integrate it
         shell: python
         run: |
           from pathlib import Path
 
-          replacements = {
+          precheck = Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java")
+          text = precheck.read_text()
+
+          old_inspect = '''    static Result inspect(Path installRoot) throws IOException {
+              GameLayout layout = GameLayout.locate(installRoot);
+              List<String> enabled = readEnabled(layout.enabledModsFile());
+              String gameVersion = discoverGameVersion(layout.installRoot());
+              JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot());
+              Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+              return inspect(layout.modsDirectory(), enabled, gameVersion, heap);
+          }
+          '''
+          new_inspect = '''    static Result inspect(Path installRoot) throws IOException {
+              GameLayout layout = GameLayout.locate(installRoot);
+              List<String> enabled = readEnabled(layout.enabledModsFile());
+              JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot());
+              Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+              return inspect(layout.modsDirectory(), enabled, null, heap);
+          }
+
+          static Result inspect(Path installRoot, LaunchTarget target) throws IOException {
+              GameLayout layout = GameLayout.locate(installRoot);
+              List<String> enabled = readEnabled(layout.enabledModsFile());
+              JvmMemorySettings.Snapshot memory = JvmMemorySettings.inspect(layout.installRoot(), target);
+              Long heap = memory.available() && memory.maxHeapMiB() != null ? memory.maxHeapMiB().longValue() : null;
+              return inspect(layout.modsDirectory(), enabled, null, heap);
+          }
+          '''
+          if text.count(old_inspect) != 1:
+              raise SystemExit("expected one production inspect method")
+          text = text.replace(old_inspect, new_inspect, 1)
+
+          old_enabled = '        List<String> enabled = enabledMods.stream().distinct().sorted().toList();\n'
+          new_enabled = '        List<String> enabled = List.copyOf(new LinkedHashSet<>(enabledMods));\n'
+          if text.count(old_enabled) != 1:
+              raise SystemExit("expected one enabled-mod normalization")
+          text = text.replace(old_enabled, new_enabled, 1)
+
+          old_optional = '''                if (dependency.optional()) {
+                      findings.add(new Finding(
+                              ReasonCode.OPTIONAL_DEPENDENCY,
+                              Severity.INFO,
+                              modId,
+                              dependency.id(),
+                              "Optional dependency '" + dependency.id() + "' is declared"));
+                      continue;
+                  }
+                  List<Metadata> dependencyProviders = providers.get(dependency.id());
+          '''
+          new_optional = '''                List<Metadata> dependencyProviders = providers.get(dependency.id());
+                  if (dependency.optional()) {
+                      if (dependencyProviders == null || dependencyProviders.isEmpty()) {
+                          findings.add(new Finding(
+                                  ReasonCode.OPTIONAL_DEPENDENCY,
+                                  Severity.INFO,
+                                  modId,
+                                  dependency.id(),
+                                  "Optional dependency '" + dependency.id() + "' is not installed"));
+                      }
+                      continue;
+                  }
+          '''
+          if text.count(old_optional) != 1:
+              raise SystemExit("expected one optional-dependency block")
+          text = text.replace(old_optional, new_optional, 1)
+
+          old_after = '''            List<String> additions = proposedEnable.stream().sorted().toList();
+              List<String> after = new ArrayList<>(enabled);
+              after.addAll(additions);
+              after = after.stream().distinct().sorted().toList();
+              change = new ProfileChange(enabled, after, additions);
+          '''
+          new_after = '''            List<String> additions = proposedEnable.stream().sorted().toList();
+              List<String> after = new ArrayList<>(enabled);
+              after.addAll(additions);
+              change = new ProfileChange(enabled, after, additions);
+          '''
+          if text.count(old_after) != 1:
+              raise SystemExit("expected one profile-change construction")
+          text = text.replace(old_after, new_after, 1)
+
+          start = text.find('    private static String discoverGameVersion(Path installRoot) {')
+          end = text.find('    private static boolean sameGameVersion', start)
+          if start < 0 or end < 0:
+              raise SystemExit("expected game-version discovery helper")
+          text = text[:start] + text[end:]
+          precheck.write_text(text)
+
+          presenter = Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPresenter.java")
+          presenter.write_text('''package dev.starsector.preflight.cli;
+
+          import java.io.PrintStream;
+          import java.util.Locale;
+
+          /** Human view of the typed metadata result. Rendering is deliberately separate from evaluation. */
+          final class ModCompatibilityPresenter {
+              private ModCompatibilityPresenter() {}
+
+              static void print(ModCompatibilityPrecheck.Result result, PrintStream out) {
+                  if (result.findings().isEmpty()) {
+                      return;
+                  }
+                  out.println("Mod metadata readiness:");
+                  for (ModCompatibilityPrecheck.Finding finding : result.findings()) {
+                      out.printf(
+                              Locale.ROOT,
+                              "  %-7s %-38s %s%n",
+                              finding.severity().name().toLowerCase(Locale.ROOT),
+                              finding.reason().code(),
+                              finding.summary());
+                  }
+                  ModCompatibilityPrecheck.ProfileChange change = result.suggestedProfileChange();
+                  if (change != null) {
+                      out.println("  reviewed profile change available; current profile remains unchanged:");
+                      out.println("    before: " + change.before());
+                      out.println("    enable: " + change.enable());
+                      out.println("    after:  " + change.after());
+                      out.println("    applying this change requires an explicit profile/settings action; dependency chains stay untouched.");
+                  }
+                  out.println("  launch remains available; this metadata pass does not change the profile or installed mods.");
+              }
+          }
+          ''')
+
+          test = Path("preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java")
+          test_text = test.read_text()
+          marker = '''    @Test
+              void optionalDependencyStaysInformational() throws Exception {
+          '''
+          addition = '''    @Test
+              void reviewedPreviewPreservesExistingModOrder() throws Exception {
+                  Path mods = mods();
+                  mod(mods, "consumer", """
+                          {"id":"consumer","name":"Consumer","version":"1","gameVersion":"0.98a-RC8",
+                           "dependencies":[{"id":"library"}]}
+                          """);
+                  mod(mods, "library", metadata("library", "1"));
+                  mod(mods, "first", metadata("first", "1"));
+                  mod(mods, "last", metadata("last", "1"));
+
+                  var result = ModCompatibilityPrecheck.inspect(
+                          mods, List.of("last", "consumer", "first"), "0.98a-RC8", 4096L);
+
+                  assertEquals(List.of("last", "consumer", "first"), result.suggestedProfileChange().before());
+                  assertEquals(List.of("last", "consumer", "first", "library"), result.suggestedProfileChange().after());
+                  assertEquals(List.of("library"), result.suggestedProfileChange().enable());
+              }
+
+          '''
+          if test_text.count(marker) != 1:
+              raise SystemExit("expected optional dependency test marker")
+          test.write_text(test_text.replace(marker, addition + marker, 1))
+
+          hooks = {
               Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java"): (
                   '''        if (target == null) {
                       printDiscovery(discovery);
@@ -36,8 +193,9 @@ jobs:
                       printDiscovery(discovery);
                       return 3;
                   }
-                  ModCompatibilityPrecheck.Result modReadiness = ModCompatibilityPrecheck.inspect(target.installRoot());
-                  ModCompatibilityPresenter.print(modReadiness, System.out);
+                  ModCompatibilityPrecheck.Result modReadiness =
+                          ModCompatibilityPrecheck.inspect(target.installRoot(), target);
+                  ModCompatibilityPresenter.print(modReadiness, System.err);
                   return executeSelected(options, discovery, target, platform);
           '''),
               Path("preflight-cli/src/main/java/dev/starsector/preflight/cli/PrepareCommand.java"): (
@@ -53,27 +211,31 @@ jobs:
                       return 3;
                   }
           
-                  ModCompatibilityPrecheck.Result modReadiness = ModCompatibilityPrecheck.inspect(target.installRoot());
-                  ModCompatibilityPresenter.print(modReadiness, System.out);
+                  ModCompatibilityPrecheck.Result modReadiness =
+                          ModCompatibilityPrecheck.inspect(target.installRoot(), target);
+                  ModCompatibilityPresenter.print(modReadiness, System.err);
           
                   Path cache = (options.cacheDirectory() == null ? defaultCacheDirectory() : options.cacheDirectory())
           ''')
           }
 
-          for path, (old, new) in replacements.items():
-              text = path.read_text()
-              if text.count(old) != 1:
-                  raise SystemExit(f"expected exactly one integration seam in {path}, found {text.count(old)}")
-              path.write_text(text.replace(old, new, 1))
+          for path, (old, new) in hooks.items():
+              hook_text = path.read_text()
+              if hook_text.count(old) != 1:
+                  raise SystemExit(f"expected exactly one integration seam in {path}, found {hook_text.count(old)}")
+              path.write_text(hook_text.replace(old, new, 1))
       - name: Verify Java correctness
         run: ./mvnw --batch-mode --no-transfer-progress verify
-      - name: Remove one-shot workflow and commit named files
+      - name: Commit verified named files
         run: |
           rm .github/workflows/issue-557-one-shot.yml
           git config user.name "preflight-issue-557-bot"
           git config user.email "actions@users.noreply.github.com"
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPresenter.java
           git add preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java
           git add preflight-cli/src/main/java/dev/starsector/preflight/cli/PrepareCommand.java
+          git add preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java
           git add -u .github/workflows/issue-557-one-shot.yml
           git commit -m "Run mod compatibility precheck before launch"
-          git push origin HEAD:codex/issue-557-mod-compat-precheck
+          git push --force-with-lease origin HEAD:codex/issue-557-mod-compat-precheck
