@@ -1,5 +1,6 @@
 package dev.starsector.preflight.cli;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -278,7 +279,7 @@ final class SaveProfileObservationTest {
         assertTrue(local.contains("Captain Alice Secret Save"));
         assertFalse(local.contains("after"));
 
-        String projected = new String(SupportEvidenceProjection.project(fileName(store), local));
+        String projected = new String(SupportEvidenceProjection.project(fileName(store), local), UTF_8);
         assertFalse(projected.contains("Captain Alice Secret Save"));
         assertFalse(projected.contains(fixture.install.toString()));
         assertFalse(projected.contains("saveName"));
