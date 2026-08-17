@@ -24,10 +24,21 @@ function matches(hull: WireframeHull, query: string): boolean {
   return hull.name.toLowerCase().includes(needle) || hull.id.toLowerCase().includes(needle);
 }
 
+function boundedSelection(found: WireframeHull[], selectedId: string): WireframeHull[] {
+  const first = found.slice(0, VISIBLE_LIMIT);
+  if (first.some((hull) => hull.id === selectedId)) return first;
+
+  const selected = found.find((hull) => hull.id === selectedId);
+  if (!selected || first.length < VISIBLE_LIMIT) return first;
+
+  // Keep the cap hard and deterministic: the selected matching row owns the final visible slot.
+  return [...first.slice(0, VISIBLE_LIMIT - 1), selected];
+}
+
 export function HullPicker({ hulls, selectedId, onChoose }: HullPickerProps) {
   const [query, setQuery] = useState("");
   const found = useMemo(() => hulls.filter((hull) => matches(hull, query)), [hulls, query]);
-  const shown = found.slice(0, VISIBLE_LIMIT);
+  const shown = useMemo(() => boundedSelection(found, selectedId), [found, selectedId]);
   const hidden = found.length - shown.length;
 
   return (
@@ -42,8 +53,8 @@ export function HullPicker({ hulls, selectedId, onChoose }: HullPickerProps) {
         />
         <small aria-live="polite">
           {query
-            ? `${found.length.toLocaleString()} of ${hulls.length.toLocaleString()}`
-            : `${hulls.length.toLocaleString()} installed`}
+            ? `${found.length.toLocaleString()} of ${hulls.length.toLocaleString()} additional hulls`
+            : `${hulls.length.toLocaleString()} additional hulls`}
         </small>
       </div>
       {shown.length > 0 ? (

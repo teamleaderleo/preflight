@@ -14,9 +14,25 @@ on:
       - '.github/workflows/adapter-analysis.yml'
   push:
     branches: [main]
+    # The same filter the pull_request trigger carries, so a merge runs this three-OS suite on the
+    # merge commit only when the merge could have changed what it tests.
+    paths:
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/StrictJson.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/AdapterProbeAnalysis.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/AnalysisCommand.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightCli.java'
+      - 'preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/StrictJsonTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AdapterProbeAnalysisTest.java'
+      - 'preflight-cli/src/test/java/dev/starsector/preflight/cli/AnalysisCommandTest.java'
+      - '.github/workflows/adapter-analysis.yml'
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   focused:
