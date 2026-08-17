@@ -11,7 +11,7 @@ mod automation;
 mod desktop_automation_bridge;
 mod engine;
 mod hull_sprite_tracer;
-mod hulls;
+pub mod hulls;
 mod operations;
 mod preparation;
 mod report_transport;

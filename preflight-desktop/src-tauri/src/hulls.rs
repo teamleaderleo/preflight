@@ -16,7 +16,7 @@ const MAX_COORDINATE: f64 = 16_384.0;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct WireframeHullCatalog {
+pub struct WireframeHullCatalog {
     format: &'static str,
     hulls: Vec<WireframeHull>,
     skipped: usize,
@@ -118,7 +118,7 @@ pub(crate) fn get_wireframe_hulls(game: String) -> Result<WireframeHullCatalog, 
     read_wireframe_hulls(&game)
 }
 
-fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
+pub fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
     let directory = hull_directory(game).ok_or_else(|| {
         "This Starsector installation doesn't contain readable hull definitions.".to_string()
     })?;

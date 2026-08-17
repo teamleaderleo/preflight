@@ -28,18 +28,30 @@ test("unknown browser scenarios fail back to the normal ready preview", async ()
   expect((await getSnapshot()).ready).toBe(true);
 });
 
-test("the browser preview exposes a bounded local-hull stand-in for display review", async () => {
+test("the browser preview draws the same traced hulls the desktop build derives", async () => {
   const catalog = await getWireframeHulls("/Applications/Starsector");
   expect(catalog.format).toBe("preflight-wireframe-hulls-v1");
   expect(catalog.hulls.map((hull) => hull.id)).toEqual([
-    "hammerhead",
-    "onslaught",
     "odyssey",
+    "onslaught",
     "conquest",
     "paragon",
     "astral",
+    "hammerhead",
   ]);
   expect(catalog.hulls.every((hull) => hull.featured)).toBe(true);
+  /*
+   * The point of this fixture is that it is a trace and not a stand-in for one.
+   *
+   * The version before it fabricated a "trace" by scaling the collision bounds to 0.52 toward
+   * the centre, which drew every ship as a smaller copy of itself floating inside itself. It was
+   * labelled as a layout aid, but it meant every visual judgement made in a browser was made
+   * against geometry the product never draws. A silhouette that coarse cannot pass these.
+   */
+  for (const hull of catalog.hulls) {
+    expect(hull.bounds.length).toBeGreaterThan(80);
+    expect(hull.trace?.inner.length ?? 0).toBeGreaterThan(0);
+  }
 });
 
 test("running is an explicit preview state", () => {

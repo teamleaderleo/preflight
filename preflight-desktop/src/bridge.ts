@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import desktopPackage from "../package.json";
+import { BUNDLED_WIREFRAME_HULLS } from "./bundledWireframeHulls";
 import type {
   AfterLaunchBehavior,
   CacheHealth,
@@ -131,119 +132,11 @@ const previewProfiles: NamedProfile[] = [
 
 // Browser-only drafting fixtures keep the locally discovered selector reviewable without
 // bundling game data. The desktop command replaces this entire catalog from the chosen install.
-function previewTracedHull(hull: WireframeHull): WireframeHull {
-  const minX = Math.min(...hull.bounds.map((point) => point.x));
-  const maxX = Math.max(...hull.bounds.map((point) => point.x));
-  const minY = Math.min(...hull.bounds.map((point) => point.y));
-  const maxY = Math.max(...hull.bounds.map((point) => point.y));
-  const center = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
-  return {
-    ...hull,
-    trace: {
-      holes: [],
-      // Representative raised geometry for layout review. Native builds replace it with the
-      // bounded alpha/luminance trace from the selected installation.
-      inner: [{
-        height: 0.66,
-        points: hull.bounds.map((point) => ({
-          x: center.x + (point.x - center.x) * 0.52,
-          y: center.y + (point.y - center.y) * 0.52,
-        })),
-      }],
-    },
-  };
-}
-
-const previewWireframeHulls: WireframeHullCatalog = {
-  format: "preflight-wireframe-hulls-v1",
-  skipped: 0,
-  hulls: ([
-    {
-      id: "hammerhead",
-      name: "Hammerhead",
-      hullSize: "DESTROYER",
-      style: "LOW_TECH",
-      featured: true,
-      bounds: [
-        { x: 86, y: 0 }, { x: 73, y: 40 }, { x: 50, y: 50 }, { x: 38, y: 20 },
-        { x: 10, y: 18 }, { x: 8, y: 46 }, { x: -34, y: 52 }, { x: -68, y: 38 },
-        { x: -59, y: 10 }, { x: -78, y: 0 }, { x: -59, y: -10 }, { x: -68, y: -38 },
-        { x: -34, y: -52 }, { x: 8, y: -46 }, { x: 10, y: -18 }, { x: 38, y: -20 },
-        { x: 50, y: -50 }, { x: 73, y: -40 },
-      ],
-      engines: [
-        { x: -66, y: 30, angle: 180, width: 13, length: 24 },
-        { x: -72, y: 0, angle: 180, width: 15, length: 27 },
-        { x: -66, y: -30, angle: 180, width: 13, length: 24 },
-      ],
-      mounts: [
-        { x: 67, y: 31, angle: 0, size: "MEDIUM", mount: "HARDPOINT" },
-        { x: 67, y: -31, angle: 0, size: "MEDIUM", mount: "HARDPOINT" },
-      ],
-    },
-    {
-      id: "onslaught",
-      name: "Onslaught",
-      hullSize: "CAPITAL_SHIP",
-      style: "LOW_TECH",
-      featured: true,
-      bounds: [
-        { x: 124, y: 0 }, { x: 91, y: 31 }, { x: 45, y: 48 }, { x: 2, y: 61 },
-        { x: -42, y: 65 }, { x: -79, y: 48 }, { x: -104, y: 24 }, { x: -113, y: 0 },
-        { x: -104, y: -24 }, { x: -79, y: -48 }, { x: -42, y: -65 }, { x: 2, y: -61 },
-        { x: 45, y: -48 }, { x: 91, y: -31 },
-      ],
-      engines: [
-        { x: -104, y: 31, angle: 180, width: 15, length: 28 },
-        { x: -111, y: 0, angle: 180, width: 17, length: 31 },
-        { x: -104, y: -31, angle: 180, width: 15, length: 28 },
-      ],
-      mounts: [
-        { x: 73, y: 0, angle: 0, size: "LARGE", mount: "HARDPOINT" },
-        { x: 20, y: 36, angle: 0, size: "MEDIUM", mount: "TURRET" },
-        { x: 20, y: -36, angle: 0, size: "MEDIUM", mount: "TURRET" },
-      ],
-    },
-    {
-      id: "odyssey",
-      name: "Odyssey",
-      hullSize: "CAPITAL_SHIP",
-      style: "HIGH_TECH",
-      featured: true,
-      bounds: [
-        { x: 115, y: -8 }, { x: 77, y: 26 }, { x: 27, y: 55 }, { x: -22, y: 71 },
-        { x: -73, y: 54 }, { x: -102, y: 19 }, { x: -89, y: -23 }, { x: -39, y: -50 },
-        { x: 16, y: -43 }, { x: 66, y: -27 },
-      ],
-      engines: [
-        { x: -91, y: 26, angle: 180, width: 14, length: 25 },
-        { x: -84, y: -17, angle: 180, width: 12, length: 22 },
-      ],
-      mounts: [
-        { x: 22, y: 33, angle: 0, size: "LARGE", mount: "TURRET" },
-        { x: -13, y: -27, angle: 0, size: "MEDIUM", mount: "TURRET" },
-      ],
-    },
-    {
-      id: "conquest", name: "Conquest", hullSize: "CAPITAL_SHIP", style: "MIDLINE", featured: true,
-      bounds: [{ x: 118, y: 0 }, { x: 45, y: 55 }, { x: -98, y: 44 }, { x: -112, y: 0 }, { x: -98, y: -44 }, { x: 45, y: -55 }],
-      engines: [{ x: -105, y: 25, angle: 180, width: 16, length: 29 }, { x: -105, y: -25, angle: 180, width: 16, length: 29 }],
-      mounts: [{ x: 35, y: 40, angle: 0, size: "LARGE", mount: "TURRET" }, { x: 35, y: -40, angle: 0, size: "LARGE", mount: "TURRET" }],
-    },
-    {
-      id: "paragon", name: "Paragon", hullSize: "CAPITAL_SHIP", style: "HIGH_TECH", featured: true,
-      bounds: [{ x: 105, y: 0 }, { x: 62, y: 68 }, { x: -45, y: 75 }, { x: -105, y: 36 }, { x: -118, y: 0 }, { x: -105, y: -36 }, { x: -45, y: -75 }, { x: 62, y: -68 }],
-      engines: [{ x: -108, y: 28, angle: 180, width: 18, length: 30 }, { x: -112, y: 0, angle: 180, width: 20, length: 34 }, { x: -108, y: -28, angle: 180, width: 18, length: 30 }],
-      mounts: [{ x: 30, y: 42, angle: 0, size: "LARGE", mount: "TURRET" }, { x: 30, y: -42, angle: 0, size: "LARGE", mount: "TURRET" }],
-    },
-    {
-      id: "astral", name: "Astral", hullSize: "CAPITAL_SHIP", style: "HIGH_TECH", featured: true,
-      bounds: [{ x: 112, y: 0 }, { x: 53, y: 72 }, { x: -58, y: 82 }, { x: -110, y: 38 }, { x: -122, y: 0 }, { x: -110, y: -38 }, { x: -58, y: -82 }, { x: 53, y: -72 }],
-      engines: [{ x: -114, y: 27, angle: 180, width: 15, length: 28 }, { x: -114, y: -27, angle: 180, width: 15, length: 28 }],
-      mounts: [{ x: 48, y: 0, angle: 0, size: "LARGE", mount: "TURRET" }],
-    },
-  ] satisfies WireframeHull[]).map(previewTracedHull),
-};
+/*
+ * The six featured hulls, as the desktop tracer derives them from a real installation.
+ * Generated, not authored: cargo run --example trace-featured-hulls.
+ */
+const previewWireframeHulls = BUNDLED_WIREFRAME_HULLS;
 
 export function isDesktopHost(): boolean {
   return Boolean(window.__TAURI_INTERNALS__);

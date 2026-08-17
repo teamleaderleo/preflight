@@ -1,45 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { getWireframeHulls } from "./bridge";
+import { BUNDLED_DEFAULT_HULL, BUNDLED_WIREFRAME_HULLS } from "./bundledWireframeHulls";
 import { INSTRUMENT_HULL_STORAGE_KEY, INSTRUMENT_HULL_TUNING_STORAGE_KEY } from "./desktopStorage";
-import type { WireframeHull, WireframeHullCatalog, WireframeTuning } from "./types";
+import type { WireframeHullCatalog, WireframeTuning } from "./types";
 import { DEFAULT_WIREFRAME_TUNING } from "./wireframeHullGeometry";
 
-export const ORIGINAL_HULL_ID = "preflight-courier";
 export const DEFAULT_HULL_ID = "odyssey";
 export const FEATURED_HULL_IDS = ["odyssey", "onslaught", "conquest", "paragon", "astral", "hammerhead"] as const;
+const LEGACY_COURIER_ID = "preflight-courier";
 const CATALOG_IDLE_DELAY_MS = 160;
-
-/** The bundled fallback is original Preflight artwork and exists before Starsector is selected. */
-export const ORIGINAL_HULL: WireframeHull = {
-  id: ORIGINAL_HULL_ID,
-  name: "Preflight courier",
-  hullSize: "UTILITY",
-  style: "PREFLIGHT",
-  featured: true,
-  bounds: [
-    { x: 100, y: 0 },
-    { x: 72, y: 18 },
-    { x: 42, y: 28 },
-    { x: 20, y: 48 },
-    { x: -10, y: 52 },
-    { x: -24, y: 35 },
-    { x: -70, y: 38 },
-    { x: -58, y: 13 },
-    { x: -82, y: 0 },
-    { x: -58, y: -13 },
-    { x: -70, y: -38 },
-    { x: -24, y: -35 },
-    { x: -10, y: -52 },
-    { x: 20, y: -48 },
-    { x: 42, y: -28 },
-    { x: 72, y: -18 },
-  ],
-  engines: [
-    { x: -68, y: 24, angle: 180, width: 12, length: 24 },
-    { x: -68, y: -24, angle: 180, width: 12, length: 24 },
-  ],
-  mounts: [],
-};
 
 interface CatalogState {
   game: string;
@@ -57,22 +26,29 @@ function savedHullId(): string | null {
 const TUNING_LIMITS: Record<keyof WireframeTuning, readonly [number, number]> = {
   outerDetail: [0, 0.06],
   outerSmooth: [0, 0.9],
+  innerDetail: [0, 0.06],
+  innerSmooth: [0, 0.9],
   height: [0.2, 2.2],
 };
 
 export function validateWireframeTuning(value: unknown): WireframeTuning | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
+  const tuning = { ...DEFAULT_WIREFRAME_TUNING } as WireframeTuning;
   for (const key of Object.keys(TUNING_LIMITS) as Array<keyof WireframeTuning>) {
     const next = candidate[key];
+    // A tuning saved before the inner dials existed is still that person's tuning. Missing keys
+    // for those two new dials take the default. The three fields in the original record remain
+    // required so a truncated or partially written record does not silently become valid.
+    if (next === undefined) {
+      if (key === "innerDetail" || key === "innerSmooth") continue;
+      return null;
+    }
     const [minimum, maximum] = TUNING_LIMITS[key];
     if (typeof next !== "number" || !Number.isFinite(next) || next < minimum || next > maximum) return null;
+    tuning[key] = next;
   }
-  return {
-    outerDetail: candidate.outerDetail as number,
-    outerSmooth: candidate.outerSmooth as number,
-    height: candidate.height as number,
-  };
+  return tuning;
 }
 
 function savedTunings(): Record<string, WireframeTuning> {
@@ -100,7 +76,7 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
   useEffect(() => {
     if (!game || !enabled || catalogState?.game === game) return;
     let current = true;
-    // The courier is already bundled, so the first page frame never needs to wait behind hundreds
+    // Six featured hulls are already bundled, so the first page frame never waits behind hundreds
     // of optional hull files. Start that cosmetic scan just after the page transition settles.
     const timer = window.setTimeout(() => {
       void getWireframeHulls(game)
@@ -123,27 +99,28 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
 
   const hulls = useMemo(
     () => {
-      const local = (catalog?.hulls ?? []).filter((hull) => hull.id !== ORIGINAL_HULL_ID);
+      const local = (catalog?.hulls ?? []).filter((hull) => hull.id !== LEGACY_COURIER_ID);
       const featured = FEATURED_HULL_IDS.flatMap((id) => {
-        const hull = local.find((candidate) => candidate.id === id);
+        const hull = local.find((candidate) => candidate.id === id)
+          ?? BUNDLED_WIREFRAME_HULLS.hulls.find((candidate) => candidate.id === id);
         return hull ? [hull] : [];
       });
       const featuredIds = new Set(featured.map((hull) => hull.id));
-      return [...featured, ...local.filter((hull) => !featuredIds.has(hull.id)), ORIGINAL_HULL];
+      return [...featured, ...local.filter((hull) => !featuredIds.has(hull.id))];
     },
     [catalog],
   );
   const selectedBase = hulls.find((hull) => hull.id === selectedId)
     ?? hulls.find((hull) => hull.id === DEFAULT_HULL_ID)
-    ?? hulls.find((hull) => hull.featured && hull.id !== ORIGINAL_HULL_ID)
-    ?? ORIGINAL_HULL;
+    ?? hulls.find((hull) => hull.featured)
+    ?? BUNDLED_DEFAULT_HULL;
   const tuningKey = game ? `${game}::${selectedBase.id}` : selectedBase.id;
   const selected = useMemo(() => {
     const tuning = tunings[tuningKey];
     return tuning ? { ...selectedBase, tuning } : selectedBase;
   }, [selectedBase, tuningKey, tunings]);
   const choose = (id: string) => {
-    const next = hulls.some((hull) => hull.id === id) ? id : ORIGINAL_HULL_ID;
+    const next = hulls.some((hull) => hull.id === id) ? id : DEFAULT_HULL_ID;
     try {
       window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, next);
     } catch {

@@ -787,8 +787,8 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
     expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
   }
-  expect(within(ship).getByRole("option", { name: "Preflight courier" })).toBeInTheDocument();
-  expect(screen.getByText("6 available")).toBeInTheDocument();
+  expect(within(ship).queryByRole("option", { name: "Preflight courier" })).not.toBeInTheDocument();
+  expect(await screen.findByText("6 game hulls")).toBeInTheDocument();
 
   await user.click(screen.getByText("Adjust wireframe"));
   const height = screen.getByRole("slider", { name: "Model height" });
@@ -796,10 +796,22 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   expect(screen.getByRole("button", { name: "Reset this ship" })).toBeEnabled();
   await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
 
+  // Each loop family has its own dials, and they are independent: moving the interior tolerance
+  // has to leave the outline's alone, or the two groups are one dial wearing two labels.
+  const interior = screen.getByRole("slider", { name: "Interior simplification" });
+  expect(screen.getByRole("slider", { name: "Interior smoothing" })).toBeInTheDocument();
+  fireEvent.change(interior, { target: { value: "0.04" } });
+  await waitFor(() => {
+    const saved = JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}");
+    expect(saved["/Applications/Starsector::odyssey"].innerDetail).toBe(0.04);
+  });
+  expect(screen.getByRole("slider", { name: "Outline simplification" })).toHaveValue("0.012");
+
   await user.selectOptions(ship, "onslaught");
   expect(screen.getByRole("button", { name: "Reset this ship" })).toBeDisabled();
   await user.selectOptions(ship, "odyssey");
   expect(screen.getByRole("slider", { name: "Model height" })).toHaveValue("1.35");
+  expect(screen.getByRole("slider", { name: "Interior simplification" })).toHaveValue("0.04");
 });
 
 test("the desktop sidebar collapses to icon navigation without losing its destinations", async () => {

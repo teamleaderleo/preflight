@@ -51,11 +51,11 @@ function recordedSince(first: string | null) {
 
 export function HangarPage({ instrumentHull, playtime }: HangarPageProps) {
   const featured = useMemo(
-    () => instrumentHull.hulls.filter((hull) => hull.featured && hull.id !== "preflight-courier"),
+    () => instrumentHull.hulls.filter((hull) => hull.featured),
     [instrumentHull.hulls],
   );
   const more = useMemo(
-    () => instrumentHull.hulls.filter((hull) => !hull.featured && hull.id !== "preflight-courier"),
+    () => instrumentHull.hulls.filter((hull) => !hull.featured),
     [instrumentHull.hulls],
   );
   const selectedIndex = featured.findIndex((hull) => hull.id === instrumentHull.selectedId);
@@ -136,22 +136,37 @@ export function HangarPage({ instrumentHull, playtime }: HangarPageProps) {
                   {more.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
                 </optgroup>
               ) : null}
-              <optgroup label="Preflight">
-                <option value="preflight-courier">Preflight courier</option>
-              </optgroup>
             </select>
             <small>{instrumentHull.catalog
-              ? `${instrumentHull.catalog.hulls.length.toLocaleString()} available`
-              : instrumentHull.catalogLoaded ? "Installation catalog unavailable" : "Reading the local catalog…"}</small>
+              ? `${instrumentHull.catalog.hulls.length.toLocaleString()} game hulls`
+              : instrumentHull.catalogLoaded ? "6 included hulls" : "6 included hulls · finding more…"}</small>
           </label>
 
           <details className="wireframe-customizer">
             <summary>Adjust wireframe</summary>
             <div className="wireframe-customizer__body">
+              {/*
+                * Two groups, because a hull is two families of closed loop and they are not the
+                * same size of thing: the silhouette and the voids punched through it are marched
+                * off the sprite's alpha, the raised blocks off its lighting. A tolerance that
+                * reads well on a 200-point outline flattens a 12-point flight deck, which is why
+                * the design page gave each family its own dials rather than one with multipliers.
+                *
+                * The page toggles between the groups to avoid stacking sliders. Four fit here
+                * without a mode, and a control you can see beats one behind a switch.
+                */}
               <fieldset>
-                <legend>Shape</legend>
+                <legend>Silhouette and voids</legend>
                 <WireframeSlider label="Outline smoothing" setting="outerSmooth" value={instrumentHull.tuning.outerSmooth} minimum={0} maximum={0.9} step={0.02} format={(value) => value === 0 ? "None" : value.toFixed(2)} onChange={instrumentHull.customize} />
                 <WireframeSlider label="Outline simplification" setting="outerDetail" value={instrumentHull.tuning.outerDetail} minimum={0} maximum={0.06} step={0.001} format={(value) => value === 0 ? "Full" : value.toFixed(3)} onChange={instrumentHull.customize} />
+              </fieldset>
+              <fieldset>
+                <legend>Interior</legend>
+                <WireframeSlider label="Interior smoothing" setting="innerSmooth" value={instrumentHull.tuning.innerSmooth} minimum={0} maximum={0.9} step={0.02} format={(value) => value === 0 ? "None" : value.toFixed(2)} onChange={instrumentHull.customize} />
+                <WireframeSlider label="Interior simplification" setting="innerDetail" value={instrumentHull.tuning.innerDetail} minimum={0} maximum={0.06} step={0.001} format={(value) => value === 0 ? "Full" : value.toFixed(3)} onChange={instrumentHull.customize} />
+              </fieldset>
+              <fieldset>
+                <legend>Form</legend>
                 <WireframeSlider label="Model height" setting="height" value={instrumentHull.tuning.height} minimum={0.2} maximum={2.2} step={0.05} format={(value) => `${value.toFixed(2)}×`} onChange={instrumentHull.customize} />
               </fieldset>
               <div className="wireframe-customizer__actions">

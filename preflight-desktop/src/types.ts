@@ -60,9 +60,20 @@ export interface WireframeMount extends WireframePoint {
   mount: string;
 }
 
+/**
+ * The two loop families are dialled separately, as in the design page.
+ *
+ * A hull is outer loops marched off the sprite's alpha -- the silhouette and the voids punched
+ * through it -- and inner loops marched off its lighting. They are the same kind of thing once
+ * found, but they are not the same size, and a tolerance that reads well on a 200-point hull
+ * outline flattens a 12-point flight deck. One shared dial with fixed multipliers was the
+ * version before this in `docs/design/hangar-light/`, and it was rejected there for this reason.
+ */
 export interface WireframeTuning {
   outerDetail: number;
   outerSmooth: number;
+  innerDetail: number;
+  innerSmooth: number;
   height: number;
 }
 
