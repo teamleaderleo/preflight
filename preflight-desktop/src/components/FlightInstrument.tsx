@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
+import type { HullSegmentKind } from "../wireframeHullGeometry";
 import type { WireframeHull, WireframePoint } from "../types";
 import { BUNDLED_DEFAULT_HULL } from "../bundledWireframeHulls";
 import { projectHull } from "../wireframeHullGeometry";
@@ -67,6 +68,31 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
   probe.remove();
   return palette;
 }
+
+/*
+ * Weight and opacity by what an edge is, on top of what depth already does to it.
+ *
+ * Depth alone gives every edge in the same plane the same weight, and the silhouette then has to
+ * compete with the deck plating drawn a few pixels inside it. Reading the ship's outer edge first
+ * and its interior second is most of what makes a wireframe legible, so the outline is drawn at
+ * better than twice the interior's weight and the bracing that holds the side panels together is
+ * dropped well back -- it is there to say the side is a surface, not to be read line by line.
+ */
+const EDGE_WEIGHT: Record<HullSegmentKind, number> = {
+  outline: 2.1,
+  deck: 1,
+  keel: 0.85,
+  structure: 0.7,
+  engine: 1,
+};
+
+const EDGE_ALPHA: Record<HullSegmentKind, number> = {
+  outline: 1,
+  deck: 0.92,
+  keel: 0.6,
+  structure: 0.5,
+  engine: 1,
+};
 
 /*
  * The paint, carried over from the prototype rather than reinvented.
@@ -160,8 +186,8 @@ function drawHull(
     const from = map(segment.from);
     const to = map(segment.to);
     context.strokeStyle = `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
-    context.lineWidth = (0.6 + lit * 0.85) * heavy * (segment.kind === "outline" ? 1.5 : 1);
-    context.globalAlpha = (0.5 + lit * 0.5) * (segment.kind === "structure" || segment.kind === "keel" ? 0.72 : 1);
+    context.lineWidth = (0.6 + lit * 0.85) * heavy * EDGE_WEIGHT[segment.kind];
+    context.globalAlpha = (0.5 + lit * 0.5) * EDGE_ALPHA[segment.kind];
     context.beginPath();
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);
