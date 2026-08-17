@@ -21,7 +21,8 @@ export interface CopySetupObservations {
   platform: DesktopSnapshot["platform"];
   starsectorReady: boolean;
   profileFingerprint?: string | null;
-  mods: CopySetupModObservation[];
+  /** null means the enabled-mod list could not be established; [] is a proven empty profile. */
+  mods: CopySetupModObservation[] | null;
   launchSettings?: {
     resolution?: string | null;
     fullscreen?: boolean | null;
@@ -41,18 +42,21 @@ export interface CopySetupObservations {
   } | null;
 }
 
+export interface CopySetupPublicMod {
+  id: string;
+  displayName: string | null;
+  declaredVersion: string | null;
+}
+
 export interface CopySetupPublicSummary {
   version: typeof COPY_SETUP_VERSION;
   preflightVersion: string;
   platform: DesktopSnapshot["platform"];
   starsectorReady: boolean;
   profileFingerprint: string | null;
-  mods: Array<{
-    id: string;
-    displayName: string | null;
-    declaredVersion: string | null;
-  }>;
-  omittedModCount: number;
+  /** null means unavailable evidence; [] means an observed empty enabled-mod list. */
+  mods: CopySetupPublicMod[] | null;
+  omittedModCount: number | null;
   launchSettings: {
     resolution: string | null;
     fullscreen: boolean | null;
@@ -80,15 +84,17 @@ export interface CopySetupPublicSummary {
  * serialized here. A future save-to-file action should consume this same summary/text generator.
  */
 export function createCopySetupSummary(observations: CopySetupObservations): CopySetupPublicSummary {
-  const mods = observations.mods
-    .map((mod) => ({
-      id: boundedLine(mod.id, MAX_MOD_ID_CHARS),
-      displayName: boundedOptionalLine(mod.displayName, MAX_MOD_NAME_CHARS),
-      declaredVersion: boundedOptionalLine(mod.declaredVersion, MAX_MOD_VERSION_CHARS),
-    }))
-    .filter((mod) => mod.id.length > 0)
-    .sort(compareMods);
-  const boundedMods = mods.slice(0, COPY_SETUP_MAX_MODS);
+  const mods = observations.mods === null
+    ? null
+    : observations.mods
+      .map((mod) => ({
+        id: boundedLine(mod.id, MAX_MOD_ID_CHARS),
+        displayName: boundedOptionalLine(mod.displayName, MAX_MOD_NAME_CHARS),
+        declaredVersion: boundedOptionalLine(mod.declaredVersion, MAX_MOD_VERSION_CHARS),
+      }))
+      .filter((mod) => mod.id.length > 0)
+      .sort(compareMods);
+  const boundedMods = mods === null ? null : mods.slice(0, COPY_SETUP_MAX_MODS);
 
   return {
     version: COPY_SETUP_VERSION,
@@ -97,7 +103,7 @@ export function createCopySetupSummary(observations: CopySetupObservations): Cop
     starsectorReady: observations.starsectorReady,
     profileFingerprint: boundedOptionalToken(observations.profileFingerprint, MAX_FINGERPRINT_CHARS),
     mods: boundedMods,
-    omittedModCount: Math.max(0, mods.length - boundedMods.length),
+    omittedModCount: mods === null ? null : Math.max(0, mods.length - boundedMods!.length),
     launchSettings: observations.launchSettings
       ? {
           resolution: boundedOptionalToken(observations.launchSettings.resolution, 32),
@@ -138,15 +144,19 @@ function formatCopySetupSummary(summary: CopySetupPublicSummary): string {
   ];
 
   if (summary.profileFingerprint) lines.push(`Profile fingerprint: ${summary.profileFingerprint}`);
-  lines.push(`Enabled mods: ${summary.mods.length + summary.omittedModCount}`);
-  for (const mod of summary.mods) {
-    let value = mod.id;
-    if (mod.displayName) value += ` — ${mod.displayName}`;
-    if (mod.declaredVersion) value += ` [${mod.declaredVersion}]`;
-    lines.push(`- ${value}`);
-  }
-  if (summary.omittedModCount > 0) {
-    lines.push(`- … ${summary.omittedModCount} more mod IDs omitted`);
+  if (summary.mods === null) {
+    lines.push("Enabled mods: unavailable");
+  } else {
+    lines.push(`Enabled mods: ${summary.mods.length + (summary.omittedModCount ?? 0)}`);
+    for (const mod of summary.mods) {
+      let value = mod.id;
+      if (mod.displayName) value += ` — ${mod.displayName}`;
+      if (mod.declaredVersion) value += ` [${mod.declaredVersion}]`;
+      lines.push(`- ${value}`);
+    }
+    if ((summary.omittedModCount ?? 0) > 0) {
+      lines.push(`- … ${summary.omittedModCount} more mod IDs omitted`);
+    }
   }
 
   if (summary.launchSettings) {
@@ -184,10 +194,7 @@ export async function writeCopySetupToClipboard(
   return text;
 }
 
-function compareMods(
-  left: CopySetupPublicSummary["mods"][number],
-  right: CopySetupPublicSummary["mods"][number],
-): number {
+function compareMods(left: CopySetupPublicMod, right: CopySetupPublicMod): number {
   return compareText(left.id, right.id)
     || compareText(left.displayName ?? "", right.displayName ?? "")
     || compareText(left.declaredVersion ?? "", right.declaredVersion ?? "");
