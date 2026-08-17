@@ -1,0 +1,62 @@
+name: Issue 557 contract polish final retry
+
+on:
+  push:
+    branches:
+      - codex/issue-557-mod-compat-precheck
+    paths:
+      - .github/workflows/issue-557-polish3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/issue-557-mod-compat-precheck
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-build-jdk
+      - name: Replay the reviewed polish transform
+        shell: python
+        run: |
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path(".github/workflows/issue-557-polish2.yml").read_text()
+          shell_at = workflow.index("        shell: python")
+          script_at = workflow.index("        run: |\n", shell_at) + len("        run: |\n")
+          script_end = workflow.index("      - name: Verify Java correctness", script_at)
+          script = textwrap.dedent(workflow[script_at:script_end])
+          exec(compile(script, "issue-557-polish2-inline.py", "exec"), {})
+
+          test = Path("preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java")
+          text = test.read_text()
+          broken = '        mod(mods, "partial", "{"id":"partial","name":"Partial","gameVersion":"0.98a-RC8"}");\n'
+          fixed = '''        mod(mods, "partial", """
+                  {"id":"partial","name":"Partial","gameVersion":"0.98a-RC8"}
+                  """);
+          '''
+          if text.count(broken) != 1:
+              raise SystemExit(f"expected one malformed generated fixture, found {text.count(broken)}")
+          test.write_text(text.replace(broken, fixed, 1))
+      - name: Verify Java correctness
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Commit verified named files
+        run: |
+          rm .github/workflows/issue-557-polish.yml
+          rm .github/workflows/issue-557-polish2.yml
+          rm .github/workflows/issue-557-polish3.yml
+          git config user.name "preflight-issue-557-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add preflight-core/src/main/java/dev/starsector/preflight/core/ModCompatibilityReadiness.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPrecheck.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/ModCompatibilityPresenter.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/RunCommand.java
+          git add preflight-cli/src/main/java/dev/starsector/preflight/cli/PrepareCommand.java
+          git add preflight-cli/src/test/java/dev/starsector/preflight/cli/ModCompatibilityPrecheckTest.java
+          git add -u .github/workflows/issue-557-polish.yml .github/workflows/issue-557-polish2.yml .github/workflows/issue-557-polish3.yml
+          git commit -m "Polish mod compatibility readiness contract"
+          git push origin HEAD:codex/issue-557-mod-compat-precheck
