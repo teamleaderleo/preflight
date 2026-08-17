@@ -33,7 +33,7 @@ jobs:
           workflow = Path(".github/workflows/issue-557-polish3.yml").read_text()
           shell_at = workflow.index("        shell: python")
           script_at = workflow.index("        run: |\n", shell_at) + len("        run: |\n")
-          script_end = workflow.index("      - name: Verify Java correctness", script_at)
+          script_end = workflow.index("\n      - name: Verify Java correctness\n        run:", script_at)
           script = textwrap.dedent(workflow[script_at:script_end])
           exec(compile(script, "issue-557-polish3-inline.py", "exec"), {})
 
