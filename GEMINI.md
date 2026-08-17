@@ -47,8 +47,10 @@
 
 ### Desktop UX Polish & Gating
 - **Launch Posture**: Added posture indicator (`Accelerations active · Balanced storage` / `Original code and assets · Vanilla fallback`) under the primary launch button in [`HomePage.tsx`](preflight-desktop/src/components/HomePage.tsx).
-- **Hydration Stability**: Added `min-height: 130px` to `.quick-settings--loading` in [`styles.css`](preflight-desktop/src/styles.css) to eliminate layout shift during startup settings scan.
-- **Uncoupled Operation Gating**: Ensured quick launcher settings remain responsive during background profile operations.
+### Launcher Heap Setting Containment Proving ([#601](https://github.com/teamleaderleo/preflight/issues/601))
+- **Problem**: `JvmMemorySettings.inspect` evaluated candidate launchers, referenced response files, and fallback `.vmparams` files by reading file content via `boundedText` *before* checking `containedByRealPath`. This permitted symlinked candidates pointing outside the Starsector installation root to be opened and read into memory.
+- **Fix**: Updated `boundedText` to verify `containedByRealPath(root, path)` prior to reading, skipping out-of-boundary candidate files early and emitting a diagnostic notice.
+- **Verification**: Unit tests added in `JvmMemorySettingsTest.java` verifying symlinked vmparams and response files outside the installation root are skipped without reading.
 
 ---
 
@@ -56,8 +58,9 @@
 
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
   - **Release Node Tests**: 110/110 passing
-  - **Vitest Unit Tests**: 201/201 passing across 24 test suites
-  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 147ms
-  - **Rust Backend Tests**: 81/81 Cargo tests passing
-  - **Cargo Format & Clippy**: `cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --all-targets -- -D warnings` (0 warnings)
-- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest,CacheCommandTest,LaunchLedgerTest -Dsurefire.failIfNoSpecifiedTests=false` (29/29 CLI tests passing)
+  - **Vitest Unit Tests**: 232/232 passing across 28 test suites
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 87ms
+  - **Rust Backend Tests**: 86/86 Cargo tests passing
+  - **Cargo Format & Clippy**: `0` warnings
+- **Maven Backend**: `./mvnw test` (122/122 CLI tests passing, 690/690 total project tests passing)
+
