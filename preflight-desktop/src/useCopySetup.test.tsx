@@ -101,7 +101,7 @@ test("successful empty profile read remains an observed zero-mod setup", async (
   vi.mocked(getProfiles).mockResolvedValue({
     enabledMods: [],
     profiles: [],
-  } as Awaited<ReturnType<typeof getProfiles>>);
+  } as unknown as Awaited<ReturnType<typeof getProfiles>>);
   const writeText = vi.fn().mockResolvedValue(undefined);
   installClipboard(writeText);
 
