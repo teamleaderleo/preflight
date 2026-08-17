@@ -616,7 +616,7 @@ export default function App() {
         ) : page === "mods" ? (
           <ProfilesPage message={profilesNotice?.message ?? ""} messageTone={profilesNotice?.tone ?? "info"} profilesState={profilesState} operationBlocked={operationBlocked} />
         ) : page === "hangar" ? (
-          <HangarPage instrumentHull={instrumentHull} />
+          <HangarPage instrumentHull={instrumentHull} playtime={snapshot?.playtime} />
         ) : page === "benchmark" ? (
           <BenchmarkPage
             message={benchmarkNotice?.message ?? ""}

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import type { WireframeTuning } from "../types";
+import type { PlaytimeSnapshot, WireframeTuning } from "../types";
+import { formatPlaytime } from "../uiFormat";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import { FlightInstrument } from "./FlightInstrument";
 
@@ -38,9 +39,17 @@ function WireframeSlider({ label, setting, value, minimum, maximum, step, format
 
 interface HangarPageProps {
   instrumentHull: InstrumentHullState;
+  playtime?: PlaytimeSnapshot;
 }
 
-export function HangarPage({ instrumentHull }: HangarPageProps) {
+function recordedSince(first: string | null) {
+  if (!first) return "Not recorded yet";
+  const date = new Date(first);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+export function HangarPage({ instrumentHull, playtime }: HangarPageProps) {
   const featured = useMemo(
     () => instrumentHull.hulls.filter((hull) => hull.featured && hull.id !== "preflight-courier"),
     [instrumentHull.hulls],
@@ -71,6 +80,20 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
           </div>
         </div>
         <aside className="hangar-readout">
+          {playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0 ? (
+            <div
+              className="hangar-playtime"
+              aria-label={`${formatPlaytime(playtime.totalMillis)} recorded playtime across ${playtime.launches.toLocaleString()} sessions`}
+            >
+              <strong>{formatPlaytime(playtime.totalMillis)}</strong>
+              <span>in Starsector · {playtime.launches.toLocaleString()} sessions</span>
+              <dl>
+                <div><dt>Longest session</dt><dd>{formatPlaytime(playtime.longestSessionMillis)}</dd></div>
+                <div><dt>Typical session</dt><dd>{formatPlaytime(playtime.averageMillis)}</dd></div>
+                <div><dt>Recorded since</dt><dd>{recordedSince(playtime.first)}</dd></div>
+              </dl>
+            </div>
+          ) : null}
           <div className="hangar-readout__identity">
             <span>Display hull</span>
             <h2>{instrumentHull.selected.name}</h2>

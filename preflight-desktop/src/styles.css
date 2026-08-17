@@ -2021,18 +2021,74 @@ h2 {
 .hangar-readout {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   min-width: 0;
   border-left: 1px solid var(--line);
   padding: 28px 26px 24px;
   background: var(--paper-solid);
 }
 
+.hangar-playtime {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hangar-playtime > strong {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(36px, 4.5vw, 54px);
+  font-weight: 650;
+  line-height: .95;
+  letter-spacing: -.02em;
+}
+
+.hangar-playtime > span {
+  color: var(--accent-strong);
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.hangar-playtime dl {
+  margin: 12px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.hangar-playtime dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.hangar-playtime dt,
+.hangar-playtime dd {
+  margin: 0;
+  font-size: 11px;
+}
+
+.hangar-playtime dt {
+  color: var(--ink-soft);
+}
+
+.hangar-playtime dd {
+  color: var(--ink);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
 .hangar-readout__identity {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding-bottom: 18px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2048,7 +2104,7 @@ h2 {
 .hangar-readout__identity h2 {
   margin: 4px 0 0;
   font-family: var(--font-display);
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(24px, 3vw, 34px);
   font-weight: 650;
   line-height: 1;
   letter-spacing: -.015em;
@@ -2190,6 +2246,30 @@ h2 {
   .hangar-readout {
     gap: 10px;
     padding-block: 20px;
+  }
+
+  .hangar-playtime {
+    padding-bottom: 10px;
+  }
+
+  .hangar-playtime > strong {
+    font-size: 42px;
+  }
+
+  .hangar-playtime dl {
+    margin-top: 8px;
+  }
+
+  .hangar-playtime dl > div {
+    padding-block: 4px;
+  }
+
+  .hangar-readout__identity {
+    padding-bottom: 8px;
+  }
+
+  .hangar-readout__identity h2 {
+    font-size: 28px;
   }
 }
 

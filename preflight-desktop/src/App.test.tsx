@@ -779,6 +779,9 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   render(<App />);
 
   await user.click(await screen.findByRole("button", { name: "Hangar" }));
+  expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
+  expect(screen.getByText("Longest session")).toBeInTheDocument();
+  expect(screen.getByText("Typical session")).toBeInTheDocument();
   const ship = await screen.findByRole("combobox", { name: "Display ship" });
   await waitFor(() => expect(ship).toHaveValue("odyssey"));
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
