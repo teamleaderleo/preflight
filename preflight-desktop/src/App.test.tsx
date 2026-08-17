@@ -780,20 +780,20 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
 
   await user.click(await screen.findByRole("button", { name: "Hangar" }));
   expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
-  expect(screen.getByText("Longest session")).toBeInTheDocument();
-  expect(screen.getByText("Typical session")).toBeInTheDocument();
+  expect(screen.getByText("Longest")).toBeInTheDocument();
+  expect(screen.getByText("Typical")).toBeInTheDocument();
   const ship = await screen.findByRole("combobox", { name: "Display ship" });
   await waitFor(() => expect(ship).toHaveValue("odyssey"));
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
     expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
   }
   expect(within(ship).queryByRole("option", { name: "Preflight courier" })).not.toBeInTheDocument();
-  expect(await screen.findByText("6 game hulls")).toBeInTheDocument();
+  expect(await screen.findByText("6 installed")).toBeInTheDocument();
+  expect(screen.queryByText("Adjust wireframe")).not.toBeInTheDocument();
 
-  await user.click(screen.getByText("Adjust wireframe"));
   const height = screen.getByRole("slider", { name: "Model height" });
   fireEvent.change(height, { target: { value: "1.35" } });
-  expect(screen.getByRole("button", { name: "Reset this ship" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Reset" })).toBeEnabled();
   await waitFor(() => expect(JSON.parse(window.localStorage.getItem("preflight.instrumentHullTuning.v1") ?? "{}")["/Applications/Starsector::odyssey"].height).toBe(1.35));
 
   // Each loop family has its own dials, and they are independent: moving the interior tolerance
@@ -808,7 +808,7 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   expect(screen.getByRole("slider", { name: "Outline simplification" })).toHaveValue("0.012");
 
   await user.selectOptions(ship, "onslaught");
-  expect(screen.getByRole("button", { name: "Reset this ship" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Reset" })).toBeDisabled();
   await user.selectOptions(ship, "odyssey");
   expect(screen.getByRole("slider", { name: "Model height" })).toHaveValue("1.35");
   expect(screen.getByRole("slider", { name: "Interior simplification" })).toHaveValue("0.04");
