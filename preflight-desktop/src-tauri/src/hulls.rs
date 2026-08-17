@@ -112,6 +112,25 @@ struct RawMount {
     mount: String,
 }
 
+impl WireframeHullCatalog {
+    /// The featured hulls that actually traced, which is what the bundled preview fixture holds.
+    ///
+    /// The catalog is every hull an installation has, and the couple of hundred that carry no
+    /// sprite trace are neither bundled nor readable in a diff. This exists so the committed
+    /// fixture has a command that regenerates it rather than a description of how it was made.
+    pub fn featured_traces(self) -> Self {
+        Self {
+            hulls: self
+                .hulls
+                .into_iter()
+                .filter(|hull| hull.featured && hull.trace.is_some())
+                .collect(),
+            skipped: 0,
+            ..self
+        }
+    }
+}
+
 #[tauri::command]
 pub(crate) fn get_wireframe_hulls(game: String) -> Result<WireframeHullCatalog, String> {
     let game = canonical_game_directory(&game)?;
