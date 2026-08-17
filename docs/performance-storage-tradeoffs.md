@@ -62,6 +62,8 @@ The same cold preparation measured **200.77 seconds** for Balanced: 3 minutes 21
 texture stage accounted for 195.28 seconds, roughly 97% of the measured preparation work. The game
 and mod files were already warm in the operating-system page cache from preceding launches, so this
 is a floor for that profile on that hardware, not a general first-run promise.
+The retained report did not record ambient temperature, thermal state, memory pressure, or
+competing processes, so this is not a quiet-machine preparation benchmark either.
 
 Fastest took 205.19 seconds in the single corresponding preparation. One run per policy is not
 enough to claim a preparation-speed difference; the storage policy is intended to change replay

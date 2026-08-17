@@ -200,6 +200,24 @@ const previewWireframeHulls: WireframeHullCatalog = {
         { x: -13, y: -27, angle: 0, size: "MEDIUM", mount: "TURRET" },
       ],
     },
+    {
+      id: "conquest", name: "Conquest", hullSize: "CAPITAL_SHIP", style: "MIDLINE", featured: true,
+      bounds: [{ x: 118, y: 0 }, { x: 45, y: 55 }, { x: -98, y: 44 }, { x: -112, y: 0 }, { x: -98, y: -44 }, { x: 45, y: -55 }],
+      engines: [{ x: -105, y: 25, angle: 180, width: 16, length: 29 }, { x: -105, y: -25, angle: 180, width: 16, length: 29 }],
+      mounts: [{ x: 35, y: 40, angle: 0, size: "LARGE", mount: "TURRET" }, { x: 35, y: -40, angle: 0, size: "LARGE", mount: "TURRET" }],
+    },
+    {
+      id: "paragon", name: "Paragon", hullSize: "CAPITAL_SHIP", style: "HIGH_TECH", featured: true,
+      bounds: [{ x: 105, y: 0 }, { x: 62, y: 68 }, { x: -45, y: 75 }, { x: -105, y: 36 }, { x: -118, y: 0 }, { x: -105, y: -36 }, { x: -45, y: -75 }, { x: 62, y: -68 }],
+      engines: [{ x: -108, y: 28, angle: 180, width: 18, length: 30 }, { x: -112, y: 0, angle: 180, width: 20, length: 34 }, { x: -108, y: -28, angle: 180, width: 18, length: 30 }],
+      mounts: [{ x: 30, y: 42, angle: 0, size: "LARGE", mount: "TURRET" }, { x: 30, y: -42, angle: 0, size: "LARGE", mount: "TURRET" }],
+    },
+    {
+      id: "astral", name: "Astral", hullSize: "CAPITAL_SHIP", style: "HIGH_TECH", featured: true,
+      bounds: [{ x: 112, y: 0 }, { x: 53, y: 72 }, { x: -58, y: 82 }, { x: -110, y: 38 }, { x: -122, y: 0 }, { x: -110, y: -38 }, { x: -58, y: -82 }, { x: 53, y: -72 }],
+      engines: [{ x: -114, y: 27, angle: 180, width: 15, length: 28 }, { x: -114, y: -27, angle: 180, width: 15, length: 28 }],
+      mounts: [{ x: 48, y: 0, angle: 0, size: "LARGE", mount: "TURRET" }],
+    },
   ],
 };
 
@@ -227,6 +245,18 @@ export async function getSnapshot(game?: string): Promise<DesktopSnapshot> {
   return invoke<DesktopSnapshot>("get_snapshot", { game: game ?? null });
 }
 
+interface DesktopBootstrap {
+  format: "starsector-preflight-desktop-bootstrap-v1";
+  snapshot: DesktopSnapshot;
+  homeState: DesktopHomeState | null;
+  homeStateError: string | null;
+}
+
+interface BootstrapFlight {
+  game: string | null;
+  promise: Promise<DesktopBootstrap>;
+}
+
 interface HomeStateFlight {
   game: string;
   promise: Promise<DesktopHomeState>;
@@ -237,6 +267,45 @@ type HomeStateField = "cacheInspection" | "profiles" | "launchSettings";
 
 let homeStateFlight: HomeStateFlight | null = null;
 const homeStateBootstrapped = new Set<string>();
+let bootstrapFlight: BootstrapFlight | null = null;
+
+function primeHomeState(state: DesktopHomeState): void {
+  homeStateBootstrapped.delete(state.installRoot);
+  homeStateFlight = {
+    game: state.installRoot,
+    promise: Promise.resolve(state),
+    claimed: new Set(),
+  };
+}
+
+/** Discovers the installation and primes Home's three reads from one engine process. */
+export async function getBootstrapSnapshot(game?: string): Promise<DesktopSnapshot> {
+  if (!isDesktopHost()) return getSnapshot(game);
+  const expectedGame = game ?? null;
+  if (!bootstrapFlight || bootstrapFlight.game !== expectedGame) {
+    const promise = invoke<DesktopBootstrap>("get_bootstrap", { game: expectedGame });
+    bootstrapFlight = { game: expectedGame, promise };
+    void promise.catch(() => undefined).finally(() => {
+      window.setTimeout(() => {
+        if (bootstrapFlight?.promise === promise) bootstrapFlight = null;
+      }, 0);
+    });
+  }
+  const flight = bootstrapFlight;
+  const bootstrap = await flight.promise;
+  if (bootstrap.format !== "starsector-preflight-desktop-bootstrap-v1") {
+    throw new Error("Preflight returned an unsupported desktop bootstrap document.");
+  }
+  const selectedGame = bootstrap.snapshot.selected?.installRoot;
+  if (
+    bootstrapFlight?.promise === flight.promise
+    && bootstrap.homeState
+    && bootstrap.homeState.installRoot === selectedGame
+  ) {
+    primeHomeState(bootstrap.homeState);
+  }
+  return bootstrap.snapshot;
+}
 
 function firstHomeStateField<K extends HomeStateField>(
   game: string,
@@ -281,6 +350,8 @@ export async function getOperationState(includeDurable = false): Promise<Operati
       preparationPid: null,
       reportUploadId: null,
       reportUploadTotalBytes: null,
+      diagnosticsExporting: false,
+      updateChecking: false,
       updateInstalling: false,
     };
   }

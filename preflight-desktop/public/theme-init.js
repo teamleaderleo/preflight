@@ -12,7 +12,7 @@
     // Kept in step with PALETTES in useTheme.ts. A palette missing from this list paints as
     // blueprint for one frame and is then corrected by React, which is the exact flash this
     // script exists to remove.
-    var palettes = ["blueprint", "hangar", "ultraviolet", "airglow"];
+    var palettes = ["blueprint", "hangar", "ultraviolet", "airglow", "phosphor"];
     var palette = window.localStorage.getItem("preflight.palette");
     document.documentElement.dataset.palette =
       palettes.indexOf(palette) >= 0 ? palette : "blueprint";

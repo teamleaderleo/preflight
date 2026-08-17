@@ -1,8 +1,9 @@
 use crate::engine::canonical_game_directory;
+use crate::hull_sprite_tracer::{TracedPoint, trace_installed_sprite};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 const MAX_HULL_FILES: usize = 1_024;
 const MAX_HULL_BYTES: u64 = 1024 * 1024;
@@ -10,6 +11,7 @@ const MAX_CATALOG_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_BOUND_POINTS: usize = 256;
 const MAX_SLOTS: usize = 256;
 const MAX_LABEL_BYTES: usize = 128;
+const MAX_SPRITE_PATH_BYTES: usize = 512;
 const MAX_COORDINATE: f64 = 16_384.0;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -31,6 +33,21 @@ struct WireframeHull {
     engines: Vec<WireframeEngine>,
     mounts: Vec<WireframeMount>,
     featured: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trace: Option<WireframeTrace>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WireframeTrace {
+    holes: Vec<Vec<WireframePoint>>,
+    inner: Vec<WireframeInnerContour>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+struct WireframeInnerContour {
+    height: f64,
+    points: Vec<WireframePoint>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -67,6 +84,10 @@ struct RawHull {
     hull_size: String,
     #[serde(default)]
     style: String,
+    #[serde(default)]
+    center: Option<[f64; 2]>,
+    #[serde(default)]
+    sprite_name: Option<String>,
     bounds: Vec<f64>,
     #[serde(default)]
     engine_slots: Vec<RawEngine>,
@@ -86,7 +107,7 @@ struct RawEngine {
 struct RawMount {
     #[serde(default)]
     angle: f64,
-    locations: [f64; 2],
+    locations: Vec<f64>,
     size: String,
     mount: String,
 }
@@ -152,7 +173,7 @@ fn read_wireframe_hulls(game: &Path) -> Result<WireframeHullCatalog, String> {
         catalog_bytes = next_catalog_bytes;
         let hull = serde_json::from_slice::<RawHull>(&bytes)
             .ok()
-            .and_then(validate_hull);
+            .and_then(|raw| validate_hull(raw, &directory));
         match hull {
             Some(hull) => hulls.push(hull),
             None => skipped += 1,
@@ -196,7 +217,7 @@ fn hull_directory(game: &Path) -> Option<PathBuf> {
     })
 }
 
-fn validate_hull(raw: RawHull) -> Option<WireframeHull> {
+fn validate_hull(raw: RawHull, hull_directory: &Path) -> Option<WireframeHull> {
     if !valid_label(&raw.hull_id)
         || !valid_label(&raw.hull_name)
         || !valid_label(&raw.hull_size)
@@ -209,11 +230,18 @@ fn validate_hull(raw: RawHull) -> Option<WireframeHull> {
     {
         return None;
     }
-    let bounds = raw
+    let mut bounds = raw
         .bounds
         .chunks_exact(2)
         .map(|point| checked_point(point[0], point[1]))
         .collect::<Option<Vec<_>>>()?;
+    let featured = featured_rank(&raw.hull_id) != usize::MAX;
+    let trace = featured
+        .then(|| trace_featured_sprite(&raw, hull_directory, &bounds))
+        .flatten();
+    if let Some((outline, _)) = trace.as_ref() {
+        bounds = outline.clone();
+    }
     let engines = raw
         .engine_slots
         .into_iter()
@@ -235,9 +263,11 @@ fn validate_hull(raw: RawHull) -> Option<WireframeHull> {
         .weapon_slots
         .into_iter()
         .filter(|mount| mount.size == "LARGE" || mount.size == "MEDIUM")
+        .filter(|mount| mount.mount == "TURRET" || mount.mount == "HARDPOINT")
         .filter_map(|mount| {
+            let (&x, &y) = (mount.locations.first()?, mount.locations.get(1)?);
             valid_number(mount.angle)
-                .then(|| checked_point(mount.locations[0], mount.locations[1]))
+                .then(|| checked_point(x, y))
                 .flatten()
                 .filter(|_| valid_label(&mount.mount))
                 .map(|point| WireframeMount {
@@ -250,7 +280,7 @@ fn validate_hull(raw: RawHull) -> Option<WireframeHull> {
         })
         .collect();
     Some(WireframeHull {
-        featured: featured_rank(&raw.hull_id) != usize::MAX,
+        featured,
         id: raw.hull_id,
         name: raw.hull_name,
         hull_size: raw.hull_size,
@@ -258,7 +288,84 @@ fn validate_hull(raw: RawHull) -> Option<WireframeHull> {
         bounds,
         engines,
         mounts,
+        trace: trace.map(|(_, trace)| trace),
     })
+}
+
+fn trace_featured_sprite(
+    raw: &RawHull,
+    hull_directory: &Path,
+    bounds: &[WireframePoint],
+) -> Option<(Vec<WireframePoint>, WireframeTrace)> {
+    let center = raw.center?;
+    if !center.into_iter().all(valid_number) {
+        return None;
+    }
+    let sprite = resolve_sprite(hull_directory, raw.sprite_name.as_deref()?)?;
+    let traced = trace_installed_sprite(&sprite, center).ok()?;
+    let min_x = bounds
+        .iter()
+        .map(|point| point.x)
+        .fold(f64::INFINITY, f64::min);
+    let max_x = bounds
+        .iter()
+        .map(|point| point.x)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let min_y = bounds
+        .iter()
+        .map(|point| point.y)
+        .fold(f64::INFINITY, f64::min);
+    let max_y = bounds
+        .iter()
+        .map(|point| point.y)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let origin = WireframePoint {
+        x: (min_x + max_x) / 2.0,
+        y: (min_y + max_y) / 2.0,
+    };
+    let span = ((max_x - min_x).max(max_y - min_y)) / 2.0;
+    if !valid_positive(span) {
+        return None;
+    }
+    let scale = |point: TracedPoint| WireframePoint {
+        x: origin.x + point.x * span,
+        y: origin.y + point.y * span,
+    };
+    let outline = traced.outline.into_iter().map(scale).collect();
+    let holes = traced
+        .holes
+        .into_iter()
+        .map(|contour| contour.into_iter().map(scale).collect())
+        .collect();
+    let inner = traced
+        .inner
+        .into_iter()
+        .map(|contour| WireframeInnerContour {
+            height: contour.height,
+            points: contour.points.into_iter().map(scale).collect(),
+        })
+        .collect();
+    Some((outline, WireframeTrace { holes, inner }))
+}
+
+fn resolve_sprite(hull_directory: &Path, sprite_name: &str) -> Option<PathBuf> {
+    if sprite_name.is_empty()
+        || sprite_name.len() > MAX_SPRITE_PATH_BYTES
+        || sprite_name.chars().any(char::is_control)
+    {
+        return None;
+    }
+    let relative = Path::new(sprite_name);
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return None;
+    }
+    let root = hull_directory.parent()?.parent()?.canonicalize().ok()?;
+    let sprite = root.join(relative).canonicalize().ok()?;
+    (sprite.starts_with(&root) && sprite.is_file()).then_some(sprite)
 }
 
 fn checked_point(x: f64, y: f64) -> Option<WireframePoint> {
@@ -282,14 +389,13 @@ fn valid_optional_label(value: &str) -> bool {
 }
 
 fn featured_rank(id: &str) -> usize {
-    const FEATURED: [&str; 7] = [
-        "hammerhead",
-        "onslaught",
+    const FEATURED: [&str; 6] = [
         "odyssey",
-        "paragon",
+        "onslaught",
         "conquest",
-        "apogee",
-        "wolf",
+        "paragon",
+        "astral",
+        "hammerhead",
     ];
     FEATURED
         .iter()
@@ -333,6 +439,25 @@ mod tests {
         )
     }
 
+    fn write_test_sprite(path: &Path) {
+        let mut pixels = vec![0_u8; 16 * 16 * 4];
+        for y in 3_usize..13 {
+            for x in 2_usize..14 {
+                if x.abs_diff(8) <= (y - 2) / 2 {
+                    let offset = (y * 16 + x) * 4;
+                    pixels[offset..offset + 4].copy_from_slice(&[150, 180, 220, 255]);
+                }
+            }
+        }
+        let file = fs::File::create(path).expect("sprite file");
+        let mut encoder = png::Encoder::new(file, 16, 16);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().expect("PNG header");
+        writer.write_image_data(&pixels).expect("PNG pixels");
+        writer.finish().expect("PNG finish");
+    }
+
     #[test]
     fn reads_bounded_hulls_and_puts_featured_choices_first() {
         let root = temporary_directory("catalog");
@@ -354,6 +479,36 @@ mod tests {
         assert_eq!(catalog.hulls[0].mounts.len(), 1);
         assert_eq!(catalog.hulls[1].id, "zeta");
         assert!(!catalog.hulls[1].featured);
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn featured_hulls_derive_richer_lines_from_the_selected_installation_only() {
+        let root = temporary_directory("local-sprite");
+        let hulls = root.join("data/hulls");
+        let sprites = root.join("graphics/ships");
+        fs::create_dir_all(&hulls).expect("hulls");
+        fs::create_dir_all(&sprites).expect("sprites");
+        write_test_sprite(&sprites.join("odyssey.png"));
+        fs::write(
+            hulls.join("odyssey.ship"),
+            r#"{
+                "hullId":"odyssey",
+                "hullName":"Odyssey",
+                "hullSize":"CAPITAL_SHIP",
+                "style":"HIGH_TECH",
+                "center":[8,8],
+                "spriteName":"graphics/ships/odyssey.png",
+                "bounds":[10,0,-5,8,-5,-8]
+            }"#,
+        )
+        .expect("hull");
+
+        let catalog = read_wireframe_hulls(&root).expect("catalog");
+        let odyssey = &catalog.hulls[0];
+        assert_eq!(odyssey.id, "odyssey");
+        assert!(odyssey.bounds.len() > 3);
+        assert!(odyssey.trace.is_some());
         fs::remove_dir_all(root).expect("cleanup");
     }
 
@@ -419,12 +574,33 @@ mod tests {
             }"#,
         )
         .expect("raw hull");
-        assert!(validate_hull(raw).is_none());
+        assert!(validate_hull(raw, Path::new(".")).is_none());
 
         let mut oversized_style: RawHull =
             serde_json::from_str(&hull("style", "Style")).expect("raw hull with style");
         oversized_style.style = "x".repeat(MAX_LABEL_BYTES + 1);
-        assert!(validate_hull(oversized_style).is_none());
+        assert!(validate_hull(oversized_style, Path::new(".")).is_none());
+    }
+
+    #[test]
+    fn launch_bay_polygons_do_not_drop_an_otherwise_valid_hull() {
+        let raw: RawHull = serde_json::from_str(
+            r#"{
+                "hullId":"odyssey",
+                "hullName":"Odyssey",
+                "hullSize":"CAPITAL_SHIP",
+                "bounds":[10,0,-5,8,-5,-8],
+                "weaponSlots":[
+                    {"angle":0,"locations":[8,4],"size":"LARGE","mount":"TURRET"},
+                    {"angle":0,"locations":[8,4,6,2,4,0],"size":"LARGE","mount":"HIDDEN"}
+                ]
+            }"#,
+        )
+        .expect("hull with a launch bay polygon");
+
+        let hull = validate_hull(raw, Path::new(".")).expect("valid hull");
+        assert_eq!(hull.mounts.len(), 1);
+        assert_eq!(hull.mounts[0].mount, "TURRET");
     }
 
     #[test]
@@ -439,8 +615,8 @@ mod tests {
 
     #[test]
     fn featured_order_is_stable() {
-        assert_eq!(featured_rank("hammerhead"), 0);
-        assert_eq!(featured_rank("wolf"), 6);
+        assert_eq!(featured_rank("odyssey"), 0);
+        assert_eq!(featured_rank("hammerhead"), 5);
         assert_eq!(featured_rank("custom"), usize::MAX);
         assert_eq!(
             Ordering::Less,

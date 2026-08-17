@@ -10,6 +10,8 @@ const idle: OperationSnapshot = {
   preparationPid: null,
   reportUploadId: null,
   reportUploadTotalBytes: null,
+  diagnosticsExporting: false,
+  updateChecking: false,
   updateInstalling: false,
 };
 

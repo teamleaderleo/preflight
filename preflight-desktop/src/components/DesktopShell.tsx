@@ -6,6 +6,7 @@ import {
   LifebuoyIcon,
   MoonIcon,
   SettingsIcon,
+  ShipIcon,
   SparklesIcon,
   SunIcon,
   SystemThemeIcon,
@@ -32,15 +33,16 @@ import {
  * still reachable from Speed, where someone asking "is this actually doing anything" is already
  * standing. `launch` works the same way, from Home.
  */
-/* The switch is four swatches, so the readable name lives here and in the tooltip. */
+/* The swatches stay compact, so the readable names live here and in their tooltips. */
 const PALETTE_NAMES: Record<PalettePreference, string> = {
   blueprint: "Blueprint",
   hangar: "Hangar",
   ultraviolet: "Ultraviolet",
   airglow: "Airglow",
+  phosphor: "Phosphor",
 };
 
-export type Page = "home" | "launch" | "speed" | "mods" | "benchmark" | "help" | "settings";
+export type Page = "home" | "launch" | "speed" | "mods" | "hangar" | "benchmark" | "help" | "settings";
 
 interface DesktopShellProps {
   page: Page;
@@ -126,6 +128,9 @@ export function DesktopShell({
           </button>
           <button className={`nav__item ${page === "mods" ? "nav__item--active" : ""}`} type="button" title="Mods" aria-current={page === "mods" ? "page" : undefined} onClick={() => onPageChange("mods")} disabled={!isReady}>
             <LayersIcon /><span>Mods</span>
+          </button>
+          <button className={`nav__item ${page === "hangar" ? "nav__item--active" : ""}`} type="button" title="Hangar" aria-current={page === "hangar" ? "page" : undefined} onClick={() => onPageChange("hangar")} disabled={!isReady}>
+            <ShipIcon /><span>Hangar</span>
           </button>
           <button className={`nav__item ${page === "help" ? "nav__item--active" : ""}`} type="button" title="Help" aria-current={page === "help" ? "page" : undefined} onClick={() => onPageChange("help")}>
             <LifebuoyIcon /><span>Help</span>

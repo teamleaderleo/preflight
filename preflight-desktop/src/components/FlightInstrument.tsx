@@ -13,6 +13,8 @@ interface FlightInstrumentProps {
   variant?: "badge" | "stage";
 }
 
+export const INSTRUMENT_APPEARANCE_ATTRIBUTES = ["data-theme", "data-palette"] as const;
+
 interface InstrumentPalette {
   near: [number, number, number];
   far: [number, number, number];
@@ -181,7 +183,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
   }
 }
 
-/** A bounded local-install wireframe; the game sprite and source geometry never enter the app. */
+/** Draws bounded hull geometry derived locally from the user's Starsector installation. */
 export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -243,9 +245,10 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
       palette = readPalette(canvas);
       drawStill();
     });
-    // Palette as well as theme: switching from Blueprint to Phosphor has to repaint the ship, or
-    // the whole app turns green around a blue wireframe.
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette"] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [...INSTRUMENT_APPEARANCE_ATTRIBUTES],
+    });
     reducedMotion.addEventListener("change", updateMotion);
     updateMotion();
     return () => {
