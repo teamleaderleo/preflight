@@ -133,6 +133,46 @@ class JvmMemorySettingsTest {
                 () -> JvmMemorySettings.update(root, target, 5000, temporary.resolve("backups")));
     }
 
+    @Test
+    void skipsCandidateVmparamsOutsideInstallationRootBeforeReading() throws Exception {
+        Path root = temporary.resolve("game");
+        Path launcher = root.resolve("starsector.exe");
+        Path external = temporary.resolve("external");
+        Files.createDirectories(root);
+        Files.createDirectories(external);
+        Files.write(launcher, new byte[] {0x4d, 0x5a});
+
+        Path outside = external.resolve("outside.vmparams");
+        Files.writeString(outside, "-Xms1g\n-Xmx2g\n");
+
+        Path symlink = root.resolve("starsector.vmparams");
+        Files.createSymbolicLink(symlink, outside);
+
+        JvmMemorySettings.Snapshot snapshot = JvmMemorySettings.inspect(root, target(root, launcher));
+
+        assertFalse(snapshot.available());
+        assertTrue(snapshot.diagnostics().stream().anyMatch(d -> d.contains("outside installation")));
+    }
+
+    @Test
+    void skipsReferencedResponseFileOutsideInstallationRootBeforeReading() throws Exception {
+        Path root = temporary.resolve("game");
+        Path launcher = root.resolve("starsector.sh");
+        Path external = temporary.resolve("external");
+        Files.createDirectories(root);
+        Files.createDirectories(external);
+
+        Path outside = external.resolve("outside.vmparams");
+        Files.writeString(outside, "-Xms1g\n-Xmx2g\n");
+
+        Files.writeString(launcher, "#!/bin/sh\njava @../external/outside.vmparams\n");
+
+        JvmMemorySettings.Snapshot snapshot = JvmMemorySettings.inspect(root, target(root, launcher));
+
+        assertFalse(snapshot.available());
+        assertTrue(snapshot.diagnostics().stream().anyMatch(d -> d.contains("outside installation")));
+    }
+
     /**
      * With no install root there is nothing to resolve a launcher against, and this used to
      * dereference the null and hand the user the NullPointerException's own message:
@@ -159,3 +199,4 @@ class JvmMemorySettingsTest {
                 "test");
     }
 }
+

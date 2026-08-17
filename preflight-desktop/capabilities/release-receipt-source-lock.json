@@ -3,7 +3,7 @@
   "sources": {
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopRunEvents.java": "86269855fb5fb51ab07f1b19d3427372b838afa7e694633ec3fa651fcb982f3d",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/InstallCommand.java": "4fb2994aa460c933dfa4a24fbb16c96cefaa06ca79a15d037eefdf1b7b70fd36",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/JvmMemorySettings.java": "7b2f44987ab40db8691266e241ca14c7f1466764730afd58f66fbdb99c6f8b5f",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/JvmMemorySettings.java": "4395d558844ba8ec3abbb4816547a4d18d2f1108094c227cadce3012c72d744e",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchLedger.java": "c2545f4d7e67a21becbad18da8213ac5114c6a927cc4bbdb51456bbec9264bf4",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchSettingsCommand.java": "c3eab9a955f6897ce117afaafc975ef280c94d168113f38f84a0132a034309ef",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/PreflightHome.java": "8933394e889f51563060f3f93f3bef431b05aa5a601f9a5245c105e8eb81eb09",
@@ -16,7 +16,7 @@
     "preflight-desktop/src-tauri/src/automation.rs": "8fc92075823bd3e8a3950d15189f97b0c42a3411e5bb513d93435a95be75c3ad",
     "preflight-desktop/src-tauri/src/desktop_automation_bridge.rs": "2e61931a7b6072989dc4b73a5895ef09339ba322d9936b3c4ec05c942ab6e6e1",
     "preflight-desktop/src-tauri/src/engine.rs": "7c859b2bcc94a1537124cc2dc2a614e4f5f4fc353fbf938b87c2fc713d149786",
-    "preflight-desktop/src-tauri/src/hull_sprite_tracer.rs": "8f2368122081cd28d5a99bad047607fa66c6ffb30726de8a45192772beb8dfb3",
+    "preflight-desktop/src-tauri/src/hull_sprite_tracer.rs": "c0e59c78e29062518707a97a5c8b05ae4c8ff65535db316bc27106ca693e5cbe",
     "preflight-desktop/src-tauri/src/hulls.rs": "f016398509a1d1237da0a98dd7255787eebd56a278ddc9ec0bc0df6306ce27c4",
     "preflight-desktop/src-tauri/src/lib.rs": "d5c3b71f44f66f8b181b4882812882b3b9ddd132a4cde64ebf394ae8884d46be",
     "preflight-desktop/src-tauri/src/main.rs": "d0dda62951f0b3474d4862ba2db2cfb104f596030d45e66fec4521491c34e351",

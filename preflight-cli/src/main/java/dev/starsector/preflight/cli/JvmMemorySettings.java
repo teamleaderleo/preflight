@@ -68,7 +68,7 @@ final class JvmMemorySettings {
         Path launcher = target.launcher().toAbsolutePath().normalize();
         List<String> diagnostics = new ArrayList<>();
 
-        String launcherText = textLauncher(launcher) ? boundedText(launcher, diagnostics) : null;
+        String launcherText = textLauncher(launcher) ? boundedText(root, launcher, diagnostics) : null;
         Snapshot direct = snapshot(root, launcher, launcherText, "launcher", diagnostics);
         if (direct != null) return direct;
 
@@ -78,7 +78,7 @@ final class JvmMemorySettings {
             while (references.find()) {
                 String name = firstNonNull(references.group(1), references.group(2), references.group(3));
                 Path candidate = launcher.getParent().resolve(name).normalize();
-                Snapshot found = snapshot(root, candidate, boundedText(candidate, diagnostics),
+                Snapshot found = snapshot(root, candidate, boundedText(root, candidate, diagnostics),
                         "launcher response file", diagnostics);
                 if (found != null) referenced.add(found);
             }
@@ -100,7 +100,7 @@ final class JvmMemorySettings {
         for (Path candidate : known) {
             Path normalized = candidate.toAbsolutePath().normalize();
             if (normalized.equals(launcher)) continue;
-            Snapshot found = snapshot(root, normalized, boundedText(normalized, diagnostics),
+            Snapshot found = snapshot(root, normalized, boundedText(root, normalized, diagnostics),
                     "VM-parameter file", diagnostics);
             if (found != null) discovered.add(found);
         }
@@ -112,6 +112,7 @@ final class JvmMemorySettings {
         }
         return Snapshot.unavailable("No effective -Xmx setting was found for the selected launcher", diagnostics);
     }
+
 
     static UpdateResult update(Path installRoot, int memoryMiB) throws IOException {
         LaunchTarget target;
@@ -245,7 +246,11 @@ final class JvmMemorySettings {
         return (int) mib;
     }
 
-    private static String boundedText(Path path, List<String> diagnostics) {
+    private static String boundedText(Path root, Path path, List<String> diagnostics) {
+        if (!containedByRealPath(root, path)) {
+            diagnostics.add("Skipped candidate file outside installation: " + path);
+            return null;
+        }
         try {
             if (!Files.isRegularFile(path)) return null;
             long bytes = Files.size(path);
@@ -262,11 +267,13 @@ final class JvmMemorySettings {
 
     private static boolean containedByRealPath(Path root, Path source) {
         try {
+            if (!Files.exists(source) || !Files.exists(root)) return false;
             return source.toRealPath().startsWith(root.toRealPath());
         } catch (IOException | RuntimeException unreadable) {
             return false;
         }
     }
+
 
     private static boolean textLauncher(Path launcher) {
         String name = launcher.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
