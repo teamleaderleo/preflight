@@ -1851,6 +1851,9 @@ h2 {
   min-width: 0;
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-near: #8a5c1e;
+  --instrument-far: #c9b48e;
+  --instrument-grid: rgba(120, 96, 60, 0.13);
   --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
   --instrument-fill: rgba(167, 101, 50, 0.065);
@@ -1973,6 +1976,20 @@ h2 {
 @media (max-width: 1120px) {
   .hangar-page {
     grid-template-columns: minmax(280px, .8fr) minmax(380px, 1.2fr);
+  }
+}
+
+@media (max-height: 720px) and (min-width: 681px) {
+  .hangar-stage {
+    min-height: 410px;
+  }
+
+  .hangar-stage__instrument {
+    inset: 22px 24px 84px;
+  }
+
+  .hangar-controls {
+    gap: 10px;
   }
 }
 
@@ -4148,6 +4165,9 @@ footer {
   isolation: isolate;
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-near: #8a5c1e;
+  --instrument-far: #c9b48e;
+  --instrument-grid: rgba(120, 96, 60, 0.13);
   --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
   --instrument-fill: rgba(167, 101, 50, 0.065);
@@ -4187,6 +4207,24 @@ footer {
   height: 100%;
   animation: flight-instrument-drift 8s ease-in-out infinite;
   will-change: transform;
+}
+
+.flight-instrument--stage {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  opacity: 1;
+  transform: none;
+}
+
+.flight-instrument--stage .flight-instrument__drift {
+  animation: none;
+}
+
+.flight-instrument--stage::after {
+  content: none;
 }
 
 .flight-instrument svg {
@@ -5493,6 +5531,9 @@ footer {
 :root[data-palette="blueprint"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(50, 78, 111, 0.64);
   --instrument-soft: rgba(79, 105, 197, 0.2);
+  --instrument-near: #48669e;
+  --instrument-far: #abb5dc;
+  --instrument-grid: rgba(86, 99, 135, 0.13);
   --instrument-accent: #4f69c5;
   --instrument-glow: rgba(73, 104, 212, 0.22);
   --instrument-fill: rgba(73, 104, 212, 0.065);
@@ -5501,6 +5542,9 @@ footer {
 :root[data-palette="hangar"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-near: #8a5c1e;
+  --instrument-far: #c9b48e;
+  --instrument-grid: rgba(120, 96, 60, 0.13);
   --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
   --instrument-fill: rgba(167, 101, 50, 0.065);
@@ -5509,6 +5553,9 @@ footer {
 :root[data-palette="ultraviolet"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(80, 61, 91, 0.64);
   --instrument-soft: rgba(137, 109, 154, 0.22);
+  --instrument-near: #785690;
+  --instrument-far: #c9abcd;
+  --instrument-grid: rgba(114, 90, 124, 0.13);
   --instrument-accent: #8959a5;
   --instrument-glow: rgba(142, 85, 175, 0.22);
   --instrument-fill: rgba(142, 85, 175, 0.065);
@@ -5517,6 +5564,9 @@ footer {
 :root[data-palette="airglow"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(94, 61, 72, 0.64);
   --instrument-soft: rgba(155, 105, 122, 0.22);
+  --instrument-near: #924e6a;
+  --instrument-far: #d8a8b0;
+  --instrument-grid: rgba(130, 86, 98, 0.13);
   --instrument-accent: #a45270;
   --instrument-glow: rgba(173, 76, 114, 0.22);
   --instrument-fill: rgba(173, 76, 114, 0.065);
@@ -5525,6 +5575,9 @@ footer {
 :root[data-palette="phosphor"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(70, 76, 36, 0.64);
   --instrument-soft: rgba(89, 135, 89, 0.22);
+  --instrument-near: #496c37;
+  --instrument-far: #b8c29c;
+  --instrument-grid: rgba(86, 112, 67, 0.13);
   --instrument-accent: #15873d;
   --instrument-glow: rgba(21, 135, 61, 0.22);
   --instrument-fill: rgba(21, 135, 61, 0.065);
@@ -5533,6 +5586,9 @@ footer {
 :root[data-theme="dark"][data-palette="blueprint"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(220, 229, 246, 0.58);
   --instrument-soft: rgba(174, 190, 220, 0.2);
+  --instrument-near: #b7caff;
+  --instrument-far: #5d7298;
+  --instrument-grid: rgba(128, 156, 228, 0.1);
   --instrument-accent: #8fa8dd;
   --instrument-glow: rgba(61, 94, 211, 0.22);
   --instrument-fill: rgba(61, 94, 211, 0.075);
@@ -5541,6 +5597,9 @@ footer {
 :root[data-theme="dark"][data-palette="hangar"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(226, 218, 206, 0.58);
   --instrument-soft: rgba(209, 200, 186, 0.2);
+  --instrument-near: #f0c684;
+  --instrument-far: #765a39;
+  --instrument-grid: rgba(200, 148, 74, 0.1);
   --instrument-accent: #df9854;
   --instrument-glow: rgba(213, 138, 70, 0.2);
   --instrument-fill: rgba(213, 138, 70, 0.075);
@@ -5549,6 +5608,9 @@ footer {
 :root[data-theme="dark"][data-palette="ultraviolet"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(235, 224, 241, 0.58);
   --instrument-soft: rgba(205, 189, 216, 0.2);
+  --instrument-near: #e6baf8;
+  --instrument-far: #715985;
+  --instrument-grid: rgba(182, 139, 209, 0.1);
   --instrument-accent: #b79cc9;
   --instrument-glow: rgba(137, 73, 171, 0.22);
   --instrument-fill: rgba(137, 73, 171, 0.075);
@@ -5557,6 +5619,9 @@ footer {
 :root[data-theme="dark"][data-palette="airglow"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(242, 224, 230, 0.58);
   --instrument-soft: rgba(218, 187, 196, 0.2);
+  --instrument-near: #ffb3c7;
+  --instrument-far: #7d5065;
+  --instrument-grid: rgba(214, 129, 158, 0.1);
   --instrument-accent: #d9afbc;
   --instrument-glow: rgba(168, 64, 106, 0.22);
   --instrument-fill: rgba(168, 64, 106, 0.075);
@@ -5565,6 +5630,9 @@ footer {
 :root[data-theme="dark"][data-palette="phosphor"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(232, 239, 232, 0.58);
   --instrument-soft: rgba(179, 205, 178, 0.2);
+  --instrument-near: #c7e7a7;
+  --instrument-far: #55735b;
+  --instrument-grid: rgba(126, 178, 117, 0.1);
   --instrument-accent: #a2c8a4;
   --instrument-glow: rgba(0, 129, 48, 0.22);
   --instrument-fill: rgba(0, 129, 48, 0.075);
