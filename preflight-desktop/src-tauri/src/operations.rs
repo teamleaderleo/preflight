@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::path::PathBuf;
-use std::sync::{Mutex, mpsc};
+use std::sync::{Mutex, TryLockError, mpsc};
 use tokio::sync::watch;
 
 #[derive(Default)]
@@ -106,9 +106,18 @@ impl Drop for DiagnosticsExportGuard<'_> {
 pub(crate) fn begin_diagnostics_export(
     operations: &Mutex<OperationState>,
 ) -> Result<DiagnosticsExportGuard<'_>, String> {
-    let mut state = operations
-        .lock()
-        .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    let mut state = match operations.try_lock() {
+        Ok(state) => state,
+        Err(TryLockError::WouldBlock) => {
+            return Err(
+                "Wait for the current Preflight operation to finish before creating a support file."
+                    .to_string(),
+            );
+        }
+        Err(TryLockError::Poisoned(_)) => {
+            return Err("The operation coordinator is unavailable.".to_string());
+        }
+    };
     if state.desktop_smoke.is_some() {
         return Err(
             "Wait for the startup benchmark to finish or cancel it before creating a support file."
@@ -315,6 +324,36 @@ mod tests {
             begin_diagnostics_export(&operations).err().unwrap(),
             "Wait for the Preflight update to finish installing before creating a support file."
         );
+        assert!(!operations.lock().unwrap().diagnostics_exporting);
+    }
+
+    #[test]
+    fn diagnostics_export_refuses_instead_of_queuing_behind_operation_lock() {
+        let operations = std::sync::Arc::new(Mutex::new(OperationState::default()));
+        let held = operations.lock().unwrap();
+        let worker_operations = std::sync::Arc::clone(&operations);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let outcome = match begin_diagnostics_export(&worker_operations) {
+                Ok(_guard) => "started".to_string(),
+                Err(error) => error,
+            };
+            sender.send(outcome).unwrap();
+        });
+
+        let admission = receiver.recv_timeout(std::time::Duration::from_millis(250));
+        drop(held);
+        worker.join().unwrap();
+
+        assert_eq!(
+            admission.expect("support export admission must not wait behind the coordinator lock"),
+            "Wait for the current Preflight operation to finish before creating a support file."
+        );
+        {
+            let _export = begin_diagnostics_export(&operations)
+                .expect("a fresh support export request can start after the operation finishes");
+            assert!(operations.lock().unwrap().diagnostics_exporting);
+        }
         assert!(!operations.lock().unwrap().diagnostics_exporting);
     }
 
