@@ -167,4 +167,86 @@ describe("Copy setup public summary", () => {
     expect(text).not.toContain("SECRET_TOKEN");
     expect(text).not.toContain("delete?token=");
   });
+
+  it("omits mod display and version labels that contain paths, URIs, secrets, or control characters", () => {
+    const text = createCopySetupText(observations({
+      mods: [
+        {
+          id: "safe-mod",
+          displayName: "Safe Mod — Ironclad",
+          declaredVersion: "2.1.0-RC1",
+        },
+        {
+          id: "unix-path-mod",
+          displayName: "Broken mod at /Users/alice/private-pack",
+          declaredVersion: "1.0.0",
+        },
+        {
+          id: "windows-path-mod",
+          displayName: "Mod at C:\\Games\\Starsector\\mods",
+          declaredVersion: "v1.2",
+        },
+        {
+          id: "unc-path-mod",
+          displayName: "Mod from \\\\server\\share\\mod",
+          declaredVersion: "0.9.1",
+        },
+        {
+          id: "uri-mod",
+          displayName: "Official Mod",
+          declaredVersion: "see https://example.invalid/?token=secret",
+        },
+        {
+          id: "credential-mod",
+          displayName: "Secret API token=supersecret",
+          declaredVersion: "Bearer secret-token-12345",
+        },
+        {
+          id: "control-injection-mod",
+          displayName: "Injected\n- fake-mod — Injected Name [9.9.9]",
+          declaredVersion: "1.0\r\nInjected Line",
+        },
+        {
+          id: "path/mod/id",
+          displayName: "Illegal ID",
+          declaredVersion: "1.0.0",
+        },
+      ],
+    }));
+
+    // Safe mod retains all labels
+    expect(text).toContain("- safe-mod — Safe Mod — Ironclad [2.1.0-RC1]");
+
+    // Mod with unsafe display name keeps safe version
+    expect(text).toContain("- unix-path-mod [1.0.0]");
+    expect(text).not.toContain("/Users/alice");
+
+    // Mod with Windows path in display name keeps safe version
+    expect(text).toContain("- windows-path-mod [v1.2]");
+    expect(text).not.toContain("C:\\Games");
+
+    // Mod with UNC path in display name keeps safe version
+    expect(text).toContain("- unc-path-mod [0.9.1]");
+    expect(text).not.toContain("\\\\server\\share");
+
+    // Mod with URL in version keeps safe display name
+    expect(text).toContain("- uri-mod — Official Mod");
+    expect(text).not.toContain("https://");
+    expect(text).not.toContain("token=secret");
+
+    // Mod with credentials in both display and version drops both labels
+    expect(text).toContain("- credential-mod\n");
+    expect(text).not.toContain("supersecret");
+    expect(text).not.toContain("Bearer");
+
+    // Mod with control/newline injection drops both labels without injecting lines
+    expect(text).toContain("- control-injection-mod\n");
+    expect(text).not.toContain("fake-mod");
+    expect(text).not.toContain("Injected Line");
+
+    // Mod with invalid ID containing path slashes is dropped completely
+    expect(text).not.toContain("path/mod/id");
+    expect(text).not.toContain("Illegal ID");
+  });
 });
+

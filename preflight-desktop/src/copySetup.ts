@@ -87,14 +87,19 @@ export function createCopySetupSummary(observations: CopySetupObservations): Cop
   const mods = observations.mods === null
     ? null
     : observations.mods
-      .map((mod) => ({
-        id: boundedLine(mod.id, MAX_MOD_ID_CHARS),
-        displayName: boundedOptionalLine(mod.displayName, MAX_MOD_NAME_CHARS),
-        declaredVersion: boundedOptionalLine(mod.declaredVersion, MAX_MOD_VERSION_CHARS),
-      }))
-      .filter((mod) => mod.id.length > 0)
+      .map((mod) => {
+        const id = boundedModId(mod?.id);
+        if (!id) return null;
+        return {
+          id,
+          displayName: boundedPublicModText(mod?.displayName, MAX_MOD_NAME_CHARS),
+          declaredVersion: boundedPublicModText(mod?.declaredVersion, MAX_MOD_VERSION_CHARS),
+        };
+      })
+      .filter((mod): mod is CopySetupPublicMod => mod !== null)
       .sort(compareMods);
   const boundedMods = mods === null ? null : mods.slice(0, COPY_SETUP_MAX_MODS);
+
 
   return {
     version: COPY_SETUP_VERSION,
@@ -204,10 +209,42 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function boundedOptionalLine(value: string | null | undefined, maxChars: number): string | null {
+function boundedModId(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+  const token = value.normalize("NFC").trim();
+  if (!token || Array.from(token).length > MAX_MOD_ID_CHARS) return "";
+  if (!/^[\p{L}\p{N}._:+-]+$/u.test(token)) return "";
+  return token;
+}
+
+function boundedPublicModText(value: string | null | undefined, maxChars: number): string | null {
   if (typeof value !== "string") return null;
-  const bounded = boundedLine(value, maxChars);
-  return bounded.length > 0 ? bounded : null;
+  const raw = value.normalize("NFC").trim();
+  if (!raw || isSensitiveModLabel(raw)) return null;
+  const compact = raw.replace(/\s+/gu, " ");
+  const chars = Array.from(compact);
+  if (chars.length === 0) return null;
+  return chars.length <= maxChars ? compact : `${chars.slice(0, maxChars - 1).join("")}…`;
+}
+
+function isSensitiveModLabel(text: string): boolean {
+  if (/[\u0000-\u001f\u007f]/u.test(text)) return true;
+  if (text.includes("/") || text.includes("\\")) return true;
+
+  if (text.includes("://") || /\b[a-zA-Z][a-zA-Z0-9+.-]*:\S*/u.test(text)) {
+    if (/\b(?:https?|file|ftp|ssh|mailto|git|smb|ws|wss|data|javascript):/iu.test(text)) return true;
+  }
+
+  const lower = text.toLowerCase();
+  if (
+    lower.includes("bearer ") ||
+    /(?:token|secret|password|authorization|api[_-]?key|apikey|credential|auth)\s*[=:]/u.test(lower) ||
+    /[?&](?:token|secret|key|password|auth|api[_-]?key)=/u.test(lower)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function boundedLine(value: string, maxChars: number): string {
@@ -231,3 +268,4 @@ function optionalBoolean(value: boolean | null | undefined): boolean | null {
 function boundedInteger(value: number | null | undefined, min: number, max: number): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max ? value : null;
 }
+
