@@ -1,6 +1,7 @@
 import { ArrowIcon, CheckIcon, FolderIcon, ShieldIcon } from "../icons";
 import type { Page } from "./DesktopShell";
 import type { useDiagnosticsReport } from "../useDiagnosticsReport";
+import { useCopySetup } from "../useCopySetup";
 import { InfoTip } from "./InfoTip";
 import { NoticeBanner } from "./NoticeBanner";
 import { openProjectLink } from "../bridge";
@@ -30,6 +31,7 @@ export function HelpPage({
   onChooseInstall,
   onNavigate,
 }: HelpPageProps) {
+  const setupCopy = useCopySetup(optimizationPreset);
   const {
     diagnosticsBusy,
     diagnosticsExport,
@@ -92,25 +94,29 @@ export function HelpPage({
           <div>
             <div className="heading-with-info">
               <h2>{diagnosticsExport ? "Support file ready" : "Still stuck?"}</h2>
-              <InfoTip label="About the support file">A small, redacted record of what Preflight did. It leaves your game, mods, saves, logs, media, caches, and personal paths out.</InfoTip>
+              <InfoTip label="About support sharing">Copy setup makes a compact public-safe text summary. The support file is a separate redacted ZIP with richer run evidence.</InfoTip>
             </div>
             <p>{diagnosticsExport
               ? `${formatBytes(diagnosticsExport.bytes)} · ${shortPath(diagnosticsExport.output)}`
-              : "Make a redacted support ZIP. You can review it before sending."}</p>
+              : "Copy your setup for a public post, or make a redacted support ZIP for richer evidence."}</p>
             <small>{automaticRunReports
-              ? "Failed-run reports are on. A failed launch can send this same ZIP automatically."
-              : "Nothing is sent unless you choose Send."}</small>
+              ? "Failed-run reports are on. A failed launch can send the separate support ZIP automatically."
+              : "Copy setup stays on your clipboard. Support files stay local until you choose Send."}</small>
           </div>
           <div className="report-actions">
-            <button className={`button ${diagnosticsExport ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
-              <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another one" : "Make a support file"}
+            <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={setupCopy.state === "copying"}>
+              {setupCopy.state === "copying" ? "Copying…" : setupCopy.state === "copied" ? "Setup copied" : "Copy setup"}
+            </button>
+            <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
+              <FolderIcon />{diagnosticsBusy ? "Creating…" : diagnosticsExport ? "Make another support file" : "Make a support file"}
             </button>
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
           </div>
         </div>
+        {setupCopy.state === "error" ? <p className="report-unavailable" role="alert"><ShieldIcon /> Clipboard access failed. Try Copy setup again or use the separate support file action.</p> : null}
 
         <details className="settings-disclosure support-contents">
-          <summary><span><strong>What’s inside?</strong><small>Included and left out</small></span></summary>
+          <summary><span><strong>What’s inside the support file?</strong><small>Included and left out</small></span></summary>
           <div className="settings-grid settings-disclosure__body">
             <section className="diagnostics-card">
               <div className="card__heading"><div><p className="eyebrow">Included</p><h2>Run details</h2></div><CheckIcon className="settings-check" /></div>
@@ -196,7 +202,7 @@ export function HelpPage({
 
       <section className="card help-links-card">
         <div className="card__heading"><div><h2>More help</h2></div></div>
-        <p>Attach the support ZIP to an issue, or quote the case number.</p>
+        <p>Paste the Copy setup summary into a public issue. Attach the support ZIP when richer evidence is useful, or quote the case number after sending one.</p>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>
