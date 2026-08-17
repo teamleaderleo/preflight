@@ -77,6 +77,9 @@
 ### Cache Derived Installed Hull Catalog Under Exact Cosmetic Input Identity ([#598](https://github.com/teamleaderleo/preflight/issues/598), [PR #637](https://github.com/teamleaderleo/preflight/pull/637))
 - **Fix**: In [`hulls.rs`](preflight-desktop/src-tauri/src/hulls.rs), added `compute_catalog_fingerprint` binding installation identity, `.ship` file names/sizes/mtimes, and featured sprite file sizes/mtimes under generator schema tag `preflight-wireframe-catalog-v1`. Added `CATALOG_CACHE` providing instant catalog reuse for identical installations without redundant I/O or PNG re-tracing. Automatically invalidates when participating ship/sprite inputs change while ignoring unrelated files.
 
+### Explicitly Represent Unavailable Save-Profile Mod Metadata ([#589](https://github.com/teamleaderleo/preflight/issues/589), [PR #638](https://github.com/teamleaderleo/preflight/pull/638))
+- **Fix**: In [`SaveProfileObservation.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/SaveProfileObservation.java), added `Difference.MOD_METADATA_UNAVAILABLE` to explicitly represent absence of historical mod evidence. Made `Mod.displayName()` and `Mod.version()` nullable (`null` for ID-only sources), and `Observation.mods()` / `SessionIdentity.mods()` nullable (`null` for unmatched fingerprints vs `[]` for vanilla profiles). In `differences()`, returns `MOD_METADATA_UNAVAILABLE` when either side lacks evidence, preventing false mod-count or change claims.
+
 ### Peer Reviews
 - **PR #625** (Codex / Issue #621): Reviewed non-blocking admission; noted `release-receipt-source-lock.json` review requirement.
 - **PR #624** (Codex / Issue #608): Reviewed sub-millisecond `FileTime` precision in direct provider identity.
@@ -93,7 +96,8 @@
   - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 91ms
   - **Rust Backend Tests**: 98/98 Cargo tests passing
   - **Cargo Format & Clippy**: 0 warnings
-- **Maven Backend**: `./mvnw test` (694/694 tests passing across 5 modules)
+- **Maven Backend**: `./mvnw test` (698/698 tests passing across 5 modules)
+
 
 
 
