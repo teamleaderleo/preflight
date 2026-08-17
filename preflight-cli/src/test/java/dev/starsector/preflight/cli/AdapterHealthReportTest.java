@@ -137,6 +137,7 @@ class AdapterHealthReportTest {
         AdapterHealthReport.Result result = AdapterHealthReport.analyze(source, output);
         assertTrue(Files.isRegularFile(output));
         Map<String, Object> written = StrictJson.object(Files.readString(output));
+        assertEquals(AdapterHealthReport.FORMAT, written.get("format"));
         assertEquals(result.status().name(), written.get("status"));
         return result;
     }

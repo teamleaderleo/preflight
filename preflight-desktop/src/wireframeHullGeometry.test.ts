@@ -75,5 +75,22 @@ describe("wireframe hull geometry", () => {
     // All projected segments carry perspective depth
     expect(projected.segments.every((s) => typeof s.from.depth === "number")).toBe(true);
   });
-});
 
+  it("applies bounded cosmetic tuning to installation-owned hull geometry", () => {
+    const detailed = {
+      ...hull,
+      bounds: [
+        { x: 10, y: 0 },
+        { x: 6, y: 2 },
+        { x: 2, y: 4 },
+        { x: -5, y: 8 },
+        { x: -5, y: -8 },
+        { x: 2, y: -4 },
+        { x: 6, y: -2 },
+      ],
+    };
+    const simplified = { ...detailed, tuning: { outerDetail: 0.06, outerSmooth: 0.2, height: 1.5 } };
+    expect(buildHullSegments(simplified, "medium").length).toBeLessThan(buildHullSegments(detailed, "medium").length);
+    expect(projectHull(simplified, 0.2, "medium").deck).not.toEqual(projectHull(hull, 0.2, "medium").deck);
+  });
+});

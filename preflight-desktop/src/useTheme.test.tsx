@@ -37,15 +37,15 @@ test("follows the system until an explicit theme is saved", async () => {
   expect(document.documentElement.dataset.theme).toBe("light");
 });
 
-test("starts with Blueprint and persists an explicit palette", async () => {
+test("starts with Blueprint and persists every explicit palette", async () => {
   const { result } = renderHook(() => useTheme());
 
   expect(result.current.palette).toBe("blueprint");
   await waitFor(() => expect(document.documentElement.dataset.palette).toBe("blueprint"));
 
-  act(() => result.current.setPalette("hangar"));
+  act(() => result.current.setPalette("phosphor"));
 
-  expect(result.current.palette).toBe("hangar");
-  expect(window.localStorage.getItem(PALETTE_STORAGE_KEY)).toBe("hangar");
-  await waitFor(() => expect(document.documentElement.dataset.palette).toBe("hangar"));
+  expect(result.current.palette).toBe("phosphor");
+  expect(window.localStorage.getItem(PALETTE_STORAGE_KEY)).toBe("phosphor");
+  await waitFor(() => expect(document.documentElement.dataset.palette).toBe("phosphor"));
 });

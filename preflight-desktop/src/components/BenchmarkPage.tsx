@@ -14,6 +14,7 @@ interface BenchmarkPageProps {
   isReady: boolean;
   preparing: boolean;
   operationBlocked: boolean;
+  nativeBlockReason: string | null;
   automation: AutomationState;
 }
 
@@ -29,6 +30,7 @@ export function BenchmarkPage({
   isReady,
   preparing,
   operationBlocked,
+  nativeBlockReason,
   automation,
 }: BenchmarkPageProps) {
   const {
@@ -45,6 +47,7 @@ export function BenchmarkPage({
   const benchmarkBlocked = !isReady
     || preparing
     || operationBlocked
+    || nativeBlockReason !== null
     || status === "launching"
     || status === "running";
   return (
@@ -63,19 +66,20 @@ export function BenchmarkPage({
             * benchmark that drives the machine unattended for minutes says so before it is started.
             */}
           <p>{isReady
-            ? "Runs Starsector twice — normal, then Preflight — and times each at the main menu."
+            ? "Runs Starsector twice, once normally and once with Preflight, then compares the launch times."
             : "Choose Starsector on Home before running the benchmark."}</p>
           {isReady ? <small>Expect several minutes. Starsector opens and closes on its own.</small> : null}
-          {desktopSmokeRunDirectory ? <small>Latest evidence: {shortPath(desktopSmokeRunDirectory)}</small> : null}
+          {desktopSmokeRunDirectory ? <small>Saved to {shortPath(desktopSmokeRunDirectory)}</small> : null}
         </div>
         <div className="benchmark-card__actions">
           {desktopSmokeRunning ? (
             <button className="button button--quiet button--benchmark" type="button" onClick={() => void stopDesktopAutomation()} disabled={desktopSmokeCancelling}>{desktopSmokeCancelling ? "Stopping…" : "Stop benchmark"}</button>
           ) : (
-            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || benchmarkBlocked}>
+            <button className="button button--primary button--benchmark" type="button" onClick={() => desktopSmokeProbe?.probe.ready ? void runDesktopAutomation() : void checkDesktopAutomation(true)} disabled={desktopSmokeProbeBusy || benchmarkBlocked} aria-describedby={nativeBlockReason ? "benchmark-native-block" : undefined}>
               {desktopSmokeProbeBusy ? "Checking…" : desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? "Check again" : "Run benchmark"}
             </button>
           )}
+          {nativeBlockReason ? <small id="benchmark-native-block">{nativeBlockReason}</small> : null}
           {desktopSmokeProbe && !desktopSmokeProbe.probe.ready ? <small>{desktopSmokeProbe.probe.diagnostics[0] ?? "The startup benchmark isn’t available in this build."}</small> : null}
         </div>
       </section>
@@ -90,7 +94,7 @@ export function BenchmarkPage({
             <BenchmarkResult label="Main menu" metric={desktopBenchmarkComparison.metrics.processToMainMenuMs} unit="time" />
           </div>
           <BenchmarkContext comparison={desktopBenchmarkComparison} />
-          <small>A paired run shows the difference on this setup. The saved receipt keeps exact identities and raw measurements.</small>
+          <small>The saved result includes exact versions and raw timings.</small>
         </section>
       ) : null}
 

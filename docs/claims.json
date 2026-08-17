@@ -241,16 +241,6 @@
       "derivation": "Human-reviewed whole-cache directory difference between 10.03 GB Fastest and 4.76 GB Balanced on the same profile."
     },
     {
-      "type": "storage",
-      "value": "4.5",
-      "unit": "GB",
-      "publishedIn": [
-        "docs/beta-announcement-draft.md"
-      ],
-      "evidence": "docs/evidence/2026-08-15-cold-preparation-cost.md",
-      "derivation": "Human-reviewed single-profile disk ballpark, supported by the 4.53 GB earlier observation and 4.76 GB cold preparation measurement."
-    },
-    {
       "type": "count",
       "value": "77",
       "unit": "mod",

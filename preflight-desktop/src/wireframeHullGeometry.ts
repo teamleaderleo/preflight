@@ -1,4 +1,4 @@
-import type { WireframeHull, WireframePoint } from "./types";
+import type { WireframeHull, WireframePoint, WireframeTuning } from "./types";
 
 export interface HullVertex {
   x: number;
@@ -64,7 +64,14 @@ interface PreparedHull extends HullModel {
 // rebuilding rings, the raised deck and nearest-outline braces on every animation frame.
 const preparedHulls = new WeakMap<WireframeHull, Map<HullDetail, PreparedHull>>();
 
+export const DEFAULT_WIREFRAME_TUNING: Readonly<WireframeTuning> = Object.freeze({
+  outerDetail: 0,
+  outerSmooth: 0,
+  height: 1,
+});
+
 function ring(points: HullVertex[], kind: HullSegment["kind"]): HullSegment[] {
+  if (points.length < 2) return [];
   return points.map((point, index) => ({
     from: point,
     to: points[(index + 1) % points.length],
@@ -93,13 +100,62 @@ function hullFrame(hull: WireframeHull) {
   return { center, minX, maxX, minY, maxY, extent };
 }
 
-/** A shared raised cabin keeps the source silhouette legible instead of duplicating every notch. */
+function smoothContour(points: WireframePoint[], weight: number): WireframePoint[] {
+  let current = points;
+  if (weight <= 0) return current;
+  for (let pass = 0; pass < 2; pass += 1) {
+    current = current.map((point, index) => {
+      const previous = current[(index + current.length - 1) % current.length];
+      const next = current[(index + 1) % current.length];
+      return {
+        x: point.x * (1 - weight) + (previous.x + next.x) / 2 * weight,
+        y: point.y * (1 - weight) + (previous.y + next.y) / 2 * weight,
+      };
+    });
+  }
+  return current;
+}
+
+function simplifyContour(points: WireframePoint[], epsilon: number): WireframePoint[] {
+  if (points.length < 3 || epsilon <= 0) return points;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const dx = last.x - first.x;
+  const dy = last.y - first.y;
+  const norm = Math.hypot(dx, dy) || 1;
+  let furthestDistance = -1;
+  let furthestIndex = 0;
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const point = points[index];
+    const distance = Math.abs(dy * point.x - dx * point.y + last.x * first.y - last.y * first.x) / norm;
+    if (distance > furthestDistance) {
+      furthestDistance = distance;
+      furthestIndex = index;
+    }
+  }
+  if (furthestDistance <= epsilon) return [first, last];
+  return [
+    ...simplifyContour(points.slice(0, furthestIndex + 1), epsilon).slice(0, -1),
+    ...simplifyContour(points.slice(furthestIndex), epsilon),
+  ];
+}
+
+function tunedHull(hull: WireframeHull): WireframeHull {
+  if (!hull.tuning || hull.bounds.length < 3) return hull;
+  const { extent } = hullFrame(hull);
+  const smoothed = smoothContour(hull.bounds, hull.tuning.outerSmooth);
+  const simplified = simplifyContour(smoothed, hull.tuning.outerDetail * extent / 2);
+  const bounds = simplified.length >= 3 ? simplified : smoothed;
+  return bounds === hull.bounds ? hull : { ...hull, bounds };
+}
+
+/** A shared raised cabin keeps the source silhouette legible instead of inventing ship-specific depth. */
 function buildDeck(hull: WireframeHull): HullVertex[] {
   const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
   const midY = (minY + maxY) / 2;
   const length = Math.max(maxX - minX, 1);
   const halfWidth = Math.max(maxY - minY, 1) / 2;
-  const z = extent * 0.16;
+  const z = extent * 0.16 * (hull.tuning?.height ?? 1);
   return [
     { x: maxX - length * 0.1, y: midY, z },
     { x: maxX - length * 0.3, y: midY + halfWidth * 0.36, z },
@@ -110,16 +166,11 @@ function buildDeck(hull: WireframeHull): HullVertex[] {
   ];
 }
 
-/**
- * Turns Starsector's authoritative plan-view silhouette into a restrained drafting model.
- * The deck and keel are deliberately generic: Preflight doesn't claim the flat source defines a
- * canon third axis, and one shared loft keeps mod hulls from needing hand-authored meshes.
- */
-export function buildHullSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
+function buildSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
   if (hull.bounds.length < 3) return [];
   const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
   const midPoint = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
-  const deckHeight = extent * 0.17;
+  const deckHeight = extent * 0.17 * (hull.tuning?.height ?? 1);
   const outline = hull.bounds.map((point) => ({ ...point, z: 0 }));
   const deck = buildDeck(hull);
   const keel = hull.bounds.map((point) => scalePoint(point, midPoint, 0.9, 0.82, -deckHeight * 0.42));
@@ -129,11 +180,7 @@ export function buildHullSegments(hull: WireframeHull, detail: HullDetail): Hull
       const bestDistance = (best.x - point.x) ** 2 + (best.y - point.y) ** 2;
       return distance < bestDistance ? candidate : best;
     });
-    return {
-      from: nearest,
-      to: point,
-      kind: "structure" as const,
-    };
+    return { from: nearest, to: point, kind: "structure" as const };
   });
   const segments = [
     ...ring(outline, "outline"),
@@ -141,6 +188,18 @@ export function buildHullSegments(hull: WireframeHull, detail: HullDetail): Hull
     ...(detail === "small" ? [] : ring(keel, "keel")),
     ...structure,
   ];
+
+  if (detail !== "small" && hull.trace) {
+    for (const hole of hull.trace.holes) {
+      segments.push(...ring(hole.map((point) => ({ ...point, z: deckHeight * 0.03 })), "structure"));
+    }
+    for (const contour of hull.trace.inner) {
+      segments.push(...ring(
+        contour.points.map((point) => ({ ...point, z: deckHeight * contour.height })),
+        "deck",
+      ));
+    }
+  }
 
   for (const engine of hull.engines) {
     const angle = engine.angle * Math.PI / 180;
@@ -160,18 +219,23 @@ export function buildHullSegments(hull: WireframeHull, detail: HullDetail): Hull
   return segments;
 }
 
+export function buildHullSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
+  return buildSegments(tunedHull(hull), detail);
+}
+
 function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
   const cached = preparedHulls.get(hull)?.get(detail);
   if (cached) return cached;
 
-  const { extent } = hullFrame(hull);
+  const effectiveHull = tunedHull(hull);
+  const { extent } = hullFrame(effectiveHull);
   const built = {
-    segments: buildHullSegments(hull, detail),
-    deck: buildDeck(hull),
-    mounts: detail === "small" ? [] : hull.mounts.map((mount) => ({
+    segments: buildSegments(effectiveHull, detail),
+    deck: buildDeck(effectiveHull),
+    mounts: detail === "small" ? [] : effectiveHull.mounts.map((mount) => ({
       x: mount.x,
       y: mount.y,
-      z: extent * 0.18,
+      z: extent * 0.18 * (effectiveHull.tuning?.height ?? 1),
       size: mount.size,
     })),
   } satisfies HullModel;

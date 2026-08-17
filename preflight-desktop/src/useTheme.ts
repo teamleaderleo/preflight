@@ -4,7 +4,7 @@ import { PALETTE_STORAGE_KEY, THEME_STORAGE_KEY } from "./desktopStorage";
 export { PALETTE_STORAGE_KEY, THEME_STORAGE_KEY } from "./desktopStorage";
 
 export type ThemePreference = "system" | "light" | "dark";
-export const PALETTES = ["blueprint", "hangar", "ultraviolet", "airglow"] as const;
+export const PALETTES = ["blueprint", "hangar", "ultraviolet", "airglow", "phosphor"] as const;
 export type PalettePreference = (typeof PALETTES)[number];
 type ResolvedTheme = Exclude<ThemePreference, "system">;
 

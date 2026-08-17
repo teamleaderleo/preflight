@@ -691,6 +691,29 @@ pub(crate) fn get_snapshot(app: AppHandle, game: Option<String>) -> Result<Value
 }
 
 #[tauri::command]
+pub(crate) fn get_bootstrap(app: AppHandle, game: Option<String>) -> Result<Value, String> {
+    let paths = EnginePaths::resolve(&app)?;
+    let mut command = paths.command();
+    command.arg("desktop").arg("bootstrap");
+    if let Some(game) = game {
+        let directory = canonical_game_directory(&game)?;
+        command.arg("--game").arg(directory);
+    }
+
+    let output = command
+        .output_within(READ_BUDGET)
+        .map_err(|error| format!("Could not start the Preflight engine: {error}"))?;
+    if !output.status.success() {
+        return Err(child_error(
+            "Preflight could not load its first screen",
+            &output.stderr,
+        ));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Preflight returned unreadable bootstrap data: {error}"))
+}
+
+#[tauri::command]
 pub(crate) fn get_home_state(app: AppHandle, game: String) -> Result<Value, String> {
     let directory = canonical_game_directory(&game)?;
     let paths = EnginePaths::resolve(&app)?;

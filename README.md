@@ -1,7 +1,7 @@
 # Preflight
 
-**A performance launcher for Starsector. Preflight prepares repeatable loading work ahead of time,
-then launches the same game and mod profile with those results ready to use.**
+**A performance launcher for Starsector. It prepares work that the game and your mods would
+otherwise repeat on every launch.**
 
 > Preflight is an independent, unofficial project. It isn't affiliated with or endorsed by Fractal
 > Softworks.
@@ -14,15 +14,14 @@ then launches the same game and mod profile with those results ready to use.**
   <img alt="Preflight ready to launch Starsector" src="docs/images/desktop-home-light.png">
 </picture>
 
-**101 seconds → 15.25 seconds on an 83-mod development installation.** In the latest same-session
-comparison, five ordinary launches had an 89.00-second median and five Preflight launches had a
-15.53-second median.
+**101 seconds → 15.25 seconds on the 83-mod development installation.**
 
-Preflight found much of Starsector's heavily modded startup time in work whose answer was already
-determined by the game build, enabled mod order, and resource files. It prepares those answers once,
-stores them under exact content identities, and reuses them on matching launches. Starsector still
-constructs its live objects, applies mod ordering, registers scripts, uploads textures, and runs mod
-logic.
+In the latest same-session comparison, five ordinary launches had an 89.00-second median. Five
+Preflight launches had a 15.53-second median, and the fastest took 15.25 seconds.
+
+Most of the time was being spent on work whose answer was already determined by the game, the
+enabled mods, and their files. Preflight does that work once and reuses the result for as long as
+those inputs remain the same. Starsector still loads the mods and constructs the game as usual.
 
 ## The measured result
 
@@ -35,12 +34,10 @@ logic.
 | Controlled result, one session | **15.53s** | Median of five `--fast` launches in that same session |
 | Fastest run in that controlled session | **15.25s** | Fastest of the five accelerated launches |
 
-The first three rows are chronological reference points, measured months apart: the 88.13-second
-median was taken on a 77-mod profile, before the mod list grew to the 83 it is now. The last two
-rows are one controlled campaign instead — both conditions on the same profile, shuffled inside
-every round with 240 seconds of cooling before each launch, five accepted runs each and none
-excluded. That pair is **73.47s** apart, or **82.55%**. All five accelerated runs fell below the
-earlier 15.88-second gate; the fastest reached 15.25 seconds.
+The first three rows show the development history. They were measured months apart, and the mod
+list grew from 77 to 83 along the way. The last two rows come from one comparison on the same
+83-mod profile. The order was shuffled inside every round, the machine cooled for 240 seconds
+before each launch, and none of the ten runs were excluded. The medians are **73.47 seconds** apart.
 
 All of it is one M5 MacBook Air running Starsector 0.98a-RC8 and the game's bundled x86-64 Java
 runtime through Rosetta. The latest production gates were 16.66
@@ -56,12 +53,12 @@ The development measurements and their context are collected in
 
 ## Disk and preparation
 
-Preflight calculates the requirement before it writes and refuses before a preparation could fill
-the disk. If the default doesn't fit, the app offers a large **Prepare with minimal disk** button.
+Preflight calculates the requirement before writing anything. If the default doesn't fit, it offers
+**Prepare with minimal disk** instead.
 
-| Mode | Finished cache on this 83-mod profile | One-time preparation |
+| Mode | Finished cache on this 83-mod profile | Observed preparation |
 | --- | ---: | ---: |
-| **Balanced** (default) | **4.76 GB** | 3m21s |
+| **Balanced** (default) | **4.76 GB** | 3m21s in one measured run |
 | **Minimal disk** | **10.9 MB** | 5.6s |
 | **Fastest** | **10.03 GB** | More disk for a small texture-path gain |
 
@@ -71,12 +68,18 @@ mods, and the app calculates them for the current profile. Minimal skips prepare
 keeping the smaller startup indexes and caches. The measurements and CLI controls are in
 [Performance and storage tradeoffs](docs/performance-storage-tradeoffs.md).
 
-## What Preflight handles
+Those preparation times came from one development session. The files were already warm in the OS
+cache, while temperature, system load, and competing processes were not recorded. They show what
+happened in that run rather than what another machine should expect.
+
+## What Preflight actually does
 
 - **Preparation.** Textures, merged data, generated mod bytecode, and audio are prepared under the
   exact game and ordered-mod profile that produced them.
 - **Launch.** Recommended mode applies reviewed runtime shortcuts inside the child game JVM and
   tracks which adapters ran, declined, or failed.
+- **Playtime.** A durable local ledger totals how long Starsector remains open across launches that
+  Preflight can observe. It continues recording when the desktop minimizes or quits after launch.
 - **Profiles.** Named mod profiles retain their own identities and prepared data. Switching a
   profile previews the exact `enabled_mods.json` change and saves a backup.
 - **Storage.** The desktop app calculates a conservative disk requirement before writing, separates
@@ -88,8 +91,9 @@ keeping the smaller startup indexes and caches. The measurements and CLI control
   contains bounded, disclosed metadata and excludes saves, assets, screenshots, recordings, caches,
   and arbitrary logs.
 
-The desktop path is designed around a single routine: detect Starsector, prepare the current profile,
-and launch. Recommended optimizations and Balanced storage are the defaults.
+The normal path is simple: open Preflight and press the large button. It finds Starsector, prepares
+the current profile when needed, and launches the game. Recommended optimizations and Balanced
+storage are already selected.
 
 ## From install to launch
 
@@ -104,9 +108,8 @@ and sound can be changed beside it.
 
 ![Preflight ready to launch an 83-mod profile](docs/images/walkthrough-ready.png)
 
-The optional benchmark runs a normal launch and a Preflight launch, then compares their main-menu
-times. Help is a separate destination: Preflight shows a support ZIP's contents, exclusions, size,
-and checksum before anything can be sent.
+The benchmark opens Starsector normally, opens it again with Preflight, and shows the difference.
+It doesn't need Accessibility permission or click through the game on your behalf.
 
 ![Preflight startup benchmark](docs/images/walkthrough-benchmark.png)
 
@@ -125,16 +128,28 @@ features can update game-owned preferences: profile activation and the launch-se
 | The conservative disk bound doesn't fit | Preparation refuses before writing |
 | Cleanup or removal is requested | Preflight shows the exact owned targets first |
 
-Unsupported work continues through the game's original path. A future launcher layout or game
-update can still require a Preflight update, so unknown versions aren't advertised as tested. The
-full boundary is in the [Product contract](docs/product-contract.md), with current limitations in
+Anything Preflight doesn't recognize continues through the game's original path. A future launcher
+layout or game update can still require a Preflight update. The full boundary is in the
+[Product contract](docs/product-contract.md), with current limitations in
 [Known limitations](docs/known-limitations.md).
 
-Preflight was developed with help from ChatGPT/Codex and Claude. Leo reviews and publishes each
-release. The source and package checksums are public, nothing uploads automatically, and anything
-Preflight doesn't recognize uses Starsector's original code path. Every package also carries a
-[machine-checked capability receipt](docs/capability-receipt.md) listing its exact native commands,
-writes, child processes, fixed links, and network endpoints.
+## How this was developed
+
+Yes. I used ChatGPT (Codex) and Claude (Code) throughout development.
+
+The repository includes the history of all the experiments that were tried. When stuff succeeded,
+I made sure they would continue to succeed. When stuff failed, I figured out why, and I made sure
+they wouldn't break again. In both scenarios, tests were written to make sure we maintained rigour.
+
+Preflight checks the installed code before applying an optimization. If it doesn’t recognize
+something, it leaves it alone. I tried to get the app itself to also be as performant as possible.
+This should be better than Microsoft Teams.
+
+Preflight doesn’t modify saves or upload anything automatically. This is still a beta. If you find
+a problem, please report it. I will investigate.
+
+Every package also carries a [machine-checked capability receipt](docs/capability-receipt.md) listing
+the commands, writes, child processes, links, and network endpoints available to that exact build.
 
 ## Development quick start
 
@@ -216,7 +231,7 @@ array raw and trades disk space for less decode CPU.
 On the 83-mod development profile, Balanced reduced the texture pack from 5.34 GB to 2.26 GB. Ten
 fresh-JVM replays measured the exact startup access order at 1,137ms for Balanced and 691ms for
 Fastest. The raw texture representation itself is about **3.08 GB** larger, and a later cold preparation
-measured the complete cache directories at about 4.76 GB for Balanced and 10.03 GB for Fastest — a
+measured the complete cache directories at about 4.76 GB for Balanced and 10.03 GB for Fastest, a
 roughly **5.27 GB** whole-cache difference on that profile. The exact replay seam improved by about
 446ms; whole-launch impact varies with the machine and profile.
 
@@ -300,9 +315,8 @@ extension mismatches, unused files, and configuration placed where the game neve
 ## Support Preflight
 
 Preflight is free and open source. If it helps you, you can
-[support its development on Patreon](https://www.patreon.com/cw/teamleaderleo). Contributions go to
-Leo, Preflight's maintainer, and everything stays free for everyone. Payment doesn't buy priority
-support, compatibility guarantees, private builds, or gated features.
+[support its development on Patreon](https://www.patreon.com/cw/teamleaderleo). Everything stays
+free for everyone.
 
 ## License
 

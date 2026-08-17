@@ -31,7 +31,14 @@ test("unknown browser scenarios fail back to the normal ready preview", async ()
 test("the browser preview exposes a bounded local-hull stand-in for display review", async () => {
   const catalog = await getWireframeHulls("/Applications/Starsector");
   expect(catalog.format).toBe("preflight-wireframe-hulls-v1");
-  expect(catalog.hulls.map((hull) => hull.id)).toEqual(["hammerhead", "onslaught", "odyssey"]);
+  expect(catalog.hulls.map((hull) => hull.id)).toEqual([
+    "hammerhead",
+    "onslaught",
+    "odyssey",
+    "conquest",
+    "paragon",
+    "astral",
+  ]);
   expect(catalog.hulls.every((hull) => hull.featured)).toBe(true);
 });
 

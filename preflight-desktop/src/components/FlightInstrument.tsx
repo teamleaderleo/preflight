@@ -13,6 +13,8 @@ interface FlightInstrumentProps {
   variant?: "badge" | "stage";
 }
 
+export const INSTRUMENT_APPEARANCE_ATTRIBUTES = ["data-theme", "data-palette"] as const;
+
 interface InstrumentPalette {
   near: [number, number, number];
   far: [number, number, number];
@@ -73,8 +75,7 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
  * Every edge is drawn on its own, sorted back to front, and its depth in the view decides three
  * things at once: colour between a far tone and a near one, line weight, and opacity. That is
  * what makes a flat set of lines read as a solid object -- not the geometry, which is the same
- * either way. Batching the edges by kind and giving each kind a flat colour was tried, and the
- * ship came out looking like a diagram of itself.
+ * either way.
  */
 function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, palette: InstrumentPalette) {
   const context = canvas.getContext("2d");
@@ -96,14 +97,6 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
   const projected = projectHull(hull, yaw, detail);
   if (projected.segments.length === 0) return;
 
-  /*
-   * One fixed camera, not a fit to what happens to be on screen this frame.
-   *
-   * Refitting per frame was tried and it is why the ship appeared to zoom and drift while it
-   * turned: a rotating hull's projected bounding box breathes, so re-deriving the scale from it
-   * pumps the whole picture on every frame. The geometry is already normalised to one frame,
-   * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
-   */
   const scale = Math.min(width, height) * 0.46;
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
@@ -181,7 +174,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
   }
 }
 
-/** A bounded local-install wireframe; the game sprite and source geometry never enter the app. */
+/** Draws bounded hull data read from the user's own Starsector installation. */
 export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -196,8 +189,7 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
 
     /*
      * It turns, all the way round, at the prototype's rate: one revolution in about eighteen
-     * seconds. Rocking it back and forth through a narrow arc was tried and reads as a fidget --
-     * the ship looks stuck rather than displayed, and half the hull is never shown at all.
+     * seconds.
      */
     const RATE = 0.34;
     /* The angle a still frame is parked at, for reduced motion and the first paint. */
@@ -212,8 +204,6 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
       frame = null;
       if (!visible || reducedMotion.matches) return;
       if (time - previous >= 1000 / 24) {
-        // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
-        // does not change how fast the ship appears to turn.
         yaw += Math.min(time - previous, 250) / 1000 * RATE;
         previous = time;
         drawHull(canvas, hull, yaw, palette);
@@ -243,9 +233,10 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
       palette = readPalette(canvas);
       drawStill();
     });
-    // Palette as well as theme: switching from Blueprint to Phosphor has to repaint the ship, or
-    // the whole app turns green around a blue wireframe.
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette"] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [...INSTRUMENT_APPEARANCE_ATTRIBUTES],
+    });
     reducedMotion.addEventListener("change", updateMotion);
     updateMotion();
     return () => {

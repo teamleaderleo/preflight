@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   cancelDesktopSmoke,
   getDesktopSmokeProbe,
   isDesktopHost,
   startDesktopSmoke,
 } from "./bridge";
-import type { Announce, AppStatus, DesktopBenchmarkComparison, DesktopSmokeProbe, DesktopSmokeStateEvent } from "./types";
+import type { Announce, AppStatus, DesktopBenchmarkComparison, DesktopSmokeProbe, DesktopSmokeStateEvent, OperationSnapshot } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage } from "./uiFormat";
@@ -182,6 +182,17 @@ export function useDesktopAutomation({
     }
   };
 
+  const reconnectDesktopAutomation = useCallback((operation: OperationSnapshot) => {
+    if (operation.desktopSmokePid === null) return false;
+    runningRef.current = true;
+    cancellingRef.current = false;
+    setDesktopSmokeRunning(true);
+    setDesktopSmokeCancelling(false);
+    setDesktopSmokeRunDirectory(operation.desktopSmokeRunDirectory);
+    setStatus("running");
+    return true;
+  }, [setStatus]);
+
   return {
     desktopSmokeProbe,
     desktopSmokeProbeBusy,
@@ -190,6 +201,7 @@ export function useDesktopAutomation({
     desktopSmokeCancelling,
     desktopSmokeRunning,
     checkDesktopAutomation,
+    reconnectDesktopAutomation,
     runDesktopAutomation,
     stopDesktopAutomation,
   };
