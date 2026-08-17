@@ -82,7 +82,15 @@
   --console-line-strong: rgba(120, 96, 60, 0.34);
   --console-plot: #9a6a24;
   /* The prototype's recessed ground, by value. One step under the panel, not a tint of it. */
-  --hangar-sink: #e8e0d2;
+  /*
+   * The wireframe's colours, over the palette's own ink and accent. Every palette already
+   * declares both, so a blue app draws a blue ship and a green one a green ship without each
+   * palette carrying six more tokens. Near and far are the depth cue: an edge is lerped between
+   * them by how close it is to the viewer, which is what makes flat lines read as a solid.
+   */
+  --instrument-near: color-mix(in srgb, var(--accent-strong) 80%, var(--ink));
+  --instrument-far: color-mix(in srgb, var(--accent) 38%, var(--paper-solid));
+  --instrument-grid: color-mix(in srgb, var(--accent) 18%, transparent);
   --flight-accent: #b07a3a;
   /*
    * The launch button used to be a saturated slab with a bevel drawn in four inset rings. It is
@@ -544,7 +552,7 @@ h2 {
   position: relative;
   overflow: hidden;
   border-right: 1px solid var(--console-line);
-  background: var(--hangar-sink);
+  background: var(--paper-solid);
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
   --instrument-detail: rgba(139, 82, 38, 0.42);
@@ -553,16 +561,6 @@ h2 {
   --instrument-fill: rgba(167, 101, 50, 0.065);
 }
 
-/* A horizon, so the ship stands in a place instead of floating in a swatch. */
-.hangar-stage::before {
-  content: "";
-  position: absolute;
-  right: 13%;
-  bottom: 26%;
-  left: 13%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--console-line-strong) 20%, var(--console-line-strong) 80%, transparent);
-}
 
 .hangar-stage__caption {
   position: absolute;
@@ -3453,7 +3451,6 @@ footer {
   --console-line: rgba(200, 148, 74, 0.15);
   --console-line-strong: rgba(200, 148, 74, 0.28);
   --console-plot: #c8944a;
-  --hangar-sink: #0b0906;
   --flight-accent: #edc07a;
   --launch-fill: #191815;
   --launch-fill-hover: #24211b;
@@ -3978,9 +3975,9 @@ footer {
   animation: none;
 }
 
+/* The badge's glow is a lens flare behind a 236px ornament. At stage size it is a smudge. */
 .flight-instrument--stage::after {
-  inset: 30% 14% 22%;
-  filter: blur(14px);
+  content: none;
 }
 
 .flight-instrument svg {

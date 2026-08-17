@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { getWireframeHulls } from "./bridge";
-import { CURATED_WIREFRAME_HULLS } from "./curatedWireframeHulls";
 import { INSTRUMENT_HULL_STORAGE_KEY } from "./desktopStorage";
 import type { WireframeHull, WireframeHullCatalog } from "./types";
 
 export const ORIGINAL_HULL_ID = "preflight-courier";
-/** The shipped default. Chosen for the silhouette: nothing else in the set reads like it. */
-export const DEFAULT_HULL_ID = "odyssey";
 const CATALOG_IDLE_DELAY_MS = 160;
 
 /** The bundled fallback is original Preflight artwork and exists before Starsector is selected. */
@@ -48,9 +45,9 @@ interface CatalogState {
 
 function savedHullId(): string {
   try {
-    return window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY) || DEFAULT_HULL_ID;
+    return window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY) || ORIGINAL_HULL_ID;
   } catch {
-    return DEFAULT_HULL_ID;
+    return ORIGINAL_HULL_ID;
   }
 }
 
@@ -84,24 +81,13 @@ export function useInstrumentHull(game: string | undefined, enabled: boolean) {
     };
   }, [catalogState?.game, enabled, game]);
 
-  /*
-   * The six shipped hulls come first and shadow the installation's own records for the same ship:
-   * both describe an Odyssey, and the traced one knows what is inside it. The courier sits last
-   * because it is the fallback for before an installation is chosen, not a choice anyone makes.
-   */
-  const hulls = useMemo(() => {
-    const shipped = new Set([ORIGINAL_HULL_ID, ...CURATED_WIREFRAME_HULLS.map((hull) => hull.id)]);
-    return [
-      ...CURATED_WIREFRAME_HULLS,
-      ...(catalog?.hulls ?? []).filter((hull) => !shipped.has(hull.id)),
-      ORIGINAL_HULL,
-    ];
-  }, [catalog]);
-  const selected = hulls.find((hull) => hull.id === selectedId)
-    ?? hulls.find((hull) => hull.id === DEFAULT_HULL_ID)
-    ?? ORIGINAL_HULL;
+  const hulls = useMemo(
+    () => [ORIGINAL_HULL, ...(catalog?.hulls ?? []).filter((hull) => hull.id !== ORIGINAL_HULL_ID)],
+    [catalog],
+  );
+  const selected = hulls.find((hull) => hull.id === selectedId) ?? ORIGINAL_HULL;
   const choose = (id: string) => {
-    const next = hulls.some((hull) => hull.id === id) ? id : DEFAULT_HULL_ID;
+    const next = hulls.some((hull) => hull.id === id) ? id : ORIGINAL_HULL_ID;
     try {
       window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, next);
     } catch {

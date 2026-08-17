@@ -14,9 +14,9 @@ interface FlightInstrumentProps {
 }
 
 interface InstrumentPalette {
-  line: string;
-  soft: string;
-  detail: string;
+  near: [number, number, number];
+  far: [number, number, number];
+  grid: string;
   accent: string;
   fill: string;
 }
@@ -33,17 +33,49 @@ function tracePolygon(context: CanvasRenderingContext2D, points: WireframePoint[
   context.closePath();
 }
 
-function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
-  const styles = getComputedStyle(canvas);
-  return {
-    line: styles.getPropertyValue("--instrument-line").trim() || "rgba(87,81,74,.55)",
-    soft: styles.getPropertyValue("--instrument-soft").trim() || "rgba(87,81,74,.18)",
-    detail: styles.getPropertyValue("--instrument-detail").trim() || "rgba(167,101,50,.5)",
-    accent: styles.getPropertyValue("--instrument-accent").trim() || "#a76532",
-    fill: styles.getPropertyValue("--instrument-fill").trim() || "rgba(167,101,50,.06)",
-  };
+/*
+ * The instrument's colours come from the palette that is on, so a blue app draws a blue ship.
+ * They are declared over the palette's own ink and accent, which means the value stored in the
+ * custom property is an unresolved expression a canvas cannot parse. Assigning it to a real
+ * colour property and reading that back makes the browser resolve it to an rgb() first.
+ */
+function resolveColour(probe: HTMLElement, token: string, fallback: string): string {
+  probe.style.color = fallback;
+  probe.style.color = `var(${token})`;
+  return getComputedStyle(probe).color || fallback;
 }
 
+function toRgb(colour: string, fallback: [number, number, number]): [number, number, number] {
+  const parts = colour.match(/[\d.]+/g);
+  return parts && parts.length >= 3
+    ? [Number(parts[0]), Number(parts[1]), Number(parts[2])]
+    : fallback;
+}
+
+function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
+  const probe = canvas.ownerDocument.createElement("span");
+  probe.style.display = "none";
+  (canvas.parentElement ?? canvas.ownerDocument.body).appendChild(probe);
+  const palette: InstrumentPalette = {
+    near: toRgb(resolveColour(probe, "--instrument-near", "#3f3a35"), [63, 58, 53]),
+    far: toRgb(resolveColour(probe, "--instrument-far", "#a89e90"), [168, 158, 144]),
+    grid: resolveColour(probe, "--instrument-grid", "rgba(87,81,74,.14)"),
+    accent: resolveColour(probe, "--instrument-accent", "#a76532"),
+    fill: resolveColour(probe, "--instrument-fill", "rgba(167,101,50,.06)"),
+  };
+  probe.remove();
+  return palette;
+}
+
+/*
+ * The paint, carried over from the prototype rather than reinvented.
+ *
+ * Every edge is drawn on its own, sorted back to front, and its depth in the view decides three
+ * things at once: colour between a far tone and a near one, line weight, and opacity. That is
+ * what makes a flat set of lines read as a solid object -- not the geometry, which is the same
+ * either way. Batching the edges by kind and giving each kind a flat colour was tried, and the
+ * ship came out looking like a diagram of itself.
+ */
 function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, palette: InstrumentPalette) {
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -62,71 +94,90 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
 
   const detail = width < 170 ? "small" : width < 300 ? "medium" : "showcase";
   const projected = projectHull(hull, yaw, detail);
-  const points = [
-    ...projected.deck,
-    ...projected.segments.flatMap((segment) => [segment.from, segment.to]),
-  ];
-  if (points.length === 0) return;
-  const minX = Math.min(...points.map((point) => point.x));
-  const maxX = Math.max(...points.map((point) => point.x));
-  const minY = Math.min(...points.map((point) => point.y));
-  const maxY = Math.max(...points.map((point) => point.y));
-  const padding = 12;
-  const scale = Math.min(
-    (width - padding * 2) / Math.max(maxX - minX, 1),
-    (height - padding * 2) / Math.max(maxY - minY, 1),
-  );
-  const offsetX = (width - (maxX - minX) * scale) / 2 - minX * scale;
-  const offsetY = (height - (maxY - minY) * scale) / 2 - minY * scale;
+  if (projected.segments.length === 0) return;
+
+  /*
+   * One fixed camera, not a fit to what happens to be on screen this frame.
+   *
+   * Refitting per frame was tried and it is why the ship appeared to zoom and drift while it
+   * turned: a rotating hull's projected bounding box breathes, so re-deriving the scale from it
+   * pumps the whole picture on every frame. The geometry is already normalised to one frame,
+   * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
+   */
+  const scale = Math.min(width, height) * 0.46;
   const map = (point: WireframePoint) => ({
-    x: offsetX + point.x * scale,
-    y: offsetY + point.y * scale,
+    x: width / 2 + point.x * scale,
+    y: height / 2 + point.y * scale,
   });
+
+  context.lineJoin = "round";
+  context.lineCap = "round";
+
+  // The floor first, and underneath everything.
+  if (projected.ground.length > 0) {
+    context.beginPath();
+    for (const line of projected.ground) {
+      const from = map(line.from);
+      const to = map(line.to);
+      context.moveTo(from.x, from.y);
+      context.lineTo(to.x, to.y);
+    }
+    context.strokeStyle = palette.grid;
+    context.lineWidth = 1;
+    context.stroke();
+  }
+
   tracePolygon(context, projected.deck, map);
   context.fillStyle = palette.fill;
   context.fill();
 
-  /*
-   * Back to front, and close to one colour. The prototype draws every line in the same gold and
-   * lets the layering carry the depth; splitting the kinds across two hues was tried here and the
-   * interior blocks stopped reading as detail inside a ship and started reading as a second ship.
-   * So the silhouette stays the heaviest line, the interiors sit a step under it in the same
-   * family, and only the drives take the full accent.
-   */
-  const order = ["keel", "structure", "outline", "deck", "interior", "engine"] as const;
-  const stroke: Record<typeof order[number], string> = {
-    keel: palette.soft,
-    structure: palette.soft,
-    outline: palette.line,
-    deck: palette.line,
-    interior: palette.detail,
-    engine: palette.accent,
-  };
-  const weight: Record<typeof order[number], number> = {
-    keel: 1, structure: 1, outline: 1.8, deck: 1, interior: 1.1, engine: 1.3,
-  };
-  for (const kind of order) {
+  let nearest = -Infinity;
+  let furthest = Infinity;
+  for (const segment of projected.segments) {
+    const mid = (segment.from.depth + segment.to.depth) / 2;
+    if (mid > nearest) nearest = mid;
+    if (mid < furthest) furthest = mid;
+  }
+  const range = Math.max(nearest - furthest, 1e-6);
+  const heavy = detail === "small" ? 0.6 : 1;
+
+  const sorted = projected.segments
+    .map((segment) => ({ segment, depth: (segment.from.depth + segment.to.depth) / 2 }))
+    .sort((left, right) => left.depth - right.depth);
+
+  for (const { segment, depth } of sorted) {
+    // 0 at the far edge of this hull, 1 at the near one.
+    const lit = (depth - furthest) / range;
+    const channel = (index: 0 | 1 | 2) =>
+      Math.round(palette.far[index] + (palette.near[index] - palette.far[index]) * lit);
+    const from = map(segment.from);
+    const to = map(segment.to);
+    context.strokeStyle = `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
+    context.lineWidth = (0.6 + lit * 0.85) * heavy * (segment.kind === "outline" ? 1.5 : 1);
+    context.globalAlpha = (0.35 + lit * 0.65) * (segment.kind === "structure" || segment.kind === "keel" ? 0.7 : 1);
     context.beginPath();
-    for (const segment of projected.segments.filter((candidate) => candidate.kind === kind)) {
-      const from = map(segment.from);
-      const to = map(segment.to);
-      context.moveTo(from.x, from.y);
-      context.lineTo(to.x, to.y);
-    }
-    context.strokeStyle = stroke[kind];
-    context.lineWidth = weight[kind];
-    context.lineJoin = "round";
+    context.moveTo(from.x, from.y);
+    context.lineTo(to.x, to.y);
     context.stroke();
   }
+  context.globalAlpha = 1;
 
   for (const mount of projected.mounts) {
     const point = map(mount);
-    const radius = mount.size === "LARGE" ? 3.2 : 2.2;
     context.beginPath();
-    context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    context.arc(point.x, point.y, mount.size === "LARGE" ? 3.2 : 2.2, 0, Math.PI * 2);
     context.strokeStyle = palette.accent;
     context.lineWidth = 1;
     context.stroke();
+  }
+
+  // The bow: the one bright point, so which way the ship is facing is never in question.
+  if (projected.nose) {
+    const nose = map(projected.nose);
+    context.fillStyle = palette.accent;
+    context.beginPath();
+    context.arc(nose.x, nose.y, detail === "small" ? 1.8 : 2.4, 0, Math.PI * 2);
+    context.fill();
   }
 }
 
@@ -144,14 +195,15 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
     let palette = readPalette(canvas);
 
     /*
-     * Both are quarter views; the stage sits a little further round so the ship lies across a
-     * landscape panel instead of standing in the middle of one. Picked off a hull x yaw grid of
-     * this renderer's own output rather than one angle at a time -- past about 0.8 the plate goes
-     * edge-on, and the Odyssey in particular collapses into a sliver.
+     * It turns, all the way round, at the prototype's rate: one revolution in about eighteen
+     * seconds. Rocking it back and forth through a narrow arc was tried and reads as a fidget --
+     * the ship looks stuck rather than displayed, and half the hull is never shown at all.
      */
-    const centre = variant === "stage" ? 0.52 : 0.38;
-    const sway = variant === "stage" ? 0.18 : 0.17;
-    const drawStill = () => drawHull(canvas, hull, centre, palette);
+    const RATE = 0.34;
+    /* The angle a still frame is parked at, for reduced motion and the first paint. */
+    const RESTING = variant === "stage" ? 0.52 : 0.38;
+    let yaw = RESTING;
+    const drawStill = () => drawHull(canvas, hull, yaw, palette);
     const schedule = () => {
       if (frame === null && visible && !reducedMotion.matches) frame = window.requestAnimationFrame(render);
     };
@@ -160,8 +212,11 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
       frame = null;
       if (!visible || reducedMotion.matches) return;
       if (time - previous >= 1000 / 24) {
+        // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
+        // does not change how fast the ship appears to turn.
+        yaw += Math.min(time - previous, 250) / 1000 * RATE;
         previous = time;
-        drawHull(canvas, hull, centre + Math.sin(time / 5_500) * sway, palette);
+        drawHull(canvas, hull, yaw, palette);
       }
       schedule();
     };
@@ -188,7 +243,9 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
       palette = readPalette(canvas);
       drawStill();
     });
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    // Palette as well as theme: switching from Blueprint to Phosphor has to repaint the ship, or
+    // the whole app turns green around a blue wireframe.
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette"] });
     reducedMotion.addEventListener("change", updateMotion);
     updateMotion();
     return () => {

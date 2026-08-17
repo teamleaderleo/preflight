@@ -3,12 +3,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { getWireframeHulls } from "./bridge";
 import { INSTRUMENT_HULL_STORAGE_KEY } from "./desktopStorage";
 import type { WireframeHullCatalog } from "./types";
-import { CURATED_HULL_IDS } from "./curatedWireframeHulls";
-import { DEFAULT_HULL_ID, ORIGINAL_HULL_ID, useInstrumentHull } from "./useInstrumentHull";
-
-/* The shipped six are bundled, so they are on the list before anything is scanned, and the
-   courier is last: it is the fallback for before an installation exists, not a choice. */
-const shipped = [...CURATED_HULL_IDS];
+import { ORIGINAL_HULL_ID, useInstrumentHull } from "./useInstrumentHull";
 
 vi.mock("./bridge", () => ({ getWireframeHulls: vi.fn() }));
 
@@ -37,8 +32,8 @@ test("pre-discovery state stays on the courier without requesting local hulls", 
 
   expect(getWireframeHulls).not.toHaveBeenCalled();
   expect(result.current.catalog).toBeNull();
-  expect(result.current.hulls.map((hull) => hull.id)).toEqual([...shipped, ORIGINAL_HULL_ID]);
-  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID]);
+  expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
 });
 
 test("loads the current installation only when a hull UI is visible and reuses that result", async () => {
@@ -50,14 +45,12 @@ test("loads the current installation only when a hull UI is visible and reuses t
 
   expect(getWireframeHulls).not.toHaveBeenCalled();
   expect(result.current.catalog).toBeNull();
-  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+  expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
 
   rerender({ game: "/game", enabled: true });
   await waitFor(() => expect(result.current.catalog).toEqual(catalog));
   expect(getWireframeHulls).toHaveBeenCalledTimes(1);
-  // The installation also has a Hammerhead. The traced one shadows it: both describe the same
-  // ship, and only one of them knows what is inside it.
-  expect(result.current.hulls.map((hull) => hull.id)).toEqual([...shipped, ORIGINAL_HULL_ID]);
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID, "hammerhead"]);
 
   rerender({ game: "/game", enabled: false });
   rerender({ game: "/game", enabled: true });
@@ -65,7 +58,7 @@ test("loads the current installation only when a hull UI is visible and reuses t
 
   rerender({ game: "/other-game", enabled: false });
   expect(result.current.catalog).toBeNull();
-  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+  expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
   expect(getWireframeHulls).toHaveBeenCalledTimes(1);
 
   rerender({ game: "/other-game", enabled: true });
@@ -82,8 +75,8 @@ test("keeps the courier fallback when the local catalog cannot be read", async (
 
   await waitFor(() => expect(getWireframeHulls).toHaveBeenCalledWith("/game"));
   expect(result.current.catalog).toBeNull();
-  expect(result.current.hulls.map((hull) => hull.id)).toEqual([...shipped, ORIGINAL_HULL_ID]);
-  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID]);
+  expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
 
   rerender({ enabled: false });
   rerender({ enabled: true });
@@ -91,32 +84,23 @@ test("keeps the courier fallback when the local catalog cannot be read", async (
 });
 
 test("restores and persists an available local hull", async () => {
-  window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, "conquest");
+  window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, "hammerhead");
   vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
   const { result } = renderHook(() => useInstrumentHull("/game", true));
 
-  await waitFor(() => expect(result.current.selectedId).toBe("conquest"));
+  await waitFor(() => expect(result.current.selectedId).toBe("hammerhead"));
   act(() => result.current.choose(ORIGINAL_HULL_ID));
   expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
   expect(window.localStorage.getItem(INSTRUMENT_HULL_STORAGE_KEY)).toBe(ORIGINAL_HULL_ID);
 });
 
-test("falls back to the shipped default when a saved hull disappeared", async () => {
+test("keeps the fallback when a saved hull disappeared", async () => {
   window.localStorage.setItem(INSTRUMENT_HULL_STORAGE_KEY, "missing-mod-hull");
   vi.mocked(getWireframeHulls).mockResolvedValue(catalog);
   const { result } = renderHook(() => useInstrumentHull("/game", true));
 
   await waitFor(() => expect(result.current.catalog).toEqual(catalog));
-  expect(result.current.selectedId).toBe(DEFAULT_HULL_ID);
-});
-
-test("the shipped hulls are on the list before any installation has been read", () => {
-  const { result } = renderHook(() => useInstrumentHull(undefined, false));
-
-  // The idle screen shows a ship on the first frame, so the six cannot wait behind a scan.
-  expect(getWireframeHulls).not.toHaveBeenCalled();
-  expect(result.current.selected.curated).toBeDefined();
-  expect(result.current.selected.id).toBe(DEFAULT_HULL_ID);
+  expect(result.current.selectedId).toBe(ORIGINAL_HULL_ID);
 });
 
 test("the bundled courier wins if an installation reuses its reserved id", async () => {
@@ -127,5 +111,5 @@ test("the bundled courier wins if an installation reuses its reserved id", async
   const { result } = renderHook(() => useInstrumentHull("/game", true));
 
   await waitFor(() => expect(result.current.catalog).not.toBeNull());
-  expect(result.current.hulls.map((hull) => hull.id)).toEqual([...shipped, ORIGINAL_HULL_ID]);
+  expect(result.current.hulls.map((hull) => hull.id)).toEqual([ORIGINAL_HULL_ID, "hammerhead"]);
 });

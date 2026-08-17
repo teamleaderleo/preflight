@@ -9,21 +9,54 @@ export interface HullVertex {
 export interface HullSegment {
   from: HullVertex;
   to: HullVertex;
-  kind: "outline" | "deck" | "keel" | "structure" | "interior" | "engine";
+  kind: "outline" | "deck" | "keel" | "structure" | "engine";
+}
+
+/** A projected point carries its view depth, which is what shades the wireframe. */
+export interface ProjectedPoint extends WireframePoint {
+  depth: number;
 }
 
 export interface ProjectedHull {
-  segments: Array<{ from: WireframePoint; to: WireframePoint; kind: HullSegment["kind"] }>;
-  deck: WireframePoint[];
-  mounts: Array<WireframePoint & { size: "MEDIUM" | "LARGE" }>;
+  segments: Array<{ from: ProjectedPoint; to: ProjectedPoint; kind: HullSegment["kind"] }>;
+  deck: ProjectedPoint[];
+  mounts: Array<ProjectedPoint & { size: "MEDIUM" | "LARGE" }>;
+  /** The reference grid on the keel plane, projected with everything else. */
+  ground: Array<{ from: ProjectedPoint; to: ProjectedPoint }>;
+  /** The bow, so the one bright marker knows where to sit. */
+  nose: ProjectedPoint | null;
 }
 
 type HullDetail = "small" | "medium" | "showcase";
 
-interface PreparedHull {
+/**
+ * The camera, copied from the prototype rather than re-derived.
+ *
+ * Pitched well over toward plan view on purpose: the silhouette is the only faithful part of any
+ * of this, so the camera favours it. The sign is the whole ballgame -- the camera sits above, so
+ * after the pitch a deck point lands higher than the keel under it. Negative parks the camera
+ * under the hull looking up through the grid.
+ */
+const PITCH = 0.62;
+/** Eye distance for the perspective divide, in the normalised frame `fit` maps every hull into. */
+const EYE = 7.6;
+/** Half-extent every hull's longest planar axis is fitted to, so one EYE frames all six. */
+const REACH = 0.95;
+
+/** What a builder produces: the topology, before the camera knows anything about it. */
+interface HullModel {
   segments: HullSegment[];
   deck: HullVertex[];
   mounts: Array<HullVertex & { size: "MEDIUM" | "LARGE" }>;
+}
+
+interface PreparedHull extends HullModel {
+  /** Scale into the normalised frame, and the hull's own middle, so perspective stays even. */
+  fit: number;
+  centre: HullVertex;
+  /** Where the keel plane sits, for the ground grid to be drawn on. */
+  groundZ: number;
+  nose: HullVertex | null;
 }
 
 // A selected hull is immutable for the lifetime of the renderer. Its drafting topology is much
@@ -60,218 +93,6 @@ function hullFrame(hull: WireframeHull) {
   return { center, minX, maxX, minY, maxY, extent };
 }
 
-/*
- * ---------------------------------------------------------------------------------------------
- * Shipped hulls, traced inside and out.
- *
- * This is the design page's own construction, ported. `docs/design/hangar-light/` holds the
- * prototype it came from, its reasoning, and the list of approaches that are wrong -- read that
- * before changing anything here, because most of the obvious ideas have already been tried.
- *
- * The short version: every closed loop is drawn the same way. The silhouette, the voids punched
- * through it and the raised interior blocks are all just loops, so a Paragon's hole needs no
- * special case. Verticals go where the outline actually turns, and interior blocks stand on four
- * short legs of their own rather than reaching across the ship for the silhouette -- that last
- * one was rediscovered under four different names before it stayed dead.
- */
-
-/** Simplification tolerances, as a fraction of the hull's extent. The page's defaults, accepted. */
-const OUTER_DETAIL = 0.012;
-const INNER_DETAIL = 0.016;
-/** Smallest closed shape worth drawing, as a fraction of the hull's plan area. */
-const OUTER_MINIMUM = 0.004;
-const INNER_MINIMUM = 0.012;
-
-/** Shoelace, for dropping shapes below a size. */
-function polygonArea(loop: WireframePoint[]): number {
-  let total = 0;
-  for (let index = 0, previous = loop.length - 1; index < loop.length; previous = index, index += 1) {
-    total += loop[previous].x * loop[index].y - loop[index].x * loop[previous].y;
-  }
-  return Math.abs(total / 2);
-}
-
-/**
- * Douglas-Peucker over the open walk, deliberately not the closed ring: handing it a loop whose
- * last point repeats its first gives a zero-length baseline, every distance measures zero, and it
- * returns two points at any tolerance at all. The tracer feeds it the same way.
- */
-function simplify(loop: WireframePoint[], tolerance: number): WireframePoint[] {
-  if (loop.length < 3) return loop;
-  const first = loop[0];
-  const last = loop[loop.length - 1];
-  const runX = last.x - first.x;
-  const runY = last.y - first.y;
-  const norm = Math.hypot(runX, runY) || 1;
-  let worst = -1;
-  let at = 0;
-  for (let index = 1; index < loop.length - 1; index += 1) {
-    const point = loop[index];
-    const distance = Math.abs(
-      runY * point.x - runX * point.y + last.x * first.y - last.y * first.x,
-    ) / norm;
-    if (distance > worst) {
-      worst = distance;
-      at = index;
-    }
-  }
-  if (worst <= tolerance) return [first, last];
-  return [
-    ...simplify(loop.slice(0, at + 1), tolerance).slice(0, -1),
-    ...simplify(loop.slice(at), tolerance),
-  ];
-}
-
-/** Simplify, but never below the point where the shape stops being one. */
-function thin(loop: WireframePoint[], tolerance: number, floor: number): WireframePoint[] {
-  const thinned = simplify(loop, tolerance);
-  return thinned.length >= floor ? thinned : loop;
-}
-
-/**
- * Verticals at the hull's corners, and nowhere else. One every nth vertex boxes the whole rim
- * into rectangles; none at all and the three rings read as contour lines on a map rather than a
- * solid. So they go where the outline turns hardest -- on these ships the prow, the shoulders and
- * the transom, which is where a real frame would be.
- */
-function corners(loop: WireframePoint[], wanted: number): number[] {
-  const turns = loop.map((point, index) => {
-    const previous = loop[(index + loop.length - 1) % loop.length];
-    const next = loop[(index + 1) % loop.length];
-    const incoming = Math.atan2(point.y - previous.y, point.x - previous.x);
-    const outgoing = Math.atan2(next.y - point.y, next.x - point.x);
-    const swing = ((outgoing - incoming + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
-    return { index, turn: Math.abs(swing) };
-  }).sort((left, right) => right.turn - left.turn);
-
-  const taken: number[] = [];
-  for (const candidate of turns) {
-    if (taken.length >= wanted) break;
-    const clear = taken.every((index) => {
-      const gap = Math.abs(index - candidate.index);
-      return Math.min(gap, loop.length - gap) > loop.length / 12;
-    });
-    if (clear) taken.push(candidate.index);
-  }
-  return taken;
-}
-
-function buildCuratedHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
-  const geometry = hull.curated;
-  if (!geometry) return { segments: [], deck: [], mounts: [] };
-  const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
-  /*
-   * The centreline is the midpoint of the hull's own extent, not the mean of its vertices. The
-   * exported hulls are normalised about that midpoint, and the vertex mean is not the same thing
-   * -- it drifts toward whichever flank carries more traced points, which on the Astral is 6% of
-   * half-width and tilts the rim falloff with it. `hullFrame` keeps the mean for scanned hulls,
-   * which have no such guarantee.
-   */
-  const axis = (minY + maxY) / 2;
-  const outline = thin(hull.bounds, OUTER_DETAIL * extent / 2, 12);
-  const hullArea = polygonArea(outline);
-  const thickness = geometry.thickness * extent / 2;
-  const halfWidth = Math.max(...outline.map((point) => Math.abs(point.y - axis)), 1);
-
-  /*
-   * Half-thickness at a point. These are flat plates, not zeppelins: a gentle curve over the whole
-   * body reads as bulbous, so the body stays nearly flat and the rim falls away fast, leaving a
-   * knife edge. The vertical interest comes from the interior blocks, not from inflating the hull.
-   */
-  const halfHeight = (point: WireframePoint) => {
-    const along = Math.min(1, Math.max(0, (point.x - minX) / Math.max(maxX - minX, 1)));
-    const ends = Math.sin(Math.PI * along);
-    const rim = 1 - Math.min(1, Math.abs(point.y - axis) / halfWidth) ** 2.6;
-    return thickness * (0.55 + 0.45 * ends) * (0.1 + 0.9 * rim);
-  };
-
-  const segments: HullSegment[] = [];
-  let deck: HullVertex[] = [];
-  const loops = [outline, ...geometry.holes
-    .filter((void_) => polygonArea(void_) >= OUTER_MINIMUM * hullArea)
-    .map((void_) => thin(void_, OUTER_DETAIL * extent / 2, 6))];
-
-  loops.forEach((loop, index) => {
-    const isVoid = index > 0;
-    const middle = loop.map((point) => ({ ...point, z: 0 }));
-    // Deck and keel follow the outline point for point. Sampling them every nth vertex chords
-    // straight across the Onslaught's prow slots: a notch is exactly the feature a decimated ring
-    // loses, and the line it draws instead runs through the empty space the notch is for.
-    const upper = loop.map((point) => ({ ...point, z: halfHeight(point) * (isVoid ? 0.6 : 1) }));
-    const lower = loop.map((point) => ({ ...point, z: -halfHeight(point) * (isVoid ? 0.6 : 1) * 0.72 }));
-    if (!isVoid) deck = upper;
-
-    segments.push(...ring(middle, "outline"), ...ring(upper, "deck"));
-    if (detail !== "small") segments.push(...ring(lower, "keel"));
-
-    const wanted = isVoid ? 4 : detail === "small" ? 4 : detail === "medium" ? 7 : 9;
-    for (const at of corners(loop, wanted)) {
-      segments.push({ from: middle[at], to: upper[at], kind: "structure" });
-      if (detail !== "small") segments.push({ from: middle[at], to: lower[at], kind: "structure" });
-    }
-  });
-
-  /*
-   * The inside of the ship, traced the same way as the outside: each tier is a closed contour of
-   * what the sprite lights above a threshold. The silhouette is the boundary between hull and
-   * space; these are the boundaries between one raised block and the next, and they are what makes
-   * a ship recognisable at a glance. Dropped at thumbnail size, where they only muddy the outline.
-   */
-  if (detail !== "small") {
-    for (const tier of geometry.inner) {
-      if (polygonArea(tier.points) < INNER_MINIMUM * hullArea) continue;
-      const loop = thin(tier.points, INNER_DETAIL * extent / 2, 6);
-      if (loop.length < 3) continue;
-      const raised = loop.map((point) => ({
-        ...point,
-        z: halfHeight(point) + thickness * 0.95 * tier.height,
-      }));
-      segments.push(...ring(raised, "interior"));
-      // Legs at the shape's four compass extremes, down to the hull under them. Enough to stand
-      // it up, few enough that the block keeps its own outline.
-      const extremes = [
-        loop.reduce((best, point, index) => (point.x < loop[best].x ? index : best), 0),
-        loop.reduce((best, point, index) => (point.x > loop[best].x ? index : best), 0),
-        loop.reduce((best, point, index) => (point.y < loop[best].y ? index : best), 0),
-        loop.reduce((best, point, index) => (point.y > loop[best].y ? index : best), 0),
-      ];
-      for (const at of new Set(extremes)) {
-        segments.push({
-          from: raised[at],
-          to: { ...loop[at], z: halfHeight(loop[at]) },
-          kind: "structure",
-        });
-      }
-    }
-  }
-
-  /*
-   * Engine bells. The traced silhouette stops at the transom, so the drives are the one piece of a
-   * shipped hull that is constructed rather than traced -- a stack of hexagonal rings behind the
-   * stern, sized off the stern's own width so a Hammerhead's two do not read like a Paragon's.
-   */
-  const sternWidth = outline.reduce((widest, point) => (
-    point.x < minX + (maxX - minX) * 0.18 ? Math.max(widest, Math.abs(point.y - axis)) : widest
-  ), 0) || halfWidth * 0.5;
-  const spread = sternWidth * 0.62;
-  const radius = Math.min(sternWidth / (geometry.engineBells * 1.25), extent * 0.055);
-  const bellRing = (count: number, x: number, y: number, scale: number) => Array.from({ length: count }, (_, side) => {
-    const angle = side / count * Math.PI * 2;
-    return { x, y: y + Math.cos(angle) * radius * scale, z: Math.sin(angle) * radius * scale * 0.75 };
-  });
-  for (let bell = 0; bell < geometry.engineBells; bell += 1) {
-    const lateral = geometry.engineBells === 1
-      ? axis
-      : axis - spread + 2 * spread * bell / (geometry.engineBells - 1);
-    const mouth = bellRing(6, minX + extent * 0.03, lateral, 1);
-    const flare = bellRing(6, minX - extent * 0.05, lateral, 1.25);
-    segments.push(...ring(mouth, "engine"), ...ring(flare, "engine"));
-    mouth.forEach((point, index) => segments.push({ from: point, to: flare[index], kind: "engine" }));
-  }
-
-  return { segments, deck, mounts: [] };
-}
-
 /** A shared raised cabin keeps the source silhouette legible instead of duplicating every notch. */
 function buildDeck(hull: WireframeHull): HullVertex[] {
   const { center, minX, maxX, minY, maxY, extent } = hullFrame(hull);
@@ -293,7 +114,7 @@ function buildDeck(hull: WireframeHull): HullVertex[] {
  * The deck and keel are deliberately generic: Preflight doesn't claim the flat source defines a
  * canon third axis, and one shared loft keeps mod hulls from needing hand-authored meshes.
  */
-function buildScannedHullSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
+export function buildHullSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
   if (hull.bounds.length < 3) return [];
   const { center, extent } = hullFrame(hull);
   const deckHeight = extent * 0.17;
@@ -337,21 +158,13 @@ function buildScannedHullSegments(hull: WireframeHull, detail: HullDetail): Hull
   return segments;
 }
 
-/**
- * A shipped hull carries its own traced interior; a scanned one gets the shared generic loft.
- * Both end up as the same list of segments, so nothing downstream knows which it is holding.
- */
-export function buildHullSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
-  return hull.curated ? buildCuratedHull(hull, detail).segments : buildScannedHullSegments(hull, detail);
-}
-
 function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
   const cached = preparedHulls.get(hull)?.get(detail);
   if (cached) return cached;
 
   const { extent } = hullFrame(hull);
-  const prepared = hull.curated ? buildCuratedHull(hull, detail) : {
-    segments: buildScannedHullSegments(hull, detail),
+  const built = {
+    segments: buildHullSegments(hull, detail),
     deck: buildDeck(hull),
     mounts: detail === "small" ? [] : hull.mounts.map((mount) => ({
       x: mount.x,
@@ -359,7 +172,40 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
       z: extent * 0.18,
       size: mount.size,
     })),
-  } satisfies PreparedHull;
+  } satisfies HullModel;
+
+  /*
+   * Fit every hull into one normalised frame. A stubby Hammerhead and a long Conquest have very
+   * different extents, and without this each would need its own eye distance to avoid either
+   * flattening out or bulging through the near plane.
+   */
+  const vertices = built.segments.flatMap((segment) => [segment.from, segment.to]);
+  const span = (axis: "x" | "y" | "z") => {
+    const values = vertices.map((vertex) => vertex[axis]);
+    return { low: Math.min(...values), high: Math.max(...values) };
+  };
+  const along = span("x");
+  const across = span("y");
+  const up = span("z");
+  const centre = {
+    x: (along.low + along.high) / 2,
+    y: (across.low + across.high) / 2,
+    z: (up.low + up.high) / 2,
+  };
+  const reach = Math.max(along.high - along.low, across.high - across.low, 1) / 2;
+  const fit = REACH / reach;
+  const prepared: PreparedHull = {
+    ...built,
+    fit,
+    centre,
+    // A hand's width under the keel, so the grid reads as a floor rather than a section cut.
+    groundZ: up.low - centre.z - 0.16 / fit,
+    nose: vertices.reduce<HullVertex | null>(
+      (best, vertex) => (!best || vertex.x > best.x ? vertex : best),
+      null,
+    ),
+  };
+
   let details = preparedHulls.get(hull);
   if (!details) {
     details = new Map();
@@ -369,28 +215,71 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
   return prepared;
 }
 
-function project(vertex: HullVertex, yaw: number): WireframePoint {
-  const cosine = Math.cos(yaw);
-  const sine = Math.sin(yaw);
-  const forward = vertex.x * cosine - vertex.y * sine;
-  const lateral = vertex.x * sine + vertex.y * cosine;
-  return {
-    x: lateral,
-    y: -forward * 0.62 - vertex.z,
+/**
+ * Yaw about the vertical, then pitch the camera over the top, then a perspective divide.
+ *
+ * The depth that comes back out is the point of it: near edges are drawn brighter, heavier and
+ * last, which is the whole reason a flat wireframe reads as a solid at all.
+ */
+function projector(prepared: PreparedHull, yaw: number, pitch: number) {
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const cosPitch = Math.cos(pitch);
+  const sinPitch = Math.sin(pitch);
+  const { fit, centre } = prepared;
+  return (vertex: HullVertex): ProjectedPoint => {
+    const across = (vertex.y - centre.y) * fit;
+    const up = (vertex.z - centre.z) * fit;
+    const along = (vertex.x - centre.x) * fit;
+    const screenX = across * cosYaw - along * sinYaw;
+    const yawed = across * sinYaw + along * cosYaw;
+    const screenY = up * cosPitch - yawed * sinPitch;
+    const depth = up * sinPitch + yawed * cosPitch;
+    const scale = EYE / (EYE - depth);
+    return { x: screenX * scale, y: -screenY * scale, depth };
   };
 }
 
-export function projectHull(hull: WireframeHull, yaw: number, detail: HullDetail): ProjectedHull {
+export function projectHull(
+  hull: WireframeHull,
+  yaw: number,
+  detail: HullDetail,
+  pitch: number = PITCH,
+): ProjectedHull {
   const prepared = prepareHull(hull, detail);
+  const project = projector(prepared, yaw, pitch);
   const segments = prepared.segments.map((segment) => ({
-    from: project(segment.from, yaw),
-    to: project(segment.to, yaw),
+    from: project(segment.from),
+    to: project(segment.to),
     kind: segment.kind,
   }));
-  const deck = prepared.deck.map((point) => project(point, yaw));
-  const mounts = prepared.mounts.map((mount) => ({
-    ...project(mount, yaw),
-    size: mount.size,
-  }));
-  return { segments, deck, mounts };
+
+  /*
+   * A reference grid on the keel plane. It is the one thing that says the ship is standing
+   * somewhere rather than floating in a swatch, and because it is projected with the same camera
+   * it turns with the hull instead of sliding behind it like a backdrop.
+   */
+  const ground: ProjectedHull["ground"] = [];
+  const reach = 1.25 / prepared.fit;
+  const steps = detail === "small" ? 0 : detail === "medium" ? 3 : 4;
+  const floor = prepared.groundZ + prepared.centre.z;
+  for (let step = -steps; step <= steps; step += 1) {
+    const at = step / Math.max(steps, 1) * reach;
+    ground.push({
+      from: project({ x: at + prepared.centre.x, y: -reach + prepared.centre.y, z: floor }),
+      to: project({ x: at + prepared.centre.x, y: reach + prepared.centre.y, z: floor }),
+    });
+    ground.push({
+      from: project({ x: -reach + prepared.centre.x, y: at + prepared.centre.y, z: floor }),
+      to: project({ x: reach + prepared.centre.x, y: at + prepared.centre.y, z: floor }),
+    });
+  }
+
+  return {
+    segments,
+    deck: prepared.deck.map(project),
+    mounts: prepared.mounts.map((mount) => ({ ...project(mount), size: mount.size })),
+    ground,
+    nose: prepared.nose ? project(prepared.nose) : null,
+  };
 }
