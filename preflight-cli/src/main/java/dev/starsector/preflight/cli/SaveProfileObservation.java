@@ -142,6 +142,18 @@ final class SaveProfileObservation {
                 startedAt);
     }
 
+    static Prepared testPrepare(
+            PreflightHome home,
+            Path installRoot,
+            String profileFingerprint,
+            boolean caseInsensitivePaths) throws IOException {
+        String installKey = pathKey(installRoot, caseInsensitivePaths);
+        SavedProfileMatch saved = savedProfileMatch(
+                home, installKey, profileFingerprint, caseInsensitivePaths);
+        return new Prepared(null, new SessionIdentity(
+                profileFingerprint, saved.displayName(), "test-build", saved.mods()));
+    }
+
     static List<Observation> observations(PreflightHome home) throws IOException {
         return new Ledger(home).read().stream()
                 .sorted(Comparator.comparing(Observation::observedAt).reversed()
@@ -157,7 +169,9 @@ final class SaveProfileObservation {
         if (!Objects.equals(observed.gameBuild(), current.gameBuild())) {
             differences.add(Difference.GAME_BUILD);
         }
-        if (!Objects.equals(observed.mods(), current.mods())) {
+        if (observed.mods() == null || current.mods() == null) {
+            differences.add(Difference.MOD_METADATA_UNAVAILABLE);
+        } else if (!Objects.equals(observed.mods(), current.mods())) {
             differences.add(Difference.MOD_METADATA);
         }
         return List.copyOf(differences);
@@ -166,14 +180,18 @@ final class SaveProfileObservation {
     enum Difference {
         PROFILE_FINGERPRINT,
         GAME_BUILD,
-        MOD_METADATA
+        MOD_METADATA,
+        MOD_METADATA_UNAVAILABLE
     }
 
     record Mod(String id, String displayName, String version) {
         Mod {
             id = boundedText(id, 128);
-            displayName = boundedText(displayName, 160);
-            version = boundedText(version, 80);
+            displayName = boundedNullable(displayName, 160);
+            version = boundedNullable(version, 80);
+            if (id.isBlank()) {
+                throw new IllegalArgumentException("Mod id is required");
+            }
         }
     }
 
@@ -426,7 +444,7 @@ final class SaveProfileObservation {
             String profileFingerprint,
             boolean caseInsensitivePaths) throws IOException {
         Path directory = home.profiles();
-        if (!Files.isDirectory(directory)) return new SavedProfileMatch(null, List.of());
+        if (!Files.isDirectory(directory)) return new SavedProfileMatch(null, null);
         List<SavedProfileCandidate> matches = new ArrayList<>();
         try (var stream = Files.list(directory)) {
             for (Path file : stream.filter(path -> path.getFileName().toString().endsWith(".json"))
@@ -451,7 +469,7 @@ final class SaveProfileObservation {
                 }
             }
         }
-        if (matches.isEmpty()) return new SavedProfileMatch(null, List.of());
+        if (matches.isEmpty()) return new SavedProfileMatch(null, null);
         matches.sort(Comparator.comparing(
                         SavedProfileCandidate::savedAt,
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -811,13 +829,19 @@ final class SaveProfileObservation {
         value.put("profileFingerprint", observation.profileFingerprint());
         value.put("profileDisplayName", observation.profileDisplayName());
         value.put("gameBuild", observation.gameBuild());
-        value.put("mods", observation.mods().stream().map(mod -> {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("id", mod.id());
-            row.put("displayName", mod.displayName());
-            row.put("version", mod.version());
-            return row;
-        }).toList());
+        if (observation.mods() != null) {
+            value.put("mods", observation.mods().stream().map(mod -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", mod.id());
+                if (mod.displayName() != null) {
+                    row.put("displayName", mod.displayName());
+                }
+                if (mod.version() != null) {
+                    row.put("version", mod.version());
+                }
+                return row;
+            }).toList());
+        }
         return value;
     }
 
@@ -833,7 +857,7 @@ final class SaveProfileObservation {
             String profileName = raw.get("profileDisplayName") instanceof String value
                     ? boundedNullable(value, 160) : null;
             String gameBuild = string(raw.get("gameBuild"));
-            List<Mod> mods = parseMods(raw.get("mods"));
+            List<Mod> mods = raw.containsKey("mods") ? parseMods(raw.get("mods")) : null;
             if (installationKey == null || saveKey == null || stateToken == null || observedAt == null
                     || fingerprint == null || gameBuild == null) return null;
             return new Observation(
@@ -867,11 +891,11 @@ final class SaveProfileObservation {
     }
 
     private static List<Mod> parseSavedModIds(Object raw) {
-        if (!(raw instanceof List<?> list)) return List.of();
+        if (!(raw instanceof List<?> list)) return null;
         List<Mod> mods = new ArrayList<>();
         for (Object item : list) {
             if (item instanceof String id && !id.isBlank()) {
-                mods.add(new Mod(id, "", ""));
+                mods.add(new Mod(id, null, null));
             }
             if (mods.size() >= MAX_MODS) break;
         }
@@ -879,13 +903,13 @@ final class SaveProfileObservation {
     }
 
     private static List<Mod> parseMods(Object raw) {
-        if (!(raw instanceof List<?> list)) return List.of();
+        if (!(raw instanceof List<?> list)) return null;
         List<Mod> mods = new ArrayList<>();
         for (Object item : list) {
             if (!(item instanceof Map<?, ?> map)) continue;
             String id = map.get("id") instanceof String value ? value : "";
-            String displayName = map.get("displayName") instanceof String value ? value : "";
-            String version = map.get("version") instanceof String value ? value : "";
+            String displayName = map.get("displayName") instanceof String value ? boundedNullable(value, 160) : null;
+            String version = map.get("version") instanceof String value ? boundedNullable(value, 80) : null;
             if (!id.isBlank()) mods.add(new Mod(id, displayName, version));
             if (mods.size() >= MAX_MODS) break;
         }
@@ -893,12 +917,13 @@ final class SaveProfileObservation {
     }
 
     private static List<Mod> boundedMods(List<Mod> mods) {
-        if (mods == null || mods.isEmpty()) return List.of();
+        if (mods == null) return null;
+        if (mods.isEmpty()) return List.of();
         return mods.stream()
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Mod::id)
-                        .thenComparing(Mod::displayName)
-                        .thenComparing(Mod::version))
+                        .thenComparing(mod -> mod.displayName() == null ? "" : mod.displayName())
+                        .thenComparing(mod -> mod.version() == null ? "" : mod.version()))
                 .limit(MAX_MODS)
                 .toList();
     }

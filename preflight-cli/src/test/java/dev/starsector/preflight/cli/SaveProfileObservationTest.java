@@ -130,7 +130,7 @@ final class SaveProfileObservationTest {
         Fixture fixture = fixture("manual", "before");
         Instant firstEnd = futureEnd();
         SaveProfileObservation.Session first = fixture.session(heavy(), firstEnd.minusSeconds(10));
-        Files.writeString(fixture.saveFile("manual"), "inside");
+        Files.writeString(fixture.saveFile("manual"), "inside-the-launch-window");
         first.scanWhileOwned();
         first.finish(firstEnd);
         assertEquals(1, fixture.observations().size());
@@ -258,11 +258,121 @@ final class SaveProfileObservationTest {
                 .toList());
 
         List<SaveProfileObservation.Mod> many = java.util.stream.IntStream.range(0, 120)
-                .mapToObj(index -> new SaveProfileObservation.Mod("mod-" + index, "", ""))
+                .mapToObj(index -> new SaveProfileObservation.Mod("mod-" + index, null, null))
                 .toList();
         SaveProfileObservation.SessionIdentity bounded = new SaveProfileObservation.SessionIdentity(
                 "fingerprint", null, "build", many);
         assertEquals(SaveProfileObservation.MAX_MODS, bounded.mods().size());
+    }
+
+    @Test
+    void idOnlySavedProfileSchemaPreservesIdsWithUnavailableNameAndVersion() throws Exception {
+        Fixture fixture = fixture("manual", "before");
+        Path profileFile = fixture.home.profiles().resolve("saved-profile.json");
+        Files.createDirectories(fixture.home.profiles());
+        Files.writeString(profileFile, """
+                {
+                    "name": "Custom Profile",
+                    "installRoot": "%s",
+                    "profileFingerprint": "profile-id-only",
+                    "savedAt": "%s",
+                    "enabledMods": ["mod_a", "mod_b"]
+                }
+                """.formatted(fixture.install.toString(), Instant.now().toString()));
+
+        SaveProfileObservation.Prepared prepared = SaveProfileObservation.testPrepare(
+                fixture.home, fixture.install, "profile-id-only", false);
+        assertNotNull(prepared.identity());
+        assertEquals("Custom Profile", prepared.identity().profileDisplayName());
+        List<SaveProfileObservation.Mod> mods = prepared.identity().mods();
+        assertNotNull(mods);
+        assertEquals(2, mods.size());
+        assertEquals("mod_a", mods.get(0).id());
+        assertNull(mods.get(0).displayName());
+        assertNull(mods.get(0).version());
+        assertEquals("mod_b", mods.get(1).id());
+        assertNull(mods.get(1).displayName());
+        assertNull(mods.get(1).version());
+    }
+
+    @Test
+    void missingSavedProfileReportsHistoricalModSetUnavailable() throws Exception {
+        Fixture fixture = fixture("manual", "before");
+        SaveProfileObservation.Prepared prepared = SaveProfileObservation.testPrepare(
+                fixture.home, fixture.install, "profile-unmatched", false);
+        assertNotNull(prepared.identity());
+        assertNull(prepared.identity().profileDisplayName());
+        assertNull(prepared.identity().mods(), "historical mods must be null (unavailable) without matching saved profile");
+    }
+
+    @Test
+    void genuinelyEmptyVanillaProfileIsDistinguishableFromUnavailableHistory() throws Exception {
+        Fixture fixture = fixture("manual", "before");
+        Path profileFile = fixture.home.profiles().resolve("vanilla.json");
+        Files.createDirectories(fixture.home.profiles());
+        Files.writeString(profileFile, """
+                {
+                    "name": "Vanilla",
+                    "installRoot": "%s",
+                    "profileFingerprint": "vanilla-fp",
+                    "savedAt": "%s",
+                    "enabledMods": []
+                }
+                """.formatted(fixture.install.toString(), Instant.now().toString()));
+
+        SaveProfileObservation.Prepared prepared = SaveProfileObservation.testPrepare(
+                fixture.home, fixture.install, "vanilla-fp", false);
+        assertNotNull(prepared.identity());
+        assertEquals("Vanilla", prepared.identity().profileDisplayName());
+        assertNotNull(prepared.identity().mods(), "vanilla profile must have a non-null empty mod list");
+        assertTrue(prepared.identity().mods().isEmpty());
+    }
+
+    @Test
+    void differencesReturnsUnavailableRatherThanChangedWhenEitherSideLacksEvidence() {
+        SaveProfileObservation.Observation observedWithNullMods = new SaveProfileObservation.Observation(
+                "install", "save", "Save", "token", Instant.now(), null, "fp-1", "Name 1", "build-1", null);
+        SaveProfileObservation.Observation observedWithEmptyMods = new SaveProfileObservation.Observation(
+                "install", "save", "Save", "token", Instant.now(), null, "fp-1", "Name 1", "build-1", List.of());
+        SaveProfileObservation.Observation observedWithMods = new SaveProfileObservation.Observation(
+                "install", "save", "Save", "token", Instant.now(), null, "fp-1", "Name 1", "build-1",
+                List.of(new SaveProfileObservation.Mod("mod_a", null, null)));
+
+        SaveProfileObservation.SessionIdentity currentWithNullMods = new SaveProfileObservation.SessionIdentity(
+                "fp-1", "Name 1", "build-1", null);
+        SaveProfileObservation.SessionIdentity currentWithEmptyMods = new SaveProfileObservation.SessionIdentity(
+                "fp-1", "Name 1", "build-1", List.of());
+        SaveProfileObservation.SessionIdentity currentWithMods = new SaveProfileObservation.SessionIdentity(
+                "fp-1", "Name 1", "build-1", List.of(new SaveProfileObservation.Mod("mod_a", null, null)));
+        SaveProfileObservation.SessionIdentity currentWithDiffMods = new SaveProfileObservation.SessionIdentity(
+                "fp-1", "Name 1", "build-1", List.of(new SaveProfileObservation.Mod("mod_b", null, null)));
+
+        // Both null mods -> MOD_METADATA_UNAVAILABLE
+        assertEquals(
+                List.of(SaveProfileObservation.Difference.MOD_METADATA_UNAVAILABLE),
+                SaveProfileObservation.differences(observedWithNullMods, currentWithNullMods));
+
+        // One null mods -> MOD_METADATA_UNAVAILABLE
+        assertEquals(
+                List.of(SaveProfileObservation.Difference.MOD_METADATA_UNAVAILABLE),
+                SaveProfileObservation.differences(observedWithNullMods, currentWithMods));
+        assertEquals(
+                List.of(SaveProfileObservation.Difference.MOD_METADATA_UNAVAILABLE),
+                SaveProfileObservation.differences(observedWithMods, currentWithNullMods));
+
+        // Both empty (vanilla) -> no differences
+        assertTrue(SaveProfileObservation.differences(observedWithEmptyMods, currentWithEmptyMods).isEmpty());
+
+        // Both same mods -> no differences
+        assertTrue(SaveProfileObservation.differences(observedWithMods, currentWithMods).isEmpty());
+
+        // Known different mods -> MOD_METADATA
+        assertEquals(
+                List.of(SaveProfileObservation.Difference.MOD_METADATA),
+                SaveProfileObservation.differences(observedWithMods, currentWithDiffMods));
+        assertEquals(
+                List.of(SaveProfileObservation.Difference.MOD_METADATA),
+                SaveProfileObservation.differences(observedWithMods, currentWithEmptyMods));
     }
 
     @Test
