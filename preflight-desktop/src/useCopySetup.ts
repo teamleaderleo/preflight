@@ -5,7 +5,7 @@ import {
   getProfiles,
   getSnapshot,
 } from "./bridge";
-import { writeCopySetupToClipboard } from "./copySetup";
+import { createCopySetupText } from "./copySetup";
 import { readLastInstallRoot } from "./desktopStorage";
 import type { OptimizationPreset } from "./types";
 
@@ -13,9 +13,11 @@ export type CopySetupState = "idle" | "copying" | "copied" | "error";
 
 export function useCopySetup(optimizationPreset: OptimizationPreset) {
   const [state, setState] = useState<CopySetupState>("idle");
+  const [text, setText] = useState<string | null>(null);
 
   const copySetup = useCallback(async () => {
     setState("copying");
+    setText(null);
     try {
       const rememberedGame = readLastInstallRoot();
       const snapshot = await getSnapshot(rememberedGame ?? undefined);
@@ -27,7 +29,7 @@ export function useCopySetup(optimizationPreset: OptimizationPreset) {
       ]);
       const activeProfile = profiles?.profiles.find((profile) => profile.active && profile.sameInstall) ?? null;
 
-      await writeCopySetupToClipboard({
+      const generated = createCopySetupText({
         preflightVersion: snapshot.engineVersion,
         platform: snapshot.platform,
         starsectorReady: snapshot.ready,
@@ -55,13 +57,33 @@ export function useCopySetup(optimizationPreset: OptimizationPreset) {
         // or profile fingerprint, so Copy setup leaves launch evidence out until it can be correlated.
         latestLaunch: null,
       });
-      setState("copied");
+      // Retain the exact public-safe bytes before touching the clipboard. A denied clipboard write
+      // must never force another observation pass or make the already-generated summary disappear.
+      setText(generated);
+      try {
+        await navigator.clipboard.writeText(generated);
+        setState("copied");
+      } catch {
+        setState("error");
+      }
     } catch {
+      setText(null);
       setState("error");
     }
   }, [optimizationPreset]);
 
-  return { state, copySetup };
+  const retryCopySetup = useCallback(async () => {
+    if (text === null) return;
+    setState("copying");
+    try {
+      await navigator.clipboard.writeText(text);
+      setState("copied");
+    } catch {
+      setState("error");
+    }
+  }, [text]);
+
+  return { state, text, copySetup, retryCopySetup };
 }
 
 async function optionalRead<T>(read: Promise<T>): Promise<T | null> {
