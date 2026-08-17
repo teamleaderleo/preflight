@@ -140,11 +140,12 @@ final class SupportEvidenceProjection {
 
     private static boolean containsSensitiveLocatorOrSecret(String text) {
         String lower = text.toLowerCase(Locale.ROOT);
-        if (lower.contains("http://") || lower.contains("https://") || lower.contains("file:")) return true;
+        if (containsSensitiveUri(text)) return true;
         if (SECRET_MARKERS.stream().anyMatch(lower::contains)) return true;
         for (int index = 0; index < text.length(); index++) {
             char current = text.charAt(index);
             if (current == '/' && locatorBoundary(text, index)
+                    && !redactedHomeSlash(text, index)
                     && index + 1 < text.length()
                     && text.charAt(index + 1) != '/'
                     && !Character.isWhitespace(text.charAt(index + 1))) {
@@ -165,9 +166,48 @@ final class SupportEvidenceProjection {
         return false;
     }
 
+    private static boolean containsSensitiveUri(String text) {
+        for (int index = 0; index < text.length(); index++) {
+            if (!Character.isLetter(text.charAt(index)) || !uriSchemeBoundary(text, index)) continue;
+            int cursor = index + 1;
+            while (cursor < text.length() && uriSchemeCharacter(text.charAt(cursor))) cursor++;
+            if (cursor >= text.length() || text.charAt(cursor) != ':') continue;
+            String scheme = text.substring(index, cursor);
+            if (scheme.equalsIgnoreCase("file")) return true;
+            if (cursor + 2 < text.length()
+                    && text.charAt(cursor + 1) == '/'
+                    && text.charAt(cursor + 2) == '/') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean uriSchemeCharacter(char character) {
+        return Character.isLetterOrDigit(character) || character == '+' || character == '-' || character == '.';
+    }
+
+    private static boolean uriSchemeBoundary(String text, int index) {
+        if (index == 0) return true;
+        char previous = text.charAt(index - 1);
+        return !Character.isLetterOrDigit(previous)
+                && previous != '+'
+                && previous != '-'
+                && previous != '.';
+    }
+
+    private static boolean redactedHomeSlash(String text, int index) {
+        String marker = "<home>";
+        int markerStart = index - marker.length();
+        return markerStart >= 0 && text.regionMatches(true, markerStart, marker, 0, marker.length());
+    }
+
     private static boolean locatorBoundary(String text, int index) {
         if (index == 0) return true;
         char previous = text.charAt(index - 1);
-        return Character.isWhitespace(previous) || "\"'`([{<,;=:+!?".indexOf(previous) >= 0;
+        return !Character.isLetterOrDigit(previous)
+                && previous != '_'
+                && previous != '-'
+                && previous != '.';
     }
 }
