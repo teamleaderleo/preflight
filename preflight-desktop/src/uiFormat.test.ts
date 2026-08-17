@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { cleanUserMessage, errorMessage, failedRunSummary, formatPlaytime, localDateStamp } from "./uiFormat";
+import { cleanUserMessage, errorMessage, failedRunSummary, formatDuration, formatPlaytime, localDateStamp } from "./uiFormat";
 
 describe("errorMessage", () => {
   test("keeps user-facing failures free of JavaScript's Error prefix", () => {
@@ -39,6 +39,16 @@ describe("formatPlaytime", () => {
     expect(formatPlaytime(90 * 60_000)).toBe("1.5h");
     expect(formatPlaytime(1_204 * 3_600_000)).toBe("1,204h");
     expect(formatPlaytime(-1)).toBe("0m");
+  });
+});
+
+describe("formatDuration", () => {
+  test("formats sub-minute times in decimal seconds and longer times in minutes and seconds", () => {
+    expect(formatDuration(15_300)).toBe("15.3s");
+    expect(formatDuration(59_900)).toBe("59.9s");
+    expect(formatDuration(60_000)).toBe("1m 0s");
+    expect(formatDuration(89_400)).toBe("1m 29s");
+    expect(formatDuration(-1)).toBe("0.0s");
   });
 });
 

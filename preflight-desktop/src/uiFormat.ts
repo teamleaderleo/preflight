@@ -27,6 +27,15 @@ export function formatPlaytime(totalMillis: number): string {
   return `${Math.round(safeMillis / 60_000)}m`;
 }
 
+/** Seconds with one decimal below a minute, then minutes and seconds. */
+export function formatDuration(ms: number): string {
+  const safeMs = Math.max(0, ms);
+  const seconds = safeMs / 1_000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${Math.round(seconds - minutes * 60)}s`;
+}
+
 export function shortPath(path: string): string {
   const normalized = path.replaceAll("\\", "/");
   const parts = normalized.split("/").filter(Boolean);

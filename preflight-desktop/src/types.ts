@@ -10,6 +10,11 @@ export interface LastRun {
   directory: string;
   modifiedAt: string;
   adapterHealth: AdapterHealthSummary | null;
+  started?: string | null;
+  ended?: string | null;
+  durationMillis?: number | null;
+  outcome?: string | null;
+  exitCode?: number | null;
 }
 
 export interface AdapterHealthSummary {

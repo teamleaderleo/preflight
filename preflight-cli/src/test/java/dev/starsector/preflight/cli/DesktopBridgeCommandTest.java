@@ -108,6 +108,30 @@ class DesktopBridgeCommandTest {
     }
 
     @Test
+    void snapshotCarriesTheCompactRunSummaryOfTheLatestRun() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("run-summary-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("run-summary-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "started", "2026-08-16T12:00:00Z",
+                "ended", "2026-08-16T12:00:15.300Z",
+                "outcome", "COMPLETED",
+                "exitCode", 0)));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+
+        assertEquals("2026-08-16T12:00:00Z", lastRun.get("started"));
+        assertEquals("2026-08-16T12:00:15.300Z", lastRun.get("ended"));
+        assertEquals(15300L, lastRun.get("durationMillis"));
+        assertEquals("COMPLETED", lastRun.get("outcome"));
+        assertEquals(0L, lastRun.get("exitCode"));
+    }
+
+    @Test
     void snapshotIgnoresUnrecognisedAdapterHealth() throws Exception {
         Path home = Files.createDirectories(temporaryDirectory.resolve("unknown-health-home"));
         Path game = Files.createDirectories(temporaryDirectory.resolve("unknown-health-game"));

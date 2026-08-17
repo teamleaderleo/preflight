@@ -1,7 +1,7 @@
 import { ArrowIcon, GaugeIcon } from "../icons";
 import type { PlaytimeSnapshot, WireframeHull } from "../types";
 import type { SpeedStanding } from "../useSpeedRecord";
-import { formatPlaytime } from "../uiFormat";
+import { formatDuration, formatPlaytime } from "../uiFormat";
 import { FlightInstrument } from "./FlightInstrument";
 
 interface SpeedScoreboardProps {
@@ -26,14 +26,6 @@ function RecordedPlaytime({ playtime }: { playtime?: PlaytimeSnapshot }) {
       <span>recorded playtime</span>
     </div>
   );
-}
-
-/** Seconds with one decimal below a minute, then minutes and seconds. */
-function formatDuration(ms: number): string {
-  const seconds = ms / 1_000;
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${Math.round(seconds - minutes * 60)}s`;
 }
 
 /** The vanity total, which is read at a glance and never needs a decimal second. */
