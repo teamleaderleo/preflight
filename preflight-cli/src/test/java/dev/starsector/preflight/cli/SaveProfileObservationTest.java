@@ -22,12 +22,12 @@ final class SaveProfileObservationTest {
     @Test
     void recordsOneChangedSaveWithLastObservedWording() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        Instant start = Instant.now().minusSeconds(2);
-        SaveProfileObservation.Session session = fixture.session(heavy(), start);
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
 
         Files.writeString(fixture.saveFile("manual"), "after-longer");
         session.scanWhileOwned();
-        session.finish(Instant.now().plusSeconds(2));
+        session.finish(end);
 
         List<SaveProfileObservation.Observation> observations = fixture.observations();
         assertEquals(1, observations.size());
@@ -42,12 +42,13 @@ final class SaveProfileObservationTest {
     void recordsAutosaveAndManualSaveFromOneOwnedSession() throws Exception {
         Fixture fixture = fixture("manual", "m0");
         fixture.createSave("autosave", "a0");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
 
         Files.writeString(fixture.saveFile("manual"), "m1-more");
         Files.writeString(fixture.saveFile("autosave"), "a1-more");
         session.scanWhileOwned();
-        session.finish(Instant.now().plusSeconds(2));
+        session.finish(end);
 
         assertEquals(List.of("autosave", "manual"), fixture.observations().stream()
                 .map(SaveProfileObservation.Observation::saveKey)
@@ -58,15 +59,18 @@ final class SaveProfileObservationTest {
     @Test
     void latestProfileSessionReplacesEarlierAssociation() throws Exception {
         Fixture fixture = fixture("manual", "v0");
-        SaveProfileObservation.Session first = fixture.session(heavy(), Instant.now().minusSeconds(5));
+        Instant firstEnd = futureEnd();
+        SaveProfileObservation.Session first = fixture.session(heavy(), firstEnd.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "v1-long");
         first.scanWhileOwned();
-        first.finish(Instant.now().minusSeconds(3));
+        first.finish(firstEnd);
+        assertEquals("profile-heavy", fixture.observations().get(0).profileFingerprint());
 
-        SaveProfileObservation.Session second = fixture.session(light(), Instant.now().minusSeconds(2));
+        Instant secondEnd = firstEnd.plusSeconds(10);
+        SaveProfileObservation.Session second = fixture.session(light(), firstEnd.plusSeconds(1));
         Files.writeString(fixture.saveFile("manual"), "v2-even-longer");
         second.scanWhileOwned();
-        second.finish(Instant.now().plusSeconds(1));
+        second.finish(secondEnd);
 
         List<SaveProfileObservation.Observation> observations = fixture.observations();
         assertEquals(1, observations.size());
@@ -77,13 +81,14 @@ final class SaveProfileObservationTest {
     @Test
     void finishingAfterAWriteRecordsEvenForAnAbnormalExitPath() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "written-before-crash");
         session.scanWhileOwned();
 
-        // Session.finish is deliberately independent of child exit code. ChildProcessOutput invokes
-        // it from finally after normal, non-zero, interrupted, and capture-failure termination.
-        session.finish(Instant.now().plusSeconds(2));
+        // Session.finish is independent of child exit code. ChildProcessOutput invokes it from
+        // finally after normal, non-zero, interrupted, and capture-failure termination.
+        session.finish(end);
 
         assertEquals(1, fixture.observations().size());
     }
@@ -91,10 +96,11 @@ final class SaveProfileObservationTest {
     @Test
     void renameCopyAndDeleteOutsidePreflightDoNotTransferAssociation() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(5));
+        Instant firstEnd = futureEnd();
+        SaveProfileObservation.Session first = fixture.session(heavy(), firstEnd.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "during-owned-session");
-        session.scanWhileOwned();
-        session.finish(Instant.now().minusSeconds(3));
+        first.scanWhileOwned();
+        first.finish(firstEnd);
 
         Path renamed = fixture.saves.resolve("renamed");
         Files.move(fixture.saves.resolve("manual"), renamed);
@@ -102,8 +108,8 @@ final class SaveProfileObservationTest {
         Files.createDirectories(copied);
         Files.copy(renamed.resolve("save.dat"), copied.resolve("save.dat"));
 
-        SaveProfileObservation.Session afterRename = fixture.session(light(), Instant.now().minusSeconds(2));
-        afterRename.finish(Instant.now().plusSeconds(1));
+        SaveProfileObservation.Session afterRename = fixture.session(light(), firstEnd.plusSeconds(1));
+        afterRename.finish(firstEnd.plusSeconds(2));
         List<SaveProfileObservation.Observation> retained = fixture.observations();
         assertEquals(1, retained.size());
         assertEquals("manual", retained.get(0).saveKey());
@@ -113,23 +119,24 @@ final class SaveProfileObservationTest {
 
         deleteRecursively(renamed);
         deleteRecursively(copied);
-        SaveProfileObservation.Session afterDelete = fixture.session(light(), Instant.now().plusSeconds(2));
-        afterDelete.finish(Instant.now().plusSeconds(3));
+        SaveProfileObservation.Session afterDelete = fixture.session(light(), firstEnd.plusSeconds(3));
+        afterDelete.finish(firstEnd.plusSeconds(4));
         assertEquals(1, fixture.observations().size());
     }
 
     @Test
     void outsideModificationInvalidatesPreviousAssociationAtNextBaseline() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        SaveProfileObservation.Session first = fixture.session(heavy(), Instant.now().minusSeconds(5));
+        Instant firstEnd = futureEnd();
+        SaveProfileObservation.Session first = fixture.session(heavy(), firstEnd.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "inside");
         first.scanWhileOwned();
-        first.finish(Instant.now().minusSeconds(3));
+        first.finish(firstEnd);
         assertEquals(1, fixture.observations().size());
 
         Files.writeString(fixture.saveFile("manual"), "manual-outside-change");
-        SaveProfileObservation.Session next = fixture.session(light(), Instant.now().minusSeconds(1));
-        next.finish(Instant.now().plusSeconds(1));
+        SaveProfileObservation.Session next = fixture.session(light(), firstEnd.plusSeconds(1));
+        next.finish(firstEnd.plusSeconds(2));
 
         assertTrue(fixture.observations().isEmpty());
     }
@@ -137,13 +144,14 @@ final class SaveProfileObservationTest {
     @Test
     void historicalLabelSurvivesProfileDeletionBecauseObservationOwnsItsLabel() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "after");
         session.scanWhileOwned();
-        session.finish(Instant.now().plusSeconds(2));
+        session.finish(end);
 
-        // There is no saved profile file in this fixture at all. The observation remains historical
-        // evidence and never recreates or activates a profile.
+        // The fixture has no persisted profile file. Historical evidence remains local and never
+        // recreates or activates a profile.
         SaveProfileObservation.Observation observed = fixture.observations().get(0);
         assertEquals("Heavy Mods", observed.profileDisplayName());
         assertEquals("This save was last observed with ‘Heavy Mods’.", observed.lastObservedMessage());
@@ -152,10 +160,11 @@ final class SaveProfileObservationTest {
     @Test
     void gameBuildChangeIsPreservedAndPresentedDeterministically() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "after");
         session.scanWhileOwned();
-        session.finish(Instant.now().plusSeconds(1));
+        session.finish(end);
         SaveProfileObservation.Observation observed = fixture.observations().get(0);
 
         SaveProfileObservation.SessionIdentity current = new SaveProfileObservation.SessionIdentity(
@@ -174,9 +183,10 @@ final class SaveProfileObservationTest {
     @Test
     void noSaveChangesCreatesNoAssociation() throws Exception {
         Fixture fixture = fixture("manual", "unchanged");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(1));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         session.scanWhileOwned();
-        session.finish(Instant.now().plusSeconds(1));
+        session.finish(end);
         assertTrue(fixture.observations().isEmpty());
     }
 
@@ -184,21 +194,22 @@ final class SaveProfileObservationTest {
     void changesBeforeAndAfterOwnedLifetimeStayUnassociated() throws Exception {
         Fixture fixture = fixture("manual", "initial");
         Files.writeString(fixture.saveFile("manual"), "changed-before-start");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(1));
-        session.finish(Instant.now().plusSeconds(1));
+        Instant firstEnd = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), firstEnd.minusSeconds(10));
+        session.finish(firstEnd);
         Files.writeString(fixture.saveFile("manual"), "changed-after-end");
         assertTrue(fixture.observations().isEmpty());
 
-        SaveProfileObservation.Session next = fixture.session(light(), Instant.now().plusSeconds(2));
-        next.finish(Instant.now().plusSeconds(3));
+        SaveProfileObservation.Session next = fixture.session(light(), firstEnd.plusSeconds(1));
+        next.finish(firstEnd.plusSeconds(2));
         assertTrue(fixture.observations().isEmpty());
     }
 
     @Test
     void finalScanRejectsMetadataNewerThanOwnedProcessEndBoundary() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        Instant end = Instant.now().plusSeconds(2);
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "outside-after-process-exit");
         Files.setLastModifiedTime(fixture.saveFile("manual"), FileTime.from(end.plusSeconds(5)));
 
@@ -210,8 +221,8 @@ final class SaveProfileObservationTest {
     @Test
     void finalScanIncludesWriteAtOrBeforeOwnedProcessEndBoundary() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        Instant end = Instant.now().plusSeconds(5);
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "owned-write");
         Files.setLastModifiedTime(fixture.saveFile("manual"), FileTime.from(end.minusMillis(1)));
 
@@ -223,7 +234,7 @@ final class SaveProfileObservationTest {
     @Test
     void pollThatStraddlesProcessTerminationDiscardsItsSnapshot() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(1));
+        SaveProfileObservation.Session session = fixture.session(heavy(), futureEnd().minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "changed-during-straddled-scan");
         AtomicInteger ownershipChecks = new AtomicInteger();
 
@@ -256,17 +267,18 @@ final class SaveProfileObservationTest {
     @Test
     void saveNamesStayLocalAndExistingPublicProjectionDropsPrivateLedgerFields() throws Exception {
         Fixture fixture = fixture("Captain Alice Secret Save", "before");
-        SaveProfileObservation.Session session = fixture.session(heavy(), Instant.now().minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         Files.writeString(fixture.saveFile("Captain Alice Secret Save"), "after");
         session.scanWhileOwned();
-        session.finish(Instant.now().plusSeconds(1));
+        session.finish(end);
 
         Path store = SaveProfileObservation.storeFile(fixture.home);
         String local = Files.readString(store);
         assertTrue(local.contains("Captain Alice Secret Save"));
         assertFalse(local.contains("after"));
 
-        String projected = new String(SupportEvidenceProjection.project(FILE_NAME(store), local));
+        String projected = new String(SupportEvidenceProjection.project(fileName(store), local));
         assertFalse(projected.contains("Captain Alice Secret Save"));
         assertFalse(projected.contains(fixture.install.toString()));
         assertFalse(projected.contains("saveName"));
@@ -279,36 +291,36 @@ final class SaveProfileObservationTest {
         for (int index = 1; index < SaveProfileObservation.MAX_RECORDS + 8; index++) {
             fixture.createSave(String.format("save-%03d", index), "before");
         }
-        Instant now = Instant.now();
-        SaveProfileObservation.Session session = fixture.session(heavy(), now.minusSeconds(2));
+        Instant end = futureEnd();
+        SaveProfileObservation.Session session = fixture.session(heavy(), end.minusSeconds(10));
         for (int index = 0; index < SaveProfileObservation.MAX_RECORDS + 8; index++) {
             Files.writeString(fixture.saveFile(String.format("save-%03d", index)), "after-more");
         }
         session.scanWhileOwned();
-        session.finish(now.plusSeconds(2));
+        session.finish(end);
         assertEquals(SaveProfileObservation.MAX_RECORDS, fixture.observations().size());
 
-        SaveProfileObservation.Session aged = fixture.session(
-                light(), now.plus(SaveProfileObservation.MAX_AGE).plusSeconds(10));
-        aged.finish(now.plus(SaveProfileObservation.MAX_AGE).plusSeconds(11));
+        Instant expired = end.plus(SaveProfileObservation.MAX_AGE).plusSeconds(10);
+        SaveProfileObservation.Session aged = fixture.session(light(), expired);
+        aged.finish(expired.plusSeconds(1));
         assertTrue(fixture.observations().isEmpty());
     }
 
     @Test
     void disappearedSaveIsCleanedAfterMissingRetention() throws Exception {
         Fixture fixture = fixture("manual", "before");
-        Instant now = Instant.now();
-        SaveProfileObservation.Session first = fixture.session(heavy(), now.minusSeconds(2));
+        Instant firstEnd = futureEnd();
+        SaveProfileObservation.Session first = fixture.session(heavy(), firstEnd.minusSeconds(10));
         Files.writeString(fixture.saveFile("manual"), "after");
         first.scanWhileOwned();
-        first.finish(now);
+        first.finish(firstEnd);
         deleteRecursively(fixture.saves.resolve("manual"));
 
-        SaveProfileObservation.Session missing = fixture.session(light(), now.plusSeconds(1));
-        missing.finish(now.plusSeconds(2));
+        SaveProfileObservation.Session missing = fixture.session(light(), firstEnd.plusSeconds(1));
+        missing.finish(firstEnd.plusSeconds(2));
         assertNotNull(fixture.observations().get(0).missingSince());
 
-        Instant expired = now.plus(SaveProfileObservation.MISSING_RETENTION).plusSeconds(5);
+        Instant expired = firstEnd.plus(SaveProfileObservation.MISSING_RETENTION).plusSeconds(5);
         SaveProfileObservation.Session cleanup = fixture.session(light(), expired);
         cleanup.finish(expired.plusSeconds(1));
         assertTrue(fixture.observations().isEmpty());
@@ -317,17 +329,17 @@ final class SaveProfileObservationTest {
     @Test
     void caseOnlyRenameUsesSameSaveIdentityOnCaseInsensitiveFilesystems() throws Exception {
         Fixture fixture = fixture("Manual", "before");
-        Instant now = Instant.now();
+        Instant firstEnd = futureEnd();
         SaveProfileObservation.Session first = SaveProfileObservation.testSession(
-                fixture.home, fixture.install, heavy(), now.minusSeconds(2), true);
+                fixture.home, fixture.install, heavy(), firstEnd.minusSeconds(10), true);
         Files.writeString(fixture.saveFile("Manual"), "after");
         first.scanWhileOwned();
-        first.finish(now);
+        first.finish(firstEnd);
         Files.move(fixture.saves.resolve("Manual"), fixture.saves.resolve("manual"));
 
         SaveProfileObservation.Session next = SaveProfileObservation.testSession(
-                fixture.home, fixture.install, light(), now.plusSeconds(1), true);
-        next.finish(now.plusSeconds(2));
+                fixture.home, fixture.install, light(), firstEnd.plusSeconds(1), true);
+        next.finish(firstEnd.plusSeconds(2));
 
         List<SaveProfileObservation.Observation> observations = fixture.observations();
         assertEquals(1, observations.size());
@@ -343,6 +355,10 @@ final class SaveProfileObservationTest {
         Fixture fixture = new Fixture(home, install, saves);
         fixture.createSave(saveName, contents);
         return fixture;
+    }
+
+    private static Instant futureEnd() {
+        return Instant.now().plusSeconds(5);
     }
 
     private static SaveProfileObservation.SessionIdentity heavy() {
@@ -363,7 +379,7 @@ final class SaveProfileObservationTest {
                 List.of(new SaveProfileObservation.Mod("graphicslib", "GraphicsLib", "1.0")));
     }
 
-    private static String FILE_NAME(Path path) {
+    private static String fileName(Path path) {
         return path.getFileName().toString();
     }
 
