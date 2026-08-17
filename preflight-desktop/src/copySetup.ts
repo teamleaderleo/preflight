@@ -88,9 +88,9 @@ export function createCopySetupSummary(observations: CopySetupObservations): Cop
     ? null
     : observations.mods
       .map((mod) => ({
-        id: boundedLine(mod.id, MAX_MOD_ID_CHARS),
-        displayName: boundedOptionalLine(mod.displayName, MAX_MOD_NAME_CHARS),
-        declaredVersion: boundedOptionalLine(mod.declaredVersion, MAX_MOD_VERSION_CHARS),
+        id: boundedOptionalToken(mod.id, MAX_MOD_ID_CHARS) ?? "",
+        displayName: boundedPublicScalar(mod.displayName, MAX_MOD_NAME_CHARS),
+        declaredVersion: boundedPublicScalar(mod.declaredVersion, MAX_MOD_VERSION_CHARS),
       }))
       .filter((mod) => mod.id.length > 0)
       .sort(compareMods);
@@ -202,6 +202,22 @@ function compareMods(left: CopySetupPublicMod, right: CopySetupPublicMod): numbe
 
 function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function boundedPublicScalar(value: string | null | undefined, maxChars: number): string | null {
+  if (typeof value !== "string" || /[\u0000-\u001f\u007f]/u.test(value)) return null;
+  const bounded = boundedLine(value, maxChars);
+  if (!bounded || looksPrivatePublicScalar(bounded)) return null;
+  return bounded;
+}
+
+function looksPrivatePublicScalar(value: string): boolean {
+  return /(?:^|\s)\/(?:[^\s/]+\/)+[^\s/]*/u.test(value)
+    || /\b[A-Za-z]:[\\/][^\s]*/u.test(value)
+    || /(?:^|\s)\\\\[^\s\\]+\\[^\s\\]+/u.test(value)
+    || /\b[A-Za-z][A-Za-z0-9+.-]{1,31}:[^\s]/u.test(value)
+    || /\b(?:token|secret|password|passwd|authorization|credential|api[-_ ]?key)\s*[:=]/iu.test(value)
+    || /\b(?:HOME|USER|USERNAME|PWD)\s*=/u.test(value);
 }
 
 function boundedOptionalLine(value: string | null | undefined, maxChars: number): string | null {
