@@ -140,11 +140,14 @@ final class SupportEvidenceProjection {
 
     private static boolean containsSensitiveLocatorOrSecret(String text) {
         String lower = text.toLowerCase(Locale.ROOT);
-        if (lower.contains("http://") || lower.contains("https://") || lower.contains("file:")) return true;
         if (SECRET_MARKERS.stream().anyMatch(lower::contains)) return true;
         for (int index = 0; index < text.length(); index++) {
             char current = text.charAt(index);
+            if (Character.isLetter(current) && locatorBoundary(text, index) && beginsUri(text, index)) {
+                return true;
+            }
             if (current == '/' && locatorBoundary(text, index)
+                    && !isRedactedHomeSlash(text, index)
                     && index + 1 < text.length()
                     && text.charAt(index + 1) != '/'
                     && !Character.isWhitespace(text.charAt(index + 1))) {
@@ -165,9 +168,31 @@ final class SupportEvidenceProjection {
         return false;
     }
 
+    private static boolean beginsUri(String text, int index) {
+        int cursor = index + 1;
+        while (cursor < text.length() && uriSchemeCharacter(text.charAt(cursor))) cursor++;
+        return cursor < text.length()
+                && text.charAt(cursor) == ':'
+                && cursor + 1 < text.length()
+                && !Character.isWhitespace(text.charAt(cursor + 1));
+    }
+
+    private static boolean uriSchemeCharacter(char character) {
+        return Character.isLetterOrDigit(character)
+                || character == '+'
+                || character == '-'
+                || character == '.';
+    }
+
+    private static boolean isRedactedHomeSlash(String text, int index) {
+        String marker = "<home>";
+        int start = index - marker.length();
+        return start >= 0 && text.regionMatches(start, marker, 0, marker.length());
+    }
+
     private static boolean locatorBoundary(String text, int index) {
         if (index == 0) return true;
         char previous = text.charAt(index - 1);
-        return Character.isWhitespace(previous) || "\"'`([{<,;=:+!?".indexOf(previous) >= 0;
+        return !Character.isLetterOrDigit(previous) && previous != '_';
     }
 }

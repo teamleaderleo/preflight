@@ -68,6 +68,26 @@ class SupportEvidenceProjectionTest {
     }
 
     @Test
+    void dropsAbsolutePathsAfterClosingAndUnicodePunctuation() {
+        String unix = text(SupportEvidenceProjection.project(
+                "unix-punctuation.json",
+                "{\"reason\":\"failed)/opt/Starsector/private.json\",\"status\":\"ok\"}"));
+        String windows = text(SupportEvidenceProjection.project(
+                "windows-punctuation.json",
+                "{\"summary\":\"failed—C:\\\\Users\\\\alice\\\\private.txt\",\"status\":\"ok\"}"));
+        String unc = text(SupportEvidenceProjection.project(
+                "unc-punctuation.json",
+                "{\"summary\":\"failed)\\\\\\\\server\\\\share\\\\private.txt\",\"status\":\"ok\"}"));
+
+        assertFalse(unix.contains("/opt/Starsector"), unix);
+        assertFalse(windows.contains("Users"), windows);
+        assertFalse(unc.contains("server"), unc);
+        assertTrue(unix.contains("status"), unix);
+        assertTrue(windows.contains("status"), windows);
+        assertTrue(unc.contains("status"), unc);
+    }
+
+    @Test
     void dropsEmbeddedUrisAndSecretAssignmentsFromAllowedProse() {
         String fileUri = text(SupportEvidenceProjection.project(
                 "file-uri.json",
@@ -85,6 +105,35 @@ class SupportEvidenceProjectionTest {
         assertTrue(fileUri.contains("status"), fileUri);
         assertTrue(url.contains("status"), url);
         assertTrue(token.contains("status"), token);
+    }
+
+    @Test
+    void keepsBenignColonProseAndDropsGenericUriSchemes() {
+        String benign = text(SupportEvidenceProjection.project(
+                "benign-colon.json",
+                "{\"reason\":\"Current profile: ready\",\"status\":\"ok\"}"));
+        String smb = text(SupportEvidenceProjection.project(
+                "smb.json",
+                "{\"summary\":\"mounted at smb://server/share/private\",\"status\":\"ok\"}"));
+        String ssh = text(SupportEvidenceProjection.project(
+                "ssh.json",
+                "{\"reason\":\"clone failed for ssh://alice:credential@example.invalid/repo\",\"status\":\"ok\"}"));
+        String ftp = text(SupportEvidenceProjection.project(
+                "ftp.json",
+                "{\"summary\":\"mirror at ftp://example.invalid/private\",\"status\":\"ok\"}"));
+        String mailto = text(SupportEvidenceProjection.project(
+                "mailto.json",
+                "{\"reason\":\"contact mailto:alice@example.invalid\",\"status\":\"ok\"}"));
+
+        assertTrue(benign.contains("Current profile: ready"), benign);
+        assertFalse(smb.contains("server/share"), smb);
+        assertFalse(ssh.contains("example.invalid"), ssh);
+        assertFalse(ftp.contains("example.invalid"), ftp);
+        assertFalse(mailto.contains("alice@example.invalid"), mailto);
+        assertTrue(smb.contains("status"), smb);
+        assertTrue(ssh.contains("status"), ssh);
+        assertTrue(ftp.contains("status"), ftp);
+        assertTrue(mailto.contains("status"), mailto);
     }
 
     @Test
