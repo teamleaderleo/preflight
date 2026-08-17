@@ -145,8 +145,9 @@ Preflight checks the installed code before applying an optimization. If it doesn
 something, it leaves it alone. I tried to get the app itself to also be as performant as possible.
 This should be better than Microsoft Teams.
 
-Preflight doesn’t modify saves or upload anything automatically. This is still a beta. If you find
-a problem, please report it. I will investigate.
+Preflight doesn’t modify saves. Ordinary launches send nothing. Optional failed-run reports are off
+until you enable them, and use the same bounded support ZIP shown in Help. This is still a beta. If
+you find a problem, please report it. I will investigate.
 
 Every package also carries a [machine-checked capability receipt](docs/capability-receipt.md) listing
 the commands, writes, child processes, links, and network endpoints available to that exact build.

@@ -8,7 +8,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -91,18 +93,8 @@ class LaunchLedgerBackfillTest {
     @Test
     void anInterruptedLaunchWithHeartbeatIsRecoveredWithDuration() throws IOException {
         PreflightHome home = new PreflightHome(root, List.of());
-        Path dir = Files.createDirectories(root.resolve("runs").resolve("20260817-010000-000-interrupted"));
-        Files.writeString(
-                dir.resolve("run.json"),
-                "{\"started\":\"2026-08-17T01:00:00Z\",\"ended\":null,\"outcome\":\"RUNNING\"}",
-                StandardCharsets.UTF_8);
-        Files.writeString(
-                dir.resolve("heartbeat.json"),
-                "{\"format\":\"starsector-preflight-run-heartbeat-v1\","
-                        + "\"started\":\"2026-08-17T01:00:00Z\","
-                        + "\"lastHeartbeat\":\"2026-08-17T03:30:00Z\","
-                        + "\"elapsedMillis\":9000000}",
-                StandardCharsets.UTF_8);
+        String launchId = UUID.randomUUID().toString();
+        Path dir = writeInterrupted("20260817-010000-000-interrupted", launchId, 9000000, 999_999_991L);
 
         assertEquals(1, LaunchLedgerBackfill.runOnce(home));
         LaunchLedger.Entry entry = LaunchLedger.read(home).get(0);
@@ -110,6 +102,67 @@ class LaunchLedgerBackfillTest {
         assertEquals(9000000L, entry.elapsedMillis());
         assertEquals(1, Playtime.of(List.of(entry)).launches(), "interrupted launch duration counts");
         assertEquals(9000000L, Playtime.of(List.of(entry)).totalMillis());
+        assertTrue(Files.notExists(dir.resolve(LaunchHeartbeat.FILE_NAME)));
+        assertEquals(0, LaunchLedgerBackfill.runOnce(home), "recovery is exact-once");
+    }
+
+    @Test
+    void aLaterInterruptedLaunchIsRecoveredAfterHistoricalMarkerExists() throws IOException {
+        PreflightHome home = new PreflightHome(root, List.of());
+        assertEquals(0, LaunchLedgerBackfill.runOnce(home));
+        assertTrue(Files.exists(LaunchLedgerBackfill.marker(home)));
+        writeInterrupted("later", UUID.randomUUID().toString(), 42_000L, 999_999_992L);
+
+        assertEquals(1, LaunchLedgerBackfill.runOnce(home));
+        assertEquals(42_000L, LaunchLedger.read(home).get(0).elapsedMillis());
+    }
+
+    @Test
+    void finalizedMetadataKeepsItsMonotonicDurationWhenLedgerAppendWasInterrupted() throws IOException {
+        PreflightHome home = new PreflightHome(root, List.of());
+        String launchId = UUID.randomUUID().toString();
+        Path directory = writeInterrupted("finalized", launchId, 41_000L, 999_999_995L);
+        String metadata = Files.readString(directory.resolve("run.json"));
+        Files.writeString(
+                directory.resolve("run.json"),
+                metadata
+                        .replace("\"ended\":null", "\"ended\":\"2026-08-17T02:00:00Z\"")
+                        .replace("\"outcome\":\"RUNNING\"", "\"elapsedMillis\":42000,\"outcome\":\"COMPLETED\""),
+                StandardCharsets.UTF_8);
+
+        assertEquals(1, LaunchLedgerBackfill.runOnce(home));
+        LaunchLedger.Entry recovered = LaunchLedger.read(home).get(0);
+        assertEquals("COMPLETED", recovered.outcome());
+        assertEquals(42_000L, recovered.elapsedMillis());
+    }
+
+    @Test
+    void anActiveOwnerIsNeverImportedAsInterrupted() throws IOException {
+        PreflightHome home = new PreflightHome(root, List.of());
+        ProcessHandle owner = ProcessHandle.current();
+        Instant ownerStarted = owner.info().startInstant().orElseThrow();
+        String launchId = UUID.randomUUID().toString();
+        writeInterrupted("active", launchId, 42_000L, owner.pid(), ownerStarted);
+
+        assertEquals(0, LaunchLedgerBackfill.runOnce(home));
+        assertEquals(0, LaunchLedger.read(home).size());
+        assertTrue(Files.exists(root.resolve("runs/active/heartbeat.json")));
+    }
+
+    @Test
+    void mismatchedProcessIdentityFailsClosed() throws IOException {
+        PreflightHome home = new PreflightHome(root, List.of());
+        String launchId = UUID.randomUUID().toString();
+        Path directory = writeInterrupted("mismatch", launchId, 42_000L, 999_999_993L);
+        String metadata = Files.readString(directory.resolve("run.json"));
+        Files.writeString(
+                directory.resolve("run.json"),
+                metadata.replace("999999993", "999999994"),
+                StandardCharsets.UTF_8);
+
+        assertEquals(0, LaunchLedgerBackfill.runOnce(home));
+        assertEquals(0, LaunchLedger.read(home).size());
+        assertTrue(Files.exists(directory.resolve("heartbeat.json")));
     }
 
     @Test
@@ -190,6 +243,45 @@ class LaunchLedgerBackfillTest {
                         + "\"textureProfileFingerprint\":"
                         + "\"59b01dc050f39a9f07053bd168cc8c1ecd55086b429b2d732456f87ca217a702\"}",
                 StandardCharsets.UTF_8);
+    }
+
+    private Path writeInterrupted(String name, String launchId, long elapsedMillis, long ownerPid)
+            throws IOException {
+        return writeInterrupted(
+                name,
+                launchId,
+                elapsedMillis,
+                ownerPid,
+                Instant.parse("2026-08-17T00:59:00Z"));
+    }
+
+    private Path writeInterrupted(
+            String name,
+            String launchId,
+            long elapsedMillis,
+            long ownerPid,
+            Instant ownerStartedAt) throws IOException {
+        Path directory = Files.createDirectories(root.resolve("runs").resolve(name));
+        Instant started = Instant.parse("2026-08-17T01:00:00Z");
+        Files.writeString(
+                directory.resolve("run.json"),
+                "{\"launchId\":\"" + launchId + "\","
+                        + "\"wrapperPid\":" + ownerPid + ","
+                        + "\"wrapperStartedAt\":\"" + ownerStartedAt + "\","
+                        + "\"started\":\"" + started + "\","
+                        + "\"ended\":null,\"outcome\":\"RUNNING\"}",
+                StandardCharsets.UTF_8);
+        Files.writeString(
+                directory.resolve(LaunchHeartbeat.FILE_NAME),
+                "{\"format\":\"" + LaunchHeartbeat.FORMAT + "\","
+                        + "\"launchId\":\"" + launchId + "\","
+                        + "\"ownerPid\":" + ownerPid + ","
+                        + "\"ownerStartedAt\":\"" + ownerStartedAt + "\","
+                        + "\"started\":\"" + started + "\","
+                        + "\"lastHeartbeat\":\"2026-08-17T03:30:00Z\","
+                        + "\"elapsedMillis\":" + elapsedMillis + "}",
+                StandardCharsets.UTF_8);
+        return directory;
     }
 
     @Test

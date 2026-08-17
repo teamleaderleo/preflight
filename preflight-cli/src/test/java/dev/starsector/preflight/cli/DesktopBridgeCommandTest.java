@@ -114,6 +114,8 @@ class DesktopBridgeCommandTest {
         Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
         Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
         Files.writeString(run.resolve("run.json"), Json.object(Map.of(
+                "wrapperPid", 42,
+                "wrapperStartedAt", "2026-08-16T11:59:59Z",
                 "started", "2026-08-16T12:00:00Z",
                 "ended", "2026-08-16T12:00:15.300Z",
                 "outcome", "COMPLETED",
@@ -134,6 +136,8 @@ class DesktopBridgeCommandTest {
 
         assertEquals("2026-08-16T12:00:00Z", lastRun.get("started"));
         assertEquals("2026-08-16T12:00:15.300Z", lastRun.get("ended"));
+        assertEquals(42L, lastRun.get("wrapperPid"));
+        assertEquals("2026-08-16T11:59:59Z", lastRun.get("wrapperStartedAt"));
         assertEquals(15250L, lastRun.get("startupMillis"));
         assertFalse(lastRun.containsKey("durationMillis"), lastRun.toString());
         assertEquals("COMPLETED", lastRun.get("outcome"));

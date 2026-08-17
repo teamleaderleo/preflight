@@ -80,15 +80,17 @@ Preflight checks the installed code before applying an optimization. If it doesn
 something, it leaves it alone. I tried to get the app itself to also be as performant as possible.
 This should be better than Microsoft Teams.
 
-Preflight doesn’t modify saves or upload anything automatically. This is still a beta. If you find
-a problem, please report it. I will investigate.
+Preflight doesn’t modify saves. Ordinary launches send nothing. Optional failed-run reports are off
+until you enable them, and use the same bounded support ZIP shown in Help. This is still a beta. If
+you find a problem, please report it. I will investigate.
 
 If you want the longer version, the technical writeup is at [TECHNICAL WRITEUP URL].
 
 ### Privacy and network access
 
-There is no account, telemetry, or automatic crash upload. Preflight checks GitHub for updates. It
-doesn't install one unless you ask, and the update must pass its signature check.
+There is no account or ambient telemetry. Preflight checks GitHub for updates. It doesn't install
+one unless you ask, and the update must pass its signature check. Failed-run reports are a separate,
+remembered setting that starts off.
 
 If something breaks, the Help page can make a support ZIP. It shows you what is inside before you
 decide whether to send it. Saves, game assets, mod assets, screenshots, audio, and arbitrary logs

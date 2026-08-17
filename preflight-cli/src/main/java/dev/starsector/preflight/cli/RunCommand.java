@@ -199,6 +199,7 @@ final class RunCommand {
         }
 
         RunIdentity runIdentity = RunIdentity.capture(agentJar);
+        String launchId = LaunchIdentity.fresh();
         Files.createDirectories(runDirectory);
         if (logConfiguration != null) {
             QuietLogConfiguration.write(logConfiguration, options.quietLogs());
@@ -231,7 +232,7 @@ final class RunCommand {
         StarsectorRunLogEvidence.Snapshot logSnapshot = StarsectorRunLogEvidence.snapshot(target.installRoot());
         try {
             writeMetadata(
-                    metadata, target, command, runIdentity, started, null, null, null, outcome, null,
+                    metadata, target, command, runIdentity, launchId, started, null, null, null, null, outcome, null,
                     null, options, directSettings, textureContext, adapterReport, adapterAnalysis, console, null,
                     postprocessingFailures, null, combatJvmSafeguard);
 
@@ -244,7 +245,7 @@ final class RunCommand {
             builder.environment().put("PREFLIGHT_RUN_DIR", runDirectory.toString());
 
             try (LaunchHeartbeat ignored = LaunchHeartbeat.start(
-                    runDirectory, started, startedNanos,
+                    runDirectory, launchId, started, startedNanos,
                     textureContext == null ? null : textureContext.profileFingerprint());
                     DesktopRunEvents desktopEvents = DesktopRunEvents.watch(
                     adapterReport.resolveSibling("runtime-process.json"),
@@ -359,7 +360,8 @@ final class RunCommand {
             measuredElapsedMillis = Duration.ofNanos(System.nanoTime() - startedNanos).toMillis();
             try {
                 writeMetadata(
-                        metadata, target, command, runIdentity, started, ended, exitCode, launcherExitCode, outcome,
+                        metadata, target, command, runIdentity, launchId, started, ended,
+                        measuredElapsedMillis, exitCode, launcherExitCode, outcome,
                         lifecycleEvidence, collectCensus(census, postprocessingFailures),
                         options, directSettings, textureContext, adapterReport, adapterAnalysis,
                         console, childOutput, postprocessingFailures, executionFailure, combatJvmSafeguard);
@@ -371,7 +373,7 @@ final class RunCommand {
             // hundred bytes, so retention does not have to choose between forgetting last month and
             // carrying last month's diagnostics.
             String ledgerProblem = LaunchLedger.record(PreflightHome.current(), new LaunchLedger.Entry(
-                    LaunchIdentity.fresh(),
+                    launchId,
                     started,
                     measuredElapsedMillis,
                     outcome,
@@ -387,6 +389,8 @@ final class RunCommand {
             if (ledgerProblem != null) {
                 System.err.println("Preflight could not record this launch in its history: "
                         + ledgerProblem);
+            } else {
+                LaunchHeartbeat.complete(runDirectory, launchId);
             }
         }
     }
@@ -713,8 +717,10 @@ final class RunCommand {
             LaunchTarget target,
             List<String> command,
             RunIdentity runIdentity,
+            String launchId,
             Instant started,
             Instant ended,
+            Long elapsedMillis,
             Integer exitCode,
             Integer launcherExitCode,
             String outcome,
@@ -731,8 +737,13 @@ final class RunCommand {
             String executionFailure,
             CombatJvmSafeguard.Resolution combatJvmSafeguard) throws IOException {
         Map<String, Object> values = new LinkedHashMap<>();
+        ProcessHandle wrapper = ProcessHandle.current();
+        values.put("launchId", launchId);
+        values.put("wrapperPid", wrapper.pid());
+        values.put("wrapperStartedAt", wrapper.info().startInstant().orElse(null));
         values.put("started", started);
         values.put("ended", ended);
+        values.put("elapsedMillis", elapsedMillis);
         values.put("exitCode", exitCode);
         values.put("launcherExitCode", launcherExitCode);
         values.put("outcome", outcome);

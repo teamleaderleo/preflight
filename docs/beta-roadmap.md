@@ -113,7 +113,8 @@ Capture final screenshots after the interface stops moving. Add platform downloa
 download counts, checksum and OS-warning instructions, update/rollback/removal/privacy/support
 pages, and a readable optimization history. Forum, Reddit, README, and release notes use the same
 reviewed claims and state that Preflight is unofficial, needs a legitimate Starsector installation,
-falls back on uncertainty, and never uploads automatically.
+falls back on uncertainty, and sends no ordinary launch telemetry. If optional failed-run reports
+are enabled, say exactly what they send and that the setting starts off.
 
 Fractal Softworks' reply remains the external publication gate. It doesn't block the engineering
 and packaging work above.

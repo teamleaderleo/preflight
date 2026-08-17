@@ -12,6 +12,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -21,18 +23,37 @@ import java.util.concurrent.TimeUnit;
  * remain recoverable in the launch ledger and playtime totals.
  */
 final class LaunchHeartbeat implements AutoCloseable {
-    static final String FORMAT = "starsector-preflight-run-heartbeat-v1";
+    static final String FORMAT = "starsector-preflight-run-heartbeat-v2";
     static final String FILE_NAME = "heartbeat.json";
     static final long HEARTBEAT_INTERVAL_SECONDS = 30;
+    private static final long MAX_BYTES = 64 * 1024;
+    private static final long MAX_ELAPSED_MILLIS = Duration.ofDays(365).toMillis();
+    private static final Set<String> REQUIRED_FIELDS = Set.of(
+            "format", "launchId", "ownerPid", "ownerStartedAt", "started", "lastHeartbeat", "elapsedMillis");
+    private static final Set<String> ALLOWED_FIELDS = Set.of(
+            "format", "launchId", "ownerPid", "ownerStartedAt", "started", "lastHeartbeat",
+            "elapsedMillis", "profileFingerprint");
 
     private final Path runDirectory;
+    private final String launchId;
+    private final long ownerPid;
+    private final Instant ownerStartedAt;
     private final Instant started;
     private final long startedNanos;
     private final String profileFingerprint;
     private final ScheduledExecutorService scheduler;
 
-    private LaunchHeartbeat(Path runDirectory, Instant started, long startedNanos, String profileFingerprint) {
+    private LaunchHeartbeat(
+            Path runDirectory,
+            String launchId,
+            Instant started,
+            long startedNanos,
+            String profileFingerprint) {
         this.runDirectory = runDirectory;
+        this.launchId = requireLaunchId(launchId);
+        ProcessHandle owner = ProcessHandle.current();
+        this.ownerPid = owner.pid();
+        this.ownerStartedAt = owner.info().startInstant().orElse(null);
         this.started = started;
         this.startedNanos = startedNanos;
         this.profileFingerprint = profileFingerprint;
@@ -43,8 +64,17 @@ final class LaunchHeartbeat implements AutoCloseable {
         });
     }
 
-    static LaunchHeartbeat start(Path runDirectory, Instant started, long startedNanos, String profileFingerprint) {
-        LaunchHeartbeat heartbeat = new LaunchHeartbeat(runDirectory, started, startedNanos, profileFingerprint);
+    static LaunchHeartbeat start(
+            Path runDirectory,
+            String launchId,
+            Instant started,
+            long startedNanos,
+            String profileFingerprint) {
+        LaunchHeartbeat heartbeat = new LaunchHeartbeat(
+                runDirectory, launchId, started, startedNanos, profileFingerprint);
+        // A heartbeat is recovery bookkeeping. A platform that cannot expose the wrapper's exact
+        // process-start identity loses recovery for this run; it must never lose the launch.
+        if (heartbeat.ownerStartedAt == null) return heartbeat;
         heartbeat.write();
         heartbeat.scheduler.scheduleAtFixedRate(
                 heartbeat::write,
@@ -54,12 +84,16 @@ final class LaunchHeartbeat implements AutoCloseable {
         return heartbeat;
     }
 
-    void write() {
+    synchronized void write() {
+        if (ownerStartedAt == null) return;
         try {
             long elapsedMillis = Duration.ofNanos(System.nanoTime() - startedNanos).toMillis();
             Instant now = Instant.now();
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("format", FORMAT);
+            values.put("launchId", launchId);
+            values.put("ownerPid", ownerPid);
+            values.put("ownerStartedAt", ownerStartedAt);
             values.put("started", started.toString());
             values.put("lastHeartbeat", now.toString());
             values.put("elapsedMillis", elapsedMillis);
@@ -85,34 +119,87 @@ final class LaunchHeartbeat implements AutoCloseable {
             return null;
         }
         try {
+            if (Files.size(file) > MAX_BYTES) return null;
             String content = Files.readString(file, StandardCharsets.UTF_8);
             Map<String, Object> values = StrictJson.object(content);
             if (!FORMAT.equals(values.get("format"))) {
                 return null;
             }
-            Instant started = values.get("started") instanceof String s ? Instant.parse(s) : null;
-            Instant lastHeartbeat = values.get("lastHeartbeat") instanceof String s ? Instant.parse(s) : null;
-            Long elapsedMillis = values.get("elapsedMillis") instanceof Number n ? n.longValue() : null;
+            if (!ALLOWED_FIELDS.containsAll(values.keySet())
+                    || !values.keySet().containsAll(REQUIRED_FIELDS)) return null;
+            String launchId = values.get("launchId") instanceof String value
+                    ? requireLaunchId(value) : null;
+            Long ownerPid = integer(values.get("ownerPid"), 1L, Long.MAX_VALUE);
+            Instant ownerStartedAt = instant(values.get("ownerStartedAt"));
+            Instant started = instant(values.get("started"));
+            Instant lastHeartbeat = instant(values.get("lastHeartbeat"));
+            Long elapsedMillis = integer(values.get("elapsedMillis"), 0L, MAX_ELAPSED_MILLIS);
             String profile = values.get("profileFingerprint") instanceof String s ? s : null;
-            if (started == null || elapsedMillis == null || elapsedMillis < 0) {
+            if (launchId == null
+                    || ownerPid == null
+                    || ownerStartedAt == null
+                    || started == null
+                    || lastHeartbeat == null
+                    || elapsedMillis == null
+                    || (profile != null && (profile.isBlank() || profile.length() > 256))) {
                 return null;
             }
-            return new Record(started, lastHeartbeat, elapsedMillis, profile);
+            return new Record(
+                    launchId, ownerPid, ownerStartedAt, started, lastHeartbeat, elapsedMillis, profile);
         } catch (Exception unreadable) {
             return null;
         }
     }
 
-    record Record(Instant started, Instant lastHeartbeat, long elapsedMillis, String profileFingerprint) {
-    }
-
-    @Override
-    public void close() {
-        scheduler.shutdownNow();
+    static void complete(Path runDirectory, String launchId) {
+        Record record = read(runDirectory);
+        if (record == null || !record.launchId().equals(launchId)) return;
         try {
             Files.deleteIfExists(runDirectory.resolve(FILE_NAME));
             Files.deleteIfExists(runDirectory.resolve("." + FILE_NAME + ".tmp"));
         } catch (IOException ignored) {
         }
+    }
+
+    private static String requireLaunchId(String value) {
+        UUID parsed = UUID.fromString(value);
+        if (!parsed.toString().equals(value)) {
+            throw new IllegalArgumentException("Launch id is not canonical");
+        }
+        return value;
+    }
+
+    private static Instant instant(Object value) {
+        return value instanceof String text ? Instant.parse(text) : null;
+    }
+
+    private static Long integer(Object value, long minimum, long maximum) {
+        if (!(value instanceof Number number)
+                || number.doubleValue() != number.longValue()
+                || number.longValue() < minimum
+                || number.longValue() > maximum) return null;
+        return number.longValue();
+    }
+
+    record Record(
+            String launchId,
+            long ownerPid,
+            Instant ownerStartedAt,
+            Instant started,
+            Instant lastHeartbeat,
+            long elapsedMillis,
+            String profileFingerprint) {
+        boolean ownerAlive() {
+            ProcessHandle process = ProcessHandle.of(ownerPid).orElse(null);
+            return process != null
+                    && process.isAlive()
+                    && process.info().startInstant().filter(ownerStartedAt::equals).isPresent();
+        }
+    }
+
+    @Override
+    public void close() {
+        scheduler.shutdownNow();
+        write();
     }
 }

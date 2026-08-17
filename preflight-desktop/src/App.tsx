@@ -391,8 +391,9 @@ export default function App() {
           ? "Starsector closed normally. The run report is ready."
           : failedRunSummary(payload.detail);
         setRunFailure(payload.success ? null : { summary: outcome, detail: payload.detail });
-        if (!payload.success) {
-          void diagnostics.submitAutomaticFailedRunReport();
+        const game = snapshot?.selected?.installRoot;
+        if (!payload.success && game) {
+          void diagnostics.submitAutomaticFailedRunReport({ game, wrapperPid: payload.pid });
         }
         void refresh(snapshot?.selected?.installRoot).then((refreshed) => {
           if (refreshed) announceGame(outcome, payload.success ? "success" : "error");
@@ -428,7 +429,7 @@ export default function App() {
       stopListening();
       stopReconciliation();
     };
-  }, [announceGame, countFastLaunch, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
+  }, [announceGame, countFastLaunch, diagnostics.submitAutomaticFailedRunReport, refresh, snapshot?.ready, snapshot?.selected?.installRoot]);
 
   const chooseInstall = async (): Promise<boolean> => {
     if (choosingInstallRef.current) return false;

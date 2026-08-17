@@ -144,7 +144,8 @@ cleanup and removal never appear as equal-weight cards on this screen.
 - Keep Conservative and Off visible in the Preflight workspace and in targeted error states.
 - Never hide a declined optimization or vanilla fallback; summarize it first and expose exact
   adapter evidence on demand.
-- Don't add automatic telemetry, automatic report sending or surprise updates.
+- Don't add ambient telemetry or surprise updates. Failed-run reports remain a separate,
+  remembered, default-off choice using the same disclosed support ZIP.
 - Don't open a workflow with a card that restates the page title.
 - Keep the desktop shell fixed to its window. Advanced workspaces may scroll inside their bounded
   content region; Home shouldn't scroll at the standard desktop size.

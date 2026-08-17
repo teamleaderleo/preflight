@@ -7,6 +7,7 @@ export const SPEED_RECORD_STORAGE_KEY = "preflight.speedRecord";
 export const AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY = "preflight.afterLaunchBehavior";
 export const AUTOMATIC_UPDATE_CHECK_STORAGE_KEY = "preflight.automaticUpdateChecks";
 export const AUTOMATIC_RUN_REPORTS_STORAGE_KEY = "preflight.automaticRunReports";
+export const AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY = "preflight.automaticRunReportHistory.v1";
 export const INSTRUMENT_HULL_STORAGE_KEY = "preflight.instrumentHull";
 export const INSTRUMENT_HULL_TUNING_STORAGE_KEY = "preflight.instrumentHullTuning.v1";
 export const LAST_INSTALL_ROOT_STORAGE_KEY = "preflight.lastInstallRoot";
@@ -22,6 +23,7 @@ export const PREFLIGHT_LOCAL_STORAGE_KEYS = Object.freeze([
   AFTER_LAUNCH_BEHAVIOR_STORAGE_KEY,
   AUTOMATIC_UPDATE_CHECK_STORAGE_KEY,
   AUTOMATIC_RUN_REPORTS_STORAGE_KEY,
+  AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY,
   INSTRUMENT_HULL_STORAGE_KEY,
   INSTRUMENT_HULL_TUNING_STORAGE_KEY,
   LAST_INSTALL_ROOT_STORAGE_KEY,

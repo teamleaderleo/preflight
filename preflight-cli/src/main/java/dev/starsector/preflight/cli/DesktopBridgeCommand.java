@@ -441,6 +441,8 @@ final class DesktopBridgeCommand {
             if (run != null) {
                 result.put("started", run.get("started"));
                 result.put("ended", run.get("ended"));
+                result.put("wrapperPid", run.get("wrapperPid"));
+                result.put("wrapperStartedAt", run.get("wrapperStartedAt"));
                 result.put("outcome", run.get("outcome"));
                 result.put("exitCode", run.get("exitCode"));
             }
@@ -506,16 +508,39 @@ final class DesktopBridgeCommand {
             Map<String, Object> run = StrictJson.object(new String(encoded, StandardCharsets.UTF_8));
             String started = run.get("started") instanceof String value ? value : null;
             String ended = run.get("ended") instanceof String value ? value : null;
+            Long wrapperPid = positiveLong(run.get("wrapperPid"));
+            String wrapperStartedAt = validInstant(run.get("wrapperStartedAt"));
             String outcome = run.get("outcome") instanceof String value ? value : null;
             Long exitCode = run.get("exitCode") instanceof Number value ? value.longValue() : null;
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("started", started);
             result.put("ended", ended);
+            result.put("wrapperPid", wrapperPid);
+            result.put("wrapperStartedAt", wrapperStartedAt);
             result.put("outcome", outcome);
             result.put("exitCode", exitCode);
             return result;
         } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    private static Long positiveLong(Object value) {
+        if (!(value instanceof Number number)
+                || number.doubleValue() != number.longValue()
+                || number.longValue() <= 0L) {
+            return null;
+        }
+        return number.longValue();
+    }
+
+    private static String validInstant(Object value) {
+        if (!(value instanceof String text)) return null;
+        try {
+            Instant.parse(text);
+            return text;
+        } catch (RuntimeException invalid) {
             return null;
         }
     }

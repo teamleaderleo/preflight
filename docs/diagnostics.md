@@ -84,5 +84,6 @@ synthetic canary are complete. A production-origin macOS package has also comple
 consent, mid-stream cancellation with confirmed server cleanup, retry, receipt persistence and
 scoped deletion. The complete hosted candidate matrix still blocks enabling the origin in a
 distributed package.
-This isn't a general telemetry channel. Automatic crash upload—if ever added—will be a separate,
-default-off choice. See the [product contract](product-contract.md) and [Privacy](privacy.md).
+This isn't a general telemetry channel. Automatic failed-run reports are a separate, remembered,
+default-off choice. They send this same bounded ZIP only after an exact failed launch. See the
+[product contract](product-contract.md) and [Privacy](privacy.md).

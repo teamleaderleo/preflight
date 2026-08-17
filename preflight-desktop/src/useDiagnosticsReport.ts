@@ -1,15 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { save as saveFile } from "@tauri-apps/plugin-dialog";
 import {
   cancelRunReport,
   deleteRunReport,
+  exportAutomaticDiagnostics,
   exportDiagnostics,
+  getSnapshot,
   getReportIntakeStatus,
   isDesktopHost,
   sendRunReport,
 } from "./bridge";
 import { nativeCommandError } from "./nativeErrors";
-import { AUTOMATIC_RUN_REPORTS_STORAGE_KEY, REPORT_RECEIPT_STORAGE_KEY } from "./desktopStorage";
+import {
+  AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY,
+  AUTOMATIC_RUN_REPORTS_STORAGE_KEY,
+  REPORT_RECEIPT_STORAGE_KEY,
+} from "./desktopStorage";
 import { supportSafeReportReceipt } from "./supportReceipt";
 import type {
   DiagnosticsExport,
@@ -24,10 +30,79 @@ import { errorMessage, localDateStamp } from "./uiFormat";
 
 function savedAutomaticRunReports(): boolean {
   try {
-    return window.localStorage.getItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY) === "on";
+    const raw = window.localStorage.getItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY);
+    if (!raw) return false;
+    const consent = JSON.parse(raw) as Record<string, unknown>;
+    return consent.protocolVersion === 1
+      && consent.disclosureVersion === 1
+      && consent.enabled === true
+      && typeof consent.decidedAt === "string"
+      && Number.isFinite(Date.parse(consent.decidedAt));
   } catch {
     return false;
   }
+}
+
+function persistAutomaticRunReports(enabled: boolean): boolean {
+  try {
+    window.localStorage.setItem(AUTOMATIC_RUN_REPORTS_STORAGE_KEY, JSON.stringify({
+      protocolVersion: 1,
+      disclosureVersion: 1,
+      enabled,
+      decidedAt: new Date().toISOString(),
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function savedAutomaticReportIdentities(): string[] | null {
+  try {
+    const raw = window.localStorage.getItem(AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : null;
+    return parsed?.protocolVersion === 1 && Array.isArray(parsed.runIdentities)
+      ? parsed.runIdentities.filter((value): value is string => typeof value === "string").slice(0, 63)
+      : [];
+  } catch {
+    return null;
+  }
+}
+
+function claimAutomaticReport(runIdentity: string): boolean {
+  try {
+    const previous = savedAutomaticReportIdentities();
+    if (previous === null) return false;
+    if (previous.includes(runIdentity)) return false;
+    window.localStorage.setItem(AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY, JSON.stringify({
+      protocolVersion: 1,
+      runIdentities: [runIdentity, ...previous],
+    }));
+    return true;
+  } catch {
+    // Without durable deduplication, an event replay could upload the same run twice.
+    return false;
+  }
+}
+
+function failedRunIdentity(
+  run: Awaited<ReturnType<typeof getSnapshot>>["lastRun"],
+  wrapperPid: number,
+): { key: string; fileId: string } | null {
+  if (!run
+    || run.wrapperPid !== wrapperPid
+    || !run.started
+    || !run.wrapperStartedAt
+    || !run.outcome
+    || run.outcome === "RUNNING"
+    || run.outcome === "COMPLETED") return null;
+  const normalized = run.directory.replaceAll("\\", "/");
+  const fileId = normalized.split("/").filter(Boolean).at(-1) ?? "";
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(fileId)) return null;
+  return {
+    key: `${fileId}\n${run.wrapperPid}\n${run.wrapperStartedAt}\n${run.started}\n${run.outcome}`,
+    fileId,
+  };
 }
 
 function savedRunReportReceipt(): ReportReceipt | null {
@@ -81,17 +156,17 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [automaticRunReports, setAutomaticRunReports] = useState(savedAutomaticRunReports);
   const diagnosticsBusyRef = useRef(false);
   const reportUploadingRef = useRef(false);
+  const automaticReportRef = useRef(false);
+  const automaticRunReportsRef = useRef(automaticRunReports);
+  const reportIntakeRef = useRef(reportIntake);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        AUTOMATIC_RUN_REPORTS_STORAGE_KEY,
-        automaticRunReports ? "on" : "off",
-      );
-    } catch {
-      // Persistent storage denial keeps in-memory choice.
-    }
+    automaticRunReportsRef.current = automaticRunReports;
   }, [automaticRunReports]);
+
+  useEffect(() => {
+    reportIntakeRef.current = reportIntake;
+  }, [reportIntake]);
 
   useEffect(() => {
     try {
@@ -106,7 +181,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   }, [reportReceipt]);
 
   useEffect(() => {
-    if (!active || reportIntake !== null) return;
+    if ((!active && !automaticRunReports) || reportIntake !== null) return;
     let cancelled = false;
     void getReportIntakeStatus()
       .then((status) => {
@@ -120,7 +195,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     return () => {
       cancelled = true;
     };
-  }, [active, reportIntake]);
+  }, [active, automaticRunReports, reportIntake]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
@@ -199,7 +274,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   }, [announce]);
 
   const saveDiagnostics = async () => {
-    if (diagnosticsBusyRef.current || reportUploadingRef.current) return;
+    if (diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
     diagnosticsBusyRef.current = true;
     setDiagnosticsBusy(true);
     try {
@@ -228,7 +303,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   };
 
   const submitRunReport = async () => {
-    if (!diagnosticsExport || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current) return;
+    if (!diagnosticsExport || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
     reportUploadingRef.current = true;
     setReportUploading(true);
     setReportFinalizing(false);
@@ -311,33 +386,66 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     }
   };
 
-  const submitAutomaticFailedRunReport = async () => {
-    if (!automaticRunReports || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current) return;
-    reportUploadingRef.current = true;
-    setReportUploading(true);
-    setReportFinalizing(false);
-    setReportCancelling(false);
-    setReportUploadedBytes(0);
-    setReportError("");
+  const setAutomaticRunReportsSafely = useCallback((enabled: boolean) => {
+    if (!persistAutomaticRunReports(enabled)) {
+      announce("Preflight couldn’t save that choice, so automatic reports stay off.", "warning");
+      setAutomaticRunReports(false);
+      automaticRunReportsRef.current = false;
+      return;
+    }
+    automaticRunReportsRef.current = enabled;
+    setAutomaticRunReports(enabled);
+  }, [announce]);
+
+  const submitAutomaticFailedRunReport = useCallback(async ({
+    game,
+    wrapperPid,
+  }: {
+    game: string;
+    wrapperPid: number;
+  }) => {
+    if (!automaticRunReportsRef.current || diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
+    automaticReportRef.current = true;
+    let localZip = false;
     try {
-      const stamp = localDateStamp();
-      const destination = isDesktopHost()
-        ? `~/.starsector-preflight/reports/auto-failed-run-${stamp}.zip`
-        : `/Users/captain/Desktop/preflight-diagnostics-${stamp}.zip`;
-      const exported = await exportDiagnostics(destination);
+      let intake = reportIntakeRef.current;
+      if (intake === null) {
+        intake = await getReportIntakeStatus();
+        reportIntakeRef.current = intake;
+        setReportIntake(intake);
+      }
+      if (!intake.configured) return;
+      const latest = await getSnapshot(game).catch(() => null);
+      const identity = failedRunIdentity(latest?.lastRun ?? null, wrapperPid);
+      if (!identity) return;
+      const reported = savedAutomaticReportIdentities();
+      if (reported === null || reported.includes(identity.key)) return;
+      const exported = await exportAutomaticDiagnostics(identity.fileId);
+      localZip = true;
+      if (!claimAutomaticReport(identity.key)) return;
+      reportUploadingRef.current = true;
+      setReportUploading(true);
+      setReportFinalizing(false);
+      setReportCancelling(false);
+      setReportUploadedBytes(0);
+      setReportError("");
       setDiagnosticsExport(exported);
       const receipt = await sendRunReport(exported);
-      reportUploadingRef.current = false;
-      setReportUploading(false);
       setReportReceipt(receipt);
       announce("A failed-run support report was sent automatically. A receipt is saved in Help.", "info");
     } catch (error) {
+      setReportError(errorMessage(error));
+      announce(localZip
+        ? "Could not automatically send the failed-run report. The local diagnostics ZIP was kept."
+        : "Could not prepare the failed-run report. Nothing was sent.", "warning");
+    } finally {
       reportUploadingRef.current = false;
       setReportUploading(false);
-      setReportError(errorMessage(error));
-      announce("Could not automatically send the failed-run report. The local diagnostics ZIP was kept.", "warning");
+      setReportFinalizing(false);
+      setReportCancelling(false);
+      automaticReportRef.current = false;
     }
-  };
+  }, [announce]);
 
   return {
     automaticRunReports,
@@ -357,7 +465,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     dismissRunReportReceipt,
     removeRunReport,
     saveDiagnostics,
-    setAutomaticRunReports,
+    setAutomaticRunReports: setAutomaticRunReportsSafely,
     setReportReview,
     stopRunReport,
     submitAutomaticFailedRunReport,
