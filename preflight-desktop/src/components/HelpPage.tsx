@@ -104,7 +104,7 @@ export function HelpPage({
               : "Copy setup stays on your clipboard. Support files stay local until you choose Send."}</small>
           </div>
           <div className="report-actions">
-            <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={setupCopy.state === "copying"}>
+            <button className={`button ${setupCopy.state === "copied" ? "button--quiet" : "button--primary"} button--support`} type="button" onClick={() => void setupCopy.copySetup()} disabled={operationBlocked || setupCopy.state === "copying"}>
               {setupCopy.state === "copying" ? "Copying…" : setupCopy.state === "copied" ? "Setup copied" : "Copy setup"}
             </button>
             <button className="button button--quiet button--support" type="button" onClick={() => void saveDiagnostics()} disabled={operationBlocked || diagnosticsBusy || reportUploading}>
