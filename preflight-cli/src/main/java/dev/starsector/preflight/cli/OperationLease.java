@@ -47,6 +47,13 @@ final class OperationLease implements AutoCloseable {
         if (operation == null || !operation.matches("[a-z][a-z0-9-]{0,63}")) {
             throw new IllegalArgumentException("Invalid operation name: " + operation);
         }
+        Path root = home.root().toAbsolutePath().normalize();
+        if (REMOVE_ALL_OPERATION.equals(operation)) {
+            if (Files.exists(root, LinkOption.NOFOLLOW_LINKS) && !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IllegalStateException(
+                        "Preflight home directory is a symlink or alias (" + root + "). All-data removal is refused.");
+            }
+        }
         Path state = home.state().toAbsolutePath().normalize();
         refuseIncompleteRemoval(state, operation);
         Files.createDirectories(state);
@@ -168,7 +175,7 @@ final class OperationLease implements AutoCloseable {
     /** Deletes only PID-tagged atomic-write remnants inside Preflight's own root. */
     private static int removeInterruptedTemporaryFiles(Path root, long pid) {
         Path ownedRoot = root.toAbsolutePath().normalize();
-        if (!Files.isDirectory(ownedRoot)) return 0;
+        if (!Files.isDirectory(ownedRoot, LinkOption.NOFOLLOW_LINKS)) return 0;
         String marker = ".tmp-" + pid + "-";
         int removed = 0;
         try (var paths = Files.walk(ownedRoot)) {

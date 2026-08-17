@@ -74,4 +74,22 @@ class OperationLeaseTest {
             assertEquals("preparing", OperationLease.readOwner(home).operation());
         }
     }
+
+    @Test
+    void acquireRefusesRemoveAllOperationWhenRootIsSymlink() throws Exception {
+        Path outside = temporaryDirectory.resolve("outside");
+        Files.createDirectories(outside);
+        Path sensitiveFile = outside.resolve("keep.txt");
+        Files.writeString(sensitiveFile, "important data");
+
+        Path symlinkedHomeRoot = temporaryDirectory.resolve("symlink-home");
+        Files.createSymbolicLink(symlinkedHomeRoot, outside);
+
+        PreflightHome home = new PreflightHome(symlinkedHomeRoot, List.of());
+        IllegalStateException error = assertThrows(
+                IllegalStateException.class,
+                () -> OperationLease.acquire(home, OperationLease.REMOVE_ALL_OPERATION, null));
+        assertTrue(error.getMessage().contains("symlink or alias"), error.getMessage());
+        assertTrue(Files.isRegularFile(sensitiveFile));
+    }
 }

@@ -227,6 +227,91 @@ class UninstallCommandTest {
         assertFalse(output.contains(stale.substring(0, 16) + "  <- current"), output);
     }
 
+    @Test
+    void allDataRemovalRefusesSymlinkedHomeAndPreservesTargetContents() throws Exception {
+        Path outside = home.resolve("outside-unrelated");
+        Files.createDirectories(outside.resolve("important-data"));
+        Path sentinel = outside.resolve("important-data/document.txt");
+        Files.writeString(sentinel, "do not delete");
+
+        PreflightHome preflight = macHome();
+        Files.createSymbolicLink(preflight.root(), outside);
+
+        // Dry-run preview
+        ByteArrayOutputStream previewCaptured = new ByteArrayOutputStream();
+        try (PrintStream out = new PrintStream(previewCaptured, true, StandardCharsets.UTF_8)) {
+            int exitCode = UninstallCommand.run(preflight, UninstallCommand.Scope.ALL_DATA, false, false, out);
+            assertEquals(1, exitCode, "preview on symlinked root must return refusal code");
+        }
+        String previewOutput = previewCaptured.toString(StandardCharsets.UTF_8);
+        assertTrue(previewOutput.contains("symlink or alias"), previewOutput);
+        assertTrue(previewOutput.contains("All-data removal is refused"), previewOutput);
+        assertTrue(Files.isRegularFile(sentinel), "preview must not delete target files");
+
+        // Confirmed apply
+        ByteArrayOutputStream applyCaptured = new ByteArrayOutputStream();
+        try (PrintStream out = new PrintStream(applyCaptured, true, StandardCharsets.UTF_8)) {
+            int exitCode = UninstallCommand.run(preflight, UninstallCommand.Scope.ALL_DATA, true, false, out);
+            assertEquals(1, exitCode, "confirmed apply on symlinked root must be refused");
+        }
+        String applyOutput = applyCaptured.toString(StandardCharsets.UTF_8);
+        assertTrue(applyOutput.contains("symlink or alias"), applyOutput);
+        assertTrue(Files.isRegularFile(sentinel), "refused purge must not delete target files");
+        assertTrue(Files.isSymbolicLink(preflight.root()), "symlink itself must survive on refusal");
+    }
+
+    @Test
+    void symlinkToStarsectorInstallIsRefusedAndPreservesGameFiles() throws Exception {
+        Path game = home.resolve("Starsector.app");
+        Files.createDirectories(game.resolve("Contents/Resources/Java"));
+        Path gameJar = game.resolve("Contents/Resources/Java/starfarer_obf.jar");
+        Files.writeString(gameJar, "original game bytes");
+
+        PreflightHome preflight = macHome();
+        Files.createSymbolicLink(preflight.root(), game);
+
+        int exitCode = UninstallCommand.run(preflight, UninstallCommand.Scope.ALL_DATA, true, false, quiet());
+        assertEquals(1, exitCode);
+        assertTrue(Files.isRegularFile(gameJar), "game files must be preserved");
+        assertEquals("original game bytes", Files.readString(gameJar));
+    }
+
+    @Test
+    void nestedSymlinkInsideRealHomeDeletesOnlyTheLinkEntry() throws Exception {
+        Path outside = home.resolve("outside-target");
+        Files.createDirectories(outside);
+        Path externalFile = outside.resolve("preserved.txt");
+        Files.writeString(externalFile, "keep me");
+
+        PreflightHome preflight = macHome();
+        Files.createDirectories(preflight.root().resolve("cache"));
+        Files.writeString(preflight.root().resolve("cache/artifact"), "delete me");
+        Files.createSymbolicLink(preflight.root().resolve("linked-external"), outside);
+
+        int exitCode = UninstallCommand.run(preflight, UninstallCommand.Scope.ALL_DATA, true, false, quiet());
+        assertEquals(0, exitCode);
+        assertFalse(Files.exists(preflight.root()), "preflight home should be gone");
+        assertTrue(Files.isRegularFile(externalFile), "external target of nested symlink must survive untouched");
+        assertEquals("keep me", Files.readString(externalFile));
+    }
+
+    @Test
+    void allDataJsonPreviewReportsRefusalForSymlinkedHome() throws Exception {
+        Path outside = home.resolve("outside");
+        Files.createDirectories(outside);
+        PreflightHome preflight = macHome();
+        Files.createSymbolicLink(preflight.root(), outside);
+
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        try (PrintStream out = new PrintStream(captured, true, StandardCharsets.UTF_8)) {
+            int exitCode = UninstallCommand.run(preflight, UninstallCommand.Scope.ALL_DATA, false, true, out);
+            assertEquals(1, exitCode);
+        }
+        String json = captured.toString(StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"safe\":false"), json);
+        assertTrue(json.contains("symlink or alias"), json);
+    }
+
     private PreflightHome macHome() {
         return PreflightHome.resolve(Platform.MAC, home, Map.of());
     }
