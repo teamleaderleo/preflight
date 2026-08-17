@@ -56,6 +56,11 @@ final class SaveProfileObservation {
     static final Duration MISSING_RETENTION = Duration.ofDays(30);
     static final Duration POLL_INTERVAL = Duration.ofMillis(250);
 
+    static final int MAX_SAVES_PER_POLL = 400;
+    static final int MAX_ENTRIES_PER_SAVE = 512;
+    static final int MAX_SAVE_TREE_DEPTH = 6;
+    static final int MAX_AGGREGATE_ENTRIES_PER_POLL = 8_192;
+
     private SaveProfileObservation() {
     }
 
@@ -73,6 +78,10 @@ final class SaveProfileObservation {
             Context context = Context.from(builder);
             if (context == null) return Prepared.disabled();
             SessionIdentity identity = resolveIdentity(context);
+            if (identity == null) {
+                diagnostics.println("Preflight skipped local save/profile observation: exact launch profile fingerprint is unavailable");
+                return Prepared.disabled();
+            }
             return new Prepared(context, identity);
         } catch (Exception error) {
             diagnostics.println("Preflight could not prepare local save/profile observation: " + bounded(error));
@@ -89,7 +98,7 @@ final class SaveProfileObservation {
         try {
             Context context = prepared.context();
             Instant startedAt = Instant.now();
-            Map<String, SaveState> baseline = snapshot(context.installRoot(), context.caseInsensitivePaths());
+            Map<String, SaveState> baseline = snapshot(context.installRoot(), context.caseInsensitivePaths(), () -> true);
             Ledger ledger = new Ledger(context.home());
             ledger.reconcileBaseline(context.installationKey(), baseline, startedAt);
             Session session = new Session(
@@ -118,7 +127,7 @@ final class SaveProfileObservation {
             Instant startedAt,
             boolean caseInsensitivePaths) throws IOException {
         String installKey = pathKey(installRoot, caseInsensitivePaths);
-        Map<String, SaveState> baseline = snapshot(installRoot, caseInsensitivePaths);
+        Map<String, SaveState> baseline = snapshot(installRoot, caseInsensitivePaths, () -> true);
         Ledger ledger = new Ledger(home);
         ledger.reconcileBaseline(installKey, baseline, startedAt);
         return new Session(
@@ -263,7 +272,7 @@ final class SaveProfileObservation {
 
         synchronized void scanWhileOwned(BooleanSupplier stillOwned) throws IOException {
             if (finished.get() || !stillOwned.getAsBoolean()) return;
-            Map<String, SaveState> current = snapshot(installRoot, caseInsensitivePaths);
+            Map<String, SaveState> current = snapshot(installRoot, caseInsensitivePaths, stillOwned);
             // A poll that began before termination and finished after termination is discarded.
             if (!stillOwned.getAsBoolean()) return;
             detectChanges(current);
@@ -271,7 +280,7 @@ final class SaveProfileObservation {
 
         synchronized void finish(Instant endedAt) throws IOException {
             if (!finished.compareAndSet(false, true)) return;
-            Map<String, SaveState> finalState = snapshot(installRoot, caseInsensitivePaths);
+            Map<String, SaveState> finalState = snapshot(installRoot, caseInsensitivePaths, () -> true);
             detectChanges(finalState);
             List<SaveState> observed = changed.stream()
                     .map(finalState::get)
@@ -417,10 +426,7 @@ final class SaveProfileObservation {
     private static SessionIdentity resolveIdentity(Context context) throws Exception {
         String fingerprint = context.launchProfileFingerprint();
         if (fingerprint == null) {
-            fingerprint = ResourceIndexBuilder.build(
-                            context.installRoot(), ResourceIndexBuilder.DEFAULT_SCAN_WORKERS)
-                    .index()
-                    .profileFingerprint();
+            return null;
         }
         List<Path> gameJars = PrepareAudioCommand.jars(context.installRoot());
         String gameBuild = PrepareAudioCommand.starsectorBuildIdentity(gameJars);
@@ -482,19 +488,28 @@ final class SaveProfileObservation {
     private record SaveState(String key, String displayName, String token, Instant maxModified) {
     }
 
-    private static Map<String, SaveState> snapshot(Path installRoot, boolean caseInsensitivePaths) throws IOException {
+    private static Map<String, SaveState> snapshot(
+            Path installRoot,
+            boolean caseInsensitivePaths,
+            BooleanSupplier stillOwned) throws IOException {
         Path saves = installRoot.resolve("saves");
-        if (!Files.isDirectory(saves)) return Map.of();
+        if (!Files.isDirectory(saves) || !stillOwned.getAsBoolean()) return Map.of();
         Map<String, SaveState> states = new HashMap<>();
+        int[] aggregateWork = {0};
         try (var stream = Files.list(saves)) {
-            for (Path save : stream.filter(path -> Files.isDirectory(path, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            List<Path> candidates = stream.filter(path -> Files.isDirectory(path, java.nio.file.LinkOption.NOFOLLOW_LINKS))
                     .filter(path -> !Files.isSymbolicLink(path))
                     .sorted()
-                    .toList()) {
+                    .limit(MAX_SAVES_PER_POLL)
+                    .toList();
+            for (Path save : candidates) {
+                if (!stillOwned.getAsBoolean() || aggregateWork[0] >= MAX_AGGREGATE_ENTRIES_PER_POLL) break;
                 String displayName = boundedText(save.getFileName().toString(), 255);
                 String key = saveKey(displayName, caseInsensitivePaths);
-                SaveDigest digest = digestMetadata(save);
-                states.put(key, new SaveState(key, displayName, digest.token(), digest.maxModified()));
+                SaveDigest digest = digestMetadata(save, stillOwned, aggregateWork);
+                if (digest != null) {
+                    states.put(key, new SaveState(key, displayName, digest.token(), digest.maxModified()));
+                }
             }
         }
         return Map.copyOf(states);
@@ -503,26 +518,54 @@ final class SaveProfileObservation {
     private record SaveDigest(String token, Instant maxModified) {
     }
 
-    private static SaveDigest digestMetadata(Path saveRoot) throws IOException {
+    private static SaveDigest digestMetadata(
+            Path saveRoot,
+            BooleanSupplier stillOwned,
+            int[] aggregateWork) throws IOException {
         MessageDigest digest = sha256();
         Instant[] newest = {Instant.EPOCH};
-        Files.walkFileTree(saveRoot, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                if (!dir.equals(saveRoot) && attrs.isSymbolicLink()) return FileVisitResult.SKIP_SUBTREE;
-                updateDigest(digest, saveRoot.relativize(dir), attrs, (byte) 'D');
-                newest[0] = latest(newest[0], attrs.lastModifiedTime().toInstant());
-                return FileVisitResult.CONTINUE;
-            }
+        int[] saveEntries = {0};
+        boolean[] overBudget = {false};
 
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                if (attrs.isSymbolicLink()) return FileVisitResult.CONTINUE;
-                updateDigest(digest, saveRoot.relativize(file), attrs, (byte) 'F');
-                newest[0] = latest(newest[0], attrs.lastModifiedTime().toInstant());
-                return FileVisitResult.CONTINUE;
-            }
-        });
+        Files.walkFileTree(
+                saveRoot,
+                Set.of(),
+                MAX_SAVE_TREE_DEPTH,
+                new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                        if (!stillOwned.getAsBoolean()) return FileVisitResult.TERMINATE;
+                        if (!dir.equals(saveRoot) && attrs.isSymbolicLink()) return FileVisitResult.SKIP_SUBTREE;
+                        saveEntries[0]++;
+                        aggregateWork[0]++;
+                        if (saveEntries[0] > MAX_ENTRIES_PER_SAVE || aggregateWork[0] > MAX_AGGREGATE_ENTRIES_PER_POLL) {
+                            overBudget[0] = true;
+                            return FileVisitResult.TERMINATE;
+                        }
+                        updateDigest(digest, saveRoot.relativize(dir), attrs, (byte) 'D');
+                        newest[0] = latest(newest[0], attrs.lastModifiedTime().toInstant());
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        if (!stillOwned.getAsBoolean()) return FileVisitResult.TERMINATE;
+                        if (attrs.isSymbolicLink()) return FileVisitResult.CONTINUE;
+                        saveEntries[0]++;
+                        aggregateWork[0]++;
+                        if (saveEntries[0] > MAX_ENTRIES_PER_SAVE || aggregateWork[0] > MAX_AGGREGATE_ENTRIES_PER_POLL) {
+                            overBudget[0] = true;
+                            return FileVisitResult.TERMINATE;
+                        }
+                        updateDigest(digest, saveRoot.relativize(file), attrs, (byte) 'F');
+                        newest[0] = latest(newest[0], attrs.lastModifiedTime().toInstant());
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+
+        if (overBudget[0] || !stillOwned.getAsBoolean()) {
+            return null;
+        }
         return new SaveDigest(hex(digest.digest()), newest[0]);
     }
 
