@@ -43,10 +43,7 @@ test("clipboard failure retains the exact generated summary and retry does not r
   const writeText = vi.fn()
     .mockRejectedValueOnce(new Error("clipboard denied"))
     .mockResolvedValueOnce(undefined);
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText },
-  });
+  installClipboard(writeText);
 
   const { result } = renderHook(() => useCopySetup("recommended"));
 
@@ -78,3 +75,49 @@ test("clipboard failure retains the exact generated summary and retry does not r
   expect(getLaunchSettings).toHaveBeenCalledTimes(1);
   expect(getCacheInspection).toHaveBeenCalledTimes(1);
 });
+
+test("failed profile read reports unavailable mods even when cache fingerprint is available", async () => {
+  vi.mocked(getProfiles).mockRejectedValue(new Error("profile unavailable"));
+  vi.mocked(getCacheInspection).mockResolvedValue({
+    cache: { currentProfileFingerprint: "cache-profile" },
+    health: { status: "ready", profileFingerprint: "cache-profile" },
+  } as unknown as Awaited<ReturnType<typeof getCacheInspection>>);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  installClipboard(writeText);
+
+  const { result } = renderHook(() => useCopySetup("recommended"));
+  await act(async () => {
+    await result.current.copySetup();
+  });
+
+  expect(result.current.state).toBe("copied");
+  expect(result.current.text).toContain("Profile fingerprint: cache-profile\n");
+  expect(result.current.text).toContain("Enabled mods: unavailable\n");
+  expect(result.current.text).not.toContain("Enabled mods: 0\n");
+  expect(writeText).toHaveBeenCalledWith(result.current.text);
+});
+
+test("successful empty profile read remains an observed zero-mod setup", async () => {
+  vi.mocked(getProfiles).mockResolvedValue({
+    enabledMods: [],
+    profiles: [],
+  } as Awaited<ReturnType<typeof getProfiles>>);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  installClipboard(writeText);
+
+  const { result } = renderHook(() => useCopySetup("recommended"));
+  await act(async () => {
+    await result.current.copySetup();
+  });
+
+  expect(result.current.state).toBe("copied");
+  expect(result.current.text).toContain("Enabled mods: 0\n");
+  expect(result.current.text).not.toContain("Enabled mods: unavailable\n");
+});
+
+function installClipboard(writeText: ReturnType<typeof vi.fn>) {
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+}
