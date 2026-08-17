@@ -1,6 +1,6 @@
 import type { CacheHealth, DesktopSnapshot, OptimizationPreset } from "./types";
 
-export const COPY_SETUP_FORMAT = "preflight-copy-setup-v1" as const;
+export const COPY_SETUP_VERSION = 1 as const;
 export const COPY_SETUP_MAX_MODS = 96;
 
 const MAX_VERSION_CHARS = 64;
@@ -42,7 +42,7 @@ export interface CopySetupObservations {
 }
 
 export interface CopySetupPublicSummary {
-  format: typeof COPY_SETUP_FORMAT;
+  version: typeof COPY_SETUP_VERSION;
   preflightVersion: string;
   platform: DesktopSnapshot["platform"];
   starsectorReady: boolean;
@@ -91,7 +91,7 @@ export function createCopySetupSummary(observations: CopySetupObservations): Cop
   const boundedMods = mods.slice(0, COPY_SETUP_MAX_MODS);
 
   return {
-    format: COPY_SETUP_FORMAT,
+    version: COPY_SETUP_VERSION,
     preflightVersion: boundedLine(observations.preflightVersion, MAX_VERSION_CHARS),
     platform: observations.platform,
     starsectorReady: observations.starsectorReady,
@@ -128,10 +128,10 @@ export function createCopySetupText(observations: CopySetupObservations): string
   return formatCopySetupSummary(createCopySetupSummary(observations));
 }
 
-export function formatCopySetupSummary(summary: CopySetupPublicSummary): string {
+function formatCopySetupSummary(summary: CopySetupPublicSummary): string {
   const lines = [
     "Preflight setup (public)",
-    `Format: ${summary.format}`,
+    `Summary version: ${summary.version}`,
     `Preflight: ${summary.preflightVersion || "unknown"}`,
     `Platform: ${summary.platform}`,
     `Starsector detected: ${summary.starsectorReady ? "yes" : "no"}`,
