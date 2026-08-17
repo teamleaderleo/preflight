@@ -113,7 +113,7 @@ final class SaveProfileObservationContainmentTest {
                 home, secondInstall, identity("second-profile"), started, false);
         Files.writeString(firstInstall.resolve("saves/first-save/save.dat"), "first changed");
         Files.writeString(secondInstall.resolve("saves/second-save/save.dat"), "second changed");
-        Instant ended = started.plusSeconds(1);
+        Instant ended = Instant.now().plusSeconds(1);
 
         var workers = Executors.newFixedThreadPool(2);
         try {
