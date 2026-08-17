@@ -61,7 +61,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
     <div className="hangar-page">
       <section className="card hangar-stage" aria-label="Selected display ship">
         <div className="hangar-stage__instrument">
-          <FlightInstrument hull={instrumentHull.selected} />
+          <FlightInstrument hull={instrumentHull.selected} variant="stage" />
         </div>
         <div className="hangar-stage__caption">
           <h2>{instrumentHull.selected.name}</h2>

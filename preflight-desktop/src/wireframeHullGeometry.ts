@@ -12,20 +12,56 @@ export interface HullSegment {
   kind: "outline" | "deck" | "keel" | "structure" | "engine";
 }
 
+/** A projected point carries its view depth, which is what shades the wireframe. */
+export interface ProjectedPoint extends WireframePoint {
+  depth: number;
+}
+
 export interface ProjectedHull {
-  segments: Array<{ from: WireframePoint; to: WireframePoint; kind: HullSegment["kind"] }>;
-  deck: WireframePoint[];
-  mounts: Array<WireframePoint & { size: "MEDIUM" | "LARGE" }>;
+  segments: Array<{ from: ProjectedPoint; to: ProjectedPoint; kind: HullSegment["kind"] }>;
+  deck: ProjectedPoint[];
+  mounts: Array<ProjectedPoint & { size: "MEDIUM" | "LARGE" }>;
+  /** The reference grid on the keel plane, projected with everything else. */
+  ground: Array<{ from: ProjectedPoint; to: ProjectedPoint }>;
+  /** The bow, so the one bright marker knows where to sit. */
+  nose: ProjectedPoint | null;
 }
 
 type HullDetail = "small" | "medium" | "showcase";
 
-interface PreparedHull {
+/**
+ * The camera, copied from the prototype rather than re-derived.
+ *
+ * Pitched well over toward plan view on purpose: the silhouette is the only faithful part of any
+ * of this, so the camera favours it. The sign is the whole ballgame -- the camera sits above, so
+ * after the pitch a deck point lands higher than the keel under it. Negative parks the camera
+ * under the hull looking up through the grid.
+ */
+const PITCH = 0.62;
+/** Eye distance for the perspective divide, in the normalised frame `fit` maps every hull into. */
+const EYE = 7.6;
+/** Half-extent every hull's longest planar axis is fitted to, so one EYE frames all six. */
+const REACH = 0.95;
+
+/** What a builder produces: the topology, before the camera knows anything about it. */
+interface HullModel {
   segments: HullSegment[];
   deck: HullVertex[];
   mounts: Array<HullVertex & { size: "MEDIUM" | "LARGE" }>;
 }
 
+interface PreparedHull extends HullModel {
+  /** Scale into the normalised frame, and the hull's own middle, so perspective stays even. */
+  fit: number;
+  centre: HullVertex;
+  /** Where the keel plane sits, for the ground grid to be drawn on. */
+  groundZ: number;
+  nose: HullVertex | null;
+}
+
+// A selected hull is immutable for the lifetime of the renderer. Its drafting topology is much
+// more expensive than rotating that topology, so retain one model per display detail instead of
+// rebuilding rings, the raised deck and nearest-outline braces on every animation frame.
 const preparedHulls = new WeakMap<WireframeHull, Map<HullDetail, PreparedHull>>();
 
 export const DEFAULT_WIREFRAME_TUNING: Readonly<WireframeTuning> = Object.freeze({
@@ -112,7 +148,7 @@ function tunedHull(hull: WireframeHull): WireframeHull {
   return bounds === hull.bounds ? hull : { ...hull, bounds };
 }
 
-/** A shared raised cabin keeps the source silhouette legible instead of inventing ship-specific depth. */
+/** A shared raised cabin keeps the source silhouette legible instead of duplicating every notch. */
 function buildDeck(hull: WireframeHull): HullVertex[] {
   const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
   const midY = (minY + maxY) / 2;
@@ -129,6 +165,11 @@ function buildDeck(hull: WireframeHull): HullVertex[] {
   ];
 }
 
+/**
+ * Turns Starsector's authoritative plan-view silhouette into a restrained drafting model.
+ * The deck and keel are deliberately generic: Preflight doesn't claim the flat source defines a
+ * canon third axis, and one shared loft keeps mod hulls from needing hand-authored meshes.
+ */
 function buildSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
   if (hull.bounds.length < 3) return [];
   const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
@@ -143,7 +184,11 @@ function buildSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
       const bestDistance = (best.x - point.x) ** 2 + (best.y - point.y) ** 2;
       return distance < bestDistance ? candidate : best;
     });
-    return { from: nearest, to: point, kind: "structure" as const };
+    return {
+      from: nearest,
+      to: point,
+      kind: "structure" as const,
+    };
   });
   const segments = [
     ...ring(outline, "outline"),
@@ -192,7 +237,7 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
 
   const effectiveHull = tunedHull(hull);
   const { extent } = hullFrame(effectiveHull);
-  const prepared = {
+  const built = {
     segments: buildSegments(effectiveHull, detail),
     deck: buildDeck(effectiveHull),
     mounts: detail === "small" ? [] : effectiveHull.mounts.map((mount) => ({
@@ -201,7 +246,40 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
       z: extent * 0.18 * (effectiveHull.tuning?.height ?? 1),
       size: mount.size,
     })),
-  } satisfies PreparedHull;
+  } satisfies HullModel;
+
+  /*
+   * Fit every hull into one normalised frame. A stubby Hammerhead and a long Conquest have very
+   * different extents, and without this each would need its own eye distance to avoid either
+   * flattening out or bulging through the near plane.
+   */
+  const vertices = built.segments.flatMap((segment) => [segment.from, segment.to]);
+  const span = (axis: "x" | "y" | "z") => {
+    const values = vertices.map((vertex) => vertex[axis]);
+    return { low: Math.min(...values), high: Math.max(...values) };
+  };
+  const along = span("x");
+  const across = span("y");
+  const up = span("z");
+  const centre = {
+    x: (along.low + along.high) / 2,
+    y: (across.low + across.high) / 2,
+    z: (up.low + up.high) / 2,
+  };
+  const reach = Math.max(along.high - along.low, across.high - across.low, 1) / 2;
+  const fit = REACH / reach;
+  const prepared: PreparedHull = {
+    ...built,
+    fit,
+    centre,
+    // A hand's width under the keel, so the grid reads as a floor rather than a section cut.
+    groundZ: up.low - centre.z - 0.16 / fit,
+    nose: vertices.reduce<HullVertex | null>(
+      (best, vertex) => (!best || vertex.x > best.x ? vertex : best),
+      null,
+    ),
+  };
+
   let details = preparedHulls.get(hull);
   if (!details) {
     details = new Map();
@@ -211,22 +289,71 @@ function prepareHull(hull: WireframeHull, detail: HullDetail): PreparedHull {
   return prepared;
 }
 
-function project(vertex: HullVertex, yaw: number): WireframePoint {
-  const cosine = Math.cos(yaw);
-  const sine = Math.sin(yaw);
-  const forward = vertex.x * cosine - vertex.y * sine;
-  const lateral = vertex.x * sine + vertex.y * cosine;
-  return { x: lateral, y: -forward * 0.62 - vertex.z };
+/**
+ * Yaw about the vertical, then pitch the camera over the top, then a perspective divide.
+ *
+ * The depth that comes back out is the point of it: near edges are drawn brighter, heavier and
+ * last, which is the whole reason a flat wireframe reads as a solid at all.
+ */
+function projector(prepared: PreparedHull, yaw: number, pitch: number) {
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const cosPitch = Math.cos(pitch);
+  const sinPitch = Math.sin(pitch);
+  const { fit, centre } = prepared;
+  return (vertex: HullVertex): ProjectedPoint => {
+    const across = (vertex.y - centre.y) * fit;
+    const up = (vertex.z - centre.z) * fit;
+    const along = (vertex.x - centre.x) * fit;
+    const screenX = across * cosYaw - along * sinYaw;
+    const yawed = across * sinYaw + along * cosYaw;
+    const screenY = up * cosPitch - yawed * sinPitch;
+    const depth = up * sinPitch + yawed * cosPitch;
+    const scale = EYE / (EYE - depth);
+    return { x: screenX * scale, y: -screenY * scale, depth };
+  };
 }
 
-export function projectHull(hull: WireframeHull, yaw: number, detail: HullDetail): ProjectedHull {
+export function projectHull(
+  hull: WireframeHull,
+  yaw: number,
+  detail: HullDetail,
+  pitch: number = PITCH,
+): ProjectedHull {
   const prepared = prepareHull(hull, detail);
+  const project = projector(prepared, yaw, pitch);
   const segments = prepared.segments.map((segment) => ({
-    from: project(segment.from, yaw),
-    to: project(segment.to, yaw),
+    from: project(segment.from),
+    to: project(segment.to),
     kind: segment.kind,
   }));
-  const deck = prepared.deck.map((point) => project(point, yaw));
-  const mounts = prepared.mounts.map((mount) => ({ ...project(mount, yaw), size: mount.size }));
-  return { segments, deck, mounts };
+
+  /*
+   * A reference grid on the keel plane. It is the one thing that says the ship is standing
+   * somewhere rather than floating in a swatch, and because it is projected with the same camera
+   * it turns with the hull instead of sliding behind it like a backdrop.
+   */
+  const ground: ProjectedHull["ground"] = [];
+  const reach = 1.25 / prepared.fit;
+  const steps = detail === "small" ? 0 : detail === "medium" ? 3 : 4;
+  const floor = prepared.groundZ + prepared.centre.z;
+  for (let step = -steps; step <= steps; step += 1) {
+    const at = step / Math.max(steps, 1) * reach;
+    ground.push({
+      from: project({ x: at + prepared.centre.x, y: -reach + prepared.centre.y, z: floor }),
+      to: project({ x: at + prepared.centre.x, y: reach + prepared.centre.y, z: floor }),
+    });
+    ground.push({
+      from: project({ x: -reach + prepared.centre.x, y: at + prepared.centre.y, z: floor }),
+      to: project({ x: reach + prepared.centre.x, y: at + prepared.centre.y, z: floor }),
+    });
+  }
+
+  return {
+    segments,
+    deck: prepared.deck.map(project),
+    mounts: prepared.mounts.map((mount) => ({ ...project(mount), size: mount.size })),
+    ground,
+    nose: prepared.nose ? project(prepared.nose) : null,
+  };
 }
