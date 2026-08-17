@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,12 +18,10 @@ final class SupportEvidenceProjection {
     static final int MAX_FIELD_PATH_CHARS = 256;
     private static final int MAX_SOURCE_DEPTH = 12;
     private static final int MAX_ARRAY_ITEMS = 256;
+    private static final List<String> SECRET_MARKERS = List.of(
+            "token=", "token:", "secret=", "secret:", "password=", "password:",
+            "authorization:", "bearer ", "api_key=", "api-key=", "apikey=");
 
-    /**
-     * Exact field-name vocabulary that support bundles may carry. Every non-numeric path segment
-     * must appear here, including container segments. Deliberately omit path/file/root/directory,
-     * command-line, log, stack, environment, token, receipt, key, URL, and free-form content names.
-     */
     private static final Set<String> ALLOWED_SEGMENTS = Set.of(
             "active", "adapter", "adapterHealth", "adapters", "architecture", "available",
             "averageFps", "battleSize", "benchmark", "benchmarks", "bytes", "cache", "cacheHit",
@@ -136,16 +135,39 @@ final class SupportEvidenceProjection {
         if (!(value instanceof String text)) return false;
         return text.length() <= MAX_STRING_CHARS
                 && text.chars().noneMatch(character -> character < 0x20 || character == 0x7f)
-                && !looksLikeAbsolutePath(text);
+                && !containsSensitiveLocatorOrSecret(text);
     }
 
-    private static boolean looksLikeAbsolutePath(String text) {
-        String value = text.trim();
-        if (value.startsWith("<home>")) return false;
-        if (value.startsWith("/") || value.startsWith("\\\\") || value.startsWith("file:")) return true;
-        return value.length() >= 3
-                && Character.isLetter(value.charAt(0))
-                && value.charAt(1) == ':'
-                && (value.charAt(2) == '\\' || value.charAt(2) == '/');
+    private static boolean containsSensitiveLocatorOrSecret(String text) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (lower.contains("http://") || lower.contains("https://") || lower.contains("file:")) return true;
+        if (SECRET_MARKERS.stream().anyMatch(lower::contains)) return true;
+        for (int index = 0; index < text.length(); index++) {
+            char current = text.charAt(index);
+            if (current == '/' && locatorBoundary(text, index)
+                    && index + 1 < text.length()
+                    && text.charAt(index + 1) != '/'
+                    && !Character.isWhitespace(text.charAt(index + 1))) {
+                return true;
+            }
+            if (current == '\\' && index + 1 < text.length()
+                    && text.charAt(index + 1) == '\\'
+                    && locatorBoundary(text, index)) {
+                return true;
+            }
+            if (Character.isLetter(current) && index + 2 < text.length()
+                    && text.charAt(index + 1) == ':'
+                    && (text.charAt(index + 2) == '\\' || text.charAt(index + 2) == '/')
+                    && locatorBoundary(text, index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean locatorBoundary(String text, int index) {
+        if (index == 0) return true;
+        char previous = text.charAt(index - 1);
+        return Character.isWhitespace(previous) || "\"'`([{<,;=:+!?".indexOf(previous) >= 0;
     }
 }
