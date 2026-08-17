@@ -113,7 +113,16 @@ export function HelpPage({
             {diagnosticsExport ? <button className="button button--primary" type="button" onClick={() => setReportReview(true)} disabled={!reportIntake?.configured || reportUploading || reportReceipt !== null}>{reportReceipt ? "Receipt below" : "Review and send"}</button> : null}
           </div>
         </div>
-        {setupCopy.state === "error" ? <p className="report-unavailable" role="alert"><ShieldIcon /> Clipboard access failed. Try Copy setup again or use the separate support file action.</p> : null}
+        {setupCopy.state === "error" && setupCopy.text ? (
+          <div className="report-recovery" role="alert">
+            <strong>Clipboard access failed</strong>
+            <p>The public-safe summary is still available below. Select and copy it manually, or retry the same summary without rescanning your setup.</p>
+            <textarea aria-label="Copy setup summary" readOnly rows={10} value={setupCopy.text} />
+            <button className="button button--quiet button--compact" type="button" onClick={() => void setupCopy.retryCopySetup()}>Try clipboard again</button>
+          </div>
+        ) : setupCopy.state === "error" ? (
+          <p className="report-unavailable" role="alert"><ShieldIcon /> Preflight couldn’t build the setup summary. Try Copy setup again or use the separate support file action.</p>
+        ) : null}
 
         <details className="settings-disclosure support-contents">
           <summary><span><strong>What’s inside?</strong><small>Included and left out</small></span></summary>
