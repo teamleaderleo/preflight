@@ -117,14 +117,25 @@ final class LaunchLedgerBackfill {
             return null;
         }
         Instant ended = instant(values.get("ended"));
+        Long elapsedMillis = null;
+        String outcome = values.get("outcome") instanceof String o ? o : null;
+        if (ended != null) {
+            elapsedMillis = Duration.between(started, ended).toMillis();
+        } else {
+            LaunchHeartbeat.Record heartbeat = LaunchHeartbeat.read(directory);
+            if (heartbeat != null && heartbeat.elapsedMillis() > 0) {
+                elapsedMillis = heartbeat.elapsedMillis();
+                outcome = "INTERRUPTED";
+            }
+        }
         Object lifecycle = values.get("lifecycleEvidence");
         boolean fatal = lifecycle instanceof Map<?, ?> evidence
                 && Boolean.TRUE.equals(evidence.get("fatalDetected"));
         return new LaunchLedger.Entry(
                 LaunchIdentity.imported(started, name),
                 started,
-                ended == null ? null : Duration.between(started, ended).toMillis(),
-                values.get("outcome") instanceof String outcome ? outcome : null,
+                elapsedMillis,
+                outcome,
                 values.get("exitCode") instanceof Number code ? code.intValue() : null,
                 fatal,
                 values.get("optimizationPreset") instanceof String preset ? preset : null,

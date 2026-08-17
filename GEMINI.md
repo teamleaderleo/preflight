@@ -34,6 +34,12 @@
 - **Settings Toggle**: Added "Send failed-run reports automatically" checkbox in `SettingsPage.tsx` with clear privacy disclosures and intake capability gating.
 - **Automated Single-Flight Export**: On failed launch process completion, triggers a single disclosed diagnostics bundle export and upload without blocking application shutdown or retrying infinitely on failure.
 
+### Interrupted-Session Playtime Durability ([#484](https://github.com/teamleaderleo/preflight/issues/484))
+- **Heartbeat Daemon**: Added [`LaunchHeartbeat.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchHeartbeat.java) to periodically record in-flight duration to `heartbeat.json` via atomic rename while the game process is running.
+- **Interrupted Session Recovery**: Updated [`LaunchLedgerBackfill.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchLedgerBackfill.java) to recover unfinalized (`ended == null`) runs as `"INTERRUPTED"` with the durable heartbeat duration.
+- **Playtime Inclusion**: Added `"INTERRUPTED"` to [`Playtime.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/Playtime.java) session aggregation so ungraceful shutdowns and power-loss events retain their earned playtime hours.
+- **Verification**: Added unit tests in `LaunchHeartbeatTest.java` and `LaunchLedgerBackfillTest.java`.
+
 ### Free-Space-Pressure Cache Eviction ([#477](https://github.com/teamleaderleo/preflight/issues/477))
 - **Safety Reserve**: Added `AUTOMATIC_FREE_SPACE_THRESHOLD_BYTES = 5 GiB` to `useAutomaticMaintenance.ts`.
 - **Dual Trigger**: Evaluates unreachable cache profile pruning when either cache size exceeds the 12 GiB limit OR available free disk space falls under 5 GiB while cache is non-empty.

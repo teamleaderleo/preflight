@@ -89,6 +89,30 @@ class LaunchLedgerBackfillTest {
     }
 
     @Test
+    void anInterruptedLaunchWithHeartbeatIsRecoveredWithDuration() throws IOException {
+        PreflightHome home = new PreflightHome(root, List.of());
+        Path dir = Files.createDirectories(root.resolve("runs").resolve("20260817-010000-000-interrupted"));
+        Files.writeString(
+                dir.resolve("run.json"),
+                "{\"started\":\"2026-08-17T01:00:00Z\",\"ended\":null,\"outcome\":\"RUNNING\"}",
+                StandardCharsets.UTF_8);
+        Files.writeString(
+                dir.resolve("heartbeat.json"),
+                "{\"format\":\"starsector-preflight-run-heartbeat-v1\","
+                        + "\"started\":\"2026-08-17T01:00:00Z\","
+                        + "\"lastHeartbeat\":\"2026-08-17T03:30:00Z\","
+                        + "\"elapsedMillis\":9000000}",
+                StandardCharsets.UTF_8);
+
+        assertEquals(1, LaunchLedgerBackfill.runOnce(home));
+        LaunchLedger.Entry entry = LaunchLedger.read(home).get(0);
+        assertEquals("INTERRUPTED", entry.outcome());
+        assertEquals(9000000L, entry.elapsedMillis());
+        assertEquals(1, Playtime.of(List.of(entry)).launches(), "interrupted launch duration counts");
+        assertEquals(9000000L, Playtime.of(List.of(entry)).totalMillis());
+    }
+
+    @Test
     void simultaneousBackfillsCannotDuplicateARecordedLaunch() throws Exception {
         PreflightHome home = new PreflightHome(root, List.of());
         writeRun("20260719-072149-398-aaaaaaaa", "2026-07-19T07:21:49Z", "2026-07-19T09:21:49Z");

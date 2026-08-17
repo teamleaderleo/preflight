@@ -243,7 +243,10 @@ final class RunCommand {
             }
             builder.environment().put("PREFLIGHT_RUN_DIR", runDirectory.toString());
 
-            try (DesktopRunEvents desktopEvents = DesktopRunEvents.watch(
+            try (LaunchHeartbeat ignored = LaunchHeartbeat.start(
+                    runDirectory, started, startedNanos,
+                    textureContext == null ? null : textureContext.profileFingerprint());
+                    DesktopRunEvents desktopEvents = DesktopRunEvents.watch(
                     adapterReport.resolveSibling("runtime-process.json"),
                     System.getenv(),
                     System.err)) {

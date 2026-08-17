@@ -71,7 +71,7 @@ final class Playtime {
     private static boolean isGameSession(String outcome) {
         if (outcome == null) return false;
         return switch (outcome) {
-            case "COMPLETED", "FATAL_LOG_EVIDENCE", "LAUNCHER_EXIT_NONZERO", "PREFLIGHT_FAILED" -> true;
+            case "COMPLETED", "FATAL_LOG_EVIDENCE", "LAUNCHER_EXIT_NONZERO", "PREFLIGHT_FAILED", "INTERRUPTED" -> true;
             default -> false;
         };
     }
