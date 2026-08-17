@@ -17,6 +17,9 @@ export function removalOperationReason(operation: OperationSnapshot): string | n
   if (operation.reportUploadId !== null) {
     return "Wait for the run report upload to finish or cancel it before removing Preflight data.";
   }
+  if (operation.diagnosticsExporting) {
+    return "Wait for the support file to finish before removing Preflight data.";
+  }
   if (operation.updateInstalling) return "Wait for the Preflight update to finish installing.";
   return null;
 }
@@ -28,6 +31,9 @@ export function updateInstallOperationReason(operation: OperationSnapshot): stri
   }
   if (operation.reportUploadId !== null) {
     return "Wait for the run report upload to finish or cancel it before installing an update.";
+  }
+  if (operation.diagnosticsExporting) {
+    return "Wait for the support file to finish before installing an update.";
   }
   if (operation.updateChecking) {
     return "Wait for the current update check to finish before installing an update.";
