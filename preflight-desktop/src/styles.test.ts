@@ -93,8 +93,15 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.preferences-card,[\s\S]*?grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.home-fact > small\s*\{[^}]*display:\s*none;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
-  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 681px\)[\s\S]*?\.hangar-stage\s*\{[^}]*min-height:\s*390px;/);
+  expect(styles).toMatch(/@media \(max-height: 760px\) and \(min-width: 761px\)[\s\S]*?\.hangar-display\s*\{[^}]*min-height:\s*560px;/);
   expect(styles).toMatch(/\.app-shell--sidebar-collapsed\s*\{[^}]*grid-template-columns:\s*76px minmax\(0, 1fr\);/s);
+});
+
+test("the Hangar keeps its instrument and controls available at every layout", () => {
+  expect(styles).toMatch(/\.hangar-display\s*\{[^}]*grid-template-rows:\s*minmax\(300px, 1fr\) auto;/s);
+  expect(styles).toMatch(/\.hangar-console\s*\{[^}]*grid-template-columns:\s*minmax\(320px, \.8fr\) minmax\(520px, 1\.4fr\);/s);
+  expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.scoreboard \.flight-instrument\s*\{[^}]*display:\s*none;/);
+  expect(styles).not.toMatch(/@media \(max-width: 720px\)[\s\S]*?\n\s*\.flight-instrument\s*\{[^}]*display:\s*none;/);
 });
 
 test("optimization presets stay readable at the default desktop width", () => {
