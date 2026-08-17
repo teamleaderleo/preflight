@@ -93,6 +93,7 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.preferences-card,[\s\S]*?grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.home-fact > small\s*\{[^}]*display:\s*none;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 681px\)[\s\S]*?\.hangar-stage\s*\{[^}]*min-height:\s*410px;/);
 });
 
 test("optimization presets stay readable at the default desktop width", () => {

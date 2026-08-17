@@ -1979,6 +1979,20 @@ h2 {
   }
 }
 
+@media (max-height: 720px) and (min-width: 681px) {
+  .hangar-stage {
+    min-height: 410px;
+  }
+
+  .hangar-stage__instrument {
+    inset: 22px 24px 84px;
+  }
+
+  .hangar-controls {
+    gap: 10px;
+  }
+}
+
 @media (max-width: 760px) {
   .preferences-card,
   .preferences-card > .preference-block:only-child {
@@ -5573,7 +5587,7 @@ footer {
   --instrument-line: rgba(220, 229, 246, 0.58);
   --instrument-soft: rgba(174, 190, 220, 0.2);
   --instrument-near: #b7caff;
-  --instrument-far: #294465;
+  --instrument-far: #5d7298;
   --instrument-grid: rgba(128, 156, 228, 0.1);
   --instrument-accent: #8fa8dd;
   --instrument-glow: rgba(61, 94, 211, 0.22);
@@ -5584,7 +5598,7 @@ footer {
   --instrument-line: rgba(226, 218, 206, 0.58);
   --instrument-soft: rgba(209, 200, 186, 0.2);
   --instrument-near: #f0c684;
-  --instrument-far: #5c3a1c;
+  --instrument-far: #765a39;
   --instrument-grid: rgba(200, 148, 74, 0.1);
   --instrument-accent: #df9854;
   --instrument-glow: rgba(213, 138, 70, 0.2);
@@ -5595,7 +5609,7 @@ footer {
   --instrument-line: rgba(235, 224, 241, 0.58);
   --instrument-soft: rgba(205, 189, 216, 0.2);
   --instrument-near: #e6baf8;
-  --instrument-far: #473b61;
+  --instrument-far: #715985;
   --instrument-grid: rgba(182, 139, 209, 0.1);
   --instrument-accent: #b79cc9;
   --instrument-glow: rgba(137, 73, 171, 0.22);
@@ -5606,7 +5620,7 @@ footer {
   --instrument-line: rgba(242, 224, 230, 0.58);
   --instrument-soft: rgba(218, 187, 196, 0.2);
   --instrument-near: #ffb3c7;
-  --instrument-far: #5b344b;
+  --instrument-far: #7d5065;
   --instrument-grid: rgba(214, 129, 158, 0.1);
   --instrument-accent: #d9afbc;
   --instrument-glow: rgba(168, 64, 106, 0.22);
@@ -5617,7 +5631,7 @@ footer {
   --instrument-line: rgba(232, 239, 232, 0.58);
   --instrument-soft: rgba(179, 205, 178, 0.2);
   --instrument-near: #c7e7a7;
-  --instrument-far: #27452e;
+  --instrument-far: #55735b;
   --instrument-grid: rgba(126, 178, 117, 0.1);
   --instrument-accent: #a2c8a4;
   --instrument-glow: rgba(0, 129, 48, 0.22);

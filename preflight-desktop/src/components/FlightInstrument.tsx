@@ -156,7 +156,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
     const to = map(segment.to);
     context.strokeStyle = `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
     context.lineWidth = (0.6 + lit * 0.85) * heavy * (segment.kind === "outline" ? 1.5 : 1);
-    context.globalAlpha = (0.35 + lit * 0.65) * (segment.kind === "structure" || segment.kind === "keel" ? 0.7 : 1);
+    context.globalAlpha = (0.5 + lit * 0.5) * (segment.kind === "structure" || segment.kind === "keel" ? 0.72 : 1);
     context.beginPath();
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);

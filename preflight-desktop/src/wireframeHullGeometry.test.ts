@@ -58,4 +58,18 @@ describe("wireframe hull geometry", () => {
     expect(buildHullSegments(simplified, "medium").length).toBeLessThan(buildHullSegments(detailed, "medium").length);
     expect(projectHull(simplified, 0.2, "medium").deck).not.toEqual(projectHull(hull, 0.2, "medium").deck);
   });
+
+  it("projects the keel grid and bow marker through the same finite 3D camera", () => {
+    const projected = projectHull(hull, 0.38, "medium");
+    expect(projected.ground).not.toHaveLength(0);
+    expect(projected.nose).not.toBeNull();
+    expect(projected.segments.every((segment) => (
+      Number.isFinite(segment.from.x)
+      && Number.isFinite(segment.from.y)
+      && Number.isFinite(segment.from.depth)
+      && Number.isFinite(segment.to.x)
+      && Number.isFinite(segment.to.y)
+      && Number.isFinite(segment.to.depth)
+    ))).toBe(true);
+  });
 });
