@@ -832,20 +832,26 @@ test("a restored running window offers graceful stop before force stop", async (
   stop.mockRestore();
 });
 
-test("the explicit running preview locks every launch setting", async () => {
+test("the running preview keeps next-launch drafts editable while blocking the write", async () => {
+  const user = userEvent.setup();
   window.history.replaceState(null, "", "/?scenario=running");
 
   render(<App />);
 
   expect(await screen.findByRole("button", { name: "Stop Starsector" })).toBeEnabled();
-  expect(await screen.findByRole("combobox", { name: "Home resolution" })).toBeDisabled();
-  expect(screen.getByRole("spinbutton", { name: "Home battle size" })).toBeDisabled();
-  expect(screen.getByRole("combobox", { name: "Home game memory" })).toBeDisabled();
-  expect(screen.getByRole("combobox", { name: "Home antialiasing" })).toBeDisabled();
-  expect(screen.getByRole("combobox", { name: "Home UI size" })).toBeDisabled();
-  expect(screen.getByRole("checkbox", { name: "Home fullscreen" })).toBeDisabled();
-  expect(screen.getByRole("checkbox", { name: "Home sound" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: /All settings/ })).toBeDisabled();
+  expect(await screen.findByRole("combobox", { name: "Home resolution" })).toBeEnabled();
+  expect(screen.getByRole("spinbutton", { name: "Home battle size" })).toBeEnabled();
+  expect(screen.getByRole("combobox", { name: "Home game memory" })).toBeEnabled();
+  expect(screen.getByRole("combobox", { name: "Home antialiasing" })).toBeEnabled();
+  expect(screen.getByRole("combobox", { name: "Home UI size" })).toBeEnabled();
+  expect(screen.getByRole("checkbox", { name: "Home fullscreen" })).toBeEnabled();
+  const sound = screen.getByRole("checkbox", { name: "Home sound" });
+  expect(sound).toBeEnabled();
+  expect(screen.getByRole("button", { name: /All settings/ })).toBeEnabled();
+
+  await user.click(sound);
+  expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
+  expect(screen.getByText("Changes can be applied after Starsector closes.")).toBeInTheDocument();
 });
 
 test("storage totals disclose data outside the active cache categories", async () => {
