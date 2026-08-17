@@ -93,6 +93,7 @@ test("wide, narrow, and short windows keep content inside the desktop shell", ()
   expect(styles).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.preferences-card,[\s\S]*?grid-template-columns:\s*1fr;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.home-fact > small\s*\{[^}]*display:\s*none;/);
   expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 1001px\)[\s\S]*?\.page-viewport--home\s*\{[^}]*overflow-y:\s*auto;/);
+  expect(styles).toMatch(/@media \(max-height: 720px\) and \(min-width: 681px\)[\s\S]*?\.hangar-stage\s*\{[^}]*min-height:\s*410px;/);
 });
 
 test("optimization presets stay readable at the default desktop width", () => {
@@ -172,26 +173,20 @@ test("no palette lets a status colour collide with its accent", () => {
   }
 });
 
-test("every palette override declares all theme tokens defined in the root base", () => {
+test("every palette override declares every non-inheriting root token", () => {
   const rootMatch = /:root\s*\{([^}]*)\}/s.exec(styles);
   expect(rootMatch).not.toBeNull();
-  const rootBlock = rootMatch![1];
-  const allRootTokens = Array.from(rootBlock.matchAll(/--([a-z0-9-]+):/g)).map((m) => m[1]);
-  // Fonts and text sizing intentionally inherit from :root across all palettes
-  const inheritableTokens = new Set(["font-body", "font-data", "font-display", "text-support"]);
-  const paletteTokens = allRootTokens.filter((token) => !inheritableTokens.has(token));
+  const rootTokens = Array.from(rootMatch![1].matchAll(/--([a-z0-9-]+):/g), (match) => match[1]);
+  const inherited = new Set(["font-body", "font-data", "font-display", "text-support"]);
+  const paletteTokens = rootTokens.filter((token) => !inherited.has(token));
   expect(paletteTokens.length).toBeGreaterThan(30);
 
-  for (const name of ["blueprint", "ultraviolet", "airglow"]) {
+  for (const name of ["blueprint", "ultraviolet", "airglow", "phosphor"]) {
     const selector = `:root\\[data-palette="${name}"\\]`;
-    const blockMatch = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(styles);
-    expect(blockMatch, `missing block for ${name}`).not.toBeNull();
-    const block = blockMatch![1];
+    const block = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(styles);
+    expect(block, `missing palette block for ${name}`).not.toBeNull();
     for (const token of paletteTokens) {
-      const hasToken = new RegExp(`--${token}:`).test(block);
-      expect(hasToken, `palette [data-palette="${name}"] is missing token --${token}`).toBe(true);
+      expect(new RegExp(`--${token}:`).test(block![1]), `${name} is missing --${token}`).toBe(true);
     }
   }
 });
-
-

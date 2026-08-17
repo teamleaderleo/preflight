@@ -71,7 +71,6 @@ export const DEFAULT_WIREFRAME_TUNING: Readonly<WireframeTuning> = Object.freeze
 });
 
 function ring(points: HullVertex[], kind: HullSegment["kind"]): HullSegment[] {
-  if (points.length < 2) return [];
   return points.map((point, index) => ({
     from: point,
     to: points[(index + 1) % points.length],
@@ -149,7 +148,7 @@ function tunedHull(hull: WireframeHull): WireframeHull {
   return bounds === hull.bounds ? hull : { ...hull, bounds };
 }
 
-/** A shared raised cabin keeps the source silhouette legible instead of inventing ship-specific depth. */
+/** A shared raised cabin keeps the source silhouette legible instead of duplicating every notch. */
 function buildDeck(hull: WireframeHull): HullVertex[] {
   const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
   const midY = (minY + maxY) / 2;
@@ -166,21 +165,30 @@ function buildDeck(hull: WireframeHull): HullVertex[] {
   ];
 }
 
+/**
+ * Turns Starsector's authoritative plan-view silhouette into a restrained drafting model.
+ * The deck and keel are deliberately generic: Preflight doesn't claim the flat source defines a
+ * canon third axis, and one shared loft keeps mod hulls from needing hand-authored meshes.
+ */
 function buildSegments(hull: WireframeHull, detail: HullDetail): HullSegment[] {
   if (hull.bounds.length < 3) return [];
   const { minX, maxX, minY, maxY, extent } = hullFrame(hull);
-  const midPoint = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  const midpoint = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
   const deckHeight = extent * 0.17 * (hull.tuning?.height ?? 1);
   const outline = hull.bounds.map((point) => ({ ...point, z: 0 }));
   const deck = buildDeck(hull);
-  const keel = hull.bounds.map((point) => scalePoint(point, midPoint, 0.9, 0.82, -deckHeight * 0.42));
+  const keel = hull.bounds.map((point) => scalePoint(point, midpoint, 0.9, 0.82, -deckHeight * 0.42));
   const structure = deck.map((point) => {
     const nearest = outline.reduce((best, candidate) => {
       const distance = (candidate.x - point.x) ** 2 + (candidate.y - point.y) ** 2;
       const bestDistance = (best.x - point.x) ** 2 + (best.y - point.y) ** 2;
       return distance < bestDistance ? candidate : best;
     });
-    return { from: nearest, to: point, kind: "structure" as const };
+    return {
+      from: nearest,
+      to: point,
+      kind: "structure" as const,
+    };
   });
   const segments = [
     ...ring(outline, "outline"),

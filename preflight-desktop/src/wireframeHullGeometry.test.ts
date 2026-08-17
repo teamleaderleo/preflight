@@ -41,41 +41,6 @@ describe("wireframe hull geometry", () => {
     expect(left.segments[0].from).not.toEqual(right.segments[0].from);
   });
 
-  it("anchors the deck centerline to the bounding box midpoint on asymmetric hulls", () => {
-    // An asymmetric hull where one flank has clustered points that pull the vertex centroid away from y = 0
-    const asymmetricHull: WireframeHull = {
-      ...hull,
-      id: "asymmetric-test",
-      bounds: [
-        { x: 10, y: 0 },
-        { x: 5, y: 8 },
-        { x: 0, y: 8 },
-        { x: -5, y: 8 },
-        { x: -5, y: 6 },
-        { x: -5, y: 4 },
-        { x: -5, y: 2 },
-        { x: -5, y: -8 }, // only 1 vertex on the negative flank vs 6 on the positive flank
-      ],
-    };
-    const segments = buildHullSegments(asymmetricHull, "medium");
-    const deck = segments.filter((segment) => segment.kind === "deck");
-    expect(deck.length).toBeGreaterThan(0);
-    // Fore and aft centerline points should sit at y = 0 (the bbox midpoint between -8 and +8)
-    const centerlineYValues = deck.flatMap((s) => [s.from, s.to]).filter((v) => Math.abs(v.x - 10) < 3 || Math.abs(v.x - -5) < 3);
-    const apex = centerlineYValues.find((v) => Math.abs(v.x - 8.5) < 0.1);
-    if (apex) {
-      expect(apex.y).toBeCloseTo(0, 4);
-    }
-  });
-
-  it("projects keel ground grid and bow nose marker in 3D space", () => {
-    const projected = projectHull(hull, 0.38, "medium");
-    expect(projected.ground.length).toBeGreaterThan(0);
-    expect(projected.nose).not.toBeNull();
-    // All projected segments carry perspective depth
-    expect(projected.segments.every((s) => typeof s.from.depth === "number")).toBe(true);
-  });
-
   it("applies bounded cosmetic tuning to installation-owned hull geometry", () => {
     const detailed = {
       ...hull,
@@ -92,5 +57,45 @@ describe("wireframe hull geometry", () => {
     const simplified = { ...detailed, tuning: { outerDetail: 0.06, outerSmooth: 0.2, height: 1.5 } };
     expect(buildHullSegments(simplified, "medium").length).toBeLessThan(buildHullSegments(detailed, "medium").length);
     expect(projectHull(simplified, 0.2, "medium").deck).not.toEqual(projectHull(hull, 0.2, "medium").deck);
+  });
+
+  it("projects the keel grid and bow marker through the same finite 3D camera", () => {
+    const projected = projectHull(hull, 0.38, "medium");
+    expect(projected.ground).not.toHaveLength(0);
+    expect(projected.nose).not.toBeNull();
+    expect(projected.segments.every((segment) => (
+      Number.isFinite(segment.from.x)
+      && Number.isFinite(segment.from.y)
+      && Number.isFinite(segment.from.depth)
+      && Number.isFinite(segment.to.x)
+      && Number.isFinite(segment.to.y)
+      && Number.isFinite(segment.to.depth)
+    ))).toBe(true);
+  });
+
+  it("keeps normalized asymmetric hulls on their bounding-box centerline", () => {
+    const asymmetricHull: WireframeHull = {
+      ...hull,
+      id: "asymmetric-test",
+      bounds: [
+        { x: 10, y: 0 },
+        { x: 5, y: 8 },
+        { x: 0, y: 8 },
+        { x: -5, y: 8 },
+        { x: -5, y: 6 },
+        { x: -5, y: 4 },
+        { x: -5, y: 2 },
+        { x: -5, y: -8 },
+      ],
+    };
+    const segments = buildHullSegments(asymmetricHull, "medium");
+    const deck = segments.filter((segment) => segment.kind === "deck");
+    const keel = segments.filter((segment) => segment.kind === "keel");
+
+    expect(deck).toHaveLength(6);
+    expect(deck[0].from.y).toBeCloseTo(0, 8);
+    expect(deck[3].from.y).toBeCloseTo(0, 8);
+    expect(Math.min(...keel.map((segment) => segment.from.y)))
+      .toBeCloseTo(-Math.max(...keel.map((segment) => segment.from.y)), 8);
   });
 });

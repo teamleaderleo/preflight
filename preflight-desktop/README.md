@@ -60,7 +60,8 @@ checks in the background, and waits for explicit install confirmation. Ordinary 
 contain no verification key and report their update channel as disabled. The project key and GitHub
 credentials were provisioned on 2026-08-08. An isolated macOS package completed signed forward
 update, rejected-signature recovery, checked-package rollback, and install/remove verification.
-Windows, Linux, and the hosted candidate still need the same installed lifecycle checks.
+The generic hosted lifecycle rehearsal has passed on Windows, Linux, and macOS; the exact hosted
+candidate still needs its own installed lifecycle completion.
 
 After changing the Java reactor, run `mvn verify` from the repository root and then `npm run verify`
 here. The desktop command refreshes its bounded engine snapshot before release-script, frontend,

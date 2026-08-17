@@ -1,7 +1,8 @@
 import { ArrowIcon, CheckIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
 import { GameMemorySelect } from "./GameMemorySelect";
-import { ResolutionSelect, UiScaleSelect, battleSizeUpperBound, uiScaleMaximum } from "./GameSettingSelects";
+import { battleSizeUpperBound, uiScaleMaximum } from "../gameSettingOptions";
+import { ResolutionSelect, UiScaleSelect } from "./GameSettingSelects";
 
 interface QuickGameSettingsProps {
   settings: LaunchSettings;

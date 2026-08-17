@@ -81,19 +81,6 @@
   --console-line: rgba(120, 96, 60, 0.22);
   --console-line-strong: rgba(120, 96, 60, 0.34);
   --console-plot: #9a6a24;
-  /* The prototype's recessed ground, by value. One step under the panel, not a tint of it. */
-  /*
-   * The wireframe's depth cue, lifted from the prototype by hex rather than re-derived. An edge is
-   * lerped between far and near by how close it is to the viewer, and that alone is what makes a
-   * flat set of lines read as a solid object.
-   *
-   * Every other palette's pair is this pair rotated in OKLCH by the same hue delta its accent
-   * carries, lightness and chroma held -- the way the palettes themselves were built, so a blue
-   * app draws a blue ship without anyone choosing a second set of colours by eye.
-   */
-  --instrument-near: #8a5c1e;
-  --instrument-far: #c9b48e;
-  --instrument-grid: rgba(120, 96, 60, 0.13);
   --flight-accent: #b07a3a;
   /*
    * The launch button used to be a saturated slab with a bevel drawn in four inset rings. It is
@@ -522,8 +509,8 @@ h2 {
 
 .launch-console {
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(340px, 0.95fr);
-  min-height: 320px;
+  grid-template-columns: minmax(330px, 0.9fr) minmax(360px, 1.1fr);
+  min-height: 264px;
   overflow: hidden;
   border-color: var(--console-line);
   background: var(--console-bg);
@@ -537,72 +524,18 @@ h2 {
   justify-content: center;
   overflow: hidden;
   padding: 32px 38px;
+  border-right: 1px solid var(--console-line);
   isolation: isolate;
 }
 
-.launch-console--setup {
+.launch-console--setup:not(.launch-console--configured) {
   grid-template-columns: minmax(0, 1fr);
   min-height: 220px;
 }
 
-.launch-console--setup .launch-console__primary {
+.launch-console--setup:not(.launch-console--configured) .launch-console__primary {
   max-width: 680px;
-}
-
-/*
- * The hangar.
- *
- * The recess is the prototype's, by value: the sink sits one step below the panel it is cut into,
- * so the ship reads as being inside something rather than printed on the card. The captions are
- * its corner labels -- same face, same tracking -- and they carry the two facts worth having on
- * an idle screen: what this launch is, and which ship you are looking at.
- */
-.hangar-stage {
-  position: relative;
-  overflow: hidden;
-  border-right: 1px solid var(--console-line);
-  background: var(--paper-solid);
-  --instrument-line: rgba(63, 58, 53, 0.64);
-  --instrument-soft: rgba(87, 81, 74, 0.24);
-  --instrument-detail: rgba(139, 82, 38, 0.42);
-  --instrument-accent: #a95f29;
-  --instrument-glow: rgba(167, 101, 50, 0.22);
-  --instrument-fill: rgba(167, 101, 50, 0.065);
-}
-
-
-.hangar-stage__caption {
-  position: absolute;
-  z-index: 2;
-  max-width: calc(100% - 32px);
-  overflow: hidden;
-  color: var(--accent);
-  font-family: var(--font-data);
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-  opacity: 0.75;
-  pointer-events: none;
-}
-
-.hangar-stage__caption--lead {
-  top: 14px;
-  left: 16px;
-}
-
-.hangar-stage__caption--ship {
-  right: 16px;
-  bottom: 14px;
-  color: var(--ink-faint);
-}
-
-/* While the game is opening or running, the one thing on screen that moves says so. */
-.launch-console--launching .hangar-stage,
-.launch-console--running .hangar-stage {
-  --instrument-accent: var(--success);
-  --instrument-glow: rgba(79, 107, 69, 0.26);
+  border-right: 0;
 }
 
 .launch-console__primary > :not(.flight-plot) {
@@ -747,14 +680,6 @@ h2 {
   color: var(--console-ink);
 }
 
-.launch-console__posture {
-  margin: 14px 0 0;
-  color: var(--console-soft);
-  font-size: var(--text-support);
-  line-height: 1.4;
-  opacity: 0.85;
-}
-
 .quick-settings {
   display: flex;
   flex-direction: column;
@@ -765,7 +690,6 @@ h2 {
 }
 
 .quick-settings--loading {
-  min-height: 130px;
   color: var(--console-soft);
   font-size: 14px;
 }
@@ -1927,6 +1851,9 @@ h2 {
   min-width: 0;
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-near: #8a5c1e;
+  --instrument-far: #c9b48e;
+  --instrument-grid: rgba(120, 96, 60, 0.13);
   --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
   --instrument-fill: rgba(167, 101, 50, 0.065);
@@ -2052,6 +1979,20 @@ h2 {
   }
 }
 
+@media (max-height: 720px) and (min-width: 681px) {
+  .hangar-stage {
+    min-height: 410px;
+  }
+
+  .hangar-stage__instrument {
+    inset: 22px 24px 84px;
+  }
+
+  .hangar-controls {
+    gap: 10px;
+  }
+}
+
 @media (max-width: 760px) {
   .preferences-card,
   .preferences-card > .preference-block:only-child {
@@ -2089,30 +2030,6 @@ h2 {
 
 .setting-field.preference-field select {
   width: 100%;
-}
-
-.instrument-hull-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.instrument-hull-card__preview {
-  position: relative;
-  width: 90px;
-  height: 56px;
-  overflow: hidden;
-  border-radius: 6px;
-  border: 1px solid var(--console-line);
-  background: var(--paper-solid);
-  flex-shrink: 0;
-}
-
-.instrument-hull-card__preview .flight-instrument {
-  width: 90px;
-  height: 56px;
-  opacity: 0.85;
 }
 
 .settings-overview > :only-child {
@@ -3784,9 +3701,6 @@ footer {
   --launch-ink: #f0e4cf;
   --launch-ink-hover: #fdf4e2;
   --launch-glow: rgba(200, 148, 74, 0.24);
-  --instrument-near: #f0c684;
-  --instrument-far: #5c3a1c;
-  --instrument-grid: rgba(200, 148, 74, 0.1);
 }
 
 :root[data-theme="dark"] body {
@@ -4251,7 +4165,9 @@ footer {
   isolation: isolate;
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
-  --instrument-detail: rgba(139, 82, 38, 0.42);
+  --instrument-near: #8a5c1e;
+  --instrument-far: #c9b48e;
+  --instrument-grid: rgba(120, 96, 60, 0.13);
   --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
   --instrument-fill: rgba(167, 101, 50, 0.065);
@@ -4293,16 +4209,11 @@ footer {
   will-change: transform;
 }
 
-/*
- * At stage size the ship fills its panel and its own rotation carries the movement. The badge's
- * perspective wobble is dropped rather than scaled: the same transform that reads as a gentle
- * drift on a 236px ornament reads as a lurch on something four times the size.
- */
 .flight-instrument--stage {
   position: absolute;
-  z-index: 0;
-  inset: 4% 5% 8%;
+  inset: 0;
   width: auto;
+  height: auto;
   aspect-ratio: auto;
   opacity: 1;
   transform: none;
@@ -4312,7 +4223,6 @@ footer {
   animation: none;
 }
 
-/* The badge's glow is a lens flare behind a 236px ornament. At stage size it is a smudge. */
 .flight-instrument--stage::after {
   content: none;
 }
@@ -4527,11 +4437,9 @@ footer {
   align-items: center;
 }
 
-:root[data-theme="dark"] .scoreboard,
-:root[data-theme="dark"] .hangar-stage {
+:root[data-theme="dark"] .scoreboard {
   --instrument-line: rgba(226, 218, 206, 0.58);
   --instrument-soft: rgba(209, 200, 186, 0.2);
-  --instrument-detail: rgba(223, 152, 84, 0.44);
   --instrument-accent: #df9854;
   --instrument-glow: rgba(213, 138, 70, 0.2);
   --instrument-fill: rgba(213, 138, 70, 0.075);
@@ -4721,9 +4629,6 @@ footer {
   --launch-ink: #eef4f7;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(73, 104, 212, 0.2);
-  --instrument-near: #48669e;
-  --instrument-far: #abb5dc;
-  --instrument-grid: rgba(86, 99, 135, 0.13);
 }
 
 :root[data-palette="blueprint"] body {
@@ -4835,9 +4740,6 @@ footer {
   --launch-ink: #f7f9ff;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(61, 94, 211, 0.22);
-  --instrument-near: #b7caff;
-  --instrument-far: #294465;
-  --instrument-grid: rgba(128, 156, 228, 0.1);
 }
 
 :root[data-theme="dark"][data-palette="blueprint"] body {
@@ -4961,9 +4863,6 @@ footer {
   --launch-ink: #f4f2f6;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(142, 85, 175, 0.2);
-  --instrument-near: #785690;
-  --instrument-far: #c9abcd;
-  --instrument-grid: rgba(114, 90, 124, 0.13);
 }
 
 :root[data-palette="ultraviolet"] body {
@@ -5075,9 +4974,6 @@ footer {
   --launch-ink: #fbf8fd;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(137, 73, 171, 0.22);
-  --instrument-near: #e6baf8;
-  --instrument-far: #473b61;
-  --instrument-grid: rgba(182, 139, 209, 0.1);
 }
 
 :root[data-theme="dark"][data-palette="ultraviolet"] body {
@@ -5201,9 +5097,6 @@ footer {
   --launch-ink: #f7f1f3;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(173, 76, 114, 0.2);
-  --instrument-near: #924e6a;
-  --instrument-far: #d8a8b0;
-  --instrument-grid: rgba(130, 86, 98, 0.13);
 }
 
 :root[data-palette="airglow"] body {
@@ -5315,9 +5208,6 @@ footer {
   --launch-ink: #fdf7f9;
   --launch-ink-hover: #ffffff;
   --launch-glow: rgba(168, 64, 106, 0.22);
-  --instrument-near: #ffb3c7;
-  --instrument-far: #5b344b;
-  --instrument-grid: rgba(214, 129, 158, 0.1);
 }
 
 :root[data-theme="dark"][data-palette="airglow"] body {
@@ -5641,6 +5531,9 @@ footer {
 :root[data-palette="blueprint"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(50, 78, 111, 0.64);
   --instrument-soft: rgba(79, 105, 197, 0.2);
+  --instrument-near: #48669e;
+  --instrument-far: #abb5dc;
+  --instrument-grid: rgba(86, 99, 135, 0.13);
   --instrument-accent: #4f69c5;
   --instrument-glow: rgba(73, 104, 212, 0.22);
   --instrument-fill: rgba(73, 104, 212, 0.065);
@@ -5649,6 +5542,9 @@ footer {
 :root[data-palette="hangar"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(63, 58, 53, 0.64);
   --instrument-soft: rgba(87, 81, 74, 0.24);
+  --instrument-near: #8a5c1e;
+  --instrument-far: #c9b48e;
+  --instrument-grid: rgba(120, 96, 60, 0.13);
   --instrument-accent: #a95f29;
   --instrument-glow: rgba(167, 101, 50, 0.22);
   --instrument-fill: rgba(167, 101, 50, 0.065);
@@ -5657,6 +5553,9 @@ footer {
 :root[data-palette="ultraviolet"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(80, 61, 91, 0.64);
   --instrument-soft: rgba(137, 109, 154, 0.22);
+  --instrument-near: #785690;
+  --instrument-far: #c9abcd;
+  --instrument-grid: rgba(114, 90, 124, 0.13);
   --instrument-accent: #8959a5;
   --instrument-glow: rgba(142, 85, 175, 0.22);
   --instrument-fill: rgba(142, 85, 175, 0.065);
@@ -5665,6 +5564,9 @@ footer {
 :root[data-palette="airglow"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(94, 61, 72, 0.64);
   --instrument-soft: rgba(155, 105, 122, 0.22);
+  --instrument-near: #924e6a;
+  --instrument-far: #d8a8b0;
+  --instrument-grid: rgba(130, 86, 98, 0.13);
   --instrument-accent: #a45270;
   --instrument-glow: rgba(173, 76, 114, 0.22);
   --instrument-fill: rgba(173, 76, 114, 0.065);
@@ -5673,6 +5575,9 @@ footer {
 :root[data-palette="phosphor"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(70, 76, 36, 0.64);
   --instrument-soft: rgba(89, 135, 89, 0.22);
+  --instrument-near: #496c37;
+  --instrument-far: #b8c29c;
+  --instrument-grid: rgba(86, 112, 67, 0.13);
   --instrument-accent: #15873d;
   --instrument-glow: rgba(21, 135, 61, 0.22);
   --instrument-fill: rgba(21, 135, 61, 0.065);
@@ -5681,6 +5586,9 @@ footer {
 :root[data-theme="dark"][data-palette="blueprint"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(220, 229, 246, 0.58);
   --instrument-soft: rgba(174, 190, 220, 0.2);
+  --instrument-near: #b7caff;
+  --instrument-far: #5d7298;
+  --instrument-grid: rgba(128, 156, 228, 0.1);
   --instrument-accent: #8fa8dd;
   --instrument-glow: rgba(61, 94, 211, 0.22);
   --instrument-fill: rgba(61, 94, 211, 0.075);
@@ -5689,6 +5597,9 @@ footer {
 :root[data-theme="dark"][data-palette="hangar"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(226, 218, 206, 0.58);
   --instrument-soft: rgba(209, 200, 186, 0.2);
+  --instrument-near: #f0c684;
+  --instrument-far: #765a39;
+  --instrument-grid: rgba(200, 148, 74, 0.1);
   --instrument-accent: #df9854;
   --instrument-glow: rgba(213, 138, 70, 0.2);
   --instrument-fill: rgba(213, 138, 70, 0.075);
@@ -5697,6 +5608,9 @@ footer {
 :root[data-theme="dark"][data-palette="ultraviolet"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(235, 224, 241, 0.58);
   --instrument-soft: rgba(205, 189, 216, 0.2);
+  --instrument-near: #e6baf8;
+  --instrument-far: #715985;
+  --instrument-grid: rgba(182, 139, 209, 0.1);
   --instrument-accent: #b79cc9;
   --instrument-glow: rgba(137, 73, 171, 0.22);
   --instrument-fill: rgba(137, 73, 171, 0.075);
@@ -5705,6 +5619,9 @@ footer {
 :root[data-theme="dark"][data-palette="airglow"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(242, 224, 230, 0.58);
   --instrument-soft: rgba(218, 187, 196, 0.2);
+  --instrument-near: #ffb3c7;
+  --instrument-far: #7d5065;
+  --instrument-grid: rgba(214, 129, 158, 0.1);
   --instrument-accent: #d9afbc;
   --instrument-glow: rgba(168, 64, 106, 0.22);
   --instrument-fill: rgba(168, 64, 106, 0.075);
@@ -5713,6 +5630,9 @@ footer {
 :root[data-theme="dark"][data-palette="phosphor"] :is(.scoreboard, .hangar-stage) {
   --instrument-line: rgba(232, 239, 232, 0.58);
   --instrument-soft: rgba(179, 205, 178, 0.2);
+  --instrument-near: #c7e7a7;
+  --instrument-far: #55735b;
+  --instrument-grid: rgba(126, 178, 117, 0.1);
   --instrument-accent: #a2c8a4;
   --instrument-glow: rgba(0, 129, 48, 0.22);
   --instrument-fill: rgba(0, 129, 48, 0.075);

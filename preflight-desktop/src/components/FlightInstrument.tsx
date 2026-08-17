@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { INSTRUMENT_APPEARANCE_ATTRIBUTES } from "../flightInstrumentAppearance";
 import type { WireframeHull, WireframePoint } from "../types";
 import { ORIGINAL_HULL } from "../useInstrumentHull";
 import { projectHull } from "../wireframeHullGeometry";
@@ -12,8 +13,6 @@ interface FlightInstrumentProps {
    */
   variant?: "badge" | "stage";
 }
-
-export const INSTRUMENT_APPEARANCE_ATTRIBUTES = ["data-theme", "data-palette"] as const;
 
 interface InstrumentPalette {
   near: [number, number, number];
@@ -75,7 +74,8 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
  * Every edge is drawn on its own, sorted back to front, and its depth in the view decides three
  * things at once: colour between a far tone and a near one, line weight, and opacity. That is
  * what makes a flat set of lines read as a solid object -- not the geometry, which is the same
- * either way.
+ * either way. Batching the edges by kind and giving each kind a flat colour was tried, and the
+ * ship came out looking like a diagram of itself.
  */
 function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, palette: InstrumentPalette) {
   const context = canvas.getContext("2d");
@@ -97,6 +97,14 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
   const projected = projectHull(hull, yaw, detail);
   if (projected.segments.length === 0) return;
 
+  /*
+   * One fixed camera, not a fit to what happens to be on screen this frame.
+   *
+   * Refitting per frame was tried and it is why the ship appeared to zoom and drift while it
+   * turned: a rotating hull's projected bounding box breathes, so re-deriving the scale from it
+   * pumps the whole picture on every frame. The geometry is already normalised to one frame,
+   * which is what makes a constant work here for a stubby Hammerhead and a long Conquest alike.
+   */
   const scale = Math.min(width, height) * 0.46;
   const map = (point: WireframePoint) => ({
     x: width / 2 + point.x * scale,
@@ -147,7 +155,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
     const to = map(segment.to);
     context.strokeStyle = `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
     context.lineWidth = (0.6 + lit * 0.85) * heavy * (segment.kind === "outline" ? 1.5 : 1);
-    context.globalAlpha = (0.35 + lit * 0.65) * (segment.kind === "structure" || segment.kind === "keel" ? 0.7 : 1);
+    context.globalAlpha = (0.5 + lit * 0.5) * (segment.kind === "structure" || segment.kind === "keel" ? 0.72 : 1);
     context.beginPath();
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);
@@ -174,7 +182,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
   }
 }
 
-/** Draws bounded hull data read from the user's own Starsector installation. */
+/** Draws bounded hull geometry derived locally from the user's Starsector installation. */
 export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -189,7 +197,8 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
 
     /*
      * It turns, all the way round, at the prototype's rate: one revolution in about eighteen
-     * seconds.
+     * seconds. Rocking it back and forth through a narrow arc was tried and reads as a fidget --
+     * the ship looks stuck rather than displayed, and half the hull is never shown at all.
      */
     const RATE = 0.34;
     /* The angle a still frame is parked at, for reduced motion and the first paint. */
@@ -204,6 +213,8 @@ export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: Fl
       frame = null;
       if (!visible || reducedMotion.matches) return;
       if (time - previous >= 1000 / 24) {
+        // Advance by elapsed time rather than per frame, so a dropped frame or a background tab
+        // does not change how fast the ship appears to turn.
         yaw += Math.min(time - previous, 250) / 1000 * RATE;
         previous = time;
         drawHull(canvas, hull, yaw, palette);
