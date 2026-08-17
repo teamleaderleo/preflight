@@ -40,6 +40,8 @@ describe("operationAvailability", () => {
       .toBe("Wait for profile preparation to finish before removing Preflight data.");
     expect(removalOperationReason({ ...idle, reportUploadId: 5 }))
       .toBe("Wait for the run report upload to finish or cancel it before removing Preflight data.");
+    expect(removalOperationReason({ ...idle, diagnosticsExporting: true }))
+      .toBe("Wait for the support file to finish before removing Preflight data.");
     expect(removalOperationReason({ ...idle, updateInstalling: true }))
       .toBe("Wait for the Preflight update to finish installing.");
   });
@@ -52,6 +54,8 @@ describe("operationAvailability", () => {
       .toBe("Wait for profile preparation to finish before installing an update.");
     expect(updateInstallOperationReason({ ...idle, reportUploadId: 9 }))
       .toBe("Wait for the run report upload to finish or cancel it before installing an update.");
+    expect(updateInstallOperationReason({ ...idle, diagnosticsExporting: true }))
+      .toBe("Wait for the support file to finish before installing an update.");
     expect(updateInstallOperationReason({ ...idle, updateChecking: true }))
       .toBe("Wait for the current update check to finish before installing an update.");
     expect(updateInstallOperationReason({ ...idle, updateInstalling: true }))

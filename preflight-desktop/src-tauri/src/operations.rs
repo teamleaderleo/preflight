@@ -115,6 +115,12 @@ pub(crate) fn begin_diagnostics_export(
                 .to_string(),
         );
     }
+    if state.update_installing {
+        return Err(
+            "Wait for the Preflight update to finish installing before creating a support file."
+                .to_string(),
+        );
+    }
     if state.diagnostics_exporting {
         return Err("A support file is already being created.".to_string());
     }
@@ -172,6 +178,9 @@ pub(crate) fn begin_update_install(
                 .to_string(),
         );
     }
+    if state.diagnostics_exporting {
+        return Err("Wait for the support file to finish before installing an update.".to_string());
+    }
     if state.update_checking {
         return Err(
             "Wait for the current update check to finish before installing an update.".to_string(),
@@ -195,13 +204,15 @@ pub(crate) fn refuse_update_install(state: &OperationState) -> Result<(), String
 
 pub(crate) fn refuse_report_upload_for_removal(state: &OperationState) -> Result<(), String> {
     if state.report_upload.is_some() {
-        Err(
+        return Err(
             "Wait for the run report upload to finish or cancel it before removing Preflight data."
                 .to_string(),
-        )
-    } else {
-        Ok(())
+        );
     }
+    if state.diagnostics_exporting {
+        return Err("Wait for the support file to finish before removing Preflight data.".to_string());
+    }
+    Ok(())
 }
 
 pub(crate) fn refuse_report_upload_for_benchmark(state: &OperationState) -> Result<(), String> {
@@ -278,6 +289,34 @@ mod tests {
     }
 
     #[test]
+    fn update_install_refuses_active_diagnostics_export() {
+        let operations = Mutex::new(OperationState {
+            diagnostics_exporting: true,
+            ..OperationState::default()
+        });
+
+        assert_eq!(
+            begin_update_install(&operations).err().unwrap(),
+            "Wait for the support file to finish before installing an update."
+        );
+        assert!(!operations.lock().unwrap().update_installing);
+    }
+
+    #[test]
+    fn diagnostics_export_refuses_active_update_install() {
+        let operations = Mutex::new(OperationState {
+            update_installing: true,
+            ..OperationState::default()
+        });
+
+        assert_eq!(
+            begin_diagnostics_export(&operations).err().unwrap(),
+            "Wait for the Preflight update to finish installing before creating a support file."
+        );
+        assert!(!operations.lock().unwrap().diagnostics_exporting);
+    }
+
+    #[test]
     fn update_check_refuses_active_benchmark() {
         let operations = Mutex::new(state_with_benchmark());
 
@@ -318,6 +357,19 @@ mod tests {
         assert_eq!(
             refuse_report_upload_for_removal(&state).unwrap_err(),
             "Wait for the run report upload to finish or cancel it before removing Preflight data."
+        );
+    }
+
+    #[test]
+    fn removal_refuses_active_diagnostics_export() {
+        let state = OperationState {
+            diagnostics_exporting: true,
+            ..OperationState::default()
+        };
+
+        assert_eq!(
+            refuse_report_upload_for_removal(&state).unwrap_err(),
+            "Wait for the support file to finish before removing Preflight data."
         );
     }
 
