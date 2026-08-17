@@ -54,6 +54,10 @@ final class UninstallCommand {
     static int run(PreflightHome home, Scope scope, boolean confirmed, boolean json, PrintStream out)
             throws IOException {
         Plan preview = plan(home, scope, false);
+        if (!preview.safe()) {
+            print(preview, json, out);
+            return 1;
+        }
         if (!confirmed) {
             print(preview, json, out);
             return 0;
@@ -68,6 +72,10 @@ final class UninstallCommand {
         OperationLease.Acquisition acquisition = acquire(home, scope);
         try (OperationLease ignored = acquisition.lease()) {
             Plan current = plan(home, scope, false);
+            if (!current.safe()) {
+                print(current, json, out);
+                return 1;
+            }
             if (scope == Scope.ALL_DATA) markRemoval(home);
             int failures = remove(current.targets(), scope, home);
             applied = new Plan(scope, failures == 0, true, current.bytes(), current.files(),
@@ -77,7 +85,9 @@ final class UninstallCommand {
         if (scope == Scope.ALL_DATA && applied.safe()) {
             try {
                 deleteRecursively(home.state());
-                Files.deleteIfExists(home.root());
+                if (Files.isDirectory(home.root(), LinkOption.NOFOLLOW_LINKS)) {
+                    Files.deleteIfExists(home.root());
+                }
             } catch (IOException failure) {
                 applied = new Plan(scope, false, true, applied.bytes(), applied.files(), applied.targets(),
                         List.of("Could not finish removing Preflight's operation state: " + failure.getMessage()));
@@ -108,14 +118,24 @@ final class UninstallCommand {
         if (Files.exists(installedEngine, LinkOption.NOFOLLOW_LINKS)) {
             addTarget(targets, "installed-engine", "installed command engine", installedEngine);
         }
-        if (scope == Scope.ALL_DATA && Files.isDirectory(home.root())) {
-            // The root already contains the installed engine. A single target makes the total exact.
-            targets.removeIf(target -> target.path().startsWith(home.root()));
-            addTarget(targets, "preflight-data", "Preflight data", home.root());
+        List<String> refusals = new ArrayList<>();
+        boolean safe = true;
+        if (scope == Scope.ALL_DATA) {
+            Path root = home.root().toAbsolutePath().normalize();
+            if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
+                    safe = false;
+                    refusals.add("Preflight home directory is a symlink or alias (" + root + "). All-data removal is refused.");
+                } else {
+                    // The root already contains the installed engine. A single target makes the total exact.
+                    targets.removeIf(target -> target.path().startsWith(root));
+                    addTarget(targets, "preflight-data", "Preflight data", root);
+                }
+            }
         }
         long bytes = targets.stream().mapToLong(Target::bytes).sum();
         long files = targets.stream().mapToLong(Target::files).sum();
-        return new Plan(scope, true, applied, bytes, files, List.copyOf(targets), List.of());
+        return new Plan(scope, safe, applied, bytes, files, List.copyOf(targets), List.copyOf(refusals));
     }
 
     private static void addTarget(List<Target> targets, String kind, String label, Path path)
@@ -169,8 +189,9 @@ final class UninstallCommand {
     }
 
     private static void removeRootContentsExceptState(PreflightHome home) throws IOException {
-        if (!Files.isDirectory(home.root())) return;
-        try (var children = Files.list(home.root())) {
+        Path root = home.root().toAbsolutePath().normalize();
+        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) return;
+        try (var children = Files.list(root)) {
             for (Path child : children.toList()) {
                 if (!child.equals(home.state())) deleteRecursively(child);
             }
@@ -180,6 +201,10 @@ final class UninstallCommand {
     private static void print(Plan plan, boolean json, PrintStream out) {
         if (json) {
             out.println(Json.object(plan.toJson()));
+            return;
+        }
+        if (!plan.safe()) {
+            plan.refusals().forEach(out::println);
             return;
         }
         if (plan.targets().isEmpty()) {
