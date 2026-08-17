@@ -150,9 +150,12 @@ class ResourceProviderContentIdentityTest {
                     "comparison inside one preparation must reuse the content digest already cached");
         }
 
-        try (ProfileIdentityContext nextPreparation = ProfileIdentityContext.of(game, index)) {
+        ResourceIndex nextIndex = index(core, mod, Map.of("shared.bin", List.of(
+                provider(0, core, "shared.bin"),
+                provider(1, mod, "shared.bin"))));
+        try (ProfileIdentityContext nextPreparation = ProfileIdentityContext.of(game, nextIndex)) {
             ResourceProviderComparison.Result refreshed = ResourceProviderComparison.analyze(
-                    index, ResourceProviderContentIdentity.cached(nextPreparation));
+                    nextIndex, ResourceProviderContentIdentity.cached(nextPreparation));
             assertEquals(1, refreshed.differingOverrides(),
                     "a fresh preparation must read the changed bytes");
         }
