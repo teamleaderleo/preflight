@@ -49,9 +49,11 @@ final class ChildProcessOutput {
             throws IOException, InterruptedException {
         builder.redirectErrorStream(true);
         builder.redirectInput(ProcessBuilder.Redirect.INHERIT);
+        SaveProfileObservation.Prepared saveObservation =
+                SaveProfileObservation.prepare(builder, System.err);
         Process process = builder.start();
         SaveProfileObservation.Observer saveObserver =
-                SaveProfileObservation.start(builder, process, System.err);
+                SaveProfileObservation.start(saveObservation, process, System.err);
         try {
             HeadTailBuffer capture = new HeadTailBuffer(
                     MAX_HEAD_BYTES, MAX_CAPTURE_BYTES - MAX_HEAD_BYTES - ELISION_RESERVE_BYTES);
