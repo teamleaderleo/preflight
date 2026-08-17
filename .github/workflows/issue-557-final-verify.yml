@@ -143,7 +143,7 @@ jobs:
       - name: Verify Java reactor
         run: ./mvnw --batch-mode --no-transfer-progress verify
       - name: Verify repository-owned surfaces
-        run: ./scripts/verify-all.sh
+        run: bash ./scripts/verify-all.sh
       - name: Confirm verification left the tree clean
         run: test -z "$(git status --porcelain)"
       - name: Publish verified rebased head
