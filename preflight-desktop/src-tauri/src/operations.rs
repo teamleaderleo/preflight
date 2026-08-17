@@ -380,4 +380,41 @@ mod tests {
 
         assert!(refuse_update_install(&state).is_ok());
     }
+
+    #[test]
+    fn operation_snapshot_serializes_all_active_fields() {
+        let (cancel, _rx) = watch::channel(false);
+        let state = OperationState {
+            game: Some(101),
+            game_recovered: true,
+            desktop_smoke: Some(DesktopSmokeProcess {
+                pid: 102,
+                run_directory: PathBuf::from("run-102"),
+            }),
+            preparation: None,
+            report_upload: Some(ReportUploadProcess {
+                id: 103,
+                total_bytes: 4096,
+                cancel,
+            }),
+            diagnostics_exporting: true,
+            update_checking: true,
+            update_installing: false,
+            exit_after_cleanup: false,
+        };
+
+        let snapshot = OperationSnapshot::from_state(&state);
+        let json = serde_json::to_value(&snapshot).expect("snapshot serializes");
+
+        assert_eq!(json["format"], "preflight-operation-state-v1");
+        assert_eq!(json["gamePid"], 101);
+        assert_eq!(json["gameRecovered"], true);
+        assert_eq!(json["desktopSmokePid"], 102);
+        assert_eq!(json["desktopSmokeRunDirectory"], "run-102");
+        assert_eq!(json["reportUploadId"], 103);
+        assert_eq!(json["reportUploadTotalBytes"], 4096);
+        assert_eq!(json["diagnosticsExporting"], true);
+        assert_eq!(json["updateChecking"], true);
+        assert_eq!(json["updateInstalling"], false);
+    }
 }
