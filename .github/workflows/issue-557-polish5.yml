@@ -76,17 +76,38 @@ jobs:
 
           '''
           signature = "private static List<String> readEnabled(Path enabledFile) throws IOException"
-          if signature in text:
-              signature_at = text.index(signature)
-              start = text.rfind("\n", 0, signature_at) + 1
-              next_signature = text.index("private static String nullSafe", signature_at)
-              end = text.rfind("\n", 0, next_signature) + 1
-              text = text[:start] + strict_reader + text[end:]
-          else:
-              evaluator = "static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)"
-              evaluator_at = text.index(evaluator)
-              start = text.rfind("\n", 0, evaluator_at) + 1
-              text = text[:start] + strict_reader + text[start:]
+          spans = []
+          search_at = 0
+          while True:
+              signature_at = text.find(signature, search_at)
+              if signature_at < 0:
+                  break
+              line_start = text.rfind("\n", 0, signature_at) + 1
+              brace = text.index("{", signature_at)
+              depth = 0
+              close = None
+              for index in range(brace, len(text)):
+                  if text[index] == "{":
+                      depth += 1
+                  elif text[index] == "}":
+                      depth -= 1
+                      if depth == 0:
+                          close = index + 1
+                          break
+              if close is None:
+                  raise SystemExit("unterminated readEnabled(Path) method")
+              while close < len(text) and text[close] in " \t\r\n":
+                  close += 1
+              spans.append((line_start, close))
+              search_at = close
+          for start, end in reversed(spans):
+              text = text[:start] + text[end:]
+          evaluator = "static Result inspect(Path modsDirectory, List<String> enabledMods, String gameVersion, Long maxHeapMiB)"
+          evaluator_at = text.index(evaluator)
+          insertion = text.rfind("\n", 0, evaluator_at) + 1
+          text = text[:insertion] + strict_reader + text[insertion:]
+          if text.count(signature) != 1:
+              raise SystemExit(f"expected one strict reader, found {text.count(signature)}")
           text = text.replace(
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.WARNING,",
               "ReasonCode.METADATA_PARTIAL,\n                            Severity.INFO,",
