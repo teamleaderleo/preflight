@@ -4,6 +4,7 @@ import dev.starsector.preflight.core.Json;
 import dev.starsector.preflight.core.ResourceIndex;
 import dev.starsector.preflight.core.ResourceIndexIO;
 import dev.starsector.preflight.core.ResourceIndexValidator;
+import dev.starsector.preflight.core.ResourceProviderComparison;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,7 +68,16 @@ final class IndexCommand {
 
     private static int inspect(Path indexFile) throws IOException {
         ResourceIndex index = ResourceIndexIO.read(indexFile);
-        System.out.println(Json.object(summary(index, indexFile.toAbsolutePath().normalize())));
+        Map<String, Object> output = summary(index, indexFile.toAbsolutePath().normalize());
+        long comparisonStarted = System.nanoTime();
+        ResourceProviderComparison.Result comparison = ResourceProviderComparison.analyze(
+                index, ResourceProviderContentIdentity.direct(index));
+        Map<String, Object> providerOverlaps = new LinkedHashMap<>(comparison.toPublicMap());
+        providerOverlaps.put("comparisonDurationMs", (System.nanoTime() - comparisonStarted) / 1_000_000.0);
+        providerOverlaps.put("identityAuthority", "sha-256-of-contained-current-provider-bytes");
+        providerOverlaps.put("winnerAuthority", "resource-index-provider-order-last-wins");
+        output.put("providerOverlaps", providerOverlaps);
+        System.out.println(Json.object(output));
         return 0;
     }
 
