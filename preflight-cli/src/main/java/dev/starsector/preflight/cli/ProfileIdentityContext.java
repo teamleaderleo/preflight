@@ -55,12 +55,19 @@ final class ProfileIdentityContext implements Closeable {
     private final String gameJarSha256;
     private final ResourceIndex resources;
     private final List<Path> realRoots;
+    private final ContentHasher hasher;
     private final Map<Path, Path> realDirectories = new ConcurrentHashMap<>();
     private final Map<ResourceIndex.Provider, Path> realProviders = new ConcurrentHashMap<>();
+    private final Map<Path, ResourceIndex.Provider> providerByPath = new ConcurrentHashMap<>();
     private final Map<Path, String> fileHashes = new ConcurrentHashMap<>();
     private final int workers;
 
     private ForkJoinPool pool;
+
+    @FunctionalInterface
+    interface ContentHasher {
+        String sha256(Path file) throws IOException;
+    }
 
     private ProfileIdentityContext(
             Path installRoot,
@@ -68,12 +75,14 @@ final class ProfileIdentityContext implements Closeable {
             String gameJarSha256,
             ResourceIndex resources,
             List<Path> realRoots,
+            ContentHasher hasher,
             int workers) {
         this.installRoot = installRoot;
         this.gameJar = gameJar;
         this.gameJarSha256 = gameJarSha256;
         this.resources = resources;
         this.realRoots = realRoots;
+        this.hasher = hasher;
         this.workers = workers;
         this.fileHashes.put(gameJar, gameJarSha256);
     }
@@ -84,15 +93,32 @@ final class ProfileIdentityContext implements Closeable {
     }
 
     static ProfileIdentityContext of(Path installRoot, ResourceIndex resources) throws IOException {
+        return of(installRoot, resources, Hashes::sha256, defaultWorkers());
+    }
+
+    static ProfileIdentityContext of(
+            Path installRoot,
+            ResourceIndex resources,
+            ContentHasher hasher,
+            int workers) throws IOException {
         Path root = installRoot.toAbsolutePath().normalize();
         Path gameJar = locateGameJar(root);
         List<Path> realRoots = new ArrayList<>(resources.roots().size());
         for (ResourceIndex.Root each : resources.roots()) {
             realRoots.add(PathContainment.realDirectory(each.path()));
         }
+        BasicFileAttributes jarBefore = Files.readAttributes(
+                gameJar, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        FileIdentity jarBeforeId = FileIdentity.from(jarBefore);
+        String gameJarSha256 = hasher.sha256(gameJar);
+        BasicFileAttributes jarAfter = Files.readAttributes(
+                gameJar, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!jarBeforeId.equals(FileIdentity.from(jarAfter))) {
+            throw new IOException("Game jar modified or replaced during hash read: " + gameJar);
+        }
         return new ProfileIdentityContext(
-                root, gameJar, Hashes.sha256(gameJar), resources, List.copyOf(realRoots),
-                defaultWorkers());
+                root, gameJar, gameJarSha256, resources, List.copyOf(realRoots),
+                hasher, workers);
     }
 
     static int defaultWorkers() {
@@ -133,13 +159,15 @@ final class ProfileIdentityContext implements Closeable {
 
     Path resolve(ResourceIndex.Provider provider) throws IOException {
         try {
-            return realProviders.computeIfAbsent(provider, key -> {
+            Path resolved = realProviders.computeIfAbsent(provider, key -> {
                 try {
                     return resolveUncached(key);
                 } catch (IOException error) {
                     throw new UncheckedIOException(error);
                 }
             });
+            providerByPath.putIfAbsent(resolved, provider);
+            return resolved;
         } catch (UncheckedIOException failed) {
             throw failed.getCause();
         }
@@ -150,7 +178,9 @@ final class ProfileIdentityContext implements Closeable {
         Path candidate = resources.resolve(provider);
         Path parent = candidate.getParent();
         if (parent == null) {
-            return PathContainment.existingInsideRealRoot(realRoot, candidate);
+            Path resolved = PathContainment.existingInsideRealRoot(realRoot, candidate);
+            providerByPath.put(resolved, provider);
+            return resolved;
         }
         BasicFileAttributes attributes;
         try {
@@ -158,10 +188,14 @@ final class ProfileIdentityContext implements Closeable {
                     candidate, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         } catch (IOException missing) {
             // Let the unmemoised path produce the same failure the callers already handle.
-            return PathContainment.existingInsideRealRoot(realRoot, candidate);
+            Path resolved = PathContainment.existingInsideRealRoot(realRoot, candidate);
+            providerByPath.put(resolved, provider);
+            return resolved;
         }
         if (attributes.isSymbolicLink()) {
-            return PathContainment.existingInsideRealRoot(realRoot, candidate);
+            Path resolved = PathContainment.existingInsideRealRoot(realRoot, candidate);
+            providerByPath.put(resolved, provider);
+            return resolved;
         }
         Path realParent = realDirectory(parent);
         Path resolved = realParent.resolve(candidate.getFileName());
@@ -170,6 +204,7 @@ final class ProfileIdentityContext implements Closeable {
                     "Path escapes its root: " + candidate + " resolves to " + resolved
                             + " outside " + realRoot);
         }
+        providerByPath.put(resolved, provider);
         return resolved;
     }
 
@@ -228,16 +263,63 @@ final class ProfileIdentityContext implements Closeable {
     /** One content read per resolved path for the lifetime of this preparation context. */
     private String sha256(Path source) throws IOException {
         Path resolved = source.toAbsolutePath().normalize();
-        try {
-            return fileHashes.computeIfAbsent(resolved, path -> {
-                try {
-                    return Hashes.sha256(path);
-                } catch (IOException error) {
-                    throw new UncheckedIOException(error);
+        String existing = fileHashes.get(resolved);
+        if (existing != null) {
+            return existing;
+        }
+        return computeStableHash(resolved);
+    }
+
+    private String computeStableHash(Path resolved) throws IOException {
+        synchronized (resolved.toString().intern()) {
+            String existing = fileHashes.get(resolved);
+            if (existing != null) {
+                return existing;
+            }
+            ResourceIndex.Provider provider = providerByPath.get(resolved);
+            BasicFileAttributes before;
+            try {
+                before = Files.readAttributes(
+                        resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            } catch (IOException error) {
+                throw new IOException("Failed to read file attributes before hashing: " + resolved, error);
+            }
+            if (!before.isRegularFile()) {
+                throw new IOException("Profile source is not a regular file: " + resolved);
+            }
+            if (provider != null) {
+                long modifiedMillis = Math.max(0, before.lastModifiedTime().toMillis());
+                if (before.size() != provider.size() || modifiedMillis != provider.modifiedMillis()) {
+                    throw new IOException("Provider metadata does not match indexed state before hashing: " + resolved);
                 }
-            });
-        } catch (UncheckedIOException failed) {
-            throw failed.getCause();
+            }
+
+            FileIdentity beforeIdentity = FileIdentity.from(before);
+            String digest = hasher.sha256(resolved);
+
+            BasicFileAttributes after;
+            try {
+                after = Files.readAttributes(
+                        resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            } catch (IOException error) {
+                throw new IOException("Failed to read file attributes after hashing: " + resolved, error);
+            }
+            if (!after.isRegularFile()) {
+                throw new IOException("Profile source became non-regular file during hashing: " + resolved);
+            }
+            if (provider != null) {
+                long modifiedMillis = Math.max(0, after.lastModifiedTime().toMillis());
+                if (after.size() != provider.size() || modifiedMillis != provider.modifiedMillis()) {
+                    throw new IOException("Provider metadata changed during hashing: " + resolved);
+                }
+            }
+            FileIdentity afterIdentity = FileIdentity.from(after);
+            if (!beforeIdentity.equals(afterIdentity)) {
+                throw new IOException("Source file identity changed or replaced during hash read: " + resolved);
+            }
+
+            fileHashes.put(resolved, digest);
+            return digest;
         }
     }
 
@@ -272,6 +354,7 @@ final class ProfileIdentityContext implements Closeable {
             pool = null;
         }
         realProviders.clear();
+        providerByPath.clear();
         fileHashes.clear();
     }
 
@@ -286,5 +369,14 @@ final class ProfileIdentityContext implements Closeable {
             }
         }
         throw new IOException("Could not locate starfarer_obf.jar under " + installRoot);
+    }
+
+    private record FileIdentity(long size, long modifiedMillis, Object fileKey) {
+        static FileIdentity from(BasicFileAttributes attributes) {
+            return new FileIdentity(
+                    attributes.size(),
+                    Math.max(0, attributes.lastModifiedTime().toMillis()),
+                    attributes.fileKey());
+        }
     }
 }

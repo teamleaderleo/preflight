@@ -220,13 +220,99 @@ class ProfileIdentityContextTest {
     }
 
     @Test
-    void theConstructorSeedsTheGameJarIntoTheSharedContentMemo() throws Exception {
-        Layout layout = Layout.create(temporaryDirectory.resolve("seeded-jar"), 4);
-        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, layout.index())) {
-            String initial = context.gameJarSha256();
-            Files.writeString(context.gameJar(), "changed-during-the-same-preparation");
-            assertEquals(initial, context.sha256All(List.of(context.gameJar())).get(0),
-                    "Janino and other identities must reuse the digest preparation already paid for");
+    void providerMutationDuringHashRefusesTheIdentityAndDoesNotMemoize() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("mutation-during-hash"), 4);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-1.variant").get(0);
+
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(
+                layout.game, resources, path -> {
+                    if (path.toString().endsWith("variant-1.variant")) {
+                        Files.writeString(path, "{\"variantId\":\"raced-mutation\"}");
+                    }
+                    return Hashes.sha256(path);
+                }, 1)) {
+            Path source = context.resolve(provider);
+            assertThrows(IOException.class, () -> context.sha256All(List.of(source)));
+        }
+    }
+
+    @Test
+    void providerChangedAfterIndexCreationRefusesHashing() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("changed-after-index"), 4);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-1.variant").get(0);
+
+        Path file = layout.mod.resolve("data/variants/variant-1.variant");
+        Files.writeString(file, "{\"variantId\":\"changed-after-index\"}");
+
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, resources)) {
+            Path source = context.resolve(provider);
+            assertThrows(IOException.class, () -> context.sha256All(List.of(source)));
+        }
+    }
+
+    @Test
+    void concurrentRequestsForOneStableFilePerformOneContentRead() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("single-content-read"), 4);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-1.variant").get(0);
+
+        java.util.concurrent.atomic.AtomicInteger variantReadCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(
+                layout.game, resources, path -> {
+                    if (path.toString().endsWith("variant-1.variant")) {
+                        variantReadCount.incrementAndGet();
+                        try {
+                            Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    return Hashes.sha256(path);
+                }, 4)) {
+            Path source = context.resolve(provider);
+            ExecutorService executor = Executors.newFixedThreadPool(8);
+            try {
+                List<Future<List<String>>> futures = new ArrayList<>();
+                for (int i = 0; i < 8; i++) {
+                    futures.add(executor.submit(() -> context.sha256All(List.of(source))));
+                }
+                for (Future<List<String>> f : futures) {
+                    List<String> res = f.get();
+                    assertEquals(1, res.size());
+                }
+                assertEquals(1, variantReadCount.get(), "stable content must only be read and hashed once");
+            } finally {
+                executor.shutdownNow();
+            }
+        }
+    }
+
+    @Test
+    void failedHashAttemptDoesNotPoisonSubsequentStableRead() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("unpoisoned-memo"), 4);
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-1.variant").get(0);
+
+        java.util.concurrent.atomic.AtomicBoolean failFirst = new java.util.concurrent.atomic.AtomicBoolean(true);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(
+                layout.game, resources, path -> {
+                    if (path.toString().endsWith("variant-1.variant") && failFirst.getAndSet(false)) {
+                        throw new IOException("Simulated transient I/O fault");
+                    }
+                    return Hashes.sha256(path);
+                }, 1)) {
+            Path source = context.resolve(provider);
+            assertThrows(IOException.class, () -> context.sha256All(List.of(source)));
+            // Subsequent read should succeed rather than recalling the exception
+            List<String> result = context.sha256All(List.of(source));
+            assertEquals(1, result.size());
+            assertEquals(Hashes.sha256(source), result.get(0));
         }
     }
 
