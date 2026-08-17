@@ -132,8 +132,13 @@ export function PreparationPage({
     && Boolean(preparationPlan && !preparationPlan.safeToPrepare);
   const canPrepare = !storagePlanApplies(textureStorage)
     || Boolean(preparationPlan?.safeToPrepare);
+  const settledLayout = profilePrepared
+    && !preparing
+    && !cleanupPlan
+    && !message
+    && (!cacheHealth || cacheHealth.status === "ready" || cacheHealth.status === "cold");
   return (
-    <div className="prepare-page">
+    <div className={`prepare-page${settledLayout ? " prepare-page--settled" : ""}`}>
       <NoticeBanner message={message} tone={messageTone} />
 
       {cleanupPlan ? (
@@ -222,13 +227,8 @@ export function PreparationPage({
         <div className="storage-summary-row">
           <div><strong className="storage-total">{cache ? formatBytes(cache.groups.find((group) => group.id === "acceleration")?.bytes ?? 0) : "—"}</strong><span className="storage-files">Prepared data</span></div>
           <div><span>Reports and benchmarks</span><strong>{cache ? formatBytes(cache.groups.find((group) => group.id === "evidence")?.bytes ?? 0) : "—"}</strong><small>Old sessions can be removed without slowing launches.</small></div>
-          {/*
-            * These two figures sit a card apart and differ by roughly three times, which read as a
-            * contradiction until each said what it was: one is what preparation expects to write,
-            * the other is the conservative bound it refuses below. Naming the bound as a bound stops
-            * it being read as a standing disk requirement.
-            */}
-          <div><span>Free space needed to start</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Finished data uses much less.</small></div>
+          {/* The conservative build bound matters before preparation, not on every launch. */}
+          {!profilePrepared || preparing ? <div><span>Free space needed to prepare</span><strong>{preparationPlanLoading ? "Calculating…" : preparationPlan ? formatBytes(preparationPlan.requiredFreeBytes) : "—"}</strong><small>Finished data uses much less.</small></div> : null}
           <button className="button button--quiet button--compact" type="button" onClick={onReviewCleanup} disabled={cleanupBusy || operationBlocked}>{cleanupBusy ? "Checking…" : "Review cleanup"}</button>
         </div>
         {preparationPlan && !preparationPlan.safeToPrepare ? (

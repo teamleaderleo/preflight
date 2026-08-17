@@ -313,7 +313,6 @@ button {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 5px 2px 0;
-  scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
 
@@ -1738,6 +1737,12 @@ h2 {
   padding: 20px 22px;
 }
 
+.preferences-card > .preference-block:only-child {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(320px, 1.3fr);
+  align-items: center;
+}
+
 .preference-block + .preference-block {
   border-left: 1px solid var(--line);
 }
@@ -1972,6 +1977,11 @@ h2 {
 }
 
 @media (max-width: 760px) {
+  .preferences-card,
+  .preferences-card > .preference-block:only-child {
+    grid-template-columns: 1fr;
+  }
+
   .hangar-page {
     grid-template-columns: 1fr;
   }
@@ -4019,9 +4029,9 @@ footer {
     padding: 10px 0;
   }
 
-  .preflight-summary-card {
-    padding-top: 16px;
-    padding-bottom: 16px;
+  .prepare-page .preflight-summary-card {
+    padding-top: 10px;
+    padding-bottom: 10px;
   }
 
   .storage-card--compact {
@@ -4029,13 +4039,18 @@ footer {
     padding-bottom: 10px;
   }
 
-  .scoreboard {
+  .prepare-page .scoreboard {
     gap: 20px;
-    padding: 18px 22px;
+    padding: 14px 22px;
   }
 
-  .preflight-advanced > summary {
-    min-height: 56px;
+  .prepare-page .preflight-advanced > summary {
+    min-height: 44px;
+  }
+
+  .page-viewport:has(> .prepare-page--settled):not(:has(details[open])) {
+    overflow-y: hidden;
+    padding-right: 0;
   }
 
   .launch-console--configured .launch-console__primary {

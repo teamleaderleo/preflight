@@ -288,6 +288,7 @@ test("the Preflight page offers the same direct minimal-disk recovery", async ()
   await userEvent.setup().click(screen.getByRole("button", { name: "Speed" }));
   expect(await screen.findByRole("heading", { name: "Speed", level: 1 })).toBeInTheDocument();
   await screen.findByText(reason);
+  expect(screen.getByText("Free space needed to prepare")).toBeInTheDocument();
   const action = await screen.findByRole("button", { name: "Prepare with less disk" });
   await userEvent.setup().click(action);
   await waitFor(() => expect(preparation)
@@ -659,11 +660,8 @@ test("preparation exposes balanced defaults, storage, and bounded resource choic
   expect(window.localStorage.getItem("preflight.disabledOptimizationDomains"))
     .toBe('["prepared-audio"]');
   expect(screen.getAllByText("3.50 GB").length).toBeGreaterThan(0);
-  expect(screen.getByText("Free space needed to start")).toBeInTheDocument();
-  expect(await screen.findByText("11.6 GB")).toBeInTheDocument();
-  // The bound and the predicted cost differ by roughly three times, so the bound has to say it is
-  // a bound rather than an amount the profile will consume.
-  expect(screen.getByText("Finished data uses much less.")).toBeInTheDocument();
+  expect(screen.queryByText("Free space needed to prepare")).not.toBeInTheDocument();
+  expect(screen.queryByText("Finished data uses much less.")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Medium4 workers/ })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Prepare current profile" })).not.toBeInTheDocument();
   const storageInfo = screen.getByRole("button", { name: "About Preflight storage" });
@@ -724,6 +722,8 @@ test("the Hangar ships featured wireframes and keeps customization local to the 
   for (const name of ["Odyssey", "Onslaught", "Conquest", "Paragon", "Astral", "Hammerhead"]) {
     expect(within(ship).getByRole("option", { name })).toBeInTheDocument();
   }
+  expect(within(ship).getByRole("option", { name: "Preflight courier" })).toBeInTheDocument();
+  expect(screen.getByText("7 available")).toBeInTheDocument();
 
   await user.click(screen.getByText("Adjust the wireframe"));
   const height = screen.getByRole("slider", { name: "Model height" });

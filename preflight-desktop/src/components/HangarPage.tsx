@@ -122,7 +122,7 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
             </optgroup>
           </select>
           <small>{instrumentHull.catalog
-            ? `${instrumentHull.catalog.hulls.length.toLocaleString()} available`
+            ? `${instrumentHull.hulls.length.toLocaleString()} available`
             : instrumentHull.catalogLoaded ? "Installation catalog unavailable" : "Reading the local catalog…"}</small>
         </label>
 
