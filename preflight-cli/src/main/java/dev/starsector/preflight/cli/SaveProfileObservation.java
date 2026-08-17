@@ -30,11 +30,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 /**
  * Local-only history connecting a save to the exact Preflight profile observed while it changed.
@@ -56,31 +56,48 @@ final class SaveProfileObservation {
     private SaveProfileObservation() {
     }
 
-    static Observer start(ProcessBuilder builder, Process process, PrintStream diagnostics) {
+    /**
+     * Captures the exact setup identity before the child process exists.
+     *
+     * <p>This deliberately happens before {@link ProcessBuilder#start()} so a later manual edit to
+     * the enabled-mod file cannot relabel a running game. The save baseline itself is captured only
+     * after process start by {@link #start(Prepared, Process, PrintStream)}.
+     */
+    static Prepared prepare(ProcessBuilder builder, PrintStream diagnostics) {
         Objects.requireNonNull(builder, "builder");
-        Objects.requireNonNull(process, "process");
         Objects.requireNonNull(diagnostics, "diagnostics");
         try {
             Context context = Context.from(builder);
-            if (context == null) return Observer.disabled();
+            if (context == null) return Prepared.disabled();
+            SessionIdentity identity = resolveIdentity(context);
+            return new Prepared(context, identity);
+        } catch (Exception error) {
+            diagnostics.println("Preflight could not prepare local save/profile observation: " + bounded(error));
+            return Prepared.disabled();
+        }
+    }
+
+    /** Starts the filesystem lifetime only after the Preflight-owned child exists. */
+    static Observer start(Prepared prepared, Process process, PrintStream diagnostics) {
+        Objects.requireNonNull(prepared, "prepared");
+        Objects.requireNonNull(process, "process");
+        Objects.requireNonNull(diagnostics, "diagnostics");
+        if (prepared.context() == null || prepared.identity() == null) return Observer.disabled();
+        try {
+            Context context = prepared.context();
             Instant startedAt = Instant.now();
             Map<String, SaveState> baseline = snapshot(context.installRoot(), context.caseInsensitivePaths());
             Ledger ledger = new Ledger(context.home());
-            ledger.reconcileBaseline(
-                    context.installationKey(), baseline, startedAt, context.caseInsensitivePaths());
-            ExecutorService identityExecutor = Executors.newSingleThreadExecutor(task -> daemonThread(
-                    task, "preflight-save-observation-identity"));
-            CompletableFuture<SessionIdentity> identity = CompletableFuture.supplyAsync(
-                    () -> resolveIdentity(context), identityExecutor);
+            ledger.reconcileBaseline(context.installationKey(), baseline, startedAt);
             Session session = new Session(
                     ledger,
                     context.installRoot(),
                     context.installationKey(),
                     context.caseInsensitivePaths(),
                     baseline,
-                    identity,
+                    prepared.identity(),
                     startedAt);
-            return Observer.running(process, session, identityExecutor, diagnostics);
+            return Observer.running(process, session, diagnostics);
         } catch (Exception error) {
             diagnostics.println("Preflight could not start local save/profile observation: " + bounded(error));
             return Observer.disabled();
@@ -100,14 +117,14 @@ final class SaveProfileObservation {
         String installKey = pathKey(installRoot, caseInsensitivePaths);
         Map<String, SaveState> baseline = snapshot(installRoot, caseInsensitivePaths);
         Ledger ledger = new Ledger(home);
-        ledger.reconcileBaseline(installKey, baseline, startedAt, caseInsensitivePaths);
+        ledger.reconcileBaseline(installKey, baseline, startedAt);
         return new Session(
                 ledger,
                 installRoot,
                 installKey,
                 caseInsensitivePaths,
                 baseline,
-                CompletableFuture.completedFuture(identity),
+                identity,
                 startedAt);
     }
 
@@ -185,13 +202,19 @@ final class SaveProfileObservation {
         }
     }
 
+    record Prepared(Context context, SessionIdentity identity) {
+        static Prepared disabled() {
+            return new Prepared(null, null);
+        }
+    }
+
     static final class Session {
         private final Ledger ledger;
         private final Path installRoot;
         private final String installationKey;
         private final boolean caseInsensitivePaths;
         private final Map<String, SaveState> baseline;
-        private final CompletableFuture<SessionIdentity> identity;
+        private final SessionIdentity identity;
         private final Instant startedAt;
         private final Set<String> changed = new LinkedHashSet<>();
         private final AtomicBoolean finished = new AtomicBoolean();
@@ -202,7 +225,7 @@ final class SaveProfileObservation {
                 String installationKey,
                 boolean caseInsensitivePaths,
                 Map<String, SaveState> baseline,
-                CompletableFuture<SessionIdentity> identity,
+                SessionIdentity identity,
                 Instant startedAt) {
             this.ledger = ledger;
             this.installRoot = installRoot;
@@ -214,20 +237,21 @@ final class SaveProfileObservation {
         }
 
         synchronized void scanWhileOwned() throws IOException {
-            if (finished.get()) return;
-            detectChanges(snapshot(installRoot, caseInsensitivePaths));
+            scanWhileOwned(() -> true);
+        }
+
+        synchronized void scanWhileOwned(BooleanSupplier stillOwned) throws IOException {
+            if (finished.get() || !stillOwned.getAsBoolean()) return;
+            Map<String, SaveState> current = snapshot(installRoot, caseInsensitivePaths);
+            // A poll that began before termination and finished after termination is discarded.
+            if (!stillOwned.getAsBoolean()) return;
+            detectChanges(current);
         }
 
         synchronized void finish(Instant endedAt) throws IOException {
             if (!finished.compareAndSet(false, true)) return;
             Map<String, SaveState> finalState = snapshot(installRoot, caseInsensitivePaths);
             detectChanges(finalState);
-            SessionIdentity resolved;
-            try {
-                resolved = identity.join();
-            } catch (RuntimeException error) {
-                return;
-            }
             List<SaveState> observed = changed.stream()
                     .map(finalState::get)
                     .filter(Objects::nonNull)
@@ -235,12 +259,7 @@ final class SaveProfileObservation {
                     .sorted(Comparator.comparing(SaveState::key))
                     .toList();
             if (!observed.isEmpty()) {
-                ledger.record(
-                        installationKey,
-                        observed,
-                        resolved,
-                        endedAt,
-                        caseInsensitivePaths);
+                ledger.record(installationKey, observed, identity, endedAt);
             } else {
                 ledger.prune(endedAt);
             }
@@ -268,7 +287,7 @@ final class SaveProfileObservation {
         private final Process process;
         private final Session session;
         private final ScheduledExecutorService poller;
-        private final ExecutorService identityExecutor;
+        private final CompletableFuture<Instant> processEndedAt;
         private final PrintStream diagnostics;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -276,12 +295,12 @@ final class SaveProfileObservation {
                 Process process,
                 Session session,
                 ScheduledExecutorService poller,
-                ExecutorService identityExecutor,
+                CompletableFuture<Instant> processEndedAt,
                 PrintStream diagnostics) {
             this.process = process;
             this.session = session;
             this.poller = poller;
-            this.identityExecutor = identityExecutor;
+            this.processEndedAt = processEndedAt;
             this.diagnostics = diagnostics;
         }
 
@@ -289,14 +308,21 @@ final class SaveProfileObservation {
             return new Observer(null, null, null, null, null);
         }
 
-        static Observer running(
-                Process process,
-                Session session,
-                ExecutorService identityExecutor,
-                PrintStream diagnostics) {
+        static Observer running(Process process, Session session, PrintStream diagnostics) {
             ScheduledExecutorService poller = Executors.newSingleThreadScheduledExecutor(task -> daemonThread(
                     task, "preflight-save-observation"));
-            Observer observer = new Observer(process, session, poller, identityExecutor, diagnostics);
+            CompletableFuture<Instant> processEndedAt = new CompletableFuture<>();
+            Thread endWatcher = daemonThread(() -> {
+                try {
+                    process.waitFor();
+                    processEndedAt.complete(Instant.now());
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    processEndedAt.completeExceptionally(interrupted);
+                }
+            }, "preflight-save-observation-process-end");
+            endWatcher.start();
+            Observer observer = new Observer(process, session, poller, processEndedAt, diagnostics);
             poller.scheduleWithFixedDelay(
                     observer::poll,
                     POLL_INTERVAL.toMillis(),
@@ -308,11 +334,7 @@ final class SaveProfileObservation {
         private void poll() {
             if (process == null || !process.isAlive() || closed.get()) return;
             try {
-                session.scanWhileOwned();
-                // A scan that straddles process termination is discarded as an ownership fact.
-                if (!process.isAlive()) {
-                    return;
-                }
+                session.scanWhileOwned(process::isAlive);
             } catch (IOException error) {
                 if (diagnostics != null) {
                     diagnostics.println("Preflight could not scan local saves: " + bounded(error));
@@ -320,15 +342,21 @@ final class SaveProfileObservation {
             }
         }
 
-        void processEnded(Instant endedAt) {
+        void processEnded(Instant fallbackEndedAt) {
             if (session == null || !closed.compareAndSet(false, true)) return;
             poller.shutdownNow();
+            Instant endedAt = fallbackEndedAt;
+            if (processEndedAt != null && process != null && !process.isAlive()) {
+                try {
+                    endedAt = processEndedAt.join();
+                } catch (RuntimeException ignored) {
+                    // The caller's post-wait timestamp remains a conservative fallback boundary.
+                }
+            }
             try {
                 session.finish(endedAt);
             } catch (IOException error) {
                 diagnostics.println("Preflight could not record local save/profile observation: " + bounded(error));
-            } finally {
-                identityExecutor.shutdownNow();
             }
         }
 
@@ -353,7 +381,7 @@ final class SaveProfileObservation {
             Object installRootValue = values.get("installRoot");
             if (!(installRootValue instanceof String installRootText) || installRootText.isBlank()) return null;
             Path installRoot = Path.of(installRootText).toAbsolutePath().normalize();
-            boolean caseInsensitive = caseInsensitivePaths();
+            boolean caseInsensitive = SaveProfileObservation.caseInsensitivePaths();
             String launchFingerprint = values.get("textureProfileFingerprint") instanceof String value
                     && !value.isBlank() ? value : null;
             return new Context(
@@ -365,23 +393,19 @@ final class SaveProfileObservation {
         }
     }
 
-    private static SessionIdentity resolveIdentity(Context context) {
-        try {
-            String fingerprint = context.launchProfileFingerprint();
-            if (fingerprint == null) {
-                fingerprint = ResourceIndexBuilder.build(
-                        context.installRoot(), ResourceIndexBuilder.DEFAULT_SCAN_WORKERS)
-                        .index()
-                        .profileFingerprint();
-            }
-            List<Path> gameJars = PrepareAudioCommand.jars(context.installRoot());
-            String gameBuild = PrepareAudioCommand.starsectorBuildIdentity(gameJars);
-            SavedProfileMatch saved = savedProfileMatch(
-                    context.home(), context.installationKey(), fingerprint, context.caseInsensitivePaths());
-            return new SessionIdentity(fingerprint, saved.displayName(), gameBuild, saved.mods());
-        } catch (Exception error) {
-            throw new IllegalStateException("Exact launch profile/build identity unavailable", error);
+    private static SessionIdentity resolveIdentity(Context context) throws Exception {
+        String fingerprint = context.launchProfileFingerprint();
+        if (fingerprint == null) {
+            fingerprint = ResourceIndexBuilder.build(
+                            context.installRoot(), ResourceIndexBuilder.DEFAULT_SCAN_WORKERS)
+                    .index()
+                    .profileFingerprint();
         }
+        List<Path> gameJars = PrepareAudioCommand.jars(context.installRoot());
+        String gameBuild = PrepareAudioCommand.starsectorBuildIdentity(gameJars);
+        SavedProfileMatch saved = savedProfileMatch(
+                context.home(), context.installationKey(), fingerprint, context.caseInsensitivePaths());
+        return new SessionIdentity(fingerprint, saved.displayName(), gameBuild, saved.mods());
     }
 
     private static SavedProfileMatch savedProfileMatch(
@@ -389,7 +413,7 @@ final class SaveProfileObservation {
             String installationKey,
             String profileFingerprint,
             boolean caseInsensitivePaths) throws IOException {
-        Path directory = home.profilesDirectory();
+        Path directory = home.profiles();
         if (!Files.isDirectory(directory)) return new SavedProfileMatch(null, List.of());
         List<SavedProfileCandidate> matches = new ArrayList<>();
         try (var stream = Files.list(directory)) {
@@ -399,14 +423,16 @@ final class SaveProfileObservation {
                     .toList()) {
                 try {
                     Map<String, Object> values = StrictJson.object(Files.readString(file));
-                    if (!(values.get("installationRoot") instanceof String root)
+                    if (!(values.get("installRoot") instanceof String root)
                             || !installationKey.equals(pathKey(Path.of(root), caseInsensitivePaths))) {
                         continue;
                     }
-                    if (!profileFingerprint.equals(values.get("profileFingerprint"))) continue;
+                    if (!profileFingerprint.equalsIgnoreCase(String.valueOf(values.get("profileFingerprint")))) {
+                        continue;
+                    }
                     String name = values.get("name") instanceof String value ? boundedNullable(value, 160) : null;
                     Instant savedAt = parseInstant(values.get("savedAt"));
-                    List<Mod> mods = parseMods(values.get("enabledMods"));
+                    List<Mod> mods = parseSavedModIds(values.get("enabledMods"));
                     matches.add(new SavedProfileCandidate(name, savedAt, mods));
                 } catch (RuntimeException ignored) {
                     // One malformed historical profile cannot establish or erase an association.
@@ -414,7 +440,9 @@ final class SaveProfileObservation {
             }
         }
         if (matches.isEmpty()) return new SavedProfileMatch(null, List.of());
-        matches.sort(Comparator.comparing(SavedProfileCandidate::savedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+        matches.sort(Comparator.comparing(
+                        SavedProfileCandidate::savedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(candidate -> candidate.displayName() == null ? "" : candidate.displayName()));
         Set<String> names = new LinkedHashSet<>();
         for (SavedProfileCandidate match : matches) {
@@ -506,8 +534,7 @@ final class SaveProfileObservation {
         void reconcileBaseline(
                 String installationKey,
                 Map<String, SaveState> baseline,
-                Instant now,
-                boolean caseInsensitivePaths) throws IOException {
+                Instant now) throws IOException {
             withLock(() -> {
                 List<Observation> current = readUnlocked();
                 List<Observation> next = new ArrayList<>();
@@ -540,8 +567,7 @@ final class SaveProfileObservation {
                 String installationKey,
                 List<SaveState> states,
                 SessionIdentity identity,
-                Instant observedAt,
-                boolean caseInsensitivePaths) throws IOException {
+                Instant observedAt) throws IOException {
             withLock(() -> {
                 Map<String, Observation> byKey = new LinkedHashMap<>();
                 for (Observation observation : readUnlocked()) {
@@ -706,6 +732,18 @@ final class SaveProfileObservation {
                 observation.profileDisplayName(),
                 observation.gameBuild(),
                 observation.mods());
+    }
+
+    private static List<Mod> parseSavedModIds(Object raw) {
+        if (!(raw instanceof List<?> list)) return List.of();
+        List<Mod> mods = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof String id && !id.isBlank()) {
+                mods.add(new Mod(id, "", ""));
+            }
+            if (mods.size() >= MAX_MODS) break;
+        }
+        return boundedMods(mods);
     }
 
     private static List<Mod> parseMods(Object raw) {
