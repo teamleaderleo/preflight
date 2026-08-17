@@ -80,6 +80,9 @@
 ### Explicitly Represent Unavailable Save-Profile Mod Metadata ([#589](https://github.com/teamleaderleo/preflight/issues/589), [PR #638](https://github.com/teamleaderleo/preflight/pull/638))
 - **Fix**: In [`SaveProfileObservation.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/SaveProfileObservation.java), added `Difference.MOD_METADATA_UNAVAILABLE` to explicitly represent absence of historical mod evidence. Made `Mod.displayName()` and `Mod.version()` nullable (`null` for ID-only sources), and `Observation.mods()` / `SessionIdentity.mods()` nullable (`null` for unmatched fingerprints vs `[]` for vanilla profiles). In `differences()`, returns `MOD_METADATA_UNAVAILABLE` when either side lacks evidence, preventing false mod-count or change claims.
 
+### Bound Save-Profile Polling & Offload Launch Index Scan ([#588](https://github.com/teamleaderleo/preflight/issues/588), [#587](https://github.com/teamleaderleo/preflight/issues/587), [PR #639](https://github.com/teamleaderleo/preflight/pull/639))
+- **Fix**: In [`SaveProfileObservation.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/SaveProfileObservation.java), bounded polling work with explicit ceilings (`MAX_SAVES_PER_POLL = 400`, `MAX_ENTRIES_PER_SAVE = 512`, `MAX_SAVE_TREE_DEPTH = 6`, `MAX_AGGREGATE_ENTRIES_PER_POLL = 8_192`) and process termination cancellation (`stillOwned`). Over-budget or pathological saves are safely omitted without interrupting gameplay or session finalization. Removed the fallback synchronous `ResourceIndexBuilder.build()` from `resolveIdentity()`, cleanly disabling observation for runs lacking pre-computed fingerprints without adding scan delays to the launch path.
+
 ### Peer Reviews
 - **PR #625** (Codex / Issue #621): Reviewed non-blocking admission; noted `release-receipt-source-lock.json` review requirement.
 - **PR #624** (Codex / Issue #608): Reviewed sub-millisecond `FileTime` precision in direct provider identity.
@@ -96,7 +99,8 @@
   - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 91ms
   - **Rust Backend Tests**: 98/98 Cargo tests passing
   - **Cargo Format & Clippy**: 0 warnings
-- **Maven Backend**: `./mvnw test` (698/698 tests passing across 5 modules)
+- **Maven Backend**: `./mvnw test` (702/702 tests passing across 5 modules)
+
 
 
 
