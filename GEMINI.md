@@ -1,7 +1,7 @@
 # Antigravity (Gemini) Engineering Notes & Roadmap
 
 **Date:** 2026-08-17  
-**Branch:** `agent/antigravity` (rebased on latest `origin/main`)
+**Branch:** `agent/antigravity` (rebased and integrated with `origin/main`)
 
 ---
 
@@ -22,31 +22,26 @@
 - **Keel Grid & Nose**: Keel ground grid projected with the same camera; bright bow nose marker.
 - **Rate**: 360° rotation at 0.34 rad/s (~18s full period) with 24 FPS lock and reduced-motion fallback.
 
-### Desktop UX Polish
+### Last-Launch Startup Duration Readout ([#463](https://github.com/teamleaderleo/preflight/issues/463))
+- **Engine / CLI Bridge**: Updated `DesktopBridgeCommand.java` to parse `run.json` safely for `started`, `ended`, `durationMillis`, `outcome`, and `exitCode` under bounded memory limits (`MAX_RUN_METADATA_BYTES`). Added unit test `snapshotCarriesTheCompactRunSummaryOfTheLatestRun` in `DesktopBridgeCommandTest.java`.
+- **Desktop Frontend**:
+  - Exported canonical `formatDuration` in `uiFormat.ts` with comprehensive unit tests in `uiFormat.test.ts`.
+  - Added typed fields to `LastRun` in `types.ts`.
+  - Wired `lastRun` to `SpeedScoreboard.tsx` to display the actual measured startup time (`Last launch took 15.3s`) directly on unmeasured speed scoreboards.
+
+### Desktop UX Polish & Gating
 - **Launch Posture**: Added posture indicator (`Accelerations active · Balanced storage` / `Original code and assets · Vanilla fallback`) under the primary launch button in [`HomePage.tsx`](preflight-desktop/src/components/HomePage.tsx).
 - **Hydration Stability**: Added `min-height: 130px` to `.quick-settings--loading` in [`styles.css`](preflight-desktop/src/styles.css) to eliminate layout shift during startup settings scan.
 - **Uncoupled Operation Gating**: Ensured quick launcher settings remain responsive during background profile operations.
 
 ---
 
-## 2. Next Iteration Frontiers & Architecture Directions
+## 2. Review & Verification Reference
 
-### A. Desktop Startup Latency Decomposition
-When investigating "Preflight feels slow to open", separate the timing into three distinct buckets:
-1. **Native Process & WebView Initialization**: Tauri binary execution -> Webview creation -> HTML/CSS first paint.
-2. **Frontend Hydration**: React bundle parse -> state initialization -> `theme-init.js` application.
-3. **Background Engine Scans**: Initial `get_home_state` reading `cacheInspection`, `profiles`, and `launchSettings` concurrently in one JVM process (`DesktopHomeStateCommand`).
-
-### B. Last-Launch Startup Duration Readout ([#463](https://github.com/teamleaderleo/preflight/issues/463)) & Adapter Health ([#391](https://github.com/teamleaderleo/preflight/issues/391))
-- **Goal**: After an ordinary launch (via CLI `preflight run` or desktop UI), show the exact measured startup-to-menu time (`Last launch: 15.3s · 58 plans applied`) directly on Home / Speed without requiring a full 2-launch benchmark run.
-- **Contract**: Read the latest run's `run.json` and `adapter-health.json` from the run directory and expose through `DesktopBridgeCommand` / `bridge.ts`.
-
----
-
-## 3. Review & Verification Reference
-
-- **Test Suite**: `npm --prefix preflight-desktop test` (199 Vitest tests across 24 suites)
-- **Frontend Build**: `npm --prefix preflight-desktop run build` (`tsc -b && vite build`)
-- **Tauri Backend**: `cargo test --manifest-path preflight-desktop/src-tauri/Cargo.toml` (81 tests)
-- **Clippy**: `cargo clippy --manifest-path preflight-desktop/src-tauri/Cargo.toml -- -D warnings`
-- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest`
+- **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
+  - **Release Node Tests**: 110/110 passing
+  - **Vitest Unit Tests**: 200/200 passing across 24 test suites
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 147ms
+  - **Rust Backend Tests**: 81/81 Cargo tests passing
+  - **Cargo Format & Clippy**: `cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --all-targets -- -D warnings` (0 warnings)
+- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest -Dsurefire.failIfNoSpecifiedTests=false` (16/16 CLI tests passing)
