@@ -39,6 +39,29 @@ export interface WireframeMount extends WireframePoint {
   mount: string;
 }
 
+/**
+ * One raised interior block, traced off the sprite's own lighting rather than authored. `height`
+ * is where it sits above the plate, in the same units as the plate's own thickness.
+ */
+export interface WireframeInnerContour {
+  height: number;
+  points: WireframePoint[];
+}
+
+/**
+ * The geometry a shipped hull carries and a scanned one cannot: voids punched clean through the
+ * silhouette, and the raised interior blocks that are what actually makes a ship recognisable.
+ * Collision bounds have neither -- they are a single loop that inscribes the artwork - so this
+ * rides alongside `bounds` rather than replacing it, and hulls without it draw exactly as before.
+ */
+export interface CuratedWireframeGeometry {
+  format: "preflight-curated-wireframe-v1";
+  thickness: number;
+  engineBells: number;
+  holes: WireframePoint[][];
+  inner: WireframeInnerContour[];
+}
+
 export interface WireframeHull {
   id: string;
   name: string;
@@ -48,6 +71,7 @@ export interface WireframeHull {
   engines: WireframeEngine[];
   mounts: WireframeMount[];
   featured: boolean;
+  curated?: CuratedWireframeGeometry;
 }
 
 export interface WireframeHullCatalog {

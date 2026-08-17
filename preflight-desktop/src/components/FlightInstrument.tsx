@@ -5,11 +5,18 @@ import { projectHull } from "../wireframeHullGeometry";
 
 interface FlightInstrumentProps {
   hull?: WireframeHull;
+  /**
+   * `badge` is the small one pinned beside a number, and keeps the targeting reticle it is read
+   * against. `stage` fills its container and drops the reticle: at that size the ship is the
+   * subject rather than a readout, and the chrome would be competing with it.
+   */
+  variant?: "badge" | "stage";
 }
 
 interface InstrumentPalette {
   line: string;
   soft: string;
+  detail: string;
   accent: string;
   fill: string;
 }
@@ -31,6 +38,7 @@ function readPalette(canvas: HTMLCanvasElement): InstrumentPalette {
   return {
     line: styles.getPropertyValue("--instrument-line").trim() || "rgba(87,81,74,.55)",
     soft: styles.getPropertyValue("--instrument-soft").trim() || "rgba(87,81,74,.18)",
+    detail: styles.getPropertyValue("--instrument-detail").trim() || "rgba(167,101,50,.5)",
     accent: styles.getPropertyValue("--instrument-accent").trim() || "#a76532",
     fill: styles.getPropertyValue("--instrument-fill").trim() || "rgba(167,101,50,.06)",
   };
@@ -78,7 +86,25 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
   context.fillStyle = palette.fill;
   context.fill();
 
-  const order = ["keel", "structure", "outline", "deck", "engine"] as const;
+  /*
+   * Back to front, and close to one colour. The prototype draws every line in the same gold and
+   * lets the layering carry the depth; splitting the kinds across two hues was tried here and the
+   * interior blocks stopped reading as detail inside a ship and started reading as a second ship.
+   * So the silhouette stays the heaviest line, the interiors sit a step under it in the same
+   * family, and only the drives take the full accent.
+   */
+  const order = ["keel", "structure", "outline", "deck", "interior", "engine"] as const;
+  const stroke: Record<typeof order[number], string> = {
+    keel: palette.soft,
+    structure: palette.soft,
+    outline: palette.line,
+    deck: palette.line,
+    interior: palette.detail,
+    engine: palette.accent,
+  };
+  const weight: Record<typeof order[number], number> = {
+    keel: 1, structure: 1, outline: 1.8, deck: 1, interior: 1.1, engine: 1.3,
+  };
   for (const kind of order) {
     context.beginPath();
     for (const segment of projected.segments.filter((candidate) => candidate.kind === kind)) {
@@ -87,8 +113,8 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
       context.moveTo(from.x, from.y);
       context.lineTo(to.x, to.y);
     }
-    context.strokeStyle = kind === "engine" ? palette.accent : kind === "keel" || kind === "structure" ? palette.soft : palette.line;
-    context.lineWidth = kind === "outline" ? 1.8 : kind === "engine" ? 1.6 : 1;
+    context.strokeStyle = stroke[kind];
+    context.lineWidth = weight[kind];
     context.lineJoin = "round";
     context.stroke();
   }
@@ -105,7 +131,7 @@ function drawHull(canvas: HTMLCanvasElement, hull: WireframeHull, yaw: number, p
 }
 
 /** A bounded local-install wireframe; the game sprite and source geometry never enter the app. */
-export function FlightInstrument({ hull = ORIGINAL_HULL }: FlightInstrumentProps) {
+export function FlightInstrument({ hull = ORIGINAL_HULL, variant = "badge" }: FlightInstrumentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -117,7 +143,15 @@ export function FlightInstrument({ hull = ORIGINAL_HULL }: FlightInstrumentProps
     let previous = 0;
     let palette = readPalette(canvas);
 
-    const drawStill = () => drawHull(canvas, hull, 0.38, palette);
+    /*
+     * Both are quarter views; the stage sits a little further round so the ship lies across a
+     * landscape panel instead of standing in the middle of one. Picked off a hull x yaw grid of
+     * this renderer's own output rather than one angle at a time -- past about 0.8 the plate goes
+     * edge-on, and the Odyssey in particular collapses into a sliver.
+     */
+    const centre = variant === "stage" ? 0.52 : 0.38;
+    const sway = variant === "stage" ? 0.18 : 0.17;
+    const drawStill = () => drawHull(canvas, hull, centre, palette);
     const schedule = () => {
       if (frame === null && visible && !reducedMotion.matches) frame = window.requestAnimationFrame(render);
     };
@@ -127,7 +161,7 @@ export function FlightInstrument({ hull = ORIGINAL_HULL }: FlightInstrumentProps
       if (!visible || reducedMotion.matches) return;
       if (time - previous >= 1000 / 24) {
         previous = time;
-        drawHull(canvas, hull, 0.38 + Math.sin(time / 5_500) * 0.17, palette);
+        drawHull(canvas, hull, centre + Math.sin(time / 5_500) * sway, palette);
       }
       schedule();
     };
@@ -164,20 +198,22 @@ export function FlightInstrument({ hull = ORIGINAL_HULL }: FlightInstrumentProps
       theme.disconnect();
       reducedMotion.removeEventListener("change", updateMotion);
     };
-  }, [hull]);
+  }, [hull, variant]);
 
   return (
-    <div className="flight-instrument" aria-hidden="true">
+    <div className={`flight-instrument flight-instrument--${variant}`} aria-hidden="true">
       <div className="flight-instrument__drift">
-        <svg viewBox="0 0 240 150" focusable="false">
-          <g className="flight-instrument__scope">
-            <ellipse cx="124" cy="76" rx="96" ry="48" />
-            <ellipse cx="124" cy="76" rx="70" ry="34" />
-            <path d="M18 76h212M124 18v116" />
-            <path className="flight-instrument__arc" d="M38 105c33 34 111 40 162-2" />
-            <path className="flight-instrument__tick" d="M31 70v12m186-12v12M118 25h12m-12 102h12" />
-          </g>
-        </svg>
+        {variant === "badge" ? (
+          <svg viewBox="0 0 240 150" focusable="false">
+            <g className="flight-instrument__scope">
+              <ellipse cx="124" cy="76" rx="96" ry="48" />
+              <ellipse cx="124" cy="76" rx="70" ry="34" />
+              <path d="M18 76h212M124 18v116" />
+              <path className="flight-instrument__arc" d="M38 105c33 34 111 40 162-2" />
+              <path className="flight-instrument__tick" d="M31 70v12m186-12v12M118 25h12m-12 102h12" />
+            </g>
+          </svg>
+        ) : null}
         <canvas ref={canvasRef} />
       </div>
     </div>
