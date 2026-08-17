@@ -108,6 +108,35 @@ class SupportEvidenceProjectionTest {
     }
 
     @Test
+    void dropsSecretAssignmentsAcrossSpacingAndCaseWithoutRejectingRelatedWords() {
+        String token = text(SupportEvidenceProjection.project(
+                "spaced-token.json",
+                "{\"reason\":\"token = top-secret\",\"status\":\"ok\"}"));
+        String password = text(SupportEvidenceProjection.project(
+                "spaced-password.json",
+                "{\"summary\":\"PASSWORD : hunter2\",\"status\":\"ok\"}"));
+        String apiKey = text(SupportEvidenceProjection.project(
+                "spaced-api-key.json",
+                "{\"reason\":\"api_key   = private-value\",\"status\":\"ok\"}"));
+        String authorization = text(SupportEvidenceProjection.project(
+                "spaced-authorization.json",
+                "{\"reason\":\"Authorization = Bearer private-token\",\"status\":\"ok\"}"));
+        String benign = text(SupportEvidenceProjection.project(
+                "benign-secret-words.json",
+                "{\"summary\":\"tokenized input; passwordless mode; authorization pending\",\"status\":\"ok\"}"));
+
+        assertFalse(token.contains("top-secret"), token);
+        assertFalse(password.contains("hunter2"), password);
+        assertFalse(apiKey.contains("private-value"), apiKey);
+        assertFalse(authorization.contains("private-token"), authorization);
+        assertTrue(benign.contains("tokenized input; passwordless mode; authorization pending"), benign);
+        assertTrue(token.contains("status"), token);
+        assertTrue(password.contains("status"), password);
+        assertTrue(apiKey.contains("status"), apiKey);
+        assertTrue(authorization.contains("status"), authorization);
+    }
+
+    @Test
     void keepsBenignColonProseAndDropsGenericUriSchemes() {
         String benign = text(SupportEvidenceProjection.project(
                 "benign-colon.json",
