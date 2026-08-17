@@ -9,6 +9,20 @@ export interface LaunchTarget {
 export interface LastRun {
   directory: string;
   modifiedAt: string;
+  adapterHealth: AdapterHealthSummary | null;
+}
+
+export interface AdapterHealthSummary {
+  format: "starsector-preflight-adapter-health-v1";
+  status: "ACTIVE" | "PARTIAL" | "SAFE_FALLBACK" | "DISABLED" | "PROBE_ONLY" | "NO_TARGETS" | "ERROR";
+  accelerationsActive: boolean;
+  originalCodeRetained: boolean;
+  reviewRecommended: boolean;
+  transformationsApplied: number;
+  registryTargets: number;
+  containedFailures: number;
+  evidenceKinds: string[];
+  suggestedActions: string[];
 }
 
 export interface PlaytimeSnapshot {

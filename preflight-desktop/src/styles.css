@@ -926,6 +926,21 @@ h2 {
   overflow: hidden;
 }
 
+.last-run-health {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: fit-content;
+  margin: -6px 0 10px;
+  color: var(--ink-soft);
+  font-family: var(--font-data);
+  font-size: 12px;
+}
+
+.last-run-health--review {
+  color: var(--accent-strong);
+}
+
 .home-fact {
   position: relative;
   display: flex;

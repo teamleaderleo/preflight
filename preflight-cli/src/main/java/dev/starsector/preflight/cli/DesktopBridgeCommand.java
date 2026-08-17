@@ -2,7 +2,10 @@ package dev.starsector.preflight.cli;
 
 import dev.starsector.preflight.core.Json;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -22,6 +25,7 @@ import java.util.stream.Stream;
  */
 final class DesktopBridgeCommand {
     private static final int PROTOCOL_VERSION = 1;
+    private static final long MAX_ADAPTER_HEALTH_BYTES = 256 * 1024;
 
     private DesktopBridgeCommand() {
     }
@@ -422,7 +426,7 @@ final class DesktopBridgeCommand {
             return null;
         }
         try (Stream<Path> runs = Files.list(runsDirectory)) {
-            Path latest = runs.filter(Files::isDirectory)
+            Path latest = runs.filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
                     .max(Comparator.comparing(DesktopBridgeCommand::modifiedAt))
                     .orElse(null);
             if (latest == null) {
@@ -431,10 +435,67 @@ final class DesktopBridgeCommand {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("directory", latest.toAbsolutePath().normalize());
             result.put("modifiedAt", modifiedAt(latest).toInstant());
+            result.put("adapterHealth", adapterHealth(latest.resolve("adapter-health.json")));
             return result;
         } catch (IOException ignored) {
             return null;
         }
+    }
+
+    private static Map<String, Object> adapterHealth(Path healthFile) {
+        try {
+            if (!Files.isRegularFile(healthFile, LinkOption.NOFOLLOW_LINKS)
+                    || Files.size(healthFile) > MAX_ADAPTER_HEALTH_BYTES) {
+                return null;
+            }
+            byte[] encoded;
+            try (InputStream input = Files.newInputStream(healthFile, LinkOption.NOFOLLOW_LINKS)) {
+                encoded = input.readNBytes(Math.toIntExact(MAX_ADAPTER_HEALTH_BYTES + 1));
+            }
+            if (encoded.length > MAX_ADAPTER_HEALTH_BYTES) {
+                return null;
+            }
+            Map<String, Object> health = StrictJson.object(new String(encoded, StandardCharsets.UTF_8));
+            if (!AdapterHealthReport.FORMAT.equals(health.get("format"))) {
+                return null;
+            }
+            String status = health.get("status") instanceof String value ? value : "";
+            if (!List.of("ACTIVE", "PARTIAL", "SAFE_FALLBACK", "DISABLED", "PROBE_ONLY", "NO_TARGETS", "ERROR")
+                    .contains(status)) {
+                return null;
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("format", AdapterHealthReport.FORMAT);
+            result.put("status", status);
+            result.put("accelerationsActive", Boolean.TRUE.equals(health.get("accelerationsActive")));
+            result.put("originalCodeRetained", Boolean.TRUE.equals(health.get("originalCodeRetained")));
+            result.put("reviewRecommended", Boolean.TRUE.equals(health.get("reviewRecommended")));
+            result.put("transformationsApplied", nonNegativeNumber(health.get("transformationsApplied")));
+            result.put("registryTargets", nonNegativeNumber(health.get("registryTargets")));
+            result.put("containedFailures", nonNegativeNumber(health.get("containedFailures")));
+            result.put("evidenceKinds", strings(health.get("evidenceKinds"), 32));
+            result.put("suggestedActions", strings(health.get("suggestedActions"), 16));
+            return result;
+        } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    private static long nonNegativeNumber(Object value) {
+        return value instanceof Number number ? Math.max(0L, number.longValue()) : 0L;
+    }
+
+    private static List<String> strings(Object value, int limit) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(String::strip)
+                .filter(item -> !item.isEmpty())
+                .limit(limit)
+                .toList();
     }
 
     private static FileTime modifiedAt(Path path) {

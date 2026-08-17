@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import App from "./App";
 import { failedRunSummary } from "./uiFormat";
+import { adapterHealthLine } from "./components/HomePage";
 import { isCurrentProfilePrepared } from "./usePreparation";
 import * as bridge from "./bridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
@@ -62,6 +63,36 @@ test("a failed game process keeps the first useful native detail bounded", () =>
     .toBe("Starsector closed with an error: java.lang.IllegalStateException: retreat failed The support evidence has full details.");
   expect(failedRunSummary("x".repeat(500))).toContain(`${"x".repeat(357)}…`);
   expect(failedRunSummary()).toBe("Starsector closed with an error. Support evidence was saved.");
+});
+
+test("latest-run compatibility stays short and treats fallback as a safe result", () => {
+  const base = {
+    format: "starsector-preflight-adapter-health-v1" as const,
+    accelerationsActive: true,
+    originalCodeRetained: false,
+    reviewRecommended: false,
+    transformationsApplied: 31,
+    registryTargets: 32,
+    containedFailures: 0,
+    evidenceKinds: [],
+    suggestedActions: [],
+  };
+
+  expect(adapterHealthLine({ ...base, status: "ACTIVE" })).toBe("Last run: 31 optimizations active");
+  expect(adapterHealthLine({
+    ...base,
+    status: "PARTIAL",
+    originalCodeRetained: true,
+    reviewRecommended: true,
+  })).toBe("Last run: 31 active, built-in fallback used where needed");
+  expect(adapterHealthLine({
+    ...base,
+    status: "SAFE_FALLBACK",
+    accelerationsActive: false,
+    originalCodeRetained: true,
+    reviewRecommended: true,
+    transformationsApplied: 0,
+  })).toBe("Last run: original game code used safely");
 });
 
 test("the default cold-profile action prepares with balanced settings and then launches", async () => {
@@ -284,6 +315,36 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.queryByText(/Recommended optimizations/)).not.toBeInTheDocument();
   expect(screen.queryByText(/Prepared ·/)).not.toBeInTheDocument();
   expect(screen.queryByText("Game setup")).not.toBeInTheDocument();
+});
+
+test("home surfaces the latest compatibility verdict without exposing the raw report", async () => {
+  const base = await bridge.getSnapshot();
+  const snapshot = vi.spyOn(bridge, "getBootstrapSnapshot").mockResolvedValue({
+    ...base,
+    lastRun: {
+      directory: "~/.starsector-preflight/runs/latest",
+      modifiedAt: "2026-08-17T00:00:00Z",
+      adapterHealth: {
+        format: "starsector-preflight-adapter-health-v1",
+        status: "PARTIAL",
+        accelerationsActive: true,
+        originalCodeRetained: true,
+        reviewRecommended: true,
+        transformationsApplied: 31,
+        registryTargets: 32,
+        containedFailures: 0,
+        evidenceKinds: ["VERSION_OR_TARGET_MISMATCH"],
+        suggestedActions: ["Keep playing if the game is otherwise healthy."],
+      },
+    },
+  });
+
+  render(<App />);
+
+  expect(await screen.findByText("Last run: 31 active, built-in fallback used where needed"))
+    .toHaveAttribute("title", "Keep playing if the game is otherwise healthy.");
+  expect(screen.queryByText("VERSION_OR_TARGET_MISMATCH")).not.toBeInTheDocument();
+  snapshot.mockRestore();
 });
 
 test("setup keeps a single installation action and hides unavailable ready-state panels", async () => {

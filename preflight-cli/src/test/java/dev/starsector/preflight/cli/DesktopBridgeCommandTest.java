@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.starsector.preflight.core.Json;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -70,6 +71,57 @@ class DesktopBridgeCommandTest {
         assertEquals(90 * 60_000L, playtime.get("totalMillis"));
         assertEquals(1, playtime.get("launches"));
         assertEquals("2026-08-16T00:00:00Z", playtime.get("first").toString());
+    }
+
+    @Test
+    void snapshotCarriesOnlyTheCompactHealthOfTheLatestRun() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("health-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("health-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("adapter-health.json"), Json.object(Map.ofEntries(
+                Map.entry("format", AdapterHealthReport.FORMAT),
+                Map.entry("status", "PARTIAL"),
+                Map.entry("summary", "A deliberately long engine sentence that the desktop does not need."),
+                Map.entry("accelerationsActive", true),
+                Map.entry("originalCodeRetained", true),
+                Map.entry("reviewRecommended", true),
+                Map.entry("transformationsApplied", 31),
+                Map.entry("registryTargets", 32),
+                Map.entry("containedFailures", 0),
+                Map.entry("evidenceKinds", List.of("VERSION_OR_TARGET_MISMATCH")),
+                Map.entry("suggestedActions", List.of("Keep playing if the game is healthy.")),
+                Map.entry("adapterReport", "/private/source/path/adapter.json"))));
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> health = (Map<String, Object>) lastRun.get("adapterHealth");
+
+        assertEquals("PARTIAL", health.get("status"));
+        assertEquals(31L, health.get("transformationsApplied"));
+        assertEquals(List.of("VERSION_OR_TARGET_MISMATCH"), health.get("evidenceKinds"));
+        assertFalse(health.containsKey("summary"), health.toString());
+        assertFalse(health.containsKey("adapterReport"), health.toString());
+    }
+
+    @Test
+    void snapshotIgnoresUnrecognisedAdapterHealth() throws Exception {
+        Path home = Files.createDirectories(temporaryDirectory.resolve("unknown-health-home"));
+        Path game = Files.createDirectories(temporaryDirectory.resolve("unknown-health-game"));
+        Files.writeString(game.resolve("starsector.command"), "#!/bin/sh\n");
+        Path run = Files.createDirectories(home.resolve(".starsector-preflight/runs/run-1"));
+        Files.writeString(run.resolve("adapter-health.json"),
+                "{\"format\":\"future-format\",\"status\":\"ACTIVE\"}");
+
+        Map<String, Object> snapshot = DesktopBridgeCommand.snapshot(
+                Platform.MAC, home, temporaryDirectory, Map.of(), game, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> lastRun = (Map<String, Object>) snapshot.get("lastRun");
+
+        assertNull(lastRun.get("adapterHealth"));
     }
 
     @Test

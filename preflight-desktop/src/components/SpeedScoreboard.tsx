@@ -106,7 +106,7 @@ export function SpeedScoreboard({ standing, isReady, playtime, hull, onOpenBench
           ) : (
             <>
               <strong>{formatDuration(record.measurementOnlyMs - record.optimizedMs)} saved per launch</strong>
-              <span>Future launches on this mod setup add to the total.</span>
+              <span>Based on this benchmark.</span>
             </>
           )}
         </div>
