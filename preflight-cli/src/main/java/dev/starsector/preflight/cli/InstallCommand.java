@@ -2,9 +2,12 @@ package dev.starsector.preflight.cli;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.EnumSet;
 import java.util.Set;
@@ -30,15 +33,17 @@ final class InstallCommand {
         }
 
         PreflightHome preflight = PreflightHome.resolve(platform, home, System.getenv());
+        Path preflightRoot = preflight.root().toAbsolutePath().normalize();
+        if (Files.exists(preflightRoot, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isDirectory(preflightRoot, LinkOption.NOFOLLOW_LINKS)) {
+            System.err.println("Refusing to install engine because Preflight home is a symlink or alias: " + preflightRoot);
+            return 1;
+        }
+
         Path installedJar = preflight.installedJar();
-        Files.createDirectories(installedJar.getParent());
         Path sourceJar = SelfJar.locate();
         if (!sourceJar.equals(installedJar)) {
-            Files.copy(
-                    sourceJar,
-                    installedJar,
-                    StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.COPY_ATTRIBUTES);
+            writeAtomicCopy(sourceJar, installedJar);
         }
 
         int installed = switch (platform) {
@@ -78,10 +83,11 @@ final class InstallCommand {
         }
     }
 
-    private static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
-        Path app = preflight.pathOf(PreflightHome.Id.MAC_APP);
+    static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
+        Path app = preflight.pathOf(PreflightHome.Id.MAC_APP).toAbsolutePath().normalize();
+        requireRealDirectory(app, "macOS app");
         Path macos = app.resolve("Contents").resolve("MacOS");
-        Files.createDirectories(macos);
+        requireRealDirectory(macos, "macOS bundle directory");
         Path executable = macos.resolve("preflight");
         String script = "#!/bin/sh\nexec "
                 + shellQuote(javaExecutable())
@@ -90,8 +96,7 @@ final class InstallCommand {
                 + " run --fast --game "
                 + shellQuote(game.toString())
                 + " \"$@\"\n";
-        Files.writeString(executable, script, StandardCharsets.UTF_8);
-        makeExecutable(executable);
+        writeAtomicFile(executable, script, true);
 
         String plist = """
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -106,14 +111,14 @@ final class InstallCommand {
                   <key>LSUIElement</key><true/>
                 </dict></plist>
                 """;
-        Files.writeString(app.resolve("Contents").resolve("Info.plist"), plist, StandardCharsets.UTF_8);
+        Path plistFile = app.resolve("Contents").resolve("Info.plist");
+        writeAtomicFile(plistFile, plist, false);
         System.out.println("Installed macOS launcher: " + app);
         return 0;
     }
 
-    private static int installLinux(PreflightHome preflight, Path jar, Path game) throws IOException {
-        Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND);
-        Files.createDirectories(launcher.getParent());
+    static int installLinux(PreflightHome preflight, Path jar, Path game) throws IOException {
+        Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND).toAbsolutePath().normalize();
         String script = "#!/bin/sh\nexec "
                 + shellQuote(javaExecutable())
                 + " -jar "
@@ -121,27 +126,26 @@ final class InstallCommand {
                 + " run --fast --game "
                 + shellQuote(game.toString())
                 + " \"$@\"\n";
-        Files.writeString(launcher, script, StandardCharsets.UTF_8);
-        makeExecutable(launcher);
+        writeAtomicFile(launcher, script, true);
 
-        Path desktop = preflight.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY);
-        Files.createDirectories(desktop.getParent());
+        Path desktop = preflight.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY).toAbsolutePath().normalize();
         String desktopFile = "[Desktop Entry]\n"
                 + "Type=Application\n"
                 + "Name=Preflight\n"
                 + "Exec=" + desktopExecArgument(launcher.toString()) + "\n"
                 + "Terminal=false\n"
                 + "Categories=Game;Utility;\n";
-        Files.writeString(desktop, desktopFile, StandardCharsets.UTF_8);
+        writeAtomicFile(desktop, desktopFile, false);
         System.out.println("Installed command: " + launcher);
         System.out.println("Installed desktop entry: " + desktop);
         return 0;
     }
 
-    private static int installWindows(PreflightHome preflight, Path jar, Path game)
+    static int installWindows(PreflightHome preflight, Path jar, Path game)
             throws IOException {
-        Path command = preflight.pathOf(PreflightHome.Id.WINDOWS_COMMAND);
-        Files.createDirectories(preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY));
+        Path directory = preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY).toAbsolutePath().normalize();
+        requireRealDirectory(directory, "Windows launcher directory");
+        Path command = preflight.pathOf(PreflightHome.Id.WINDOWS_COMMAND).toAbsolutePath().normalize();
         String content = "@echo off\r\n\""
                 + windowsBatchLiteral(javaExecutable())
                 + "\" -jar \""
@@ -149,9 +153,83 @@ final class InstallCommand {
                 + "\" run --fast --game \""
                 + windowsBatchLiteral(game.toString())
                 + "\" %*\r\n";
-        Files.writeString(command, content, StandardCharsets.UTF_8);
+        writeAtomicFile(command, content, false);
         System.out.println("Installed Windows launcher: " + command);
         return 0;
+    }
+
+    static void validateNotSymlink(Path path, String description) throws IOException {
+        Path normalized = path.toAbsolutePath().normalize();
+        if (Files.exists(normalized, LinkOption.NOFOLLOW_LINKS)) {
+            if (Files.isSymbolicLink(normalized)
+                    || (!Files.isDirectory(normalized, LinkOption.NOFOLLOW_LINKS)
+                            && !Files.isRegularFile(normalized, LinkOption.NOFOLLOW_LINKS))) {
+                throw new IOException("Refusing to install launcher over symlink or alias (" + description + "): " + normalized);
+            }
+        }
+    }
+
+    static void requireRealDirectory(Path directory, String description) throws IOException {
+        Path normalized = directory.toAbsolutePath().normalize();
+        if (Files.exists(normalized, LinkOption.NOFOLLOW_LINKS)) {
+            if (Files.isSymbolicLink(normalized) || !Files.isDirectory(normalized, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("Refusing to install launcher into symlink or alias (" + description + "): " + normalized);
+            }
+        }
+        Files.createDirectories(normalized);
+        if (Files.isSymbolicLink(normalized) || !Files.isDirectory(normalized, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Refusing to install launcher into symlink or alias (" + description + "): " + normalized);
+        }
+    }
+
+    static void writeAtomicFile(Path target, String content, boolean executable) throws IOException {
+        Path normalized = target.toAbsolutePath().normalize();
+        validateNotSymlink(normalized, "target");
+        Path parent = normalized.getParent();
+        if (parent != null) {
+            requireRealDirectory(parent, "parent directory");
+        }
+        Path temporary = normalized.resolveSibling(
+                normalized.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
+        try {
+            Files.writeString(
+                    temporary,
+                    content,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE_NEW,
+                    StandardOpenOption.WRITE);
+            if (executable) {
+                makeExecutable(temporary);
+            }
+            try {
+                Files.move(temporary, normalized, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, normalized, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    static void writeAtomicCopy(Path source, Path target) throws IOException {
+        Path normalized = target.toAbsolutePath().normalize();
+        validateNotSymlink(normalized, "target");
+        Path parent = normalized.getParent();
+        if (parent != null) {
+            requireRealDirectory(parent, "parent directory");
+        }
+        Path temporary = normalized.resolveSibling(
+                normalized.getFileName() + ".tmp-" + ProcessHandle.current().pid() + "-" + System.nanoTime());
+        try {
+            Files.copy(source, temporary, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+            try {
+                Files.move(temporary, normalized, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, normalized, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
     }
 
     private static String javaExecutable() {

@@ -2,7 +2,7 @@
   "format": "preflight-capability-source-lock-v1",
   "sources": {
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/DesktopRunEvents.java": "86269855fb5fb51ab07f1b19d3427372b838afa7e694633ec3fa651fcb982f3d",
-    "preflight-cli/src/main/java/dev/starsector/preflight/cli/InstallCommand.java": "4fb2994aa460c933dfa4a24fbb16c96cefaa06ca79a15d037eefdf1b7b70fd36",
+    "preflight-cli/src/main/java/dev/starsector/preflight/cli/InstallCommand.java": "0d5b9d647954d8fc55b90bc8d9bc57b804b66b5270ac029aceb535cdf0f7e111",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/JvmMemorySettings.java": "7b2f44987ab40db8691266e241ca14c7f1466764730afd58f66fbdb99c6f8b5f",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchLedger.java": "c2545f4d7e67a21becbad18da8213ac5114c6a927cc4bbdb51456bbec9264bf4",
     "preflight-cli/src/main/java/dev/starsector/preflight/cli/LaunchSettingsCommand.java": "c3eab9a955f6897ce117afaafc975ef280c94d168113f38f84a0132a034309ef",
