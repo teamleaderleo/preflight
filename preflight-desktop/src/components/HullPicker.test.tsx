@@ -72,8 +72,8 @@ test("keeps a selected matching hull visible beyond the normal 60-row slice", ()
   const list = within(screen.getByRole("group", { name: "Installed hulls" }));
   const shown = list.getAllByRole("button");
   expect(shown).toHaveLength(60);
-  expect(list.getByRole("button", { name: "Hull 180" })).toHaveAttribute("aria-pressed", "true");
-  expect(list.queryByRole("button", { name: "Hull 59" })).not.toBeInTheDocument();
+  expect(list.getByRole("button", { name: /Hull 180/ })).toHaveAttribute("aria-pressed", "true");
+  expect(list.queryByRole("button", { name: /Hull 59/ })).not.toBeInTheDocument();
   expect(screen.getByText("160 more — keep typing to narrow it.")).toBeInTheDocument();
 });
 
@@ -92,11 +92,11 @@ test("keeps a deep filtered selection visible after clearing the filter", async 
   render(<StatefulPicker />);
   const search = screen.getByRole("searchbox", { name: "Filter installed hulls" });
   await user.type(search, "rare");
-  await user.click(screen.getByRole("button", { name: "Rare Pick" }));
+  await user.click(screen.getByRole("button", { name: /Rare Pick/ }));
   await user.clear(search);
 
   const list = within(screen.getByRole("group", { name: "Installed hulls" }));
   expect(list.getAllByRole("button")).toHaveLength(60);
-  expect(list.getByRole("button", { name: "Rare Pick" })).toHaveAttribute("aria-pressed", "true");
+  expect(list.getByRole("button", { name: /Rare Pick/ })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByText("21 more — keep typing to narrow it.")).toBeInTheDocument();
 });
