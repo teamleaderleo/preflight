@@ -13,6 +13,7 @@ pub(crate) struct OperationState {
     pub(crate) diagnostics_exporting: bool,
     pub(crate) update_checking: bool,
     pub(crate) update_installing: bool,
+    pub(crate) removing: bool,
     pub(crate) exit_after_cleanup: bool,
 }
 
@@ -46,6 +47,7 @@ pub(crate) struct OperationSnapshot {
     pub(crate) diagnostics_exporting: bool,
     pub(crate) update_checking: bool,
     pub(crate) update_installing: bool,
+    pub(crate) removing: bool,
 }
 
 impl OperationSnapshot {
@@ -68,12 +70,49 @@ impl OperationSnapshot {
             diagnostics_exporting: state.diagnostics_exporting,
             update_checking: state.update_checking,
             update_installing: state.update_installing,
+            removing: state.removing,
         }
     }
 }
 
 #[derive(Default)]
 pub(crate) struct OperationCoordinator(pub(crate) Mutex<OperationState>);
+
+pub(crate) struct RemovalGuard<'a> {
+    operations: &'a Mutex<OperationState>,
+}
+
+impl Drop for RemovalGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.operations.lock() {
+            state.removing = false;
+        }
+    }
+}
+
+pub(crate) fn begin_removal(
+    operations: &Mutex<OperationState>,
+) -> Result<RemovalGuard<'_>, String> {
+    let mut state = operations
+        .lock()
+        .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    refuse_update_install(&state)?;
+    if state.game.is_some() {
+        return Err("Close Starsector before removing Preflight files.".to_string());
+    }
+    if state.preparation.is_some() {
+        return Err(
+            "Wait for profile preparation to finish before removing Preflight files.".to_string(),
+        );
+    }
+    refuse_report_upload_for_removal(&state)?;
+    if state.removing {
+        return Err("Preflight files are already being removed.".to_string());
+    }
+    state.removing = true;
+    drop(state);
+    Ok(RemovalGuard { operations })
+}
 
 pub(crate) struct UpdateCheckGuard<'a> {
     operations: &'a Mutex<OperationState>,
@@ -109,6 +148,11 @@ pub(crate) fn begin_diagnostics_export(
     let mut state = operations
         .lock()
         .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    if state.removing {
+        return Err(
+            "Wait for Preflight data removal to finish before creating a support file.".to_string(),
+        );
+    }
     if state.desktop_smoke.is_some() {
         return Err(
             "Wait for the startup benchmark to finish or cancel it before creating a support file."
@@ -144,6 +188,11 @@ pub(crate) fn begin_update_check(
         .lock()
         .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
     refuse_update_install(&state)?;
+    if state.removing {
+        return Err(
+            "Wait for Preflight data removal to finish before checking for updates.".to_string(),
+        );
+    }
     if state.desktop_smoke.is_some() {
         return Err(
             "Wait for the startup benchmark to finish or cancel it before checking for updates."
@@ -164,9 +213,15 @@ pub(crate) fn begin_update_install(
     let mut state = operations
         .lock()
         .map_err(|_| "The operation coordinator is unavailable.".to_string())?;
+    if state.removing {
+        return Err(
+            "Wait for Preflight data removal to finish before installing an update.".to_string(),
+        );
+    }
     if state.game.is_some() {
         return Err("Close Starsector before installing a Preflight update.".to_string());
     }
+
     if state.preparation.is_some() {
         return Err(
             "Wait for profile preparation to finish before installing an update.".to_string(),
@@ -210,7 +265,9 @@ pub(crate) fn refuse_report_upload_for_removal(state: &OperationState) -> Result
         );
     }
     if state.diagnostics_exporting {
-        return Err("Wait for the support file to finish before removing Preflight data.".to_string());
+        return Err(
+            "Wait for the support file to finish before removing Preflight data.".to_string(),
+        );
     }
     Ok(())
 }
@@ -452,6 +509,7 @@ mod tests {
             diagnostics_exporting: true,
             update_checking: true,
             update_installing: false,
+            removing: false,
             exit_after_cleanup: false,
         };
 
@@ -468,5 +526,47 @@ mod tests {
         assert_eq!(json["diagnosticsExporting"], true);
         assert_eq!(json["updateChecking"], true);
         assert_eq!(json["updateInstalling"], false);
+        assert_eq!(json["removing"], false);
+    }
+
+    #[test]
+    fn removal_guard_releases_ownership() {
+        let operations = Mutex::new(OperationState::default());
+        {
+            let _removal = begin_removal(&operations).expect("removal begins");
+            assert!(operations.lock().unwrap().removing);
+            assert_eq!(
+                begin_diagnostics_export(&operations).err().unwrap(),
+                "Wait for Preflight data removal to finish before creating a support file."
+            );
+        }
+        assert!(!operations.lock().unwrap().removing);
+        assert!(begin_diagnostics_export(&operations).is_ok());
+    }
+
+    #[test]
+    fn removal_refuses_active_removal() {
+        let operations = Mutex::new(OperationState {
+            removing: true,
+            ..OperationState::default()
+        });
+
+        assert_eq!(
+            begin_removal(&operations).err().unwrap(),
+            "Preflight files are already being removed."
+        );
+    }
+
+    #[test]
+    fn diagnostics_export_refuses_active_removal() {
+        let operations = Mutex::new(OperationState {
+            removing: true,
+            ..OperationState::default()
+        });
+
+        assert_eq!(
+            begin_diagnostics_export(&operations).err().unwrap(),
+            "Wait for Preflight data removal to finish before creating a support file."
+        );
     }
 }

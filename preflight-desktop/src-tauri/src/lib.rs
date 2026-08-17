@@ -895,6 +895,7 @@ mod tests {
             diagnostics_exporting: true,
             update_checking: false,
             update_installing: true,
+            removing: false,
             exit_after_cleanup: true,
         }));
 
@@ -913,7 +914,8 @@ mod tests {
                 "reportUploadTotalBytes": 4096,
                 "diagnosticsExporting": true,
                 "updateChecking": false,
-                "updateInstalling": true
+                "updateInstalling": true,
+                "removing": false
             }),
             value
         );
@@ -1201,6 +1203,7 @@ mod tests {
             diagnostics_exporting: false,
             update_checking: false,
             update_installing: false,
+            removing: false,
             exit_after_cleanup: false,
         };
 

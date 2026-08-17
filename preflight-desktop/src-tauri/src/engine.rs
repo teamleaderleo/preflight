@@ -1,8 +1,9 @@
 use crate::child_error;
 use crate::operations::{
-    OperationCoordinator, OperationState, begin_diagnostics_export,
-    refuse_report_upload_for_removal, refuse_update_install,
+    OperationCoordinator, OperationState, begin_diagnostics_export, begin_removal,
+    refuse_update_install,
 };
+
 use serde::Deserialize;
 use serde_json::Value;
 #[cfg(debug_assertions)]
@@ -1012,23 +1013,8 @@ pub(crate) fn apply_removal(
     tracker: State<'_, OperationCoordinator>,
     scope: String,
 ) -> Result<Value, String> {
-    let running = tracker
-        .0
-        .lock()
-        .map_err(|_| "The process tracker is unavailable.".to_string())?;
-    refuse_update_install(&running)?;
-    if running.game.is_some() {
-        return Err("Close Starsector before removing Preflight files.".to_string());
-    }
-    if running.preparation.is_some() {
-        return Err(
-            "Wait for profile preparation to finish before removing Preflight files.".to_string(),
-        );
-    }
-    refuse_report_upload_for_removal(&running)?;
-    let result = removal_json(&app, &scope, true);
-    drop(running);
-    result
+    let _guard = begin_removal(&tracker.0)?;
+    removal_json(&app, &scope, true)
 }
 
 fn removal_json(app: &AppHandle, scope: &str, apply: bool) -> Result<Value, String> {

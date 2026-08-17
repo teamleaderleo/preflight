@@ -1,6 +1,7 @@
 import type { OperationSnapshot } from "./types";
 
 export function benchmarkOperationReason(operation: OperationSnapshot): string | null {
+  if (operation.removing) return "Wait for Preflight file removal to finish.";
   if (operation.preparationPid !== null) return "Wait for preparation to finish.";
   if (operation.reportUploadId !== null) return "Wait for the run report upload to finish.";
   if (operation.updateInstalling) return "Wait for the Preflight update to finish installing.";
@@ -21,10 +22,12 @@ export function removalOperationReason(operation: OperationSnapshot): string | n
     return "Wait for the support file to finish before removing Preflight data.";
   }
   if (operation.updateInstalling) return "Wait for the Preflight update to finish installing.";
+  if (operation.removing) return "Preflight files are already being removed.";
   return null;
 }
 
 export function updateInstallOperationReason(operation: OperationSnapshot): string | null {
+  if (operation.removing) return "Wait for Preflight file removal to finish before installing an update.";
   if (operation.gamePid !== null) return "Close Starsector before installing a Preflight update.";
   if (operation.preparationPid !== null) {
     return "Wait for profile preparation to finish before installing an update.";
@@ -41,3 +44,4 @@ export function updateInstallOperationReason(operation: OperationSnapshot): stri
   if (operation.updateInstalling) return "A Preflight update is already being installed.";
   return null;
 }
+

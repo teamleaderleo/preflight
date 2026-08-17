@@ -270,8 +270,10 @@ export async function getOperationState(includeDurable = false): Promise<Operati
       diagnosticsExporting: false,
       updateChecking: false,
       updateInstalling: false,
+      removing: false,
     };
   }
+
   return invoke<OperationSnapshot>("get_operation_state", { includeDurable });
 }
 

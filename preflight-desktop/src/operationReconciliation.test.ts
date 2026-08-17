@@ -13,7 +13,9 @@ const idle: OperationSnapshot = {
   diagnosticsExporting: false,
   updateChecking: false,
   updateInstalling: false,
+  removing: false,
 };
+
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

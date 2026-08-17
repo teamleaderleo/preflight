@@ -17,11 +17,14 @@ const idle: OperationSnapshot = {
   diagnosticsExporting: false,
   updateChecking: false,
   updateInstalling: false,
+  removing: false,
 };
 
 describe("operationAvailability", () => {
   test("explains only the native work that blocks a startup benchmark", () => {
     expect(benchmarkOperationReason(idle)).toBeNull();
+    expect(benchmarkOperationReason({ ...idle, removing: true }))
+      .toBe("Wait for Preflight file removal to finish.");
     expect(benchmarkOperationReason({ ...idle, diagnosticsExporting: true }))
       .toBe("Wait for the support file to finish.");
     expect(benchmarkOperationReason({ ...idle, updateChecking: true }))
@@ -34,6 +37,8 @@ describe("operationAvailability", () => {
 
   test("explains only the native work that blocks data removal", () => {
     expect(removalOperationReason(idle)).toBeNull();
+    expect(removalOperationReason({ ...idle, removing: true }))
+      .toBe("Preflight files are already being removed.");
     expect(removalOperationReason({ ...idle, gamePid: 1234 }))
       .toBe("Close Starsector before removing Preflight data.");
     expect(removalOperationReason({ ...idle, preparationPid: 5678 }))
@@ -48,6 +53,8 @@ describe("operationAvailability", () => {
 
   test("explains only the native work that blocks update installation", () => {
     expect(updateInstallOperationReason(idle)).toBeNull();
+    expect(updateInstallOperationReason({ ...idle, removing: true }))
+      .toBe("Wait for Preflight file removal to finish before installing an update.");
     expect(updateInstallOperationReason({ ...idle, gamePid: 1234 }))
       .toBe("Close Starsector before installing a Preflight update.");
     expect(updateInstallOperationReason({ ...idle, preparationPid: 5678 }))
@@ -62,3 +69,4 @@ describe("operationAvailability", () => {
       .toBe("A Preflight update is already being installed.");
   });
 });
+

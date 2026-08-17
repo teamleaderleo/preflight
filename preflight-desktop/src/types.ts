@@ -155,7 +155,9 @@ export interface OperationSnapshot {
   diagnosticsExporting: boolean;
   updateChecking: boolean;
   updateInstalling: boolean;
+  removing: boolean;
 }
+
 
 export interface DesktopSmokeProbe {
   protocol: number;
