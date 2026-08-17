@@ -10,7 +10,7 @@ archive. They answer different questions. This page is the shortest route to the
 - [Release readiness](release-readiness.md): the blocking work before public distribution.
 - [Public beta roadmap](beta-roadmap.md): the ordered product, benchmark, reliability, package,
   platform, evidence, and presentation program.
-- [Fractal permission request](fractal-permission-request.md): maintainer correspondence draft and
+- [Fractal permission request](fractal-permission-request.md): sent maintainer correspondence and
   reply-handling checklist.
 - [Product contract](product-contract.md): exact modification, compatibility, preset, storage,
   update, and diagnostics boundaries.
