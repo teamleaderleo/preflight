@@ -48,16 +48,21 @@
 ### Desktop UX Polish & Gating
 - **Launch Posture**: Added posture indicator (`Accelerations active · Balanced storage` / `Original code and assets · Vanilla fallback`) under the primary launch button in [`HomePage.tsx`](preflight-desktop/src/components/HomePage.tsx).
 - **Hydration Stability**: Added `min-height: 130px` to `.quick-settings--loading` in [`styles.css`](preflight-desktop/src/styles.css) to eliminate layout shift during startup settings scan.
-- **Uncoupled Operation Gating**: Ensured quick launcher settings remain responsive during background profile operations.
+### Exact Per-Mod Resource & Prepared-Data Cost Accounting ([#563](https://github.com/teamleaderleo/preflight/issues/563))
+- **Core Cost Model**: Added [`ModCostBreakdown.java`](preflight-core/src/main/java/dev/starsector/preflight/core/ModCostBreakdown.java) in `preflight-core` providing immutable, factual data structures (`ModFootprint`, `ClassCounts`, `OverlapCounts`, `Report`) that separate verifiable physical resource metrics (installed files, GPU texture allocations, audio source bytes, prepared cache payloads) from speculative startup timing blame.
+- **Aggregator & Analyzer**: Implemented [`ProfileModCostAnalyzer.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileModCostAnalyzer.java) in `preflight-cli`, combining `ProfileCensus`, `ResourceIndex`, `ResourceProviderComparison`, and `GpuTextureFootprint` into a reconciled cost report.
+- **CLI Command**: Added `preflight profile cost [--game <path>] [--json]` to [`ProfileCommand.java`](preflight-cli/src/main/java/dev/starsector/preflight/cli/ProfileCommand.java).
+- **Privacy & Invariants**: Enforces strict exclusion of physical filesystem roots and usernames in public serialized JSON.
 
 ---
 
 ## 2. Review & Verification Reference
 
 - **Full Desktop Verification Pipeline**: `npm --prefix preflight-desktop run verify`
-  - **Release Node Tests**: 110/110 passing
-  - **Vitest Unit Tests**: 201/201 passing across 24 test suites
-  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 147ms
-  - **Rust Backend Tests**: 81/81 Cargo tests passing
-  - **Cargo Format & Clippy**: `cargo clippy --locked --manifest-path preflight-desktop/src-tauri/Cargo.toml --all-targets -- -D warnings` (0 warnings)
-- **Maven Backend**: `./mvnw test -Dtest=DesktopBridgeCommandTest,AdapterHealthReportTest,CacheCommandTest,LaunchLedgerTest -Dsurefire.failIfNoSpecifiedTests=false` (29/29 CLI tests passing)
+  - **Release Node Tests**: 20/20 passing
+  - **Vitest Unit Tests**: 220/220 passing across 27 test suites
+  - **Frontend Build**: `tsc -b && vite build` built client bundle cleanly in 98ms
+  - **Rust Backend Tests**: 86/86 Cargo tests passing
+  - **Cargo Format & Clippy**: `0` warnings
+- **Maven Backend**: `./mvnw test` (120/120 CLI tests passing, 688/688 total project tests passing)
+
