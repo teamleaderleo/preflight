@@ -161,3 +161,23 @@ test("no palette lets a status colour collide with its accent", () => {
       .toBeGreaterThan(25);
   }
 });
+
+test("every palette override defines every colour token declared in the root base", () => {
+  const rootMatch = /:root\s*\{([^}]*)\}/s.exec(styles);
+  expect(rootMatch).not.toBeNull();
+  const rootBlock = rootMatch![1];
+  const rootTokens = Array.from(rootBlock.matchAll(/--([a-z0-9-]+):\s*#[0-9a-fA-F]{6}/g)).map((m) => m[1]);
+  expect(rootTokens.length).toBeGreaterThan(0);
+
+  for (const name of ["blueprint", "ultraviolet", "airglow"]) {
+    const selector = `:root\\[data-palette="${name}"\\]`;
+    const blockMatch = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(styles);
+    expect(blockMatch, `missing block for ${name}`).not.toBeNull();
+    const block = blockMatch![1];
+    for (const token of rootTokens) {
+      const hasToken = new RegExp(`--${token}:\\s*#[0-9a-fA-F]{6}`).test(block);
+      expect(hasToken, `palette ${name} is missing token --${token}`).toBe(true);
+    }
+  }
+});
+

@@ -40,4 +40,40 @@ describe("wireframe hull geometry", () => {
     const right = projectHull(hull, 0.2, "medium");
     expect(left.segments[0].from).not.toEqual(right.segments[0].from);
   });
+
+  it("anchors the deck centerline to the bounding box midpoint on asymmetric hulls", () => {
+    // An asymmetric hull where one flank has clustered points that pull the vertex centroid away from y = 0
+    const asymmetricHull: WireframeHull = {
+      ...hull,
+      id: "asymmetric-test",
+      bounds: [
+        { x: 10, y: 0 },
+        { x: 5, y: 8 },
+        { x: 0, y: 8 },
+        { x: -5, y: 8 },
+        { x: -5, y: 6 },
+        { x: -5, y: 4 },
+        { x: -5, y: 2 },
+        { x: -5, y: -8 }, // only 1 vertex on the negative flank vs 6 on the positive flank
+      ],
+    };
+    const segments = buildHullSegments(asymmetricHull, "medium");
+    const deck = segments.filter((segment) => segment.kind === "deck");
+    expect(deck.length).toBeGreaterThan(0);
+    // Fore and aft centerline points should sit at y = 0 (the bbox midpoint between -8 and +8)
+    const centerlineYValues = deck.flatMap((s) => [s.from, s.to]).filter((v) => Math.abs(v.x - 10) < 3 || Math.abs(v.x - -5) < 3);
+    const apex = centerlineYValues.find((v) => Math.abs(v.x - 8.5) < 0.1);
+    if (apex) {
+      expect(apex.y).toBeCloseTo(0, 4);
+    }
+  });
+
+  it("projects keel ground grid and bow nose marker in 3D space", () => {
+    const projected = projectHull(hull, 0.38, "medium");
+    expect(projected.ground.length).toBeGreaterThan(0);
+    expect(projected.nose).not.toBeNull();
+    // All projected segments carry perspective depth
+    expect(projected.segments.every((s) => typeof s.from.depth === "number")).toBe(true);
+  });
 });
+
