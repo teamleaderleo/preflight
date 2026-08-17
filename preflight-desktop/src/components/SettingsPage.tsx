@@ -1,5 +1,6 @@
 import { ShieldIcon } from "../icons";
 import { NoticeBanner } from "./NoticeBanner";
+import { FlightInstrument } from "./FlightInstrument";
 import { openProjectLink } from "../bridge";
 import type { useSignedUpdates } from "../useSignedUpdates";
 import { formatBytes, shortPath } from "../uiFormat";
@@ -79,9 +80,14 @@ export function SettingsPage({
           </label>
         </div>
         <div className="preference-block instrument-hull-card">
-          <div>
-            <h2>Speed-page ship</h2>
-            <p>Use Preflight’s courier or a hull from this installation.</p>
+          <div className="instrument-hull-card__header">
+            <div>
+              <h2>Display ship</h2>
+              <p>Use Preflight’s courier or a hull from this installation.</p>
+            </div>
+            <div className="instrument-hull-card__preview" aria-hidden="true">
+              <FlightInstrument hull={instrumentHull.selected} variant="badge" />
+            </div>
           </div>
           <label className="setting-field preference-field">
             <span>Ship</span>

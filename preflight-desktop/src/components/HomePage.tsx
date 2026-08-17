@@ -299,6 +299,10 @@ export function HomePage({
                 : "Optimizations are off for this launch."}</span>
               {cacheInspectionBlocked ? <span>You can still launch at normal speed while Preflight leaves this cache alone.</span> : null}
             </div>
+          ) : isReady && !preparing && !cacheRepairing && !storageBlocked && !cacheInspectionBlocked ? (
+            <div className="launch-console__posture" aria-hidden="true">
+              <span>{optimizationPreset === "off" ? "Original code and assets · Vanilla fallback" : "Accelerations active · Balanced storage"}</span>
+            </div>
           ) : null}
         </div>
       </section>

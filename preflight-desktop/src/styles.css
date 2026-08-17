@@ -741,6 +741,14 @@ h2 {
   color: var(--console-ink);
 }
 
+.launch-console__posture {
+  margin: 14px 0 0;
+  color: var(--console-soft);
+  font-size: var(--text-support);
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
 .quick-settings {
   display: flex;
   flex-direction: column;
@@ -751,6 +759,7 @@ h2 {
 }
 
 .quick-settings--loading {
+  min-height: 130px;
   color: var(--console-soft);
   font-size: 14px;
 }
@@ -1794,6 +1803,30 @@ h2 {
 
 .setting-field.preference-field select {
   width: 100%;
+}
+
+.instrument-hull-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.instrument-hull-card__preview {
+  position: relative;
+  width: 90px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid var(--console-line);
+  background: var(--paper-solid);
+  flex-shrink: 0;
+}
+
+.instrument-hull-card__preview .flight-instrument {
+  width: 90px;
+  height: 56px;
+  opacity: 0.85;
 }
 
 .settings-overview > :only-child {
