@@ -3,7 +3,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { getWireframeHulls } from "./bridge";
 import { INSTRUMENT_HULL_STORAGE_KEY, INSTRUMENT_HULL_TUNING_STORAGE_KEY } from "./desktopStorage";
 import type { WireframeHullCatalog } from "./types";
-import { DEFAULT_HULL_ID, ORIGINAL_HULL_ID, useInstrumentHull } from "./useInstrumentHull";
+import {
+  DEFAULT_HULL_ID,
+  ORIGINAL_HULL_ID,
+  useInstrumentHull,
+  validateWireframeTuning,
+} from "./useInstrumentHull";
 
 vi.mock("./bridge", () => ({ getWireframeHulls: vi.fn() }));
 
@@ -172,4 +177,19 @@ test("drops malformed, out-of-range, and oversized saved customization", () => {
 
   expect(result.current.customized).toBe(false);
   expect(result.current.tuning.height).toBe(1);
+});
+
+test("migrates the original three-field tuning without accepting a partial record", () => {
+  expect(validateWireframeTuning({
+    outerDetail: 0.02,
+    outerSmooth: 0.3,
+    height: 1.4,
+  })).toEqual({
+    outerDetail: 0.02,
+    outerSmooth: 0.3,
+    innerDetail: 0.016,
+    innerSmooth: 0,
+    height: 1.4,
+  });
+  expect(validateWireframeTuning({ height: 1.4 })).toBeNull();
 });

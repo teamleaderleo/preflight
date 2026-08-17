@@ -69,8 +69,12 @@ export function validateWireframeTuning(value: unknown): WireframeTuning | null 
   for (const key of Object.keys(TUNING_LIMITS) as Array<keyof WireframeTuning>) {
     const next = candidate[key];
     // A tuning saved before the inner dials existed is still that person's tuning. Missing keys
-    // take the default; only a key that is present and out of range rejects the whole record.
-    if (next === undefined) continue;
+    // for those two new dials take the default. The three fields in the original record remain
+    // required so a truncated or partially written record does not silently become valid.
+    if (next === undefined) {
+      if (key === "innerDetail" || key === "innerSmooth") continue;
+      return null;
+    }
     const [minimum, maximum] = TUNING_LIMITS[key];
     if (typeof next !== "number" || !Number.isFinite(next) || next < minimum || next > maximum) return null;
     tuning[key] = next;
