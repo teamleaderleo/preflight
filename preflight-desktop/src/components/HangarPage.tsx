@@ -59,123 +59,125 @@ export function HangarPage({ instrumentHull, playtime }: HangarPageProps) {
     [instrumentHull.hulls],
   );
   const selectedIndex = featured.findIndex((hull) => hull.id === instrumentHull.selectedId);
-  const stepFeatured = (direction: -1 | 1) => {
-    if (featured.length === 0) return;
-    const current = selectedIndex >= 0 ? selectedIndex : 0;
-    instrumentHull.choose(featured[(current + direction + featured.length) % featured.length].id);
-  };
+  const recordedPlaytime = playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0
+    ? playtime
+    : null;
 
   return (
     <div className="hangar-page">
       <section className="hangar-display" aria-label="Selected display ship">
-        <div className="hangar-stage">
-          <div className="hangar-stage__instrument">
-            <FlightInstrument hull={instrumentHull.selected} variant="stage" />
+        <div className="hangar-upper">
+          <div className="hangar-stage">
+            <div className="hangar-stage__instrument">
+              <FlightInstrument hull={instrumentHull.selected} variant="stage" />
+            </div>
+            <span className="hangar-stage__corner hangar-stage__corner--start">Wireframe bay 01</span>
+            <span className="hangar-stage__corner hangar-stage__corner--end">
+              {selectedIndex >= 0 ? `${String(selectedIndex + 1).padStart(2, "0")} / ${String(featured.length).padStart(2, "0")}` : "Local hull"}
+            </span>
           </div>
-          <span className="hangar-stage__corner hangar-stage__corner--start">Local wireframe</span>
-          <span className="hangar-stage__corner hangar-stage__corner--end">Idle display</span>
-          <div className="hangar-stage__stepper" aria-label="Featured ship">
-            <button type="button" aria-label="Previous featured ship" onClick={() => stepFeatured(-1)} disabled={featured.length === 0}>←</button>
-            <button type="button" aria-label="Next featured ship" onClick={() => stepFeatured(1)} disabled={featured.length === 0}>→</button>
-          </div>
-        </div>
-        <aside className="hangar-readout">
-          {playtime?.readable && playtime.launches > 0 && playtime.totalMillis > 0 ? (
+          <aside className="hangar-readout">
             <div
-              className="hangar-playtime"
-              aria-label={`${formatPlaytime(playtime.totalMillis)} recorded playtime across ${playtime.launches.toLocaleString()} sessions`}
+              className={recordedPlaytime ? "hangar-playtime" : "hangar-playtime hangar-playtime--empty"}
+              aria-label={recordedPlaytime
+                ? `${formatPlaytime(recordedPlaytime.totalMillis)} recorded playtime across ${recordedPlaytime.launches.toLocaleString()} sessions`
+                : "No recorded playtime yet"}
             >
-              <strong>{formatPlaytime(playtime.totalMillis)}</strong>
-              <span>in Starsector · {playtime.launches.toLocaleString()} sessions</span>
+              <strong>{recordedPlaytime ? formatPlaytime(recordedPlaytime.totalMillis) : "0h"}</strong>
+              <span>{recordedPlaytime ? `${recordedPlaytime.launches.toLocaleString()} recorded sessions` : "Recorded playtime"}</span>
               <dl>
-                <div><dt>Longest session</dt><dd>{formatPlaytime(playtime.longestSessionMillis)}</dd></div>
-                <div><dt>Typical session</dt><dd>{formatPlaytime(playtime.averageMillis)}</dd></div>
-                <div><dt>Recorded since</dt><dd>{recordedSince(playtime.first)}</dd></div>
+                <div><dt>Longest</dt><dd>{recordedPlaytime ? formatPlaytime(recordedPlaytime.longestSessionMillis) : "—"}</dd></div>
+                <div><dt>Typical</dt><dd>{recordedPlaytime ? formatPlaytime(recordedPlaytime.averageMillis) : "—"}</dd></div>
+                <div><dt>Since</dt><dd>{recordedPlaytime ? recordedSince(recordedPlaytime.first) : "Next launch"}</dd></div>
               </dl>
             </div>
-          ) : null}
-          <div className="hangar-readout__identity">
-            <span>Display hull</span>
-            <h2>{instrumentHull.selected.name}</h2>
-            <p>{instrumentHull.selected.hullSize.replaceAll("_", " ").toLowerCase()}</p>
-          </div>
-          {featured.length > 0 ? (
-            <div className="hangar-featured" role="group" aria-label="Featured ships">
-              {featured.map((hull) => (
-                <button
-                  key={hull.id}
-                  className={hull.id === instrumentHull.selectedId ? "hangar-ship hangar-ship--selected" : "hangar-ship"}
-                  type="button"
-                  aria-label={hull.name}
-                  title={hull.name}
-                  aria-pressed={hull.id === instrumentHull.selectedId}
-                  onClick={() => instrumentHull.choose(hull.id)}
-                >
-                  {hull.name}
-                </button>
-              ))}
+            <div className="hangar-readout__identity">
+              <span>Display hull</span>
+              <h2>{instrumentHull.selected.name}</h2>
+              <p>{instrumentHull.selected.hullSize.replaceAll("_", " ").toLowerCase()}</p>
             </div>
-          ) : (
-            <p className="hangar-loading">{instrumentHull.catalogLoaded ? "Using the Preflight ship." : "Finding your ships…"}</p>
-          )}
+          </aside>
+        </div>
 
-          <label className="setting-field hangar-all-ships">
-            <span>All ships</span>
-            <select
-              aria-label="Display ship"
-              value={instrumentHull.selectedId}
-              onChange={(event) => instrumentHull.choose(event.target.value)}
-            >
-              {featured.length > 0 ? (
-                <optgroup label="Featured">
-                  {featured.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
-                </optgroup>
-              ) : null}
-              {more.length > 0 ? (
-                <optgroup label="More from this installation">
-                  {more.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
-                </optgroup>
-              ) : null}
-            </select>
-            <small>{instrumentHull.catalog
-              ? `${instrumentHull.catalog.hulls.length.toLocaleString()} game hulls`
-              : instrumentHull.catalogLoaded ? "6 included hulls" : "6 included hulls · finding more…"}</small>
-          </label>
+        <div className="hangar-console">
+          <section className="hangar-console__ships" aria-labelledby="hangar-fleet-title">
+            <div className="hangar-console__heading">
+              <div>
+                <span className="hangar-console__eyebrow">Display ship</span>
+                <h2 id="hangar-fleet-title">Featured hulls</h2>
+              </div>
+              <span className="hangar-console__status" aria-live="polite">{instrumentHull.catalog
+                ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
+                : instrumentHull.catalogLoaded ? "Included hulls" : "Finding installed hulls…"}</span>
+            </div>
+            {featured.length > 0 ? (
+              <div className="hangar-featured" role="group" aria-label="Featured ships">
+                {featured.map((hull) => (
+                  <button
+                    key={hull.id}
+                    className={hull.id === instrumentHull.selectedId ? "hangar-ship hangar-ship--selected" : "hangar-ship"}
+                    type="button"
+                    aria-label={hull.name}
+                    title={hull.name}
+                    aria-pressed={hull.id === instrumentHull.selectedId}
+                    onClick={() => instrumentHull.choose(hull.id)}
+                  >
+                    <span>{hull.name}</span>
+                    <small>{hull.hullSize.replaceAll("_", " ").toLowerCase()}</small>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="hangar-loading">Finding ships…</p>
+            )}
 
-          <details className="wireframe-customizer">
-            <summary>Adjust wireframe</summary>
-            <div className="wireframe-customizer__body">
-              {/*
-                * Two groups, because a hull is two families of closed loop and they are not the
-                * same size of thing: the silhouette and the voids punched through it are marched
-                * off the sprite's alpha, the raised blocks off its lighting. A tolerance that
-                * reads well on a 200-point outline flattens a 12-point flight deck, which is why
-                * the design page gave each family its own dials rather than one with multipliers.
-                *
-                * The page toggles between the groups to avoid stacking sliders. Four fit here
-                * without a mode, and a control you can see beats one behind a switch.
-                */}
-              <fieldset>
-                <legend>Silhouette and voids</legend>
+            <label className="setting-field hangar-all-ships">
+              <span>Installed catalog</span>
+              <select
+                aria-label="Display ship"
+                value={instrumentHull.selectedId}
+                onChange={(event) => instrumentHull.choose(event.target.value)}
+              >
+                {featured.length > 0 ? (
+                  <optgroup label="Featured">
+                    {featured.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
+                  </optgroup>
+                ) : null}
+                {more.length > 0 ? (
+                  <optgroup label="More from this installation">
+                    {more.map((hull) => <option key={hull.id} value={hull.id}>{hull.name}</option>)}
+                  </optgroup>
+                ) : null}
+              </select>
+            </label>
+          </section>
+
+          <section className="hangar-tuning" aria-labelledby="hangar-tuning-title">
+            <div className="hangar-console__heading">
+              <div>
+                <span className="hangar-console__eyebrow">Appearance</span>
+                <h2 id="hangar-tuning-title">Wireframe</h2>
+              </div>
+              <button className="button button--quiet button--compact" type="button" disabled={!instrumentHull.customized} onClick={instrumentHull.resetCustomization}>Reset</button>
+            </div>
+            <div className="hangar-tuning__grid">
+              <fieldset className="hangar-tuning__group hangar-tuning__group--outline">
+                <legend>Silhouette</legend>
                 <WireframeSlider label="Outline smoothing" setting="outerSmooth" value={instrumentHull.tuning.outerSmooth} minimum={0} maximum={0.9} step={0.02} format={(value) => value === 0 ? "None" : value.toFixed(2)} onChange={instrumentHull.customize} />
                 <WireframeSlider label="Outline simplification" setting="outerDetail" value={instrumentHull.tuning.outerDetail} minimum={0} maximum={0.06} step={0.001} format={(value) => value === 0 ? "Full" : value.toFixed(3)} onChange={instrumentHull.customize} />
               </fieldset>
-              <fieldset>
+              <fieldset className="hangar-tuning__group hangar-tuning__group--interior">
                 <legend>Interior</legend>
                 <WireframeSlider label="Interior smoothing" setting="innerSmooth" value={instrumentHull.tuning.innerSmooth} minimum={0} maximum={0.9} step={0.02} format={(value) => value === 0 ? "None" : value.toFixed(2)} onChange={instrumentHull.customize} />
                 <WireframeSlider label="Interior simplification" setting="innerDetail" value={instrumentHull.tuning.innerDetail} minimum={0} maximum={0.06} step={0.001} format={(value) => value === 0 ? "Full" : value.toFixed(3)} onChange={instrumentHull.customize} />
               </fieldset>
-              <fieldset>
-                <legend>Form</legend>
+              <fieldset className="hangar-tuning__group hangar-tuning__group--form">
+                <legend>Depth</legend>
                 <WireframeSlider label="Model height" setting="height" value={instrumentHull.tuning.height} minimum={0.2} maximum={2.2} step={0.05} format={(value) => `${value.toFixed(2)}×`} onChange={instrumentHull.customize} />
               </fieldset>
-              <div className="wireframe-customizer__actions">
-                <button className="button button--quiet button--compact" type="button" disabled={!instrumentHull.customized} onClick={instrumentHull.resetCustomization}>Reset this ship</button>
-                <small>Saved locally. Starsector stays untouched.</small>
-              </div>
             </div>
-          </details>
-        </aside>
+          </section>
+        </div>
       </section>
     </div>
   );
