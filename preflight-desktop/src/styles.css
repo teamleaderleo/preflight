@@ -5796,3 +5796,65 @@ footer {
   --instrument-glow: rgba(0, 129, 48, 0.22);
   --instrument-fill: rgba(0, 129, 48, 0.075);
 }
+
+/* Global launch settings commit only after the player acknowledges the quiescent Apply window. */
+.launch-apply-boundary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: min(460px, 100%);
+}
+
+.launch-save > .launch-apply-boundary {
+  gap: 10px;
+}
+
+.launch-apply-boundary__confirm {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.launch-apply-boundary__confirm input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+}
+
+.launch-apply-boundary__confirm span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.launch-apply-boundary__confirm small,
+.launch-apply-boundary p,
+.launch-apply-boundary__blocked {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.launch-apply-boundary p {
+  max-width: 62ch;
+}
+
+.launch-apply-boundary__blocked {
+  color: var(--accent-strong);
+}
+
+.launch-apply-boundary .button {
+  align-self: flex-start;
+}
+
+.launch-save__backup {
+  min-width: 220px;
+}
+
+.quick-settings__apply {
+  padding-top: 14px;
+  border-top: 1px solid var(--console-line);
+}

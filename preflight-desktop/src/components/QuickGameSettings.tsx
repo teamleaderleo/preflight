@@ -1,8 +1,9 @@
-import { ArrowIcon, CheckIcon } from "../icons";
+import { ArrowIcon } from "../icons";
 import type { LaunchSettings, LaunchSettingsUpdate } from "../types";
 import { GameMemorySelect } from "./GameMemorySelect";
 import { battleSizeUpperBound, uiScaleMaximum } from "../gameSettingOptions";
 import { ResolutionSelect, UiScaleSelect } from "./GameSettingSelects";
+import { LaunchSettingsApplyBoundary } from "./LaunchSettingsApplyBoundary";
 
 interface QuickGameSettingsProps {
   settings: LaunchSettings;
@@ -14,7 +15,7 @@ interface QuickGameSettingsProps {
   saveBlockReason?: string;
   onChange: (change: Partial<LaunchSettingsUpdate>) => void;
   onOpenAll: () => void;
-  onSave: () => void;
+  onSave: (settingsToolsClosed: boolean) => void;
 }
 
 export function QuickGameSettings({
@@ -63,11 +64,15 @@ export function QuickGameSettings({
         <label><input type="checkbox" aria-label="Home sound" checked={draft.sound} disabled={editingDisabled} onChange={(event) => onChange({ sound: event.target.checked })} /><span>Sound</span></label>
       </div>
       {(settings.limits.battleSizeMax ?? 0) < battleSizeUpperBound(settings, draft.battleSize) && draft.battleSize > (settings.limits.battleSizeMax ?? 0) ? <p className="quick-settings__hint">The vanilla settings slider ends at {settings.limits.battleSizeMax}; opening it can reset this extended value.</p> : null}
-      {dirty && saveBlocked && saveBlockReason ? <p className="quick-settings__hint">{saveBlockReason}</p> : null}
       {dirty || saving ? (
-        <button className="button button--primary quick-settings__save" type="button" onClick={onSave} disabled={saving || saveBlocked}>
-          <CheckIcon />{saving ? "Saving…" : "Apply changes"}
-        </button>
+        <LaunchSettingsApplyBoundary
+          boundary={settings.applyBoundary}
+          saving={saving}
+          disabled={saveBlocked}
+          blockReason={saveBlocked ? saveBlockReason : undefined}
+          className="quick-settings__apply"
+          onApply={onSave}
+        />
       ) : null}
     </div>
   );
