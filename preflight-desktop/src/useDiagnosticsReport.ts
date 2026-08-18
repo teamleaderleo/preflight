@@ -1,29 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { save as saveFile } from "@tauri-apps/plugin-dialog";
 import {
-  cancelRunReport,
-  deleteRunReport,
   exportAutomaticDiagnostics,
   exportDiagnostics,
   getSnapshot,
-  getReportIntakeStatus,
   isDesktopHost,
-  sendRunReport,
 } from "./bridge";
 import { nativeCommandError } from "./nativeErrors";
 import {
-  AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY,
   AUTOMATIC_RUN_REPORTS_STORAGE_KEY,
   REPORT_RECEIPT_STORAGE_KEY,
 } from "./desktopStorage";
-import { supportSafeReportReceipt } from "./supportReceipt";
-import type {
-  DiagnosticsExport,
-  ReportIntakeStatus,
-  ReportReceipt,
-  ReportUploadStateEvent,
-  Announce,
-} from "./types";
+import {
+  cancelManualRunReport,
+  getReportState,
+  mutateRunReport,
+  sendRunReport,
+  type LegacyReportReceipt,
+  type ReportCaseView,
+  type ReportState,
+  type ReportUploadStateEvent,
+} from "./reportBridge";
+import type { Announce, DiagnosticsExport } from "./types";
 import { listenWhileMounted } from "./tauriEvents";
 import { startOperationReconciliation } from "./operationReconciliation";
 import { errorMessage, localDateStamp } from "./uiFormat";
@@ -57,34 +55,6 @@ function persistAutomaticRunReports(enabled: boolean): boolean {
   }
 }
 
-function savedAutomaticReportIdentities(): string[] | null {
-  try {
-    const raw = window.localStorage.getItem(AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : null;
-    return parsed?.protocolVersion === 1 && Array.isArray(parsed.runIdentities)
-      ? parsed.runIdentities.filter((value): value is string => typeof value === "string").slice(0, 63)
-      : [];
-  } catch {
-    return null;
-  }
-}
-
-function claimAutomaticReport(runIdentity: string): boolean {
-  try {
-    const previous = savedAutomaticReportIdentities();
-    if (previous === null) return false;
-    if (previous.includes(runIdentity)) return false;
-    window.localStorage.setItem(AUTOMATIC_RUN_REPORT_HISTORY_STORAGE_KEY, JSON.stringify({
-      protocolVersion: 1,
-      runIdentities: [runIdentity, ...previous],
-    }));
-    return true;
-  } catch {
-    // Without durable deduplication, an event replay could upload the same run twice.
-    return false;
-  }
-}
-
 function failedRunIdentity(
   run: Awaited<ReturnType<typeof getSnapshot>>["lastRun"],
   wrapperPid: number,
@@ -105,17 +75,13 @@ function failedRunIdentity(
   };
 }
 
-function savedRunReportReceipt(): ReportReceipt | null {
+function savedLegacyRunReportReceipt(): LegacyReportReceipt | null {
   try {
     const raw = window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY);
     if (!raw) return null;
-    const receipt = JSON.parse(raw) as Partial<ReportReceipt>;
-    const deadline = typeof receipt.retentionDeadline === "string"
-      ? Date.parse(receipt.retentionDeadline)
-      : Number.NaN;
+    const receipt = JSON.parse(raw) as Partial<LegacyReportReceipt>;
     const valid = receipt.protocolVersion === 1
       && typeof receipt.caseId === "string"
-      && receipt.caseId.length > 0
       && receipt.objectKey === `accepted/${receipt.caseId}.zip`
       && typeof receipt.bytes === "number"
       && Number.isSafeInteger(receipt.bytes)
@@ -125,40 +91,62 @@ function savedRunReportReceipt(): ReportReceipt | null {
       && typeof receipt.productVersion === "string"
       && typeof receipt.receivedAt === "string"
       && Number.isFinite(Date.parse(receipt.receivedAt))
-      && Number.isFinite(deadline)
-      && deadline > Date.now()
+      && typeof receipt.retentionDeadline === "string"
+      && Number.isFinite(Date.parse(receipt.retentionDeadline))
       && receipt.deletion?.method === "DELETE"
       && typeof receipt.deletion.url === "string"
       && typeof receipt.deletion.token === "string"
       && receipt.deletion.token.length > 0
       && typeof receipt.signature === "string"
       && receipt.signature.length > 0;
-    if (valid) return receipt as ReportReceipt;
-    window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+    return valid ? receipt as LegacyReportReceipt : null;
   } catch {
-    // A malformed or inaccessible local receipt never becomes a deletion request.
+    return null;
   }
-  return null;
+}
+
+function mergeReportCase(cases: ReportCaseView[], report: ReportCaseView): ReportCaseView[] {
+  return [report, ...cases.filter((candidate) => candidate.caseId !== report.caseId)];
+}
+
+function supportSafeCase(report: ReportCaseView): Record<string, unknown> {
+  return {
+    caseId: report.caseId,
+    state: report.state,
+    bytes: report.bytes,
+    sha256: report.sha256,
+    ...(report.productVersion ? { productVersion: report.productVersion } : {}),
+    ...(report.receivedAt ? { receivedAt: report.receivedAt } : {}),
+    ...(report.retentionDeadline ? { retentionDeadline: report.retentionDeadline } : {}),
+  };
 }
 
 export function useDiagnosticsReport(active: boolean, announce: Announce) {
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [diagnosticsExport, setDiagnosticsExport] = useState<DiagnosticsExport | null>(null);
-  const [reportIntake, setReportIntake] = useState<ReportIntakeStatus | null>(null);
+  const [reportIntake, setReportIntake] = useState<ReportState | null>(null);
+  const [reportCases, setReportCases] = useState<ReportCaseView[]>([]);
   const [reportReview, setReportReview] = useState(false);
   const [reportUploading, setReportUploading] = useState(false);
+  const [backgroundReportUploading, setBackgroundReportUploading] = useState(false);
   const [reportFinalizing, setReportFinalizing] = useState(false);
   const [reportCancelling, setReportCancelling] = useState(false);
   const [reportUploadedBytes, setReportUploadedBytes] = useState(0);
-  const [reportReceipt, setReportReceipt] = useState<ReportReceipt | null>(savedRunReportReceipt);
   const [reportError, setReportError] = useState("");
-  const [reportDeleting, setReportDeleting] = useState(false);
+  const [reportDeletingCaseId, setReportDeletingCaseId] = useState<string | null>(null);
   const [automaticRunReports, setAutomaticRunReports] = useState(savedAutomaticRunReports);
   const diagnosticsBusyRef = useRef(false);
   const reportUploadingRef = useRef(false);
+  const backgroundReportUploadingRef = useRef(false);
   const automaticReportRef = useRef(false);
   const automaticRunReportsRef = useRef(automaticRunReports);
   const reportIntakeRef = useRef(reportIntake);
+  const legacyReceiptRef = useRef<LegacyReportReceipt | null>(savedLegacyRunReportReceipt());
+
+  const reportReceipt = useMemo(
+    () => reportCases.find((report) => report.state === "accepted") ?? reportCases[0] ?? null,
+    [reportCases],
+  );
 
   useEffect(() => {
     automaticRunReportsRef.current = automaticRunReports;
@@ -168,39 +156,86 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     reportIntakeRef.current = reportIntake;
   }, [reportIntake]);
 
-  useEffect(() => {
-    try {
-      if (reportReceipt) {
-        window.localStorage.setItem(REPORT_RECEIPT_STORAGE_KEY, JSON.stringify(reportReceipt));
-      } else {
+  const applyReportState = useCallback((status: ReportState) => {
+    setReportIntake(status);
+    const retained = status.reports.filter((report) => {
+      const expired = report.state === "accepted"
+        && report.retentionDeadline !== null
+        && Number.isFinite(Date.parse(report.retentionDeadline))
+        && Date.parse(report.retentionDeadline) <= Date.now();
+      if (expired) void mutateRunReport(report.caseId, "dismiss").catch(() => undefined);
+      return !expired;
+    });
+    setReportCases(retained);
+    const background = status.backgroundUploadId !== null;
+    backgroundReportUploadingRef.current = background;
+    setBackgroundReportUploading(background);
+    if (status.legacyReceiptImported && legacyReceiptRef.current) {
+      try {
         window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+        legacyReceiptRef.current = null;
+      } catch {
+        // Native authority already owns the credential. Leaving the legacy copy is harmless and
+        // gives a future launch another chance to remove it from webview storage.
       }
-    } catch {
-      // Receipt copying remains available if a locked-down webview denies local storage.
     }
-  }, [reportReceipt]);
+  }, []);
+
+  const refreshReportState = useCallback(async (automaticRunIdentity: string | null = null) => {
+    const status = await getReportState(legacyReceiptRef.current, automaticRunIdentity);
+    applyReportState(status);
+    return status;
+  }, [applyReportState]);
 
   useEffect(() => {
     if ((!active && !automaticRunReports) || reportIntake !== null) return;
     let cancelled = false;
-    void getReportIntakeStatus()
-      .then((status) => {
-        if (!cancelled) setReportIntake(status);
-      })
+    void refreshReportState()
       .catch((error) => {
         if (!cancelled) {
-          setReportIntake({ configured: false, origin: null, reason: errorMessage(error) });
+          setReportIntake({
+            configured: false,
+            origin: null,
+            reason: errorMessage(error),
+            reports: [],
+            automaticClaimed: null,
+            legacyReceiptImported: false,
+            backgroundUploadId: null,
+            backgroundUploadTotalBytes: null,
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [active, automaticRunReports, reportIntake]);
+  }, [active, automaticRunReports, refreshReportState, reportIntake]);
+
+  useEffect(() => {
+    if (!backgroundReportUploading) return;
+    const timer = window.setInterval(() => {
+      void refreshReportState().catch(() => undefined);
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [backgroundReportUploading, refreshReportState]);
 
   useEffect(() => {
     if (!isDesktopHost()) return;
     let stopReconciliation: () => void = () => undefined;
     const stopListening = listenWhileMounted<ReportUploadStateEvent>("report-upload-state", ({ payload }) => {
+      const kind = payload.kind ?? "manual";
+      if (kind === "automatic") {
+        const running = payload.state === "starting" || payload.state === "uploading" || payload.state === "finalizing";
+        backgroundReportUploadingRef.current = running;
+        setBackgroundReportUploading(running);
+        if (payload.receipt) {
+          setReportCases((current) => mergeReportCase(current, payload.receipt!));
+        }
+        if (payload.state === "finished" || payload.state === "failed" || payload.state === "cancelled") {
+          void refreshReportState().catch(() => undefined);
+        }
+        return;
+      }
+
       setReportUploadedBytes(payload.uploadedBytes);
       if (payload.state === "starting" || payload.state === "uploading") {
         setReportFinalizing(false);
@@ -208,7 +243,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
       if (payload.state === "finalizing") {
         setReportFinalizing(true);
         setReportCancelling(false);
-        announce("The archive was accepted. Finishing its signed receipt…");
+        announce("The archive was accepted. Finishing its receipt…");
         return;
       }
       if (payload.state === "cancelling") {
@@ -225,9 +260,10 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
           const detail = payload.detail ?? "The report could not be sent.";
           setReportError(detail);
           announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
-          return;
+        } else {
+          announce(payload.detail ?? "The local diagnostics ZIP is unchanged.", "warning");
         }
-        announce(payload.detail ?? "The local diagnostics ZIP is unchanged.", "warning");
+        void refreshReportState().catch(() => undefined);
         return;
       }
       if (payload.state === "finished" && payload.receipt) {
@@ -236,7 +272,8 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         setReportFinalizing(false);
         setReportCancelling(false);
         setReportReview(false);
-        setReportReceipt(payload.receipt);
+        setReportCases((current) => mergeReportCase(current, payload.receipt!));
+        setReportError("");
       }
     }, (error) => {
       announce(`Live report-upload updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
@@ -256,25 +293,34 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
             setReportUploading(false);
             setReportFinalizing(false);
             setReportCancelling(false);
-            const detail = "Live completion details were unavailable. The diagnostics ZIP is still on this computer; check for a receipt before retrying.";
-            setReportError(detail);
-            announce(detail, "warning");
+            void refreshReportState().catch((refreshError) => {
+              const detail = `Live completion details were unavailable. The diagnostics ZIP is still on this computer; ${errorMessage(refreshError)}`;
+              setReportError(detail);
+              announce(detail, "warning");
+            });
           } else {
             previousUpload = null;
+            void refreshReportState().catch(() => undefined);
           }
         },
         isActive: () => true,
         onError: (pollError) => announce(`Could not refresh native report-upload state: ${pollError}`, "error"),
       });
     });
+    const stopRunListening = listenWhileMounted<{ state: string }>("run-state", ({ payload }) => {
+      if (payload.state === "started" && backgroundReportUploadingRef.current) {
+        void mutateRunReport("", "cancel-background").catch(() => undefined);
+      }
+    });
     return () => {
       stopListening();
+      stopRunListening();
       stopReconciliation();
     };
-  }, [announce]);
+  }, [announce, refreshReportState]);
 
   const saveDiagnostics = async () => {
-    if (diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
+    if (diagnosticsBusyRef.current || reportUploadingRef.current) return;
     diagnosticsBusyRef.current = true;
     setDiagnosticsBusy(true);
     try {
@@ -303,7 +349,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   };
 
   const submitRunReport = async () => {
-    if (!diagnosticsExport || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
+    if (!diagnosticsExport || !reportIntake?.configured || diagnosticsBusyRef.current || reportUploadingRef.current) return;
     reportUploadingRef.current = true;
     setReportUploading(true);
     setReportFinalizing(false);
@@ -312,11 +358,11 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     setReportError("");
     announce("Creating a short-lived case for this exact diagnostics ZIP…");
     try {
-      const receipt = await sendRunReport(diagnosticsExport);
-      setReportReceipt(receipt);
+      const receipt = await sendRunReport(diagnosticsExport, "manual");
+      setReportCases((current) => mergeReportCase(current, receipt));
       setReportReview(false);
       setReportUploadedBytes(diagnosticsExport.bytes);
-      announce(`Run report ${receipt.caseId} was accepted. Keep the receipt for support or deletion.`, "success");
+      announce(`Run report ${receipt.caseId} was accepted. Preflight saved its deletion authority on this computer.`, "success");
     } catch (error) {
       const nativeError = nativeCommandError(error);
       const detail = nativeError?.message ?? errorMessage(error);
@@ -326,6 +372,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
         setReportError(detail);
         announce(`Report wasn’t sent. The diagnostics ZIP is still on this computer. ${detail}`, "error");
       }
+      void refreshReportState().catch(() => undefined);
     } finally {
       reportUploadingRef.current = false;
       setReportUploading(false);
@@ -339,7 +386,7 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     setReportCancelling(true);
     announce("Stopping the report upload…");
     try {
-      const requested = await cancelRunReport();
+      const requested = await cancelManualRunReport();
       if (!requested) {
         reportUploadingRef.current = false;
         setReportUploading(false);
@@ -352,37 +399,47 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     }
   };
 
-  const copyRunReportReceipt = async () => {
-    if (!reportReceipt) return;
+  const copyRunReportReceipt = async (caseId?: string) => {
+    const receipt = caseId
+      ? reportCases.find((candidate) => candidate.caseId === caseId)
+      : reportReceipt;
+    if (!receipt) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(supportSafeReportReceipt(reportReceipt), null, 2));
-      announce("Support-safe run-report receipt copied. Deletion authorization stayed on this computer.");
+      await navigator.clipboard.writeText(JSON.stringify(supportSafeCase(receipt), null, 2));
+      announce("Support-safe run-report receipt copied. Deletion authorization stayed in native Preflight storage.");
     } catch (error) {
       announce(`Could not copy the receipt: ${errorMessage(error)}`, "error");
     }
   };
 
-  const dismissRunReportReceipt = () => {
-    setReportReceipt(null);
-    announce("Receipt dismissed. Its local deletion authorization was removed.");
+  const dismissRunReportReceipt = (caseId?: string) => {
+    const target = caseId ?? reportReceipt?.caseId;
+    if (!target) return;
+    void mutateRunReport(target, "dismiss")
+      .then(() => {
+        setReportCases((current) => current.filter((report) => report.caseId !== target));
+        announce(`Case ${target} was dismissed. Its local deletion authorization was removed.`);
+      })
+      .catch((error) => announce(errorMessage(error), "error"));
   };
 
   const clearReportReceipt = () => {
-    setReportReceipt(null);
+    setReportCases([]);
+    void mutateRunReport("", "clear-all").catch((error) => announce(errorMessage(error), "error"));
   };
 
-  const removeRunReport = async () => {
-    if (!reportReceipt || reportDeleting) return;
-    setReportDeleting(true);
+  const removeRunReport = async (caseId?: string) => {
+    const target = caseId ?? reportReceipt?.caseId;
+    if (!target || reportDeletingCaseId) return;
+    setReportDeletingCaseId(target);
     try {
-      await deleteRunReport(reportReceipt.deletion);
-      const caseId = reportReceipt.caseId;
-      setReportReceipt(null);
-      announce(`Run report ${caseId} was deleted. Your local diagnostics ZIP is unchanged.`, "success");
+      await mutateRunReport(target, "delete");
+      setReportCases((current) => current.filter((report) => report.caseId !== target));
+      announce(`Run report ${target} was deleted. Your local diagnostics ZIP is unchanged.`, "success");
     } catch (error) {
       announce(errorMessage(error), "error");
     } finally {
-      setReportDeleting(false);
+      setReportDeletingCaseId(null);
     }
   };
 
@@ -404,55 +461,55 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
     game: string;
     wrapperPid: number;
   }) => {
-    if (!automaticRunReportsRef.current || diagnosticsBusyRef.current || reportUploadingRef.current || automaticReportRef.current) return;
+    if (!automaticRunReportsRef.current || automaticReportRef.current) return;
     automaticReportRef.current = true;
     let localZip = false;
     try {
       let intake = reportIntakeRef.current;
       if (intake === null) {
-        intake = await getReportIntakeStatus();
-        reportIntakeRef.current = intake;
-        setReportIntake(intake);
+        intake = await refreshReportState();
       }
       if (!intake.configured) return;
       const latest = await getSnapshot(game).catch(() => null);
       const identity = failedRunIdentity(latest?.lastRun ?? null, wrapperPid);
       if (!identity) return;
-      const reported = savedAutomaticReportIdentities();
-      if (reported === null || reported.includes(identity.key)) return;
+
+      // Native create-if-absent claim is the authority. Claim before export, so a replay or second
+      // desktop process cannot create a second hidden ZIP while racing for the same failed run.
+      const claim = await refreshReportState(identity.key);
+      if (claim.automaticClaimed !== true) return;
+
       const exported = await exportAutomaticDiagnostics(identity.fileId);
       localZip = true;
-      if (!claimAutomaticReport(identity.key)) return;
-      reportUploadingRef.current = true;
-      setReportUploading(true);
-      setReportFinalizing(false);
-      setReportCancelling(false);
-      setReportUploadedBytes(0);
-      setReportError("");
       setDiagnosticsExport(exported);
-      const receipt = await sendRunReport(exported);
-      setReportReceipt(receipt);
-      announce("A failed-run support report was sent automatically. A receipt is saved in Help.", "info");
+      backgroundReportUploadingRef.current = true;
+      setBackgroundReportUploading(true);
+      const receipt = await sendRunReport(exported, "automatic");
+      setReportCases((current) => mergeReportCase(current, receipt));
+      announce(`A failed-run support report was sent automatically as case ${receipt.caseId}. Its deletion authority is saved in Help.`);
     } catch (error) {
       setReportError(errorMessage(error));
       announce(localZip
-        ? "Could not automatically send the failed-run report. The local diagnostics ZIP was kept."
+        ? "Could not automatically send the failed-run report. The exact local diagnostics ZIP was kept for manual review or retry."
         : "Could not prepare the failed-run report. Nothing was sent.", "warning");
     } finally {
-      reportUploadingRef.current = false;
-      setReportUploading(false);
-      setReportFinalizing(false);
-      setReportCancelling(false);
       automaticReportRef.current = false;
+      void refreshReportState().catch(() => {
+        backgroundReportUploadingRef.current = false;
+        setBackgroundReportUploading(false);
+      });
     }
-  }, [announce]);
+  }, [announce, refreshReportState]);
 
   return {
     automaticRunReports,
+    backgroundReportUploading,
     diagnosticsBusy,
     diagnosticsExport,
     reportCancelling,
-    reportDeleting,
+    reportCases,
+    reportDeleting: reportDeletingCaseId !== null,
+    reportDeletingCaseId,
     reportError,
     reportFinalizing,
     reportIntake,
