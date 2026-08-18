@@ -8,6 +8,7 @@ import { adapterHealthLine } from "./adapterHealthText";
 import { HOME_OPTIONS_STORAGE_KEY } from "./desktopStorage";
 import { isCurrentProfilePrepared } from "./usePreparation";
 import * as bridge from "./bridge";
+import * as reportBridge from "./reportBridge";
 import type { CacheHealth, CacheSnapshot, LaunchSettings } from "./types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }));
@@ -16,6 +17,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 beforeEach(() => {
   window.localStorage.clear();
   window.history.replaceState(null, "", "/");
+  reportBridge.resetPreviewReportStateForTests();
 });
 
 function cacheSnapshot(overrides: Partial<CacheSnapshot> = {}): CacheSnapshot {
@@ -1126,7 +1128,7 @@ test("diagnostics disclose their boundary and export a bounded bundle", async ()
 
   expect(await screen.findByRole("heading", { name: /Case ed6ca0c8/ })).toBeInTheDocument();
   expect(screen.getByText(/was accepted/)).toBeInTheDocument();
-  await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).not.toBeNull());
+  expect(window.localStorage.getItem("preflight.reportReceipt")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Delete uploaded report" }));
   expect(await screen.findByText(/was deleted/)).toBeInTheDocument();
   await waitFor(() => expect(window.localStorage.getItem("preflight.reportReceipt")).toBeNull());
@@ -1157,8 +1159,8 @@ test("restores an unexpired report deletion receipt after restart", async () => 
   await user.click(screen.getByRole("button", { name: "Help" }));
 
   expect(await screen.findByRole("heading", { name: `Case ${caseId}` })).toBeInTheDocument();
-  expect(screen.getByText(/The deletion receipt stays here/)).toBeInTheDocument();
-  expect(screen.getByText(/Use this case number in an issue/)).toBeInTheDocument();
+  expect(screen.getByText(/deletion authorization in native storage/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copy receipt" })).toBeEnabled();
 });
 
 test("discards an expired local report deletion receipt", async () => {

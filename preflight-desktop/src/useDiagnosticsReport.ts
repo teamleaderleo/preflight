@@ -75,11 +75,22 @@ function failedRunIdentity(
   };
 }
 
+function clearLegacyRunReportReceipt(): void {
+  try {
+    window.localStorage.removeItem(REPORT_RECEIPT_STORAGE_KEY);
+  } catch {
+    // Native report authority remains usable when webview storage is unavailable.
+  }
+}
+
 function savedLegacyRunReportReceipt(): LegacyReportReceipt | null {
   try {
     const raw = window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY);
     if (!raw) return null;
     const receipt = JSON.parse(raw) as Partial<LegacyReportReceipt>;
+    const retentionDeadline = typeof receipt.retentionDeadline === "string"
+      ? Date.parse(receipt.retentionDeadline)
+      : Number.NaN;
     const valid = receipt.protocolVersion === 1
       && typeof receipt.caseId === "string"
       && receipt.objectKey === `accepted/${receipt.caseId}.zip`
@@ -91,16 +102,20 @@ function savedLegacyRunReportReceipt(): LegacyReportReceipt | null {
       && typeof receipt.productVersion === "string"
       && typeof receipt.receivedAt === "string"
       && Number.isFinite(Date.parse(receipt.receivedAt))
-      && typeof receipt.retentionDeadline === "string"
-      && Number.isFinite(Date.parse(receipt.retentionDeadline))
+      && Number.isFinite(retentionDeadline)
       && receipt.deletion?.method === "DELETE"
       && typeof receipt.deletion.url === "string"
       && typeof receipt.deletion.token === "string"
       && receipt.deletion.token.length > 0
       && typeof receipt.signature === "string"
       && receipt.signature.length > 0;
-    return valid ? receipt as LegacyReportReceipt : null;
+    if (!valid || retentionDeadline <= Date.now()) {
+      clearLegacyRunReportReceipt();
+      return null;
+    }
+    return receipt as LegacyReportReceipt;
   } catch {
+    clearLegacyRunReportReceipt();
     return null;
   }
 }

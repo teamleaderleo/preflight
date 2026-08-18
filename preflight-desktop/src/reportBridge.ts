@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { browserPreviewScenario, isDesktopHost } from "./bridge";
+import { browserPreviewScenario, getReportIntakeStatus, isDesktopHost } from "./bridge";
 import type { DiagnosticsExport } from "./types";
 
 export type ReportUploadKind = "manual" | "automatic";
@@ -66,6 +66,7 @@ export async function getReportState(
   automaticRunIdentity: string | null = null,
 ): Promise<ReportState> {
   if (!isDesktopHost()) {
+    const intake = await getReportIntakeStatus();
     let legacyReceiptImported = false;
     if (legacyReceipt) {
       const view: ReportCaseView = {
@@ -86,9 +87,9 @@ export async function getReportState(
       if (automaticClaimed) previewAutomaticClaims.add(automaticRunIdentity);
     }
     return {
-      configured: true,
-      origin: "https://reports.preview.invalid",
-      reason: null,
+      configured: intake.configured,
+      origin: intake.origin,
+      reason: intake.reason,
       reports: previewReports,
       automaticClaimed,
       legacyReceiptImported,

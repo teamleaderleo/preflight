@@ -47,6 +47,24 @@ test("automatic failed-run reporting uses the native atomic claim and sends an e
   const exported = await bridge.exportDiagnostics("/tmp/baseline.zip");
   const exportAutomatic = vi.spyOn(bridge, "exportAutomaticDiagnostics").mockResolvedValue(exported);
   const send = vi.spyOn(reportBridge, "sendRunReport").mockResolvedValue(acceptedCase());
+  const claimed = new Set<string>();
+  vi.spyOn(reportBridge, "getReportState").mockImplementation(async (_legacyReceipt, automaticRunIdentity) => {
+    let automaticClaimed: boolean | null = null;
+    if (automaticRunIdentity !== null) {
+      automaticClaimed = !claimed.has(automaticRunIdentity);
+      claimed.add(automaticRunIdentity);
+    }
+    return {
+      configured: true,
+      origin: "https://reports.preview.invalid",
+      reason: null,
+      reports: send.mock.calls.length > 0 ? [acceptedCase()] : [],
+      automaticClaimed,
+      legacyReceiptImported: false,
+      backgroundUploadId: null,
+      backgroundUploadTotalBytes: null,
+    };
+  });
   const announce = vi.fn();
   const { result } = renderHook(() => useDiagnosticsReport(false, announce));
 

@@ -21,7 +21,9 @@ const REPORT_UPLOAD_LIMIT: u64 = 6 * 1024 * 1024;
 
 /// Reads the exact disclosed ZIP once, verifies that opened file handle, and returns immutable
 /// bytes for the upload. The network path never reopens the filesystem path after this boundary.
-pub(crate) fn validated_report_archive_bytes(report: &ReportUploadInput) -> Result<Vec<u8>, String> {
+pub(crate) fn validated_report_archive_bytes(
+    report: &ReportUploadInput,
+) -> Result<Vec<u8>, String> {
     if report.bytes == 0 || report.bytes > REPORT_UPLOAD_LIMIT {
         return Err("The diagnostics ZIP is outside the 6 MiB upload limit.".to_string());
     }
@@ -119,12 +121,10 @@ pub(crate) async fn perform_report_upload_with_authority(
             format!("Could not create a run-report case: {}", transport_detail(&error))
         ))?,
     };
-    let grant: CreateReportCaseResponse = response_json(
-        create_response,
-        "The report case was rejected",
-    )
-    .await
-    .map_err(ReportUploadError::Failed)?;
+    let grant: CreateReportCaseResponse =
+        response_json(create_response, "The report case was rejected")
+            .await
+            .map_err(ReportUploadError::Failed)?;
     validate_case_grant(&origin, &grant, &report).map_err(ReportUploadError::Failed)?;
 
     if let Err(detail) = lifecycle.granted(&grant, &report) {
@@ -132,7 +132,10 @@ pub(crate) async fn perform_report_upload_with_authority(
             &client,
             &origin,
             &grant,
-            format!("Preflight could not save deletion authority for case {}: {detail}", grant.case_id),
+            format!(
+                "Preflight could not save deletion authority for case {}: {detail}",
+                grant.case_id
+            ),
         )
         .await);
     }
@@ -199,22 +202,12 @@ pub(crate) async fn perform_report_upload_with_authority(
             }
         },
     };
-    let upload: Value = match response_json(
-        upload_response,
-        "The run-report archive was rejected",
-    )
-    .await
+    let upload: Value = match response_json(upload_response, "The run-report archive was rejected")
+        .await
     {
         Ok(upload) => upload,
         Err(detail) => {
-            return Err(cleanup_granted_failure(
-                &client,
-                &origin,
-                &grant,
-                lifecycle,
-                detail,
-            )
-            .await);
+            return Err(cleanup_granted_failure(&client, &origin, &grant, lifecycle, detail).await);
         }
     };
     if upload.pointer("/status").and_then(Value::as_str) != Some("uploaded")
@@ -239,13 +232,8 @@ pub(crate) async fn perform_report_upload_with_authority(
         ReportUploadStateEvent::new("finalizing", id, report.bytes, report.bytes)
             .with_case(grant.case_id.clone()),
     );
-    let finalize_url = validated_case_url(
-        &origin,
-        &grant.finalize.url,
-        &grant.case_id,
-        "finalize",
-    )
-    .map_err(ReportUploadError::Failed)?;
+    let finalize_url = validated_case_url(&origin, &grant.finalize.url, &grant.case_id, "finalize")
+        .map_err(ReportUploadError::Failed)?;
     let finalize_response = match client
         .post(finalize_url)
         .bearer_auth(&grant.finalize.token)
@@ -259,38 +247,25 @@ pub(crate) async fn perform_report_upload_with_authority(
                 &origin,
                 &grant,
                 lifecycle,
-                format!("Could not finalize the run report: {}", transport_detail(&error)),
+                format!(
+                    "Could not finalize the run report: {}",
+                    transport_detail(&error)
+                ),
             )
             .await);
         }
     };
-    let receipt: ReportReceipt = match response_json(
-        finalize_response,
-        "The run report could not be finalized",
-    )
-    .await
-    {
-        Ok(receipt) => receipt,
-        Err(detail) => {
-            return Err(cleanup_granted_failure(
-                &client,
-                &origin,
-                &grant,
-                lifecycle,
-                detail,
-            )
-            .await);
-        }
-    };
+    let receipt: ReportReceipt =
+        match response_json(finalize_response, "The run report could not be finalized").await {
+            Ok(receipt) => receipt,
+            Err(detail) => {
+                return Err(
+                    cleanup_granted_failure(&client, &origin, &grant, lifecycle, detail).await,
+                );
+            }
+        };
     if let Err(detail) = validate_report_receipt(&origin, &receipt, &grant.case_id, &report) {
-        return Err(cleanup_granted_failure(
-            &client,
-            &origin,
-            &grant,
-            lifecycle,
-            detail,
-        )
-        .await);
+        return Err(cleanup_granted_failure(&client, &origin, &grant, lifecycle, detail).await);
     }
     if let Err(detail) = lifecycle.accepted(&receipt) {
         return Err(cleanup_granted_failure(
@@ -461,13 +436,21 @@ fn is_lower_sha256(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-async fn response_json<T: DeserializeOwned>(response: Response, context: &str) -> Result<T, String> {
+async fn response_json<T: DeserializeOwned>(
+    response: Response,
+    context: &str,
+) -> Result<T, String> {
     let status = response.status();
     let bytes = bounded_response_body(response).await?;
     if !status.is_success() {
         let detail = serde_json::from_slice::<Value>(&bytes)
             .ok()
-            .and_then(|value| value.pointer("/error").and_then(Value::as_str).map(str::to_string));
+            .and_then(|value| {
+                value
+                    .pointer("/error")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            });
         return Err(detail
             .map(|detail| format!("{context}: {detail}"))
             .unwrap_or_else(|| format!("{context}: HTTP {status}")));
@@ -481,7 +464,12 @@ async fn response_failure(response: Response, context: &str) -> String {
     match bounded_response_body(response).await {
         Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
             .ok()
-            .and_then(|value| value.pointer("/error").and_then(Value::as_str).map(str::to_string))
+            .and_then(|value| {
+                value
+                    .pointer("/error")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
             .map(|detail| format!("{context}: {detail}"))
             .unwrap_or_else(|| format!("{context}: HTTP {status}")),
         Err(error) => format!("{context}: HTTP {status}; {error}"),

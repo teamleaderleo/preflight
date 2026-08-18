@@ -74,7 +74,12 @@ pub(crate) struct NativeCommandError {
 
 impl NativeCommandError {
     fn new(code: &'static str, message: impl Into<String>, retryable: bool) -> Self {
-        Self { code, message: message.into(), retryable, detail: None }
+        Self {
+            code,
+            message: message.into(),
+            retryable,
+            detail: None,
+        }
     }
 }
 
@@ -93,7 +98,12 @@ pub(crate) struct ReportUploadStateEvent {
 }
 
 impl ReportUploadStateEvent {
-    pub(crate) fn new(state: &'static str, upload_id: u64, uploaded_bytes: u64, total_bytes: u64) -> Self {
+    pub(crate) fn new(
+        state: &'static str,
+        upload_id: u64,
+        uploaded_bytes: u64,
+        total_bytes: u64,
+    ) -> Self {
         Self {
             state,
             upload_id,
@@ -105,10 +115,22 @@ impl ReportUploadStateEvent {
             kind: None,
         }
     }
-    pub(crate) fn with_case(mut self, case_id: String) -> Self { self.case_id = Some(case_id); self }
-    pub(crate) fn with_receipt(mut self, receipt: ReportCaseView) -> Self { self.receipt = Some(receipt); self }
-    pub(crate) fn with_detail(mut self, detail: String) -> Self { self.detail = Some(detail); self }
-    pub(crate) fn with_kind(mut self, kind: &'static str) -> Self { self.kind = Some(kind); self }
+    pub(crate) fn with_case(mut self, case_id: String) -> Self {
+        self.case_id = Some(case_id);
+        self
+    }
+    pub(crate) fn with_receipt(mut self, receipt: ReportCaseView) -> Self {
+        self.receipt = Some(receipt);
+        self
+    }
+    pub(crate) fn with_detail(mut self, detail: String) -> Self {
+        self.detail = Some(detail);
+        self
+    }
+    pub(crate) fn with_kind(mut self, kind: &'static str) -> Self {
+        self.kind = Some(kind);
+        self
+    }
 }
 
 #[derive(Clone, Deserialize)]
@@ -119,7 +141,7 @@ pub(crate) struct ReportUploadInput {
     pub(crate) sha256: String,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ReportDeletion {
     pub(crate) method: String,
@@ -156,8 +178,10 @@ pub(crate) struct CreateReportCaseRequest<'a> {
 pub(crate) struct ReportGrantEndpoint {
     pub(crate) method: String,
     pub(crate) url: String,
-    #[serde(default)] pub(crate) content_type: Option<String>,
-    #[serde(default)] pub(crate) expires_at: Option<String>,
+    #[serde(default)]
+    pub(crate) content_type: Option<String>,
+    #[serde(default)]
+    pub(crate) expires_at: Option<String>,
     pub(crate) token: String,
 }
 
@@ -172,7 +196,10 @@ pub(crate) struct CreateReportCaseResponse {
 }
 
 #[derive(Debug)]
-pub(crate) enum ReportUploadError { Cancelled, Failed(String) }
+pub(crate) enum ReportUploadError {
+    Cancelled,
+    Failed(String),
+}
 
 fn upload_outcome_error(error: ReportUploadError) -> NativeCommandError {
     match error {
@@ -181,7 +208,9 @@ fn upload_outcome_error(error: ReportUploadError) -> NativeCommandError {
             "Run report upload was cancelled.",
             true,
         ),
-        ReportUploadError::Failed(detail) => NativeCommandError::new("report-upload-failed", detail, false),
+        ReportUploadError::Failed(detail) => {
+            NativeCommandError::new("report-upload-failed", detail, false)
+        }
     }
 }
 
@@ -209,7 +238,9 @@ pub(crate) fn get_report_intake_status(
             .as_deref()
             .map(|identity| claim_automatic_report(&app, identity))
             .transpose()?
-    } else { None };
+    } else {
+        None
+    };
     let (background_upload_id, background_upload_total_bytes) = background_upload_snapshot()?;
     let reports = store.reports()?;
     Ok(match origin_result {
@@ -248,31 +279,44 @@ pub(crate) async fn send_run_report(
         .map_err(|message| NativeCommandError::new("report-intake-unavailable", message, false))?;
     let archive = validated_report_archive_bytes(&report)
         .map_err(|message| NativeCommandError::new("report-archive-invalid", message, false))?;
-    let client = report_client()
-        .map_err(|message| NativeCommandError::new("report-transport-unavailable", message, true))?;
-    let store = ReportAuthorityStore::create(&app)
-        .map_err(|message| NativeCommandError::new("report-authority-unavailable", message, false))?;
+    let client = report_client().map_err(|message| {
+        NativeCommandError::new("report-transport-unavailable", message, true)
+    })?;
+    let store = ReportAuthorityStore::create(&app).map_err(|message| {
+        NativeCommandError::new("report-authority-unavailable", message, false)
+    })?;
     let lifecycle = store.lifecycle();
     let id = NEXT_REPORT_UPLOAD_ID.fetch_add(1, Ordering::Relaxed);
     let (cancel, cancel_receiver) = watch::channel(false);
 
     match kind {
         ReportUploadKind::Manual => {
-            let mut running = tracker.0.lock().map_err(|_| NativeCommandError::new(
-                "operation-state-unavailable",
-                "The report upload tracker is unavailable.",
-                true,
-            ))?;
+            let mut running = tracker.0.lock().map_err(|_| {
+                NativeCommandError::new(
+                    "operation-state-unavailable",
+                    "The report upload tracker is unavailable.",
+                    true,
+                )
+            })?;
             refuse_update_install(&running)
                 .map_err(|message| NativeCommandError::new("operation-conflict", message, true))?;
             refuse_benchmark_for_report(&running)
                 .map_err(|message| NativeCommandError::new("operation-conflict", message, true))?;
             if running.report_upload.is_some() {
-                return Err(NativeCommandError::new("report-upload-active", "A run report is already being sent.", true));
+                return Err(NativeCommandError::new(
+                    "report-upload-active",
+                    "A run report is already being sent.",
+                    true,
+                ));
             }
-            cancel_background_report()
-                .map_err(|message| NativeCommandError::new("operation-state-unavailable", message, true))?;
-            running.report_upload = Some(ReportUploadProcess { id, total_bytes: report.bytes, cancel: cancel.clone() });
+            cancel_background_report().map_err(|message| {
+                NativeCommandError::new("operation-state-unavailable", message, true)
+            })?;
+            running.report_upload = Some(ReportUploadProcess {
+                id,
+                total_bytes: report.bytes,
+                cancel: cancel.clone(),
+            });
         }
         ReportUploadKind::Automatic => {
             let running = tracker.0.try_lock().map_err(|error| match error {
@@ -292,22 +336,39 @@ pub(crate) async fn send_run_report(
             refuse_benchmark_for_report(&running)
                 .map_err(|message| NativeCommandError::new("operation-conflict", message, true))?;
             if running.report_upload.is_some() {
-                return Err(NativeCommandError::new("report-upload-active", "A manual run report is already being sent.", true));
+                return Err(NativeCommandError::new(
+                    "report-upload-active",
+                    "A manual run report is already being sent.",
+                    true,
+                ));
             }
             drop(running);
-            let mut background = AUTOMATIC_REPORT_UPLOAD.lock().map_err(|_| NativeCommandError::new(
-                "operation-state-unavailable",
-                "The background report tracker is unavailable.",
-                true,
-            ))?;
+            let mut background = AUTOMATIC_REPORT_UPLOAD.lock().map_err(|_| {
+                NativeCommandError::new(
+                    "operation-state-unavailable",
+                    "The background report tracker is unavailable.",
+                    true,
+                )
+            })?;
             if background.is_some() {
-                return Err(NativeCommandError::new("report-upload-active", "Another automatic run report is already being sent.", true));
+                return Err(NativeCommandError::new(
+                    "report-upload-active",
+                    "Another automatic run report is already being sent.",
+                    true,
+                ));
             }
-            *background = Some(ReportUploadProcess { id, total_bytes: report.bytes, cancel: cancel.clone() });
+            *background = Some(ReportUploadProcess {
+                id,
+                total_bytes: report.bytes,
+                cancel: cancel.clone(),
+            });
         }
     }
 
-    emit_report_state(&app, ReportUploadStateEvent::new("starting", id, 0, report.bytes).with_kind(kind.as_str()));
+    emit_report_state(
+        &app,
+        ReportUploadStateEvent::new("starting", id, 0, report.bytes).with_kind(kind.as_str()),
+    );
     let upload_app = app.clone();
     let outcome = perform_report_upload_with_authority(
         client,
@@ -318,16 +379,23 @@ pub(crate) async fn send_run_report(
         cancel_receiver,
         &lifecycle,
         move |event| emit_report_state(&upload_app, event.with_kind(kind.as_str())),
-    ).await;
+    )
+    .await;
 
     let should_exit = match kind {
         ReportUploadKind::Manual => {
             if let Ok(mut running) = tracker.0.lock() {
-                if running.report_upload.as_ref().is_some_and(|upload| upload.id == id) {
+                if running
+                    .report_upload
+                    .as_ref()
+                    .is_some_and(|upload| upload.id == id)
+                {
                     running.report_upload = None;
                 }
                 take_deferred_exit(&mut running)
-            } else { false }
+            } else {
+                false
+            }
         }
         ReportUploadKind::Automatic => {
             if let Ok(mut background) = AUTOMATIC_REPORT_UPLOAD.lock() {
@@ -360,17 +428,32 @@ pub(crate) async fn send_run_report(
                 .with_kind(kind.as_str()),
         ),
     }
-    if should_exit { app.exit(0); }
-    outcome.map(|receipt| ReportCaseView::accepted(&receipt)).map_err(upload_outcome_error)
+    if should_exit {
+        app.exit(0);
+    }
+    outcome
+        .map(|receipt| ReportCaseView::accepted(&receipt))
+        .map_err(upload_outcome_error)
 }
 
 #[tauri::command]
-pub(crate) fn cancel_run_report(app: AppHandle, tracker: State<'_, OperationCoordinator>) -> Result<bool, String> {
-    let running = tracker.0.lock().map_err(|_| "The report upload tracker is unavailable.".to_string())?;
-    let Some(upload) = running.report_upload.as_ref() else { return Ok(false); };
+pub(crate) fn cancel_run_report(
+    app: AppHandle,
+    tracker: State<'_, OperationCoordinator>,
+) -> Result<bool, String> {
+    let running = tracker
+        .0
+        .lock()
+        .map_err(|_| "The report upload tracker is unavailable.".to_string())?;
+    let Some(upload) = running.report_upload.as_ref() else {
+        return Ok(false);
+    };
     let id = upload.id;
     let total_bytes = upload.total_bytes;
-    upload.cancel.send(true).map_err(|_| "The report upload has already stopped.".to_string())?;
+    upload
+        .cancel
+        .send(true)
+        .map_err(|_| "The report upload has already stopped.".to_string())?;
     drop(running);
     emit_report_state(
         &app,
@@ -399,7 +482,10 @@ pub(crate) async fn delete_run_report(
         _ => return Err("Unknown run-report action.".to_string()),
     }
     {
-        let running = tracker.0.lock().map_err(|_| "The report upload tracker is unavailable.".to_string())?;
+        let running = tracker
+            .0
+            .lock()
+            .map_err(|_| "The report upload tracker is unavailable.".to_string())?;
         refuse_benchmark_for_report(&running)?;
     }
     let store = ReportAuthorityStore::create(&app)?;
@@ -415,17 +501,24 @@ pub(crate) async fn delete_run_report(
 }
 
 fn cancel_background_report() -> Result<bool, String> {
-    let mut background = AUTOMATIC_REPORT_UPLOAD.lock()
+    let mut background = AUTOMATIC_REPORT_UPLOAD
+        .lock()
         .map_err(|_| "The background report tracker is unavailable.".to_string())?;
-    let Some(upload) = background.take() else { return Ok(false); };
+    let Some(upload) = background.take() else {
+        return Ok(false);
+    };
     let _ = upload.cancel.send(true);
     Ok(true)
 }
 
 fn background_upload_snapshot() -> Result<(Option<u64>, Option<u64>), String> {
-    let background = AUTOMATIC_REPORT_UPLOAD.lock()
+    let background = AUTOMATIC_REPORT_UPLOAD
+        .lock()
         .map_err(|_| "The background report tracker is unavailable.".to_string())?;
-    Ok((background.as_ref().map(|upload| upload.id), background.as_ref().map(|upload| upload.total_bytes)))
+    Ok((
+        background.as_ref().map(|upload| upload.id),
+        background.as_ref().map(|upload| upload.total_bytes),
+    ))
 }
 
 #[cfg(test)]

@@ -89,7 +89,9 @@ impl ReportAuthorityStore {
             Ok(value) if !value.trim().is_empty() => value.trim().to_string(),
             _ => create_or_read_generation(&marker)?,
         };
-        Ok(Self { root, generation })
+        let store = Self { root, generation };
+        prune_expired_accepted_at(&store.root, now_millis()?)?;
+        Ok(store)
     }
 
     pub(crate) fn lifecycle(&self) -> NativeReportAuthorityLifecycle {
@@ -109,6 +111,7 @@ impl ReportAuthorityStore {
     }
 
     pub(crate) fn deletion(&self, case_id: &str) -> Result<ReportDeletion, String> {
+        prune_expired_accepted_at(&self.root, now_millis()?)?;
         validate_case_id(case_id)?;
         let accepted = accepted_path(&self.root, case_id);
         if accepted.exists() {
@@ -128,7 +131,9 @@ impl ReportAuthorityStore {
             match fs::remove_dir_all(&root) {
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => return Err(format!("Could not clear saved report authority: {error}")),
+                Err(error) => {
+                    return Err(format!("Could not clear saved report authority: {error}"));
+                }
             }
         }
         Ok(())
@@ -151,6 +156,7 @@ impl NativeReportAuthorityLifecycle {
         report: &ReportUploadInput,
     ) -> Result<(), String> {
         self.ensure_generation()?;
+        prune_expired_accepted_at(&self.root, now_millis()?)?;
         if !accepted_path(&self.root, &grant.case_id).exists()
             && !pending_path(&self.root, &grant.case_id).exists()
             && authority_count(&self.root)? >= MAX_AUTHORITIES
@@ -222,7 +228,9 @@ fn claim_automatic_report_at(root: &Path, identity: &str) -> Result<bool, String
             Ok(true)
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
-        Err(error) => Err(format!("Could not claim the failed run for automatic reporting: {error}")),
+        Err(error) => Err(format!(
+            "Could not claim the failed run for automatic reporting: {error}"
+        )),
     }
 }
 
@@ -239,8 +247,12 @@ fn prune_claims(root: &Path) -> Result<(), String> {
         if !name.ends_with(".claim") {
             continue;
         }
-        let Ok(metadata) = entry.metadata() else { continue };
-        let Ok(modified) = metadata.modified() else { continue };
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
         claims.push((modified, entry.path()));
     }
     claims.sort_by_key(|(modified, _)| *modified);
@@ -294,12 +306,18 @@ fn create_or_read_generation(marker: &Path) -> Result<String, String> {
                 Ok(value.trim().to_string())
             }
         }
-        Err(error) => Err(format!("Could not create report-authority generation: {error}")),
+        Err(error) => Err(format!(
+            "Could not create report-authority generation: {error}"
+        )),
     }
 }
 
 fn persist_accepted_at(root: &Path, receipt: &ReportReceipt) -> Result<(), String> {
+    let now = now_millis()?;
+    prune_expired_accepted_at(root, now)?;
     validate_case_id(&receipt.case_id)?;
+    let deadline = parse_retention_deadline_millis(&receipt.retention_deadline)
+        .map_err(|error| format!("Report receipt has an invalid retention deadline: {error}"))?;
     let path = accepted_path(root, &receipt.case_id);
     if path.exists() {
         let existing: ReportReceipt = read_json_regular(&path)?;
@@ -314,15 +332,170 @@ fn persist_accepted_at(root: &Path, receipt: &ReportReceipt) -> Result<(), Strin
         }
         return Err("A different report authority already exists for this case.".to_string());
     }
+    if i128::from(deadline) <= i128::from(now) {
+        remove_file_if_regular(&pending_path(root, &receipt.case_id))?;
+        if root.exists() {
+            sync_directory(root)?;
+        }
+        return Ok(());
+    }
     if !pending_path(root, &receipt.case_id).exists() && authority_count(root)? >= MAX_AUTHORITIES {
-        return Err("Preflight already has the maximum number of actionable report cases.".to_string());
+        return Err(
+            "Preflight already has the maximum number of actionable report cases.".to_string(),
+        );
     }
     persist_json_new(&path, receipt)?;
     remove_file_if_regular(&pending_path(root, &receipt.case_id))?;
     Ok(())
 }
 
+fn prune_expired_accepted_at(root: &Path, now_millis: u64) -> Result<usize, String> {
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(format!("Could not read saved report authority: {error}")),
+    };
+    let mut accepted = Vec::new();
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("Could not read saved report authority: {error}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(case_id) = name.strip_suffix(".accepted.json") {
+            accepted.push((case_id.to_string(), entry.path()));
+        }
+    }
+    accepted.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut expired = Vec::new();
+    for (case_id, path) in accepted {
+        validate_case_id(&case_id)?;
+        let receipt: ReportReceipt = read_json_regular(&path)?;
+        if receipt.case_id != case_id {
+            return Err("Saved accepted report authority is inconsistent.".to_string());
+        }
+        let deadline = parse_retention_deadline_millis(&receipt.retention_deadline).map_err(|error| {
+            format!(
+                "Saved accepted report authority for case {case_id} has an invalid retention deadline: {error}"
+            )
+        })?;
+        if i128::from(deadline) <= i128::from(now_millis) {
+            let pending = pending_path(root, &case_id);
+            if let Ok(metadata) = pending.symlink_metadata() {
+                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                    return Err("Saved report authority is not a regular file.".to_string());
+                }
+            }
+            expired.push((pending, path));
+        }
+    }
+
+    let removed = expired.len();
+    for (pending, accepted) in expired {
+        // Remove a crash-residue pending credential first. A process stop between these deletions
+        // leaves the accepted receipt available for the next deterministic expiry pass.
+        remove_file_if_regular(&pending)?;
+        remove_file_if_regular(&accepted)?;
+    }
+    if removed > 0 {
+        sync_directory(root)?;
+    }
+    Ok(removed)
+}
+
+fn parse_retention_deadline_millis(value: &str) -> Result<i64, String> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 20
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+    {
+        return Err("expected a UTC RFC 3339 timestamp".to_string());
+    }
+    let fraction = if bytes.len() == 20 && bytes[19] == b'Z' {
+        &bytes[19..19]
+    } else if bytes.len() >= 22 && bytes[19] == b'.' && bytes.last() == Some(&b'Z') {
+        let fraction = &bytes[20..bytes.len() - 1];
+        if fraction.len() > 9 || fraction.iter().any(|byte| !byte.is_ascii_digit()) {
+            return Err("expected one to nine fractional-second digits".to_string());
+        }
+        fraction
+    } else {
+        return Err("expected a UTC RFC 3339 timestamp".to_string());
+    };
+
+    let year = parse_fixed_decimal(&bytes[0..4])?;
+    let month = parse_fixed_decimal(&bytes[5..7])?;
+    let day = parse_fixed_decimal(&bytes[8..10])?;
+    let hour = parse_fixed_decimal(&bytes[11..13])?;
+    let minute = parse_fixed_decimal(&bytes[14..16])?;
+    let second = parse_fixed_decimal(&bytes[17..19])?;
+    let max_day = days_in_month(year, month)
+        .ok_or_else(|| "retention deadline month is outside the supported range".to_string())?;
+    if day == 0 || day > max_day || hour > 23 || minute > 59 || second > 59 {
+        return Err("retention deadline date or time is outside the supported range".to_string());
+    }
+
+    let mut fraction_millis = 0i64;
+    for index in 0..3 {
+        fraction_millis *= 10;
+        if let Some(byte) = fraction.get(index) {
+            fraction_millis += i64::from(*byte - b'0');
+        }
+    }
+    if fraction.len() > 3 && fraction[3..].iter().any(|byte| *byte != b'0') {
+        fraction_millis += 1;
+    }
+
+    let seconds = days_from_civil(i64::from(year), month, day)
+        .checked_mul(86_400)
+        .and_then(|value| value.checked_add(i64::from(hour) * 3_600))
+        .and_then(|value| value.checked_add(i64::from(minute) * 60))
+        .and_then(|value| value.checked_add(i64::from(second)))
+        .ok_or_else(|| "retention deadline is outside the supported range".to_string())?;
+    seconds
+        .checked_mul(1_000)
+        .and_then(|value| value.checked_add(fraction_millis))
+        .ok_or_else(|| "retention deadline is outside the supported range".to_string())
+}
+
+fn parse_fixed_decimal(bytes: &[u8]) -> Result<u32, String> {
+    let mut value = 0u32;
+    for byte in bytes {
+        if !byte.is_ascii_digit() {
+            return Err("retention deadline contains a non-decimal field".to_string());
+        }
+        value = value
+            .checked_mul(10)
+            .and_then(|value| value.checked_add(u32::from(*byte - b'0')))
+            .ok_or_else(|| "retention deadline is outside the supported range".to_string())?;
+    }
+    Ok(value)
+}
+
+fn days_in_month(year: u32, month: u32) -> Option<u32> {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => Some(31),
+        4 | 6 | 9 | 11 => Some(30),
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => Some(29),
+        2 => Some(28),
+        _ => None,
+    }
+}
+
+fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
+    let year = year - if month <= 2 { 1 } else { 0 };
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let year_of_era = year - era * 400;
+    let month_prime = i64::from(month) + if month > 2 { -3 } else { 9 };
+    let day_of_year = (153 * month_prime + 2) / 5 + i64::from(day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
 fn list_report_views_at(root: &Path) -> Result<Vec<ReportCaseView>, String> {
+    prune_expired_accepted_at(root, now_millis()?)?;
     let entries = match fs::read_dir(root) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -330,7 +503,8 @@ fn list_report_views_at(root: &Path) -> Result<Vec<ReportCaseView>, String> {
     };
     let mut reports = BTreeMap::<String, ReportCaseView>::new();
     for entry in entries {
-        let entry = entry.map_err(|error| format!("Could not read saved report authority: {error}"))?;
+        let entry =
+            entry.map_err(|error| format!("Could not read saved report authority: {error}"))?;
         let name = entry.file_name().to_string_lossy().into_owned();
         if let Some(case_id) = name.strip_suffix(".pending.json") {
             validate_case_id(case_id)?;
@@ -338,7 +512,9 @@ fn list_report_views_at(root: &Path) -> Result<Vec<ReportCaseView>, String> {
             if pending.format != AUTHORITY_FORMAT || pending.case_id != case_id {
                 return Err("Saved pending report authority is inconsistent.".to_string());
             }
-            reports.entry(case_id.to_string()).or_insert_with(|| ReportCaseView::pending(&pending));
+            reports
+                .entry(case_id.to_string())
+                .or_insert_with(|| ReportCaseView::pending(&pending));
         } else if let Some(case_id) = name.strip_suffix(".accepted.json") {
             validate_case_id(case_id)?;
             let receipt: ReportReceipt = read_json_regular(&entry.path())?;
@@ -363,7 +539,9 @@ fn authority_count(root: &Path) -> Result<usize, String> {
 }
 
 fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
-    let parent = path.parent().ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
     fs::create_dir_all(parent)
         .map_err(|error| format!("Could not create report-authority storage: {error}"))?;
     make_private_directory(parent)?;
@@ -401,9 +579,13 @@ fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> 
 }
 
 fn read_json_regular<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
-    let metadata = path.symlink_metadata()
+    let metadata = path
+        .symlink_metadata()
         .map_err(|error| format!("Could not inspect saved report authority: {error}"))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > MAX_AUTHORITY_BYTES {
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_AUTHORITY_BYTES
+    {
         return Err("Saved report authority is not a bounded regular file.".to_string());
     }
     let mut file = fs::File::open(path)
@@ -416,7 +598,8 @@ fn read_json_regular<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, Str
 }
 
 fn read_regular_text(path: &Path) -> Result<String, String> {
-    let metadata = path.symlink_metadata()
+    let metadata = path
+        .symlink_metadata()
         .map_err(|error| format!("Could not inspect report-authority generation: {error}"))?;
     if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 256 {
         return Err("Report-authority generation is not a bounded regular file.".to_string());
@@ -444,7 +627,8 @@ fn remove_file_if_regular(path: &Path) -> Result<(), String> {
     if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err("Saved report authority is not a regular file.".to_string());
     }
-    fs::remove_file(path).map_err(|error| format!("Could not remove saved report authority: {error}"))
+    fs::remove_file(path)
+        .map_err(|error| format!("Could not remove saved report authority: {error}"))
 }
 
 fn accepted_path(root: &Path, case_id: &str) -> PathBuf {
@@ -456,21 +640,28 @@ fn pending_path(root: &Path, case_id: &str) -> PathBuf {
 }
 
 fn now_millis() -> Result<u64, String> {
-    let millis = SystemTime::now().duration_since(UNIX_EPOCH)
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .map_err(|_| "The system clock is before 1970.".to_string())?
         .as_millis();
-    u64::try_from(millis).map_err(|_| "The system clock is outside the supported range.".to_string())
+    u64::try_from(millis)
+        .map_err(|_| "The system clock is outside the supported range.".to_string())
 }
 
 fn validate_case_id(value: &str) -> Result<(), String> {
-    let valid = value.len() == 36 && value.bytes().enumerate().all(|(index, byte)| {
-        if matches!(index, 8 | 13 | 18 | 23) {
-            byte == b'-'
-        } else {
-            byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()
-        }
-    });
-    if valid { Ok(()) } else { Err("The report case identity is invalid.".to_string()) }
+    let valid = value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()
+            }
+        });
+    if valid {
+        Ok(())
+    } else {
+        Err("The report case identity is invalid.".to_string())
+    }
 }
 
 #[cfg(unix)]
@@ -481,7 +672,9 @@ fn make_private_directory(path: &Path) -> Result<(), String> {
 }
 
 #[cfg(not(unix))]
-fn make_private_directory(_path: &Path) -> Result<(), String> { Ok(()) }
+fn make_private_directory(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
 
 #[cfg(unix)]
 fn make_private_file(file: &fs::File) -> Result<(), String> {
@@ -491,7 +684,9 @@ fn make_private_file(file: &fs::File) -> Result<(), String> {
 }
 
 #[cfg(not(unix))]
-fn make_private_file(_file: &fs::File) -> Result<(), String> { Ok(()) }
+fn make_private_file(_file: &fs::File) -> Result<(), String> {
+    Ok(())
+}
 
 #[cfg(unix)]
 fn sync_directory(path: &Path) -> Result<(), String> {
@@ -501,7 +696,9 @@ fn sync_directory(path: &Path) -> Result<(), String> {
 }
 
 #[cfg(not(unix))]
-fn sync_directory(_path: &Path) -> Result<(), String> { Ok(()) }
+fn sync_directory(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
@@ -525,6 +722,155 @@ mod tests {
     }
 
     #[test]
+    fn expiry_pruning_removes_only_the_expired_authority() {
+        let root = temp_root("expiry");
+        let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let expired = test_receipt_with_deadline(
+            "11111111-1111-1111-1111-111111111111",
+            "aa",
+            "1970-01-01T00:00:00Z",
+        );
+        let live = test_receipt_with_deadline(
+            "22222222-2222-2222-2222-222222222222",
+            "bb",
+            "9999-12-31T23:59:59.999Z",
+        );
+        let expired_path = accepted_path(&root, &expired.case_id);
+        let live_path = accepted_path(&root, &live.case_id);
+        persist_json_new(&expired_path, &expired).unwrap();
+        persist_json_new(&live_path, &live).unwrap();
+        let live_before = fs::read(&live_path).unwrap();
+
+        let remaining = store.reports().unwrap();
+
+        assert_eq!(1, remaining.len());
+        assert_eq!(live.case_id, remaining[0].case_id);
+        assert!(!expired_path.exists());
+        assert_eq!(live_before, fs::read(&live_path).unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn restart_prunes_expired_authority_and_preserves_the_live_authority() {
+        let root = temp_root("restart-expiry");
+        let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let expired = test_receipt_with_deadline(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "aa",
+            "1970-01-01T00:00:00.000Z",
+        );
+        let live = test_receipt("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "bb");
+        let expired_path = accepted_path(&root, &expired.case_id);
+        let expired_pending_path = pending_path(&root, &expired.case_id);
+        let live_path = accepted_path(&root, &live.case_id);
+        persist_json_new(&expired_path, &expired).unwrap();
+        persist_json_new(
+            &expired_pending_path,
+            &PendingAuthority {
+                format: AUTHORITY_FORMAT.to_string(),
+                case_id: expired.case_id.clone(),
+                bytes: expired.bytes,
+                sha256: expired.sha256.clone(),
+                deletion: expired.deletion.clone(),
+                created_at_millis: 1,
+            },
+        )
+        .unwrap();
+        persist_json_new(&live_path, &live).unwrap();
+        let live_before = fs::read(&live_path).unwrap();
+        drop(store);
+
+        let restarted = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let reports = restarted.reports().unwrap();
+
+        assert_eq!(1, reports.len());
+        assert_eq!(live.case_id, reports[0].case_id);
+        assert!(!expired_path.exists());
+        assert!(!expired_pending_path.exists());
+        assert_eq!(live_before, fs::read(&live_path).unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn capacity_check_prunes_expired_authority_without_touching_live_cases() {
+        let root = temp_root("capacity-expiry");
+        let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let expired = test_receipt_with_deadline(
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "aa",
+            "1970-01-01T00:00:00Z",
+        );
+        let expired_path = accepted_path(&root, &expired.case_id);
+        persist_json_new(&expired_path, &expired).unwrap();
+        let mut live_files = Vec::new();
+        for index in 1..MAX_AUTHORITIES {
+            let case_id = indexed_case_id(index);
+            let byte = format!("{:02x}", index % 256);
+            let receipt = test_receipt(&case_id, &byte);
+            let path = accepted_path(&root, &case_id);
+            persist_json_new(&path, &receipt).unwrap();
+            live_files.push((case_id, fs::read(path).unwrap()));
+        }
+
+        let replacement = test_receipt("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "ee");
+        let report = ReportUploadInput {
+            output: "/tmp/replacement.zip".to_string(),
+            bytes: replacement.bytes,
+            sha256: replacement.sha256.clone(),
+        };
+        store
+            .lifecycle()
+            .granted(&test_grant(&replacement), &report)
+            .unwrap();
+        assert!(!expired_path.exists());
+        for (case_id, before) in &live_files {
+            let after = fs::read(accepted_path(&root, case_id)).unwrap();
+            assert_eq!(before, &after);
+        }
+
+        store.persist_accepted(&replacement).unwrap();
+        let reports = store.reports().unwrap();
+        assert_eq!(MAX_AUTHORITIES, reports.len());
+        assert!(
+            reports
+                .iter()
+                .any(|report| report.case_id.as_str() == replacement.case_id.as_str())
+        );
+        for (case_id, _) in &live_files {
+            assert!(
+                reports
+                    .iter()
+                    .any(|report| report.case_id.as_str() == case_id.as_str())
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn invalid_deadline_fails_closed_before_expiry_deletion() {
+        let root = temp_root("invalid-expiry");
+        let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let expired = test_receipt_with_deadline(
+            "11111111-1111-1111-1111-111111111111",
+            "aa",
+            "1970-01-01T00:00:00Z",
+        );
+        let invalid =
+            test_receipt_with_deadline("22222222-2222-2222-2222-222222222222", "bb", "invalid");
+        let expired_path = accepted_path(&root, &expired.case_id);
+        let invalid_path = accepted_path(&root, &invalid.case_id);
+        persist_json_new(&expired_path, &expired).unwrap();
+        persist_json_new(&invalid_path, &invalid).unwrap();
+
+        let error = store.reports().unwrap_err();
+
+        assert!(error.contains("invalid retention deadline"));
+        assert!(expired_path.exists());
+        assert!(invalid_path.exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn removed_generation_prevents_late_receipt_resurrection() {
         let root = temp_root("generation");
         let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
@@ -532,7 +878,11 @@ mod tests {
         fs::remove_dir_all(&root).unwrap();
         let replacement = ReportAuthorityStore::create_at(root.clone()).unwrap();
         assert_ne!(store.generation, replacement.generation);
-        assert!(lifecycle.accepted(&test_receipt("33333333-3333-3333-3333-333333333333", "cc")).is_err());
+        assert!(
+            lifecycle
+                .accepted(&test_receipt("33333333-3333-3333-3333-333333333333", "cc"))
+                .is_err()
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -540,16 +890,22 @@ mod tests {
     fn automatic_claim_is_atomic_across_threads() {
         let root = temp_root("claims");
         let barrier = Arc::new(Barrier::new(3));
-        let workers = (0..2).map(|_| {
-            let root = root.clone();
-            let barrier = barrier.clone();
-            std::thread::spawn(move || {
-                barrier.wait();
-                claim_automatic_report_at(&root, "same-run-identity").unwrap()
+        let workers = (0..2)
+            .map(|_| {
+                let root = root.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    claim_automatic_report_at(&root, "same-run-identity").unwrap()
+                })
             })
-        }).collect::<Vec<_>>();
+            .collect::<Vec<_>>();
         barrier.wait();
-        let winners = workers.into_iter().map(|worker| worker.join().unwrap()).filter(|won| *won).count();
+        let winners = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .filter(|won| *won)
+            .count();
         assert_eq!(1, winners);
         fs::remove_dir_all(root).unwrap();
     }
@@ -567,10 +923,51 @@ mod tests {
     }
 
     fn temp_root(label: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("preflight-report-{label}-{}-{}", std::process::id(), now_millis().unwrap()))
+        std::env::temp_dir().join(format!(
+            "preflight-report-{label}-{}-{}",
+            std::process::id(),
+            now_millis().unwrap()
+        ))
+    }
+
+    fn indexed_case_id(index: usize) -> String {
+        format!("{index:08x}-0000-0000-0000-{index:012x}")
+    }
+
+    fn test_grant(receipt: &ReportReceipt) -> CreateReportCaseResponse {
+        serde_json::from_value(serde_json::json!({
+            "protocolVersion": 1,
+            "caseId": receipt.case_id,
+            "upload": {
+                "method": "PUT",
+                "url": format!("https://reports.example.com/v1/cases/{}/archive", receipt.case_id),
+                "contentType": "application/zip",
+                "expiresAt": "9999-12-31T23:59:59.999Z",
+                "token": "upload.token"
+            },
+            "finalize": {
+                "method": "POST",
+                "url": format!("https://reports.example.com/v1/cases/{}/finalize", receipt.case_id),
+                "token": "upload.token"
+            },
+            "deletion": {
+                "method": receipt.deletion.method,
+                "url": receipt.deletion.url,
+                "token": receipt.deletion.token
+            }
+        }))
+        .unwrap()
     }
 
     fn test_receipt(case_id: &str, byte: &str) -> ReportReceipt {
+        test_receipt_with_deadline(case_id, byte, "9999-12-31T23:59:59.999Z")
+    }
+
+    fn test_receipt_with_deadline(
+        case_id: &str,
+        byte: &str,
+        retention_deadline: &str,
+    ) -> ReportReceipt {
         ReportReceipt {
             protocol_version: 1,
             case_id: case_id.to_string(),
@@ -579,7 +976,7 @@ mod tests {
             sha256: byte.repeat(32),
             product_version: env!("CARGO_PKG_VERSION").to_string(),
             received_at: "2026-08-18T10:00:00Z".to_string(),
-            retention_deadline: "2026-09-02T10:00:00Z".to_string(),
+            retention_deadline: retention_deadline.to_string(),
             deletion: ReportDeletion {
                 method: "DELETE".to_string(),
                 url: format!("https://reports.example.com/v1/cases/{case_id}"),
