@@ -18,9 +18,9 @@ export function launchSetupApplicability(
   installRoot: string | null | undefined,
   profileFingerprint: string | null | undefined,
 ): LaunchSetupApplicability {
-  if (!identity?.installRoot || !identity.profileFingerprint || !installRoot) return "unknown";
+  if (!identity?.installRoot || !installRoot) return "unknown";
   if (identity.installRoot !== installRoot) return "foreign";
-  if (!profileFingerprint) return "unknown";
+  if (!identity.profileFingerprint || !profileFingerprint) return "unknown";
   return identity.profileFingerprint.toLowerCase() === profileFingerprint.toLowerCase()
     ? "applies"
     : "foreign";
