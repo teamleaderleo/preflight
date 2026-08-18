@@ -23,15 +23,18 @@ final class ResourceProviderContentIdentity {
     private final ResourceIndex index;
     private final ProfileIdentityContext profileContext;
     private final DirectHasher directHasher;
+    private final ProofLinkFactory proofLinkFactory;
     private final Map<Path, DirectHash> directHashes = new HashMap<>();
 
     private ResourceProviderContentIdentity(
             ResourceIndex index,
             ProfileIdentityContext profileContext,
-            DirectHasher directHasher) {
+            DirectHasher directHasher,
+            ProofLinkFactory proofLinkFactory) {
         this.index = index;
         this.profileContext = profileContext;
         this.directHasher = directHasher;
+        this.proofLinkFactory = proofLinkFactory;
     }
 
     /**
@@ -45,8 +48,17 @@ final class ResourceProviderContentIdentity {
     /** Test seam for changing a provider while its bytes are being hashed. */
     static ResourceProviderComparison.ContentIdentitySource direct(
             ResourceIndex index, DirectHasher hasher) {
-        ResourceProviderContentIdentity source =
-                new ResourceProviderContentIdentity(index, null, Objects.requireNonNull(hasher, "hasher"));
+        return direct(index, hasher, ResourceProviderContentIdentity::createProofLink);
+    }
+
+    /** Test seam for deterministic proof-link placement and cleanup failure coverage. */
+    static ResourceProviderComparison.ContentIdentitySource direct(
+            ResourceIndex index, DirectHasher hasher, ProofLinkFactory proofLinkFactory) {
+        ResourceProviderContentIdentity source = new ResourceProviderContentIdentity(
+                index,
+                null,
+                Objects.requireNonNull(hasher, "hasher"),
+                Objects.requireNonNull(proofLinkFactory, "proofLinkFactory"));
         return source::observeDirect;
     }
 
@@ -55,8 +67,8 @@ final class ResourceProviderContentIdentity {
      * profile identity context. Callers must pass the current index represented by that context.
      */
     static ResourceProviderComparison.ContentIdentitySource cached(ProfileIdentityContext context) {
-        ResourceProviderContentIdentity source =
-                new ResourceProviderContentIdentity(context.resources(), context, Hashes::sha256);
+        ResourceProviderContentIdentity source = new ResourceProviderContentIdentity(
+                context.resources(), context, Hashes::sha256, ResourceProviderContentIdentity::createProofLink);
         return source::observeCached;
     }
 
@@ -97,7 +109,7 @@ final class ResourceProviderContentIdentity {
                 if (proofDirectory == null) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
-                proof = createProofLink(file, proofDirectory);
+                proof = proofLinkFactory.create(file, proofDirectory);
                 if (proof == null) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
@@ -135,6 +147,15 @@ final class ResourceProviderContentIdentity {
                         || !Files.isSameFile(afterFile, proofLink)) {
                     return ResourceProviderComparison.ContentObservation.stale();
                 }
+
+                /*
+                 * Cleanup is part of publishing exact evidence. Dispose of the proof before the
+                 * memo or result becomes visible, so a failed delete cannot leave behind both an
+                 * owned hard link and reusable HASHED evidence from an UNREADABLE observation.
+                 */
+                ProofLink completedProof = proof;
+                proof = null;
+                completedProof.close();
 
                 // A null file key cannot safely distinguish a later same-metadata replacement, so
                 // exact evidence can still be returned for this read but must not enter the memo.
@@ -182,7 +203,7 @@ final class ResourceProviderContentIdentity {
             ownedDirectory = Files.createTempDirectory(directory, PROOF_DIRECTORY_PREFIX);
             Path link = ownedDirectory.resolve("provider.link");
             Files.createLink(link, file);
-            return new ProofLink(link, ownedDirectory);
+            return new ProofLink(link, ownedDirectory, ResourceProviderContentIdentity::deleteProofLink);
         } catch (UnsupportedOperationException
                 | SecurityException
                 | ProviderMismatchException
@@ -207,6 +228,27 @@ final class ResourceProviderContentIdentity {
         }
     }
 
+    private static void deleteProofLink(Path path, Path directory) throws IOException {
+        IOException failure = null;
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException cleanupFailure) {
+            failure = cleanupFailure;
+        }
+        try {
+            Files.deleteIfExists(directory);
+        } catch (IOException cleanupFailure) {
+            if (failure == null) {
+                failure = cleanupFailure;
+            } else {
+                failure.addSuppressed(cleanupFailure);
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
     private static boolean matchesIndexedMetadata(
             ResourceIndex.Provider provider, BasicFileAttributes attributes) {
         long modifiedMillis = Math.max(0, attributes.lastModifiedTime().toMillis());
@@ -219,27 +261,38 @@ final class ResourceProviderContentIdentity {
         String sha256(InputStream bytes) throws IOException;
     }
 
-    record ProofLink(Path path, Path directory) implements AutoCloseable {
+    @FunctionalInterface
+    interface ProofLinkFactory {
+        ProofLink create(Path file, Path directory) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface ProofCleanup {
+        void clean(Path path, Path directory) throws IOException;
+    }
+
+    static final class ProofLink implements AutoCloseable {
+        private final Path path;
+        private final Path directory;
+        private final ProofCleanup cleanup;
+
+        ProofLink(Path path, Path directory, ProofCleanup cleanup) {
+            this.path = Objects.requireNonNull(path, "path");
+            this.directory = Objects.requireNonNull(directory, "directory");
+            this.cleanup = Objects.requireNonNull(cleanup, "cleanup");
+        }
+
+        Path path() {
+            return path;
+        }
+
+        Path directory() {
+            return directory;
+        }
+
         @Override
         public void close() throws IOException {
-            IOException failure = null;
-            try {
-                Files.deleteIfExists(path);
-            } catch (IOException cleanupFailure) {
-                failure = cleanupFailure;
-            }
-            try {
-                Files.deleteIfExists(directory);
-            } catch (IOException cleanupFailure) {
-                if (failure == null) {
-                    failure = cleanupFailure;
-                } else {
-                    failure.addSuppressed(cleanupFailure);
-                }
-            }
-            if (failure != null) {
-                throw failure;
-            }
+            cleanup.clean(path, directory);
         }
     }
 
