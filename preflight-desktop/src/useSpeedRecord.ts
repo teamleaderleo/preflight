@@ -77,12 +77,16 @@ export function readSpeedRecord(storage: Storage = window.localStorage): SpeedRe
   try {
     const raw = storage.getItem(SPEED_RECORD_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SpeedRecord & LegacySpeedRecordV2>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (parsed.version === 3 && isMeasurement(parsed.personalBest) && isMeasurement(parsed.latest)) {
-      return parsed as SpeedRecord;
+      return {
+        version: 3,
+        personalBest: parsed.personalBest,
+        latest: parsed.latest,
+      };
     }
     if (parsed.version === 2) {
-      const measurement = measurementFromLegacy(parsed);
+      const measurement = measurementFromLegacy(parsed as unknown as Partial<LegacySpeedRecordV2>);
       if (measurement) {
         return { version: 3, personalBest: measurement, latest: measurement };
       }
