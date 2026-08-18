@@ -150,3 +150,11 @@ test("settled Home labels an unsaved active mod set without inventing a profile 
   const identity = screen.getByLabelText("Launches the current mod setup from /Applications/Starsector");
   expect(within(identity).getByText("Current mod setup")).toBeInTheDocument();
 });
+
+test("Home keeps the new profile and installation visible when that setup needs preparation", () => {
+  render(<HomePage {...props({ needsPreparation: true })} />);
+
+  expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Calculating space…" })).toBeDisabled();
+  expect(screen.getByText("Inspecting this mod setup and calculating a safe disk requirement…")).toBeInTheDocument();
+});
