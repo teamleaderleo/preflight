@@ -782,7 +782,7 @@ final class ProfileCommand {
     private static void atomicWrite(Path target, String value) throws IOException {
         Path absolute = target.toAbsolutePath().normalize();
         Path parent = SafetyArtifactRetention.requireRealDirectory(absolute.getParent());
-        Path staged = Files.createTempFile(parent, ".preflight-profile-", ".json");
+        Path staged = ProfileRecordFiles.createStagingFile(parent, "write");
         try {
             Files.writeString(staged, value, StandardCharsets.UTF_8);
             moveReplace(staged, absolute);
@@ -803,7 +803,7 @@ final class ProfileCommand {
             Path target, String value, DuplicatePublicationHook publicationHook) throws IOException {
         Path absolute = target.toAbsolutePath().normalize();
         Path parent = SafetyArtifactRetention.requireRealDirectory(absolute.getParent());
-        Path staged = Files.createTempFile(parent, ".preflight-profile-create-", ".tmp");
+        Path staged = ProfileRecordFiles.createStagingFile(parent, "create");
         boolean published = false;
         Throwable failure = null;
         try {
@@ -845,19 +845,14 @@ final class ProfileCommand {
     }
 
     private static LoadedProfiles loadProfiles(PreflightHome home) throws IOException {
-        if (!Files.isDirectory(home.profiles())) {
-            return new LoadedProfiles(List.of(), List.of());
-        }
+        ProfileRecordFiles.Scan scan = ProfileRecordFiles.scan(home.profiles());
         List<SavedProfile> profiles = new ArrayList<>();
-        List<String> diagnostics = new ArrayList<>();
-        try (var files = Files.list(home.profiles())) {
-            for (Path file : files.filter(path -> path.getFileName().toString().endsWith(".json"))
-                    .sorted().toList()) {
-                try {
-                    profiles.add(readProfile(file));
-                } catch (RuntimeException | IOException invalid) {
-                    diagnostics.add("Could not read " + file.getFileName() + ": " + invalid.getMessage());
-                }
+        List<String> diagnostics = new ArrayList<>(scan.diagnostics());
+        for (Path file : scan.records()) {
+            try {
+                profiles.add(readProfile(file));
+            } catch (RuntimeException | IOException invalid) {
+                diagnostics.add("Could not read " + file.getFileName() + ": " + invalid.getMessage());
             }
         }
         profiles.sort(Comparator.comparing(SavedProfile::name, String.CASE_INSENSITIVE_ORDER));
@@ -877,14 +872,13 @@ final class ProfileCommand {
     }
 
     private static SavedProfile readProfile(Path file) throws IOException {
-        if (!Files.isRegularFile(file)) {
-            throw new IOException("Named profile not found: " + file);
-        }
+        ProfileRecordFiles.requireRegularRecord(file);
         String json = Files.readString(file, StandardCharsets.UTF_8);
         if (!FORMAT.equals(JsonText.string(json, "format"))) {
             throw new IOException("Unsupported named profile format in " + file);
         }
         String name = validateName(JsonText.string(json, "name"));
+        ProfileRecordFiles.requireNameMatchesFilename(file, name);
         String install = JsonText.string(json, "installRoot");
         String fingerprint = JsonText.string(json, "profileFingerprint");
         String savedAt = JsonText.string(json, "savedAt");
@@ -904,8 +898,10 @@ final class ProfileCommand {
     }
 
     private static Path profilePath(PreflightHome home, String name) {
-        String digest = Hashes.sha256(name.getBytes(StandardCharsets.UTF_8));
-        return home.profiles().resolve(digest + ".json").toAbsolutePath().normalize();
+        return home.profiles()
+                .resolve(ProfileRecordFiles.canonicalFileName(name))
+                .toAbsolutePath()
+                .normalize();
     }
 
     private static List<String> readEnabled(Path file) throws IOException {
