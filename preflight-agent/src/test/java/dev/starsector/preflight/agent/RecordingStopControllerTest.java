@@ -10,8 +10,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import jdk.jfr.Recording;
 import jdk.jfr.consumer.RecordingFile;
@@ -28,7 +30,8 @@ final class RecordingStopControllerTest {
         recording.setDestination(destination);
         recording.enable("preflight.AgentStopping");
         recording.start();
-        Thread controller = RecordingStopController.start(recording, destination);
+        RecordingFinalizer finalizer = new RecordingFinalizer(recording, destination);
+        Thread controller = RecordingStopController.start(finalizer, destination);
 
         Files.createFile(RecordingStopController.requestFor(destination));
         controller.join(TimeUnit.SECONDS.toMillis(5));
@@ -44,6 +47,61 @@ final class RecordingStopControllerTest {
             }
         }
         assertTrue(stopping);
+    }
+
+    @Test
+    void liveRequestWinsOneTerminalResultAgainstShutdownFallback(@TempDir Path directory)
+            throws Exception {
+        assertSharedTerminalResult(directory, false);
+    }
+
+    @Test
+    void shutdownFallbackWinsOneTerminalResultBeforeLiveRequest(@TempDir Path directory)
+            throws Exception {
+        assertSharedTerminalResult(directory, true);
+    }
+
+    private static void assertSharedTerminalResult(Path directory, boolean fallbackFirst)
+            throws Exception {
+        Path destination = directory.resolve("startup.jfr");
+        AtomicInteger finishes = new AtomicInteger();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        RecordingFinalizer finalizer = new RecordingFinalizer(
+                () -> true,
+                () -> {
+                    finishes.incrementAndGet();
+                    entered.countDown();
+                    try {
+                        return release.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        return false;
+                    }
+                });
+        AtomicBoolean fallbackResult = new AtomicBoolean();
+        Thread fallback = new Thread(() -> fallbackResult.set(finalizer.finish()));
+        Thread controller;
+
+        if (fallbackFirst) {
+            fallback.start();
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            controller = RecordingStopController.start(finalizer, destination);
+            Files.createFile(RecordingStopController.requestFor(destination));
+        } else {
+            controller = RecordingStopController.start(finalizer, destination);
+            Files.createFile(RecordingStopController.requestFor(destination));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            fallback.start();
+        }
+
+        release.countDown();
+        controller.join(TimeUnit.SECONDS.toMillis(5));
+        fallback.join(TimeUnit.SECONDS.toMillis(5));
+
+        assertEquals(1, finishes.get());
+        assertTrue(fallbackResult.get());
+        assertEquals("ok\n", Files.readString(RecordingStopController.completeFor(destination)));
     }
 
     @Test
