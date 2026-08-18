@@ -216,6 +216,9 @@ record PreflightHome(Path root, List<Integration> integrations) {
             Path receipt = root.resolve("integrations.json");
             List<Map<String, Object>> list = new ArrayList<>();
             for (Integration integration : integrations) {
+                if (!integration.present()) {
+                    continue;
+                }
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("id", integration.id().name());
                 entry.put("path", integration.path().toAbsolutePath().normalize().toString());
@@ -257,9 +260,13 @@ record PreflightHome(Path root, List<Integration> integrations) {
      * does not define is a programming error, not a runtime condition.
      */
     Path pathOf(Id id) {
+        return integration(id).path();
+    }
+
+    Integration integration(Id id) {
         for (Integration integration : integrations) {
             if (integration.id() == id) {
-                return integration.path();
+                return integration;
             }
         }
         throw new IllegalStateException("No " + id + " integration on this platform");

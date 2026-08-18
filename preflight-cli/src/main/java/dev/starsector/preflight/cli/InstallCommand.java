@@ -58,6 +58,7 @@ final class InstallCommand {
         };
         if (installed == 0) {
             retireLegacyLaunchers(preflight);
+            preflight.recordInstalledIntegrations();
         }
         if (installed != 0 || !options.prepare()) {
             return installed;
@@ -73,6 +74,11 @@ final class InstallCommand {
             if (!integration.legacy() || !integration.present()) {
                 continue;
             }
+            if (!integration.isOwned()) {
+                System.err.println("Preserved old launcher because it is not proven Preflight-owned: "
+                        + integration.path());
+                continue;
+            }
             try {
                 UninstallCommand.removeIntegration(integration);
                 System.out.println("Removed renamed launcher: " + integration.path());
@@ -84,12 +90,15 @@ final class InstallCommand {
     }
 
     static int installMac(PreflightHome preflight, Path jar, Path game) throws IOException {
+        checkNotUnownedCollision(preflight, PreflightHome.Id.MAC_APP);
         Path app = preflight.pathOf(PreflightHome.Id.MAC_APP).toAbsolutePath().normalize();
         requireRealDirectory(app, "macOS app");
         Path macos = app.resolve("Contents").resolve("MacOS");
         requireRealDirectory(macos, "macOS bundle directory");
         Path executable = macos.resolve("preflight");
-        String script = "#!/bin/sh\nexec "
+        String script = "#!/bin/sh\n"
+                + IntegrationOwnership.POSIX_MARKER
+                + "\nexec "
                 + shellQuote(javaExecutable())
                 + " -jar "
                 + shellQuote(jar.toString())
@@ -118,8 +127,12 @@ final class InstallCommand {
     }
 
     static int installLinux(PreflightHome preflight, Path jar, Path game) throws IOException {
+        checkNotUnownedCollision(preflight, PreflightHome.Id.LINUX_COMMAND);
+        checkNotUnownedCollision(preflight, PreflightHome.Id.LINUX_DESKTOP_ENTRY);
         Path launcher = preflight.pathOf(PreflightHome.Id.LINUX_COMMAND).toAbsolutePath().normalize();
-        String script = "#!/bin/sh\nexec "
+        String script = "#!/bin/sh\n"
+                + IntegrationOwnership.POSIX_MARKER
+                + "\nexec "
                 + shellQuote(javaExecutable())
                 + " -jar "
                 + shellQuote(jar.toString())
@@ -133,6 +146,7 @@ final class InstallCommand {
                 + "Type=Application\n"
                 + "Name=Preflight\n"
                 + "Exec=" + desktopExecArgument(launcher.toString()) + "\n"
+                + IntegrationOwnership.DESKTOP_MARKER + "\n"
                 + "Terminal=false\n"
                 + "Categories=Game;Utility;\n";
         writeAtomicFile(desktop, desktopFile, false);
@@ -143,10 +157,14 @@ final class InstallCommand {
 
     static int installWindows(PreflightHome preflight, Path jar, Path game)
             throws IOException {
+        checkNotUnownedCollision(preflight, PreflightHome.Id.WINDOWS_DIRECTORY);
+        checkNotUnownedCollision(preflight, PreflightHome.Id.WINDOWS_COMMAND);
         Path directory = preflight.pathOf(PreflightHome.Id.WINDOWS_DIRECTORY).toAbsolutePath().normalize();
         requireRealDirectory(directory, "Windows launcher directory");
         Path command = preflight.pathOf(PreflightHome.Id.WINDOWS_COMMAND).toAbsolutePath().normalize();
-        String content = "@echo off\r\n\""
+        String content = "@echo off\r\n"
+                + IntegrationOwnership.WINDOWS_MARKER
+                + "\r\n\""
                 + windowsBatchLiteral(javaExecutable())
                 + "\" -jar \""
                 + windowsBatchLiteral(jar.toString())
@@ -156,6 +174,15 @@ final class InstallCommand {
         writeAtomicFile(command, content, false);
         System.out.println("Installed Windows launcher: " + command);
         return 0;
+    }
+
+    static void checkNotUnownedCollision(PreflightHome preflight, PreflightHome.Id id)
+            throws IOException {
+        PreflightHome.Integration integration = preflight.integration(id);
+        if (integration.present() && !integration.isOwned()) {
+            throw new IOException("Refusing to replace an existing path that is not proven Preflight-owned: "
+                    + integration.path());
+        }
     }
 
     static void validateNotSymlink(Path path, String description) throws IOException {

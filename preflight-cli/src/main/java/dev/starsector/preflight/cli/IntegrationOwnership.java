@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 /**
@@ -16,6 +17,13 @@ import java.util.stream.Stream;
  */
 final class IntegrationOwnership {
     private static final int MAX_SCRIPT_SCAN_BYTES = 64 * 1024;
+    static final String POSIX_MARKER = "# preflight-integration: dev.starsector.preflight.launcher-v1";
+    static final String WINDOWS_MARKER = "REM preflight-integration: dev.starsector.preflight.launcher-v1";
+    static final String DESKTOP_MARKER = "X-Preflight-Integration=dev.starsector.preflight.launcher-v1";
+    private static final String MAC_BUNDLE_ID =
+            "<key>CFBundleIdentifier</key><string>dev.starsector.preflight.launcher</string>";
+    private static final String MAC_EXECUTABLE =
+            "<key>CFBundleExecutable</key><string>%s</string>";
 
     private IntegrationOwnership() {}
 
@@ -25,7 +33,8 @@ final class IntegrationOwnership {
             return false;
         }
         return switch (integration.id()) {
-            case MAC_APP, LEGACY_MAC_APP -> isOwnedMacApp(path);
+            case MAC_APP -> isOwnedMacApp(path, "preflight");
+            case LEGACY_MAC_APP -> isOwnedMacApp(path, "starsector-preflight");
             case LINUX_COMMAND, LEGACY_LINUX_COMMAND -> isOwnedLinuxCommand(path);
             case LINUX_DESKTOP_ENTRY, LEGACY_LINUX_DESKTOP_ENTRY -> isOwnedLinuxDesktop(path);
             case WINDOWS_COMMAND, LEGACY_WINDOWS_COMMAND -> isOwnedWindowsCommand(path);
@@ -33,7 +42,7 @@ final class IntegrationOwnership {
         };
     }
 
-    static boolean isOwnedMacApp(Path app) {
+    static boolean isOwnedMacApp(Path app, String executableName) {
         if (!Files.isDirectory(app, LinkOption.NOFOLLOW_LINKS)) {
             return false;
         }
@@ -46,8 +55,8 @@ final class IntegrationOwnership {
         }
         try {
             String plist = readBounded(infoPlist);
-            if (!plist.contains("dev.starsector.preflight")
-                    && !plist.contains("CFBundleExecutable")) {
+            if (!plist.contains(MAC_BUNDLE_ID)
+                    || !plist.contains(MAC_EXECUTABLE.formatted(executableName))) {
                 return false;
             }
             try (Stream<Path> stream = Files.list(macos)) {
@@ -60,7 +69,7 @@ final class IntegrationOwnership {
                     if (name.equals(".DS_Store")) {
                         continue;
                     }
-                    if (!name.equals("preflight") && !name.equals("starsector-preflight")) {
+                    if (!name.equals(executableName)) {
                         return false;
                     }
                     if (!Files.isRegularFile(exec, LinkOption.NOFOLLOW_LINKS)) {
@@ -76,7 +85,6 @@ final class IntegrationOwnership {
                     String name = child.getFileName().toString();
                     if (!name.equals("MacOS")
                             && !name.equals("Info.plist")
-                            && !name.equals("Resources")
                             && !name.equals(".DS_Store")) {
                         return false;
                     }
@@ -105,10 +113,9 @@ final class IntegrationOwnership {
         }
         try {
             String content = readBounded(file);
-            return content.contains("[Desktop Entry]")
-                    && (content.contains("Preflight")
-                            || content.contains("starsector-preflight")
-                            || content.contains("dev.starsector.preflight"));
+            return content.startsWith("[Desktop Entry]\n")
+                    && content.lines().anyMatch(DESKTOP_MARKER::equals)
+                    && content.lines().anyMatch(line -> line.startsWith("Exec="));
         } catch (IOException unreadable) {
             return false;
         }
@@ -154,18 +161,18 @@ final class IntegrationOwnership {
     }
 
     static boolean isPreflightLauncherScript(String script) {
-        return (script.startsWith("#!/bin/sh") || script.startsWith("#!/bin/bash"))
-                && (script.contains("preflight")
-                        || script.contains("starsector")
-                        || script.contains("run --fast"));
+        return (script.startsWith("#!/bin/sh\n") || script.startsWith("#!/bin/bash\n"))
+                && script.lines().anyMatch(POSIX_MARKER::equals)
+                && script.contains(" run --fast --game ")
+                && script.endsWith(" \"$@\"\n");
     }
 
     static boolean isPreflightWindowsScript(String script) {
-        String head = script.length() >= 10 ? script.substring(0, 10) : script;
-        return (head.equalsIgnoreCase("@echo off") || script.toLowerCase().startsWith("@echo off"))
-                && (script.contains("preflight")
-                        || script.contains("starsector")
-                        || script.contains("run --fast"));
+        String lower = script.toLowerCase(Locale.ROOT);
+        return lower.startsWith("@echo off\r\n")
+                && script.lines().anyMatch(WINDOWS_MARKER::equals)
+                && script.contains(" run --fast --game ")
+                && script.endsWith(" %*\r\n");
     }
 
     private static String readBounded(Path file) throws IOException {
