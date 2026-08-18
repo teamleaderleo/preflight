@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(test)]
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
@@ -154,7 +154,10 @@ impl ReportAuthorityStore {
                 }
             };
             if metadata_is_alias(&metadata) || !metadata.is_dir() {
-                return Err("Refusing to clear report authority through an aliased or non-directory path.".to_string());
+                return Err(
+                    "Refusing to clear report authority through an aliased or non-directory path."
+                        .to_string(),
+                );
             }
             verify_protected_directory_chain(&root)?;
             fs::remove_dir_all(&root)
@@ -714,7 +717,10 @@ fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {
     let mut found_preflight_root = false;
     while let Some(path) = current {
         candidates.push(path.to_path_buf());
-        if path.file_name().is_some_and(|name| name == ".starsector-preflight") {
+        if path
+            .file_name()
+            .is_some_and(|name| name == ".starsector-preflight")
+        {
             found_preflight_root = true;
             break;
         }
@@ -748,7 +754,10 @@ fn ensure_protected_directory_chain(root: &Path) -> Result<(), String> {
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 fs::create_dir(&directory).map_err(|error| {
-                    format!("Could not create protected report storage {}: {error}", directory.display())
+                    format!(
+                        "Could not create protected report storage {}: {error}",
+                        directory.display()
+                    )
                 })?;
             }
             Err(error) => {
@@ -1120,7 +1129,10 @@ mod tests {
         assert!(ReportAuthorityStore::create_at(root.clone()).is_err());
 
         assert_eq!(b"keep", fs::read(&sentinel).unwrap().as_slice());
-        assert_eq!(mode_before, fs::metadata(&external).unwrap().permissions().mode() & 0o777);
+        assert_eq!(
+            mode_before,
+            fs::metadata(&external).unwrap().permissions().mode() & 0o777
+        );
         fs::remove_file(root).unwrap();
         fs::remove_dir_all(external).unwrap();
     }
@@ -1141,7 +1153,10 @@ mod tests {
         assert!(claim_automatic_report_at(&root, "run-identity").is_err());
 
         assert_eq!(b"keep", fs::read(&sentinel).unwrap().as_slice());
-        assert_eq!(mode_before, fs::metadata(&external).unwrap().permissions().mode() & 0o777);
+        assert_eq!(
+            mode_before,
+            fs::metadata(&external).unwrap().permissions().mode() & 0o777
+        );
         assert_eq!(1, fs::read_dir(&external).unwrap().count());
         fs::remove_file(root).unwrap();
         fs::remove_dir_all(external).unwrap();
@@ -1168,13 +1183,18 @@ mod tests {
         *TEST_PERSIST_MUTATION.lock().unwrap() =
             Some(TestPersistMutation::AliasRoot(external.clone()));
 
-        assert!(store
-            .lifecycle()
-            .granted(&test_grant(&receipt), &report)
-            .is_err());
+        assert!(
+            store
+                .lifecycle()
+                .granted(&test_grant(&receipt), &report)
+                .is_err()
+        );
 
         assert_eq!(b"keep", fs::read(&sentinel).unwrap().as_slice());
-        assert_eq!(mode_before, fs::metadata(&external).unwrap().permissions().mode() & 0o777);
+        assert_eq!(
+            mode_before,
+            fs::metadata(&external).unwrap().permissions().mode() & 0o777
+        );
         assert_eq!(1, fs::read_dir(&external).unwrap().count());
         fs::remove_file(&root).unwrap();
         fs::remove_dir_all(external).unwrap();
@@ -1193,7 +1213,10 @@ mod tests {
         symlink(&external, &root).unwrap();
 
         assert!(remove_case_at(&root, case_id).is_err());
-        assert_eq!(b"external authority", fs::read(&external_case).unwrap().as_slice());
+        assert_eq!(
+            b"external authority",
+            fs::read(&external_case).unwrap().as_slice()
+        );
         fs::remove_file(root).unwrap();
         fs::remove_dir_all(external).unwrap();
     }
