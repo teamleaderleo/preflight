@@ -139,7 +139,7 @@ test("settled Home shows the installation and active named profile beside the la
   render(<HomePage {...props()} />);
 
   const identity = screen.getByLabelText("Launches profile Exploration from /Applications/Starsector");
-  expect(within(identity).getByText("Starsector")).toBeInTheDocument();
+  expect(within(identity).getByText("/Applications/Starsector")).toHaveAttribute("title", "/Applications/Starsector");
   expect(within(identity).getByText("Exploration")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Launch Starsector" })).toBeEnabled();
 });
