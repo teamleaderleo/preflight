@@ -7,7 +7,7 @@ import type { ThemePreference } from "../useTheme";
 import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
-import { lastRunForCurrentProfile } from "../lastRunApplicability";
+import { lastRunForCurrentProfile, launchSetupApplicability } from "../lastRunApplicability";
 import { formatBytes, formatPlaytime, shortPath, splitPlaytime } from "../uiFormat";
 import { FlightInstrument } from "./FlightInstrument";
 import type {
@@ -147,19 +147,12 @@ export function HomePage({
     cache?.currentProfileFingerprint,
   );
   const lastAdapterHealth = applicableLastRun?.adapterHealth ?? null;
-  const currentInstallRoot = snapshot?.selected?.installRoot;
-  const currentProfileFingerprint = cache?.currentProfileFingerprint;
-  const runFailureHasIdentity = Boolean(runFailure?.installRoot && runFailure.profileFingerprint);
-  const runFailureStale = Boolean(
-    runFailureHasIdentity
-    && !cacheLoading
-    && currentInstallRoot
-    && currentProfileFingerprint
-    && (
-      runFailure!.installRoot !== currentInstallRoot
-      || runFailure!.profileFingerprint!.toLowerCase() !== currentProfileFingerprint.toLowerCase()
-    ),
+  const runFailureApplicability = launchSetupApplicability(
+    runFailure,
+    snapshot?.selected?.installRoot,
+    cache?.currentProfileFingerprint,
   );
+  const runFailureStale = runFailureApplicability === "foreign";
   useEffect(() => {
     if (runFailureStale) onDismissRunFailure();
   }, [onDismissRunFailure, runFailureStale]);
