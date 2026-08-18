@@ -65,6 +65,18 @@ function persistInstrumentMotion(
   }
 }
 
+function broadcastInstrumentMotion(preference: InstrumentMotionPreference): void {
+  window.dispatchEvent(new CustomEvent<InstrumentMotionPreference>(
+    INSTRUMENT_MOTION_EVENT,
+    { detail: preference },
+  ));
+}
+
+/** Resets mounted renderer consumers after all-data cleanup without recreating cleared storage. */
+export function resetInstrumentMotion(): void {
+  broadcastInstrumentMotion({ ...DEFAULT_INSTRUMENT_MOTION });
+}
+
 /** One renderer-wide owner for decorative hull motion on Home, Speed, and Hangar. */
 export function useInstrumentMotion() {
   const [preference, setPreference] = useState<InstrumentMotionPreference>(readInstrumentMotion);
@@ -90,7 +102,7 @@ export function useInstrumentMotion() {
   const publish = (next: InstrumentMotionPreference) => {
     setPreference(next);
     persistInstrumentMotion(next);
-    window.dispatchEvent(new CustomEvent<InstrumentMotionPreference>(INSTRUMENT_MOTION_EVENT, { detail: next }));
+    broadcastInstrumentMotion(next);
   };
   const setMotion = (motion: InstrumentMotionMode) => publish({ ...preference, motion });
   const setDirection = (direction: InstrumentRotationDirection) => publish({ ...preference, direction });
