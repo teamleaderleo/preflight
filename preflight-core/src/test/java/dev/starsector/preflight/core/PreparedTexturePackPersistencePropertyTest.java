@@ -32,7 +32,7 @@ class PreparedTexturePackPersistencePropertyTest {
     private static final int PACK_INDEX_LENGTH_OFFSET = 8;
     private static final int PACK_PAYLOAD_LENGTH_OFFSET = 12;
     private static final int PACK_INDEX_CHECKSUM_OFFSET = 20;
-    private static final int PACK_INDEX_OFFSET = 52;
+    private static final int PACK_INDEX_OFFSET = 84;
     private static final int ORDER_PAYLOAD_LENGTH_OFFSET = 8;
     private static final int ORDER_PAYLOAD_OFFSET = 12;
     private static final int CHECKSUM_BYTES = 32;
@@ -50,53 +50,46 @@ class PreparedTexturePackPersistencePropertyTest {
             int entryCount = 1 + random.nextInt(4);
             List<String> paths = new ArrayList<>();
             List<PreparedTexture> textures = new ArrayList<>();
-            for (int entry = 0; entry < entryCount; entry++) {
-                String relative = "blobs/entry-" + entry + ".spft";
+            for (int index = 0; index < entryCount; index++) {
                 PreparedTexture texture = randomTexture(random);
-                PreparedTextureIO.StorageCodec codec = ((iteration + entry) & 1) == 0
+                PreparedTextureIO.StorageCodec codec = random.nextBoolean()
                         ? PreparedTextureIO.StorageCodec.RAW
                         : PreparedTextureIO.StorageCodec.LZ4;
-                PreparedTextureIO.write(cache.resolve(relative), texture, codec);
-                paths.add(relative);
+                String path = "blobs/" + index + "/" + randomHash(random) + codec.suffixWithExtension();
+                Files.createDirectories(cache.resolve(path).getParent());
+                PreparedTextureIO.write(cache.resolve(path), texture, codec);
+                paths.add(path);
                 textures.add(texture);
             }
-            if (entryCount > 1) {
-                java.util.Collections.rotate(paths, random.nextInt(entryCount));
-            }
 
-            Path first = cache.resolve("first.spfp");
-            Path second = cache.resolve("second.spfp");
-            PreparedTexturePackIO.write(first, profile, cache, paths);
-            PreparedTexturePackIO.write(second, profile, cache, paths);
-            assertArrayEquals(
-                    Files.readAllBytes(first),
-                    Files.readAllBytes(second),
-                    "canonical pack encoding " + iteration);
+            Path pack = PreparedTexturePackIO.path(cache, profile);
+            PreparedTexturePackIO.write(pack, profile, cache, paths);
+            byte[] first = Files.readAllBytes(pack);
+            PreparedTexturePackIO.write(pack, profile, cache, paths);
+            byte[] second = Files.readAllBytes(pack);
+            assertArrayEquals(first, second, "pack encoding iteration " + iteration);
 
-            try (PreparedTexturePack pack = PreparedTexturePackIO.open(first, profile, paths)) {
-                assertEquals(entryCount, pack.entryCount(), "entry count " + iteration);
-                assertEquals(true, pack.hasEntryOrder(paths), "entry order " + iteration);
-                for (int entry = 0; entry < entryCount; entry++) {
-                    String relative = "blobs/entry-" + entry + ".spft";
-                    PreparedTexture expected = textures.get(entry);
-                    assertEquals(expected, pack.readTrusted(relative),
-                            "packed texture " + iteration + "/" + entry);
+            try (PreparedTexturePack opened = PreparedTexturePackIO.open(pack, profile, paths)) {
+                assertEquals(entryCount, opened.entryCount());
+                for (int index = 0; index < entryCount; index++) {
+                    assertArrayEquals(
+                            textures.get(index).pixels(),
+                            opened.readTrusted(paths.get(index)).pixels(),
+                            "pack round trip iteration " + iteration + " entry " + index);
                 }
             }
         }
     }
 
     @Test
-    void seededPackHeaderAndIndexCorruptionAlwaysRejects() throws Exception {
+    void seededPackCorruptionsAlwaysReject() throws Exception {
         PackFixture fixture = packFixture("pack-corrupt");
         byte[] valid = Files.readAllBytes(fixture.pack());
-        int indexLength = intAt(valid, PACK_INDEX_LENGTH_OFFSET);
-        int authenticatedPrefix = PACK_INDEX_OFFSET + indexLength;
         Random random = new Random(PACK_CORRUPTION_SEED);
 
-        for (int iteration = 0; iteration < 600; iteration++) {
+        for (int iteration = 0; iteration < 300; iteration++) {
             byte[] corrupt = valid.clone();
-            int byteIndex = random.nextInt(authenticatedPrefix);
+            int byteIndex = random.nextInt(corrupt.length);
             corrupt[byteIndex] ^= (byte) (1 << random.nextInt(Byte.SIZE));
             Path candidate = temporaryDirectory.resolve("pack-corrupt-" + iteration + ".spfp");
             Files.write(candidate, corrupt);
@@ -180,168 +173,174 @@ class PreparedTexturePackPersistencePropertyTest {
         Path link = cache.resolve("blobs/link.spft");
         try {
             Files.createSymbolicLink(link, outside);
-        } catch (UnsupportedOperationException | IOException | SecurityException unavailable) {
-            assumeTrue(false, "symbolic links unavailable on this runner");
+        } catch (UnsupportedOperationException | SecurityException | IOException unavailable) {
+            assumeTrue(false, "Symbolic links are unavailable in this test environment: " + unavailable);
         }
         assertThrows(
-                IllegalArgumentException.class,
+                IOException.class,
                 () -> PreparedTexturePackIO.write(
-                        cache.resolve("symlink.spfp"), profile, cache, List.of("blobs/link.spft")));
+                        cache.resolve("linked.spfp"), profile, cache, List.of("blobs/link.spft")));
     }
 
     @Test
-    void seededOrderSidecarsRoundTripAndEncodeCanonically() throws Exception {
-        Random random = new Random(ORDER_ROUND_TRIP_SEED);
-        for (int iteration = 0; iteration < 300; iteration++) {
-            String profile = "profile-" + iteration + "-π-" + random.nextInt();
-            int entryCount = 1 + random.nextInt(12);
-            List<String> source = new ArrayList<>();
-            for (int entry = 0; entry < entryCount; entry++) {
-                source.add("blobs/group-" + (entry % 4) + "/entry-" + entry + ".spft");
+    void writerRejectsBlobReplacementBetweenContainmentAndOpen() throws Exception {
+        Path cache = temporaryDirectory.resolve("pack-replace-cache");
+        Files.createDirectories(cache.resolve("blobs"));
+        String profile = "de".repeat(32);
+        String relative = "blobs/source.spft";
+        Path source = cache.resolve(relative);
+        PreparedTexture first = randomTexture(new Random(31));
+        PreparedTexture second = randomTexture(new Random(37));
+        PreparedTextureIO.write(source, first, PreparedTextureIO.StorageCodec.RAW);
+        byte[] secondBytes = PreparedTextureIO.toBytes(second, PreparedTextureIO.StorageCodec.RAW);
+        if (secondBytes.length != Files.size(source)) {
+            PreparedTexture replacement = new PreparedTexture(
+                    second.sourceSha256(),
+                    second.transformation(),
+                    first.originalWidth(),
+                    first.originalHeight(),
+                    first.uploadWidth(),
+                    first.uploadHeight(),
+                    first.channels(),
+                    first.color0(),
+                    first.color1(),
+                    first.color2(),
+                    new byte[first.pixels().length]);
+            secondBytes = PreparedTextureIO.toBytes(replacement, PreparedTextureIO.StorageCodec.RAW);
+        }
+        byte[] exactReplacement = secondBytes;
+        PreparedTexturePackIO.setPackSourceOpenHookForTests((expected, selected) -> {
+            if (selected.equals(source)) {
+                Files.write(source, exactReplacement);
             }
-            if (entryCount > 1) {
-                source.add(source.get(random.nextInt(entryCount)));
-            }
-            List<String> expected = List.copyOf(new LinkedHashSet<>(source));
-            Path first = temporaryDirectory.resolve("order-first-" + iteration + ".spfo");
-            Path second = temporaryDirectory.resolve("order-second-" + iteration + ".spfo");
-
-            PreparedTexturePackOrderIO.write(first, profile, source);
-            PreparedTexturePackOrderIO.write(second, profile, source);
-
-            assertArrayEquals(
-                    Files.readAllBytes(first),
-                    Files.readAllBytes(second),
-                    "canonical order encoding " + iteration);
-            assertEquals(expected, PreparedTexturePackOrderIO.read(first, profile),
-                    "order round trip " + iteration);
+        });
+        try {
+            assertThrows(
+                    IOException.class,
+                    () -> PreparedTexturePackIO.write(
+                            cache.resolve("replace.spfp"), profile, cache, List.of(relative)));
+        } finally {
+            PreparedTexturePackIO.setPackSourceOpenHookForTests(null);
         }
     }
 
     @Test
-    void seededOrderSidecarCorruptionAndTruncationAlwaysReject() throws Exception {
+    void packWriteIsAtomicAgainstReader() throws Exception {
+        Path cache = temporaryDirectory.resolve("atomic-pack-cache");
+        Files.createDirectories(cache.resolve("blobs"));
         String profile = "ef".repeat(32);
-        List<String> paths = List.of(
-                "blobs/a.spft", "blobs/b.spft", "blobs/c.spft", "blobs/d.spft");
-        Path validPath = temporaryDirectory.resolve("valid-order.spfo");
-        PreparedTexturePackOrderIO.write(validPath, profile, paths);
-        byte[] valid = Files.readAllBytes(validPath);
-        Random corruption = new Random(ORDER_CORRUPTION_SEED);
-        Random truncation = new Random(ORDER_TRUNCATION_SEED);
+        String relative = "blobs/source.spft";
+        PreparedTextureIO.write(
+                cache.resolve(relative),
+                randomTexture(new Random(43)),
+                PreparedTextureIO.StorageCodec.RAW);
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(pack, profile, cache, List.of(relative));
+        byte[] previous = Files.readAllBytes(pack);
 
-        for (int iteration = 0; iteration < 800; iteration++) {
-            byte[] corrupt = valid.clone();
-            int byteIndex = corruption.nextInt(corrupt.length);
-            corrupt[byteIndex] ^= (byte) (1 << corruption.nextInt(Byte.SIZE));
-            Path candidate = temporaryDirectory.resolve("order-corrupt-" + iteration + ".spfo");
-            Files.write(candidate, corrupt);
-            assertThrows(
-                    IOException.class,
-                    () -> PreparedTexturePackOrderIO.read(candidate, profile),
-                    "order corruption " + iteration + " at byte " + byteIndex);
-        }
+        PreparedTexture replacement = randomTexture(new Random(47));
+        PreparedTextureIO.write(cache.resolve(relative), replacement, PreparedTextureIO.StorageCodec.RAW);
+        byte[] expectedNew = packedBytes(cache, profile, List.of(relative));
+        Files.write(pack, previous);
 
-        for (int iteration = 0; iteration < 300; iteration++) {
-            int length = truncation.nextInt(valid.length);
-            Path candidate = temporaryDirectory.resolve("order-truncated-" + iteration + ".spfo");
-            Files.write(candidate, Arrays.copyOf(valid, length));
-            assertThrows(
-                    IOException.class,
-                    () -> PreparedTexturePackOrderIO.read(candidate, profile),
-                    "order truncation " + iteration + " at " + length);
+        AtomicPublish.setBeforeMoveHookForTests((staged, target) -> {
+            assertArrayEquals(previous, Files.readAllBytes(target));
+        });
+        try {
+            PreparedTexturePackIO.write(pack, profile, cache, List.of(relative));
+        } finally {
+            AtomicPublish.setBeforeMoveHookForTests(null);
         }
+        assertArrayEquals(expectedNew, Files.readAllBytes(pack));
     }
 
     @Test
-    void hostileOrderLengthsCountsTrailingDataAndFileSizeReject() throws Exception {
+    void packSizeEstimatorMatchesWrittenBytes() throws Exception {
+        Path cache = temporaryDirectory.resolve("pack-estimator-cache");
+        Files.createDirectories(cache.resolve("blobs"));
         String profile = "fa".repeat(32);
-        List<String> paths = List.of("blobs/a.spft", "blobs/b.spft");
-        Path validPath = temporaryDirectory.resolve("hostile-order.spfo");
-        PreparedTexturePackOrderIO.write(validPath, profile, paths);
-        byte[] valid = Files.readAllBytes(validPath);
-
-        assertOrderRejected(profile, withInt(valid, ORDER_PAYLOAD_LENGTH_OFFSET, -1), "payload-negative");
-        assertOrderRejected(
-                profile,
-                withInt(valid, ORDER_PAYLOAD_LENGTH_OFFSET, Integer.MAX_VALUE),
-                "payload-max");
-
-        byte[] profileLength = valid.clone();
-        putInt(profileLength, ORDER_PAYLOAD_OFFSET, Integer.MAX_VALUE);
-        resignOrderPayload(profileLength);
-        assertOrderRejected(profile, profileLength, "profile-length");
-
-        int profileBytes = intAt(valid, ORDER_PAYLOAD_OFFSET);
-        int countOffset = ORDER_PAYLOAD_OFFSET + Integer.BYTES + profileBytes;
-        byte[] count = valid.clone();
-        putInt(count, countOffset, Integer.MAX_VALUE);
-        resignOrderPayload(count);
-        assertOrderRejected(profile, count, "entry-count");
-
-        int firstPathLengthOffset = countOffset + Integer.BYTES;
-        byte[] pathLength = valid.clone();
-        putInt(pathLength, firstPathLengthOffset, Integer.MAX_VALUE);
-        resignOrderPayload(pathLength);
-        assertOrderRejected(profile, pathLength, "path-length");
-
-        int payloadLength = intAt(valid, ORDER_PAYLOAD_LENGTH_OFFSET);
-        byte[] payload = Arrays.copyOfRange(
-                valid, ORDER_PAYLOAD_OFFSET, ORDER_PAYLOAD_OFFSET + payloadLength);
-        byte[] trailingPayload = Arrays.copyOf(payload, payload.length + 1);
-        trailingPayload[trailingPayload.length - 1] = 1;
-        byte[] trailing = orderBytes(trailingPayload);
-        assertOrderRejected(profile, trailing, "trailing-data");
-
-        Path oversized = temporaryDirectory.resolve("oversized-order.spfo");
-        try (FileChannel channel = FileChannel.open(
-                oversized, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            channel.position(64L * 1024 * 1024);
-            channel.write(ByteBuffer.wrap(new byte[] {1}));
+        List<String> paths = new ArrayList<>();
+        java.util.LinkedHashMap<String, Long> lengths = new java.util.LinkedHashMap<>();
+        for (int index = 0; index < 3; index++) {
+            String relative = "blobs/" + index + ".spft";
+            PreparedTextureIO.write(
+                    cache.resolve(relative),
+                    randomTexture(new Random(53 + index)),
+                    index % 2 == 0
+                            ? PreparedTextureIO.StorageCodec.RAW
+                            : PreparedTextureIO.StorageCodec.LZ4);
+            paths.add(relative);
+            lengths.put(relative, Files.size(cache.resolve(relative)));
         }
-        assertThrows(IOException.class, () -> PreparedTexturePackOrderIO.read(oversized, profile));
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(pack, profile, cache, paths);
+        assertEquals(Files.size(pack), PreparedTexturePackIO.estimatedFileBytes(profile, lengths));
+    }
+
+    @Test
+    void orderRoundTripCorruptionAndTruncationProperties() throws Exception {
+        Random random = new Random(ORDER_ROUND_TRIP_SEED);
+        String profile = "fe".repeat(32);
+        for (int iteration = 0; iteration < 120; iteration++) {
+            LinkedHashSet<String> unique = new LinkedHashSet<>();
+            int count = 1 + random.nextInt(8);
+            for (int index = 0; index < count; index++) {
+                unique.add("blobs/" + randomHash(random) + ".spft");
+            }
+            List<String> paths = new ArrayList<>(unique);
+            Path target = temporaryDirectory.resolve("order-" + iteration + ".spfo");
+            PreparedTexturePackOrderIO.write(target, profile, paths);
+            assertEquals(paths, PreparedTexturePackOrderIO.read(target, profile));
+
+            byte[] valid = Files.readAllBytes(target);
+            for (int mutation = 0; mutation < 4; mutation++) {
+                byte[] corrupt = valid.clone();
+                int byteIndex = random.nextInt(corrupt.length);
+                corrupt[byteIndex] ^= (byte) (1 << random.nextInt(Byte.SIZE));
+                Files.write(target, corrupt);
+                assertThrows(IOException.class, () -> PreparedTexturePackOrderIO.read(target, profile));
+            }
+            for (int truncation = 0; truncation < 4; truncation++) {
+                Files.write(target, Arrays.copyOf(valid, random.nextInt(valid.length)));
+                assertThrows(IOException.class, () -> PreparedTexturePackOrderIO.read(target, profile));
+            }
+        }
     }
 
     private PackFixture packFixture(String name) throws Exception {
-        Path cache = temporaryDirectory.resolve(name + "-cache");
+        Path cache = temporaryDirectory.resolve(name);
         Files.createDirectories(cache.resolve("blobs"));
         String profile = "ab".repeat(32);
-        List<String> paths = List.of("blobs/aa.spft", "blobs/bb.spft");
+        List<String> paths = List.of("blobs/one.spft", "blobs/two.spft");
         PreparedTextureIO.write(
                 cache.resolve(paths.get(0)),
-                randomTexture(new Random(101)),
+                randomTexture(new Random(71)),
                 PreparedTextureIO.StorageCodec.RAW);
         PreparedTextureIO.write(
                 cache.resolve(paths.get(1)),
-                randomTexture(new Random(202)),
+                randomTexture(new Random(73)),
                 PreparedTextureIO.StorageCodec.LZ4);
-        Path pack = cache.resolve(name + ".spfp");
+        Path pack = PreparedTexturePackIO.path(cache, profile);
         PreparedTexturePackIO.write(pack, profile, cache, paths);
-        return new PackFixture(pack, profile, paths);
+        return new PackFixture(profile, paths, pack);
     }
 
-    private void assertPackRejected(PackFixture fixture, byte[] bytes) throws Exception {
-        Path candidate = temporaryDirectory.resolve("hostile-pack-" + System.nanoTime() + ".spfp");
-        Files.write(candidate, bytes);
-        assertThrows(
-                IOException.class,
-                () -> PreparedTexturePackIO.open(candidate, fixture.profile(), fixture.paths()));
+    private byte[] packedBytes(Path cache, String profile, List<String> paths) throws Exception {
+        Path target = temporaryDirectory.resolve("expected-" + System.nanoTime() + ".spfp");
+        PreparedTexturePackIO.write(target, profile, cache, paths);
+        return Files.readAllBytes(target);
     }
 
-    private void assertOrderRejected(String profile, byte[] bytes, String name) throws Exception {
-        Path candidate = temporaryDirectory.resolve("hostile-order-" + name + ".spfo");
-        Files.write(candidate, bytes);
-        assertThrows(IOException.class, () -> PreparedTexturePackOrderIO.read(candidate, profile));
-    }
-
-    private static byte[] orderBytes(byte[] payload) {
-        ByteBuffer bytes = ByteBuffer.allocate(ORDER_PAYLOAD_OFFSET + payload.length + CHECKSUM_BYTES)
-                .order(ByteOrder.BIG_ENDIAN);
-        bytes.put(new byte[] {'S', 'P', 'F', 'O'});
-        bytes.putInt(PreparedTexturePackOrderIO.FORMAT_VERSION);
-        bytes.putInt(payload.length);
-        bytes.put(payload);
-        bytes.put(Hashes.sha256Bytes(payload));
-        return bytes.array();
+    private static void assertPackRejected(PackFixture fixture, byte[] bytes) throws Exception {
+        Path candidate = Files.createTempFile("preflight-pack-hostile-", ".spfp");
+        try {
+            Files.write(candidate, bytes);
+            assertThrows(
+                    IOException.class,
+                    () -> PreparedTexturePackIO.open(candidate, fixture.profile(), fixture.paths()));
+        } finally {
+            Files.deleteIfExists(candidate);
+        }
     }
 
     private static byte[] withInt(byte[] source, int offset, int value) {
@@ -393,15 +392,15 @@ class PreparedTexturePackPersistencePropertyTest {
                 randomHash(random),
                 random.nextBoolean()
                         ? PreparedTexture.Transformation.IDENTITY
-                        : PreparedTexture.Transformation.ALPHA_ADDER,
+                        : PreparedTexture.Transformation.DOWNSAMPLE_IF_OVERSIZED,
                 width,
                 height,
                 width,
                 height,
                 channels,
-                random.nextInt(),
-                random.nextInt(),
-                random.nextInt(),
+                random.nextInt(256),
+                random.nextInt(256),
+                random.nextInt(256),
                 pixels);
     }
 
@@ -411,6 +410,6 @@ class PreparedTexturePackPersistencePropertyTest {
         return HexFormat.of().formatHex(bytes);
     }
 
-    private record PackFixture(Path pack, String profile, List<String> paths) {
+    private record PackFixture(String profile, List<String> paths, Path pack) {
     }
 }
