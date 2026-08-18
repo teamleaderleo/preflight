@@ -23,11 +23,11 @@ public final class Hashes {
     }
 
     /**
-     * Digests whatever the stream yields, which is not always what the pathname holds.
+     * Digests whatever the stream yields without closing it; stream ownership stays with the caller.
      *
      * A caller that has to prove the digest belongs to a file it observed cannot re-open by name:
      * between the observation and the read, the name can be pointed at something else and back.
-     * Opening once and hashing the handle keeps the read on the entry that was opened.
+     * Opening once and hashing the supplied stream keeps the read on that already-selected source.
      */
     public static String sha256(InputStream bytes) throws IOException {
         MessageDigest digest = newSha256();
