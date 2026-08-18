@@ -1,5 +1,12 @@
 import readinessStyles from "./release-readiness.css?raw";
 
+function installReadinessStyles(base = "") {
+  const style = document.createElement("style");
+  style.textContent = `${base}\n${readinessStyles}`;
+  document.head.append(style);
+  return style;
+}
+
 test("ready Home keeps recovery content scrollable and launch controls clear of options", () => {
   expect(readinessStyles).toMatch(/\.page-viewport--home:has\(\.launch-console--ready\)\s*\{[^}]*overflow-y:\s*auto;/s);
   expect(readinessStyles).toMatch(/\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*118px;[^}]*max-height:\s*none;/s);
@@ -7,6 +14,47 @@ test("ready Home keeps recovery content scrollable and launch controls clear of 
   expect(readinessStyles).toMatch(/\.home-launch-identity span,\s*\.home-launch-identity strong\s*\{[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   expect(readinessStyles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*124px;/s);
   expect(readinessStyles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--ready \.last-run-health\s*\{[^}]*bottom:\s*auto;/s);
+});
+
+test("journey overrides keep first settings reachable and put run recovery before idle Home", () => {
+  const style = installReadinessStyles(".quick-settings { justify-content: center; }");
+  const viewport = document.createElement("div");
+  viewport.className = "page-viewport--home";
+  const launch = document.createElement("section");
+  launch.className = "launch-console launch-console--ready";
+  const recovery = document.createElement("section");
+  recovery.className = "run-recovery";
+  const quickSettings = document.createElement("div");
+  quickSettings.className = "quick-settings";
+  launch.append(quickSettings);
+  viewport.append(launch, recovery);
+  document.body.append(viewport);
+
+  expect(viewport.matches(".page-viewport--home:has(.run-recovery)")).toBe(true);
+  expect(getComputedStyle(viewport).display).toBe("flex");
+  expect(getComputedStyle(recovery).order).toBe("-1");
+  expect(getComputedStyle(quickSettings).justifyContent).toBe("safe center");
+
+  viewport.remove();
+  style.remove();
+});
+
+test("narrow exceptional states reserve the recovery rows before the options disclosure", () => {
+  const style = installReadinessStyles();
+  const media = Array.from(style.sheet?.cssRules ?? []).find((rule) =>
+    rule instanceof CSSMediaRule && rule.conditionText === "(max-width: 720px)",
+  ) as CSSMediaRule | undefined;
+  expect(media).toBeDefined();
+  const rules = Array.from(media?.cssRules ?? []).filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule);
+  const noteRule = rules.find((rule) =>
+    rule.selectorText === ".launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note",
+  );
+  const optionsRule = rules.find((rule) =>
+    rule.selectorText === ".launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings",
+  );
+  expect(noteRule?.style.bottom).toBe("132px");
+  expect(optionsRule?.style.bottom).toBe("200px");
+  style.remove();
 });
 
 test("restored installed-hull controls stay bounded at desktop and compact widths", () => {
