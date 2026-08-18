@@ -52,8 +52,6 @@ class PrepareAudioChildTest {
 
         try (URLClassLoader loader = PrepareAudioChild.gameClassLoader(withJars(jar), FROM)) {
             assertNotNull(loader.getResource("sound/marker.txt"));
-            // Without this the test above would pass on a loader that found the entry anywhere at
-            // all, which is what the class path used to do and what this replaced.
             assertNull(PrepareAudioChild.class.getClassLoader().getResource("sound/marker.txt"),
                     "the entry must come from the argument, not from Preflight's own class path");
         }
@@ -84,13 +82,35 @@ class PrepareAudioChildTest {
         Path jar = directory.resolve("Ωμέγα/starfarer_obf.jar");
         String[] sent = withJars(jar);
 
-        // What the parent hands ProcessBuilder and what main() sees after decoding. The jars are at
-        // the tail, so an encoding that lost or reordered arguments would move the boundary too.
         String[] received = Utf8Argv.decode(Utf8Argv.encode(sent));
 
         assertEquals(sent.length, received.length);
         assertEquals(jar.toString(), received[FROM]);
         assertEquals("manifest", received[FROM - 1]);
+    }
+
+    @Test
+    void readsOnlyTheBoundedParentWorkList() throws Exception {
+        Path work = directory.resolve("work.tsv");
+        Files.writeString(work,
+                "sounds/a.ogg\t/a.ogg\n" + "sounds/b.ogg\t/b.ogg\n",
+                StandardCharsets.UTF_8);
+
+        assertEquals(
+                java.util.List.of("sounds/a.ogg\t/a.ogg", "sounds/b.ogg\t/b.ogg"),
+                PrepareAudioChild.readWorkItems(work));
+    }
+
+    @Test
+    void rejectsWorkListBeforeReadingPastItsByteBudget() throws Exception {
+        Path oversized = directory.resolve("oversized-work.tsv");
+        try (var channel = java.nio.channels.FileChannel.open(
+                oversized, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE)) {
+            channel.position(PrepareAudioCommand.MAX_WORK_FILE_BYTES);
+            channel.write(java.nio.ByteBuffer.wrap(new byte[]{0}));
+        }
+
+        assertThrows(IOException.class, () -> PrepareAudioChild.readWorkItems(oversized));
     }
 
     @Test
