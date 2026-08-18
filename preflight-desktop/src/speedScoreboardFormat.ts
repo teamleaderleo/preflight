@@ -22,7 +22,8 @@ export function startupComparisonPresentation(
   optimizedMs: number,
 ): StartupComparisonPresentation {
   const improvementPercent = startupImprovementPercent(measurementOnlyMs, optimizedMs);
-  if (Math.abs(improvementPercent) < STARTUP_COMPARISON_NEUTRAL_PERCENT) {
+  const neutralThresholdMs = measurementOnlyMs * STARTUP_COMPARISON_NEUTRAL_PERCENT / 100;
+  if (Math.abs(optimizedMs - measurementOnlyMs) <= neutralThresholdMs) {
     return {
       kind: "similar",
       improvementPercent,
