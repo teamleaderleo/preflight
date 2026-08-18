@@ -1,15 +1,15 @@
 name: Repair profile activation safety on current main
 
 on:
-  push:
-    branches:
-      - codex/propose-fix-for-symlink-vulnerability
+  pull_request:
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
 
 jobs:
   repair:
+    if: github.event.pull_request.head.ref == 'codex/propose-fix-for-symlink-vulnerability'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
