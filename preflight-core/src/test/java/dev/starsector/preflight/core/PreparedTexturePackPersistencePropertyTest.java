@@ -184,7 +184,7 @@ class PreparedTexturePackPersistencePropertyTest {
             assumeTrue(false, "symbolic links unavailable on this runner");
         }
         assertThrows(
-                IOException.class,
+                IllegalArgumentException.class,
                 () -> PreparedTexturePackIO.write(
                         cache.resolve("symlink.spfp"), profile, cache, List.of("blobs/link.spft")));
     }
