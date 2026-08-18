@@ -63,7 +63,7 @@ final class UninstallCommand {
             return 0;
         }
         if (preview.targets().isEmpty()) {
-            Plan empty = new Plan(scope, true, true, 0, 0, List.of(), List.of());
+            Plan empty = new Plan(scope, true, true, 0, 0, List.of(), preview.refusals());
             print(empty, json, out);
             return 0;
         }
@@ -77,11 +77,25 @@ final class UninstallCommand {
                 return 1;
             }
             if (scope == Scope.ALL_DATA) markRemoval(home);
-            int failures = remove(current.targets(), scope, home);
-            applied = new Plan(scope, failures == 0, true, current.bytes(), current.files(),
-                    current.targets(), failures == 0 ? List.of() : List.of("One or more paths could not be removed."));
+            RemovalOutcome outcome = remove(current.targets(), scope, home);
+            List<String> diagnostics = new ArrayList<>(current.refusals());
+            diagnostics.addAll(outcome.failures());
+            diagnostics.addAll(outcome.warnings());
+            long bytes = outcome.removed().stream().mapToLong(Target::bytes).sum();
+            long files = outcome.removed().stream().mapToLong(Target::files).sum();
+            applied = new Plan(
+                    scope,
+                    outcome.failures().isEmpty(),
+                    true,
+                    bytes,
+                    files,
+                    List.copyOf(outcome.removed()),
+                    List.copyOf(diagnostics));
         }
 
+        if (scope == Scope.LAUNCHER) {
+            home.recordInstalledIntegrations();
+        }
         if (scope == Scope.ALL_DATA && applied.safe()) {
             try {
                 deleteRecursively(home.state());
@@ -113,18 +127,20 @@ final class UninstallCommand {
         List<Target> targets = new ArrayList<>();
         List<String> refusals = new ArrayList<>();
         for (PreflightHome.Integration integration : home.integrations()) {
-            if (integration.present()) {
-                if (integration.isOwned()) {
-                    addTarget(targets, "launch-integration", integration.label(), integration.path());
-                } else {
-                    refusals.add("Existing " + integration.label() + " at " + integration.path()
-                            + " is not proven Preflight-owned and is preserved untouched.");
+            Path path = integration.path().toAbsolutePath().normalize();
+            if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) continue;
+            try {
+                IntegrationMutation.Review review = IntegrationMutation.reviewForRemoval(integration);
+                if (review.snapshot().present()) {
+                    addTarget(targets, "launch-integration", integration.label(), path, review);
                 }
+            } catch (IOException refusal) {
+                refusals.add(refusal.getMessage());
             }
         }
         Path installedEngine = home.installedJar().getParent();
         if (Files.exists(installedEngine, LinkOption.NOFOLLOW_LINKS)) {
-            addTarget(targets, "installed-engine", "installed command engine", installedEngine);
+            addTarget(targets, "installed-engine", "installed command engine", installedEngine, null);
         }
         boolean safe = true;
         if (scope == Scope.ALL_DATA) {
@@ -135,7 +151,7 @@ final class UninstallCommand {
                     refusals.add("Preflight home directory is a symlink or alias (" + root + "). All-data removal is refused.");
                 } else {
                     targets.removeIf(target -> target.path().startsWith(root));
-                    addTarget(targets, "preflight-data", "Preflight data", root);
+                    addTarget(targets, "preflight-data", "Preflight data", root, null);
                 }
             }
         }
@@ -144,13 +160,17 @@ final class UninstallCommand {
         return new Plan(scope, safe, applied, bytes, files, List.copyOf(targets), List.copyOf(refusals));
     }
 
-    private static void addTarget(List<Target> targets, String kind, String label, Path path)
-            throws IOException {
+    private static void addTarget(
+            List<Target> targets,
+            String kind,
+            String label,
+            Path path,
+            IntegrationMutation.Review integrationReview) throws IOException {
         Path normalized = path.toAbsolutePath().normalize();
         targets.removeIf(existing -> existing.path().startsWith(normalized));
         if (targets.stream().anyMatch(existing -> normalized.startsWith(existing.path()))) return;
         CacheFootprint.Usage usage = strictUsage(normalized);
-        targets.add(new Target(kind, label, normalized, usage.bytes(), usage.files()));
+        targets.add(new Target(kind, label, normalized, usage.bytes(), usage.files(), integrationReview));
     }
 
     private static CacheFootprint.Usage strictUsage(Path path) throws IOException {
@@ -176,21 +196,40 @@ final class UninstallCommand {
         return new CacheFootprint.Usage(totals[0], totals[1]);
     }
 
-    private static int remove(List<Target> targets, Scope scope, PreflightHome home) {
-        int failures = 0;
+    private static RemovalOutcome remove(List<Target> targets, Scope scope, PreflightHome home) {
+        List<Target> removed = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
         for (Target target : targets) {
             try {
                 if (scope == Scope.ALL_DATA && target.path().equals(home.root())) {
                     removeRootContentsExceptState(home);
+                    removed.add(target);
+                } else if (target.integrationReview() != null) {
+                    IntegrationMutation.Removal removal = IntegrationMutation.remove(target.integrationReview());
+                    if (removal.removed()) {
+                        removed.add(target);
+                        try {
+                            removal.cleanupCommitted();
+                        } catch (IOException cleanupFailure) {
+                            String warning = "Removed " + target.path()
+                                    + " from its launcher pathname; preserved changed quarantine residue: "
+                                    + cleanupFailure.getMessage();
+                            warnings.add(warning);
+                            System.err.println(warning);
+                        }
+                    }
                 } else {
                     deleteRecursively(target.path());
+                    removed.add(target);
                 }
             } catch (IOException failure) {
-                failures++;
-                System.err.println("Could not remove " + target.path() + ": " + failure.getMessage());
+                String message = "Could not remove " + target.path() + ": " + failure.getMessage();
+                failures.add(message);
+                System.err.println(message);
             }
         }
-        return failures;
+        return new RemovalOutcome(List.copyOf(removed), List.copyOf(failures), List.copyOf(warnings));
     }
 
     private static void removeRootContentsExceptState(PreflightHome home) throws IOException {
@@ -208,8 +247,8 @@ final class UninstallCommand {
             out.println(Json.object(plan.toJson()));
             return;
         }
-        if (!plan.safe()) {
-            out.println(plan.applied() ? "Removal failed:" : "Preview refused:");
+        if (!plan.safe() && !plan.applied()) {
+            out.println("Preview refused:");
             plan.refusals().forEach(refusal -> out.println("  " + refusal));
             return;
         }
@@ -218,7 +257,7 @@ final class UninstallCommand {
         }
         if (plan.targets().isEmpty()) {
             out.println(plan.applied()
-                    ? "Nothing to remove for the selected scope."
+                    ? "No owned paths were removed."
                     : "Preview: nothing to remove for the selected scope.");
             return;
         }
@@ -230,8 +269,10 @@ final class UninstallCommand {
         out.println("Starsector, mods, saves, and game-owned settings are outside this plan.");
         if (!plan.applied()) {
             out.println("Preview only; nothing was removed. Re-run with --yes to apply this exact scope.");
-        } else {
+        } else if (plan.safe()) {
             out.println("Done.");
+        } else {
+            out.println("Removal finished with one or more external integration generations preserved.");
         }
     }
 
@@ -254,9 +295,17 @@ final class UninstallCommand {
         });
     }
 
-    static void removeIntegration(PreflightHome.Integration integration) throws IOException {
-        if (integration.isOwned()) {
-            deleteRecursively(integration.path());
+    static IntegrationRemoval removeIntegration(PreflightHome.Integration integration) throws IOException {
+        Path target = integration.path().toAbsolutePath().normalize();
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) return new IntegrationRemoval(false, null);
+        IntegrationMutation.Removal removal = IntegrationMutation.remove(IntegrationMutation.reviewForRemoval(integration));
+        if (!removal.removed()) return new IntegrationRemoval(false, null);
+        try {
+            removal.cleanupCommitted();
+            return new IntegrationRemoval(true, null);
+        } catch (IOException cleanupFailure) {
+            return new IntegrationRemoval(true,
+                    "preserved changed quarantine residue after removal: " + cleanupFailure.getMessage());
         }
     }
 
@@ -276,7 +325,17 @@ final class UninstallCommand {
         }
     }
 
-    record Target(String kind, String label, Path path, long bytes, long files) {
+    record Target(
+            String kind,
+            String label,
+            Path path,
+            long bytes,
+            long files,
+            IntegrationMutation.Review integrationReview) {
+        Target(String kind, String label, Path path, long bytes, long files) {
+            this(kind, label, path, bytes, files, null);
+        }
+
         Map<String, Object> toJson() {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", kind); value.put("label", label); value.put("path", path);
@@ -284,6 +343,10 @@ final class UninstallCommand {
             return value;
         }
     }
+
+    record IntegrationRemoval(boolean removed, String warning) {}
+
+    private record RemovalOutcome(List<Target> removed, List<String> failures, List<String> warnings) {}
 
     record Plan(Scope scope, boolean safe, boolean applied, long bytes, long files,
                 List<Target> targets, List<String> refusals) {

@@ -1,0 +1,5 @@
+From https://github.com/teamleaderleo/preflight
+ * branch              main       -> FETCH_HEAD
+Auto-merging preflight-desktop/capabilities/release-receipt-source-lock.json
+Automatic merge went well; stopped before committing as requested
+preflight-desktop/src-tauri/src/reports.rs: clear-all guard: expected one anchor, found 0

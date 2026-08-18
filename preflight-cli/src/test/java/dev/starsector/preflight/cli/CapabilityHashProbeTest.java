@@ -15,7 +15,8 @@ class CapabilityHashProbeTest {
                 "InstallCommand.java",
                 "IntegrationMutation.java",
                 "IntegrationOwnership.java",
-                "PreflightHome.java"
+                "PreflightHome.java",
+                "UninstallCommand.java"
         }) {
             Path path = Path.of("src/main/java/dev/starsector/preflight/cli").resolve(name);
             byte[] normalized = Files.readString(path, StandardCharsets.UTF_8)
