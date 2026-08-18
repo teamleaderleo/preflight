@@ -1,0 +1,311 @@
+name: Repair preparation restart ownership
+
+on:
+  push:
+    branches:
+      - agent/rc-recover-preparation-restart
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/rc-recover-preparation-restart
+          token: ${{ github.token }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6.3.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: preflight-desktop/package-lock.json
+      - name: Apply exact-PID ownership repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one anchor, found {count}")
+              return text.replace(old, new)
+
+          path = Path('preflight-desktop/src/usePreparation.ts')
+          text = path.read_text()
+          text = replace_once(
+              text,
+              '''  const recoveredPreparation = useRef(false);
+  const localPreparationStarting = useRef(false);
+  const localPreparationPid = useRef<number | null>(null);
+''',
+              '''  const recoveredPreparation = useRef(false);
+  const localPreparationStarting = useRef(false);
+  const localPreparationPid = useRef<number | null>(null);
+  const observedPreparationPid = useRef<number | null>(null);
+''',
+              'observed PID ref',
+          )
+          text = replace_once(
+              text,
+              '''      localPreparationStarting.current = true;
+      const started = await startPreparation(game, requestedStorage, resources.workers, resources.memoryMib);
+      localPreparationPid.current = started.pid;
+      localPreparationStarting.current = false;
+''',
+              '''      localPreparationStarting.current = true;
+      const started = await startPreparation(game, requestedStorage, resources.workers, resources.memoryMib);
+      localPreparationPid.current = started.pid;
+      localPreparationStarting.current = false;
+      if (observedPreparationPid.current === started.pid) {
+        recoveredPreparation.current = false;
+        setPreparationProgressKnown(true);
+      } else if (observedPreparationPid.current !== null) {
+        launchAfterPreparation.current = false;
+      }
+''',
+              'start result ownership',
+          )
+          text = replace_once(
+              text,
+              '''    } catch (error) {
+      localPreparationStarting.current = false;
+      localPreparationPid.current = null;
+      recoveredPreparation.current = false;
+      setPreparationProgressKnown(true);
+      launchAfterPreparation.current = false;
+      setPreparing(false);
+      announce(errorMessage(error), "error");
+''',
+              '''    } catch (error) {
+      const startWasPending = localPreparationStarting.current;
+      localPreparationStarting.current = false;
+      localPreparationPid.current = null;
+      launchAfterPreparation.current = false;
+      if (recoveredPreparation.current && observedPreparationPid.current !== null) {
+        setPreparationProgressKnown(false);
+        setPreparing(true);
+        setPreparationCancelling(false);
+        setPreparationProgress(null);
+        announce(errorMessage(error), "error");
+        if (startWasPending) {
+          announce("Reconnected to profile preparation. Starsector stays closed when it finishes; launch from Home when you’re ready.");
+        }
+      } else {
+        recoveredPreparation.current = false;
+        setPreparationProgressKnown(true);
+        setPreparing(false);
+        announce(errorMessage(error), "error");
+      }
+''',
+              'start rejection recovery',
+          )
+          text = replace_once(
+              text,
+              '''          if (operation.preparationPid !== null) {
+            const firstRead = previousPid === undefined;
+            previousPid = operation.preparationPid;
+            setPreparing(true);
+            const belongsToThisRenderer = localPreparationStarting.current
+              || localPreparationPid.current === operation.preparationPid;
+            if (firstRead && !belongsToThisRenderer) {
+              recoveredPreparation.current = true;
+              setPreparationProgressKnown(false);
+              launchAfterPreparation.current = false;
+              completedPreparationPhases.current.clear();
+              setPreparationProgress(null);
+              setPreparationCancelling(false);
+              announce("Reconnected to profile preparation. Starsector stays closed when it finishes; launch from Home when you’re ready.");
+            }
+            return;
+          }
+          if (previousPid !== null && previousPid !== undefined) {
+''',
+              '''          if (operation.preparationPid !== null) {
+            const pidChanged = previousPid !== operation.preparationPid;
+            previousPid = operation.preparationPid;
+            observedPreparationPid.current = operation.preparationPid;
+            setPreparing(true);
+            const belongsToThisRenderer = localPreparationPid.current === operation.preparationPid;
+            if (belongsToThisRenderer) {
+              recoveredPreparation.current = false;
+              setPreparationProgressKnown(true);
+              return;
+            }
+            if (pidChanged || !recoveredPreparation.current) {
+              recoveredPreparation.current = true;
+              setPreparationProgressKnown(false);
+              completedPreparationPhases.current.clear();
+              setPreparationProgress(null);
+              setPreparationCancelling(false);
+              if (!localPreparationStarting.current) {
+                launchAfterPreparation.current = false;
+                announce("Reconnected to profile preparation. Starsector stays closed when it finishes; launch from Home when you’re ready.");
+              }
+            }
+            return;
+          }
+          observedPreparationPid.current = null;
+          if (previousPid !== null && previousPid !== undefined) {
+''',
+              'reconciliation ownership',
+          )
+          text = replace_once(
+              text,
+              '''      completionObserved = true;
+      previousPid = null;
+      if (localPreparationPid.current === payload.pid) localPreparationPid.current = null;
+''',
+              '''      completionObserved = true;
+      previousPid = null;
+      observedPreparationPid.current = null;
+      if (localPreparationPid.current === payload.pid) localPreparationPid.current = null;
+''',
+              'terminal event observed PID',
+          )
+          text = replace_once(
+              text,
+              '''      if (!requested) {
+        localPreparationPid.current = null;
+        recoveredPreparation.current = false;
+''',
+              '''      if (!requested) {
+        localPreparationPid.current = null;
+        observedPreparationPid.current = null;
+        recoveredPreparation.current = false;
+''',
+              'stop observed PID',
+          )
+          path.write_text(text)
+
+          test = Path('preflight-desktop/src/usePreparation.recovery.test.tsx')
+          body = test.read_text()
+          addition = r'''
+
+test("an unresolved local start cannot claim a pre-existing recovered preparation", async () => {
+  let resolveOperation!: (value: ReturnType<typeof activePreparation>) => void;
+  const operation = new Promise<ReturnType<typeof activePreparation>>((resolve) => {
+    resolveOperation = resolve;
+  });
+  let rejectStart!: (reason?: unknown) => void;
+  const start = new Promise<{ pid: number }>((_resolve, reject) => {
+    rejectStart = reject;
+  });
+
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "getOperationState").mockReturnValue(operation as ReturnType<typeof bridge.getOperationState>);
+  vi.spyOn(bridge, "getCacheInspection").mockResolvedValue({
+    format: "starsector-preflight-cache-inspection-v1",
+    cache: null,
+    health: null,
+  } as never);
+  const startSpy = vi.spyOn(bridge, "startPreparation")
+    .mockReturnValue(start as ReturnType<typeof bridge.startPreparation>);
+  vi.spyOn(tauriEvents, "listenWhileMounted").mockImplementation((() => () => undefined) as typeof tauriEvents.listenWhileMounted);
+  const announce = vi.fn();
+  const launch = vi.fn().mockResolvedValue(undefined);
+
+  const { result, unmount } = renderHook(() => usePreparation(
+    "/Applications/Starsector",
+    false,
+    "off",
+    launch,
+    announce,
+  ));
+
+  let pending: Promise<void> | undefined;
+  act(() => {
+    pending = result.current.prepare(true, "minimal");
+  });
+  await waitFor(() => expect(startSpy).toHaveBeenCalledOnce());
+
+  await act(async () => {
+    resolveOperation(activePreparation());
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(result.current.preparationPercent).toBeNull());
+
+  await act(async () => {
+    rejectStart(new Error("Profile preparation is already running."));
+    await pending;
+  });
+
+  expect(result.current.preparing).toBe(true);
+  expect(result.current.preparationPercent).toBeNull();
+  expect(launch).not.toHaveBeenCalled();
+  expect(announce).toHaveBeenCalledWith(expect.stringContaining("Reconnected to profile preparation"));
+  unmount();
+});
+
+test("a successful start owns only its exact returned native PID", async () => {
+  let resolveOperation!: (value: ReturnType<typeof activePreparation>) => void;
+  const operation = new Promise<ReturnType<typeof activePreparation>>((resolve) => {
+    resolveOperation = resolve;
+  });
+  let resolveStart!: (value: { pid: number }) => void;
+  const start = new Promise<{ pid: number }>((resolve) => {
+    resolveStart = resolve;
+  });
+
+  vi.spyOn(bridge, "isDesktopHost").mockReturnValue(true);
+  vi.spyOn(bridge, "getOperationState").mockReturnValue(operation as ReturnType<typeof bridge.getOperationState>);
+  vi.spyOn(bridge, "getCacheInspection").mockResolvedValue({
+    format: "starsector-preflight-cache-inspection-v1",
+    cache: null,
+    health: null,
+  } as never);
+  const startSpy = vi.spyOn(bridge, "startPreparation")
+    .mockReturnValue(start as ReturnType<typeof bridge.startPreparation>);
+  vi.spyOn(tauriEvents, "listenWhileMounted").mockImplementation((() => () => undefined) as typeof tauriEvents.listenWhileMounted);
+  const announce = vi.fn();
+  const launch = vi.fn().mockResolvedValue(undefined);
+
+  const { result, unmount } = renderHook(() => usePreparation(
+    "/Applications/Starsector",
+    false,
+    "off",
+    launch,
+    announce,
+  ));
+
+  let pending: Promise<void> | undefined;
+  act(() => {
+    pending = result.current.prepare(true, "minimal");
+  });
+  await waitFor(() => expect(startSpy).toHaveBeenCalledOnce());
+
+  await act(async () => {
+    resolveOperation(activePreparation());
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(result.current.preparationPercent).toBeNull());
+
+  await act(async () => {
+    resolveStart({ pid: 77 });
+    await pending;
+  });
+
+  expect(result.current.preparing).toBe(true);
+  expect(result.current.preparationPercent).toBe(0);
+  expect(launch).not.toHaveBeenCalled();
+  unmount();
+});
+'''
+          if addition.strip() in body:
+              raise SystemExit('recovery regression already present')
+          test.write_text(body.rstrip() + addition)
+          PY
+          npm ci --prefix preflight-desktop
+          npm test --prefix preflight-desktop -- --run usePreparation.recovery.test.tsx
+          npm run build --prefix preflight-desktop
+          rm .github/workflows/repair-741-preparation-recovery.yml
+          git add preflight-desktop/src/usePreparation.ts preflight-desktop/src/usePreparation.recovery.test.tsx .github/workflows/repair-741-preparation-recovery.yml
+          git diff --cached --check
+          git commit -m "fix(desktop): bind recovered preparation to exact PID"
+          git push origin HEAD:agent/rc-recover-preparation-restart
