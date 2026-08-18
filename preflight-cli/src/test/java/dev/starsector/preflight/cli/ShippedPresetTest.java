@@ -41,8 +41,8 @@ class ShippedPresetTest {
         expected.put("exhaustiveFileReads", false);
         expected.put("recordingMode", RecordingMode.OFF);
         expected.put("singleChunkRecording", false);
-        expected.put("npotDirect", false);
-        expected.put("unpadded", true);
+        expected.put("npotDirect", true);
+        expected.put("unpadded", false);
         expected.put("campaignEntityIndex", true);
         expected.put("startupPhaseProbe", false);
         expected.put("ruleTokenCache", true);
