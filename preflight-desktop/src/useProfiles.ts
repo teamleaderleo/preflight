@@ -215,6 +215,22 @@ export function useProfiles(
     try {
       const result = await activateReviewedProfile(expectedGame, reviewedPlan.name, true);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
+      if (result.applied && !result.reviewChanged && result.canActivate) {
+        // The enabled-mods file changed before the refreshes below. Update the cached list by the
+        // target fingerprint now, including equivalent duplicate profiles, so a failed refresh can
+        // never leave Home naming the profile that was active before this successful switch.
+        setProfiles((current) => {
+          if (!current || current.installRoot !== expectedGame) return current;
+          const target = current.profiles.find((profile) => profile.name === result.name);
+          return {
+            ...current,
+            profiles: current.profiles.map((profile) => ({
+              ...profile,
+              active: target ? profile.profileFingerprint === target.profileFingerprint : false,
+            })),
+          };
+        });
+      }
       await Promise.all([refreshInstallation(expectedGame), refreshProfiles(), refreshCache()]);
       if (request !== actionRequest.current || currentGame.current !== expectedGame) return;
       if (result.reviewChanged) {
