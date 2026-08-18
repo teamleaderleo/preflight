@@ -3,9 +3,11 @@ package dev.starsector.preflight.cli;
 import dev.starsector.preflight.core.Json;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
@@ -25,6 +27,8 @@ final class GameLaunchPreferences {
     static final String GAMEPLAY_SETTINGS = "gameplaySettings";
     static final String BATTLE_SIZE = "battleSize";
     static final List<Integer> AA_CHOICES = List.of(0, 2, 4, 8, 12, 16, 24, 32);
+    static final String SETTINGS_CHANGED =
+            "The launch settings changed while they were being applied; review the current values and try again.";
 
     private GameLaunchPreferences() {
     }
@@ -35,6 +39,21 @@ final class GameLaunchPreferences {
         void remove(String key);
 
         void flush() throws BackingStoreException;
+    }
+
+    /** Exact raw values of every launcher preference Preflight is authorized to mutate. */
+    record Generation(Map<String, String> values) {
+        Generation {
+            values = Map.copyOf(values);
+        }
+
+        String get(String key) {
+            return values.get(key);
+        }
+
+        Backup backup() {
+            return new Backup(values);
+        }
     }
 
     record Snapshot(
@@ -93,6 +112,38 @@ final class GameLaunchPreferences {
         }
     }
 
+    /**
+     * One observed Preflight publication. {@code expectedAfter} names the raw values Preflight
+     * intended to own for the keys it touched; {@code observedAfter} is the actual readback after
+     * the preference backend flushed.
+     */
+    record AppliedChange(
+            Generation before,
+            Generation expectedAfter,
+            Generation observedAfter,
+            Set<String> touchedKeys) {
+        AppliedChange {
+            touchedKeys = Set.copyOf(touchedKeys);
+        }
+
+        boolean publishedAsRequested() {
+            for (String key : touchedKeys) {
+                if (!Objects.equals(expectedAfter.get(key), observedAfter.get(key))) return false;
+            }
+            return true;
+        }
+    }
+
+    static final class PreferenceStateChangedException extends BackingStoreException {
+        PreferenceStateChangedException() {
+            super(SETTINGS_CHANGED);
+        }
+
+        PreferenceStateChangedException(String message) {
+            super(message);
+        }
+    }
+
     static Store installed() {
         Preferences preferences = Preferences.userRoot().node(DirectLaunchSettings.PREFERENCES_NODE);
         return new Store() {
@@ -118,17 +169,31 @@ final class GameLaunchPreferences {
         };
     }
 
-    static Snapshot read(DirectLaunchSettings.Lookup store) {
+    static Generation generation(DirectLaunchSettings.Lookup store) {
         Objects.requireNonNull(store, "store");
+        Map<String, String> values = new LinkedHashMap<>();
+        for (String key : mutableKeys()) {
+            String value = store.get(key);
+            if (value != null) values.put(key, value);
+        }
+        return new Generation(values);
+    }
+
+    static Snapshot read(DirectLaunchSettings.Lookup store) {
+        return read(generation(store));
+    }
+
+    static Snapshot read(Generation generation) {
+        Objects.requireNonNull(generation, "generation");
         List<String> diagnostics = new ArrayList<>();
-        String resolution = trimToNull(store.get(RESOLUTION));
-        Integer aa = integer(store.get(AA_SAMPLES), AA_SAMPLES, diagnostics);
-        Double scale = decimal(store.get(SCREEN_SCALE), SCREEN_SCALE, diagnostics);
-        Integer battleSize = battleSize(store.get(GAMEPLAY_SETTINGS), diagnostics);
+        String resolution = trimToNull(generation.get(RESOLUTION));
+        Integer aa = integer(generation.get(AA_SAMPLES), AA_SAMPLES, diagnostics);
+        Double scale = decimal(generation.get(SCREEN_SCALE), SCREEN_SCALE, diagnostics);
+        Integer battleSize = battleSize(generation.get(GAMEPLAY_SETTINGS), diagnostics);
         return new Snapshot(
                 resolution,
-                Boolean.parseBoolean(store.get(FULLSCREEN)),
-                booleanOrDefault(store.get(SOUND), true),
+                Boolean.parseBoolean(generation.get(FULLSCREEN)),
+                booleanOrDefault(generation.get(SOUND), true),
                 aa,
                 scale,
                 battleSize,
@@ -136,30 +201,68 @@ final class GameLaunchPreferences {
     }
 
     static Backup backup(DirectLaunchSettings.Lookup store) {
-        Map<String, String> values = new LinkedHashMap<>();
-        for (String key : mutableKeys()) {
-            String value = store.get(key);
-            if (value != null) {
-                values.put(key, value);
-            }
-        }
-        return new Backup(values);
+        return generation(store).backup();
     }
 
     static void apply(Store store, Update update) throws BackingStoreException {
         Objects.requireNonNull(store, "store");
         validate(update);
-        if (update.resolution() != null) store.put(RESOLUTION, update.resolution());
-        if (update.fullscreen() != null) store.put(FULLSCREEN, update.fullscreen().toString());
-        if (update.sound() != null) store.put(SOUND, update.sound().toString());
-        if (update.antialiasingSamples() != null) {
-            store.put(AA_SAMPLES, update.antialiasingSamples().toString());
+        applyValues(store, update);
+        store.flush();
+    }
+
+    /**
+     * Applies a partial update only if the mutable preference set still matches {@code expected} at
+     * the final application boundary exposed by the Java Preferences API. The returned raw
+     * generations let the caller validate publication and later perform a guarded compensation.
+     *
+     * <p>This deliberately does not treat the Preflight operation lease as an external lock. A
+     * caller that observed a newer generation should revalidate the requested effective settings
+     * against that generation before calling this method.</p>
+     */
+    static AppliedChange applyIfUnchanged(Store store, Generation expected, Update update)
+            throws BackingStoreException {
+        Objects.requireNonNull(store, "store");
+        Objects.requireNonNull(expected, "expected");
+        validate(update);
+        Generation current = generation(store);
+        if (!current.equals(expected)) throw new PreferenceStateChangedException();
+
+        Set<String> touched = touchedKeys(update);
+        Generation expectedAfter = expectedAfter(expected, update);
+        applyValues(store, update);
+        store.flush();
+        Generation observedAfter = generation(store);
+        return new AppliedChange(expected, expectedAfter, observedAfter, touched);
+    }
+
+    /**
+     * Restores only keys whose raw values still equal the exact values Preflight published. A newer
+     * external value on any touched key makes that key ineligible for rollback. Unrelated launcher
+     * preferences are never restored from the broad recovery backup.
+     */
+    static void restoreIfStillPublished(Store store, AppliedChange change) throws BackingStoreException {
+        Objects.requireNonNull(store, "store");
+        Objects.requireNonNull(change, "change");
+        if (!change.publishedAsRequested()) {
+            throw new PreferenceStateChangedException(
+                    "The launch settings changed while Preflight was publishing them; the current values were kept."
+                            + " Review the current settings before applying another change.");
         }
-        if (update.uiScale() != null) store.put(SCREEN_SCALE, decimalText(update.uiScale()));
-        if (update.battleSize() != null) {
-            Map<String, Object> gameplay = gameplayObject(store.get(GAMEPLAY_SETTINGS));
-            gameplay.put(BATTLE_SIZE, update.battleSize());
-            store.put(GAMEPLAY_SETTINGS, Json.object(gameplay));
+
+        Generation current = generation(store);
+        for (String key : change.touchedKeys()) {
+            if (!Objects.equals(current.get(key), change.expectedAfter().get(key))) {
+                throw new PreferenceStateChangedException(
+                        "The launch settings changed after Preflight updated them; the newer values were kept."
+                                + " Review the current settings before applying another change.");
+            }
+        }
+
+        for (String key : change.touchedKeys()) {
+            String value = change.before().get(key);
+            if (value == null) store.remove(key);
+            else store.put(key, value);
         }
         store.flush();
     }
@@ -195,6 +298,47 @@ final class GameLaunchPreferences {
         if (update.battleSize() != null && update.battleSize() <= 0) {
             throw new IllegalArgumentException("Battle size must be positive");
         }
+    }
+
+    private static void applyValues(Store store, Update update) {
+        if (update.resolution() != null) store.put(RESOLUTION, update.resolution());
+        if (update.fullscreen() != null) store.put(FULLSCREEN, update.fullscreen().toString());
+        if (update.sound() != null) store.put(SOUND, update.sound().toString());
+        if (update.antialiasingSamples() != null) {
+            store.put(AA_SAMPLES, update.antialiasingSamples().toString());
+        }
+        if (update.uiScale() != null) store.put(SCREEN_SCALE, decimalText(update.uiScale()));
+        if (update.battleSize() != null) {
+            Map<String, Object> gameplay = gameplayObject(store.get(GAMEPLAY_SETTINGS));
+            gameplay.put(BATTLE_SIZE, update.battleSize());
+            store.put(GAMEPLAY_SETTINGS, Json.object(gameplay));
+        }
+    }
+
+    private static Generation expectedAfter(Generation before, Update update) {
+        Map<String, String> values = new LinkedHashMap<>(before.values());
+        if (update.resolution() != null) values.put(RESOLUTION, update.resolution());
+        if (update.fullscreen() != null) values.put(FULLSCREEN, update.fullscreen().toString());
+        if (update.sound() != null) values.put(SOUND, update.sound().toString());
+        if (update.antialiasingSamples() != null) values.put(AA_SAMPLES, update.antialiasingSamples().toString());
+        if (update.uiScale() != null) values.put(SCREEN_SCALE, decimalText(update.uiScale()));
+        if (update.battleSize() != null) {
+            Map<String, Object> gameplay = gameplayObject(before.get(GAMEPLAY_SETTINGS));
+            gameplay.put(BATTLE_SIZE, update.battleSize());
+            values.put(GAMEPLAY_SETTINGS, Json.object(gameplay));
+        }
+        return new Generation(values);
+    }
+
+    private static Set<String> touchedKeys(Update update) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (update.resolution() != null) keys.add(RESOLUTION);
+        if (update.fullscreen() != null) keys.add(FULLSCREEN);
+        if (update.sound() != null) keys.add(SOUND);
+        if (update.antialiasingSamples() != null) keys.add(AA_SAMPLES);
+        if (update.uiScale() != null) keys.add(SCREEN_SCALE);
+        if (update.battleSize() != null) keys.add(GAMEPLAY_SETTINGS);
+        return Set.copyOf(keys);
     }
 
     private static List<String> mutableKeys() {
