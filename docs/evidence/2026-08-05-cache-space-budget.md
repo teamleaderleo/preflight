@@ -49,7 +49,7 @@ space-saving policy because its materially lighter decode path fit the startup g
 Zstandard:
 
 | codec | stored bytes | ratio | Rosetta encode | Rosetta decode |
-| --- | ---: | ---: | ---: |
+| --- | ---: | ---: | ---: | ---: |
 | raw pixels | 5,331,615,734 | 1.00x | | |
 | LZ4 | 2,197,372,392 | 2.43x | 5.451s | 1.533s |
 | Zstandard | 1,635,009,747 | 3.26x | 21.743s | 5.318s |
