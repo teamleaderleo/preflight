@@ -94,6 +94,18 @@ export function useProfiles(
     }
   }, [game, profiles?.installRoot, refreshProfiles, visible]);
 
+  useEffect(() => {
+    if (!visible || !game) return;
+    // Another mod manager can change enabled_mods.json while Preflight is open. The retained
+    // profile list and cache fingerprint can then agree while both are stale. Refocus is the
+    // launch-facing freshness boundary: reread both identities without rediscovering the install.
+    const refreshLaunchIdentity = () => {
+      void Promise.all([refreshProfiles(), refreshCache()]);
+    };
+    window.addEventListener("focus", refreshLaunchIdentity);
+    return () => window.removeEventListener("focus", refreshLaunchIdentity);
+  }, [game, refreshCache, refreshProfiles, visible]);
+
   const saveCurrentProfile = async () => {
     const name = profileName.trim();
     const expectedGame = game;
