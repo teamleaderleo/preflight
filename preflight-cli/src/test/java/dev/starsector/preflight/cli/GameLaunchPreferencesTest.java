@@ -142,6 +142,36 @@ class GameLaunchPreferencesTest {
         assertEquals(1.4, LaunchSettingsCommand.Limits.maximumUiScale("1920x1080"));
     }
 
+    @Test
+    void rejectsOversizedInstalledSettingsWithoutReadingThemInFull() throws Exception {
+        Path settings = temporary.resolve("data/config/settings.json");
+        Files.createDirectories(settings.getParent());
+        try (var output = Files.newOutputStream(settings)) {
+            output.write(new byte[LaunchSettingsCommand.MAX_INSTALL_SETTINGS_BYTES + 1]);
+        }
+
+        LaunchSettingsCommand.Limits limits = LaunchSettingsCommand.Limits.read(temporary);
+
+        assertNull(limits.minBattleSize());
+        assertTrue(limits.diagnostics().get(0).contains("exceeds"));
+    }
+
+    @Test
+    void doesNotFollowInstalledSettingsSymlinks() throws Exception {
+        Path target = temporary.resolve("outside-settings.json");
+        Files.writeString(target, """
+                {"minBattleSize":200,"defaultBattleSize":400,"maxBattleSize":600}
+                """);
+        Path settings = temporary.resolve("data/config/settings.json");
+        Files.createDirectories(settings.getParent());
+        Files.createSymbolicLink(settings, target);
+
+        LaunchSettingsCommand.Limits limits = LaunchSettingsCommand.Limits.read(temporary);
+
+        assertNull(limits.minBattleSize());
+        assertTrue(limits.diagnostics().get(0).contains("Could not locate"));
+    }
+
     private static final class MemoryStore implements GameLaunchPreferences.Store {
         private final Map<String, String> values = new LinkedHashMap<>();
         private int flushes;
