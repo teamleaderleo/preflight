@@ -1,0 +1,1443 @@
+name: Finalize #703 RC correction
+
+on:
+  push:
+    branches:
+      - fix/desktop-report-authority
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/desktop-report-authority
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Integrate live main and apply bounded correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name preflight-agent
+          git config user.email preflight-agent@users.noreply.github.com
+          git fetch origin main
+          if ! git merge --no-commit --no-ff origin/main; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            unexpected="$(printf '%s\n' "$conflicts" | grep -v '^preflight-desktop/capabilities/release-receipt-source-lock.json$' || true)"
+            if [[ -n "$unexpected" ]]; then
+              echo "Unexpected merge conflicts:" >&2
+              printf '%s\n' "$unexpected" >&2
+              exit 1
+            fi
+            git checkout --theirs -- preflight-desktop/capabilities/release-receipt-source-lock.json
+            git add preflight-desktop/capabilities/release-receipt-source-lock.json
+          fi
+          test -z "$(git diff --name-only --diff-filter=U)"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+
+          def replace_once(path: str, old: str, new: str, label: str):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: {label}: expected one anchor, found {count}")
+              p.write_text(text.replace(old, new, 1))
+
+          def replace_between(path: str, start: str, end: str, new: str, label: str):
+              p = Path(path)
+              text = p.read_text()
+              first = text.find(start)
+              if first < 0:
+                  raise SystemExit(f"{path}: {label}: start anchor missing")
+              second = text.find(end, first + len(start))
+              if second < 0:
+                  raise SystemExit(f"{path}: {label}: end anchor missing")
+              p.write_text(text[:first] + new + text[second:])
+
+          authority = "preflight-desktop/src-tauri/src/report_authority.rs"
+          replace_once(
+              authority,
+              "use std::path::{Path, PathBuf};\nuse std::sync::atomic::{AtomicU64, Ordering};",
+              "use std::ops::Deref;\nuse std::path::{Path, PathBuf};\nuse std::sync::atomic::{AtomicU64, Ordering};\nuse std::sync::{Mutex, MutexGuard};",
+              "authority imports",
+          )
+          replace_once(
+              authority,
+              "static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);",
+              "static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);\nstatic AUTHORITY_MUTATION: Mutex<()> = Mutex::new(());",
+              "authority mutex",
+          )
+          replace_once(
+              authority,
+              "#[derive(Clone, Debug, Serialize, Deserialize)]\n#[serde(rename_all = \"camelCase\", deny_unknown_fields)]\nstruct PendingAuthority",
+              "#[derive(Clone, Serialize, Deserialize)]\n#[serde(rename_all = \"camelCase\", deny_unknown_fields)]\nstruct PendingAuthority",
+              "secret debug derive",
+          )
+          replace_once(
+              authority,
+              "pub(crate) struct ReportAuthorityStore {\n    root: PathBuf,\n    generation: String,\n}\n\n#[derive(Clone)]\npub(crate) struct NativeReportAuthorityLifecycle {\n    root: PathBuf,\n    generation: String,\n}",
+              "pub(crate) struct ReportAuthorityStore {\n    root: ProvenDirectory,\n    generation: String,\n}\n\n#[derive(Clone)]\npub(crate) struct NativeReportAuthorityLifecycle {\n    root: ProvenDirectory,\n    generation: String,\n}",
+              "proven roots",
+          )
+
+          replace_between(
+              authority,
+              "impl ReportAuthorityStore {",
+              "impl NativeReportAuthorityLifecycle {",
+              r'''impl ReportAuthorityStore {
+    pub(crate) fn create(app: &AppHandle) -> Result<Self, String> {
+        let root = owned_report_root(app, "report-authority", true)?
+            .ok_or_else(|| "Could not create report-authority storage.".to_string())?;
+        Self::create_proven(root)
+    }
+
+    pub(crate) fn open(app: &AppHandle) -> Result<Option<Self>, String> {
+        let Some(root) = owned_report_root(app, "report-authority", false)? else {
+            return Ok(None);
+        };
+        root.revalidate()?;
+        let generation = read_regular_text_proven(&root, &root.join("generation"))?;
+        if generation.trim().is_empty() {
+            return Err("Report-authority generation is empty.".to_string());
+        }
+        Ok(Some(Self {
+            root,
+            generation: generation.trim().to_string(),
+        }))
+    }
+
+    fn create_at(root: PathBuf) -> Result<Self, String> {
+        let root = ProvenDirectory::establish(root, true, true)?
+            .ok_or_else(|| "Could not create report-authority storage.".to_string())?;
+        Self::create_proven(root)
+    }
+
+    fn create_proven(root: ProvenDirectory) -> Result<Self, String> {
+        root.revalidate()?;
+        let marker = root.join("generation");
+        let generation = match read_regular_text_proven(&root, &marker) {
+            Ok(value) if !value.trim().is_empty() => value.trim().to_string(),
+            _ => create_or_read_generation(&root, &marker)?,
+        };
+        let store = Self { root, generation };
+        {
+            let _mutation = lock_authority_mutation()?;
+            prune_expired_accepted_at(&store.root, now_millis()?)?;
+        }
+        Ok(store)
+    }
+
+    pub(crate) fn lifecycle(&self) -> NativeReportAuthorityLifecycle {
+        NativeReportAuthorityLifecycle {
+            root: self.root.clone(),
+            generation: self.generation.clone(),
+        }
+    }
+
+    pub(crate) fn reports(&self) -> Result<Vec<ReportCaseView>, String> {
+        let _mutation = lock_authority_mutation()?;
+        self.reports_under_guard()
+    }
+
+    pub(crate) fn reports_under_guard(&self) -> Result<Vec<ReportCaseView>, String> {
+        self.ensure_generation()?;
+        list_report_views_at(&self.root)
+    }
+
+    pub(crate) fn persist_accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {
+        let _mutation = lock_authority_mutation()?;
+        self.ensure_generation()?;
+        persist_accepted_at(&self.root, receipt)
+    }
+
+    pub(crate) fn deletion(&self, case_id: &str) -> Result<ReportDeletion, String> {
+        let _mutation = lock_authority_mutation()?;
+        self.ensure_generation()?;
+        prune_expired_accepted_at(&self.root, now_millis()?)?;
+        validate_case_id(case_id)?;
+        let accepted = accepted_path(&self.root, case_id);
+        if accepted.exists() {
+            let receipt: ReportReceipt = read_json_regular_proven(&self.root, &accepted)?;
+            return Ok(receipt.deletion);
+        }
+        let pending: PendingAuthority =
+            read_json_regular_proven(&self.root, &pending_path(&self.root, case_id))?;
+        Ok(pending.deletion)
+    }
+
+    pub(crate) fn dismiss(&self, case_id: &str) -> Result<(), String> {
+        let _mutation = lock_authority_mutation()?;
+        self.ensure_generation()?;
+        remove_case_at(&self.root, case_id)
+    }
+
+    pub(crate) fn clear_all(app: &AppHandle) -> Result<(), String> {
+        let _mutation = lock_authority_mutation()?;
+        Self::clear_all_under_guard(app)
+    }
+
+    pub(crate) fn clear_all_under_guard(app: &AppHandle) -> Result<(), String> {
+        if let Some(root) = owned_report_root(app, "report-authority", false)? {
+            clear_report_authority_root(&root)?;
+        }
+        if let Some(root) = owned_report_root(app, "automatic-report-claims", false)? {
+            clear_claim_root(&root)?;
+        }
+        Ok(())
+    }
+
+    fn ensure_generation(&self) -> Result<(), String> {
+        self.root.revalidate()?;
+        let current = read_regular_text_proven(&self.root, &self.root.join("generation"))?;
+        if current.trim() == self.generation {
+            Ok(())
+        } else {
+            Err("Report-authority storage changed while the report was active.".to_string())
+        }
+    }
+}
+
+''',
+              "store implementation",
+          )
+
+          replace_between(
+              authority,
+              "impl NativeReportAuthorityLifecycle {",
+              "pub(crate) fn claim_automatic_report",
+              r'''impl NativeReportAuthorityLifecycle {
+    pub(crate) fn granted(
+        &self,
+        grant: &CreateReportCaseResponse,
+        report: &ReportUploadInput,
+    ) -> Result<(), String> {
+        let _mutation = lock_authority_mutation()?;
+        self.ensure_generation()?;
+        prune_expired_accepted_at(&self.root, now_millis()?)?;
+        self.ensure_generation()?;
+        if !accepted_path(&self.root, &grant.case_id).exists()
+            && !pending_path(&self.root, &grant.case_id).exists()
+            && authority_count(&self.root)? >= MAX_AUTHORITIES
+        {
+            return Err("Preflight already has the maximum number of actionable report cases. Delete or dismiss an older case before sending another report.".to_string());
+        }
+        let pending = PendingAuthority {
+            format: AUTHORITY_FORMAT.to_string(),
+            case_id: grant.case_id.clone(),
+            bytes: report.bytes,
+            sha256: report.sha256.clone(),
+            deletion: ReportDeletion {
+                method: grant.deletion.method.clone(),
+                url: grant.deletion.url.clone(),
+                token: grant.deletion.token.clone(),
+            },
+            created_at_millis: now_millis()?,
+        };
+        persist_json_new_proven(
+            &self.root,
+            &pending_path(&self.root, &grant.case_id),
+            &pending,
+        )
+    }
+
+    pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {
+        let _mutation = lock_authority_mutation()?;
+        self.ensure_generation()?;
+        persist_accepted_at(&self.root, receipt)
+    }
+
+    pub(crate) fn cleared(&self, case_id: &str) -> Result<(), String> {
+        let _mutation = lock_authority_mutation()?;
+        if self.ensure_generation().is_err() {
+            return Ok(());
+        }
+        remove_case_at(&self.root, case_id)
+    }
+
+    fn ensure_generation(&self) -> Result<(), String> {
+        self.root.revalidate()?;
+        let current = read_regular_text_proven(&self.root, &self.root.join("generation"))?;
+        if current.trim() == self.generation {
+            Ok(())
+        } else {
+            Err("Report-authority storage changed while the report was active.".to_string())
+        }
+    }
+}
+
+''',
+              "lifecycle implementation",
+          )
+
+          replace_between(
+              authority,
+              "pub(crate) fn claim_automatic_report",
+              "fn create_or_read_generation",
+              r'''pub(crate) fn lock_authority_mutation() -> Result<MutexGuard<'static, ()>, String> {
+    AUTHORITY_MUTATION
+        .lock()
+        .map_err(|_| "The report-authority mutation lock is unavailable.".to_string())
+}
+
+pub(crate) fn claim_automatic_report(app: &AppHandle, identity: &str) -> Result<bool, String> {
+    let _mutation = lock_authority_mutation()?;
+    let root = owned_report_root(app, "automatic-report-claims", true)?
+        .ok_or_else(|| "Could not create automatic-report claim storage.".to_string())?;
+    claim_automatic_report_in(&root, identity)
+}
+
+fn claim_automatic_report_at(root: &Path, identity: &str) -> Result<bool, String> {
+    let _mutation = lock_authority_mutation()?;
+    let root = ProvenDirectory::establish(root.to_path_buf(), true, true)?
+        .ok_or_else(|| "Could not create automatic-report claim storage.".to_string())?;
+    claim_automatic_report_in(&root, identity)
+}
+
+fn claim_automatic_report_in(root: &ProvenDirectory, identity: &str) -> Result<bool, String> {
+    if identity.is_empty() || identity.len() > 1024 || identity.contains('\0') {
+        return Err("The automatic report identity is invalid.".to_string());
+    }
+    root.revalidate()?;
+    prune_claims(root)?;
+    let digest = Sha256::digest(identity.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let path = root.join(format!("{digest}.claim"));
+    run_publication_hook(root);
+    root.revalidate()?;
+    match OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(mut file) => {
+            make_private_file(&file)?;
+            file.write_all(format!("{}\n", now_millis()?).as_bytes())
+                .map_err(|error| format!("Could not write automatic-report claim: {error}"))?;
+            file.sync_all()
+                .map_err(|error| format!("Could not save automatic-report claim: {error}"))?;
+            root.revalidate()?;
+            sync_directory(root.path())?;
+            Ok(true)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(error) => Err(format!(
+            "Could not claim the failed run for automatic reporting: {error}"
+        )),
+    }
+}
+
+fn prune_claims(root: &ProvenDirectory) -> Result<(), String> {
+    root.revalidate()?;
+    let mut claims = Vec::new();
+    for entry in fs::read_dir(root.path())
+        .map_err(|error| format!("Could not read automatic-report claim storage: {error}"))?
+    {
+        let entry = entry
+            .map_err(|error| format!("Could not read automatic-report claim storage: {error}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.ends_with(".claim") {
+            continue;
+        }
+        let metadata = entry
+            .path()
+            .symlink_metadata()
+            .map_err(|error| format!("Could not inspect automatic-report claim: {error}"))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err("Automatic-report claim is not a regular file.".to_string());
+        }
+        let modified = metadata
+            .modified()
+            .map_err(|error| format!("Could not inspect automatic-report claim age: {error}"))?;
+        claims.push((modified, entry.path()));
+    }
+    claims.sort_by_key(|(modified, _)| *modified);
+    while claims.len() >= MAX_CLAIMS {
+        let (_, path) = claims.remove(0);
+        remove_file_if_regular_proven(root, &path)?;
+    }
+    Ok(())
+}
+
+#[derive(Clone)]
+struct DirectoryAnchor {
+    path: PathBuf,
+    identity: DirectoryIdentity,
+}
+
+#[derive(Clone)]
+struct ProvenDirectory {
+    chain: Vec<DirectoryAnchor>,
+}
+
+impl ProvenDirectory {
+    fn establish(path: PathBuf, create: bool, private: bool) -> Result<Option<Self>, String> {
+        let name = path
+            .file_name()
+            .ok_or_else(|| "Saved report authority has no directory name.".to_string())?
+            .to_os_string();
+        let parent = path
+            .parent()
+            .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
+        let parent = fs::canonicalize(parent).map_err(|error| {
+            format!("Could not resolve report-authority parent directory: {error}")
+        })?;
+        let parent = directory_anchor(&parent, "Report-authority parent")?;
+        let Some(child) = establish_child(&parent, &name, create, private)? else {
+            return Ok(None);
+        };
+        let proof = Self {
+            chain: vec![parent, child],
+        };
+        proof.revalidate()?;
+        Ok(Some(proof))
+    }
+
+    fn child(&self, name: &str, create: bool, private: bool) -> Result<Option<Self>, String> {
+        self.revalidate()?;
+        let parent = self
+            .chain
+            .last()
+            .ok_or_else(|| "Saved report authority has no proven parent.".to_string())?;
+        let Some(child) = establish_child(parent, std::ffi::OsStr::new(name), create, private)?
+        else {
+            return Ok(None);
+        };
+        let mut chain = self.chain.clone();
+        chain.push(child);
+        let proof = Self { chain };
+        proof.revalidate()?;
+        Ok(Some(proof))
+    }
+
+    fn path(&self) -> &Path {
+        self.chain
+            .last()
+            .expect("a proven directory always has an anchor")
+            .path
+            .as_path()
+    }
+
+    fn revalidate(&self) -> Result<(), String> {
+        for (index, anchor) in self.chain.iter().enumerate() {
+            let current = directory_identity(&anchor.path, "Saved report-authority directory")?;
+            if current != anchor.identity {
+                return Err(
+                    "Saved report-authority directory changed after it was reviewed.".to_string(),
+                );
+            }
+            let canonical = fs::canonicalize(&anchor.path).map_err(|error| {
+                format!("Could not recheck saved report-authority directory: {error}")
+            })?;
+            if canonical != anchor.path {
+                return Err(
+                    "Saved report-authority directory became an alias after it was reviewed."
+                        .to_string(),
+                );
+            }
+            if index > 0
+                && anchor.path.parent()
+                    != self.chain.get(index - 1).map(|parent| parent.path.as_path())
+            {
+                return Err(
+                    "Saved report-authority directory escaped its reviewed parent.".to_string(),
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Deref for ProvenDirectory {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        self.path()
+    }
+}
+
+fn owned_report_root(
+    app: &AppHandle,
+    name: &str,
+    create: bool,
+) -> Result<Option<ProvenDirectory>, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|error| format!("Could not locate the home directory: {error}"))?;
+    let home = fs::canonicalize(home)
+        .map_err(|error| format!("Could not resolve the home directory: {error}"))?;
+    let home = directory_anchor(&home, "Home directory")?;
+    let home = ProvenDirectory { chain: vec![home] };
+    let Some(preflight) = home.child(".starsector-preflight", create, false)? else {
+        return Ok(None);
+    };
+    let Some(support) = preflight.child("support", create, false)? else {
+        return Ok(None);
+    };
+    support.child(name, create, true)
+}
+
+fn establish_child(
+    parent: &DirectoryAnchor,
+    name: &std::ffi::OsStr,
+    create: bool,
+    private: bool,
+) -> Result<Option<DirectoryAnchor>, String> {
+    let path = parent.path.join(name);
+    match fs::symlink_metadata(&path) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && !create => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            match create_owned_directory(&path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => {
+                    return Err(format!("Could not create report-authority storage: {error}"));
+                }
+            }
+        }
+        Err(error) => {
+            return Err(format!("Could not inspect report-authority storage: {error}"));
+        }
+    }
+    let anchor = directory_anchor(&path, "Saved report-authority directory")?;
+    if anchor.path.parent() != Some(parent.path.as_path()) {
+        return Err("Saved report-authority directory escapes its owned parent.".to_string());
+    }
+    if private {
+        require_private_directory(&anchor.path)?;
+    }
+    Ok(Some(anchor))
+}
+
+fn directory_anchor(path: &Path, label: &str) -> Result<DirectoryAnchor, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect {label}: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(format!("{label} is not a real directory."));
+    }
+    let canonical = fs::canonicalize(path)
+        .map_err(|error| format!("Could not resolve {label}: {error}"))?;
+    if canonical != path {
+        return Err(format!("{label} is an alias or symbolic link."));
+    }
+    Ok(DirectoryAnchor {
+        path: canonical,
+        identity: directory_identity(path, label)?,
+    })
+}
+
+#[cfg(unix)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct DirectoryIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(unix)]
+fn directory_identity(path: &Path, label: &str) -> Result<DirectoryIdentity, String> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect {label}: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(format!("{label} is not a real directory."));
+    }
+    Ok(DirectoryIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct DirectoryIdentity {
+    creation_time: u64,
+}
+
+#[cfg(windows)]
+fn directory_identity(path: &Path, label: &str) -> Result<DirectoryIdentity, String> {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect {label}: {error}"))?;
+    if !metadata.is_dir() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(format!("{label} is not a real directory."));
+    }
+    Ok(DirectoryIdentity {
+        creation_time: metadata.creation_time(),
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
+#[derive(Clone, PartialEq, Eq)]
+struct DirectoryIdentity {
+    canonical: PathBuf,
+}
+
+#[cfg(not(any(unix, windows)))]
+fn directory_identity(path: &Path, label: &str) -> Result<DirectoryIdentity, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect {label}: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(format!("{label} is not a real directory."));
+    }
+    Ok(DirectoryIdentity {
+        canonical: fs::canonicalize(path)
+            .map_err(|error| format!("Could not resolve {label}: {error}"))?,
+    })
+}
+
+#[cfg(unix)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RegularFileIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(unix)]
+fn regular_file_identity(path: &Path) -> Result<RegularFileIdentity, String> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect saved report authority: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Saved report authority is not a regular file.".to_string());
+    }
+    Ok(RegularFileIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RegularFileIdentity {
+    creation_time: u64,
+    bytes: u64,
+}
+
+#[cfg(windows)]
+fn regular_file_identity(path: &Path) -> Result<RegularFileIdentity, String> {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect saved report authority: {error}"))?;
+    if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err("Saved report authority is not a regular file.".to_string());
+    }
+    Ok(RegularFileIdentity {
+        creation_time: metadata.creation_time(),
+        bytes: metadata.file_size(),
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
+#[derive(Clone, PartialEq, Eq)]
+struct RegularFileIdentity {
+    bytes: u64,
+    modified: Option<SystemTime>,
+}
+
+#[cfg(not(any(unix, windows)))]
+fn regular_file_identity(path: &Path) -> Result<RegularFileIdentity, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect saved report authority: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Saved report authority is not a regular file.".to_string());
+    }
+    Ok(RegularFileIdentity {
+        bytes: metadata.len(),
+        modified: metadata.modified().ok(),
+    })
+}
+
+#[cfg(unix)]
+fn create_owned_directory(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+    let mut builder = fs::DirBuilder::new();
+    builder.mode(0o700);
+    builder.create(path)
+}
+
+#[cfg(not(unix))]
+fn create_owned_directory(path: &Path) -> std::io::Result<()> {
+    fs::create_dir(path)
+}
+
+#[cfg(unix)]
+fn require_private_directory(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect report-authority privacy: {error}"))?;
+    if metadata.mode() & 0o077 != 0 {
+        return Err("Report-authority storage is not private to the current user.".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn require_private_directory(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+fn clear_report_authority_root(root: &ProvenDirectory) -> Result<(), String> {
+    root.revalidate()?;
+    let entries = fs::read_dir(root.path())
+        .map_err(|error| format!("Could not read saved report authority: {error}"))?;
+    for entry in entries {
+        let entry = entry
+            .map_err(|error| format!("Could not read saved report authority: {error}"))?;
+        if entry.file_name() != "generation" {
+            return Err(
+                "Saved report authority still contains actionable or unexpected state.".to_string(),
+            );
+        }
+        remove_file_if_regular_proven(root, &entry.path())?;
+    }
+    root.revalidate()?;
+    fs::remove_dir(root.path())
+        .map_err(|error| format!("Could not clear saved report authority: {error}"))
+}
+
+fn clear_claim_root(root: &ProvenDirectory) -> Result<(), String> {
+    root.revalidate()?;
+    let entries = fs::read_dir(root.path())
+        .map_err(|error| format!("Could not read automatic-report claim storage: {error}"))?;
+    for entry in entries {
+        let entry = entry
+            .map_err(|error| format!("Could not read automatic-report claim storage: {error}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.ends_with(".claim") {
+            return Err("Automatic-report claim storage contains unexpected state.".to_string());
+        }
+        remove_file_if_regular_proven(root, &entry.path())?;
+    }
+    root.revalidate()?;
+    fs::remove_dir(root.path())
+        .map_err(|error| format!("Could not clear automatic-report claim storage: {error}"))
+}
+
+#[cfg(test)]
+type MutationHook = Box<dyn FnOnce() + Send>;
+
+#[cfg(test)]
+static BEFORE_SECRET_PUBLICATION: Mutex<Option<(PathBuf, MutationHook)>> = Mutex::new(None);
+#[cfg(test)]
+static BEFORE_SECRET_REMOVAL: Mutex<Option<(PathBuf, MutationHook)>> = Mutex::new(None);
+
+#[cfg(test)]
+fn set_publication_hook(root: &Path, hook: impl FnOnce() + Send + 'static) {
+    *BEFORE_SECRET_PUBLICATION.lock().unwrap() = Some((root.to_path_buf(), Box::new(hook)));
+}
+
+#[cfg(test)]
+fn set_removal_hook(root: &Path, hook: impl FnOnce() + Send + 'static) {
+    *BEFORE_SECRET_REMOVAL.lock().unwrap() = Some((root.to_path_buf(), Box::new(hook)));
+}
+
+#[cfg(test)]
+fn run_hook(slot: &Mutex<Option<(PathBuf, MutationHook)>>, root: &ProvenDirectory) {
+    let hook = {
+        let mut slot = slot.lock().unwrap();
+        if slot
+            .as_ref()
+            .is_some_and(|(target, _)| target.as_path() == root.path())
+        {
+            slot.take().map(|(_, hook)| hook)
+        } else {
+            None
+        }
+    };
+    if let Some(hook) = hook {
+        hook();
+    }
+}
+
+#[cfg(test)]
+fn run_publication_hook(root: &ProvenDirectory) {
+    run_hook(&BEFORE_SECRET_PUBLICATION, root);
+}
+
+#[cfg(not(test))]
+fn run_publication_hook(_root: &ProvenDirectory) {}
+
+#[cfg(test)]
+fn run_removal_hook(root: &ProvenDirectory) {
+    run_hook(&BEFORE_SECRET_REMOVAL, root);
+}
+
+#[cfg(not(test))]
+fn run_removal_hook(_root: &ProvenDirectory) {}
+
+''',
+              "claim and proven-directory boundary",
+          )
+
+          replace_between(
+              authority,
+              "fn create_or_read_generation",
+              "fn parse_retention_deadline_millis",
+              r'''fn create_or_read_generation(
+    root: &ProvenDirectory,
+    marker: &Path,
+) -> Result<String, String> {
+    let value = format!(
+        "{}-{}-{}",
+        std::process::id(),
+        now_millis()?,
+        NEXT_GENERATION.fetch_add(1, Ordering::Relaxed)
+    );
+    root.revalidate()?;
+    match OpenOptions::new().write(true).create_new(true).open(marker) {
+        Ok(mut file) => {
+            make_private_file(&file)?;
+            file.write_all(value.as_bytes())
+                .map_err(|error| format!("Could not write report-authority generation: {error}"))?;
+            file.sync_all()
+                .map_err(|error| format!("Could not save report-authority generation: {error}"))?;
+            root.revalidate()?;
+            sync_directory(root.path())?;
+            Ok(value)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let value = read_regular_text_proven(root, marker)?;
+            if value.trim().is_empty() {
+                Err("Report-authority generation is empty.".to_string())
+            } else {
+                Ok(value.trim().to_string())
+            }
+        }
+        Err(error) => Err(format!(
+            "Could not create report-authority generation: {error}"
+        )),
+    }
+}
+
+fn persist_accepted_at(root: &ProvenDirectory, receipt: &ReportReceipt) -> Result<(), String> {
+    root.revalidate()?;
+    let now = now_millis()?;
+    prune_expired_accepted_at(root, now)?;
+    validate_case_id(&receipt.case_id)?;
+    let deadline = parse_retention_deadline_millis(&receipt.retention_deadline)
+        .map_err(|error| format!("Report receipt has an invalid retention deadline: {error}"))?;
+    let path = accepted_path(root, &receipt.case_id);
+    if path.exists() {
+        let existing: ReportReceipt = read_json_regular_proven(root, &path)?;
+        if existing.case_id == receipt.case_id
+            && existing.bytes == receipt.bytes
+            && existing.sha256 == receipt.sha256
+            && existing.deletion.url == receipt.deletion.url
+            && existing.deletion.token == receipt.deletion.token
+        {
+            remove_file_if_regular_proven(root, &pending_path(root, &receipt.case_id))?;
+            return Ok(());
+        }
+        return Err("A different report authority already exists for this case.".to_string());
+    }
+    if i128::from(deadline) <= i128::from(now) {
+        remove_file_if_regular_proven(root, &pending_path(root, &receipt.case_id))?;
+        root.revalidate()?;
+        sync_directory(root.path())?;
+        return Ok(());
+    }
+    if !pending_path(root, &receipt.case_id).exists() && authority_count(root)? >= MAX_AUTHORITIES {
+        return Err(
+            "Preflight already has the maximum number of actionable report cases.".to_string(),
+        );
+    }
+    persist_json_new_proven(root, &path, receipt)?;
+    remove_file_if_regular_proven(root, &pending_path(root, &receipt.case_id))?;
+    Ok(())
+}
+
+fn prune_expired_accepted_at(root: &ProvenDirectory, now_millis: u64) -> Result<usize, String> {
+    root.revalidate()?;
+    let entries = fs::read_dir(root.path())
+        .map_err(|error| format!("Could not read saved report authority: {error}"))?;
+    let mut accepted = Vec::new();
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("Could not read saved report authority: {error}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(case_id) = name.strip_suffix(".accepted.json") {
+            accepted.push((case_id.to_string(), entry.path()));
+        }
+    }
+    accepted.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut expired = Vec::new();
+    for (case_id, path) in accepted {
+        validate_case_id(&case_id)?;
+        let receipt: ReportReceipt = read_json_regular_proven(root, &path)?;
+        if receipt.case_id != case_id {
+            return Err("Saved accepted report authority is inconsistent.".to_string());
+        }
+        let deadline = parse_retention_deadline_millis(&receipt.retention_deadline).map_err(|error| {
+            format!(
+                "Saved accepted report authority for case {case_id} has an invalid retention deadline: {error}"
+            )
+        })?;
+        if i128::from(deadline) <= i128::from(now_millis) {
+            let pending = pending_path(root, &case_id);
+            if pending.exists() {
+                regular_file_identity(&pending)?;
+            }
+            expired.push((pending, path));
+        }
+    }
+
+    let removed = expired.len();
+    for (pending, accepted) in expired {
+        remove_file_if_regular_proven(root, &pending)?;
+        remove_file_if_regular_proven(root, &accepted)?;
+    }
+    if removed > 0 {
+        root.revalidate()?;
+        sync_directory(root.path())?;
+    }
+    Ok(removed)
+}
+
+''',
+              "generation and accepted persistence",
+          )
+
+          replace_between(
+              authority,
+              "fn list_report_views_at",
+              "fn read_json_regular",
+              r'''fn list_report_views_at(root: &ProvenDirectory) -> Result<Vec<ReportCaseView>, String> {
+    root.revalidate()?;
+    prune_expired_accepted_at(root, now_millis()?)?;
+    let entries = fs::read_dir(root.path())
+        .map_err(|error| format!("Could not read saved report authority: {error}"))?;
+    let mut reports = BTreeMap::<String, ReportCaseView>::new();
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("Could not read saved report authority: {error}"))?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(case_id) = name.strip_suffix(".pending.json") {
+            validate_case_id(case_id)?;
+            let pending: PendingAuthority = read_json_regular_proven(root, &entry.path())?;
+            if pending.format != AUTHORITY_FORMAT || pending.case_id != case_id {
+                return Err("Saved pending report authority is inconsistent.".to_string());
+            }
+            reports
+                .entry(case_id.to_string())
+                .or_insert_with(|| ReportCaseView::pending(&pending));
+        } else if let Some(case_id) = name.strip_suffix(".accepted.json") {
+            validate_case_id(case_id)?;
+            let receipt: ReportReceipt = read_json_regular_proven(root, &entry.path())?;
+            if receipt.case_id != case_id {
+                return Err("Saved accepted report authority is inconsistent.".to_string());
+            }
+            reports.insert(case_id.to_string(), ReportCaseView::accepted(&receipt));
+        }
+    }
+    let mut reports = reports.into_values().collect::<Vec<_>>();
+    reports.sort_by(|left, right| {
+        right
+            .received_at
+            .cmp(&left.received_at)
+            .then_with(|| right.case_id.cmp(&left.case_id))
+    });
+    Ok(reports)
+}
+
+fn authority_count(root: &ProvenDirectory) -> Result<usize, String> {
+    Ok(list_report_views_at(root)?.len())
+}
+
+#[cfg(test)]
+fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Could not create report-authority storage: {error}"))?;
+    make_private_directory(parent)?;
+    let bytes = serde_json::to_vec(value)
+        .map_err(|error| format!("Could not serialize saved report authority: {error}"))?;
+    if bytes.len() as u64 > MAX_AUTHORITY_BYTES {
+        return Err("Saved report authority is unexpectedly large.".to_string());
+    }
+    let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err("Saved report authority already exists for this case.".to_string());
+        }
+        Err(error) => return Err(format!("Could not create saved report authority: {error}")),
+    };
+    make_private_file(&file)?;
+    file.write_all(&bytes)
+        .map_err(|error| format!("Could not write saved report authority: {error}"))?;
+    file.sync_all()
+        .map_err(|error| format!("Could not save report authority: {error}"))?;
+    sync_directory(parent)?;
+    Ok(())
+}
+
+fn persist_json_new_proven<T: Serialize>(
+    root: &ProvenDirectory,
+    path: &Path,
+    value: &T,
+) -> Result<(), String> {
+    if path.parent() != Some(root.path()) {
+        return Err("Saved report authority escaped its proven directory.".to_string());
+    }
+    root.revalidate()?;
+    let bytes = serde_json::to_vec(value)
+        .map_err(|error| format!("Could not serialize saved report authority: {error}"))?;
+    if bytes.len() as u64 > MAX_AUTHORITY_BYTES {
+        return Err("Saved report authority is unexpectedly large.".to_string());
+    }
+    run_publication_hook(root);
+    root.revalidate()?;
+    let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err("Saved report authority already exists for this case.".to_string());
+        }
+        Err(error) => return Err(format!("Could not create saved report authority: {error}")),
+    };
+    make_private_file(&file)?;
+    let write_result = file
+        .write_all(&bytes)
+        .map_err(|error| format!("Could not write saved report authority: {error}"))
+        .and_then(|()| {
+            file.sync_all()
+                .map_err(|error| format!("Could not save report authority: {error}"))
+        });
+    if let Err(error) = write_result {
+        let _ = file.set_len(0);
+        let _ = file.sync_all();
+        return Err(error);
+    }
+    drop(file);
+    root.revalidate()?;
+    sync_directory(root.path())?;
+    Ok(())
+}
+
+''',
+              "view and publication helpers",
+          )
+
+          replace_between(
+              authority,
+              "fn read_json_regular",
+              "fn accepted_path",
+              r'''fn read_json_regular_proven<T: for<'de> Deserialize<'de>>(
+    root: &ProvenDirectory,
+    path: &Path,
+) -> Result<T, String> {
+    if path.parent() != Some(root.path()) {
+        return Err("Saved report authority escaped its proven directory.".to_string());
+    }
+    root.revalidate()?;
+    let value = read_json_regular(path)?;
+    root.revalidate()?;
+    Ok(value)
+}
+
+fn read_json_regular<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
+    let metadata = path
+        .symlink_metadata()
+        .map_err(|error| format!("Could not inspect saved report authority: {error}"))?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_AUTHORITY_BYTES
+    {
+        return Err("Saved report authority is not a bounded regular file.".to_string());
+    }
+    let mut file = fs::File::open(path)
+        .map_err(|error| format!("Could not open saved report authority: {error}"))?;
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.read_to_end(&mut bytes)
+        .map_err(|error| format!("Could not read saved report authority: {error}"))?;
+    serde_json::from_slice(&bytes)
+        .map_err(|error| format!("Saved report authority is unreadable: {error}"))
+}
+
+fn read_regular_text_proven(root: &ProvenDirectory, path: &Path) -> Result<String, String> {
+    if path.parent() != Some(root.path()) {
+        return Err("Report-authority generation escaped its proven directory.".to_string());
+    }
+    root.revalidate()?;
+    let value = read_regular_text(path)?;
+    root.revalidate()?;
+    Ok(value)
+}
+
+fn read_regular_text(path: &Path) -> Result<String, String> {
+    let metadata = path
+        .symlink_metadata()
+        .map_err(|error| format!("Could not inspect report-authority generation: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 256 {
+        return Err("Report-authority generation is not a bounded regular file.".to_string());
+    }
+    fs::read_to_string(path)
+        .map_err(|error| format!("Could not read report-authority generation: {error}"))
+}
+
+fn remove_case_at(root: &ProvenDirectory, case_id: &str) -> Result<(), String> {
+    root.revalidate()?;
+    validate_case_id(case_id)?;
+    remove_file_if_regular_proven(root, &accepted_path(root, case_id))?;
+    remove_file_if_regular_proven(root, &pending_path(root, case_id))?;
+    root.revalidate()?;
+    sync_directory(root.path())?;
+    Ok(())
+}
+
+fn remove_file_if_regular_proven(root: &ProvenDirectory, path: &Path) -> Result<(), String> {
+    if path.parent() != Some(root.path()) {
+        return Err("Saved report authority escaped its proven directory.".to_string());
+    }
+    root.revalidate()?;
+    let reviewed = match regular_file_identity(path) {
+        Ok(identity) => identity,
+        Err(error) if path.symlink_metadata().is_err_and(|io| io.kind() == std::io::ErrorKind::NotFound) => {
+            return Ok(())
+        }
+        Err(error) => return Err(error),
+    };
+    run_removal_hook(root);
+    root.revalidate()?;
+    let current = regular_file_identity(path)?;
+    if current != reviewed {
+        return Err("Saved report authority changed after it was reviewed.".to_string());
+    }
+    fs::remove_file(path)
+        .map_err(|error| format!("Could not remove saved report authority: {error}"))?;
+    root.revalidate()?;
+    Ok(())
+}
+
+''',
+              "proven read and removal helpers",
+          )
+
+          replace_once(
+              authority,
+              '''#[cfg(unix)]
+fn make_private_directory(path: &Path) -> Result<(), String> {''',
+              '''#[cfg(all(test, unix))]
+fn make_private_directory(path: &Path) -> Result<(), String> {''',
+              "test-only unix chmod helper",
+          )
+          replace_once(
+              authority,
+              '''#[cfg(not(unix))]
+fn make_private_directory(_path: &Path) -> Result<(), String> {''',
+              '''#[cfg(all(test, not(unix)))]
+fn make_private_directory(_path: &Path) -> Result<(), String> {''',
+              "test-only non-unix chmod helper",
+          )
+
+          tests = r'''
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_authority_root_is_refused_without_touching_external_target() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let root = temp_root("authority-symlink");
+        let external = temp_root("authority-symlink-external");
+        fs::create_dir_all(&external).unwrap();
+        fs::write(external.join("sentinel"), b"keep").unwrap();
+        let mode_before = fs::metadata(&external).unwrap().permissions().mode();
+        symlink(&external, &root).unwrap();
+
+        assert!(ReportAuthorityStore::create_at(root.clone()).is_err());
+        assert_eq!(b"keep", fs::read(external.join("sentinel")).unwrap().as_slice());
+        assert_eq!(mode_before, fs::metadata(&external).unwrap().permissions().mode());
+        assert!(!external.join("generation").exists());
+
+        fs::remove_file(root).unwrap();
+        fs::remove_dir_all(external).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_claim_root_is_refused_without_touching_external_target() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let root = temp_root("claim-symlink");
+        let external = temp_root("claim-symlink-external");
+        fs::create_dir_all(&external).unwrap();
+        fs::write(external.join("sentinel"), b"keep").unwrap();
+        let mode_before = fs::metadata(&external).unwrap().permissions().mode();
+        symlink(&external, &root).unwrap();
+
+        assert!(claim_automatic_report_at(&root, "failed-run").is_err());
+        assert_eq!(b"keep", fs::read(external.join("sentinel")).unwrap().as_slice());
+        assert_eq!(mode_before, fs::metadata(&external).unwrap().permissions().mode());
+        assert_eq!(1, fs::read_dir(&external).unwrap().count());
+
+        fs::remove_file(root).unwrap();
+        fs::remove_dir_all(external).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn final_publication_recheck_preserves_external_parent_winner() {
+        use std::os::unix::fs::symlink;
+        let root = temp_root("publication-swap");
+        let external = temp_root("publication-swap-external");
+        fs::create_dir_all(&external).unwrap();
+        fs::write(external.join("sentinel"), b"external-winner").unwrap();
+        let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let lifecycle = store.lifecycle();
+        let held = root.with_extension("reviewed-root");
+        let hook_root = root.clone();
+        let hook_held = held.clone();
+        let hook_external = external.clone();
+        set_publication_hook(&root, move || {
+            fs::rename(&hook_root, &hook_held).unwrap();
+            symlink(&hook_external, &hook_root).unwrap();
+        });
+        let receipt = test_receipt("33333333-3333-3333-3333-333333333333", "cc");
+
+        assert!(lifecycle.accepted(&receipt).is_err());
+        assert_eq!(
+            b"external-winner",
+            fs::read(external.join("sentinel")).unwrap().as_slice()
+        );
+        assert!(!external.join(format!("{}.accepted.json", receipt.case_id)).exists());
+        assert_eq!(1, fs::read_dir(&external).unwrap().count());
+
+        fs::remove_file(&root).unwrap();
+        fs::rename(&held, &root).unwrap();
+        fs::remove_dir_all(root).unwrap();
+        fs::remove_dir_all(external).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn same_size_same_mtime_replacement_wins_over_authority_removal() {
+        use std::fs::FileTimes;
+        let root = temp_root("remove-replacement");
+        let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let receipt = test_receipt("44444444-4444-4444-4444-444444444444", "dd");
+        store.persist_accepted(&receipt).unwrap();
+        let path = accepted_path(&root, &receipt.case_id);
+        let metadata = fs::metadata(&path).unwrap();
+        let bytes = metadata.len();
+        let modified = metadata.modified().unwrap();
+        let hook_path = path.clone();
+        set_removal_hook(&root, move || {
+            fs::remove_file(&hook_path).unwrap();
+            let replacement = fs::File::create(&hook_path).unwrap();
+            replacement.set_len(bytes).unwrap();
+            replacement
+                .set_times(FileTimes::new().set_modified(modified))
+                .unwrap();
+            replacement.sync_all().unwrap();
+        });
+
+        assert!(store.dismiss(&receipt.case_id).is_err());
+        assert!(path.exists());
+        let after = fs::metadata(&path).unwrap();
+        assert_eq!(bytes, after.len());
+        assert_eq!(modified, after.modified().unwrap());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+'''
+          replace_once(
+              authority,
+              "\n    fn temp_root(label: &str) -> PathBuf {",
+              tests + "\n    fn temp_root(label: &str) -> PathBuf {",
+              "adversarial tests",
+          )
+
+          reports = "preflight-desktop/src-tauri/src/reports.rs"
+          replace_once(
+              reports,
+              "use report_authority::{ReportAuthorityStore, ReportCaseView, claim_automatic_report};",
+              "use report_authority::{\n    ReportAuthorityStore, ReportCaseView, claim_automatic_report, lock_authority_mutation,\n};",
+              "authority guard import",
+          )
+          replace_once(
+              reports,
+              '''        "clear-all" => {
+            let _ = cancel_background_report()?;
+            ReportAuthorityStore::clear_all(&app)?;
+            return Ok(true);
+        }''',
+              '''        "clear-all" => {
+            let running = tracker
+                .0
+                .lock()
+                .map_err(|_| "The report upload tracker is unavailable.".to_string())?;
+            if running.report_upload.is_some() {
+                return Err(
+                    "Wait for the current run report upload to finish before clearing report state."
+                        .to_string(),
+                );
+            }
+            let _authority = begin_all_data_removal_report_guard(&app)?;
+            ReportAuthorityStore::clear_all_under_guard(&app)?;
+            drop(running);
+            return Ok(true);
+        }''',
+              "clear-all guard",
+          )
+          replace_once(
+              reports,
+              '''fn cancel_background_report() -> Result<bool, String> {
+    let mut background = AUTOMATIC_REPORT_UPLOAD
+        .lock()
+        .map_err(|_| "The background report tracker is unavailable.".to_string())?;
+    let Some(upload) = background.take() else {
+        return Ok(false);
+    };
+    let _ = upload.cancel.send(true);
+    Ok(true)
+}
+''',
+              '''pub(crate) struct AllDataReportAuthorityGuard {
+    _authority: MutexGuard<'static, ()>,
+}
+
+pub(crate) fn begin_all_data_removal_report_guard(
+    app: &AppHandle,
+) -> Result<AllDataReportAuthorityGuard, String> {
+    let authority = lock_authority_mutation()?;
+    let (background_upload_id, _) = background_upload_snapshot()?;
+    if background_upload_id.is_some() {
+        return Err(
+            "Wait for the background run report upload to stop before removing all Preflight data."
+                .to_string(),
+        );
+    }
+    if let Some(store) = ReportAuthorityStore::open(app)? {
+        if !store.reports_under_guard()?.is_empty() {
+            return Err(
+                "Delete or explicitly dismiss every saved run-report case before removing all Preflight data."
+                    .to_string(),
+            );
+        }
+    }
+    Ok(AllDataReportAuthorityGuard {
+        _authority: authority,
+    })
+}
+
+fn cancel_background_report() -> Result<bool, String> {
+    let background = AUTOMATIC_REPORT_UPLOAD
+        .lock()
+        .map_err(|_| "The background report tracker is unavailable.".to_string())?;
+    let Some(upload) = background.as_ref() else {
+        return Ok(false);
+    };
+    let _ = upload.cancel.send(true);
+    Ok(true)
+}
+''',
+              "durable background ownership and all-data guard",
+          )
+          replace_once(
+              reports,
+              "use std::sync::Mutex;",
+              "use std::sync::{Mutex, MutexGuard};",
+              "mutex guard import",
+          )
+          replace_once(
+              reports,
+              "mod tests {\n    use super::{ReportUploadError, upload_outcome_error};",
+              "mod tests {\n    use super::{ReportUploadError, upload_outcome_error};",
+              "reports tests stable anchor",
+          )
+
+          engine = "preflight-desktop/src-tauri/src/engine.rs"
+          replace_once(
+              engine,
+              '''    refuse_report_upload_for_removal(&running)?;
+    let result = removal_json(&app, &scope, true);''',
+              '''    refuse_report_upload_for_removal(&running)?;
+    let _report_authority = if scope == "all-data" {
+        Some(crate::reports::begin_all_data_removal_report_guard(&app)?)
+    } else {
+        None
+    };
+    let result = removal_json(&app, &scope, true);''',
+              "all-data report commit guard",
+          )
+
+          removal = "preflight-desktop/src/useRemoval.ts"
+          replace_once(
+              removal,
+              '''        clearCache();
+        clearProfiles();
+        clearReportReceipt();''',
+              '''        clearCache();
+        clearProfiles();''',
+              "avoid post-commit report authority deletion",
+          )
+          replace_once(
+              removal,
+              "  clearReportReceipt: () => void = () => undefined,\n",
+              "  _clearReportReceipt: () => void = () => undefined,\n",
+              "mark legacy callback intentionally unused",
+          )
+
+          lib = "preflight-desktop/src-tauri/src/lib.rs"
+          replace_once(
+              lib,
+              '''// The legacy path stays compiled for compatibility helpers while production uploads use
+// report_transport_v2 through the native authority lifecycle.
+#[allow(dead_code)]
+mod report_transport;''',
+              '''// The legacy upload path stays compiled for compatibility tests while production uploads use
+// report_transport_v2 through the native authority lifecycle.
+mod report_transport;''',
+              "remove module-wide dead-code suppression",
+          )
+
+          transport = "preflight-desktop/src-tauri/src/report_transport.rs"
+          replace_once(
+              transport,
+              "pub(crate) async fn perform_report_upload(\n",
+              "#[allow(dead_code)] // Legacy compatibility path exercised separately from production v2 uploads.\npub(crate) async fn perform_report_upload(\n",
+              "narrow legacy upload suppression",
+          )
+          replace_once(
+              transport,
+              "pub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<PathBuf, String> {",
+              "#[allow(dead_code)] // Legacy compatibility path exercised separately from production v2 uploads.\npub(crate) fn validated_report_archive(report: &ReportUploadInput) -> Result<PathBuf, String> {",
+              "narrow archive suppression",
+          )
+
+          cargo_lock = Path("preflight-desktop/capabilities/release-receipt-source-lock.json")
+          lock = json.loads(cargo_lock.read_text())
+          for source in lock["sources"]:
+              path = Path(source)
+              if not path.is_file():
+                  raise SystemExit(f"capability source is missing: {source}")
+              lock["sources"][source] = hashlib.sha256(path.read_bytes()).hexdigest()
+          cargo_lock.write_text(json.dumps(lock, indent=2) + "\n")
+          PY
+
+          cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          lock_path = Path("preflight-desktop/capabilities/release-receipt-source-lock.json")
+          lock = json.loads(lock_path.read_text())
+          for source in lock["sources"]:
+              lock["sources"][source] = hashlib.sha256(Path(source).read_bytes()).hexdigest()
+          lock_path.write_text(json.dumps(lock, indent=2) + "\n")
+          PY
+
+          rm .github/workflows/rc-703-finalize.yml
+          git add -A
+          git diff --cached --check
+          git status --short
+          git commit -m "fix(report): bind authority to reviewed filesystem generations"
+          git push origin HEAD:fix/desktop-report-authority
