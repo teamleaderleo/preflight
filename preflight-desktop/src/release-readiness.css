@@ -80,6 +80,26 @@
   font-weight: 650;
 }
 
+/*
+ * When preparation/recovery is the current job, setup identity is more useful than playtime or the
+ * previous run's health line. Reuse that quiet upper-left space instead of making the player carry
+ * a profile choice from Mods back to Home in memory.
+ */
+.launch-console--ready:has(.launch-console__note) .home-playtime,
+.launch-console--ready:has(.launch-console__note) .last-run-health {
+  display: none;
+}
+
+.launch-console--ready:has(.launch-console__note) .home-launch-identity {
+  top: 64px;
+  right: auto;
+  bottom: auto;
+  left: 18px;
+  width: min(520px, calc(100% - 36px));
+  text-align: left;
+  transform: none;
+}
+
 .hangar-dock--catalog {
   align-items: start;
   grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr) auto;
