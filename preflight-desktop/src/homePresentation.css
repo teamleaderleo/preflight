@@ -1,0 +1,3 @@
+:root[data-home-playtime="hidden"] .home-playtime {
+  display: none !important;
+}
