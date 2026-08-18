@@ -198,9 +198,10 @@ class ConfigSyntaxTest {
      */
     @Test
     void survivesPathologicalNestingWithoutOverflowing() {
-        assertEquals(ConfigSyntax.Verdict.UNPARSEABLE, verdictOf("[".repeat(200_000)));
-        assertEquals(ConfigSyntax.Verdict.WELL_FORMED,
-                verdictOf("[".repeat(200_000) + "]".repeat(200_000)));
+        assertEquals(ConfigSyntax.Verdict.RESOURCE_LIMIT,
+                verdictOf("[".repeat(ConfigSyntax.MAX_NESTING_DEPTH + 1)));
+        assertEquals(ConfigSyntax.Verdict.WELL_FORMED, verdictOf(
+                "[".repeat(ConfigSyntax.MAX_NESTING_DEPTH) + "]".repeat(ConfigSyntax.MAX_NESTING_DEPTH)));
     }
 
     @Test
