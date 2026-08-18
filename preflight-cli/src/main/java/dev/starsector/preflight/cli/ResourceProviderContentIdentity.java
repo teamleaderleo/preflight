@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.ProviderMismatchException;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,10 +100,10 @@ final class ResourceProviderContentIdentity {
                 /*
                  * The portable Java 17 channel APIs expose no identity for an already-open handle.
                  * Anchor the selected entry under a second name instead. Production creates that
-                 * namespace just outside the indexed resource root on the provider FileStore: a
-                 * failed cleanup can therefore leave residue, but never a self-authored resource
-                 * that a later index/profile scan can ingest. isSameFile ties the anchored file back
-                 * to the provider pathname before and after the read. If any part of that proof is
+                 * namespace outside every indexed resource root on the provider FileStore: a failed
+                 * cleanup can therefore leave residue, but never a self-authored resource that a
+                 * later index/profile scan can ingest. isSameFile ties the anchored file back to the
+                 * provider pathname before and after the read. If any part of that proof is
                  * unavailable, exact evidence fails closed as stale.
                  */
                 Path proofDirectory = proofDirectory(file, provider);
@@ -193,21 +194,33 @@ final class ResourceProviderContentIdentity {
     }
 
     /**
-     * Chooses a proof-namespace parent outside the indexed resource root while requiring the same
-     * FileStore as the provider file. A resource root mounted directly at a filesystem boundary has
-     * no such sibling location, so exact direct evidence fails closed there instead of placing an
-     * owned proof artifact inside the resource namespace.
+     * Chooses a proof-namespace parent outside every indexed resource root while requiring the same
+     * FileStore as the provider file. Roots may overlap or alias one another, so the provider root's
+     * immediate parent is insufficient: ascend until the candidate is outside all canonical roots.
+     * If no such same-FileStore ancestor exists, exact direct evidence fails closed instead of
+     * placing an owned proof artifact inside any resource namespace.
      */
     private Path proofDirectory(Path file, ResourceIndex.Provider provider) {
         try {
-            Path resourceRoot = index.roots().get(provider.rootIndex()).path().toRealPath();
-            Path outsideRoot = resourceRoot.getParent();
-            if (outsideRoot == null) {
-                return null;
+            List<Path> resourceRoots = new ArrayList<>(index.roots().size());
+            for (ResourceIndex.Root root : index.roots()) {
+                resourceRoots.add(root.path().toRealPath());
             }
-            return Files.getFileStore(file).equals(Files.getFileStore(outsideRoot))
-                    ? outsideRoot
-                    : null;
+
+            Path providerRoot = resourceRoots.get(provider.rootIndex());
+            Path candidate = providerRoot.getParent();
+            var providerStore = Files.getFileStore(file);
+            while (candidate != null) {
+                Path canonicalCandidate = candidate.toRealPath();
+                boolean insideIndexedRoot = resourceRoots.stream()
+                        .anyMatch(canonicalCandidate::startsWith);
+                if (!insideIndexedRoot
+                        && providerStore.equals(Files.getFileStore(canonicalCandidate))) {
+                    return canonicalCandidate;
+                }
+                candidate = canonicalCandidate.getParent();
+            }
+            return null;
         } catch (IOException | SecurityException | IllegalArgumentException unavailable) {
             return null;
         }
@@ -215,9 +228,9 @@ final class ResourceProviderContentIdentity {
 
     /**
      * Creates an owned random proof namespace in {@code directory}, then hard-links the provider
-     * inside it. Production passes a same-FileStore directory outside the indexed resource root; the
-     * directory parameter is kept explicit so tests can deterministically exercise a foreign/default
-     * temp filesystem.
+     * inside it. Production passes a same-FileStore directory outside every indexed resource root;
+     * the directory parameter is kept explicit so tests can deterministically exercise a
+     * foreign/default temp filesystem.
      */
     static ProofLink createProofLink(Path file, Path directory) throws IOException {
         Path ownedDirectory = null;
