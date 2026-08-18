@@ -106,7 +106,9 @@
   display: none;
 }
 
-.launch-console--ready:has(.launch-console__note) .home-launch-identity {
+.launch-console--ready:has(.launch-console__note) .home-launch-identity,
+.page-viewport--home:has(.run-recovery[role="alert"]) .launch-console .home-launch-identity,
+.page-viewport--home:has(.notice--error) .launch-console--error .home-launch-identity {
   top: 64px;
   right: auto;
   bottom: auto;
