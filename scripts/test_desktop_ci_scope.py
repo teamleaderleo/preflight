@@ -8,6 +8,8 @@ def test_package_sensitive_paths():
         ".github/workflows/desktop-ci.yml",
         ".github/actions/setup-build-jdk/action.yml",
         "pom.xml",
+        "preflight-cli/src/main/java/example.java",
+        "preflight-cli/src/test/java/example.java",
         "preflight-desktop/src-tauri/src/lib.rs",
         "preflight-desktop/scripts/verify-native-package.mjs",
         "preflight-desktop/package-lock.json",
@@ -21,7 +23,6 @@ def test_package_sensitive_paths():
 def test_package_neutral_paths_skip_native_packages():
     for path in (
         "preflight-agent/src/main/java/example.java",
-        "preflight-cli/src/main/java/example.java",
         "preflight-core/src/main/java/example.java",
         "preflight-desktop/index.html",
         "preflight-desktop/public/logo.svg",
@@ -36,7 +37,7 @@ def test_package_neutral_paths_skip_native_packages():
 
 def test_any_sensitive_path_wins():
     assert scope.needs_package_matrix(
-        ["preflight-desktop/src/App.tsx", "preflight-desktop/src-tauri/src/lib.rs"]
+        ["preflight-desktop/src/App.tsx", "preflight-cli/src/main/java/example.java"]
     )
 
 
