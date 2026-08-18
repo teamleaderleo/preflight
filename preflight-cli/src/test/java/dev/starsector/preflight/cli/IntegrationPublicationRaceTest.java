@@ -241,10 +241,11 @@ class IntegrationPublicationRaceTest {
     }
 
     @Test
-    void quarantineCleanupPreservesBundleIntruderIntroducedAfterProof(@TempDir Path tempDir) throws Exception {
+    void macPredecessorCleanupResidueDoesNotUndoCommittedInstall(@TempDir Path tempDir) throws Exception {
         PreflightHome home = home(Platform.MAC, tempDir.resolve("home"));
         Path jar = jar(tempDir);
         assertEquals(0, InstallCommand.installMac(home, jar, tempDir.resolve("old-game")));
+        Path newGame = tempDir.resolve("new-game");
         AtomicBoolean injected = new AtomicBoolean();
         AtomicReference<Path> quarantine = new AtomicReference<>();
 
@@ -256,13 +257,93 @@ class IntegrationPublicationRaceTest {
                 Files.writeString(path.resolve("external.txt"), "external quarantine content\n");
             }
         })) {
-            assertThrows(
-                    IOException.class,
-                    () -> InstallCommand.installMac(home, jar, tempDir.resolve("new-game")));
+            assertEquals(0, InstallCommand.installMac(home, jar, newGame));
         }
 
+        Path executable = home.pathOf(PreflightHome.Id.MAC_APP).resolve("Contents/MacOS/preflight");
         assertTrue(home.integration(PreflightHome.Id.MAC_APP).isOwned());
+        assertTrue(Files.readString(executable).contains(newGame.toString()));
         assertEquals("external quarantine content\n", Files.readString(quarantine.get().resolve("external.txt")));
+    }
+
+    @Test
+    void windowsPredecessorCleanupResidueDoesNotUndoCommittedInstall(@TempDir Path tempDir) throws Exception {
+        PreflightHome home = home(Platform.WINDOWS, tempDir.resolve("home"));
+        Path jar = jar(tempDir);
+        assertEquals(0, InstallCommand.installWindows(home, jar, tempDir.resolve("old-game")));
+        Path newGame = tempDir.resolve("new-game");
+        AtomicBoolean injected = new AtomicBoolean();
+        AtomicReference<Path> quarantine = new AtomicReference<>();
+
+        try (IntegrationMutation.TestHookScope ignored = IntegrationMutation.installTestHook((event, integration, path) -> {
+            if (event == IntegrationMutation.Event.BEFORE_QUARANTINE_CLEANUP
+                    && integration.id() == PreflightHome.Id.WINDOWS_DIRECTORY
+                    && injected.compareAndSet(false, true)) {
+                quarantine.set(path);
+                Files.writeString(path.resolve("external.txt"), "external quarantine content\n");
+            }
+        })) {
+            assertEquals(0, InstallCommand.installWindows(home, jar, newGame));
+        }
+
+        Path command = home.pathOf(PreflightHome.Id.WINDOWS_COMMAND);
+        assertTrue(home.integration(PreflightHome.Id.WINDOWS_DIRECTORY).isOwned());
+        assertTrue(Files.readString(command).contains(newGame.toString()));
+        assertEquals("external quarantine content\n", Files.readString(quarantine.get().resolve("external.txt")));
+    }
+
+    @Test
+    void linuxCommandPredecessorCleanupResidueKeepsCommittedPair(@TempDir Path tempDir) throws Exception {
+        PreflightHome home = home(Platform.LINUX, tempDir.resolve("home"));
+        Path jar = jar(tempDir);
+        assertEquals(0, InstallCommand.installLinux(home, jar, tempDir.resolve("old-game")));
+        Path newGame = tempDir.resolve("new-game");
+        AtomicBoolean injected = new AtomicBoolean();
+        AtomicReference<Path> quarantine = new AtomicReference<>();
+
+        try (IntegrationMutation.TestHookScope ignored = IntegrationMutation.installTestHook((event, integration, path) -> {
+            if (event == IntegrationMutation.Event.BEFORE_QUARANTINE_CLEANUP
+                    && integration.id() == PreflightHome.Id.LINUX_COMMAND
+                    && injected.compareAndSet(false, true)) {
+                quarantine.set(path);
+                Files.writeString(path, "changed command predecessor\n");
+            }
+        })) {
+            assertEquals(0, InstallCommand.installLinux(home, jar, newGame));
+        }
+
+        Path command = home.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        assertTrue(home.integration(PreflightHome.Id.LINUX_COMMAND).isOwned());
+        assertTrue(home.integration(PreflightHome.Id.LINUX_DESKTOP_ENTRY).isOwned());
+        assertTrue(Files.readString(command).contains(newGame.toString()));
+        assertEquals("changed command predecessor\n", Files.readString(quarantine.get()));
+    }
+
+    @Test
+    void linuxDesktopPredecessorCleanupResidueKeepsCommittedPair(@TempDir Path tempDir) throws Exception {
+        PreflightHome home = home(Platform.LINUX, tempDir.resolve("home"));
+        Path jar = jar(tempDir);
+        assertEquals(0, InstallCommand.installLinux(home, jar, tempDir.resolve("old-game")));
+        Path newGame = tempDir.resolve("new-game");
+        AtomicBoolean injected = new AtomicBoolean();
+        AtomicReference<Path> quarantine = new AtomicReference<>();
+
+        try (IntegrationMutation.TestHookScope ignored = IntegrationMutation.installTestHook((event, integration, path) -> {
+            if (event == IntegrationMutation.Event.BEFORE_QUARANTINE_CLEANUP
+                    && integration.id() == PreflightHome.Id.LINUX_DESKTOP_ENTRY
+                    && injected.compareAndSet(false, true)) {
+                quarantine.set(path);
+                Files.writeString(path, "changed desktop predecessor\n");
+            }
+        })) {
+            assertEquals(0, InstallCommand.installLinux(home, jar, newGame));
+        }
+
+        Path command = home.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        assertTrue(home.integration(PreflightHome.Id.LINUX_COMMAND).isOwned());
+        assertTrue(home.integration(PreflightHome.Id.LINUX_DESKTOP_ENTRY).isOwned());
+        assertTrue(Files.readString(command).contains(newGame.toString()));
+        assertEquals("changed desktop predecessor\n", Files.readString(quarantine.get()));
     }
 
     @Test
