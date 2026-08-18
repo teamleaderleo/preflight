@@ -4,6 +4,7 @@ import dev.starsector.preflight.core.Hashes;
 import dev.starsector.preflight.core.PreparedAudio;
 import dev.starsector.preflight.core.PreparedAudioCache;
 import dev.starsector.preflight.core.ResourceIndex;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -12,8 +13,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -46,6 +47,7 @@ public final class PrepareAudioCommand {
             "-XX:-BytecodeVerificationRemote");
     private static final long CHILD_TIMEOUT_MINUTES = 30;
     private static final int MAX_CHILD_OUTPUT_BYTES = 256 * 1024;
+    static final int MAX_WORK_FILE_BYTES = 8 * 1024 * 1024;
     static final long MAX_ENCODED_FILE_BYTES = 64L * 1024 * 1024;
     static final long MAX_TOTAL_ENCODED_BYTES = 512L * 1024 * 1024;
     static final long MAX_TOTAL_PCM_BYTES = 2L * 1024 * 1024 * 1024;
@@ -82,14 +84,24 @@ public final class PrepareAudioCommand {
         AudioCensus.Result census = AudioCensus.scan(install, index, new ArrayList<>(built.diagnostics()));
 
         List<String> work = new ArrayList<>();
+        long workBytes = 0;
         long encodedBytes = 0;
         long predictedPcmBytes = 0;
         for (AudioCensus.Sound sound : census.sounds()) {
             if (sound.kind() != AudioCensus.Kind.EFFECT || !sound.decodable()) {
                 continue;
             }
-            Optional<Path> file = index.winningFile(sound.logicalPath());
-            if (file.isEmpty()) {
+            ResourceIndex.Provider winner = index.winner(sound.logicalPath()).orElse(null);
+            if (winner == null) {
+                continue;
+            }
+            Path file;
+            try {
+                // The census inspected this provider through the same contained real-path boundary.
+                // Re-resolve it before publishing work so a replaced symlink is not handed to the
+                // game-JVM decoder merely because it occupies the old lexical provider pathname.
+                file = index.resolveExisting(winner);
+            } catch (IOException | RuntimeException changed) {
                 continue;
             }
             if (sound.encodedBytes() > MAX_ENCODED_FILE_BYTES
@@ -103,7 +115,16 @@ public final class PrepareAudioCommand {
                 throw new IOException("Refusing to prepare audio: the profile exceeds the safe "
                         + "sound count or aggregate size budget");
             }
-            work.add(sound.logicalPath() + "\t" + file.get());
+            String item = sound.logicalPath() + "\t" + file;
+            if (item.length() > MAX_WORK_FILE_BYTES) {
+                throw new IOException("Refusing to prepare audio: one work item exceeds the safe work-list budget");
+            }
+            int itemBytes = item.getBytes(StandardCharsets.UTF_8).length + 1;
+            if (workBytes > MAX_WORK_FILE_BYTES - itemBytes) {
+                throw new IOException("Refusing to prepare audio: the work list exceeds the safe byte budget");
+            }
+            work.add(item);
+            workBytes += itemBytes;
             encodedBytes += sound.encodedBytes();
             predictedPcmBytes += sound.decodedBytes();
         }
@@ -122,56 +143,121 @@ public final class PrepareAudioCommand {
                 .resolve(index.profileFingerprint() + ".spam");
 
         Path workFile = Files.createTempFile("preflight-prepared-audio", ".tsv");
-        Files.writeString(workFile, String.join("\n", work), StandardCharsets.UTF_8);
-        System.out.printf("Preparing %,d declared sound effects (%.1f MB of encoded audio)...%n",
-                work.size(), encodedBytes / 1e6);
-        System.out.println("  decoder identity: " + decoderIdentity);
-        System.out.println("  cache:            " + cache);
+        try {
+            // Files.write iterates the bounded lines; avoid constructing a second joined work-list
+            // String that can temporarily double the parent's memory cost.
+            Files.write(workFile, work, StandardCharsets.UTF_8);
+            System.out.printf("Preparing %,d declared sound effects (%.1f MB of encoded audio)...%n",
+                    work.size(), encodedBytes / 1e6);
+            System.out.println("  decoder identity: " + decoderIdentity);
+            System.out.println("  cache:            " + cache);
 
-        List<String> command = new ArrayList<>();
-        command.add(javaExecutable.toString());
-        command.addAll(CHILD_JVM_OPTIONS);
-        command.add("-cp");
-        // Preflight's jar alone, staged where the launcher can read it. The game's jars follow as
-        // arguments instead: the launcher consumes -cp itself, before any Preflight code exists to
-        // decode it, and Windows converts that value to the system code page on the way in. A path
-        // outside the page arrives as question marks and the class simply is not found. Arguments
-        // can be carried as Base64; a class path cannot, so nothing that might need it goes there.
-        command.add(AgentJarStaging.readableByTheChildJvm(SelfJar.locate()).toString());
-        command.add(PrepareAudioChild.class.getName());
-        List<String> childArguments = new ArrayList<>(List.of(
-                workFile.toString(),
-                cache.toString(),
-                decoderIdentity,
-                output.toAbsolutePath().normalize().toString(),
-                index.profileFingerprint(),
-                gameBuildIdentity,
-                manifest.toAbsolutePath().normalize().toString()));
-        for (Path jar : gameJars) {
-            childArguments.add(jar.toAbsolutePath().normalize().toString());
-        }
-        command.addAll(List.of(Utf8Argv.encode(childArguments.toArray(new String[0]))));
+            List<String> command = new ArrayList<>();
+            command.add(javaExecutable.toString());
+            command.addAll(CHILD_JVM_OPTIONS);
+            command.add("-cp");
+            // Preflight's jar alone, staged where the launcher can read it. The game's jars follow as
+            // arguments instead: the launcher consumes -cp itself, before any Preflight code exists to
+            // decode it, and Windows converts that value to the system code page on the way in. A path
+            // outside the page arrives as question marks and the class simply is not found. Arguments
+            // can be carried as Base64; a class path cannot, so nothing that might need it goes there.
+            command.add(AgentJarStaging.readableByTheChildJvm(SelfJar.locate()).toString());
+            command.add(PrepareAudioChild.class.getName());
+            List<String> childArguments = new ArrayList<>(List.of(
+                    workFile.toString(),
+                    cache.toString(),
+                    decoderIdentity,
+                    output.toAbsolutePath().normalize().toString(),
+                    index.profileFingerprint(),
+                    gameBuildIdentity,
+                    manifest.toAbsolutePath().normalize().toString()));
+            for (Path jar : gameJars) {
+                childArguments.add(jar.toAbsolutePath().normalize().toString());
+            }
+            command.addAll(List.of(Utf8Argv.encode(childArguments.toArray(new String[0]))));
 
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-        String childOutput;
-        try (InputStream stream = process.getInputStream()) {
-            childOutput = new String(stream.readNBytes(MAX_CHILD_OUTPUT_BYTES), StandardCharsets.UTF_8);
+            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            ChildOutputDrain drain = new ChildOutputDrain(process.getInputStream());
+            drain.start();
+            boolean finished;
+            try {
+                finished = process.waitFor(CHILD_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+                if (!finished) {
+                    process.destroyForcibly();
+                    process.waitFor();
+                }
+            } finally {
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                }
+                drain.await();
+            }
+            String childOutput = drain.text();
+            if (!finished) {
+                System.err.println("The decode child did not finish within "
+                        + CHILD_TIMEOUT_MINUTES + " minutes.");
+                return 7;
+            }
+            if (process.exitValue() != 0) {
+                System.err.println("The decode child failed:");
+                System.err.println(childOutput);
+                return process.exitValue();
+            }
+            System.out.println(Files.readString(output).strip());
+            return 0;
+        } finally {
+            Files.deleteIfExists(workFile);
         }
-        boolean finished = process.waitFor(CHILD_TIMEOUT_MINUTES, TimeUnit.MINUTES);
-        if (!finished) {
-            process.destroyForcibly();
-            System.err.println("The decode child did not finish within "
-                    + CHILD_TIMEOUT_MINUTES + " minutes.");
-            return 7;
+    }
+
+    /** Continuously drains child output so the process timeout cannot be defeated by an open/full pipe. */
+    private static final class ChildOutputDrain {
+        private final InputStream input;
+        private final ByteArrayOutputStream retained = new ByteArrayOutputStream(MAX_CHILD_OUTPUT_BYTES);
+        private final AtomicReference<IOException> failure = new AtomicReference<>();
+        private Thread thread;
+
+        private ChildOutputDrain(InputStream input) {
+            this.input = input;
         }
-        Files.deleteIfExists(workFile);
-        if (process.exitValue() != 0) {
-            System.err.println("The decode child failed:");
-            System.err.println(childOutput);
-            return process.exitValue();
+
+        private void start() {
+            thread = new Thread(this::run, "preflight-prepared-audio-output");
+            thread.setDaemon(true);
+            thread.start();
         }
-        System.out.println(Files.readString(output).strip());
-        return 0;
+
+        private void run() {
+            byte[] buffer = new byte[16 * 1024];
+            try (InputStream stream = input) {
+                int count;
+                while ((count = stream.read(buffer)) >= 0) {
+                    if (count == 0) {
+                        continue;
+                    }
+                    int room = MAX_CHILD_OUTPUT_BYTES - retained.size();
+                    if (room > 0) {
+                        retained.write(buffer, 0, Math.min(room, count));
+                    }
+                    // Keep draining after the retained prefix is full. Otherwise a noisy child can
+                    // block on its stdout pipe and never reach the timeout/exit path above.
+                }
+            } catch (IOException error) {
+                failure.set(error);
+            }
+        }
+
+        private void await() throws InterruptedException, IOException {
+            thread.join();
+            IOException error = failure.get();
+            if (error != null) {
+                throw error;
+            }
+        }
+
+        private String text() {
+            return retained.toString(StandardCharsets.UTF_8);
+        }
     }
 
     /**
