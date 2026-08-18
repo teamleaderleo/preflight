@@ -41,12 +41,12 @@ jobs:
 
       - uses: ./.github/actions/setup-build-jdk
 
-      - name: Exercise native no-replace ownership primitive
+      - name: Exercise launcher ownership commit boundaries
         shell: bash
         run: >-
           ./mvnw --batch-mode --no-transfer-progress
           -pl preflight-cli -am
-          -Dtest=ExclusiveMoveTest
+          -Dtest=ExclusiveMoveTest,UninstallOwnershipCommitBoundaryTest
           -Dsurefire.failIfNoSpecifiedTests=false
           test
 
