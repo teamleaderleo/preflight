@@ -15,6 +15,8 @@ const AUTHORITY_FORMAT: &str = "preflight-report-authority-v1";
 const MAX_AUTHORITIES: usize = 32;
 const MAX_CLAIMS: usize = 64;
 const MAX_AUTHORITY_BYTES: u64 = 64 * 1024;
+const PREFLIGHT_HOME_DIRECTORY: &str = ".starsector-preflight";
+const REMOVAL_MARKER_NAME: &str = "removal.pending";
 static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 #[cfg(test)]
@@ -115,6 +117,7 @@ impl ReportAuthorityStore {
     }
 
     pub(crate) fn persist_accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {
+        refuse_if_removal_pending(&self.root)?;
         self.ensure_generation()?;
         persist_accepted_at(&self.root, receipt)
     }
@@ -145,6 +148,19 @@ impl ReportAuthorityStore {
                 return Err("Delete uploaded reports, or explicitly dismiss their saved deletion authorization, before clearing report authority.".to_string());
             }
         }
+
+        // Establish the same durable removal fence used by the Java operation lease before
+        // removing the empty native authority namespace. Other Preflight processes then
+        // fail closed instead of recreating bearer credentials during all-data removal.
+        let fence = establish_removal_fence(&authority)?;
+        if authority.symlink_metadata().is_ok() {
+            verify_protected_directory_chain(&authority)?;
+            if !list_report_views_at(&authority)?.is_empty() {
+                release_new_removal_fence(&fence)?;
+                return Err("A report case became actionable while all-data removal was starting. Delete it, or explicitly dismiss its saved deletion authorization, then retry removal.".to_string());
+            }
+        }
+
         for root in [authority, claim_root(app)?] {
             let metadata = match root.symlink_metadata() {
                 Ok(metadata) => metadata,
@@ -183,6 +199,7 @@ impl NativeReportAuthorityLifecycle {
         grant: &CreateReportCaseResponse,
         report: &ReportUploadInput,
     ) -> Result<(), String> {
+        refuse_if_removal_pending(&self.root)?;
         self.ensure_generation()?;
         prune_expired_accepted_at(&self.root, now_millis()?)?;
         if !accepted_path(&self.root, &grant.case_id).exists()
@@ -207,6 +224,7 @@ impl NativeReportAuthorityLifecycle {
     }
 
     pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {
+        refuse_if_removal_pending(&self.root)?;
         self.ensure_generation()?;
         persist_accepted_at(&self.root, receipt)
     }
@@ -237,6 +255,7 @@ fn claim_automatic_report_at(root: &Path, identity: &str) -> Result<bool, String
     if identity.is_empty() || identity.len() > 1024 || identity.contains('\0') {
         return Err("The automatic report identity is invalid.".to_string());
     }
+    refuse_if_removal_pending(root)?;
     ensure_protected_directory_chain(root)?;
     prune_claims(root)?;
     let digest = Sha256::digest(identity.as_bytes())
@@ -261,6 +280,10 @@ fn claim_automatic_report_at(root: &Path, identity: &str) -> Result<bool, String
                 });
             drop(file);
             if let Err(error) = write_result {
+                let _ = remove_file_if_regular(&path);
+                return Err(error);
+            }
+            if let Err(error) = refuse_if_removal_pending(root) {
                 let _ = remove_file_if_regular(&path);
                 return Err(error);
             }
@@ -601,6 +624,7 @@ fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> 
     let parent = path
         .parent()
         .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;
+    refuse_if_removal_pending(parent)?;
     test_mutate_before_persist(parent)?;
     // Parent creation belongs to store/claim initialization. Final credential publication never
     // recreates an absent parent, so a clear that wins after generation validation stays final.
@@ -632,6 +656,10 @@ fn persist_json_new<T: Serialize>(path: &Path, value: &T) -> Result<(), String> 
         });
     drop(file);
     if let Err(error) = write_result {
+        let _ = remove_file_if_regular(path);
+        return Err(error);
+    }
+    if let Err(error) = refuse_if_removal_pending(parent) {
         let _ = remove_file_if_regular(path);
         return Err(error);
     }
@@ -711,6 +739,121 @@ fn pending_path(root: &Path, case_id: &str) -> PathBuf {
     root.join(format!("{case_id}.pending.json"))
 }
 
+#[derive(Clone, Debug)]
+struct RemovalFence {
+    path: Option<PathBuf>,
+    created: bool,
+}
+
+fn preflight_root_for_owned_path(path: &Path) -> Option<PathBuf> {
+    path.ancestors()
+        .find(|candidate| {
+            candidate
+                .file_name()
+                .is_some_and(|name| name == PREFLIGHT_HOME_DIRECTORY)
+        })
+        .map(Path::to_path_buf)
+}
+
+fn removal_marker_for_owned_path(path: &Path) -> Option<PathBuf> {
+    preflight_root_for_owned_path(path).map(|root| root.join("state").join(REMOVAL_MARKER_NAME))
+}
+
+fn refuse_if_removal_pending(path: &Path) -> Result<(), String> {
+    let Some(marker) = removal_marker_for_owned_path(path) else {
+        return Ok(());
+    };
+    match marker.symlink_metadata() {
+        Ok(metadata) if !metadata_is_alias(&metadata) && metadata.is_file() => Err(
+            "Preflight data removal is in progress. Finish all-data removal before creating or publishing report authority."
+                .to_string(),
+        ),
+        Ok(_) => Err(
+            "Refusing report authority while the all-data removal marker is aliased or malformed."
+                .to_string(),
+        ),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("Could not inspect the all-data removal marker: {error}")),
+    }
+}
+
+fn establish_removal_fence(path: &Path) -> Result<RemovalFence, String> {
+    let Some(marker) = removal_marker_for_owned_path(path) else {
+        return Ok(RemovalFence {
+            path: None,
+            created: false,
+        });
+    };
+    let state = marker
+        .parent()
+        .ok_or_else(|| "All-data removal marker has no parent directory.".to_string())?;
+    ensure_protected_directory_chain(state)?;
+    match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&marker)
+    {
+        Ok(mut file) => {
+            if let Err(error) = make_private_file(&file) {
+                drop(file);
+                let _ = remove_file_if_regular(&marker);
+                return Err(error);
+            }
+            let saved = file
+                .write_all(b"Preflight data removal is in progress. Re-run uninstall --purge --yes if interrupted.
+")
+                .map_err(|error| format!("Could not write the all-data removal marker: {error}"))
+                .and_then(|()| {
+                    file.sync_all()
+                        .map_err(|error| format!("Could not save the all-data removal marker: {error}"))
+                });
+            drop(file);
+            if let Err(error) = saved {
+                let _ = remove_file_if_regular(&marker);
+                return Err(error);
+            }
+            verify_protected_directory_chain(state)?;
+            sync_directory(state)?;
+            Ok(RemovalFence {
+                path: Some(marker),
+                created: true,
+            })
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let metadata = marker.symlink_metadata().map_err(|error| {
+                format!("Could not inspect the all-data removal marker: {error}")
+            })?;
+            if metadata_is_alias(&metadata) || !metadata.is_file() {
+                return Err(
+                    "Refusing all-data removal through an aliased or malformed removal marker."
+                        .to_string(),
+                );
+            }
+            Ok(RemovalFence {
+                path: Some(marker),
+                created: false,
+            })
+        }
+        Err(error) => Err(format!(
+            "Could not create the all-data removal marker: {error}"
+        )),
+    }
+}
+
+fn release_new_removal_fence(fence: &RemovalFence) -> Result<(), String> {
+    if !fence.created {
+        return Ok(());
+    }
+    let Some(path) = fence.path.as_deref() else {
+        return Ok(());
+    };
+    remove_file_if_regular(path)?;
+    if let Some(parent) = path.parent() {
+        sync_directory(parent)?;
+    }
+    Ok(())
+}
+
 fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     let mut current = Some(root);
@@ -719,7 +862,7 @@ fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {
         candidates.push(path.to_path_buf());
         if path
             .file_name()
-            .is_some_and(|name| name == ".starsector-preflight")
+            .is_some_and(|name| name == PREFLIGHT_HOME_DIRECTORY)
         {
             found_preflight_root = true;
             break;
@@ -1219,6 +1362,35 @@ mod tests {
         );
         fs::remove_file(root).unwrap();
         fs::remove_dir_all(external).unwrap();
+    }
+
+    #[test]
+    fn removal_fence_blocks_new_credentials_and_automatic_claims() {
+        let base = temp_root("removal-fence");
+        fs::create_dir(&base).unwrap();
+        let preflight = base.join(PREFLIGHT_HOME_DIRECTORY);
+        let root = preflight.join("support").join("report-authority");
+        let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+        let fence = establish_removal_fence(&root).unwrap();
+        assert!(fence.created);
+
+        let receipt = test_receipt("77777777-7777-7777-7777-777777777777", "ff");
+        let report = ReportUploadInput {
+            output: "/tmp/report.zip".to_string(),
+            bytes: receipt.bytes,
+            sha256: receipt.sha256.clone(),
+        };
+        let error = store
+            .lifecycle()
+            .granted(&test_grant(&receipt), &report)
+            .unwrap_err();
+        assert!(error.contains("removal is in progress"));
+        assert!(!pending_path(&root, &receipt.case_id).exists());
+
+        let claims = preflight.join("support").join("automatic-report-claims");
+        assert!(claim_automatic_report_at(&claims, "blocked-run").is_err());
+        assert!(!claims.exists());
+        fs::remove_dir_all(base).unwrap();
     }
 
     #[test]

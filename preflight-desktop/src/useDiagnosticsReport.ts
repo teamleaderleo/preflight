@@ -439,8 +439,9 @@ export function useDiagnosticsReport(active: boolean, announce: Announce) {
   };
 
   const clearReportReceipt = () => {
+    // Native authority was already fenced and cleared before all-data removal began.
+    // This post-removal callback is renderer-local so it cannot recreate removal state.
     setReportCases([]);
-    void mutateRunReport("", "clear-all").catch((error) => announce(errorMessage(error), "error"));
   };
 
   const removeRunReport = async (caseId?: string) => {
