@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import type { usePreparation } from "../usePreparation";
 import type { DesktopSnapshot, WireframeHull } from "../types";
@@ -135,6 +135,48 @@ function props(overrides: Partial<ComponentProps<typeof HomePage>> = {}): Compon
   };
 }
 
+function failedSnapshot(
+  installRoot = "/Applications/Starsector",
+  profileFingerprint = "profile-fingerprint",
+): DesktopSnapshot {
+  return {
+    ...snapshot,
+    lastRun: {
+      directory: "/tmp/preflight/runs/failed",
+      modifiedAt: "2026-08-18T10:00:00Z",
+      installRoot,
+      profileFingerprint,
+      adapterHealth: null,
+    },
+  };
+}
+
+function failedRunFailure(
+  installRoot = "/Applications/Starsector",
+  profileFingerprint = "profile-fingerprint",
+) {
+  return {
+    summary: "Starsector stopped before reaching the main menu.",
+    installRoot,
+    profileFingerprint,
+  };
+}
+
+function preparationForProfile(profileFingerprint: string, cacheLoading = false): ReturnType<typeof usePreparation> {
+  return {
+    ...preparation,
+    cacheLoading,
+    cache: cacheLoading ? null : {
+      ...preparation.cache!,
+      currentProfileFingerprint: profileFingerprint,
+      profiles: [{
+        ...preparation.cache!.profiles[0],
+        fingerprint: profileFingerprint,
+      }],
+    },
+  } as ReturnType<typeof usePreparation>;
+}
+
 test("settled Home shows the installation and active named profile beside the launch action", () => {
   render(<HomePage {...props()} />);
 
@@ -172,4 +214,100 @@ test("a launch error keeps the retry target visible beside its recovery action",
   expect(screen.getByRole("alert")).toHaveTextContent("Launch failed");
   expect(screen.getByRole("button", { name: "Try launch again" })).toBeEnabled();
   expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
+});
+
+test("run recovery keeps Relaunch when the captured failed target still matches the current setup", () => {
+  const dismiss = vi.fn();
+  render(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+  })} />);
+
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
+  expect(dismiss).not.toHaveBeenCalled();
+});
+
+test("cosmetic Home changes keep recovery bound to the same failed setup", () => {
+  const dismiss = vi.fn();
+  const view = render(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+  })} />);
+
+  view.rerender(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+    theme: "dark",
+    launchSettingsDirty: true,
+  })} />);
+
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Options · changed" })).toBeInTheDocument();
+  expect(dismiss).not.toHaveBeenCalled();
+});
+
+test("switching to another profile retires the old Home recovery card", async () => {
+  const dismiss = vi.fn();
+  render(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    preparation: preparationForProfile("different-profile"),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+    launchProfileName: "Utilities only",
+  })} />);
+
+  expect(screen.queryByText("Run needs attention")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Relaunch" })).not.toBeInTheDocument();
+  await waitFor(() => expect(dismiss).toHaveBeenCalledOnce());
+  expect(screen.getByLabelText("Launches profile Utilities only from /Applications/Starsector")).toBeInTheDocument();
+});
+
+test("changing installations retires the old Home recovery card before the new profile identity settles", async () => {
+  const dismiss = vi.fn();
+  render(<HomePage {...props({
+    snapshot: {
+      ...snapshot,
+      selected: {
+        ...snapshot.selected!,
+        installRoot: "/Games/Starsector",
+        launcher: "/Games/Starsector/starsector.exe",
+      },
+    },
+    preparation: preparationForProfile("profile-fingerprint", true),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+  })} />);
+
+  expect(screen.queryByText("Run needs attention")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Relaunch" })).not.toBeInTheDocument();
+  await waitFor(() => expect(dismiss).toHaveBeenCalledOnce());
+});
+
+test("an in-flight profile identity refresh keeps recovery stable until the new setup is known", () => {
+  const dismiss = vi.fn();
+  render(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    preparation: preparationForProfile("different-profile", true),
+    runFailure: failedRunFailure(),
+    onDismissRunFailure: dismiss,
+  })} />);
+
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
+  expect(dismiss).not.toHaveBeenCalled();
+});
+
+test("preview recovery without captured native identity remains available", () => {
+  render(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    preparation: preparationForProfile("different-profile"),
+    runFailure: { summary: "Preview run failed." },
+  })} />);
+
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
 });

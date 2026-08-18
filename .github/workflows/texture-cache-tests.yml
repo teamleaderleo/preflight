@@ -45,7 +45,10 @@ jobs:
             tests: PreparedTexturePackIOTest,PreparedTexturePackPersistencePropertyTest
           - name: manifest-format
             module: preflight-core
-            tests: TextureManifestIOTest
+            tests: TextureManifestIOTest,TextureManifestPersistencePropertyTest
+          - name: block-manifest-format
+            module: preflight-core
+            tests: BlockCacheManifestIOTest,BlockCacheManifestPersistencePropertyTest
           - name: manifest-validator
             module: preflight-core
             tests: TextureManifestValidatorTest

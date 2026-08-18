@@ -136,16 +136,17 @@ public final class BlockCacheManifest {
             }
             long expected = 0;
             for (int level = 0; level < levelCount; level++) {
-                expected += format.blockBytesFor(
-                        BlockTexture.levelWidth(width, level), BlockTexture.levelHeight(height, level));
+                expected = Math.addExact(expected, format.blockBytesFor(
+                        BlockTexture.levelWidth(width, level), BlockTexture.levelHeight(height, level)));
             }
             if (blockBytes != expected) {
                 throw new IllegalArgumentException(
                         "Block cache entry claims " + blockBytes + " bytes; " + levelCount
                                 + " levels of " + width + "x" + height + " in " + format + " is " + expected);
             }
-            if (meanDeltaE < 0 || p99DeltaE < 0 || Double.isNaN(meanDeltaE) || Double.isNaN(p99DeltaE)) {
-                throw new IllegalArgumentException("Fidelity figures must be non-negative numbers");
+            if (!Double.isFinite(meanDeltaE) || !Double.isFinite(p99DeltaE)
+                    || meanDeltaE < 0 || p99DeltaE < 0) {
+                throw new IllegalArgumentException("Fidelity figures must be finite non-negative numbers");
             }
         }
 
