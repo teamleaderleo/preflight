@@ -10,11 +10,12 @@ import java.nio.file.StandardCopyOption;
 /**
  * Publishes a finished temporary file over its final name.
  *
- * <p>Two things can go wrong that are not the caller's fault.
+ * <p>Two things can go wrong that are outside the caller's control.
  *
- * <p>An atomic move is refused when the temporary and its destination are not on one filesystem.
- * The move is then retried without the atomicity request, which is what every caller wants: the
- * content is already complete and fsynced, so a torn destination is not possible.
+ * <p>An atomic move can be unsupported by the provider/filesystem. The move is then retried without
+ * the atomicity request. The temporary file is already complete and forced, but Java gives the
+ * fallback replacement no atomicity or parent-directory durability guarantee. Cache callers must
+ * therefore validate what they find after interruption and rebuild when no usable artifact remains.
  *
  * <p>On Windows a rename over an existing file fails while any process holds that file open without
  * delete sharing, and the OS reports that as {@link AccessDeniedException}. A real-time virus

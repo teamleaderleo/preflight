@@ -8,17 +8,18 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 /**
- * Writes a cache blob so that a reader never sees a partial one.
+ * Stages and forces a complete cache blob before publishing it under its final name.
  *
- * <p>Every cache preflight writes is read by a game that is starting up, possibly while another
- * preflight process is still writing it, and possibly just after the machine lost power. A plain
- * write fails all three: the reader can observe a file that exists, has a plausible size, and is
- * half-written. So the bytes go to a uniquely named sibling, are forced to disk, and are moved into
- * place atomically — the name either resolves to the old blob or the complete new one.
+ * <p>Every cache Preflight writes is read by a game that is starting up, possibly while another
+ * Preflight process is still writing it, and possibly after interruption or power loss. The bytes
+ * therefore go to a uniquely named sibling and are forced before publication. When the filesystem
+ * supports the atomic replacement requested by {@link AtomicPublish}, readers switch directly from
+ * the old blob to the complete new blob. On the documented non-atomic fallback, the cache carries a
+ * rebuildable-data contract instead: after interruption the observer may find the old artifact, the
+ * new artifact, or no usable artifact, and format validation must reject unusable data and rebuild.
  *
- * <p>This lives on its own because it is the same procedure for every blob format, and the failure
- * it prevents is silent. A second copy that quietly dropped the {@code force} would look correct in
- * every test and lose data only on a machine that crashed.
+ * <p>Forcing the temporary file makes its contents durable before publication. This helper does not
+ * fsync the parent directory, so it does not claim crash-durable directory-entry replacement.
  */
 final class AtomicBlobs {
     private AtomicBlobs() {
