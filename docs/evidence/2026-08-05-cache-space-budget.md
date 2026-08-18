@@ -49,7 +49,7 @@ space-saving policy because its materially lighter decode path fit the startup g
 Zstandard:
 
 | codec | stored bytes | ratio | Rosetta encode | Rosetta decode |
-| --- | ---: | ---: | ---: | ---: |
+| --- | ---: | ---: | ---: |
 | raw pixels | 5,331,615,734 | 1.00x | | |
 | LZ4 | 2,197,372,392 | 2.43x | 5.451s | 1.533s |
 | Zstandard | 1,635,009,747 | 3.26x | 21.743s | 5.318s |
@@ -73,7 +73,7 @@ was **23.08s median**, so the observed 0.07s difference is below launch noise an
 claimed. Evidence is retained under benchmark runs `20260806-003317` and `20260806-003416`; the
 preparation report is `preparation-balanced-lz4.json`.
 
-Switching policies updates the current manifest atomically. Both representations may coexist until
+Switching policies stages and publishes the current manifest. Both representations may coexist until
 the user runs `preflight cache prune`; its normal dry run derives reachability from that manifest,
 and `--yes` removes only the superseded representation after the plan is readable and complete.
 
