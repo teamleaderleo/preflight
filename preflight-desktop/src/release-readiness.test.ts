@@ -24,9 +24,14 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   launch.className = "launch-console launch-console--ready";
   const recovery = document.createElement("section");
   recovery.className = "run-recovery";
+  recovery.setAttribute("role", "alert");
   const quickSettings = document.createElement("div");
   quickSettings.className = "quick-settings";
-  launch.append(quickSettings);
+  const options = document.createElement("button");
+  options.className = "home-options-toggle";
+  const actions = document.createElement("div");
+  actions.className = "launch-console__actions";
+  launch.append(quickSettings, options, actions);
   viewport.append(launch, recovery);
   document.body.append(viewport);
 
@@ -34,11 +39,18 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(getComputedStyle(viewport).display).toBe("flex");
   expect(getComputedStyle(recovery).order).toBe("-1");
   expect(getComputedStyle(quickSettings).justifyContent).toBe("safe center");
+  expect(getComputedStyle(options).display).toBe("none");
+  expect(getComputedStyle(actions).display).toBe("none");
 
   const errorViewport = document.createElement("div");
   errorViewport.className = "page-viewport--home";
   const errorLaunch = document.createElement("section");
-  errorLaunch.className = "launch-console launch-console--ready";
+  errorLaunch.className = "launch-console launch-console--ready launch-console--error";
+  const errorOptions = document.createElement("button");
+  errorOptions.className = "home-options-toggle";
+  const errorActions = document.createElement("div");
+  errorActions.className = "launch-console__actions";
+  errorLaunch.append(errorOptions, errorActions);
   const error = document.createElement("div");
   error.className = "notice notice--error";
   errorViewport.append(errorLaunch, error);
@@ -46,6 +58,8 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   expect(errorViewport.matches(".page-viewport--home:has(.notice--error)")).toBe(true);
   expect(getComputedStyle(errorViewport).display).toBe("flex");
   expect(getComputedStyle(error).order).toBe("-1");
+  expect(getComputedStyle(errorOptions).display).toBe("none");
+  expect(getComputedStyle(errorActions).display).toBe("none");
 
   const preparationLaunch = document.createElement("section");
   preparationLaunch.className = "launch-console launch-console--ready";
