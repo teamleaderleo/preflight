@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckIcon } from "../icons";
 import type { LaunchSettings } from "../types";
 
@@ -20,6 +20,9 @@ export function LaunchSettingsApplyBoundary({
   onApply,
 }: LaunchSettingsApplyBoundaryProps) {
   const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    if (disabled) setConfirmed(false);
+  }, [disabled]);
   const apply = () => {
     setConfirmed(false);
     onApply(true);
@@ -31,7 +34,7 @@ export function LaunchSettingsApplyBoundary({
         <input
           type="checkbox"
           checked={confirmed}
-          disabled={saving}
+          disabled={saving || disabled}
           onChange={(event) => setConfirmed(event.target.checked)}
         />
         <span>
