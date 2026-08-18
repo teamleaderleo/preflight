@@ -332,6 +332,10 @@ final class UninstallCommand {
             long bytes,
             long files,
             IntegrationMutation.Review integrationReview) {
+        Target(String kind, String label, Path path, long bytes, long files) {
+            this(kind, label, path, bytes, files, null);
+        }
+
         Map<String, Object> toJson() {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("kind", kind); value.put("label", label); value.put("path", path);
