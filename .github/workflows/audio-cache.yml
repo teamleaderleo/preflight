@@ -47,7 +47,7 @@ jobs:
         uses: ./.github/actions/run-focused-maven
         with:
           modules: preflight-core,preflight-synthetic-startup
-          unit-tests: PreparedAudioCacheTest,SyntheticPreparedAudioCrossProcessTest
+          unit-tests: PreparedAudioCacheTest,PreparedAudioPersistencePropertyTest,SyntheticPreparedAudioCrossProcessTest
           goal: test
           log-file: prepared-audio-maven.log
       - name: Upload focused logs
