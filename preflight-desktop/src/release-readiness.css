@@ -6,11 +6,38 @@
   padding-right: 5px;
 }
 
+/*
+ * A previous run failure is the player's current job. Put its recovery before the idle launch
+ * display so Relaunch / Help are visible on entry instead of living one viewport below "Ready".
+ */
+.page-viewport--home:has(.run-recovery) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-viewport--home:has(.run-recovery) > * {
+  flex: 0 0 auto;
+}
+
+.page-viewport--home:has(.run-recovery) .run-recovery {
+  order: -1;
+}
+
 /* The launch-settings disclosure stays clear of the primary launch/recovery actions. */
 .launch-console--options-open .quick-settings {
   top: 72px;
   bottom: 118px;
   max-height: none;
+}
+
+/*
+ * Quick settings is vertically centred when the disclosure has room. On a short/narrow disclosure,
+ * ordinary centre alignment creates negative overflow above scrollTop=0, making Resolution and the
+ * first controls impossible to reach. Safe centring falls back to the scroll origin when needed.
+ */
+.quick-settings {
+  justify-content: safe center;
 }
 
 .home-launch-identity {
@@ -212,6 +239,19 @@
     top: 58px;
     bottom: 124px;
     max-height: none;
+  }
+
+  /*
+   * Repair, low-disk recovery, preparation cancellation, and running state add a second action.
+   * Reserve that extra row before placing the note or the settings disclosure so neither can sit
+   * over the consequential action the player is trying to take.
+   */
+  .launch-console--ready:has(.launch-console__actions .launch-console__stop) .launch-console__note {
+    bottom: 132px;
+  }
+
+  .launch-console--options-open:has(.launch-console__actions .launch-console__stop) .quick-settings {
+    bottom: 200px;
   }
 
   .launch-console--ready .last-run-health {
