@@ -6,6 +6,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,6 +29,9 @@ import java.util.Map;
  * sentinel is carried through both directions instead.
  */
 final class GameJson {
+    /** Matches the tagged-tree decoder ceiling and bounds reflective recursion during capture. */
+    private static final int MAX_BOUNDED_DEPTH = 64;
+
     private static volatile GameJson resolved;
 
     private final Class<?> objectType;
@@ -38,6 +42,7 @@ final class GameJson {
     private final Method objectPut;
     private final Method arrayPut;
     private final Method sortedKeys;
+    private final Method keys;
     private final Method objectGet;
     private final Method arrayLength;
     private final Method arrayGet;
@@ -52,6 +57,7 @@ final class GameJson {
         objectPut = objectType.getMethod("put", String.class, Object.class);
         arrayPut = arrayType.getMethod("put", Object.class);
         sortedKeys = objectType.getMethod("sortedKeys");
+        keys = objectType.getMethod("keys");
         objectGet = objectType.getMethod("get", String.class);
         arrayLength = arrayType.getMethod("length");
         arrayGet = arrayType.getMethod("get", int.class);
@@ -85,6 +91,27 @@ final class GameJson {
         return JsonTree.encode(toTree(value));
     }
 
+    /**
+     * Encodes one learned value without first allowing an unbounded plain-tree allocation.
+     *
+     * <p>The budget is charged conservatively using the tagged format's worst-case varint cost and
+     * each string's UTF-8 upper bound. Repeated strings may therefore reject a pathological value
+     * slightly earlier than the final encoder would; a rejected cache entry simply stays on vanilla.
+     */
+    byte[] encodeBounded(Object value, int maxEncodedBytes, int maxNodes)
+            throws ReflectiveOperationException {
+        if (maxEncodedBytes <= 0 || maxNodes <= 0) {
+            throw new IllegalArgumentException("Bounded JSON encoding requires positive limits");
+        }
+        Budget budget = new Budget(maxEncodedBytes, maxNodes);
+        Object tree = toTree(value, budget, 0);
+        byte[] encoded = JsonTree.encode(tree);
+        if (encoded.length > maxEncodedBytes) {
+            throw new ResourceLimitException("tagged JSON exceeds the encoded-byte safety limit");
+        }
+        return encoded;
+    }
+
     /** Rebuilds a game JSON value from a tagged tree. */
     Object decode(byte[] tree) {
         return JsonTree.decode(tree, sink);
@@ -102,9 +129,9 @@ final class GameJson {
         }
         if (objectType.isInstance(value)) {
             Map<String, Object> members = new LinkedHashMap<>();
-            Iterator<?> keys = (Iterator<?>) invoke(sortedKeys, value);
-            while (keys.hasNext()) {
-                Object key = keys.next();
+            Iterator<?> objectKeys = (Iterator<?>) invoke(sortedKeys, value);
+            while (objectKeys.hasNext()) {
+                Object key = objectKeys.next();
                 if (!(key instanceof String name)) {
                     throw new IllegalArgumentException("A JSON object key was not a string");
                 }
@@ -131,6 +158,69 @@ final class GameJson {
                 "A JSON value was a " + value.getClass().getName() + ", which is not storable");
     }
 
+    private Object toTree(Object value, Budget budget, int depth) throws ReflectiveOperationException {
+        budget.node(depth);
+        if (value == null || value == nullValue) {
+            return JsonTree.NULL;
+        }
+        if (objectType.isInstance(value)) {
+            List<String> names = boundedSortedKeys(value, budget);
+            budget.container(names.size());
+            Map<String, Object> members = new LinkedHashMap<>();
+            for (String name : names) {
+                budget.key(name);
+                members.put(name, toTree(invoke(objectGet, value, name), budget, depth + 1));
+            }
+            return members;
+        }
+        if (arrayType.isInstance(value)) {
+            int length = (Integer) invoke(arrayLength, value);
+            budget.reserveChildren(length);
+            budget.container(length);
+            List<Object> elements = new ArrayList<>(Math.min(length, 1024));
+            for (int index = 0; index < length; index++) {
+                elements.add(toTree(invoke(arrayGet, value, index), budget, depth + 1));
+            }
+            return elements;
+        }
+        if (value instanceof String text) {
+            budget.string(text);
+            return text;
+        }
+        if (value instanceof Boolean) {
+            return value;
+        }
+        if (value instanceof Integer || value instanceof Short || value instanceof Byte
+                || value instanceof Long) {
+            budget.bytes(10);
+            return value;
+        }
+        if (value instanceof Double || value instanceof Float) {
+            budget.bytes(8);
+            return value;
+        }
+        throw new IllegalArgumentException(
+                "A JSON value was a " + value.getClass().getName() + ", which is not storable");
+    }
+
+    private List<String> boundedSortedKeys(Object value, Budget budget)
+            throws ReflectiveOperationException {
+        List<String> names = new ArrayList<>();
+        Iterator<?> objectKeys = (Iterator<?>) invoke(keys, value);
+        while (objectKeys.hasNext()) {
+            if (names.size() >= budget.remainingNodes()) {
+                throw new ResourceLimitException("JSON object exceeds the node safety limit");
+            }
+            Object key = objectKeys.next();
+            if (!(key instanceof String name)) {
+                throw new IllegalArgumentException("A JSON object key was not a string");
+            }
+            names.add(name);
+        }
+        Collections.sort(names);
+        return names;
+    }
+
     private static Object invoke(Method method, Object receiver, Object... arguments)
             throws ReflectiveOperationException {
         try {
@@ -144,6 +234,96 @@ final class GameJson {
                 throw error;
             }
             throw failed;
+        }
+    }
+
+    static final class ResourceLimitException extends IllegalArgumentException {
+        private ResourceLimitException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class Budget {
+        private final long maxBytes;
+        private final int maxNodes;
+        private long bytes;
+        private int nodes;
+
+        private Budget(long maxBytes, int maxNodes) {
+            this.maxBytes = maxBytes;
+            this.maxNodes = maxNodes;
+        }
+
+        private void node(int depth) {
+            if (depth > MAX_BOUNDED_DEPTH) {
+                throw new ResourceLimitException("JSON tree exceeds the depth safety limit");
+            }
+            if (nodes >= maxNodes) {
+                throw new ResourceLimitException("JSON tree exceeds the node safety limit");
+            }
+            nodes++;
+            bytes(1); // type tag
+        }
+
+        private int remainingNodes() {
+            return maxNodes - nodes;
+        }
+
+        private void reserveChildren(int count) {
+            if (count < 0 || count > remainingNodes()) {
+                throw new ResourceLimitException("JSON container exceeds the node safety limit");
+            }
+        }
+
+        private void container(int count) {
+            if (count < 0) {
+                throw new IllegalArgumentException("A JSON container had a negative size");
+            }
+            bytes(10); // worst-case encoded count varint
+        }
+
+        private void key(String text) {
+            bytes(1); // string tag
+            stringPayload(text);
+        }
+
+        private void string(String text) {
+            stringPayload(text); // value tag was charged by node()
+        }
+
+        private void stringPayload(String text) {
+            long remaining = maxBytes - bytes - 10; // length varint
+            if (remaining < 0) {
+                throw new ResourceLimitException("tagged JSON exceeds the encoded-byte safety limit");
+            }
+            long encoded = 0;
+            for (int index = 0; index < text.length(); index++) {
+                char character = text.charAt(index);
+                if (character <= 0x7f) {
+                    encoded += 1;
+                } else if (character <= 0x7ff) {
+                    encoded += 2;
+                } else if (Character.isHighSurrogate(character)
+                        && index + 1 < text.length()
+                        && Character.isLowSurrogate(text.charAt(index + 1))) {
+                    encoded += 4;
+                    index++;
+                } else {
+                    // Three is a safe upper bound for BMP characters and malformed surrogates.
+                    encoded += 3;
+                }
+                if (encoded > remaining) {
+                    throw new ResourceLimitException("tagged JSON exceeds the encoded-byte safety limit");
+                }
+            }
+            bytes(10 + encoded);
+        }
+
+        private void bytes(long amount) {
+            if (amount < 0 || bytes > maxBytes - amount) {
+                throw new ResourceLimitException("tagged JSON exceeds the encoded-byte safety limit");
+            }
+            bytes += amount;
         }
     }
 
