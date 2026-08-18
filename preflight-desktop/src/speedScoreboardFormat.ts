@@ -1,9 +1,47 @@
-/** The vanity total, which is read at a glance and never needs a decimal second. */
-export function formatSavedTotal(ms: number): string {
-  const seconds = Math.round(ms / 1_000);
-  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
-  const hours = ms / 3_600_000;
-  return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} hour${hours >= 2 ? "s" : ""}`;
+export type StartupComparisonKind = "faster" | "similar" | "slower";
+
+export interface StartupComparisonPresentation {
+  kind: StartupComparisonKind;
+  improvementPercent: number;
+  headline: string;
+  detail: string;
+}
+
+/**
+ * Presentation-only neutral band. It avoids turning tiny run-to-run differences into a victory or
+ * regression claim. This is intentionally a UI rule, not a statistical confidence statement.
+ */
+export const STARTUP_COMPARISON_NEUTRAL_PERCENT = 1;
+
+export function startupImprovementPercent(measurementOnlyMs: number, optimizedMs: number): number {
+  return (1 - optimizedMs / measurementOnlyMs) * 100;
+}
+
+export function startupComparisonPresentation(
+  measurementOnlyMs: number,
+  optimizedMs: number,
+): StartupComparisonPresentation {
+  const improvementPercent = startupImprovementPercent(measurementOnlyMs, optimizedMs);
+  if (Math.abs(improvementPercent) < STARTUP_COMPARISON_NEUTRAL_PERCENT) {
+    return {
+      kind: "similar",
+      improvementPercent,
+      headline: "About the same",
+      detail: `${Math.abs(improvementPercent).toFixed(1)}% difference`,
+    };
+  }
+  if (improvementPercent > 0) {
+    return {
+      kind: "faster",
+      improvementPercent,
+      headline: "Faster",
+      detail: `${improvementPercent.toFixed(1)}% less startup time`,
+    };
+  }
+  return {
+    kind: "slower",
+    improvementPercent,
+    headline: "Slower",
+    detail: `${Math.abs(improvementPercent).toFixed(1)}% more startup time`,
+  };
 }
