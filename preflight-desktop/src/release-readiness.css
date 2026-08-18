@@ -101,6 +101,14 @@
   font-weight: 650;
 }
 
+/* Keep even a deliberately long decorative hull label out of the centered launch button. */
+.home-ship-name {
+  max-width: max(0px, calc(50% - 190px));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /*
  * When preparation/recovery is the current job, setup identity is more useful than playtime or the
  * previous run's health line. Reuse that quiet upper-left space instead of making the player carry
