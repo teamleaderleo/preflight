@@ -74,7 +74,7 @@ class AgentJarStagingTest {
         assertNotEquals(attackerJar, injected,
                 "a predictable same-size file in shared temp must never become -javaagent");
         assertArrayEqualsContent(jar, injected);
-        assertEquals(-1L, Files.mismatch(attackerJar, injected) == 0 ? 0 : -1,
+        assertNotEquals(-1L, Files.mismatch(attackerJar, injected),
                 "the attacker-controlled file remains distinct from the trusted copy");
     }
 
