@@ -17,19 +17,25 @@ permissions:
 
 jobs:
   distribution:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      !inputs.signed_candidate ||
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment:
+      name: release-signing
     steps:
       - name: Validate update-signed build credentials
         if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "::error::TAURI_SIGNING_PRIVATE_KEY is required for an update-signed build"; exit 1; }
-          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "::error::TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required for an update-signed build"; exit 1; }
+          test -n "$TAURI_SIGNING_PRIVATE_KEY" || { echo "::error::RELEASE_TAURI_SIGNING_PRIVATE_KEY is required in the release-signing environment"; exit 1; }
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" || { echo "::error::RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required in the release-signing environment"; exit 1; }
           test -n "$PREFLIGHT_UPDATER_PUBLIC_KEY" || { echo "::error::PREFLIGHT_UPDATER_PUBLIC_KEY is required for an update-signed build"; exit 1; }
 
       - name: Validate private-candidate report intake
@@ -156,6 +162,8 @@ jobs:
             bundles: nsis
             update_bundles: nsis
     runs-on: ${{ matrix.os }}
+    environment:
+      name: release-signing
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -237,8 +245,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || inputs.signed_candidate
         working-directory: preflight-desktop
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
           PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: npx tauri build --bundles ${{ matrix.update_bundles }} --config src-tauri/target/release-updater-config.json
@@ -297,6 +305,8 @@ jobs:
     name: Desktop / Linux compatibility
     needs: distribution
     runs-on: ubuntu-latest
+    environment:
+      name: release-signing
     container:
       image: ubuntu:jammy-20260627@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8
     defaults:
@@ -416,8 +426,8 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
           LD_LIBRARY_PATH: ${{ github.workspace }}/preflight-desktop/src-tauri/target/engine/runtime/lib/server
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.RELEASE_TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           PREFLIGHT_UPDATER_PUBLIC_KEY: ${{ vars.PREFLIGHT_UPDATER_PUBLIC_KEY }}
           PREFLIGHT_REPORT_INTAKE_ORIGIN: ${{ inputs.signed_candidate && vars.PREFLIGHT_REPORT_INTAKE_ORIGIN || '' }}
         run: npx tauri bundle --verbose --bundles appimage --config src-tauri/target/release-updater-config.json
