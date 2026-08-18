@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { HOME_PRESENTATION_STORAGE_KEY } from "./desktopStorage";
 
+export type HomePresentationMode = "hangar" | "compact";
+
 export interface HomePresentationPreference {
+  mode: HomePresentationMode;
   showPlaytime: boolean;
 }
 
 export const DEFAULT_HOME_PRESENTATION: HomePresentationPreference = Object.freeze({
+  mode: "hangar",
   showPlaytime: true,
 });
 
@@ -21,16 +25,19 @@ export function readHomePresentation(
     if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
       return DEFAULT_HOME_PRESENTATION;
     }
-    const showPlaytime = (decoded as Record<string, unknown>).showPlaytime;
-    return typeof showPlaytime === "boolean"
-      ? { showPlaytime }
-      : DEFAULT_HOME_PRESENTATION;
+    const candidate = decoded as Record<string, unknown>;
+    return {
+      // Preferences written by the earlier playtime-only slice have no mode and remain Hangar.
+      mode: candidate.mode === "compact" ? "compact" : "hangar",
+      showPlaytime: typeof candidate.showPlaytime === "boolean" ? candidate.showPlaytime : true,
+    };
   } catch {
     return DEFAULT_HOME_PRESENTATION;
   }
 }
 
 function applyHomePresentation(preference: HomePresentationPreference): void {
+  document.documentElement.dataset.homeMode = preference.mode;
   document.documentElement.dataset.homePlaytime = preference.showPlaytime ? "shown" : "hidden";
 }
 
@@ -39,6 +46,14 @@ export function initializeHomePresentation(): HomePresentationPreference {
   const preference = readHomePresentation();
   applyHomePresentation(preference);
   return preference;
+}
+
+function persistHomePresentation(preference: HomePresentationPreference): void {
+  try {
+    window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify(preference));
+  } catch {
+    // Display preferences remain usable for this session when WebView storage is denied.
+  }
 }
 
 export function useHomePresentation() {
@@ -66,20 +81,20 @@ export function useHomePresentation() {
     };
   }, []);
 
-  const setShowPlaytime = (showPlaytime: boolean) => {
-    const next = { showPlaytime };
-    try {
-      window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // Display preferences remain usable for this session when WebView storage is denied.
-    }
+  const commit = (next: HomePresentationPreference) => {
+    persistHomePresentation(next);
     applyHomePresentation(next);
     setPreference(next);
     window.dispatchEvent(new CustomEvent<HomePresentationPreference>(HOME_PRESENTATION_EVENT, { detail: next }));
   };
 
+  const setMode = (mode: HomePresentationMode) => commit({ ...preference, mode });
+  const setShowPlaytime = (showPlaytime: boolean) => commit({ ...preference, showPlaytime });
+
   return {
+    mode: preference.mode,
     showPlaytime: preference.showPlaytime,
+    setMode,
     setShowPlaytime,
   };
 }
