@@ -135,39 +135,62 @@ function turnAt(loop: WireframePoint[], index: number): number {
   return Math.abs(Math.atan2(Math.sin(outgoing - incoming), Math.cos(outgoing - incoming)));
 }
 
+/** One station's three vertices, each already sitting on the ring it belongs to. */
+interface SideStation {
+  waterline: HullVertex;
+  deck: HullVertex;
+  keel: HullVertex;
+}
+
 /**
- * Evenly spaced stations around a loop, each pulled to the sharpest turn near it.
+ * Stations spaced evenly along the loop, taken off the rings rather than recomputed.
  *
- * The struts alone could sit on the sharpest corners the loop has, wherever those fall. A band of
- * facets cannot: uneven spacing gives one triangle a sliver and the next one a third of the ship,
- * and the band stops reading as a surface. So the spacing leads and the corner only adjusts, by
- * less than half a station either way -- close enough that a facet still breaks on a real feature.
+ * Two things have to hold at once. The spacing has to follow arc length, because a band of facets
+ * cannot sit on whichever corners the loop happens to have: uneven spacing gives one triangle a
+ * sliver and the next one a third of the ship, and the band stops reading as a surface. And a
+ * station between two vertices has to land on the deck and keel segments that are actually drawn.
+ *
+ * The second is why this interpolates `upper` and `lower` instead of calling `halfHeight` again.
+ * The rings are straight lines between their endpoints, `halfHeight` is not linear, and the gap
+ * between them is widest exactly where a sparse contour runs a long way without a vertex -- which
+ * is the case arc-length spacing exists to serve. Recomputing the height put the strut's tip above
+ * or below the ring it was meant to meet, so the truss did not close.
  */
-function sideStations(loop: WireframePoint[], wanted: number): WireframePoint[] {
-  if (loop.length < 3 || wanted < 3) return [];
+function sideStations(
+  middle: HullVertex[],
+  upper: HullVertex[],
+  lower: HullVertex[],
+  wanted: number,
+): SideStation[] {
+  if (middle.length < 3 || wanted < 3) return [];
   const walked = [0];
-  for (let index = 1; index <= loop.length; index += 1) {
-    const previous = loop[index - 1];
-    const point = loop[index % loop.length];
+  for (let index = 1; index <= middle.length; index += 1) {
+    const previous = middle[index - 1];
+    const point = middle[index % middle.length];
     walked.push(walked[index - 1] + Math.hypot(point.x - previous.x, point.y - previous.y));
   }
-  const perimeter = walked[loop.length];
+  const perimeter = walked[middle.length];
   if (perimeter <= 0) return [];
 
-  const stations: WireframePoint[] = [];
+  const between = (from: HullVertex, to: HullVertex, along: number): HullVertex => ({
+    x: from.x + (to.x - from.x) * along,
+    y: from.y + (to.y - from.y) * along,
+    z: from.z + (to.z - from.z) * along,
+  });
+
+  const stations: SideStation[] = [];
   let cursor = 0;
   for (let step = 0; step < wanted; step += 1) {
     const target = step * perimeter / wanted;
-    while (cursor < loop.length - 1 && walked[cursor + 1] <= target) cursor += 1;
-    // Between the loop's own vertices, not on them. Snapping to the nearest vertex sounds harmless
-    // and is not: a simplified contour has no vertex to spare along a flat run, so every station
-    // aimed at that run collapses onto the one point that starts it and the facet there ends up as
-    // long as the run. Interpolating costs nothing and makes the spacing independent of the trace.
-    const from = loop[cursor];
-    const to = loop[(cursor + 1) % loop.length];
+    while (cursor < middle.length - 1 && walked[cursor + 1] <= target) cursor += 1;
+    const next = (cursor + 1) % middle.length;
     const span = walked[cursor + 1] - walked[cursor];
     const along = span > 0 ? (target - walked[cursor]) / span : 0;
-    stations.push({ x: from.x + (to.x - from.x) * along, y: from.y + (to.y - from.y) * along });
+    stations.push({
+      waterline: between(middle[cursor], middle[next], along),
+      deck: between(upper[cursor], upper[next], along),
+      keel: between(lower[cursor], lower[next], along),
+    });
   }
   return stations;
 }
@@ -329,20 +352,22 @@ function buildTracedHull(hull: WireframeHull, detail: HullDetail): HullModel {
      * The diagonals lean opposite ways above and below the waterline so the two bands read as one
      * truss rather than two sets of parallel slashes.
      */
-    const squeeze = isVoid ? 0.62 : 1;
-    const stations = sideStations(loop, isVoid ? 8 : detail === "medium" ? 18 : 28);
-    const deckOf = (point: WireframePoint) => ({ ...point, z: halfHeight(point) * squeeze });
-    const keelOf = (point: WireframePoint) => ({ ...point, z: -halfHeight(point) * squeeze * 0.72 });
-    stations.forEach((point, index) => {
+    const stations = sideStations(
+      middle,
+      upper,
+      lower,
+      isVoid ? 8 : detail === "medium" ? 18 : 28,
+    );
+    stations.forEach((station, index) => {
       const next = stations[(index + 1) % stations.length];
-      const waterline = { ...point, z: 0 };
       segments.push(
-        { from: waterline, to: deckOf(point), kind: "structure" },
-        { from: waterline, to: deckOf(next), kind: "structure" },
-        { from: waterline, to: keelOf(point), kind: "structure" },
-        { from: keelOf(point), to: { ...next, z: 0 }, kind: "structure" },
+        { from: station.waterline, to: station.deck, kind: "structure" },
+        { from: station.waterline, to: next.deck, kind: "structure" },
+        { from: station.waterline, to: station.keel, kind: "structure" },
+        { from: station.keel, to: next.waterline, kind: "structure" },
       );
     });
+
   });
 
   if (detail !== "small") {
