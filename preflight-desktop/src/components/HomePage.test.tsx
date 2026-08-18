@@ -155,6 +155,6 @@ test("Home keeps the new profile and installation visible when that setup needs 
   render(<HomePage {...props({ needsPreparation: true })} />);
 
   expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Calculating space…" })).toBeDisabled();
-  expect(screen.getByText("Inspecting this mod setup and calculating a safe disk requirement…")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Prepare and launch" })).toBeDisabled();
+  expect(screen.getByText("Storage must be calculated before preparation.")).toBeInTheDocument();
 });
