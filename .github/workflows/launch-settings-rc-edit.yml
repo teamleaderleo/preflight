@@ -35,6 +35,8 @@ jobs:
             | base64 --decode \
             | gzip --decompress \
             > .github/launch-settings-rc-edit.py
+          cp docs/product-contract.md /tmp/product-contract-current.md
+          git show b9ad85b1f64ae031a6b32aff693213b2ea6e0a7e:docs/product-contract.md > docs/product-contract.md
           python3 .github/launch-settings-rc-edit.py
           python3 - <<'PY'
           from pathlib import Path
@@ -45,6 +47,93 @@ jobs:
               if text.count(old) != 1:
                   raise RuntimeError(f"{path_name}: expected one reviewed replacement target")
               path.write_text(text.replace(old, new), encoding="utf-8")
+
+          product_path = Path("docs/product-contract.md")
+          product = Path("/tmp/product-contract-current.md").read_text(encoding="utf-8")
+
+          def replace_product(old: str, new: str) -> None:
+              global product
+              if product.count(old) != 1:
+                  raise RuntimeError("docs/product-contract.md: current-main merge target drifted")
+              product = product.replace(old, new)
+
+          replace_product("**Updated:** 2026-08-07", "**Updated:** 2026-08-18")
+          replace_product(
+              """3. **Explicit preferences.** A confirmed named-profile switch backs up only
+             `mods/enabled_mods.json`, stages the complete replacement beside it, rechecks the reviewed source,
+             and requests an atomic move; filesystems without atomic-move support use a staged same-directory
+             replacement. The launch-settings surface writes only Starsector's existing `resolution`,
+             `fullscreen`, `sound`, `numAASamples`, `screenScale`, and `gameplaySettings` preferences after
+             backing up the prior selected values. The registration serial is never read into that backup or
+             exposed to the desktop interface. An explicit memory change can update the heap flag in one
+             unambiguous launcher-owned `vmparams` file inside the selected installation; Preflight saves the
+             exact original file and refuses ambiguous layouts.
+          """,
+              """3. **Explicit preferences.** A confirmed named-profile switch backs up only
+             `mods/enabled_mods.json`, stages the complete replacement beside it, rechecks the reviewed source,
+             and requests an atomic move; filesystems without atomic-move support use a staged same-directory
+             replacement. The launch-settings surface keeps Starsector's settings global and writes only its
+             existing `resolution`, `fullscreen`, `sound`, `numAASamples`, `screenScale`, and
+             `gameplaySettings` preferences after the player confirms that Starsector, launchers, settings
+             editors, and mod managers are closed for the Apply commit. Under the Preflight-only operation
+             lease, the engine rereads raw preferences and the selected launcher file, revalidates effective
+             coupled values, preserves unrelated values, publishes, and rereads the resulting state. Drift
+             causes refusal and review; compensation restores only values still equal to Preflight's
+             publication. The lease coordinates Preflight processes only, so external programs remain
+             independent. The registration serial is never read into the backup or exposed to the desktop
+             interface. An explicit memory change can update the heap flag in one unambiguous launcher-owned
+             `vmparams` file inside the selected installation; Preflight saves the exact original file and
+             refuses ambiguous layouts.
+          """,
+          )
+          replace_product(
+              """Battle size uses the selected installation's merged minimum and the same `battleSize` preference as
+          the game. Preflight offers a bounded extended range up to 2,000 deployment points because
+          `maxBattleSize` only defines the vanilla settings slider. It doesn't rewrite base `settings.json`;
+          opening the vanilla slider can reset a value above that slider's installed maximum.
+          """,
+              """Battle size uses the selected installation's merged minimum and the same `battleSize` preference as
+          the game. Preflight offers a bounded extended range up to 2,000 deployment points because
+          `maxBattleSize` only defines the vanilla settings slider. It doesn't rewrite base `settings.json`;
+          opening the vanilla slider can reset a value above that slider's installed maximum.
+
+          For the release candidate, these values remain global Starsector settings shared by vanilla and
+          Preflight launches. Apply has an explicit quiescent boundary: the player confirms Starsector, its
+          launcher, settings editors, and mod managers are closed until the commit finishes. The engine performs
+          the strongest available content-and-identity reread immediately before each publication attempt,
+          verifies the resulting state afterward, preserves unrelated preference values, and asks for review
+          whenever the reviewed state has changed.
+
+          Preflight's cross-process operation lease coordinates Preflight commands. It does not lock Starsector,
+          launchers, settings editors, mod managers, or other external programs. Per-launch and profile-scoped
+          setting overrides stay outside the release-candidate lane.
+          """,
+          )
+          replace_product(
+              """Settings belong to a named Preflight launch preset and can optionally be associated with a mod
+          profile. Cache contents remain shareable by content identity; toggling a reader off doesn't delete
+          its data. Cleanup and storage policy stay separate, preview-first actions.
+          """,
+              """Launch settings remain global Starsector preferences for the release candidate. Cache contents
+          remain shareable by content identity; toggling a reader off doesn't delete their data. Cleanup and
+          storage policy stay separate, preview-first actions.
+          """,
+          )
+          replace_product(
+              """Preparation, launch, confirmed profile activation, launch-setting changes, and confirmed cache
+          pruning use one cross-process operation lease. The CLI owns the lease, so the rule applies equally
+          to the desktop application, terminal use, and installed launch shortcuts. Read-only previews don't
+          take it.
+          """,
+              """Preparation, launch, confirmed profile activation, launch-setting changes, and confirmed cache
+          pruning use one cross-process operation lease between Preflight processes. The CLI owns the lease, so
+          the rule applies equally to the desktop application, terminal use, and installed launch shortcuts.
+          Read-only previews don't take it. The lease provides no exclusion against Starsector, launchers,
+          settings editors, mod managers, or other external programs; launch-setting Apply therefore also
+          requires the explicit quiescent confirmation described above.
+          """,
+          )
+          product_path.write_text(product, encoding="utf-8")
 
           replace_once(
               "preflight-desktop/src/requestFencing.test.tsx",
