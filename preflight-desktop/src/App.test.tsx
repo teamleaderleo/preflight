@@ -110,14 +110,9 @@ test("the default cold-profile action prepares with balanced settings and then l
   const action = await screen.findByRole("button", { name: "Prepare and launch" });
   await waitFor(() => expect(action).toBeEnabled());
   expect(screen.getByText("First launch setup")).toBeInTheDocument();
-  // What the cache keeps and what building it demands be free are different numbers, and the
-  // compact summary still names both rather than presenting two unexplained disk figures.
   expect(screen.getByText(/uses about .* free required; .* available/))
     .toBeInTheDocument();
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
-  // The game's name belongs to the sidebar mark and to the launch button, and nowhere else. The
-  // point of the original assertion was that it had stopped repeating across the working area;
-  // that still holds with the subtitle restored, so the check moves to the main region.
   expect(within(screen.getByRole("main")).queryByText(/^for Starsector$/i)).not.toBeInTheDocument();
   expect(screen.getByText(/^for Starsector$/i)).toBeInTheDocument();
   await user.click(action);
@@ -201,10 +196,6 @@ test("preparation started on Home remains visible and can be stopped safely", as
   game.mockRestore();
 });
 
-/**
- * A launcher that will not launch is the one failure it cannot have. Refused preparation used to
- * replace the launch control outright, which sent the player back to the original shortcut.
- */
 test("a refused preparation still leaves a way to launch the game", async () => {
   const user = userEvent.setup();
   const cold = cacheSnapshot({ profiles: [] });
@@ -234,12 +225,6 @@ test("a refused preparation still leaves a way to launch the game", async () => 
   game.mockRestore();
 });
 
-/**
- * Refusing is correct — the bound is a guarantee — but a refusal with no way forward is where a
- * player who is simply short of disk gives up. Textures are the whole of the footprint, so the
- * smaller preparation is a real answer rather than a consolation, and it must be offered here
- * without the storage plan that minimal storage has no way to produce.
- */
 test("a refused preparation offers the preparation that barely uses disk", async () => {
   const user = userEvent.setup();
   const cold = cacheSnapshot({ profiles: [] });
@@ -311,8 +296,6 @@ test("shows a useful ready-state home screen in browser preview", async () => {
   expect(screen.getAllByText("Launch Starsector")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "Choose another" })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Active profile")).not.toBeInTheDocument();
-  // The card names the profile and says when it was saved. It used to add "Named by you", which
-  // explained the difference between a chosen name and a generated one and told you nothing else.
   expect(screen.getByLabelText("186h played across 78 recorded sessions")).toBeInTheDocument();
   expect(screen.queryByLabelText("Mod profile")).not.toBeInTheDocument();
   expect(window.localStorage.getItem(HOME_OPTIONS_STORAGE_KEY)).toBeNull();
@@ -442,13 +425,8 @@ test("setup keeps a single installation action and hides unavailable ready-state
   expect(screen.getByText("Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.")).toBeVisible();
   expect(screen.queryByRole("region", { name: "Current Preflight setup" })).not.toBeInTheDocument();
   expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
-
-  // Nothing that needs an installation is offered before there is one -- a destination whose
-  // only message is "go back to Home" is a dead end wearing a nav item.
   expect(screen.getByRole("button", { name: "Speed" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Mods" })).toBeDisabled();
-  // Help is the exception on purpose: someone whose installation cannot be found is exactly the
-  // person who needs it, and it is the one destination that works without one.
   expect(screen.getByRole("button", { name: "Help" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "Help" }));
   expect(await screen.findByRole("heading", { name: "Help", level: 1 })).toBeInTheDocument();
@@ -475,8 +453,6 @@ test("a failed launch is an alert and retries the launch operation", async () =>
 });
 
 test("a failed launch offers help, and help is one click away from making the file", async () => {
-  // The failure card is the route a player takes when the game will not start. It used to land on
-  // the benchmark page with the support panel collapsed, which is where that errand went to die.
   const user = userEvent.setup();
   window.history.replaceState(null, "", "/?scenario=run-failure");
   render(<App />);
@@ -720,7 +696,7 @@ test("an unrelated update check does not erase a game-settings failure", async (
 
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Options" }));
-  await user.clear(await screen.findByLabelText("Home battle size"));
+  await user.clear(screen.getByLabelText("Home battle size"));
   await user.type(screen.getByLabelText("Home battle size"), "300");
   await user.click(screen.getByRole("button", { name: "Apply changes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("settings write refused");
@@ -999,7 +975,6 @@ test("profiles are preview-first and show the exact switch before applying", asy
   expect(screen.queryByRole("button", { name: "Current" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Switch…" }));
-
   expect(await screen.findByRole("heading", { name: "Switch to Utilities only?" })).toBeInTheDocument();
   expect(screen.getByText("Enable (1)")).toBeInTheDocument();
   expect(screen.getByText("Disable (2)")).toBeInTheDocument();
@@ -1314,8 +1289,10 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
   await screen.findByText("Startup benchmark finished in browser preview.");
   await user.click(screen.getByRole("button", { name: "Speed" }));
 
-  expect(await screen.findByText("5.5")).toBeInTheDocument();
-  expect(screen.getByText(/1m 12s saved per launch/)).toBeInTheDocument();
+  expect(await screen.findByText("Personal best")).toBeInTheDocument();
+  expect(screen.getByText("82%")).toBeInTheDocument();
+  expect(screen.getByText("Latest benchmark: Faster")).toBeInTheDocument();
+  expect(screen.getByText(/82\.0% less startup time/)).toBeInTheDocument();
   expect(screen.getByLabelText("186h recorded playtime across 78 sessions")).toBeInTheDocument();
   first.unmount();
 
@@ -1323,8 +1300,9 @@ test("a measured benchmark becomes the scoreboard and survives reopening Preflig
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
 
-  expect(await screen.findByText("5.5")).toBeInTheDocument();
-  expect(screen.getByText(/1m 12s saved per launch/)).toBeInTheDocument();
+  expect(await screen.findByText("Personal best")).toBeInTheDocument();
+  expect(screen.getByText("Latest benchmark: Faster")).toBeInTheDocument();
+  expect(screen.queryByText(/saved per launch/)).not.toBeInTheDocument();
 });
 
 test("an unmeasured scoreboard labels the exact last process-to-menu time", async () => {
@@ -1350,7 +1328,7 @@ test("an unmeasured scoreboard labels the exact last process-to-menu time", asyn
   await screen.findByText("Ready");
   await user.click(screen.getByRole("button", { name: "Speed" }));
 
-  expect(await screen.findByText("Last fast launch: 15.3s to the menu.")).toBeInTheDocument();
+  expect(await screen.findByText("Last Preflight launch: 15.3s to the menu.")).toBeInTheDocument();
   expect(screen.queryByText(/2h/)).not.toBeInTheDocument();
   snapshot.mockRestore();
 });
