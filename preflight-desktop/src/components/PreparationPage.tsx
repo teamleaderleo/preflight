@@ -155,12 +155,18 @@ export function PreparationPage({
       {!profilePrepared || preparing ? <section className="card prepare-action">
         <div>
           <strong>{preparationCancelling ? "Stopping preparation" : preparing ? preparationPhaseLabel ?? "Preparation is running" : preparationPlanLoading ? "Calculating disk requirement" : storageBlocked ? "Full preparation doesn’t fit" : preparationPlan?.safeToPrepare || !storagePlanApplies(textureStorage) ? "Ready to prepare" : "Preparation needs attention"}</strong>
-          <span>{preparing ? `${preparationPercent}% complete · finished artifacts stay reusable` : storageBlocked ? "Minimal preparation uses a few megabytes and still speeds up startup." : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
-          {preparing ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
+          <span>{preparing
+            ? preparationPercent === null
+              ? "Reconnected after restart · finished artifacts stay reusable"
+              : `${preparationPercent}% complete · finished artifacts stay reusable`
+            : storageBlocked
+              ? "Minimal preparation uses a few megabytes and still speeds up startup."
+              : `${textureStorage === "balanced" ? "Balanced storage selected" : textureStorage === "fastest" ? "Fastest raw storage selected" : "Minimal disk use selected · no prepared textures"} · ${resourcePresets[resourcePreset].label.toLowerCase()} resource use`}</span>
+          {preparing && preparationPercent !== null ? <div className="preparation-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparationPercent}><span style={{ width: `${preparationPercent}%` }} /></div> : null}
         </div>
         <div className="prepare-actions">
           {preparing ? <button className="button button--quiet" type="button" onClick={() => void stopPreparation()} disabled={preparationCancelling}>{preparationCancelling ? "Stopping…" : "Stop safely"}</button> : null}
-          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current profile"}</button>
+          <button className="button button--primary" type="button" onClick={() => void prepare(false, storageBlocked ? "minimal" : textureStorage)} disabled={operationBlocked || cacheRepairing || cacheHealth?.status === "repair-needed" || cacheHealth?.status === "unsafe" || cacheHealth?.status === "unknown" || !isReady || preparationPlanLoading || (!storageBlocked && !canPrepare)}><SparklesIcon />{preparing ? preparationPercent === null ? "Preparation in progress…" : "Preparing…" : preparationPlanLoading ? "Calculating…" : storageBlocked ? "Prepare with less disk" : "Prepare current profile"}</button>
         </div>
       </section> : null}
 
