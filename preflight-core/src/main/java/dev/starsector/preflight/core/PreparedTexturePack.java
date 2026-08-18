@@ -9,7 +9,6 @@ import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -207,13 +206,12 @@ public final class PreparedTexturePack implements AutoCloseable {
 
         @Override
         public long position() throws IOException {
-            return delegate.position();
+            throw new IOException("Prepared texture verification requires positioned reads");
         }
 
         @Override
         public FileChannel position(long newPosition) throws IOException {
-            delegate.position(newPosition);
-            return this;
+            throw new IOException("Prepared texture verification requires positioned reads");
         }
 
         @Override
@@ -228,7 +226,7 @@ public final class PreparedTexturePack implements AutoCloseable {
 
         @Override
         public void force(boolean metaData) throws IOException {
-            delegate.force(metaData);
+            throw new IOException("Prepared texture verification view is read-only");
         }
 
         @Override
@@ -253,12 +251,12 @@ public final class PreparedTexturePack implements AutoCloseable {
 
         @Override
         public FileLock lock(long position, long size, boolean shared) throws IOException {
-            return delegate.lock(position, size, shared);
+            throw new IOException("Prepared texture verification does not support locking");
         }
 
         @Override
         public FileLock tryLock(long position, long size, boolean shared) throws IOException {
-            return delegate.tryLock(position, size, shared);
+            throw new IOException("Prepared texture verification does not support locking");
         }
 
         @Override
