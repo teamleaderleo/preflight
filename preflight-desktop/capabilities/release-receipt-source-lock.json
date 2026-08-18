@@ -25,7 +25,7 @@
     "preflight-desktop/src-tauri/src/main.rs": "d0dda62951f0b3474d4862ba2db2cfb104f596030d45e66fec4521491c34e351",
     "preflight-desktop/src-tauri/src/operations.rs": "7ccdd61dbd0ddffe0e5e5eef6eea7171d928a7b13e908908a754bdce9d9d7d32",
     "preflight-desktop/src-tauri/src/preparation.rs": "d6aac6c856cf810709bce2ea09043863d8aff8c73ebab3a3fe6a7a2a9e0aaf00",
-    "preflight-desktop/src-tauri/src/report_authority.rs": "fdb06a9ba2da06bc5ce25b6296903538f7b77d75669d837a0272b92fb580fb83",
+    "preflight-desktop/src-tauri/src/report_authority.rs": "aeeacb2d68afb2e6e5b5d35ba37597f5e1bc53ee9f59a94c0fce81f52635faee",
     "preflight-desktop/src-tauri/src/report_transport.rs": "4ce1ace2b2ccfdca1a48bfd147faa110a94d1c6b3b9e1516d925cf9f6da50b16",
     "preflight-desktop/src-tauri/src/report_transport_v2.rs": "38c545435727ee0df2bea77ca55248894424559ae35808423933411fe9b7ca19",
     "preflight-desktop/src-tauri/src/reports.rs": "945db9760e3c3152e3014053d828775da03274baddea62d0788cb4f81c5737ac",
