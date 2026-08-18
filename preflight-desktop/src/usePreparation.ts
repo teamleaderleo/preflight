@@ -76,7 +76,11 @@ export function usePreparation(
   const [preparing, setPreparing] = useState(false);
   const [preparationCancelling, setPreparationCancelling] = useState(false);
   const [preparationProgress, setPreparationProgress] = useState<PreparationProgressEvent | null>(null);
+  const [preparationProgressKnown, setPreparationProgressKnown] = useState(true);
   const completedPreparationPhases = useRef(new Set<string>());
+  const recoveredPreparation = useRef(false);
+  const localPreparationStarting = useRef(false);
+  const localPreparationPid = useRef<number | null>(null);
   const [preparationPlanEnvelope, setPreparationPlanEnvelope] = useState<PreparationPlanEnvelope | null>(null);
   const [preparationPlanLoading, setPreparationPlanLoading] = useState(false);
   const launchAfterPreparation = useRef(false);
@@ -212,6 +216,8 @@ export function usePreparation(
         announce(plan.refusalReason ?? "Preparation was refused because its storage requirement could not be bounded safely.", "warning");
         return;
       }
+      recoveredPreparation.current = false;
+      setPreparationProgressKnown(true);
       launchAfterPreparation.current = launchWhenReady;
       completedPreparationPhases.current.clear();
       setPreparationProgress(null);
@@ -220,8 +226,12 @@ export function usePreparation(
       announce(launchWhenReady
         ? "Preparing the exact current profile. Starsector will open when it’s ready."
         : "Preparing the exact current profile… You can leave this window open.");
-      await startPreparation(game, requestedStorage, resources.workers, resources.memoryMib);
+      localPreparationStarting.current = true;
+      const started = await startPreparation(game, requestedStorage, resources.workers, resources.memoryMib);
+      localPreparationPid.current = started.pid;
+      localPreparationStarting.current = false;
       if (!isDesktopHost()) {
+        localPreparationPid.current = null;
         setPreparing(false);
         announce("Preview preparation complete.", "success");
         await refreshCache();
@@ -231,6 +241,10 @@ export function usePreparation(
         }
       }
     } catch (error) {
+      localPreparationStarting.current = false;
+      localPreparationPid.current = null;
+      recoveredPreparation.current = false;
+      setPreparationProgressKnown(true);
       launchAfterPreparation.current = false;
       setPreparing(false);
       announce(errorMessage(error), "error");
@@ -287,6 +301,61 @@ export function usePreparation(
   useEffect(() => {
     if (!isDesktopHost()) return;
     let stopReconciliation: () => void = () => undefined;
+    let previousPid: number | null | undefined;
+    let completionObserved = false;
+
+    const startReconciliation = () => {
+      stopReconciliation();
+      previousPid = undefined;
+      completionObserved = false;
+      stopReconciliation = startOperationReconciliation({
+        apply: (operation) => {
+          if (completionObserved) return;
+          if (operation.preparationPid !== null) {
+            const firstRead = previousPid === undefined;
+            previousPid = operation.preparationPid;
+            setPreparing(true);
+            const belongsToThisRenderer = localPreparationStarting.current
+              || localPreparationPid.current === operation.preparationPid;
+            if (firstRead && !belongsToThisRenderer) {
+              recoveredPreparation.current = true;
+              setPreparationProgressKnown(false);
+              launchAfterPreparation.current = false;
+              completedPreparationPhases.current.clear();
+              setPreparationProgress(null);
+              setPreparationCancelling(false);
+              announce("Reconnected to profile preparation. Starsector stays closed when it finishes; launch from Home when you’re ready.");
+            }
+            return;
+          }
+          if (previousPid !== null && previousPid !== undefined) {
+            const wasRecovered = recoveredPreparation.current;
+            previousPid = null;
+            localPreparationPid.current = null;
+            recoveredPreparation.current = false;
+            setPreparationProgressKnown(true);
+            launchAfterPreparation.current = false;
+            setPreparing(false);
+            setPreparationCancelling(false);
+            setPreparationProgress(null);
+            announce(wasRecovered
+              ? "Preparation finished while Preflight was reopening. Checking the current profile before launch."
+              : "Preparation stopped. Live completion details were unavailable, so Preflight refreshed the current cache state.",
+            wasRecovered ? "info" : "warning");
+            void refreshCache();
+          } else {
+            previousPid = null;
+          }
+        },
+        isActive: () => previousPid !== null && previousPid !== undefined && !completionObserved,
+        onError: (pollError) => announce(`Could not refresh native preparation state: ${pollError}`, "error"),
+      });
+    };
+
+    // The operation coordinator is authoritative across renderer restarts. The first read is cheap
+    // and retires immediately when there is no active preparation; when one exists it also provides
+    // a polling fallback in case the terminal event happened before this renderer subscribed.
+    startReconciliation();
     const stopListening = listenWhileMounted<PreparationStateEvent>("prepare-state", ({ payload }) => {
       if (payload.state === "cancelling") {
         setPreparationCancelling(true);
@@ -294,6 +363,11 @@ export function usePreparation(
         return;
       }
       if (payload.state !== "finished" && payload.state !== "cancelled") return;
+      completionObserved = true;
+      previousPid = null;
+      if (localPreparationPid.current === payload.pid) localPreparationPid.current = null;
+      recoveredPreparation.current = false;
+      setPreparationProgressKnown(true);
       const shouldLaunch = launchAfterPreparation.current;
       launchAfterPreparation.current = false;
       setPreparing(false);
@@ -312,30 +386,7 @@ export function usePreparation(
       })();
     }, (error) => {
       announce(`Live preparation updates were interrupted: ${error}. Preflight is checking native state directly.`, "warning");
-      let previousPid: number | null | undefined;
-      stopReconciliation();
-      stopReconciliation = startOperationReconciliation({
-        apply: (operation) => {
-          if (operation.preparationPid !== null) {
-            previousPid = operation.preparationPid;
-            setPreparing(true);
-            return;
-          }
-          if (previousPid !== null && previousPid !== undefined) {
-            previousPid = null;
-            launchAfterPreparation.current = false;
-            setPreparing(false);
-            setPreparationCancelling(false);
-            setPreparationProgress(null);
-            announce("Preparation stopped. Live completion details were unavailable, so Preflight refreshed the current cache state.", "warning");
-            void refreshCache();
-          } else {
-            previousPid = null;
-          }
-        },
-        isActive: () => true,
-        onError: (pollError) => announce(`Could not refresh native preparation state: ${pollError}`, "error"),
-      });
+      startReconciliation();
     });
     return () => {
       stopListening();
@@ -359,6 +410,9 @@ export function usePreparation(
     try {
       const requested = await cancelPreparation();
       if (!requested) {
+        localPreparationPid.current = null;
+        recoveredPreparation.current = false;
+        setPreparationProgressKnown(true);
         setPreparing(false);
         setPreparationCancelling(false);
         announce("Preparation had already finished.");
@@ -381,9 +435,11 @@ export function usePreparation(
   const preparationPhaseLabel = preparationProgress?.phase
     ?.replaceAll("-", " ")
     .replace(/^./, (letter) => letter.toUpperCase());
-  const preparationPercent = preparationProgress
-    ? Math.min(100, Math.round((completedPreparationPhases.current.size / preparationProgress.totalPhases) * 100))
-    : 0;
+  const preparationPercent = preparationProgressKnown
+    ? preparationProgress
+      ? Math.min(100, Math.round((completedPreparationPhases.current.size / preparationProgress.totalPhases) * 100))
+      : 0
+    : null;
 
   return {
     cache: currentCache,
