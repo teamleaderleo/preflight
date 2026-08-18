@@ -24,10 +24,14 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     profilesLoading,
     renameDraft,
     renameTarget,
+    duplicateDraft,
+    duplicateTarget,
     applyProfile,
     applyProfileMutation,
     beginRename,
     cancelRename,
+    beginDuplicate,
+    cancelDuplicate,
     reviewDeleteProfile,
     reviewProfile,
     saveCurrentProfile,
@@ -36,6 +40,8 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
     setProfileName,
     setRenameDraft,
     submitRename,
+    setDuplicateDraft,
+    submitDuplicate,
   } = profilesState;
 
   return (
@@ -64,6 +70,10 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
                     <div>
                       <button type="button" onClick={(event) => {
                         event.currentTarget.closest("details")?.removeAttribute("open");
+                        beginDuplicate(profile.name);
+                      }} disabled={profileBusy || operationBlocked}>Duplicate…</button>
+                      <button type="button" onClick={(event) => {
+                        event.currentTarget.closest("details")?.removeAttribute("open");
                         beginRename(profile.name);
                       }} disabled={profileBusy || operationBlocked}>Rename</button>
                       <button type="button" onClick={(event) => {
@@ -83,6 +93,16 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
                 <input id="rename-profile" value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} maxLength={100} autoFocus />
                 <button className="button button--quiet button--compact" type="button" onClick={cancelRename}>Cancel</button>
                 <button className="button button--primary button--compact" type="button" onClick={submitRename} disabled={!renameDraft.trim() || renameDraft.trim() === renameTarget || profileBusy}>Review rename</button>
+              </div>
+            </div>
+          ) : null}
+          {duplicateTarget ? (
+            <div className="profile-rename-editor" role="group" aria-label={`Duplicate ${duplicateTarget}`}>
+              <label htmlFor="duplicate-profile">Duplicate {duplicateTarget} as</label>
+              <div>
+                <input id="duplicate-profile" value={duplicateDraft} onChange={(event) => setDuplicateDraft(event.target.value)} maxLength={100} autoFocus />
+                <button className="button button--quiet button--compact" type="button" onClick={cancelDuplicate}>Cancel</button>
+                <button className="button button--primary button--compact" type="button" onClick={submitDuplicate} disabled={!duplicateDraft.trim() || duplicateDraft.trim() === duplicateTarget || profileBusy}>Review duplicate</button>
               </div>
             </div>
           ) : null}
@@ -123,18 +143,22 @@ export function ProfilesPage({ message, messageTone, profilesState, operationBlo
               <p className="eyebrow">Profile review</p>
               <h2>{mutationPlan.operation === "rename"
                 ? `Rename ${mutationPlan.name} to ${mutationPlan.targetName}?`
-                : `Delete ${mutationPlan.name}?`}</h2>
+                : mutationPlan.operation === "duplicate"
+                  ? `Duplicate ${mutationPlan.name} as ${mutationPlan.targetName}?`
+                  : `Delete ${mutationPlan.name}?`}</h2>
             </div>
             <button className="text-button" type="button" onClick={dismissMutationPlan} disabled={profileBusy}>Cancel</button>
           </div>
           <p>{mutationPlan.operation === "rename"
             ? "This renames the profile. Its mod list and prepared data stay unchanged."
-            : "This deletes the profile. The current mod list and prepared data stay unchanged."}</p>
+            : mutationPlan.operation === "duplicate"
+              ? "This creates an independent profile copy with the same mod list. The original profile and prepared data stay unchanged."
+              : "This deletes the profile. The current mod list and prepared data stay unchanged."}</p>
           {mutationPlan.operation === "delete" && mutationPlan.active ? <p className="activation-warning">This is the active profile. Deleting its saved name will not disable any mods.</p> : null}
           <div className="activation-review__footer">
             <span><ShieldIcon /> Preflight rechecks the exact reviewed profile before changing it.</span>
             <button className={`button ${mutationPlan.operation === "delete" ? "button--danger" : "button--primary"}`} type="button" onClick={() => void applyProfileMutation()} disabled={profileBusy || operationBlocked}>
-              {profileBusy ? "Applying…" : mutationPlan.operation === "rename" ? "Rename profile" : "Delete profile"}
+              {profileBusy ? "Applying…" : mutationPlan.operation === "rename" ? "Rename profile" : mutationPlan.operation === "duplicate" ? "Duplicate profile" : "Delete profile"}
             </button>
           </div>
         </section>
