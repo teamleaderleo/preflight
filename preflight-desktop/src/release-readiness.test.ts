@@ -16,7 +16,7 @@ test("ready Home keeps recovery content scrollable and launch controls clear of 
   expect(readinessStyles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--ready \.last-run-health\s*\{[^}]*bottom:\s*auto;/s);
 });
 
-test("journey overrides keep first settings reachable and put run recovery before idle Home", () => {
+test("journey overrides keep first settings reachable and put actionable Home failures first", () => {
   const style = installReadinessStyles(".quick-settings { justify-content: center; }");
   const viewport = document.createElement("div");
   viewport.className = "page-viewport--home";
@@ -35,7 +35,20 @@ test("journey overrides keep first settings reachable and put run recovery befor
   expect(getComputedStyle(recovery).order).toBe("-1");
   expect(getComputedStyle(quickSettings).justifyContent).toBe("safe center");
 
+  const errorViewport = document.createElement("div");
+  errorViewport.className = "page-viewport--home";
+  const errorLaunch = document.createElement("section");
+  errorLaunch.className = "launch-console launch-console--ready";
+  const error = document.createElement("div");
+  error.className = "notice notice--error";
+  errorViewport.append(errorLaunch, error);
+  document.body.append(errorViewport);
+  expect(errorViewport.matches(".page-viewport--home:has(.notice--error)")).toBe(true);
+  expect(getComputedStyle(errorViewport).display).toBe("flex");
+  expect(getComputedStyle(error).order).toBe("-1");
+
   viewport.remove();
+  errorViewport.remove();
   style.remove();
 });
 
