@@ -40,6 +40,30 @@ class PreparedTexturePackIntegrityTest {
     }
 
     @Test
+    void alreadyCorruptLooseBlobCannotBecomePackedHit() throws Exception {
+        Path cache = temporaryDirectory.resolve("prepack-corrupt-cache");
+        String relative = "blobs/01/prepack-corrupt.spft";
+        Path loose = cache.resolve(relative);
+        Files.createDirectories(loose.getParent());
+        PreparedTexture texture = texture();
+        PreparedTextureIO.write(loose, texture, PreparedTextureIO.StorageCodec.RAW);
+
+        byte[] looseBytes = Files.readAllBytes(loose);
+        int firstStoredPixel = SPFT_PREFIX_BYTES + SPFT_PAYLOAD_FIXED_BYTES;
+        looseBytes[firstStoredPixel] ^= 0x01;
+        Files.write(loose, looseBytes);
+        assertThrows(IOException.class, () -> PreparedTextureIO.read(loose));
+
+        String profile = "cd".repeat(32);
+        Path packPath = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(packPath, profile, cache, List.of(relative));
+        try (PreparedTexturePack pack = PreparedTexturePackIO.open(
+                packPath, profile, List.of(relative))) {
+            assertThrows(IOException.class, () -> pack.readTrusted(relative));
+        }
+    }
+
+    @Test
     void checksumValidIndexCannotAuthorizeCorruptedEmbeddedMetadata() throws Exception {
         Fixture fixture = fixture("metadata-lz4.spft", PreparedTextureIO.StorageCodec.LZ4);
         byte[] packBytes = Files.readAllBytes(fixture.pack());
@@ -71,7 +95,16 @@ class PreparedTexturePackIntegrityTest {
         Path cache = temporaryDirectory.resolve(fileName + "-cache");
         String relative = "blobs/01/" + fileName;
         Files.createDirectories(cache.resolve("blobs/01"));
-        PreparedTexture texture = new PreparedTexture(
+        PreparedTexture texture = texture();
+        PreparedTextureIO.write(cache.resolve(relative), texture, codec);
+        String profile = "ab".repeat(32);
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(pack, profile, cache, List.of(relative));
+        return new Fixture(cache, profile, relative, pack, texture);
+    }
+
+    private static PreparedTexture texture() {
+        return new PreparedTexture(
                 "01".repeat(32),
                 PreparedTexture.Transformation.IDENTITY,
                 2,
@@ -83,11 +116,6 @@ class PreparedTexturePackIntegrityTest {
                 0x05060708,
                 0x090a0b0c,
                 new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12});
-        PreparedTextureIO.write(cache.resolve(relative), texture, codec);
-        String profile = "ab".repeat(32);
-        Path pack = PreparedTexturePackIO.path(cache, profile);
-        PreparedTexturePackIO.write(pack, profile, cache, List.of(relative));
-        return new Fixture(cache, profile, relative, pack, texture);
     }
 
     private static int embeddedSpftOffset(byte[] packBytes) {
