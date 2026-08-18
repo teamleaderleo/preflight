@@ -6,7 +6,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,7 +41,7 @@ final class GameJson {
     private final Method objectPut;
     private final Method arrayPut;
     private final Method sortedKeys;
-    private final Method keys;
+    private final Method objectLength;
     private final Method objectGet;
     private final Method arrayLength;
     private final Method arrayGet;
@@ -57,7 +56,7 @@ final class GameJson {
         objectPut = objectType.getMethod("put", String.class, Object.class);
         arrayPut = arrayType.getMethod("put", Object.class);
         sortedKeys = objectType.getMethod("sortedKeys");
-        keys = objectType.getMethod("keys");
+        objectLength = objectType.getMethod("length");
         objectGet = objectType.getMethod("get", String.class);
         arrayLength = arrayType.getMethod("length");
         arrayGet = arrayType.getMethod("get", int.class);
@@ -164,12 +163,26 @@ final class GameJson {
             return JsonTree.NULL;
         }
         if (objectType.isInstance(value)) {
-            List<String> names = boundedSortedKeys(value, budget);
-            budget.container(names.size());
-            Map<String, Object> members = new LinkedHashMap<>();
-            for (String name : names) {
+            int length = (Integer) invoke(objectLength, value);
+            // Starsector's JSONObject has length() + sortedKeys(), but no keys(). Charge the full
+            // member count before sortedKeys() can allocate its bounded ordering set, then stream
+            // that iterator directly into the plain tree rather than making a second key list.
+            budget.reserveChildren(length);
+            budget.container(length);
+            Map<String, Object> members = new LinkedHashMap<>(Math.min(length, 1024));
+            Iterator<?> objectKeys = (Iterator<?>) invoke(sortedKeys, value);
+            int visited = 0;
+            while (objectKeys.hasNext()) {
+                if (visited >= length) {
+                    throw new ResourceLimitException("JSON object changed while it was being bounded");
+                }
+                Object key = objectKeys.next();
+                if (!(key instanceof String name)) {
+                    throw new IllegalArgumentException("A JSON object key was not a string");
+                }
                 budget.key(name);
                 members.put(name, toTree(invoke(objectGet, value, name), budget, depth + 1));
+                visited++;
             }
             return members;
         }
@@ -201,24 +214,6 @@ final class GameJson {
         }
         throw new IllegalArgumentException(
                 "A JSON value was a " + value.getClass().getName() + ", which is not storable");
-    }
-
-    private List<String> boundedSortedKeys(Object value, Budget budget)
-            throws ReflectiveOperationException {
-        List<String> names = new ArrayList<>();
-        Iterator<?> objectKeys = (Iterator<?>) invoke(keys, value);
-        while (objectKeys.hasNext()) {
-            if (names.size() >= budget.remainingNodes()) {
-                throw new ResourceLimitException("JSON object exceeds the node safety limit");
-            }
-            Object key = objectKeys.next();
-            if (!(key instanceof String name)) {
-                throw new IllegalArgumentException("A JSON object key was not a string");
-            }
-            names.add(name);
-        }
-        Collections.sort(names);
-        return names;
     }
 
     private static Object invoke(Method method, Object receiver, Object... arguments)
