@@ -8,6 +8,8 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -195,7 +197,15 @@ public final class JarArchiveIndexIO {
         if (bytes.length != length) {
             throw new EOFException("JAR archive index ended inside an entry name");
         }
-        return new String(bytes, StandardCharsets.UTF_8);
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes))
+                    .toString();
+        } catch (CharacterCodingException error) {
+            throw new IOException("JAR archive index entry name is not valid UTF-8", error);
+        }
     }
 
     private static long minimumFileBytes() {
