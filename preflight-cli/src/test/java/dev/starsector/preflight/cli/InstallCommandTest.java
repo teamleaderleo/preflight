@@ -199,14 +199,67 @@ class InstallCommandTest {
         PreflightHome macHome = PreflightHome.resolve(Platform.MAC, home.resolve("mac"), Map.of());
         assertEquals(0, InstallCommand.installMac(macHome, jar, game));
         assertTrue(Files.isRegularFile(macHome.pathOf(PreflightHome.Id.MAC_APP).resolve("Contents/MacOS/preflight")));
+        assertTrue(macHome.integration(PreflightHome.Id.MAC_APP).isOwned());
 
         PreflightHome linuxHome = PreflightHome.resolve(Platform.LINUX, home.resolve("linux"), Map.of());
         assertEquals(0, InstallCommand.installLinux(linuxHome, jar, game));
         assertTrue(Files.isRegularFile(linuxHome.pathOf(PreflightHome.Id.LINUX_COMMAND)));
         assertTrue(Files.isRegularFile(linuxHome.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY)));
+        assertTrue(linuxHome.integration(PreflightHome.Id.LINUX_COMMAND).isOwned());
+        assertTrue(linuxHome.integration(PreflightHome.Id.LINUX_DESKTOP_ENTRY).isOwned());
 
         PreflightHome winHome = PreflightHome.resolve(Platform.WINDOWS, home.resolve("win"), Map.of());
         assertEquals(0, InstallCommand.installWindows(winHome, jar, game));
         assertTrue(Files.isRegularFile(winHome.pathOf(PreflightHome.Id.WINDOWS_COMMAND)));
+        assertTrue(winHome.integration(PreflightHome.Id.WINDOWS_COMMAND).isOwned());
+        assertTrue(winHome.integration(PreflightHome.Id.WINDOWS_DIRECTORY).isOwned());
+    }
+
+    @Test
+    void refusesGenericLaunchersThatOnlyMentionPreflightOrStarsector(@TempDir Path tempDir)
+            throws Exception {
+        Path home = tempDir.resolve("home");
+        Path jar = tempDir.resolve("bin/preflight.jar");
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "jar-content");
+        Path game = tempDir.resolve("Starsector");
+
+        PreflightHome linux = PreflightHome.resolve(Platform.LINUX, home.resolve("linux"), Map.of());
+        Path command = linux.pathOf(PreflightHome.Id.LINUX_COMMAND);
+        Files.createDirectories(command.getParent());
+        Files.writeString(command, "#!/bin/sh\nexec /games/starsector \"$@\"\n");
+        IOException scriptError = assertThrows(
+                IOException.class, () -> InstallCommand.installLinux(linux, jar, game));
+        assertTrue(scriptError.getMessage().contains("not proven Preflight-owned"));
+
+        PreflightHome desktopHome =
+                PreflightHome.resolve(Platform.LINUX, home.resolve("desktop"), Map.of());
+        Path desktop = desktopHome.pathOf(PreflightHome.Id.LINUX_DESKTOP_ENTRY);
+        Files.createDirectories(desktop.getParent());
+        Files.writeString(desktop, "[Desktop Entry]\nName=Preflight\nExec=/some/other/program\n");
+        IOException desktopError = assertThrows(
+                IOException.class, () -> InstallCommand.installLinux(desktopHome, jar, game));
+        assertTrue(desktopError.getMessage().contains("not proven Preflight-owned"));
+    }
+
+    @Test
+    void refusesAnUnrelatedMacAppWithAnOrdinaryBundleExecutable(@TempDir Path tempDir)
+            throws Exception {
+        PreflightHome preflight =
+                PreflightHome.resolve(Platform.MAC, tempDir.resolve("home"), Map.of());
+        Path app = preflight.pathOf(PreflightHome.Id.MAC_APP);
+        Files.createDirectories(app.resolve("Contents/MacOS"));
+        Files.writeString(app.resolve("Contents/MacOS/preflight"), "#!/bin/sh\nexec /other/app\n");
+        Files.writeString(
+                app.resolve("Contents/Info.plist"),
+                "<plist><dict><key>CFBundleExecutable</key><string>preflight</string></dict></plist>");
+
+        Path jar = tempDir.resolve("preflight.jar");
+        Files.writeString(jar, "jar-content");
+        IOException error = assertThrows(
+                IOException.class,
+                () -> InstallCommand.installMac(preflight, jar, tempDir.resolve("Starsector.app")));
+        assertTrue(error.getMessage().contains("not proven Preflight-owned"));
+        assertEquals("#!/bin/sh\nexec /other/app\n", Files.readString(app.resolve("Contents/MacOS/preflight")));
     }
 }
