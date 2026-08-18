@@ -117,7 +117,10 @@ public final class HullJsonCacheRuntime {
     /** Captures only values produced by the original loader on a miss. */
     public static void capture(Object json, String rawPath) {
         State current = state;
-        if (current.artifact == null || json == null) {
+        // Once a launch has exceeded the bounded learning budget, do not keep serializing later
+        // vanilla trees just to discard their bytes. The first oversized tree may still cost one
+        // encoding pass; after that rejection is a hard stop for this learning session.
+        if (current.artifact == null || current.learningRejected.get() || json == null) {
             return;
         }
         String path = normalizeHullPath(rawPath);
