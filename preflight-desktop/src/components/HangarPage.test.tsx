@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+import { INSTRUMENT_HULL_MOTION_STORAGE_KEY } from "../desktopStorage";
 import type { useInstrumentHull } from "../useInstrumentHull";
 import type { WireframeHull, WireframeTuning } from "../types";
 import { HangarPage } from "./HangarPage";
@@ -51,6 +52,10 @@ function state(overrides: Partial<ReturnType<typeof useInstrumentHull>> = {}) {
   } as ReturnType<typeof useInstrumentHull>;
 }
 
+beforeEach(() => {
+  window.localStorage.clear();
+});
+
 test("installed hulls stay in the searchable picker while featured selection remains compact", () => {
   const instrumentHull = state();
   render(<HangarPage instrumentHull={instrumentHull} />);
@@ -59,6 +64,18 @@ test("installed hulls stay in the searchable picker while featured selection rem
   expect(select).toHaveTextContent("Odyssey");
   expect(select).not.toHaveTextContent("Modded Hull");
   expect(screen.getByRole("button", { name: /Modded Hull/ })).toBeInTheDocument();
+});
+
+test("motion toggles immediately and persists without an Apply step", () => {
+  render(<HangarPage instrumentHull={state()} />);
+
+  const rotate = screen.getByRole("button", { name: "Motion: Rotate" });
+  expect(rotate).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(rotate);
+
+  const still = screen.getByRole("button", { name: "Motion: Still" });
+  expect(still).toHaveAttribute("aria-pressed", "true");
+  expect(window.localStorage.getItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY)).toBe("still");
 });
 
 test("interior tuning remains independently editable after the shared appearance dials", () => {
