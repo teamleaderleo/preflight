@@ -79,13 +79,21 @@ test("journey overrides keep first settings reachable and put actionable Home fa
   note.className = "launch-console__note";
   const preparationOptions = document.createElement("div");
   preparationOptions.className = "quick-settings";
-  preparationLaunch.append(playtime, identity, note, preparationOptions);
+  const exceptionalActions = document.createElement("div");
+  exceptionalActions.className = "launch-console__actions";
+  const secondaryAction = document.createElement("button");
+  secondaryAction.className = "launch-console__stop";
+  exceptionalActions.append(secondaryAction);
+  const shipName = document.createElement("span");
+  shipName.className = "home-ship-name";
+  preparationLaunch.append(playtime, identity, note, preparationOptions, exceptionalActions, shipName);
   document.body.append(preparationLaunch);
   expect(preparationLaunch.matches(".launch-console--ready:has(.launch-console__note)")).toBe(true);
   expect(getComputedStyle(playtime).display).toBe("none");
   expect(getComputedStyle(identity).top).toBe("64px");
   expect(getComputedStyle(identity).textAlign).toBe("left");
   expect(getComputedStyle(preparationOptions).top).toBe("108px");
+  expect(getComputedStyle(shipName).display).toBe("none");
 
   viewport.remove();
   errorViewport.remove();
