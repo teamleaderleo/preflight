@@ -252,6 +252,8 @@ export default function App() {
     refreshCache,
     announceProfiles,
   );
+  const activeProfileMatches = profilesState.profiles?.profiles.filter((profile) => profile.active) ?? [];
+  const launchProfileName = activeProfileMatches.length === 1 ? activeProfileMatches[0]?.name ?? null : null;
   const { clearProfiles } = profilesState;
   const cleanup = useCacheCleanup(
     snapshot?.selected?.installRoot,
@@ -626,7 +628,7 @@ export default function App() {
             onDismissRunFailure={() => setRunFailure(null)}
             onNavigate={setPage}
             instrumentHull={instrumentHull.selected}
-            launchProfileName={profilesState.profiles?.profiles.find((profile) => profile.active)?.name ?? null}
+            launchProfileName={launchProfileName}
           />
         ) : page === "launch" ? (
           <>
@@ -709,6 +711,7 @@ export default function App() {
             afterLaunchBehavior={afterLaunchBehavior}
             automaticRunReports={diagnostics.automaticRunReports}
             installation={snapshot?.selected?.installRoot ?? null}
+            installationChangeBlockedReason={activeOperation?.reason ?? null}
             onAutomaticRunReportsChange={diagnostics.setAutomaticRunReports}
             onAfterLaunchBehaviorChange={setAfterLaunchBehavior}
             onChooseInstall={() => void chooseInstall()}
