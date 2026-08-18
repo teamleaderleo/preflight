@@ -18,6 +18,20 @@ describe("startup comparison presentation", () => {
     expect(result.detail).toBe("0.5% difference");
   });
 
+  test("keeps the positive one-percent boundary neutral", () => {
+    const result = startupComparisonPresentation(1_000, 990);
+    expect(result.kind).toBe("similar");
+    expect(result.headline).toBe("About the same");
+    expect(result.detail).toBe("1.0% difference");
+  });
+
+  test("keeps the negative one-percent boundary neutral", () => {
+    const result = startupComparisonPresentation(1_000, 1_010);
+    expect(result.kind).toBe("similar");
+    expect(result.headline).toBe("About the same");
+    expect(result.detail).toBe("1.0% difference");
+  });
+
   test("calls an unfavorable result slower", () => {
     expect(startupComparisonPresentation(80_000, 100_000)).toEqual({
       kind: "slower",
