@@ -8,7 +8,7 @@ import { QuickGameSettings } from "./QuickGameSettings";
 import { NoticeBanner } from "./NoticeBanner";
 import { storagePlanApplies, type usePreparation } from "../usePreparation";
 import { lastRunForCurrentProfile } from "../lastRunApplicability";
-import { formatBytes, formatPlaytime, splitPlaytime } from "../uiFormat";
+import { formatBytes, formatPlaytime, shortPath, splitPlaytime } from "../uiFormat";
 import { FlightInstrument } from "./FlightInstrument";
 import type {
   AppStatus,
@@ -57,6 +57,7 @@ interface HomePageProps {
   onDismissRunFailure: () => void;
   onNavigate: (page: Page) => void;
   instrumentHull: WireframeHull;
+  launchProfileName: string | null;
 }
 
 export function HomePage({
@@ -93,6 +94,7 @@ export function HomePage({
   onDismissRunFailure,
   onNavigate,
   instrumentHull,
+  launchProfileName,
 }: HomePageProps) {
   const [optionsOpen, setOptionsOpen] = useState(() => {
     try {
@@ -243,6 +245,15 @@ export function HomePage({
             * look for before handing an unsigned program their game folder.
             */}
           {!isReady && status !== "loading" ? <p className="setup-next">Preflight prepares your mods once, then opens Starsector. It never moves the game, mods, or saves.</p> : null}
+          {isReady && status === "ready" && !needsPreparation && snapshot?.selected ? (
+            <div
+              className="home-launch-identity"
+              aria-label={`Launches ${launchProfileName ? `profile ${launchProfileName}` : "the current mod setup"} from ${snapshot.selected.installRoot}`}
+            >
+              <span title={snapshot.selected.installRoot}>{shortPath(snapshot.selected.installRoot)}</span>
+              <strong title={launchProfileName ?? undefined}>{launchProfileName ?? "Current mod setup"}</strong>
+            </div>
+          ) : null}
           <div className="launch-console__actions">
             {isReady ? (
               <>
