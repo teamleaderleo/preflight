@@ -12,6 +12,7 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/** Pins recovery to the consumed staged replacement as durable pre-marker publication evidence. */
 class ProfileMutationCommitEvidenceTest {
     private static final byte[] REVIEWED = "reviewed-profile".getBytes(java.nio.charset.StandardCharsets.UTF_8);
     private static final byte[] REPLACEMENT = "replacement-profile".getBytes(java.nio.charset.StandardCharsets.UTF_8);
