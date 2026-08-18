@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: launch-settings-rc-edit
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   edit-and-verify:
@@ -25,8 +25,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode .github/launch-settings-rc-edit.py.gz.b64 | gzip --decompress > .github/launch-settings-rc-edit.py
+          git show 44e058bcc6fd2fda3dc4976588a2d73ba94dc06b:.github/launch-settings-rc-edit.py.gz.b64 \
+            | base64 --decode \
+            | gzip --decompress \
+            > .github/launch-settings-rc-edit.py
           python3 .github/launch-settings-rc-edit.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("preflight-desktop/src/requestFencing.test.tsx")
+          text = path.read_text(encoding="utf-8")
+          old = '  expect(announce).toHaveBeenLastCalledWith("Game settings saved. Vanilla and Preflight launches will use the same values.", "success");\n'
+          new = '''  expect(announce).toHaveBeenLastCalledWith(
+            "Global game settings applied and verified. Vanilla and Preflight launches will use the same values.",
+            "success",
+          );
+          '''
+          if text.count(old) != 1:
+              raise RuntimeError("requestFencing.test.tsx: stale success assertion was not found exactly once")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
           rm .github/launch-settings-rc-edit.py .github/launch-settings-rc-edit.py.gz.b64 .github/workflows/launch-settings-rc-edit.yml
 
       - uses: ./.github/actions/setup-build-jdk
