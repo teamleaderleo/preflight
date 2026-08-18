@@ -98,6 +98,15 @@ class RulesRegexCacheRuntimeTest {
     }
 
     @Test
+    void doubleSmartQuoteFastPathPreservesNullCharacters() {
+        String input = "before\0\u201cquoted\u201d\0after";
+        String regex = "[\\u201c\\u201d]+";
+
+        assertEquals(input.replaceAll(regex, "\""),
+                RulesRegexCacheRuntime.replaceAll(input, regex, "\""));
+    }
+
+    @Test
     void invalidAndNullInputsFailLikeString() {
         assertThrows(PatternSyntaxException.class,
                 () -> RulesRegexCacheRuntime.split("x", "["));

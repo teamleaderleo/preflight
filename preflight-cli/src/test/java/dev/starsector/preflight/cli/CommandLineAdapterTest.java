@@ -227,11 +227,11 @@ class CommandLineAdapterTest {
     }
 
     @Test
-    void fastUsesAcceptedTrueSizeTexturesInsteadOfPaddedNpotCarriers() {
+    void fastKeepsNpotTexturesPaddedWhenPreparedPixelsFallBack() {
         CommandLine fast = CommandLine.parse(new String[] {"run", "--fast"}, 1);
 
-        assertEquals(true, fast.unpadded());
-        assertEquals(false, fast.npotDirect());
+        assertEquals(false, fast.unpadded());
+        assertEquals(true, fast.npotDirect());
     }
 
     @Test

@@ -211,7 +211,7 @@ export function HelpPage({
 
       <section className="card help-links-card">
         <div className="card__heading"><div><h2>More help</h2></div></div>
-        <p>Paste the Copy setup summary into a public issue. Attach the support ZIP when richer evidence is useful, or quote the case number after sending one.</p>
+        <p>Paste the Copy setup summary into a public issue. Never attach a support ZIP there. If you sent one through Preflight, quote only the case number.</p>
         <div className="privacy-links">
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("getting-started")}>Getting started</button>
           <button className="button button--quiet button--compact" type="button" onClick={() => void openProjectLink("report-issue")}>Open an issue</button>
