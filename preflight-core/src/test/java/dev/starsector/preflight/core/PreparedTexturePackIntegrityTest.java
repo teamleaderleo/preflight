@@ -17,7 +17,6 @@ class PreparedTexturePackIntegrityTest {
     private static final int PACK_FIXED_HEADER_BYTES = 4 + Integer.BYTES * 2 + Long.BYTES + 32;
     private static final int SPFT_PREFIX_BYTES = 4 + Integer.BYTES * 2;
     private static final int SPFT_PAYLOAD_FIXED_BYTES = 32 + Integer.BYTES * 11;
-    private static final int SPFT_CHECKSUM_BYTES = 32;
 
     @TempDir
     Path temporaryDirectory;
