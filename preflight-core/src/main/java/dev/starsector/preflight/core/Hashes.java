@@ -17,14 +17,25 @@ public final class Hashes {
         if (!Files.isRegularFile(file)) {
             throw new IOException("Expected a regular file: " + file.toAbsolutePath().normalize());
         }
+        try (InputStream input = Files.newInputStream(file)) {
+            return sha256(input);
+        }
+    }
+
+    /**
+     * Digests whatever the stream yields without closing it; stream ownership stays with the caller.
+     *
+     * A caller that has to prove the digest belongs to a file it observed cannot re-open by name:
+     * between the observation and the read, the name can be pointed at something else and back.
+     * Opening once and hashing the supplied stream keeps the read on that already-selected source.
+     */
+    public static String sha256(InputStream bytes) throws IOException {
         MessageDigest digest = newSha256();
         byte[] buffer = new byte[64 * 1024];
-        try (InputStream input = Files.newInputStream(file)) {
-            int read;
-            while ((read = input.read(buffer)) >= 0) {
-                if (read > 0) {
-                    digest.update(buffer, 0, read);
-                }
+        int read;
+        while ((read = bytes.read(buffer)) >= 0) {
+            if (read > 0) {
+                digest.update(buffer, 0, read);
             }
         }
         return HexFormat.of().formatHex(digest.digest());
