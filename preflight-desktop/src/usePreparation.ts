@@ -347,7 +347,7 @@ export function usePreparation(
             previousPid = null;
           }
         },
-        isActive: () => previousPid !== null && previousPid !== undefined && !completionObserved,
+        isActive: () => previousPid !== null && !completionObserved,
         onError: (pollError) => announce(`Could not refresh native preparation state: ${pollError}`, "error"),
       });
     };
