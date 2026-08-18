@@ -64,8 +64,9 @@ test("Settings offers first selection when no installation is active", () => {
   expect(screen.getByRole("button", { name: "Choose game folder" })).toBeEnabled();
 });
 
-test("installation changes lock with release-critical operations", () => {
-  render(<SettingsPage {...props({ removalBlockedReason: "Close Starsector before removing Preflight data." })} />);
+test("installation changes follow the app-wide workflow lock", () => {
+  render(<SettingsPage {...props({ installationChangeBlockedReason: "Updating the saved mod profile" })} />);
 
   expect(screen.getByRole("button", { name: "Change folder" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Change folder" })).toHaveAttribute("title", "Updating the saved mod profile");
 });
