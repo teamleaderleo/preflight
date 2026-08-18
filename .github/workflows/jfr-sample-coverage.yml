@@ -1,17 +1,16 @@
 name: JFR execution-sample coverage
 
 on:
-  pull_request:
-    paths:
-      - 'scripts/jfr-sample-coverage/**'
-      - '.github/workflows/jfr-sample-coverage.yml'
+  # This is a retained measurement probe, not a per-PR correctness gate. The evidence run used for
+  # issue #254 is recorded under docs/evidence/; rerun this workflow when the runtime or question
+  # changes.
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
