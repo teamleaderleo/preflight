@@ -343,11 +343,20 @@ final class ProfileCommandTest {
                 ProfileCommand.retainedFingerprints(restarted).fingerprints());
 
         Files.writeString(fixture.enabled(), "{\"enabledMods\":[\"beta\"]}");
-        ByteArrayOutputStream resaved = new ByteArrayOutputStream();
-        assertEquals(0, ProfileCommand.save(
-                restarted, fixture.game(), "Original", true, stream(resaved)));
-        String changedFingerprint = JsonText.string(
-                resaved.toString(StandardCharsets.UTF_8), "profileFingerprint");
+        ByteArrayOutputStream updatePreview = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.update(
+                restarted, fixture.game(), "Original", null, null,
+                false, true, stream(updatePreview)));
+        String updatePreviewJson = updatePreview.toString(StandardCharsets.UTF_8);
+        String existingToken = JsonText.string(updatePreviewJson, "profileFingerprint");
+        String replacementToken = JsonText.string(updatePreviewJson, "replacementFingerprint");
+        ByteArrayOutputStream updated = new ByteArrayOutputStream();
+        assertEquals(0, ProfileCommand.update(
+                restarted, fixture.game(), "Original", existingToken, replacementToken,
+                true, true, stream(updated)));
+        String updatedJson = updated.toString(StandardCharsets.UTF_8);
+        assertTrue(updatedJson.contains("\"applied\":true"));
+        String changedFingerprint = JsonText.string(updatedJson, "proposedProfileFingerprint");
         assertFalse(originalFingerprint.equals(changedFingerprint));
         assertEquals(Set.of(originalFingerprint, changedFingerprint),
                 ProfileCommand.retainedFingerprints(restarted).fingerprints());
