@@ -1,0 +1,328 @@
+name: Apply #703 removal fence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/rc-703-removal-fence.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'fix/desktop-report-authority'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt
+
+      - name: Apply exact bounded edit and self-delete
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          RUST_BLOB: d722c070db1430a3501c0dc7b18720bd9316e2c5
+          TS_BLOB: 929bf82d172acb6130163b02dc066a43a90f21bf
+          RUST: preflight-desktop/src-tauri/src/report_authority.rs
+          TS: preflight-desktop/src/useDiagnosticsReport.ts
+          SELF: .github/workflows/rc-703-removal-fence.yml
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git hash-object "$RUST")" = "$RUST_BLOB"
+          test "$(git hash-object "$TS")" = "$TS_BLOB"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          rust_path = Path("preflight-desktop/src-tauri/src/report_authority.rs")
+          text = rust_path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one Rust match, found {count}: {old[:80]!r}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              'const MAX_AUTHORITY_BYTES: u64 = 64 * 1024;\n',
+              'const MAX_AUTHORITY_BYTES: u64 = 64 * 1024;\n'
+              'const PREFLIGHT_HOME_DIRECTORY: &str = ".starsector-preflight";\n'
+              'const REMOVAL_MARKER_NAME: &str = "removal.pending";\n',
+          )
+
+          replace_once(
+              '    pub(crate) fn persist_accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n'
+              '        self.ensure_generation()?;\n',
+              '    pub(crate) fn persist_accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n'
+              '        refuse_if_removal_pending(&self.root)?;\n'
+              '        self.ensure_generation()?;\n',
+          )
+
+          old_clear = '''    pub(crate) fn clear_all(app: &AppHandle) -> Result<(), String> {
+              let authority = authority_root(app)?;
+              if authority.symlink_metadata().is_ok() {
+                  verify_protected_directory_chain(&authority)?;
+                  if !list_report_views_at(&authority)?.is_empty() {
+                      return Err("Delete uploaded reports, or explicitly dismiss their saved deletion authorization, before clearing report authority.".to_string());
+                  }
+              }
+              for root in [authority, claim_root(app)?] {
+                  let metadata = match root.symlink_metadata() {
+                      Ok(metadata) => metadata,
+                      Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                      Err(error) => {
+                          return Err(format!("Could not inspect saved report authority: {error}"));
+                      }
+                  };
+                  if metadata_is_alias(&metadata) || !metadata.is_dir() {
+                      return Err(
+                          "Refusing to clear report authority through an aliased or non-directory path."
+                              .to_string(),
+                      );
+                  }
+                  verify_protected_directory_chain(&root)?;
+                  fs::remove_dir_all(&root)
+                      .map_err(|error| format!("Could not clear saved report authority: {error}"))?;
+              }
+              Ok(())
+          }
+          '''
+          new_clear = '''    pub(crate) fn clear_all(app: &AppHandle) -> Result<(), String> {
+              let authority = authority_root(app)?;
+              if authority.symlink_metadata().is_ok() {
+                  verify_protected_directory_chain(&authority)?;
+                  if !list_report_views_at(&authority)?.is_empty() {
+                      return Err("Delete uploaded reports, or explicitly dismiss their saved deletion authorization, before clearing report authority.".to_string());
+                  }
+              }
+
+              // Establish the same durable removal fence used by the Java operation lease before
+              // removing the empty native authority namespace. Other Preflight processes then
+              // fail closed instead of recreating bearer credentials during all-data removal.
+              let fence = establish_removal_fence(&authority)?;
+              if authority.symlink_metadata().is_ok() {
+                  verify_protected_directory_chain(&authority)?;
+                  if !list_report_views_at(&authority)?.is_empty() {
+                      release_new_removal_fence(&fence)?;
+                      return Err("A report case became actionable while all-data removal was starting. Delete it, or explicitly dismiss its saved deletion authorization, then retry removal.".to_string());
+                  }
+              }
+
+              for root in [authority, claim_root(app)?] {
+                  let metadata = match root.symlink_metadata() {
+                      Ok(metadata) => metadata,
+                      Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                      Err(error) => {
+                          return Err(format!("Could not inspect saved report authority: {error}"));
+                      }
+                  };
+                  if metadata_is_alias(&metadata) || !metadata.is_dir() {
+                      return Err(
+                          "Refusing to clear report authority through an aliased or non-directory path."
+                              .to_string(),
+                      );
+                  }
+                  verify_protected_directory_chain(&root)?;
+                  fs::remove_dir_all(&root)
+                      .map_err(|error| format!("Could not clear saved report authority: {error}"))?;
+              }
+              Ok(())
+          }
+          '''
+          replace_once(old_clear, new_clear)
+
+          replace_once(
+              '    ) -> Result<(), String> {\n        self.ensure_generation()?;\n        prune_expired_accepted_at(&self.root, now_millis()?)?;\n',
+              '    ) -> Result<(), String> {\n        refuse_if_removal_pending(&self.root)?;\n        self.ensure_generation()?;\n        prune_expired_accepted_at(&self.root, now_millis()?)?;\n',
+          )
+          replace_once(
+              '    pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n        self.ensure_generation()?;\n',
+              '    pub(crate) fn accepted(&self, receipt: &ReportReceipt) -> Result<(), String> {\n        refuse_if_removal_pending(&self.root)?;\n        self.ensure_generation()?;\n',
+          )
+
+          replace_once(
+              '    ensure_protected_directory_chain(root)?;\n    prune_claims(root)?;\n',
+              '    refuse_if_removal_pending(root)?;\n    ensure_protected_directory_chain(root)?;\n    prune_claims(root)?;\n',
+          )
+          replace_once(
+              '            verify_protected_directory_chain(root)?;\n            sync_directory(root)?;\n            Ok(true)\n',
+              '            if let Err(error) = refuse_if_removal_pending(root) {\n                let _ = remove_file_if_regular(&path);\n                return Err(error);\n            }\n            verify_protected_directory_chain(root)?;\n            sync_directory(root)?;\n            Ok(true)\n',
+          )
+
+          replace_once(
+              '    let parent = path\n        .parent()\n        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;\n    test_mutate_before_persist(parent)?;\n',
+              '    let parent = path\n        .parent()\n        .ok_or_else(|| "Saved report authority has no parent directory.".to_string())?;\n    refuse_if_removal_pending(parent)?;\n    test_mutate_before_persist(parent)?;\n',
+          )
+          replace_once(
+              '    if let Err(error) = write_result {\n        let _ = remove_file_if_regular(path);\n        return Err(error);\n    }\n    verify_protected_directory_chain(parent)?;\n',
+              '    if let Err(error) = write_result {\n        let _ = remove_file_if_regular(path);\n        return Err(error);\n    }\n    if let Err(error) = refuse_if_removal_pending(parent) {\n        let _ = remove_file_if_regular(path);\n        return Err(error);\n    }\n    verify_protected_directory_chain(parent)?;\n',
+          )
+
+          helper_anchor = '''fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {
+          '''
+          helpers = '''#[derive(Clone, Debug)]
+          struct RemovalFence {
+              path: Option<PathBuf>,
+              created: bool,
+          }
+
+          fn preflight_root_for_owned_path(path: &Path) -> Option<PathBuf> {
+              path.ancestors()
+                  .find(|candidate| candidate.file_name().is_some_and(|name| name == PREFLIGHT_HOME_DIRECTORY))
+                  .map(Path::to_path_buf)
+          }
+
+          fn removal_marker_for_owned_path(path: &Path) -> Option<PathBuf> {
+              preflight_root_for_owned_path(path)
+                  .map(|root| root.join("state").join(REMOVAL_MARKER_NAME))
+          }
+
+          fn refuse_if_removal_pending(path: &Path) -> Result<(), String> {
+              let Some(marker) = removal_marker_for_owned_path(path) else {
+                  return Ok(());
+              };
+              match marker.symlink_metadata() {
+                  Ok(metadata) if !metadata_is_alias(&metadata) && metadata.is_file() => Err(
+                      "Preflight data removal is in progress. Finish all-data removal before creating or publishing report authority."
+                          .to_string(),
+                  ),
+                  Ok(_) => Err("Refusing report authority while the all-data removal marker is aliased or malformed.".to_string()),
+                  Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                  Err(error) => Err(format!("Could not inspect the all-data removal marker: {error}")),
+              }
+          }
+
+          fn establish_removal_fence(path: &Path) -> Result<RemovalFence, String> {
+              let Some(marker) = removal_marker_for_owned_path(path) else {
+                  return Ok(RemovalFence { path: None, created: false });
+              };
+              let state = marker
+                  .parent()
+                  .ok_or_else(|| "All-data removal marker has no parent directory.".to_string())?;
+              ensure_protected_directory_chain(state)?;
+              match OpenOptions::new().write(true).create_new(true).open(&marker) {
+                  Ok(mut file) => {
+                      make_private_file(&file)?;
+                      file.write_all(b"Preflight data removal is in progress. Re-run uninstall --purge --yes if interrupted.\n")
+                          .map_err(|error| format!("Could not write the all-data removal marker: {error}"))?;
+                      file.sync_all()
+                          .map_err(|error| format!("Could not save the all-data removal marker: {error}"))?;
+                      verify_protected_directory_chain(state)?;
+                      sync_directory(state)?;
+                      Ok(RemovalFence { path: Some(marker), created: true })
+                  }
+                  Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                      let metadata = marker
+                          .symlink_metadata()
+                          .map_err(|error| format!("Could not inspect the all-data removal marker: {error}"))?;
+                      if metadata_is_alias(&metadata) || !metadata.is_file() {
+                          return Err("Refusing all-data removal through an aliased or malformed removal marker.".to_string());
+                      }
+                      Ok(RemovalFence { path: Some(marker), created: false })
+                  }
+                  Err(error) => Err(format!("Could not create the all-data removal marker: {error}")),
+              }
+          }
+
+          fn release_new_removal_fence(fence: &RemovalFence) -> Result<(), String> {
+              if !fence.created {
+                  return Ok(());
+              }
+              let Some(path) = fence.path.as_deref() else {
+                  return Ok(());
+              };
+              remove_file_if_regular(path)?;
+              if let Some(parent) = path.parent() {
+                  sync_directory(parent)?;
+              }
+              Ok(())
+          }
+
+          fn protected_owned_chain(root: &Path) -> Vec<PathBuf> {
+          '''
+          replace_once(helper_anchor, helpers)
+          text = text.replace('name == ".starsector-preflight"', 'name == PREFLIGHT_HOME_DIRECTORY')
+
+          test_anchor = '''    #[test]
+              fn automatic_claim_is_atomic_across_threads() {
+          '''
+          test = '''    #[test]
+              fn removal_fence_blocks_new_credentials_and_automatic_claims() {
+                  let base = temp_root("removal-fence");
+                  fs::create_dir(&base).unwrap();
+                  let preflight = base.join(PREFLIGHT_HOME_DIRECTORY);
+                  let root = preflight.join("support").join("report-authority");
+                  let store = ReportAuthorityStore::create_at(root.clone()).unwrap();
+                  let fence = establish_removal_fence(&root).unwrap();
+                  assert!(fence.created);
+
+                  let receipt = test_receipt("77777777-7777-7777-7777-777777777777", "ff");
+                  let report = ReportUploadInput {
+                      output: "/tmp/report.zip".to_string(),
+                      bytes: receipt.bytes,
+                      sha256: receipt.sha256.clone(),
+                  };
+                  let error = store
+                      .lifecycle()
+                      .granted(&test_grant(&receipt), &report)
+                      .unwrap_err();
+                  assert!(error.contains("removal is in progress"));
+                  assert!(!pending_path(&root, &receipt.case_id).exists());
+
+                  let claims = preflight.join("support").join("automatic-report-claims");
+                  assert!(claim_automatic_report_at(&claims, "blocked-run").is_err());
+                  assert!(!claims.exists());
+                  fs::remove_dir_all(base).unwrap();
+              }
+
+              #[test]
+              fn automatic_claim_is_atomic_across_threads() {
+          '''
+          replace_once(test_anchor, test)
+
+          rust_path.write_text(text)
+
+          ts_path = Path("preflight-desktop/src/useDiagnosticsReport.ts")
+          ts = ts_path.read_text()
+          old = '''  const clearReportReceipt = () => {
+              setReportCases([]);
+              void mutateRunReport("", "clear-all").catch((error) => announce(errorMessage(error), "error"));
+            };
+          '''
+          new = '''  const clearReportReceipt = () => {
+              // Native authority was already fenced and cleared before all-data removal began.
+              // This post-removal callback is renderer-local so it cannot recreate removal state.
+              setReportCases([]);
+            };
+          '''
+          if ts.count(old) != 1:
+              raise SystemExit(f"expected one TypeScript clear callback, found {ts.count(old)}")
+          ts_path.write_text(ts.replace(old, new, 1))
+          PY
+
+          cargo fmt --manifest-path preflight-desktop/src-tauri/Cargo.toml
+          git diff --check -- "$RUST" "$TS"
+
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n%s\n' "$RUST" "$TS" | sort)"
+          test "$changed" = "$expected"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$RUST" "$TS"
+          git rm "$SELF"
+          staged="$(git diff --cached --name-only | sort)"
+          expected_staged="$(printf '%s\n%s\n%s\n' "$SELF" "$RUST" "$TS" | sort)"
+          test "$staged" = "$expected_staged"
+          git commit -m "fix(reports): fence authority during all-data removal"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
