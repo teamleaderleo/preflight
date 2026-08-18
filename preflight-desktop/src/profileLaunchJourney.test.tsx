@@ -37,6 +37,19 @@ function profiles(mainActive: boolean): ProfileList {
   };
 }
 
+function externalProfiles(): ProfileList {
+  return {
+    format: "starsector-preflight-profile-list-v1",
+    installRoot: "/Applications/Starsector",
+    enabledMods: ["external"],
+    profiles: [
+      profile("Main campaign", "old-fingerprint", false),
+      profile("Utilities only", "new-fingerprint", false),
+    ],
+    diagnostics: [],
+  };
+}
+
 function cache(fingerprint: string, prepared: boolean): CacheSnapshot {
   return {
     format: "starsector-preflight-cache-v1",
@@ -109,5 +122,33 @@ test("Home reflects the switched profile when its new mod set needs preparation"
     getProfiles.mockRestore();
     getCache.mockRestore();
     activate.mockRestore();
+  }
+});
+
+test("refocusing Home revalidates an externally changed mod set before launch", async () => {
+  window.localStorage.clear();
+  const getProfiles = vi.spyOn(bridge, "getProfiles")
+    .mockResolvedValueOnce(profiles(true))
+    .mockResolvedValueOnce(externalProfiles());
+  const getCache = vi.spyOn(bridge, "getCache")
+    .mockResolvedValueOnce(cache("old-fingerprint", true))
+    .mockResolvedValueOnce(cache("external-fingerprint", false));
+
+  try {
+    render(<App />);
+
+    expect(await screen.findByLabelText("Launches profile Main campaign from /Applications/Starsector"))
+      .toBeInTheDocument();
+
+    window.dispatchEvent(new Event("focus"));
+
+    expect(await screen.findByLabelText("Launches the current mod setup from /Applications/Starsector"))
+      .toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Preparation needed")).toBeInTheDocument());
+    expect(getProfiles).toHaveBeenCalledTimes(2);
+    expect(getCache).toHaveBeenCalledTimes(2);
+  } finally {
+    getProfiles.mockRestore();
+    getCache.mockRestore();
   }
 });
