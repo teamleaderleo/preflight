@@ -838,6 +838,9 @@ final class ProfileCommand {
             boolean json,
             PrintStream out) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
+        if (confirmed) {
+            layout = layout.requireMutationSafe();
+        }
         SavedProfile profile = readProfile(profilePath(home, name));
         requireProfileName(profile, name);
         byte[] sourceState = Files.readAllBytes(layout.enabledModsFile());

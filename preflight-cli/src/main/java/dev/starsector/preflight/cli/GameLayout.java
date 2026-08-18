@@ -2,6 +2,7 @@ package dev.starsector.preflight.cli;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -10,6 +11,25 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 record GameLayout(Path installRoot, Path modsDirectory, Path enabledModsFile, List<String> diagnostics) {
+    GameLayout requireMutationSafe() throws IOException {
+        Path realRoot = installRoot.toRealPath();
+        Path realMods = modsDirectory.toRealPath();
+        if (!realMods.startsWith(realRoot)) {
+            throw new IOException("Refusing to modify enabled_mods.json outside the selected install: "
+                    + modsDirectory);
+        }
+        if (!Files.isRegularFile(enabledModsFile, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Refusing to modify a symlink or non-file enabled_mods.json: "
+                    + enabledModsFile);
+        }
+        Path realEnabled = enabledModsFile.toRealPath();
+        if (!realEnabled.getParent().equals(realMods)) {
+            throw new IOException("Refusing to modify enabled_mods.json outside the selected mods directory: "
+                    + enabledModsFile);
+        }
+        return new GameLayout(installRoot, realMods, realEnabled, diagnostics);
+    }
+
     static GameLayout locate(Path installRoot) throws IOException {
         Path root = installRoot.toAbsolutePath().normalize();
         List<String> diagnostics = new ArrayList<>();
