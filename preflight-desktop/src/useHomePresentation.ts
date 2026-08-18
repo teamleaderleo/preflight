@@ -26,9 +26,16 @@ export function readHomePresentation(
       return DEFAULT_HOME_PRESENTATION;
     }
     const candidate = decoded as Record<string, unknown>;
+    const legacyPlaytimeOnly = candidate.mode === undefined;
+    if (!legacyPlaytimeOnly && candidate.mode !== "hangar" && candidate.mode !== "compact") {
+      return DEFAULT_HOME_PRESENTATION;
+    }
+    if (candidate.showPlaytime !== undefined && typeof candidate.showPlaytime !== "boolean") {
+      return DEFAULT_HOME_PRESENTATION;
+    }
     return {
       // Preferences written by the earlier playtime-only slice have no mode and remain Hangar.
-      mode: candidate.mode === "compact" ? "compact" : "hangar",
+      mode: legacyPlaytimeOnly ? "hangar" : candidate.mode as HomePresentationMode,
       showPlaytime: typeof candidate.showPlaytime === "boolean" ? candidate.showPlaytime : true,
     };
   } catch {
