@@ -18,8 +18,10 @@ interface SettingsPageProps {
   removalBusy: boolean;
   afterLaunchBehavior: AfterLaunchBehavior;
   automaticRunReports: boolean;
+  installation: string | null;
   onAutomaticRunReportsChange: (enabled: boolean) => void;
   onAfterLaunchBehaviorChange: (behavior: AfterLaunchBehavior) => void;
+  onChooseInstall: () => void;
   onReviewRemoval: (scope: RemovalScope) => void;
   onDismissRemoval: () => void;
   onRemove: () => void;
@@ -36,8 +38,10 @@ export function SettingsPage({
   removalBusy,
   afterLaunchBehavior,
   automaticRunReports,
+  installation,
   onAutomaticRunReportsChange,
   onAfterLaunchBehaviorChange,
+  onChooseInstall,
   onReviewRemoval,
   onDismissRemoval,
   onRemove,
@@ -53,10 +57,26 @@ export function SettingsPage({
     checkUpdates,
     installSignedUpdate,
   } = updates;
+  const installationChangeBlocked = removalBusy || updateInstalling || Boolean(removalBlockedReason);
   return (
     <div className="settings-page">
       <NoticeBanner message={updateError === message ? "" : message} tone={messageTone} />
       <section className="card preferences-card">
+        <div className="preference-block">
+          <div>
+            <h2>Game installation</h2>
+            <p title={installation ?? undefined}>{installation ? shortPath(installation) : "No Starsector installation selected."}</p>
+          </div>
+          <button
+            className="button button--quiet button--compact"
+            type="button"
+            onClick={onChooseInstall}
+            disabled={installationChangeBlocked}
+            title={installationChangeBlocked ? removalBlockedReason ?? "Finish the current operation before changing installations." : undefined}
+          >
+            {installation ? "Change folder" : "Choose game folder"}
+          </button>
+        </div>
         <div className="preference-block">
           <div>
             <h2>After launch</h2>
