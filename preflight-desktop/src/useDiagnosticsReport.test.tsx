@@ -160,5 +160,7 @@ test("legacy renderer deletion credentials migrate to native report authority be
 
   await waitFor(() => expect(result.current.reportCases).toHaveLength(1));
   expect(result.current.reportCases[0]?.caseId).toBe(receipt.caseId);
+  expect(result.current.reportCases[0]).not.toHaveProperty("deletion");
+  expect(result.current.reportCases[0]).not.toHaveProperty("signature");
   expect(window.localStorage.getItem(REPORT_RECEIPT_STORAGE_KEY)).toBeNull();
 });
