@@ -19,9 +19,15 @@ test("the Hangar stage keeps the ship and drops the small targeting reticle", ()
   expect(container.querySelector(".flight-instrument--stage svg")).toBeNull();
 });
 
-test("a saved Still preference reaches the shared renderer", () => {
-  window.localStorage.setItem(INSTRUMENT_HULL_MOTION_STORAGE_KEY, "still");
+test("saved motion and direction preferences reach the shared renderer", () => {
+  window.localStorage.setItem(
+    INSTRUMENT_HULL_MOTION_STORAGE_KEY,
+    JSON.stringify({ motion: "still", direction: "counter-clockwise" }),
+  );
   const { container } = render(createElement(FlightInstrument, { variant: "stage" }));
 
-  expect(container.querySelector(".flight-instrument--stage")).toHaveAttribute("data-motion", "still");
+  expect(container.querySelector(".flight-instrument--stage"))
+    .toHaveAttribute("data-motion", "still");
+  expect(container.querySelector(".flight-instrument--stage"))
+    .toHaveAttribute("data-direction", "counter-clockwise");
 });
