@@ -325,6 +325,14 @@ export interface LaunchSettings {
   format: "starsector-preflight-launch-settings-v1";
   directLaunchAvailable: boolean;
   reason: string | null;
+  applyBoundary: {
+    kind: "quiescent-apply-v1";
+    scope: "global-starsector-settings";
+    instruction: string;
+    confirmationLabel: string;
+    confirmationOption: string;
+    leaseScope: string;
+  };
   settings: {
     resolution: string;
     fullscreen: boolean;

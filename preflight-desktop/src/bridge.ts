@@ -532,6 +532,14 @@ export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
       format: "starsector-preflight-launch-settings-v1",
       directLaunchAvailable: true,
       reason: null,
+      applyBoundary: {
+        kind: "quiescent-apply-v1",
+        scope: "global-starsector-settings",
+        instruction: "Close Starsector, its launcher, and every settings editor or mod manager before Apply. Keep them closed until Apply finishes.",
+        confirmationLabel: "I closed Starsector, its launcher, settings editors, and mod managers.",
+        confirmationOption: "--confirm-settings-tools-closed",
+        leaseScope: "Preflight's operation lease coordinates Preflight processes only. External programs can still change these global settings.",
+      },
       settings: {
         resolution: "1440x932",
         fullscreen: false,
@@ -581,7 +589,11 @@ export async function getLaunchSettings(game: string): Promise<LaunchSettings> {
 export async function updateLaunchSettings(
   game: string,
   settings: LaunchSettingsUpdate,
+  settingsToolsClosed: boolean,
 ): Promise<LaunchSettings> {
+  if (!settingsToolsClosed) {
+    throw new Error("Close Starsector, its launcher, settings editors, and mod managers before Apply.");
+  }
   if (!isDesktopHost()) {
     const current = await getLaunchSettings(game);
     return {
@@ -599,7 +611,7 @@ export async function updateLaunchSettings(
       backup: "~/.starsector-preflight/launcher-preference-backups/preview.json",
     };
   }
-  return invoke<LaunchSettings>("update_launch_settings", { game, settings });
+  return invoke<LaunchSettings>("update_launch_settings", { game, settings, settingsToolsClosed });
 }
 
 export async function getProfiles(game: string): Promise<ProfileList> {
