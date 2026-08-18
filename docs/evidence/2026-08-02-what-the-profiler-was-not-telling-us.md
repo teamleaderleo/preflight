@@ -5,6 +5,18 @@
 240-second workload — **no game involved**, clean exit, exit code 0
 **Status:** two defects found and fixed, one measured and left open, and one earlier claim corrected.
 
+> **2026-08-18 correction (#254):** the ~40% first/last `ExecutionSample` timestamp span below was
+> reproduced on the exact Zulu 17.0.10 x86_64/Rosetta runtime with an independent monotonic wall
+> clock plus JFR start/end markers. The JFR marker clock itself advances at about 0.4x wall time in
+> that runtime context, while execution samples span about 99.9% of the marker interval. Current
+> Temurin 17.0.20 x86_64 under Rosetta shows the same clock scale; the same Temurin build on native
+> x86_64 is ~1.0x. The old 48/120 and 26/65 measurements therefore describe **raw JFR timestamp
+> scaling**, not sampling stopping after 40% of wall time. A separate JDK 17 limitation remains:
+> successful `ExecutionSample` event density is sparse relative to the configured sampler period.
+> See [the retained #254 measurement](2026-08-18-jfr-execution-sample-coverage.md). The observations
+> below are preserved as the historical trail; this correction supersedes their 40%-coverage causal
+> interpretation.
+
 ## The claim being corrected
 
 Yesterday's note said *"every `--profile` run this project has taken has been silently losing its
@@ -17,8 +29,10 @@ Recorder rotates to a new chunk at 12 MB, and when the resulting file is read as
 every chunk after the first comes back stamped inside the first chunk's window. Chunk 1 read alone
 spans 07:42:16–07:42:44; read as part of the concatenation, its events fold back into 07:39–07:41.
 
-So: anything derived from **counts or proportions** on a multi-chunk recording is fine. Anything
-derived from **when** is not.
+So chunk folding leaves retained event counts unchanged. Proportions remain proportions inside that
+retained event population; execution-sample proportions still require the separate sample-coverage
+interpretation documented by #254. Anything derived from **when** also needs a validated recording
+clock.
 
 **The `getEntityById` recording is a single chunk**, so
 [that finding](2026-08-02-a-failed-lookup-scans-the-sector.md) is unaffected — its sample shares and
@@ -53,10 +67,10 @@ the save-load recording attributed nothing to `Memory.replaceIdsWithEntities`:
 jfr print --stack-depth 64 --events ExecutionSample out.jfr
 ```
 
-## Open: execution samples cover about 40% of wall clock
+## Superseded: execution-sample timestamps span about 40% of wall clock
 
-Per-chunk, with flushing every 30 seconds, each chunk holds about **12 seconds of execution samples
-out of its 30-second window**:
+Per-chunk, with flushing every 30 seconds, each chunk holds about **12 seconds of execution-sample
+timestamps out of its 30-second wall window**:
 
 ```
 fixed_0.jfr  1478 samples  07:44:30.493 -> 07:44:42.467
@@ -65,20 +79,24 @@ fixed_2.jfr  1545 samples  07:45:30.583 -> 07:45:42.558
 ...
 ```
 
-Sampling stops partway through each window and resumes at the next rotation, which looks like a
-buffer filling and being dropped until a rotation flushes it. **Raising the buffers does not fix
-it**: `-XX:FlightRecorderOptions:memorysize=256m,maxchunksize=256m` over a 120-second run gave a
-single chunk — good for timestamps — with samples spanning 48 seconds of the 120.
+The original interpretation said sampling stopped partway through each window and resumed at the
+next rotation, with buffer filling as one hypothesis. **Raising the buffers did not change the raw
+ratio**: `-XX:FlightRecorderOptions:memorysize=256m,maxchunksize=256m` over a 120-second run gave a
+single chunk with sample timestamps spanning 48 seconds of the 120.
 
-The root cause is not established. What follows from it, and holds regardless of the cause:
+The 2026-08-18 marker probe resolves that particular ratio: the JFR timestamp clock on the measured
+x86_64/Rosetta runtime advances at about 0.4x monotonic wall time. The large-buffer result therefore
+remained at 40% because recorder capacity was never the cause of that raw timestamp ratio.
 
-- **Sample counts are a sample of a sample.** Proportions between frames within one recording remain
-  meaningful; absolute "this took N seconds because it had M samples" arithmetic does not.
-- There is a real tension between the two fixes. More frequent flushing means more chunks, which
-  means more sampling windows and *less* trustworthy cross-chunk time. A single-chunk recording with
-  a large `maxchunksize` is the timestamp-accurate configuration and the worse-covered one.
-  Wiring `maxchunksize` into the launch flags, and choosing per question rather than globally, was
-  the next step.
+What still follows from the retained evidence:
+
+- **Sample counts are statistical observations.** Proportions between frames within one recording
+  describe the observed sample population; absolute "this took N seconds because it had M samples"
+  arithmetic is unsupported.
+- Single-chunk and periodic sidecar recording remain separate operational policies. The former
+  favors one coherent retained recording; the latter preserves partial evidence during a long
+  session. #254 found no consistent sample-density advantage from the 256 MiB limits or the one
+  deliberate 60-second rotation.
 
 > **Update, same day:** `preflight run --profile --single-chunk-recording` now wires
 > `memorysize=256m,maxchunksize=256m` into the child JVM and sends `flush=0` to the agent as one
@@ -87,18 +105,20 @@ The root cause is not established. What follows from it, and holds regardless of
 > sidecar.
 
 > **Live update:** an unattended Starsector startup then produced exactly one 65-second chunk and
-> reached the main menu in 64.4 seconds. Recorded events spanned 26.060 seconds — 40.1% of the
-> physical chunk — so the real game reproduces the synthetic sampling-coverage hole. The harness
-> also now leaves the Preflight wrapper alive after signalling the game, allowing the wrapper to
-> finalize `run.json` and verify the one-chunk postcondition. See
-> [the live profile](2026-08-02-live-single-chunk-startup-profile.md).
+> reached the main menu in 64.4 seconds. Recorded events spanned 26.060 JFR timestamp seconds —
+> 40.1% of the wall interval — so the real game reproduced the synthetic raw clock ratio. The #254
+> reproduction now identifies that ratio as timestamp scaling in the measured x86_64/Rosetta
+> context. See [the live profile](2026-08-02-live-single-chunk-startup-profile.md).
 
-## What is not established
+## What remained open after the original 2026-08-02 run
 
-- **Why sampling stops within a window.** Buffer exhaustion is a hypothesis, contradicted at least
-  in part by the large-buffer run.
-- **Why the game's live recording has the same roughly 40% event span.** One accepted startup now
-  reproduces the ratio, but Starsector spends substantial time in native GL, which can legitimately
-  suppress Java execution samples and may not share the synthetic workload's root cause.
-- **The sidecar does not fix truncation**, and was never going to — it truncates the same way,
-  because it is the same recording. It fixes losing everything.
+The original run left these questions open. #254 answers the first two at the level described above
+and keeps the third as a separate survivability concern:
+
+- The ~40% raw execution-sample timestamp span follows the ~0.4x JFR marker clock on the reproduced
+  x86_64/Rosetta environment. It is not evidence that the sampler stopped for the remaining 60% of
+  wall time.
+- The live game's similar ratio is consistent with the same clock-scale measurement. Native GL can
+  still change which Java execution samples appear, so method shares remain observed-sample evidence.
+- **The sidecar does not fix final-file truncation**, and was never intended to. It fixes losing the
+  whole recording after an abnormal exit.
