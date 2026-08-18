@@ -21,6 +21,12 @@ test("missing and malformed stored preferences fall back to Hangar with playtime
   window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify({ mode: "unknown", showPlaytime: "no" }));
   expect(readHomePresentation()).toEqual(DEFAULT_HOME_PRESENTATION);
 
+  window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify({ mode: "unknown", showPlaytime: false }));
+  expect(readHomePresentation()).toEqual(DEFAULT_HOME_PRESENTATION);
+
+  window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, JSON.stringify({ mode: "compact", showPlaytime: "no" }));
+  expect(readHomePresentation()).toEqual(DEFAULT_HOME_PRESENTATION);
+
   window.localStorage.setItem(HOME_PRESENTATION_STORAGE_KEY, "{");
   expect(readHomePresentation()).toEqual(DEFAULT_HOME_PRESENTATION);
 });
