@@ -7,6 +7,7 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -181,7 +182,17 @@ public final class TextureManifestIO {
     }
 
     private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes;
+        try {
+            ByteBuffer encoded = StandardCharsets.UTF_8.newEncoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .encode(CharBuffer.wrap(value));
+            bytes = new byte[encoded.remaining()];
+            encoded.get(bytes);
+        } catch (CharacterCodingException error) {
+            throw new IOException("Texture manifest string cannot be encoded as UTF-8", error);
+        }
         if (bytes.length > MAX_STRING_BYTES) {
             throw new IOException("Texture manifest string exceeds the safety limit");
         }
