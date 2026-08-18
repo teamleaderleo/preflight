@@ -3,6 +3,8 @@ import readinessStyles from "./release-readiness.css?raw";
 test("ready Home keeps recovery content scrollable and launch controls clear of options", () => {
   expect(readinessStyles).toMatch(/\.page-viewport--home:has\(\.launch-console--ready\)\s*\{[^}]*overflow-y:\s*auto;/s);
   expect(readinessStyles).toMatch(/\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*118px;[^}]*max-height:\s*none;/s);
+  expect(readinessStyles).toMatch(/\.home-launch-identity\s*\{[^}]*bottom:\s*82px;[^}]*width:\s*min\(520px, calc\(100% - 48px\)\);/s);
+  expect(readinessStyles).toMatch(/\.home-launch-identity span,\s*\.home-launch-identity strong\s*\{[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
   expect(readinessStyles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--options-open \.quick-settings\s*\{[^}]*bottom:\s*124px;/s);
   expect(readinessStyles).toMatch(/@media \(max-width: 720px\)[\s\S]*?\.launch-console--ready \.last-run-health\s*\{[^}]*bottom:\s*auto;/s);
 });
