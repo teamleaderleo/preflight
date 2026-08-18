@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { applyRemoval, getRemovalPlan } from "./bridge";
 import { clearPreflightLocalStorage } from "./desktopStorage";
-import { getReportState, type ReportState } from "./reportBridge";
+import { getReportState, mutateRunReport, type ReportState } from "./reportBridge";
 import type { Announce, DesktopSnapshot, RemovalPlan, RemovalScope } from "./types";
 import { errorMessage } from "./uiFormat";
 
@@ -14,6 +14,14 @@ export async function requireClearReportAuthorityBeforeAllDataRemoval(
       "Delete each uploaded report, or explicitly dismiss its saved deletion authorization, before removing all Preflight data. Stop any automatic report upload first.",
     );
   }
+}
+
+export async function fenceReportAuthorityBeforeAllDataRemoval(
+  readReportState: () => Promise<ReportState> = () => getReportState(),
+  clearNativeReportState: () => Promise<boolean> = () => mutateRunReport("", "clear-all"),
+): Promise<void> {
+  await requireClearReportAuthorityBeforeAllDataRemoval(readReportState);
+  await clearNativeReportState();
 }
 
 export function useRemoval(
@@ -59,7 +67,11 @@ export function useRemoval(
     setBusy(true);
     try {
       if (scope === "all-data") {
-        await requireClearReportAuthorityBeforeAllDataRemoval();
+        // Clear the empty native authority namespace first. The native side refuses this fence when
+        // any accepted/pending case exists and old upload lifecycles cannot recreate its removed
+        // parent afterward. Destructive data removal therefore starts only after report authority
+        // is durably absent.
+        await fenceReportAuthorityBeforeAllDataRemoval();
       }
       const result = await applyRemoval(scope);
       if (currentRequest !== request.current) return;
