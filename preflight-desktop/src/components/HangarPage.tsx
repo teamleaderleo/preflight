@@ -1,5 +1,6 @@
 import type { useInstrumentHull } from "../useInstrumentHull";
 import { FEATURED_HULL_IDS } from "../useInstrumentHull";
+import { useInstrumentMotion } from "../useInstrumentMotion";
 import { FlightInstrument } from "./FlightInstrument";
 import { HullPicker } from "./HullPicker";
 
@@ -41,6 +42,7 @@ interface HangarPageProps {
 }
 
 export function HangarPage({ instrumentHull }: HangarPageProps) {
+  const { motion, setMotion } = useInstrumentMotion();
   const featured = instrumentHull.hulls.filter((hull) => FEATURED_IDS.has(hull.id));
   const additional = instrumentHull.hulls.filter((hull) => !FEATURED_IDS.has(hull.id));
   const selectedIsFeatured = FEATURED_IDS.has(instrumentHull.selectedId);
@@ -79,6 +81,15 @@ export function HangarPage({ instrumentHull }: HangarPageProps) {
                 ? `${instrumentHull.catalog.hulls.length.toLocaleString()} installed`
                 : instrumentHull.catalogLoaded ? "Included ships" : "Finding installed ships…"}
             </span>
+            <button
+              className="button button--quiet button--compact"
+              type="button"
+              aria-pressed={motion === "still"}
+              title={motion === "rotate" ? "Stop decorative hull rotation" : "Resume decorative hull rotation"}
+              onClick={() => setMotion(motion === "rotate" ? "still" : "rotate")}
+            >
+              {motion === "rotate" ? "Motion: Rotate" : "Motion: Still"}
+            </button>
             {additional.length > 0 ? (
               <HullPicker
                 hulls={additional}
