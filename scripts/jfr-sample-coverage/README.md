@@ -4,6 +4,9 @@ This probe measures the recording before using `jdk.ExecutionSample` for attribu
 pure-Java integer worker for a fixed wall duration, records the same interval with monotonic time and
 JFR marker events, and then reports how the worker's execution samples cover that interval.
 
+The retained #254 result is
+[`docs/evidence/2026-08-18-jfr-execution-sample-coverage.md`](../../docs/evidence/2026-08-18-jfr-execution-sample-coverage.md).
+
 The primary output is JSON. Each run records:
 
 - observed monotonic wall duration;
@@ -18,22 +21,23 @@ The primary output is JSON. Each run records:
   sample count;
 - runtime vendor, version, VM, OS, architecture, processor count, and JVM input flags.
 
-`jdk.CPULoad` is also recorded at a one-second period as an independent clock calibration signal.
-The worker itself avoids native calls and math intrinsics, so the primary measurement does not
-exercise the intrinsic blind spot tracked by OpenJDK JDK-8244514/JDK-8273060.
+`jdk.CPULoad` is also recorded at a one-second period as an auxiliary periodic clock signal. The
+custom start/end markers are the primary same-process JFR-clock comparison. The worker itself avoids
+native calls and math intrinsics, so the primary measurement does not exercise the intrinsic blind
+spot tracked by OpenJDK JDK-8244514/JDK-8273060.
 
 ## Run it
 
 From the repository root:
 
 ```bash
-scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage
+bash scripts/jfr-sample-coverage/run-probe.sh target/jfr-sample-coverage
 ```
 
 The default duration is 65 seconds. Override it only for probe development:
 
 ```bash
-JFR_COVERAGE_DURATION_SECONDS=10 scripts/jfr-sample-coverage/run-probe.sh /tmp/jfr-coverage
+JFR_COVERAGE_DURATION_SECONDS=10 bash scripts/jfr-sample-coverage/run-probe.sh /tmp/jfr-coverage
 ```
 
 The script runs five policies against the same workload:
@@ -59,9 +63,10 @@ monotonic wall clock. In that case `coverageSpanWallRatio` is a raw timestamp co
 JFR's own start/end markers span?
 
 Then inspect `sampleCountExpectedRatio`, the calibrated gap fields, `dataLossEventCount`, chunk count,
-and sampled thread states. A high sample-span/marker-span ratio with a high count ratio and zero data
-loss is evidence that the worker was sampled across the recording even when raw JFR timestamps cover
-a smaller fraction of wall time.
+and sampled thread states. Keep temporal span and sample density separate. The retained #254 run, for
+example, has almost complete calibrated temporal span while the successful worker-event count is
+only about 21%-32% of the configured interval count depending on runtime/control. A configured period
+is sampler cadence, not a promise of one successful event per target thread per period.
 
 Execution-sample percentages describe proportions within the samples that were actually observed.
 They do not establish absolute wall-clock seconds. Any interval left uncovered after clock
@@ -69,8 +74,9 @@ calibration remains unknown/unobserved time and should be reported that way.
 
 ## CI runtime controls
 
-`.github/workflows/jfr-sample-coverage.yml` runs the probe on the repository's current Temurin 17
-runtime on an x86_64 macOS runner. It also attempts two Rosetta controls on an Apple-silicon runner:
-current Temurin 17 x86_64 and Zulu 17.0.10 x86_64. The historical job only counts as a reproduction
-when the run itself records an arm64 host and the expected x86_64 Zulu 17.0.10 JVM. A failed setup is
-retained as unavailable evidence rather than converted into a version claim.
+`.github/workflows/jfr-sample-coverage.yml` is a manually repeatable evidence workflow. The retained
+2026-08-18 run measured the repository's current Temurin 17 runtime on a native x86_64 macOS runner,
+plus two x86_64/Rosetta controls on an Apple-silicon runner: current Temurin 17 and exact Zulu
+17.0.10. The historical lane counts as a reproduction only when the run itself records an arm64 host
+and the expected x86_64 Zulu 17.0.10 JVM. Setup failure remains an availability result rather than a
+version claim.
