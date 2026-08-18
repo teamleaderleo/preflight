@@ -11,6 +11,8 @@ import dev.starsector.preflight.core.ResourceIndex;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -220,6 +222,16 @@ class ProfileIdentityContextTest {
     }
 
     @Test
+    void constructorSeedsGameJarDigestIntoSharedContentMemo() throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("seeded-jar"), 4);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(layout.game, layout.index())) {
+            String initial = context.gameJarSha256();
+            Files.writeString(context.gameJar(), "changed-during-the-same-preparation");
+            assertEquals(initial, context.sha256All(List.of(context.gameJar())).get(0));
+        }
+    }
+
+    @Test
     void providerMutationDuringHashRefusesTheIdentityAndDoesNotMemoize() throws Exception {
         Layout layout = Layout.create(temporaryDirectory.resolve("mutation-during-hash"), 4);
         ResourceIndex resources = layout.index();
@@ -230,6 +242,42 @@ class ProfileIdentityContextTest {
                 layout.game, resources, path -> {
                     if (path.toString().endsWith("variant-1.variant")) {
                         Files.writeString(path, "{\"variantId\":\"raced-mutation\"}");
+                    }
+                    return Hashes.sha256(path);
+                }, 1)) {
+            Path source = context.resolve(provider);
+            assertThrows(IOException.class, () -> context.sha256All(List.of(source)));
+        }
+    }
+
+    @Test
+    void subMillisecondProviderMutationDuringHashIsRefusedWhenFilesystemPreservesPrecision()
+            throws Exception {
+        Layout layout = Layout.create(temporaryDirectory.resolve("submillisecond-mutation"), 4);
+        Path file = layout.mod.resolve("data/variants/variant-1.variant");
+        Files.writeString(file, "AAAA");
+        FileTime requestedBefore = FileTime.from(Instant.ofEpochSecond(1_700_000_000L, 100_000));
+        FileTime requestedAfter = FileTime.from(Instant.ofEpochSecond(1_700_000_000L, 900_000));
+        Files.setLastModifiedTime(file, requestedBefore);
+        FileTime observedBefore = Files.getLastModifiedTime(file);
+        Files.setLastModifiedTime(file, requestedAfter);
+        FileTime observedAfter = Files.getLastModifiedTime(file);
+        if (observedBefore.equals(observedAfter) || observedBefore.toMillis() != observedAfter.toMillis()) {
+            return;
+        }
+        Files.setLastModifiedTime(file, observedBefore);
+        if (!observedBefore.equals(Files.getLastModifiedTime(file))) {
+            return;
+        }
+
+        ResourceIndex resources = layout.index();
+        ResourceIndex.Provider provider = resources.entries()
+                .get("data/variants/variant-1.variant").get(0);
+        try (ProfileIdentityContext context = ProfileIdentityContext.of(
+                layout.game, resources, path -> {
+                    if (path.toString().endsWith("variant-1.variant")) {
+                        Files.writeString(path, "BBBB");
+                        Files.setLastModifiedTime(path, observedAfter);
                     }
                     return Hashes.sha256(path);
                 }, 1)) {

@@ -11,9 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
@@ -59,7 +62,7 @@ final class ProfileIdentityContext implements Closeable {
     private final Map<Path, Path> realDirectories = new ConcurrentHashMap<>();
     private final Map<ResourceIndex.Provider, Path> realProviders = new ConcurrentHashMap<>();
     private final Map<Path, ResourceIndex.Provider> providerByPath = new ConcurrentHashMap<>();
-    private final Map<Path, String> fileHashes = new ConcurrentHashMap<>();
+    private final Map<Path, CompletableFuture<String>> fileHashes = new ConcurrentHashMap<>();
     private final int workers;
 
     private ForkJoinPool pool;
@@ -84,7 +87,7 @@ final class ProfileIdentityContext implements Closeable {
         this.realRoots = realRoots;
         this.hasher = hasher;
         this.workers = workers;
-        this.fileHashes.put(gameJar, gameJarSha256);
+        this.fileHashes.put(gameJar, CompletableFuture.completedFuture(gameJarSha256));
     }
 
     /** Reads the index from disk. The launcher does this once and shares the result. */
@@ -263,63 +266,80 @@ final class ProfileIdentityContext implements Closeable {
     /** One content read per resolved path for the lifetime of this preparation context. */
     private String sha256(Path source) throws IOException {
         Path resolved = source.toAbsolutePath().normalize();
-        String existing = fileHashes.get(resolved);
-        if (existing != null) {
-            return existing;
+        CompletableFuture<String> proposed = new CompletableFuture<>();
+        CompletableFuture<String> shared = fileHashes.putIfAbsent(resolved, proposed);
+        if (shared == null) {
+            shared = proposed;
+            try {
+                proposed.complete(computeStableHash(resolved));
+            } catch (IOException | RuntimeException | Error failure) {
+                proposed.completeExceptionally(failure);
+                fileHashes.remove(resolved, proposed);
+            }
         }
-        return computeStableHash(resolved);
+        return awaitHash(resolved, shared);
     }
 
     private String computeStableHash(Path resolved) throws IOException {
-        synchronized (resolved.toString().intern()) {
-            String existing = fileHashes.get(resolved);
-            if (existing != null) {
-                return existing;
-            }
-            ResourceIndex.Provider provider = providerByPath.get(resolved);
-            BasicFileAttributes before;
-            try {
-                before = Files.readAttributes(
-                        resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-            } catch (IOException error) {
-                throw new IOException("Failed to read file attributes before hashing: " + resolved, error);
-            }
-            if (!before.isRegularFile()) {
-                throw new IOException("Profile source is not a regular file: " + resolved);
-            }
-            if (provider != null) {
-                long modifiedMillis = Math.max(0, before.lastModifiedTime().toMillis());
-                if (before.size() != provider.size() || modifiedMillis != provider.modifiedMillis()) {
-                    throw new IOException("Provider metadata does not match indexed state before hashing: " + resolved);
-                }
-            }
+        ResourceIndex.Provider provider = providerByPath.get(resolved);
+        BasicFileAttributes before;
+        try {
+            before = Files.readAttributes(
+                    resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        } catch (IOException error) {
+            throw new IOException("Failed to read file attributes before hashing: " + resolved, error);
+        }
+        if (!before.isRegularFile()) {
+            throw new IOException("Profile source is not a regular file: " + resolved);
+        }
+        if (provider != null && !matchesIndexedMetadata(provider, before)) {
+            throw new IOException("Provider metadata does not match indexed state before hashing: " + resolved);
+        }
 
-            FileIdentity beforeIdentity = FileIdentity.from(before);
-            String digest = hasher.sha256(resolved);
+        FileIdentity beforeIdentity = FileIdentity.from(before);
+        String digest = hasher.sha256(resolved);
 
-            BasicFileAttributes after;
-            try {
-                after = Files.readAttributes(
-                        resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-            } catch (IOException error) {
-                throw new IOException("Failed to read file attributes after hashing: " + resolved, error);
-            }
-            if (!after.isRegularFile()) {
-                throw new IOException("Profile source became non-regular file during hashing: " + resolved);
-            }
-            if (provider != null) {
-                long modifiedMillis = Math.max(0, after.lastModifiedTime().toMillis());
-                if (after.size() != provider.size() || modifiedMillis != provider.modifiedMillis()) {
-                    throw new IOException("Provider metadata changed during hashing: " + resolved);
-                }
-            }
-            FileIdentity afterIdentity = FileIdentity.from(after);
-            if (!beforeIdentity.equals(afterIdentity)) {
-                throw new IOException("Source file identity changed or replaced during hash read: " + resolved);
-            }
+        BasicFileAttributes after;
+        try {
+            after = Files.readAttributes(
+                    resolved, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        } catch (IOException error) {
+            throw new IOException("Failed to read file attributes after hashing: " + resolved, error);
+        }
+        if (!after.isRegularFile()) {
+            throw new IOException("Profile source became non-regular file during hashing: " + resolved);
+        }
+        if (provider != null && !matchesIndexedMetadata(provider, after)) {
+            throw new IOException("Provider metadata changed during hashing: " + resolved);
+        }
+        if (!beforeIdentity.equals(FileIdentity.from(after))) {
+            throw new IOException("Source file identity changed or replaced during hash read: " + resolved);
+        }
+        return digest;
+    }
 
-            fileHashes.put(resolved, digest);
-            return digest;
+    private static boolean matchesIndexedMetadata(
+            ResourceIndex.Provider provider,
+            BasicFileAttributes attributes) {
+        return attributes.size() == provider.size()
+                && Math.max(0, attributes.lastModifiedTime().toMillis()) == provider.modifiedMillis();
+    }
+
+    private static String awaitHash(Path resolved, CompletableFuture<String> shared) throws IOException {
+        try {
+            return shared.join();
+        } catch (CompletionException failed) {
+            Throwable cause = failed.getCause();
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new IOException("Hashing profile source failed: " + resolved, cause);
         }
     }
 
@@ -371,11 +391,11 @@ final class ProfileIdentityContext implements Closeable {
         throw new IOException("Could not locate starfarer_obf.jar under " + installRoot);
     }
 
-    private record FileIdentity(long size, long modifiedMillis, Object fileKey) {
+    private record FileIdentity(long size, FileTime modified, Object fileKey) {
         static FileIdentity from(BasicFileAttributes attributes) {
             return new FileIdentity(
                     attributes.size(),
-                    Math.max(0, attributes.lastModifiedTime().toMillis()),
+                    attributes.lastModifiedTime(),
                     attributes.fileKey());
         }
     }
