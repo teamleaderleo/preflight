@@ -35,11 +35,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Shared fail-open cache lookup plus the decoded-image compatibility consumer. */
 public final class TextureCompatibilityRuntime {
     static final String PLAN_ID = "texture-compatibility-v2";
-    /** Opt back in to hashing every source file's contents on the loading thread. */
+    /** Retained for launch-option compatibility; source hashing is always enabled. */
     public static final String VERIFY_SOURCE_HASH_PROPERTY = "preflight.texture.verifySourceHash";
     /** Opt back in to hashing every prepared blob's pixels on the loading thread. */
     public static final String VERIFY_BLOB_CHECKSUM_PROPERTY = "preflight.texture.verifyBlobChecksum";
-    /** Diagnostic: use the configure-time full index validation as the launch snapshot. */
+    /** Retained for launch-option compatibility; the index snapshot no longer bypasses checks. */
     public static final String TRUST_VALIDATED_INDEX_PROPERTY = "preflight.texture.trustValidatedIndex";
     public static final int MAX_MANIFEST_ENTRIES = 100_000;
     public static final long MAX_INDEX_PROVIDERS = 500_000;
@@ -255,26 +255,24 @@ public final class TextureCompatibilityRuntime {
                 TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
                 return null;
             }
-            if (!trustValidatedIndex()) {
-                Path source;
-                try {
-                    source = PathContainment.existingInsideRealRoot(
-                            current.sourceRoots.get(winner.rootIndex()),
-                            current.index.resolve(winner));
-                } catch (IllegalArgumentException error) {
-                    TELEMETRY.fallback(FallbackReason.PATH_INVALID);
-                    return null;
-                } catch (IOException error) {
-                    TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
-                    return null;
-                }
-                SourceVerdict verdict = verifySource(source, winner, entry);
-                if (verdict != SourceVerdict.UNCHANGED) {
-                    TELEMETRY.fallback(verdict == SourceVerdict.MISSING
-                            ? FallbackReason.SOURCE_MISSING
-                            : FallbackReason.SOURCE_CHANGED);
-                    return null;
-                }
+            Path source;
+            try {
+                source = PathContainment.existingInsideRealRoot(
+                        current.sourceRoots.get(winner.rootIndex()),
+                        current.index.resolve(winner));
+            } catch (IllegalArgumentException error) {
+                TELEMETRY.fallback(FallbackReason.PATH_INVALID);
+                return null;
+            } catch (IOException error) {
+                TELEMETRY.fallback(FallbackReason.SOURCE_MISSING);
+                return null;
+            }
+            SourceVerdict verdict = verifySource(source, winner, entry);
+            if (verdict != SourceVerdict.UNCHANGED) {
+                TELEMETRY.fallback(verdict == SourceVerdict.MISSING
+                        ? FallbackReason.SOURCE_MISSING
+                        : FallbackReason.SOURCE_CHANGED);
+                return null;
             }
             if (entry.transformation() != PreparedTexture.Transformation.IDENTITY) {
                 TELEMETRY.fallback(FallbackReason.UNSUPPORTED_TEXTURE);
@@ -341,31 +339,7 @@ public final class TextureCompatibilityRuntime {
         }
     }
 
-    /**
-     * Decides whether the file on disk is still the one the cached blob was built from.
-     *
-     * <p>This used to re-read and SHA-256 every source file, on the loading thread, once per
-     * lookup. Under the prefetch bypass that became the single largest computation on the thread
-     * whose wall clock is the load: 1,076 of {@code main}'s 2,631 on-CPU samples -- 41% -- were
-     * {@code SHA2.implCompress0}, hashing up to 1.34 GB of PNGs per launch.
-     *
-     * <p>It is that expensive because Starsector ships an x86_64 JRE, so the whole game runs under
-     * Rosetta 2, which has no SHA-NI. The JVM's SHA-256 intrinsic never applies and the pure-Java
-     * {@code ByteArrayAccess.b2iBig64} VarHandle path runs instead: 292 MB/s measured in the game's
-     * own JRE against 3,314 MB/s in a native arm64 JDK on the same machine, an 11.4x penalty that
-     * no amount of work on our side removes.
-     *
-     * <p>So the fast path asks the cheaper question, and asks it of evidence that already exists.
-     * {@link #configure} runs {@link ResourceIndexValidator} over every provider in the index
-     * before the first lookup, and that validator's staleness test is exactly size and modified
-     * time. Re-checking those two here costs one {@code readAttributes} -- the same syscall the
-     * old {@code isRegularFile} guard already paid -- and closes the window between configure and
-     * lookup. What it gives up, relative to the hash, is detection of an edit that changes a file's
-     * contents while preserving both its length and its modification time to the millisecond. That
-     * is the staleness contract every build system in common use accepts.
-     *
-     * <p>Set {@code -Dpreflight.texture.verifySourceHash=true} to keep the content hash instead.
-     */
+    /** Decides whether the file on disk is still the one the cached blob was built from. */
     private static SourceVerdict verifySource(
             Path source,
             ResourceIndex.Provider winner,
@@ -386,9 +360,6 @@ public final class TextureCompatibilityRuntime {
         // per-lookup re-check cannot disagree about what counts as unchanged.
         if (Math.max(0, attributes.lastModifiedTime().toMillis()) != winner.modifiedMillis()) {
             return SourceVerdict.CHANGED;
-        }
-        if (!Boolean.getBoolean(VERIFY_SOURCE_HASH_PROPERTY)) {
-            return SourceVerdict.UNCHANGED;
         }
         try {
             return entry.sourceSha256().equals(Hashes.sha256(source))
@@ -437,10 +408,7 @@ public final class TextureCompatibilityRuntime {
     }
 
     private static boolean trustValidatedIndex() {
-        // An explicit content-hash diagnostic is stronger than the snapshot optimization even if
-        // both properties were supplied by different launch layers.
-        return Boolean.getBoolean(TRUST_VALIDATED_INDEX_PROPERTY)
-                && !Boolean.getBoolean(VERIFY_SOURCE_HASH_PROPERTY);
+        return false;
     }
 
     private static void ensurePackOrderHook() {
