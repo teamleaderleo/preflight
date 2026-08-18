@@ -3,6 +3,7 @@ package dev.starsector.preflight.core;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,8 +75,54 @@ class PreparedTexturePackIOTest {
         assertThrows(Exception.class,
                 () -> PreparedTexturePackIO.open(pack, profile, List.of("blobs/two.spft")));
         byte[] bytes = Files.readAllBytes(pack);
-        bytes[bytes.length > 60 ? 55 : 0] ^= 0x40;
+        bytes[bytes.length > 100 ? 90 : 0] ^= 0x40;
         Files.write(pack, bytes);
+        assertThrows(Exception.class,
+                () -> PreparedTexturePackIO.open(pack, profile, List.of(relative)));
+    }
+
+    @Test
+    void rejectsSameLengthPackedPixelCorruptionBeforeServingTrustedData() throws Exception {
+        Path cache = temporaryDirectory.resolve("pixel-corruption-cache");
+        Files.createDirectories(cache.resolve("blobs"));
+        String profile = "bc".repeat(32);
+        String relative = "blobs/raw.spft";
+        byte[] pixels = new byte[] {13, 27, 41, 55, 69, 83, 97, 111, 125, 7, 21, 35};
+        PreparedTextureIO.write(
+                cache.resolve(relative),
+                texture("06".repeat(32), pixels),
+                PreparedTextureIO.StorageCodec.RAW);
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(pack, profile, cache, List.of(relative));
+
+        byte[] packed = Files.readAllBytes(pack);
+        int pixelOffset = indexOf(packed, pixels);
+        assertTrue(pixelOffset >= 0, "fixture pixels must appear verbatim in the raw packed SPFT");
+        packed[pixelOffset + 5] ^= 0x01;
+        Files.write(pack, packed);
+
+        assertThrows(Exception.class,
+                () -> PreparedTexturePackIO.open(pack, profile, List.of(relative)),
+                "same-length packed pixel corruption must be rejected before readTrusted can serve it");
+    }
+
+    @Test
+    void rejectsPackedEmbeddedChecksumCorruptionEvenWhenTheIndexStillMatches() throws Exception {
+        Path cache = temporaryDirectory.resolve("embedded-checksum-cache");
+        Files.createDirectories(cache.resolve("blobs"));
+        String profile = "ce".repeat(32);
+        String relative = "blobs/raw.spft";
+        PreparedTextureIO.write(
+                cache.resolve(relative),
+                texture("07".repeat(32), new byte[] {1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23}),
+                PreparedTextureIO.StorageCodec.RAW);
+        Path pack = PreparedTexturePackIO.path(cache, profile);
+        PreparedTexturePackIO.write(pack, profile, cache, List.of(relative));
+
+        byte[] packed = Files.readAllBytes(pack);
+        packed[packed.length - 1] ^= 0x20;
+        Files.write(pack, packed);
+
         assertThrows(Exception.class,
                 () -> PreparedTexturePackIO.open(pack, profile, List.of(relative)));
     }
@@ -99,6 +146,19 @@ class PreparedTexturePackIOTest {
         PreparedTexturePackIO.write(pack, profile, cache, sizes.keySet());
 
         assertEquals(Files.size(pack), PreparedTexturePackIO.estimatedFileBytes(profile, sizes));
+    }
+
+    private static int indexOf(byte[] haystack, byte[] needle) {
+        outer:
+        for (int start = 0; start <= haystack.length - needle.length; start++) {
+            for (int offset = 0; offset < needle.length; offset++) {
+                if (haystack[start + offset] != needle[offset]) {
+                    continue outer;
+                }
+            }
+            return start;
+        }
+        return -1;
     }
 
     private static PreparedTexture texture(String hash, byte[] pixels) {
