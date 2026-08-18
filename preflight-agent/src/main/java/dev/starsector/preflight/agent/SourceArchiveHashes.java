@@ -25,9 +25,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Content fingerprints for explicitly constrained local code-source archives.
  *
- * <p>A persistent advisory journal records hashes for diagnostics, but every JVM session verifies
- * archive contents before using a recorded hash. Filesystem identity, size, and modification time
- * are not sufficient evidence that an archive's contents are unchanged.
+ * <p>The in-session map and persistent journal are advisory match records for diagnostics. Every
+ * authorization call hashes the current archive bytes before either record can count as a match;
+ * real path, size, modification time and file identity are not content authority.
  */
 final class SourceArchiveHashes {
     private static final long MAX_ARCHIVE_BYTES = 4L * 1024 * 1024 * 1024;
@@ -111,16 +111,14 @@ final class SourceArchiveHashes {
             return Result.failure("code source exceeds " + MAX_ARCHIVE_BYTES + " bytes");
         }
         Key key = new Key(real, before);
-        Result cached = CACHE.get(key);
-        if (cached != null) {
-            SESSION_HITS.incrementAndGet();
-            return cached;
-        }
         ensureJournalLoaded();
         JournalEntry stored = JOURNAL.get(real);
         Result hashed = hash(real, before);
-        CACHE.putIfAbsent(key, hashed);
         if (hashed.successful()) {
+            Result previous = CACHE.put(key, hashed);
+            if (hashed.equals(previous)) {
+                SESSION_HITS.incrementAndGet();
+            }
             if (stored != null && before.equals(stored.stamp())
                     && hashed.sha256().equals(stored.sha256())) {
                 JOURNAL_HITS.incrementAndGet();
