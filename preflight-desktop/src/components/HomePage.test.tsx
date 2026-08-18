@@ -151,6 +151,17 @@ function failedSnapshot(
   };
 }
 
+function failedRunFailure(
+  installRoot = "/Applications/Starsector",
+  profileFingerprint = "profile-fingerprint",
+) {
+  return {
+    summary: "Starsector stopped before reaching the main menu.",
+    installRoot,
+    profileFingerprint,
+  };
+}
+
 function preparationForProfile(profileFingerprint: string, cacheLoading = false): ReturnType<typeof usePreparation> {
   return {
     ...preparation,
@@ -205,11 +216,11 @@ test("a launch error keeps the retry target visible beside its recovery action",
   expect(screen.getByLabelText("Launches profile Exploration from /Applications/Starsector")).toBeInTheDocument();
 });
 
-test("run recovery keeps Relaunch when the failed run still matches the current setup", () => {
+test("run recovery keeps Relaunch when the captured failed target still matches the current setup", () => {
   const dismiss = vi.fn();
   render(<HomePage {...props({
     snapshot: failedSnapshot(),
-    runFailure: { summary: "Starsector stopped before reaching the main menu." },
+    runFailure: failedRunFailure(),
     onDismissRunFailure: dismiss,
   })} />);
 
@@ -223,7 +234,7 @@ test("switching to another profile retires the old Home recovery card", async ()
   render(<HomePage {...props({
     snapshot: failedSnapshot(),
     preparation: preparationForProfile("different-profile"),
-    runFailure: { summary: "Starsector stopped before reaching the main menu." },
+    runFailure: failedRunFailure(),
     onDismissRunFailure: dismiss,
     launchProfileName: "Utilities only",
   })} />);
@@ -245,8 +256,8 @@ test("changing installations retires the old Home recovery card once the new set
         launcher: "/Games/Starsector/starsector.exe",
       },
     },
-    preparation: preparationForProfile("different-profile"),
-    runFailure: { summary: "Starsector stopped before reaching the main menu." },
+    preparation: preparationForProfile("profile-fingerprint"),
+    runFailure: failedRunFailure(),
     onDismissRunFailure: dismiss,
   })} />);
 
@@ -259,10 +270,21 @@ test("an in-flight profile identity refresh keeps recovery stable until the new 
   render(<HomePage {...props({
     snapshot: failedSnapshot(),
     preparation: preparationForProfile("different-profile", true),
-    runFailure: { summary: "Starsector stopped before reaching the main menu." },
+    runFailure: failedRunFailure(),
     onDismissRunFailure: dismiss,
   })} />);
 
   expect(screen.getByText("Run needs attention")).toBeInTheDocument();
   expect(dismiss).not.toHaveBeenCalled();
+});
+
+test("preview recovery without captured native identity remains available", () => {
+  render(<HomePage {...props({
+    snapshot: failedSnapshot(),
+    preparation: preparationForProfile("different-profile"),
+    runFailure: { summary: "Preview run failed." },
+  })} />);
+
+  expect(screen.getByText("Run needs attention")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Relaunch" })).toBeEnabled();
 });
