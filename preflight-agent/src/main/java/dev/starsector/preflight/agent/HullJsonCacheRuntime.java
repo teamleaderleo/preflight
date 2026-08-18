@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class HullJsonCacheRuntime {
     public static final String PLAN_ID = "vanilla-hull-merged-json-cache-v1";
     static final int MAX_LEARNED_ENTRY_BYTES = 8 * 1024 * 1024;
+    static final int MAX_LEARNED_ENTRY_NODES = 100_000;
     static final long MAX_LEARNED_BYTES = 16L * 1024 * 1024;
     static final int MAX_LEARNED_ENTRIES = 100_000;
 
@@ -117,9 +118,6 @@ public final class HullJsonCacheRuntime {
     /** Captures only values produced by the original loader on a miss. */
     public static void capture(Object json, String rawPath) {
         State current = state;
-        // Once a launch has exceeded the bounded learning budget, do not keep serializing later
-        // vanilla trees just to discard their bytes. The first oversized tree may still cost one
-        // encoding pass; after that rejection is a hard stop for this learning session.
         if (current.artifact == null || current.learningRejected.get() || json == null) {
             return;
         }
@@ -130,7 +128,10 @@ public final class HullJsonCacheRuntime {
         try {
             GameJson bridge = GameJson.bridge();
             if (bridge.isGameJson(json)) {
-                byte[] encoded = bridge.encode(json);
+                // Bound reflective conversion itself. A pathological first hull cannot materialize
+                // an arbitrarily large Map/List tree or encoded byte array before admission runs.
+                byte[] encoded = bridge.encodeBounded(
+                        json, MAX_LEARNED_ENTRY_BYTES, MAX_LEARNED_ENTRY_NODES);
                 // Dropping the install prefix from an absolute key means two different files could
                 // in principle claim it. Nothing observed does, so this refuses the key rather than
                 // picking a winner: a collision that is never served cannot serve the wrong spec.
@@ -138,6 +139,9 @@ public final class HullJsonCacheRuntime {
             }
         } catch (ThreadDeath | VirtualMachineError fatal) {
             throw fatal;
+        } catch (GameJson.ResourceLimitException limit) {
+            current.rejectLearning("merged hull JSON exceeded the in-memory learning limit: "
+                    + message(limit));
         } catch (Throwable error) {
             current.diagnose("vanilla hull JSON could not be captured for "
                     + path + ": " + message(error));
@@ -251,15 +255,19 @@ public final class HullJsonCacheRuntime {
             if (encoded.length > MAX_LEARNED_ENTRY_BYTES
                     || learned.size() >= MAX_LEARNED_ENTRIES
                     || learnedBytes + encoded.length > MAX_LEARNED_BYTES) {
-                learningRejected.set(true);
-                learned.clear();
-                learnedBytes = 0;
-                diagnose("merged hull JSON exceeded the in-memory learning limit");
+                rejectLearning("merged hull JSON exceeded the in-memory learning limit");
                 return;
             }
             learned.put(path, encoded);
             learnedBytes += encoded.length;
             captures.incrementAndGet();
+        }
+
+        private synchronized void rejectLearning(String problem) {
+            learningRejected.set(true);
+            learned.clear();
+            learnedBytes = 0;
+            diagnose(problem);
         }
 
         private void diagnose(String problem) {
