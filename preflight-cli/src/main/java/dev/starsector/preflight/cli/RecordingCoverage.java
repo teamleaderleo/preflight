@@ -15,8 +15,10 @@ import jdk.jfr.consumer.RecordingFile;
  * <p>Flight Recorder rotates to a new chunk at 12 MB. When such a recording is read as one file,
  * the events of every chunk after the first come back **stamped inside the first chunk's window**:
  * a 240-second run whose events all claim to have happened in its first 96 seconds. The events are
- * all there -- splitting the file chunk by chunk returns exactly the same count -- so anything
- * derived from proportions is unaffected. Anything derived from *when* is not, and this project has
+ * all there -- splitting the file chunk by chunk returns exactly the same count -- so chunk folding
+ * does not change proportions inside the retained event population. Those proportions still describe
+ * only the events JFR successfully observed; they do not turn execution samples into wall-clock
+ * seconds. Anything derived from *when* also needs a validated recording clock, and this project has
  * read multi-chunk recordings by timestamp without knowing it.
  *
  * <p>So this does not try to repair a recording. It reports the two facts that decide whether a

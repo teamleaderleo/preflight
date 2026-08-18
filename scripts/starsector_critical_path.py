@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
-"""Where the load's wall clock goes, as opposed to where its CPU goes.
+"""Where the load's wall clock goes, alongside its observed JFR execution samples.
 
-Execution sampling answers "which Java frames were on a CPU". It cannot answer "what was the
-thread waiting for", and that is the question: deleting ~15s of sampled CPU from the loading
-thread bought 2.68s of wall clock, so most of that work was not on the critical path.
+Execution sampling answers "which Java frames appeared in the samples JFR successfully recorded".
+It cannot answer "what was the thread waiting for", and it cannot turn a sample share into elapsed
+CPU or wall seconds. Deleting a large share of sampled work from the loading thread bought only a
+small wall-clock improvement, so sample composition and critical-path time have to be measured
+separately.
 
-This reads a SAMPLE-mode recording and puts the two side by side per thread: on-CPU sample share,
-and total time parked, sleeping, or waiting on a monitor -- with the stack each thread was blocked
-*at*, because "blocked" alone cannot tell an idle daemon parked on an empty queue from the loading
-thread waiting on another thread's result.
+This reads a SAMPLE-mode recording and puts two kinds of evidence side by side per thread: observed
+ExecutionSample share, and total time parked, sleeping, or waiting on a monitor -- with the stack
+each thread was blocked *at*, because "blocked" alone cannot tell an idle daemon parked on an empty
+queue from the loading thread waiting on another thread's result.
 
 Two calibration steps exist because both of them, missing, produced a wrong published finding:
 
-  * Durations are rescaled against a known-period periodic event. Starsector launches with
-    -XX:+UseFastUnorderedTimeStamps, under which JFR's tick-to-nanosecond conversion is wrong by a
-    constant factor -- 2.49x on the reviewed install, where a Thread.sleep(10) records as 4.7ms.
-    Every duration in a recording from that JVM is compressed by that factor.
+  * Durations are rescaled against a known-period periodic event. The reviewed x86_64-on-Rosetta
+    runtime records JFR event timestamps at about 0.4x monotonic wall time, where a Thread.sleep(10)
+    can appear as about 4.7ms. The current issue #254 probe reproduces that clock scale with and
+    without -XX:+UseFastUnorderedTimeStamps, so the calibration is tied to the recording rather than
+    to a presumed flag boundary.
   * The blocked ranking is never truncated above the loading thread. Ranked by raw blocked time,
     six permanently-idle daemons (Java2D Queue Flusher, Common-Cleaner, Finalizer, Timer-0 ...)
     outrank it, and a top-8 cut hid the one thread whose waiting is the load.
@@ -161,16 +164,17 @@ def report(path, top=8, jfr=None):
     factor = clock_factor(events(path, [CALIBRATION_EVENT], depth=1, jfr=jfr))
     if factor >= CLOCK_REPORT_THRESHOLD or factor <= 1 / CLOCK_REPORT_THRESHOLD:
         print(f"!! This recording's clock runs at {1 / factor:.3f}x real time.")
-        print(f"   Every duration below is the recorded value x{factor:.3f}. Starsector launches")
-        print("   with -XX:+UseFastUnorderedTimeStamps, which does exactly this.")
+        print(f"   Every measured JFR duration below is the recorded value x{factor:.3f}.")
+        print("   Execution-sample percentages below remain shares of observed samples only.")
     else:
         print(f"clock calibration: {factor:.3f}x (recording clock agrees with real time)")
 
     samples = events(path, ["jdk.ExecutionSample"], depth=1, jfr=jfr)
     print(f"\nexecution samples: {len(samples)}")
+    print("  percentages below describe the observed ExecutionSample population")
     by_thread = collections.Counter(thread_of(e) for e in samples)
     total = sum(by_thread.values()) or 1
-    print("\non-CPU share by thread:")
+    print("\nobserved execution-sample share by thread:")
     for name, count in by_thread.most_common(top):
         print(f"  {name:<28} {count:>7}  {count / total * 100:5.1f}%")
 
@@ -205,7 +209,7 @@ def report(path, top=8, jfr=None):
     if by_thread:
         name = LOADING_THREAD if LOADING_THREAD in by_thread else by_thread.most_common(1)[0][0]
         count = by_thread[name]
-        print(f"\ntop on-CPU frames on {name}:")
+        print(f"\ntop observed execution-sample frames on {name}:")
         frames = collections.Counter(top_frame(e) for e in samples if thread_of(e) == name)
         for frame, hits in frames.most_common(12):
             print(f"  {hits:>6}  {hits / count * 100:5.1f}%  {frame}")
