@@ -115,6 +115,14 @@ final class ProfileCommand {
     static int save(PreflightHome home, Path installRoot, String name, boolean json, PrintStream out)
             throws Exception {
         name = validateName(name);
+        OperationLease.Acquisition ownership = OperationLease.acquire(home, "saving-profile", installRoot);
+        try (OperationLease ignored = ownership.lease()) {
+            return saveOwned(home, installRoot, name, json, out);
+        }
+    }
+
+    private static int saveOwned(
+            PreflightHome home, Path installRoot, String name, boolean json, PrintStream out) throws Exception {
         GameLayout layout = GameLayout.locate(installRoot);
         List<String> enabled = readEnabled(layout.enabledModsFile());
         Set<String> installed = installedModIds(layout.modsDirectory());
@@ -250,7 +258,10 @@ final class ProfileCommand {
             emitMutation(plan, json, out);
             return 0;
         }
-        requireExpectedProfile(profile, expectedProfile);
+        profile = requireReviewedProfile(profile, name, expectedProfile);
+        if (Files.exists(target)) {
+            throw new IOException("A named profile already exists: " + targetName);
+        }
         SavedProfile renamed = new SavedProfile(
                 targetName,
                 profile.installRoot(),
@@ -314,7 +325,10 @@ final class ProfileCommand {
             emitMutation(plan, json, out);
             return 0;
         }
-        requireExpectedProfile(profile, expectedProfile);
+        profile = requireReviewedProfile(profile, name, expectedProfile);
+        if (Files.exists(target)) {
+            throw new IOException("A named profile already exists: " + targetName);
+        }
         SavedProfile duplicated = new SavedProfile(
                 targetName,
                 profile.installRoot(),
@@ -363,7 +377,7 @@ final class ProfileCommand {
             emitMutation(plan, json, out);
             return 0;
         }
-        requireExpectedProfile(profile, expectedProfile);
+        profile = requireReviewedProfile(profile, name, expectedProfile);
         Path backup = backupProfile(home, profile);
         Files.delete(profile.file());
         plan.put("applied", true);
@@ -380,13 +394,19 @@ final class ProfileCommand {
         plan.put("operation", operation);
         plan.put("name", profile.name());
         plan.put("targetName", targetName);
-        plan.put("profileFingerprint", profile.profileFingerprint());
+        plan.put("profileFingerprint", mutationFingerprint(profile));
+        plan.put("sourceProfileFingerprint", profile.profileFingerprint());
         plan.put("active", profile.installRoot().equals(layout.installRoot())
                 && profile.enabledMods().equals(current));
         plan.put("modCount", profile.enabledMods().size());
         plan.put("applied", false);
         plan.put("preparedDataKept", true);
         return plan;
+    }
+
+    private static String mutationFingerprint(SavedProfile profile) {
+        String persisted = Json.object(profile.persisted()) + System.lineSeparator();
+        return Hashes.sha256(persisted.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void requireProfileName(SavedProfile profile, String requestedName) throws IOException {
@@ -398,9 +418,18 @@ final class ProfileCommand {
     private static void requireExpectedProfile(SavedProfile profile, String expectedProfile)
             throws IOException {
         if (expectedProfile == null
-                || !profile.profileFingerprint().equals(expectedProfile.toLowerCase(Locale.ROOT))) {
+                || !mutationFingerprint(profile).equals(expectedProfile.toLowerCase(Locale.ROOT))) {
             throw new IOException("Named profile changed since review; review it again");
         }
+    }
+
+    private static SavedProfile requireReviewedProfile(
+            SavedProfile profile, String requestedName, String expectedProfile) throws IOException {
+        requireExpectedProfile(profile, expectedProfile);
+        SavedProfile current = readProfile(profile.file());
+        requireProfileName(current, requestedName);
+        requireExpectedProfile(current, expectedProfile);
+        return current;
     }
 
     private static Path backupProfile(PreflightHome home, SavedProfile profile) throws IOException {

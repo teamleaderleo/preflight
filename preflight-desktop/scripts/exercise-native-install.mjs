@@ -361,7 +361,10 @@ export function exercisePackagedAllDataRemoval(packageRoot) {
   try {
     writeFixture(join(ownedRoot, "cache", "profile", "artifact.bin"), "owned cache\n");
     writeFixture(join(ownedRoot, "runs", "run-1", "evidence.json"), "owned evidence\n");
-    for (const path of integrations) writeFixture(path, "owned integration\n");
+    writeOwnedRemovalIntegrations(isolatedHome, localAppData);
+    for (const path of integrations) {
+      if (!existsSync(path)) throw new Error(`Owned integration fixture is missing: ${path}`);
+    }
     for (const path of preserved) writeFixture(path, `preserved ${basename(path)}\n`);
     const before = new Map(preserved.map((path) => [path, readFileSync(path)]));
     const environment = {
@@ -411,8 +414,50 @@ function assertRemovalResult(result, applied) {
   }
 }
 
+function writeOwnedRemovalIntegrations(home, localAppData) {
+  const posixMarker = "# preflight-integration: dev.starsector.preflight.launcher-v1";
+  const desktopMarker = "X-Preflight-Integration=dev.starsector.preflight.launcher-v1";
+  const windowsMarker = "REM preflight-integration: dev.starsector.preflight.launcher-v1";
+  const posixLauncher = `#!/bin/sh\n${posixMarker}\nexec 'java' -jar 'preflight.jar' run --fast --game '/synthetic/starsector' "$@"\n`;
+
+  if (process.platform === "darwin") {
+    const app = join(home, "Applications", "Preflight.app");
+    writeFixture(join(app, "Contents", "MacOS", "preflight"), posixLauncher);
+    writeFixture(join(app, "Contents", "Info.plist"), [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<plist version=\"1.0\"><dict>",
+      "<key>CFBundleIdentifier</key><string>dev.starsector.preflight.launcher</string>",
+      "<key>CFBundleExecutable</key><string>preflight</string>",
+      "</dict></plist>",
+      "",
+    ].join("\n"));
+    return;
+  }
+  if (process.platform === "linux") {
+    writeFixture(join(home, ".local", "bin", "preflight"), posixLauncher);
+    writeFixture(join(home, ".local", "share", "applications", "preflight.desktop"), [
+      "[Desktop Entry]",
+      "Type=Application",
+      "Name=Preflight",
+      "Exec=preflight",
+      desktopMarker,
+      "Terminal=false",
+      "",
+    ].join("\n"));
+    return;
+  }
+  if (process.platform === "win32") {
+    writeFixture(
+      join(localAppData, "Preflight", "Preflight.cmd"),
+      `@echo off\r\n${windowsMarker}\r\n"java.exe" -jar "preflight.jar" run --fast --game "C:\\Synthetic\\Starsector" %*\r\n`,
+    );
+    return;
+  }
+  throw new Error(`Packaged removal exercise isn't implemented for ${process.platform}`);
+}
+
 function packagedRemovalIntegrations(home, localAppData) {
-  if (process.platform === "darwin") return [join(home, "Applications", "Preflight.app", "Contents", "fixture")];
+  if (process.platform === "darwin") return [join(home, "Applications", "Preflight.app", "Contents", "MacOS", "preflight")];
   if (process.platform === "linux") return [
     join(home, ".local", "bin", "preflight"),
     join(home, ".local", "share", "applications", "preflight.desktop"),

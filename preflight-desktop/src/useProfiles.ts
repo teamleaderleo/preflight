@@ -213,7 +213,12 @@ export function useProfiles(
           ? `Duplicated “${result.name}” as “${result.targetName}”.`
           : `Deleted “${result.name}”. Its prepared data was kept.`, "success");
     } catch (error) {
-      if (request === actionRequest.current && currentGame.current === expectedGame) announce(errorMessage(error), "error");
+      if (request === actionRequest.current && currentGame.current === expectedGame) {
+        setMutationPlan(null);
+        setMutationPlanGame(null);
+        announce(errorMessage(error), "error");
+        await refreshProfiles();
+      }
     } finally {
       if (request === actionRequest.current) {
         busyRef.current = false;
