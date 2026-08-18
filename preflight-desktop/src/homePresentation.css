@@ -3,10 +3,12 @@
 }
 
 /* Compact Home removes only settled decorative/history layers. The same Home DOM still owns
- * readiness, launch identity, Options, preparation/recovery, and every launch action. */
+ * readiness, launch identity, Options, preparation/recovery, and every launch action. A previous
+ * run that explicitly recommends review remains visible because that evidence can affect the
+ * player's launch decision. */
 :root[data-home-mode="compact"] .launch-console--ready .home-flight-instrument,
 :root[data-home-mode="compact"] .launch-console--ready .home-playtime,
-:root[data-home-mode="compact"] .launch-console--ready .last-run-health,
+:root[data-home-mode="compact"] .launch-console--ready .last-run-health:not(.last-run-health--review),
 :root[data-home-mode="compact"] .launch-console--ready .home-ship-name {
   display: none !important;
 }
