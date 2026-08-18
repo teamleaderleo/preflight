@@ -12,9 +12,11 @@ import java.nio.file.attribute.AclEntryFlag;
 import java.nio.file.attribute.AclEntryPermission;
 import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
@@ -40,9 +42,10 @@ import java.util.Set;
  * nothing here does any work: {@link #readableByTheChildJvm} returns the JAR untouched and copies
  * nothing. It is mixed scripts that fall outside — a Greek account name on a cp1252 system, say.
  * Those are staged into a fresh private directory below a path the child can spell. A shared staging
- * root is never trusted to contain an existing agent: Preflight creates an unpredictable directory,
- * restricts that directory to the current owner, creates a new file inside it, and verifies the full
- * SHA-256 before handing the path to the child. The copy is removed when the wrapper JVM exits.
+ * root is never trusted to contain an existing agent: Preflight creates an unpredictable directory
+ * with owner-private permissions as a creation attribute, creates a new file inside it, and verifies
+ * the full SHA-256 before handing the path to the child. One wrapper-owned shutdown hook removes the
+ * staged JAR first and then its private directory.
  *
  * <p>The encoding consulted is the wrapper's own {@code sun.jnu.encoding}. The wrapper and the game
  * share an environment and a system locale, so the wrapper's value is what the child will use.
@@ -172,34 +175,49 @@ final class AgentJarStaging {
             if (!expectedSha256.equals(actualSha256)) {
                 throw new IOException("staged agent checksum changed while copying: " + staged);
             }
-            staged.toFile().deleteOnExit();
-            directory.toFile().deleteOnExit();
+            registerCleanup(staged, directory);
             keep = true;
             return staged;
         } finally {
             if (!keep) {
-                Files.deleteIfExists(staged);
-                Files.deleteIfExists(directory);
+                cleanupStagedCopy(staged, directory);
             }
         }
     }
 
     private static Path createPrivateDirectory(Path root) throws IOException {
+        return createPrivateDirectory(root, ignored -> {});
+    }
+
+    static Path createPrivateDirectory(Path root, CreationObserver observer) throws IOException {
         PosixFileAttributeView posix = Files.getFileAttributeView(
                 root, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
-        Path directory = posix == null
-                ? Files.createTempDirectory(root, DIRECTORY_NAME + "-")
-                : Files.createTempDirectory(
-                        root,
-                        DIRECTORY_NAME + "-",
-                        PosixFilePermissions.asFileAttribute(
-                                PosixFilePermissions.fromString("rwx------")));
+        Path directory;
+        if (posix != null) {
+            directory = Files.createTempDirectory(
+                    root,
+                    DIRECTORY_NAME + "-",
+                    PosixFilePermissions.asFileAttribute(
+                            PosixFilePermissions.fromString("rwx------")));
+        } else {
+            AclFileAttributeView acl = Files.getFileAttributeView(
+                    root, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+            if (acl == null) {
+                throw new IOException("staging filesystem cannot enforce owner-private permissions: "
+                        + root);
+            }
+            UserPrincipal owner = currentOwner(root);
+            directory = Files.createTempDirectory(
+                    root, DIRECTORY_NAME + "-", ownerOnlyAclAttribute(owner));
+        }
+
         boolean keep = false;
         try {
             if (Files.isSymbolicLink(directory)
                     || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
                 throw new IOException("private staging path is not a real directory: " + directory);
             }
+            observer.created(directory);
             restrictToCurrentOwner(directory);
             keep = true;
             return directory;
@@ -208,6 +226,47 @@ final class AgentJarStaging {
                 Files.deleteIfExists(directory);
             }
         }
+    }
+
+    private static UserPrincipal currentOwner(Path root) throws IOException {
+        UserPrincipalLookupService lookup = root.getFileSystem().getUserPrincipalLookupService();
+        String user = System.getProperty("user.name");
+        if (user == null || user.isBlank()) {
+            throw new IOException("current user is unavailable for private agent staging");
+        }
+        String domain = System.getenv("USERDOMAIN");
+        if (domain != null && !domain.isBlank() && !user.contains("\\")) {
+            try {
+                return lookup.lookupPrincipalByName(domain + "\\" + user);
+            } catch (IOException unavailable) {
+                // Some providers use the short name even for a domain account.
+            }
+        }
+        return lookup.lookupPrincipalByName(user);
+    }
+
+    private static FileAttribute<List<AclEntry>> ownerOnlyAclAttribute(UserPrincipal owner) {
+        List<AclEntry> acl = List.of(ownerOnlyAclEntry(owner));
+        return new FileAttribute<>() {
+            @Override
+            public String name() {
+                return "acl:acl";
+            }
+
+            @Override
+            public List<AclEntry> value() {
+                return acl;
+            }
+        };
+    }
+
+    private static AclEntry ownerOnlyAclEntry(UserPrincipal owner) {
+        return AclEntry.newBuilder()
+                .setType(AclEntryType.ALLOW)
+                .setPrincipal(owner)
+                .setPermissions(EnumSet.allOf(AclEntryPermission.class))
+                .setFlags(AclEntryFlag.FILE_INHERIT, AclEntryFlag.DIRECTORY_INHERIT)
+                .build();
     }
 
     private static void restrictToCurrentOwner(Path directory) throws IOException {
@@ -225,12 +284,37 @@ final class AgentJarStaging {
                     + directory);
         }
         UserPrincipal owner = Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS);
-        AclEntry ownerOnly = AclEntry.newBuilder()
-                .setType(AclEntryType.ALLOW)
-                .setPrincipal(owner)
-                .setPermissions(EnumSet.allOf(AclEntryPermission.class))
-                .setFlags(AclEntryFlag.FILE_INHERIT, AclEntryFlag.DIRECTORY_INHERIT)
-                .build();
-        acl.setAcl(List.of(ownerOnly));
+        acl.setAcl(List.of(ownerOnlyAclEntry(owner)));
+    }
+
+    private static void registerCleanup(Path staged, Path directory) throws IOException {
+        Thread hook = new Thread(
+                () -> {
+                    try {
+                        cleanupStagedCopy(staged, directory);
+                    } catch (IOException ignored) {
+                        // The wrapper is already exiting. A later process can reclaim only this
+                        // unpredictable private directory; never delete a replacement by name here.
+                    }
+                },
+                "preflight-agent-staging-cleanup");
+        try {
+            Runtime.getRuntime().addShutdownHook(hook);
+        } catch (IllegalStateException | SecurityException error) {
+            throw new IOException("could not register staged-agent cleanup", error);
+        }
+    }
+
+    static void cleanupStagedCopy(Path staged, Path directory) throws IOException {
+        if (!staged.getParent().equals(directory)) {
+            throw new IOException("staged agent escaped its private directory: " + staged);
+        }
+        Files.deleteIfExists(staged);
+        Files.deleteIfExists(directory);
+    }
+
+    @FunctionalInterface
+    interface CreationObserver {
+        void created(Path directory) throws IOException;
     }
 }
