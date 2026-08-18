@@ -37,6 +37,7 @@ final class IntegrationMutation {
         AFTER_QUARANTINE,
         BEFORE_PUBLISH,
         AFTER_PUBLISH,
+        AFTER_COMMIT,
         BEFORE_ROLLBACK,
         BEFORE_QUARANTINE_CLEANUP,
         BEFORE_STAGING_CLEANUP
@@ -231,15 +232,26 @@ final class IntegrationMutation {
             this.previous = previous;
         }
 
+        /**
+         * Proves the desired public generation at the semantic commit boundary. Predecessor
+         * quarantine is deliberately retained so a peer publication can still compensate safely.
+         */
         void commit() throws IOException {
             if (committed || rolledBack) return;
             verifyCurrent();
-            if (previous != null) {
-                cleanupQuarantine(previous, review.snapshot(), review.integration());
-                previous = null;
-            }
-            verifyCurrent();
             committed = true;
+            fire(Event.AFTER_COMMIT, review.integration(), normalized(review.integration().path()));
+        }
+
+        /**
+         * Retires an old reviewed generation only after the public publication is committed.
+         * Cleanup failure leaves residue quarantined and does not revoke the public commit.
+         */
+        void cleanupCommitted() throws IOException {
+            if (!committed || rolledBack || previous == null) return;
+            Path quarantined = previous;
+            cleanupQuarantine(quarantined, review.snapshot(), review.integration());
+            previous = null;
         }
 
         void rollback() throws IOException {
